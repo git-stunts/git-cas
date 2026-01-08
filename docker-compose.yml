@@ -1,0 +1,5 @@
+services:
+  test:
+    build: .
+    environment:
+      - GIT_STUNTS_DOCKER=1
