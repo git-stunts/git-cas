@@ -17,6 +17,7 @@
   "author": "James Ross <james@flyingrobots.dev>",
   "license": "Apache-2.0",
   "dependencies": {
+    "cbor-x": "^1.6.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

@@ -17,4 +17,12 @@ export default class GitPersistencePort {
   async writeTree(_entries) {
     throw new Error('Not implemented');
   }
+
+  /**
+   * @param {string} oid
+   * @returns {Promise<Buffer>}
+   */
+  async readBlob(_oid) {
+    throw new Error('Not implemented');
+  }
 }
