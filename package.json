@@ -10,10 +10,12 @@
     "./schema": "./src/domain/schemas/ManifestSchema.js"
   },
   "scripts": {
-    "test": "vitest run test/unit",
+    "test": "sh -c 'if [ \"$GIT_STUNTS_DOCKER\" = \"1\" ]; then vitest run test/unit \"$@\"; else docker compose run --build --rm test npm test -- \"$@\"; fi' --",
+    "benchmark": "sh -c 'if [ \"$GIT_STUNTS_DOCKER\" = \"1\" ]; then vitest bench test/benchmark \"$@\"; else docker compose run --build --rm test npm run benchmark -- \"$@\"; fi' --",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "pretest": "[ \"$GIT_STUNTS_DOCKER\" = \"1\" ] || (echo '🚫 RUN IN DOCKER ONLY' && exit 1)"
+    "test:local": "vitest run test/unit",
+    "benchmark:local": "vitest bench test/benchmark"
   },
   "author": "James Ross <james@flyingrobots.dev>",
   "license": "Apache-2.0",
