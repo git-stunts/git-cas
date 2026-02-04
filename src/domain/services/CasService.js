@@ -77,10 +77,34 @@ export default class CasService {
   }
 
   /**
+   * Validates that an encryption key is a 32-byte Buffer.
+   * @private
+   * @param {*} key
+   * @throws {CasError} INVALID_KEY_TYPE if key is not a Buffer
+   * @throws {CasError} INVALID_KEY_LENGTH if key is not 32 bytes
+   */
+  _validateKey(key) {
+    if (!Buffer.isBuffer(key)) {
+      throw new CasError(
+        'Encryption key must be a Buffer',
+        'INVALID_KEY_TYPE',
+      );
+    }
+    if (key.length !== 32) {
+      throw new CasError(
+        `Encryption key must be 32 bytes, got ${key.length}`,
+        'INVALID_KEY_LENGTH',
+        { expected: 32, actual: key.length },
+      );
+    }
+  }
+
+  /**
    * Encrypts a buffer using AES-256-GCM.
    * Note: kept for small buffer convenience, but use storeFile for large files.
    */
   encrypt({ buffer, key }) {
+    this._validateKey(key);
     const nonce = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, nonce);
     const enc = Buffer.concat([cipher.update(buffer), cipher.final()]);
@@ -129,6 +153,10 @@ export default class CasService {
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
   async storeFile({ filePath, slug, filename, encryptionKey }) {
+    if (encryptionKey) {
+      this._validateKey(encryptionKey);
+    }
+
     const manifestData = {
       slug,
       filename: filename || filePath.split('/').pop(),

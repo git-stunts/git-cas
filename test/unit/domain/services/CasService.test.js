@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import CasService from '../../../../src/domain/services/CasService.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
+import { digestOf } from '../../../helpers/crypto.js';
 
 describe('CasService', () => {
   let service;
@@ -44,8 +45,8 @@ describe('CasService', () => {
       filename: 'test.txt',
       size: 100,
       chunks: [
-        { index: 0, size: 10, blob: 'b1', digest: 'a'.repeat(64) },
-        { index: 1, size: 10, blob: 'b2', digest: 'b'.repeat(64) }
+        { index: 0, size: 10, blob: 'b1', digest: digestOf('chunk-a') },
+        { index: 1, size: 10, blob: 'b2', digest: digestOf('chunk-b') }
       ]
     });
 
@@ -55,8 +56,8 @@ describe('CasService', () => {
     expect(mockPersistence.writeBlob).toHaveBeenCalled(); // For the manifest.json
     expect(mockPersistence.writeTree).toHaveBeenCalledWith(expect.arrayContaining([
       expect.stringContaining('manifest.json'),
-      expect.stringContaining('a'.repeat(64)),
-      expect.stringContaining('b'.repeat(64))
+      expect.stringContaining(digestOf('chunk-a')),
+      expect.stringContaining(digestOf('chunk-b'))
     ]));
   });
 
