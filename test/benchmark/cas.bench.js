@@ -10,8 +10,6 @@ const mockPersistence = {
 };
 
 describe('CasService Benchmarks', () => {
-  const service = new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new JsonCodec() });
-
   bench('service initialization', () => {
     new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new JsonCodec() });
   });

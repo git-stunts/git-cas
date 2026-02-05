@@ -21,9 +21,10 @@ const validManifestData = () => ({
   chunks: [validChunk(0)],
 });
 
-describe('Manifest value-object', () => {
-  // ─── happy path ─────────────────────────────────────────────────────
-
+// ---------------------------------------------------------------------------
+// Creation (happy path + toJSON)
+// ---------------------------------------------------------------------------
+describe('Manifest – creation', () => {
   it('creates a frozen object from valid data', () => {
     const m = new Manifest(validManifestData());
 
@@ -57,9 +58,12 @@ describe('Manifest value-object', () => {
     expect(json.size).toBe(data.size);
     expect(json.chunks).toHaveLength(data.chunks.length);
   });
+});
 
-  // ─── missing / invalid slug ─────────────────────────────────────────
-
+// ---------------------------------------------------------------------------
+// Validation – slug and filename
+// ---------------------------------------------------------------------------
+describe('Manifest – validation (slug and filename)', () => {
   it('throws when slug is missing', () => {
     const data = validManifestData();
     delete data.slug;
@@ -71,16 +75,17 @@ describe('Manifest value-object', () => {
     expect(() => new Manifest(data)).toThrow(/[Ii]nvalid manifest data/);
   });
 
-  // ─── missing / invalid filename ─────────────────────────────────────
-
   it('throws when filename is missing', () => {
     const data = validManifestData();
     delete data.filename;
     expect(() => new Manifest(data)).toThrow(/[Ii]nvalid manifest data/);
   });
+});
 
-  // ─── size validation ────────────────────────────────────────────────
-
+// ---------------------------------------------------------------------------
+// Validation – size and chunks
+// ---------------------------------------------------------------------------
+describe('Manifest – validation (size and chunks)', () => {
   it('throws when size is negative', () => {
     const data = { ...validManifestData(), size: -1 };
     expect(() => new Manifest(data)).toThrow(/[Ii]nvalid manifest data/);
@@ -92,8 +97,6 @@ describe('Manifest value-object', () => {
     expect(m.size).toBe(0);
   });
 
-  // ─── chunks validation ──────────────────────────────────────────────
-
   it('throws when chunks is not an array', () => {
     const data = { ...validManifestData(), chunks: 'not-an-array' };
     expect(() => new Manifest(data)).toThrow(/[Ii]nvalid manifest data/);
@@ -103,8 +106,6 @@ describe('Manifest value-object', () => {
     const data = { ...validManifestData(), chunks: null };
     expect(() => new Manifest(data)).toThrow();
   });
-
-  // ─── missing required fields ────────────────────────────────────────
 
   it('throws when size field is missing entirely', () => {
     const data = validManifestData();

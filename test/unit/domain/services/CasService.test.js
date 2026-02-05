@@ -8,22 +8,33 @@ import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import { digestOf } from '../../../helpers/crypto.js';
 
-describe('CasService', () => {
+/**
+ * Shared factory: builds the standard test fixtures.
+ */
+function setup() {
+  const mockPersistence = {
+    writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    readBlob: vi.fn().mockImplementation((oid) => Promise.resolve(Buffer.from(oid === 'b1' ? 'chunk1' : 'chunk2'))),
+  };
+  const service = new CasService({
+    persistence: mockPersistence,
+    crypto: new NodeCryptoAdapter(),
+    codec: new JsonCodec(),
+    chunkSize: 1024,
+  });
+  return { mockPersistence, service };
+}
+
+// ---------------------------------------------------------------------------
+// store
+// ---------------------------------------------------------------------------
+describe('CasService – store', () => {
   let service;
   let mockPersistence;
 
   beforeEach(() => {
-    mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-      writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
-      readBlob: vi.fn().mockImplementation((oid) => Promise.resolve(Buffer.from(oid === 'b1' ? 'chunk1' : 'chunk2'))),
-    };
-    service = new CasService({
-      persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
-      codec: new JsonCodec(),
-      chunkSize: 1024,
-    });
+    ({ service, mockPersistence } = setup());
   });
 
   it('chunks a file and stores blobs', async () => {
@@ -44,6 +55,18 @@ describe('CasService', () => {
     expect(manifest.size).toBe(2048);
 
     rmSync(tempDir, { recursive: true, force: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createTree
+// ---------------------------------------------------------------------------
+describe('CasService – createTree', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
   });
 
   it('creates a tree from manifest', async () => {
@@ -66,6 +89,17 @@ describe('CasService', () => {
       expect.stringContaining(digestOf('chunk-a')),
       expect.stringContaining(digestOf('chunk-b'))
     ]));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// verifyIntegrity
+// ---------------------------------------------------------------------------
+describe('CasService – verifyIntegrity', () => {
+  let service;
+
+  beforeEach(() => {
+    ({ service } = setup());
   });
 
   it('verifies integrity of chunks', async () => {

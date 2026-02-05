@@ -55,9 +55,9 @@ function tempFile(content) {
 }
 
 // ---------------------------------------------------------------------------
-// Plaintext round trip — JSON codec
+// Plaintext round trip (JSON) – basic
 // ---------------------------------------------------------------------------
-describe('plaintext round trip (JSON)', () => {
+describe('plaintext round trip (JSON) – basic', () => {
   it('10 KB file', async () => {
     const original = randomBytes(10 * 1024);
     const { filePath, dir } = tempFile(original);
@@ -65,7 +65,6 @@ describe('plaintext round trip (JSON)', () => {
     const manifest = await cas.storeFile({ filePath, slug: 'plain-10k' });
     const treeOid = await cas.createTree({ manifest });
 
-    // Read tree back
     const entries = await cas.service.persistence.readTree(treeOid);
     const manifestEntry = entries.find((e) => e.name === 'manifest.json');
     expect(manifestEntry).toBeDefined();
@@ -98,7 +97,12 @@ describe('plaintext round trip (JSON)', () => {
 
     rmSync(dir, { recursive: true, force: true });
   });
+});
 
+// ---------------------------------------------------------------------------
+// Plaintext round trip (JSON) – chunk boundaries
+// ---------------------------------------------------------------------------
+describe('plaintext round trip (JSON) – chunk boundaries', () => {
   it('exact chunkSize file (256 KiB)', async () => {
     const original = randomBytes(256 * 1024);
     const { filePath, dir } = tempFile(original);
@@ -127,9 +131,9 @@ describe('plaintext round trip (JSON)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Encrypted round trip — JSON codec
+// Encrypted round trip (JSON) – success
 // ---------------------------------------------------------------------------
-describe('encrypted round trip (JSON)', () => {
+describe('encrypted round trip (JSON) – success', () => {
   const key = randomBytes(32);
 
   it('10 KB encrypted file', async () => {
@@ -137,33 +141,36 @@ describe('encrypted round trip (JSON)', () => {
     const { filePath, dir } = tempFile(original);
 
     const manifest = await cas.storeFile({
-      filePath,
-      slug: 'enc-10k',
-      encryptionKey: key,
+      filePath, slug: 'enc-10k', encryptionKey: key,
     });
     expect(manifest.encryption).toBeDefined();
     expect(manifest.encryption.encrypted).toBe(true);
 
     const treeOid = await cas.createTree({ manifest });
     const entries = await cas.service.persistence.readTree(treeOid);
-    const manifestEntry = entries.find((e) => e.name === 'manifest.json');
-    const manifestBlob = await cas.service.persistence.readBlob(manifestEntry.oid);
-    const restored = new Manifest(cas.service.codec.decode(manifestBlob));
+    const mEntry = entries.find((e) => e.name === 'manifest.json');
+    const mBlob = await cas.service.persistence.readBlob(mEntry.oid);
+    const restored = new Manifest(cas.service.codec.decode(mBlob));
 
     const { buffer } = await cas.restore({ manifest: restored, encryptionKey: key });
     expect(buffer.equals(original)).toBe(true);
 
     rmSync(dir, { recursive: true, force: true });
   });
+});
+
+// ---------------------------------------------------------------------------
+// Encrypted round trip (JSON) – wrong key
+// ---------------------------------------------------------------------------
+describe('encrypted round trip (JSON) – wrong key', () => {
+  const key = randomBytes(32);
 
   it('wrong key throws INTEGRITY_ERROR', async () => {
     const original = randomBytes(1024);
     const { filePath, dir } = tempFile(original);
 
     const manifest = await cas.storeFile({
-      filePath,
-      slug: 'enc-wrong-key',
-      encryptionKey: key,
+      filePath, slug: 'enc-wrong-key', encryptionKey: key,
     });
 
     const wrongKey = randomBytes(32);
@@ -211,9 +218,7 @@ describe('CBOR codec round trip', () => {
     const { filePath, dir } = tempFile(original);
 
     const manifest = await casCbor.storeFile({
-      filePath,
-      slug: 'cbor-enc',
-      encryptionKey: key,
+      filePath, slug: 'cbor-enc', encryptionKey: key,
     });
 
     const { buffer } = await casCbor.restore({ manifest, encryptionKey: key });
@@ -237,8 +242,7 @@ describe('restoreFile (write to disk)', () => {
     const outPath = path.join(outDir, 'restored.bin');
 
     const { bytesWritten } = await cas.restoreFile({
-      manifest,
-      outputPath: outPath,
+      manifest, outputPath: outPath,
     });
 
     expect(bytesWritten).toBe(original.length);
@@ -264,7 +268,7 @@ describe('fuzz: 50 file sizes around chunk boundaries', () => {
 
     it(`round-trips ${size} bytes (iteration ${i})`, async () => {
       const original = Buffer.alloc(size);
-      for (let b = 0; b < size; b++) original[b] = (i + b) & 0xff;
+      for (let b = 0; b < size; b++) {original[b] = (i + b) & 0xff;}
 
       const { filePath, dir } = tempFile(original);
       const manifest = await cas.storeFile({ filePath, slug: `fuzz-${i}` });

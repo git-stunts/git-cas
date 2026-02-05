@@ -60,7 +60,7 @@ export default class CasService {
         }
       }
     } catch (err) {
-      if (err instanceof CasError) throw err;
+      if (err instanceof CasError) {throw err;}
       throw new CasError(
         `Stream error during store: ${err.message}`,
         'STREAM_ERROR',
@@ -124,7 +124,7 @@ export default class CasService {
     try {
       return this.crypto.decryptBuffer(buffer, key, meta);
     } catch (err) {
-      if (err instanceof CasError) throw err;
+      if (err instanceof CasError) {throw err;}
       throw new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
     }
   }
@@ -191,6 +191,27 @@ export default class CasService {
    * @param {Buffer} [options.encryptionKey]
    * @returns {Promise<{ buffer: Buffer, bytesWritten: number }>}
    */
+  /**
+   * Reads chunk blobs and verifies their SHA-256 digests.
+   * @private
+   */
+  async _readAndVerifyChunks(chunks) {
+    const buffers = [];
+    for (const chunk of chunks) {
+      const blob = await this.persistence.readBlob(chunk.blob);
+      const digest = this._sha256(blob);
+      if (digest !== chunk.digest) {
+        throw new CasError(
+          `Chunk ${chunk.index} integrity check failed`,
+          'INTEGRITY_ERROR',
+          { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
+        );
+      }
+      buffers.push(blob);
+    }
+    return buffers;
+  }
+
   async restore({ manifest, encryptionKey }) {
     if (encryptionKey) {
       this._validateKey(encryptionKey);
@@ -207,20 +228,7 @@ export default class CasService {
       return { buffer: Buffer.alloc(0), bytesWritten: 0 };
     }
 
-    const chunks = [];
-    for (const chunk of manifest.chunks) {
-      const blob = await this.persistence.readBlob(chunk.blob);
-      const digest = this._sha256(blob);
-      if (digest !== chunk.digest) {
-        throw new CasError(
-          `Chunk ${chunk.index} integrity check failed`,
-          'INTEGRITY_ERROR',
-          { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
-        );
-      }
-      chunks.push(blob);
-    }
-
+    const chunks = await this._readAndVerifyChunks(manifest.chunks);
     let buffer = Buffer.concat(chunks);
 
     if (manifest.encryption?.encrypted && encryptionKey) {

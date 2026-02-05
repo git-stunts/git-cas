@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { program } from 'commander';
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '../index.js';
@@ -53,9 +53,9 @@ program
 
       if (opts.tree) {
         const treeOid = await cas.createTree({ manifest });
-        process.stdout.write(treeOid + '\n');
+        process.stdout.write(`${treeOid  }\n`);
       } else {
-        process.stdout.write(JSON.stringify(manifest.toJSON(), null, 2) + '\n');
+        process.stdout.write(`${JSON.stringify(manifest.toJSON(), null, 2)  }\n`);
       }
     } catch (err) {
       process.stderr.write(`error: ${err.message}\n`);
@@ -77,7 +77,7 @@ program
       const raw = readFileSync(opts.manifest, 'utf8');
       const manifest = new Manifest(JSON.parse(raw));
       const treeOid = await cas.createTree({ manifest });
-      process.stdout.write(treeOid + '\n');
+      process.stdout.write(`${treeOid  }\n`);
     } catch (err) {
       process.stderr.write(`error: ${err.message}\n`);
       process.exit(1);
