@@ -24,7 +24,7 @@ Content Addressable Store (CAS) for Git.
 
 ## 📂 Directory Structure
 
-```
+```text
 src/
 ├── domain/
 │   ├── schemas/        # Zod and JSON schemas

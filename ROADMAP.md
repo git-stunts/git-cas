@@ -124,7 +124,7 @@ Return and throw semantics for every public method (current and planned).
 
 ## 5) Milestone Dependency Graph
 
-```
+```text
 M1 Bedrock (v1.1.0)
 │
 v
