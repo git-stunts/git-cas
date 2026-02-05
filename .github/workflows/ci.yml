@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  test-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  test-docker:
+    runs-on: ubuntu-latest
+    needs: [lint, test-unit]
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [node, bun, deno]
+        include:
+          - runtime: node
+            integration_cmd: npx vitest run test/integration
+          - runtime: bun
+            integration_cmd: bunx vitest run test/integration
+          - runtime: deno
+            integration_cmd: deno run -A npm:vitest run test/integration
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build test-${{ matrix.runtime }}
+        run: docker compose build test-${{ matrix.runtime }}
+      - name: Unit tests (${{ matrix.runtime }})
+        run: docker compose run --rm test-${{ matrix.runtime }}
+      - name: Integration tests (${{ matrix.runtime }})
+        run: docker compose run --rm test-${{ matrix.runtime }} ${{ matrix.integration_cmd }}

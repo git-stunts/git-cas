@@ -1,9 +1,12 @@
 {
-  "name": "@git-stunts/cas",
-  "version": "1.0.0",
-  "description": "Git Stunts Lego Block: cas",
+  "name": "@git-stunts/git-cas",
+  "version": "1.2.0",
+  "description": "Content-addressed storage backed by Git's object database, with optional encryption and pluggable codecs",
   "type": "module",
   "main": "index.js",
+  "bin": {
+    "git-cas": "./bin/git-cas.js"
+  },
   "exports": {
     ".": "./index.js",
     "./service": "./src/domain/services/CasService.js",
@@ -15,6 +18,10 @@
     "test:node": "docker compose run --build --rm test-node",
     "test:bun": "docker compose run --build --rm test-bun",
     "test:deno": "docker compose run --build --rm test-deno",
+    "test:integration": "vitest run test/integration",
+    "test:integration:node": "docker compose run --build --rm test-node npx vitest run test/integration",
+    "test:integration:bun": "docker compose run --build --rm test-bun bunx vitest run test/integration",
+    "test:integration:deno": "docker compose run --build --rm test-deno deno run -A npm:vitest run test/integration",
     "test:platforms": "bats --jobs 3 test/platform/runtimes.bats",
     "benchmark": "vitest bench test/benchmark",
     "benchmark:local": "vitest bench test/benchmark",
@@ -27,6 +34,7 @@
     "@git-stunts/alfred": "^0.10.0",
     "@git-stunts/plumbing": "^2.8.0",
     "cbor-x": "^1.6.0",
+    "commander": "^14.0.3",
     "zod": "^3.24.1"
   },
   "devDependencies": {

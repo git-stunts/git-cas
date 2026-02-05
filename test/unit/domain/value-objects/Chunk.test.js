@@ -13,9 +13,10 @@ const validChunkData = () => ({
   digest: sha256('test-chunk-0'),
 });
 
-describe('Chunk value-object', () => {
-  // ─── happy path ─────────────────────────────────────────────────────
-
+// ---------------------------------------------------------------------------
+// Creation (happy path)
+// ---------------------------------------------------------------------------
+describe('Chunk – creation', () => {
   it('creates a frozen object from valid data', () => {
     const c = new Chunk(validChunkData());
 
@@ -30,9 +31,12 @@ describe('Chunk value-object', () => {
     const c = new Chunk({ ...validChunkData(), index: 0 });
     expect(c.index).toBe(0);
   });
+});
 
-  // ─── index validation ──────────────────────────────────────────────
-
+// ---------------------------------------------------------------------------
+// Field validation
+// ---------------------------------------------------------------------------
+describe('Chunk – field validation', () => {
   it('throws when index is negative', () => {
     const data = { ...validChunkData(), index: -1 };
     expect(() => new Chunk(data)).toThrow(/[Ii]nvalid chunk data/);
@@ -43,8 +47,6 @@ describe('Chunk value-object', () => {
     expect(() => new Chunk(data)).toThrow(/[Ii]nvalid chunk data/);
   });
 
-  // ─── size validation ───────────────────────────────────────────────
-
   it('throws when size is 0 (schema requires positive)', () => {
     const data = { ...validChunkData(), size: 0 };
     expect(() => new Chunk(data)).toThrow(/[Ii]nvalid chunk data/);
@@ -54,8 +56,6 @@ describe('Chunk value-object', () => {
     const data = { ...validChunkData(), size: -100 };
     expect(() => new Chunk(data)).toThrow(/[Ii]nvalid chunk data/);
   });
-
-  // ─── digest validation (must be exactly 64 hex chars) ──────────────
 
   it('throws when digest is 63 characters', () => {
     const data = { ...validChunkData(), digest: 'a'.repeat(63) };
@@ -72,15 +72,16 @@ describe('Chunk value-object', () => {
     expect(() => new Chunk(data)).toThrow(/[Ii]nvalid chunk data/);
   });
 
-  // ─── blob validation ───────────────────────────────────────────────
-
   it('throws when blob is empty string', () => {
     const data = { ...validChunkData(), blob: '' };
     expect(() => new Chunk(data)).toThrow(/[Ii]nvalid chunk data/);
   });
+});
 
-  // ─── missing fields ────────────────────────────────────────────────
-
+// ---------------------------------------------------------------------------
+// Missing fields
+// ---------------------------------------------------------------------------
+describe('Chunk – missing fields', () => {
   it('throws when index is missing', () => {
     const data = validChunkData();
     delete data.index;

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import z from 'zod';
 
 export const ChunkSchema = z.object({
   index: z.number().int().min(0),

@@ -25,4 +25,12 @@ export default class GitPersistencePort {
   async readBlob(_oid) {
     throw new Error('Not implemented');
   }
+
+  /**
+   * @param {string} treeOid
+   * @returns {Promise<Array<{ mode: string, type: string, oid: string, name: string }>>}
+   */
+  async readTree(_treeOid) {
+    throw new Error('Not implemented');
+  }
 }
