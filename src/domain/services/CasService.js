@@ -231,7 +231,7 @@ export default class CasService {
     const chunks = await this._readAndVerifyChunks(manifest.chunks);
     let buffer = Buffer.concat(chunks);
 
-    if (manifest.encryption?.encrypted && encryptionKey) {
+    if (manifest.encryption?.encrypted) {
       buffer = this.decrypt({
         buffer,
         key: encryptionKey,
