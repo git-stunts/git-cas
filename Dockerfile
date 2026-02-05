@@ -21,7 +21,7 @@ CMD ["bunx", "vitest", "run", "test/unit"]
 # --- Deno ---
 FROM denoland/deno:latest AS deno
 USER root
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git nodejs npm && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY . .
 RUN deno install --allow-scripts
