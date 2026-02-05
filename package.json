@@ -1,5 +1,5 @@
 {
-  "name": "@git-stunts/cas",
+  "name": "@git-stunts/git-cas",
   "version": "1.2.0",
   "description": "Content-addressed storage backed by Git's object database, with optional encryption and pluggable codecs",
   "type": "module",
