@@ -1,0 +1,35 @@
+{
+  "\$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GitStuntsManifest",
+  "description": "The manifest for a chunked and optionally encrypted asset in Git",
+  "type": "object",
+  "required": ["slug", "filename", "size", "chunks"],
+  "properties": {
+    "slug": { "type": "string" },
+    "filename": { "type": "string" },
+    "size": { "type": "integer" },
+    "chunks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "size", "digest", "blob"],
+        "properties": {
+          "index": { "type": "integer" },
+          "size": { "type": "integer" },
+          "digest": { "type": "string", "description": "SHA-256 hash" },
+          "blob": { "type": "string", "description": "Git OID" }
+        }
+      }
+    },
+    "encryption": {
+      "type": "object",
+      "required": ["algorithm", "nonce", "tag", "encrypted"],
+      "properties": {
+        "algorithm": { "type": "string" },
+        "nonce": { "type": "string", "description": "Base64 encoded" },
+        "tag": { "type": "string", "description": "Base64 encoded" },
+        "encrypted": { "type": "boolean" }
+      }
+    }
+  }
+}

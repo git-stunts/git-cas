@@ -1,0 +1,19 @@
+services:
+  test-node:
+    build:
+      context: .
+      target: node
+    environment:
+      - GIT_STUNTS_DOCKER=1
+  test-bun:
+    build:
+      context: .
+      target: bun
+    environment:
+      - GIT_STUNTS_DOCKER=1
+  test-deno:
+    build:
+      context: .
+      target: deno
+    environment:
+      - GIT_STUNTS_DOCKER=1
