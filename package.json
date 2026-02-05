@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/cas",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Git Stunts Lego Block: cas",
   "type": "module",
   "main": "index.js",
