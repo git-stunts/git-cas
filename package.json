@@ -1,7 +1,7 @@
 {
   "name": "@git-stunts/cas",
   "version": "1.2.0",
-  "description": "Git Stunts Lego Block: cas",
+  "description": "Content-addressed storage backed by Git's object database, with optional encryption and pluggable codecs",
   "type": "module",
   "main": "index.js",
   "bin": {
