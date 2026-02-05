@@ -39,24 +39,33 @@ export default class CasService {
   async _chunkAndStore(source, manifestData) {
     let buffer = Buffer.alloc(0);
 
-    for await (const chunk of source) {
-      buffer = Buffer.concat([buffer, chunk]);
+    try {
+      for await (const chunk of source) {
+        buffer = Buffer.concat([buffer, chunk]);
 
-      while (buffer.length >= this.chunkSize) {
-        const chunkBuf = buffer.slice(0, this.chunkSize);
-        buffer = buffer.slice(this.chunkSize);
+        while (buffer.length >= this.chunkSize) {
+          const chunkBuf = buffer.slice(0, this.chunkSize);
+          buffer = buffer.slice(this.chunkSize);
 
-        const digest = this._sha256(chunkBuf);
-        const blob = await this.persistence.writeBlob(chunkBuf);
+          const digest = this._sha256(chunkBuf);
+          const blob = await this.persistence.writeBlob(chunkBuf);
 
-        manifestData.chunks.push({
-          index: manifestData.chunks.length,
-          size: chunkBuf.length,
-          digest,
-          blob
-        });
-        manifestData.size += chunkBuf.length;
+          manifestData.chunks.push({
+            index: manifestData.chunks.length,
+            size: chunkBuf.length,
+            digest,
+            blob
+          });
+          manifestData.size += chunkBuf.length;
+        }
       }
+    } catch (err) {
+      if (err instanceof CasError) throw err;
+      throw new CasError(
+        `Stream error during store: ${err.message}`,
+        'STREAM_ERROR',
+        { chunksWritten: manifestData.chunks.length, originalError: err },
+      );
     }
 
     // Process remaining buffer
@@ -169,6 +178,53 @@ export default class CasService {
     ];
 
     return await this.persistence.writeTree(treeEntries);
+  }
+
+  /**
+   * Restores a file from its manifest by reading and reassembling chunks.
+   *
+   * If the manifest has encryption metadata, decrypts the reassembled
+   * ciphertext using the provided key.
+   *
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @param {Buffer} [options.encryptionKey]
+   * @returns {Promise<{ buffer: Buffer, bytesWritten: number }>}
+   */
+  async restore({ manifest, encryptionKey }) {
+    if (encryptionKey) {
+      this._validateKey(encryptionKey);
+    }
+
+    if (manifest.chunks.length === 0) {
+      return { buffer: Buffer.alloc(0), bytesWritten: 0 };
+    }
+
+    const chunks = [];
+    for (const chunk of manifest.chunks) {
+      const blob = await this.persistence.readBlob(chunk.blob);
+      const digest = this._sha256(blob);
+      if (digest !== chunk.digest) {
+        throw new CasError(
+          `Chunk ${chunk.index} integrity check failed`,
+          'INTEGRITY_ERROR',
+          { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
+        );
+      }
+      chunks.push(blob);
+    }
+
+    let buffer = Buffer.concat(chunks);
+
+    if (manifest.encryption?.encrypted && encryptionKey) {
+      buffer = this.decrypt({
+        buffer,
+        key: encryptionKey,
+        meta: manifest.encryption,
+      });
+    }
+
+    return { buffer, bytesWritten: buffer.length };
   }
 
   /**

@@ -23,6 +23,7 @@ We use the object database.
 - **Optional AES-256-GCM encryption** store secrets without leaking plaintext into the ODB.
 - **Manifests** a tiny explicit index of chunks + metadata (JSON/CBOR).
 - **Tree output** generates standard Git trees so assets snap into commits cleanly.
+- **Full round-trip** store, tree, and restore — get your bytes back, verified.
 
 **Use it for:** binary assets, build artifacts, model weights, data packs, secret bundles, weird experiments, etc.
 
@@ -43,9 +44,10 @@ const manifest = await cas.storeFile({
 });
 
 // Turn the manifest into a Git tree OID
-const treeOid = cas.createTree({ manifest });
+const treeOid = await cas.createTree({ manifest });
 
-// Now you can point a ref/commit at that tree like a normal Git artifact.
+// Restore later — get your bytes back, integrity-verified
+await cas.restoreFile({ manifest, outputPath: './restored.png' });
 ```
 
 ## CLI (git plugin)
@@ -53,9 +55,21 @@ const treeOid = cas.createTree({ manifest });
 `git-cas` installs as a Git subcommand:
 
 ```bash
-git cas store   ./image.png --slug my-image
-git cas tree    --slug my-image
-git cas restore <tree-oid> --out ./image.png
+# Store a file — prints manifest JSON
+git cas store ./image.png --slug my-image
+
+# Store and get a tree OID directly
+git cas store ./image.png --slug my-image --tree
+
+# Create a tree from an existing manifest
+git cas tree --manifest manifest.json
+
+# Restore from a tree OID
+git cas restore <tree-oid> --out ./restored.png
+
+# Encrypted round-trip (32-byte raw key file)
+git cas store ./secret.bin --slug vault --key-file ./my.key --tree
+git cas restore <tree-oid> --out ./decrypted.bin --key-file ./my.key
 ```
 
 ## Why not Git LFS?

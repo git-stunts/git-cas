@@ -2,7 +2,7 @@
  * @fileoverview Content Addressable Store - Managed blob storage in Git.
  */
 
-import { createReadStream } from 'node:fs';
+import { createReadStream, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import CasService from './src/domain/services/CasService.js';
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';
@@ -93,7 +93,30 @@ export default class ContentAddressableStore {
     return this.service.store(options);
   }
 
+  /**
+   * Restores a file from its manifest and writes it to outputPath.
+   */
+  async restoreFile({ manifest, encryptionKey, outputPath }) {
+    const { buffer, bytesWritten } = await this.service.restore({
+      manifest,
+      encryptionKey,
+    });
+    writeFileSync(outputPath, buffer);
+    return { bytesWritten };
+  }
+
+  /**
+   * Restores a file from its manifest, returning the buffer directly.
+   */
+  async restore(options) {
+    return this.service.restore(options);
+  }
+
   async createTree(options) {
     return this.service.createTree(options);
+  }
+
+  async verifyIntegrity(manifest) {
+    return this.service.verifyIntegrity(manifest);
   }
 }

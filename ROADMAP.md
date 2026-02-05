@@ -9,7 +9,7 @@ This roadmap is structured as:
 3. **Contracts** — Return/throw semantics for all public methods
 4. **Version Plan** — Table mapping versions to milestones
 5. **Milestone Dependency Graph** — ASCII diagram
-6. **Milestones & Task Cards** — 7 milestones, 24 tasks (uniform task card template)
+6. **Milestones & Task Cards** — 7 milestones, 26 tasks (uniform task card template)
 
 ---
 
@@ -106,6 +106,21 @@ Return and throw semantics for every public method (current and planned).
 - **Algorithms:** `pbkdf2` (default), `scrypt` — both Node.js built-ins.
 - **Throws:** Standard Node.js crypto errors on invalid parameters.
 
+### CLI: `git cas store <file> --slug <slug> [--key-file <path>]` *(planned — Task 2.5)*
+- **Output:** Prints manifest JSON to stdout (tree OID if `--tree` flag is passed).
+- **Exit 0:** Store succeeded.
+- **Exit 1:** Store failed (error message to stderr).
+
+### CLI: `git cas tree --slug <slug>` *(planned — Task 2.5)*
+- **Output:** Prints Git tree OID to stdout.
+- **Exit 0:** Tree created.
+- **Exit 1:** Invalid manifest or Git error (message to stderr).
+
+### CLI: `git cas restore <tree-oid> --out <path> [--key-file <path>]` *(planned — Task 2.6)*
+- **Output:** Writes restored file to `--out` path.
+- **Exit 0:** Restore succeeded, prints bytes written to stdout.
+- **Exit 1:** Integrity error, missing manifest, or I/O error (message to stderr).
+
 ---
 
 ## 4) Version Plan
@@ -113,7 +128,7 @@ Return and throw semantics for every public method (current and planned).
 | Version | Milestone | Codename | Theme |
 |--------:|-----------|----------|-------|
 | v1.1.0  | M1        | Bedrock  | Foundation hardening |
-| v1.2.0  | M2        | Boomerang| File retrieval round trip |
+| v1.2.0  | M2        | Boomerang| File retrieval round trip + CLI |
 | v1.3.0  | M3        | Launchpad| CI/CD pipeline |
 | v1.4.0  | M4        | Compass  | Lifecycle management |
 | v1.5.0  | M5        | Sonar    | Observability |
@@ -152,13 +167,13 @@ M3 Launchpad (v1.3.0)   M4 Compass (v1.4.0)
 | #  | Codename      | Theme                      | Version | Tasks | ~LoC   | ~Hours |
 |---:|--------------|----------------------------|:-------:|------:|-------:|------:|
 | M1 | Bedrock       | Foundation hardening       | v1.1.0  | 7     | ~475   | ~6.5h |
-| M2 | Boomerang     | File retrieval round trip  | v1.2.0  | 4     | ~295   | ~9.5h |
+| M2 | Boomerang     | File retrieval round trip + CLI | v1.2.0  | 6     | ~435   | ~14h  |
 | M3 | Launchpad     | CI/CD pipeline             | v1.3.0  | 2     | ~110   | ~4h   |
 | M4 | Compass       | Lifecycle management       | v1.4.0  | 3     | ~180   | ~5.5h |
 | M5 | Sonar         | Observability              | v1.5.0  | 2     | ~210   | ~5.5h |
 | M6 | Cartographer  | Documentation              | v1.6.0  | 3     | ~750   | ~10h  |
 | M7 | Horizon       | Advanced features          | v2.0.0  | 3     | ~450   | ~17h  |
-|    | **Total**     |                            |         | **24**| **~2,470** | **~58h** |
+|    | **Total**     |                            |         | **26**| **~2,610** | **~62.5h** |
 
 ---
 
@@ -535,7 +550,7 @@ As a maintainer, I want error conditions covered by tests so regressions in vali
 ---
 
 # M2 — Boomerang (v1.2.0)
-**Theme:** Complete store→retrieve round trip.
+**Theme:** Complete store→retrieve round trip + CLI.
 
 ---
 
@@ -758,6 +773,132 @@ As a developer, I want storeFile to fail safely on stream errors so partial stor
 
 **Blocked By**
 - Blocked by: None
+
+---
+
+## Task 2.5: CLI scaffold + `store` and `tree` subcommands
+
+**User Story**
+As a developer, I want `git cas store` and `git cas tree` commands so I can use CAS from the terminal without writing Node scripts.
+
+**Requirements**
+- R1: Add `bin/git-cas.js` entry point (Git discovers `git-cas` on PATH for `git cas` subcommands).
+- R2: Add `"bin": { "git-cas": "./bin/git-cas.js" }` to `package.json`.
+- R3: Use a lightweight CLI framework (e.g., `commander`) for subcommand routing.
+- R4: `git cas store <file> --slug <slug> [--key-file <path>] [--tree]`:
+  - Reads the file, calls `storeFile()`.
+  - Prints manifest JSON to stdout by default.
+  - If `--tree` is passed, also calls `createTree()` and prints tree OID.
+  - `--key-file` reads a 32-byte raw key from a file for encryption.
+- R5: `git cas tree --manifest <path>`:
+  - Reads a manifest JSON from file/stdin, calls `createTree()`.
+  - Prints tree OID to stdout.
+- R6: Exit 0 on success, exit 1 on error with message to stderr.
+- R7: `--cwd` flag to set Git working directory (defaults to `.`).
+
+**Acceptance Criteria**
+- AC1: `npx git-cas store ./test.txt --slug test` prints manifest JSON.
+- AC2: `npx git-cas store ./test.txt --slug test --tree` prints tree OID.
+- AC3: `npx git-cas tree --manifest manifest.json` prints tree OID.
+- AC4: Invalid arguments produce helpful usage message and exit 1.
+- AC5: `--key-file` with valid 32-byte file encrypts successfully.
+- AC6: `--key-file` with wrong-size file exits 1 with clear error.
+
+**Scope**
+- In scope: CLI scaffold, store subcommand, tree subcommand, key-file reading.
+- Out of scope: `restore` subcommand (Task 2.6), shell completions, config files.
+
+**Est. Complexity (LoC)**
+- Prod: ~80
+- Tests: ~30
+- Total: ~110
+
+**Est. Human Working Hours**
+- ~3h
+
+**Test Plan**
+- Golden path:
+  - store a file via CLI → valid manifest JSON on stdout.
+  - store with `--tree` → tree OID on stdout.
+  - tree from manifest file → tree OID on stdout.
+- Failures:
+  - missing file → exit 1 with error.
+  - missing `--slug` → exit 1 with usage message.
+  - bad key file → exit 1 with INVALID_KEY_LENGTH/TYPE error.
+- Edges:
+  - 0-byte file store.
+  - manifest piped via stdin (if supported).
+- Fuzz/stress:
+  - None (thin wrapper over tested API).
+
+**Definition of Done**
+- DoD1: `bin/git-cas.js` exists with store and tree subcommands.
+- DoD2: `package.json` declares bin entry.
+- DoD3: `npx git-cas --help` prints usage.
+- DoD4: Integration smoke test passes against real Git repo.
+
+**Blocking**
+- Blocks: Task 2.6
+
+**Blocked By**
+- Blocked by: None
+
+---
+
+## Task 2.6: CLI `restore` subcommand
+
+**User Story**
+As a developer, I want `git cas restore <tree-oid> --out <path>` so I can retrieve stored assets from the terminal.
+
+**Requirements**
+- R1: `git cas restore <tree-oid> --out <path> [--key-file <path>]`:
+  - Reads the tree, extracts the manifest, restores the file to `--out`.
+  - Prints bytes written to stdout on success.
+  - `--key-file` supplies decryption key for encrypted assets.
+- R2: Exit 0 on success, exit 1 on error (INTEGRITY_ERROR, MANIFEST_NOT_FOUND, etc.) with message to stderr.
+- R3: Requires `restoreFile()` (Task 2.1) and `readManifest()` or equivalent tree-reading capability.
+
+**Acceptance Criteria**
+- AC1: `npx git-cas restore <oid> --out ./restored.txt` writes correct file.
+- AC2: Encrypted asset with `--key-file` restores correctly.
+- AC3: Wrong key exits 1 with INTEGRITY_ERROR message.
+- AC4: Invalid tree OID exits 1 with clear error.
+
+**Scope**
+- In scope: restore subcommand wired to restoreFile API.
+- Out of scope: Streaming output to stdout, partial restore, resume.
+
+**Est. Complexity (LoC)**
+- Prod: ~30
+- Tests: ~20
+- Total: ~50
+
+**Est. Human Working Hours**
+- ~1.5h
+
+**Test Plan**
+- Golden path:
+  - store → tree → restore → byte-compare original.
+  - encrypted store → tree → restore with key → byte-compare.
+- Failures:
+  - wrong key → exit 1 INTEGRITY_ERROR.
+  - nonexistent tree OID → exit 1.
+  - missing `--out` → exit 1 with usage.
+- Edges:
+  - 0-byte file round-trip via CLI.
+- Fuzz/stress:
+  - None (thin wrapper over tested API).
+
+**Definition of Done**
+- DoD1: `restore` subcommand added to `bin/git-cas.js`.
+- DoD2: Full CLI round-trip (store → tree → restore) documented and tested.
+- DoD3: README CLI section is now accurate and deliverable.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: Task 2.1, Task 2.5
 
 ---
 
