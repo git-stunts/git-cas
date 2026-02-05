@@ -157,6 +157,14 @@ describe('CasService – stream error recovery (STREAM_ERROR)', () => {
       const failAfter = i;
 
       it(`STREAM_ERROR with chunksWritten=${failAfter} (iteration ${i})`, async () => {
+        await expect(
+          service.store({
+            source: failingSource(failAfter),
+            slug: `fuzz-${i}`,
+            filename: 'fuzz.bin',
+          }),
+        ).rejects.toThrow(CasError);
+
         try {
           await service.store({
             source: failingSource(failAfter),
@@ -164,7 +172,6 @@ describe('CasService – stream error recovery (STREAM_ERROR)', () => {
             filename: 'fuzz.bin',
           });
         } catch (err) {
-          expect(err).toBeInstanceOf(CasError);
           expect(err.code).toBe('STREAM_ERROR');
           expect(err.meta.chunksWritten).toBe(failAfter);
         }

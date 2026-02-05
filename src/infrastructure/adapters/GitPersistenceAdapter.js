@@ -58,36 +58,36 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
   async readTree(treeOid) {
     return this.policy.execute(async () => {
       const output = await this.plumbing.execute({
-        args: ['ls-tree', treeOid],
+        args: ['ls-tree', '-z', treeOid],
       });
 
-      if (!output || output.trim() === '') {
+      if (!output || output.length === 0) {
         return [];
       }
 
-      return output.trim().split('\n').map((line) => {
+      return output.split('\0').filter(Boolean).map((entry) => {
         // Format: <mode> <type> <oid>\t<name>
-        const tabIndex = line.indexOf('\t');
+        const tabIndex = entry.indexOf('\t');
         if (tabIndex === -1) {
           throw new CasError(
-            `Malformed ls-tree line: ${line}`,
+            `Malformed ls-tree entry: ${entry}`,
             'TREE_PARSE_ERROR',
-            { line },
+            { rawEntry: entry },
           );
         }
-        const meta = line.slice(0, tabIndex).split(' ');
+        const meta = entry.slice(0, tabIndex).split(' ');
         if (meta.length !== 3) {
           throw new CasError(
-            `Malformed ls-tree line: ${line}`,
+            `Malformed ls-tree entry: ${entry}`,
             'TREE_PARSE_ERROR',
-            { line },
+            { rawEntry: entry },
           );
         }
         return {
           mode: meta[0],
           type: meta[1],
           oid: meta[2],
-          name: line.slice(tabIndex + 1),
+          name: entry.slice(tabIndex + 1),
         };
       });
     });

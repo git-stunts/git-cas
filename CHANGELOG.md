@@ -12,15 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ContentAddressableStore.restoreFile()` — facade method that restores and writes to disk.
 - `readTree()` on `GitPersistencePort` / `GitPersistenceAdapter` — parse Git trees via `ls-tree`.
 - `STREAM_ERROR` wrapping — stream failures during `store()` surface as `CasError('STREAM_ERROR')` with `{ chunksWritten }` metadata.
+- `MISSING_KEY` error code — `restore()` now fails fast when manifest is encrypted but no decryption key is provided.
 - CLI: `git cas store`, `git cas tree`, `git cas restore` subcommands via `bin/git-cas.js`.
 - Integration test suite (59 tests) running against real Git bare repos inside Docker.
 - `commander` dependency for CLI.
 
 ### Changed
 - `readBlob()` now normalises `Uint8Array` from plumbing into `Buffer` for codec/crypto compatibility.
+- `readTree()` uses `git ls-tree -z` (NUL-delimited output) for safe parsing of filenames with leading/trailing spaces.
 
 ### Fixed
-- None.
+- Fuzz tests in stream-error suite now fail explicitly if `store()` does not throw.
+- ROADMAP: resolved inconsistent CLI signatures for `git cas tree` (`--slug` vs `--manifest`).
 
 ### Security
 - None.

@@ -24,7 +24,7 @@ describe('GitPersistenceAdapter.readTree()', () => {
       '100644 blob abc123def456\tmanifest.json',
       '100644 blob deadbeef1234\t' + 'a'.repeat(64),
       '100644 blob cafebabe5678\t' + 'b'.repeat(64),
-    ].join('\n');
+    ].join('\0');
 
     const adapter = new GitPersistenceAdapter({
       plumbing: mockPlumbing(output),
@@ -67,9 +67,9 @@ describe('GitPersistenceAdapter.readTree()', () => {
     expect(entries).toEqual([]);
   });
 
-  it('returns [] for whitespace-only output', async () => {
+  it('returns [] for NUL-only output', async () => {
     const adapter = new GitPersistenceAdapter({
-      plumbing: mockPlumbing('   \n'),
+      plumbing: mockPlumbing('\0'),
       policy: noPolicy,
     });
 
@@ -81,7 +81,7 @@ describe('GitPersistenceAdapter.readTree()', () => {
   // Filename with spaces (tab delimiter)
   // ---------------------------------------------------------------------------
   it('handles filenames with spaces', async () => {
-    const output = '100644 blob abc123\tfile with spaces.txt';
+    const output = '100644 blob abc123\tfile with spaces.txt\0';
     const adapter = new GitPersistenceAdapter({
       plumbing: mockPlumbing(output),
       policy: noPolicy,
@@ -94,8 +94,8 @@ describe('GitPersistenceAdapter.readTree()', () => {
   // ---------------------------------------------------------------------------
   // Malformed output
   // ---------------------------------------------------------------------------
-  it('throws TREE_PARSE_ERROR when line has no tab', async () => {
-    const output = '100644 blob abc123 no-tab-here';
+  it('throws TREE_PARSE_ERROR when entry has no tab', async () => {
+    const output = '100644 blob abc123 no-tab-here\0';
     const adapter = new GitPersistenceAdapter({
       plumbing: mockPlumbing(output),
       policy: noPolicy,
@@ -110,7 +110,7 @@ describe('GitPersistenceAdapter.readTree()', () => {
   });
 
   it('throws TREE_PARSE_ERROR when metadata has wrong number of fields', async () => {
-    const output = '100644 blob\tmanifest.json'; // only 2 fields before tab
+    const output = '100644 blob\tmanifest.json\0'; // only 2 fields before tab
     const adapter = new GitPersistenceAdapter({
       plumbing: mockPlumbing(output),
       policy: noPolicy,
@@ -133,7 +133,7 @@ describe('GitPersistenceAdapter.readTree()', () => {
       const oid = i.toString(16).padStart(40, '0');
       lines.push(`100644 blob ${oid}\tchunk-${i}`);
     }
-    const output = lines.join('\n');
+    const output = lines.join('\0');
 
     const adapter = new GitPersistenceAdapter({
       plumbing: mockPlumbing(output),

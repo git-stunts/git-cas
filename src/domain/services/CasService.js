@@ -196,6 +196,13 @@ export default class CasService {
       this._validateKey(encryptionKey);
     }
 
+    if (manifest.encryption?.encrypted && !encryptionKey) {
+      throw new CasError(
+        'Encryption key required to restore encrypted content',
+        'MISSING_KEY',
+      );
+    }
+
     if (manifest.chunks.length === 0) {
       return { buffer: Buffer.alloc(0), bytesWritten: 0 };
     }

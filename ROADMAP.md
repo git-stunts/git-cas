@@ -42,6 +42,7 @@ Single registry of all error codes used across the codebase. Each code is a stri
 | `INVALID_KEY_TYPE` | Encryption key is not a Buffer. | Task 1.3 |
 | `INTEGRITY_ERROR` | Decryption auth-tag verification failed (wrong key, tampered ciphertext, or tampered tag), or chunk digest mismatch on restore. | Exists (decrypt); extended by Task 1.6, Task 2.1 |
 | `STREAM_ERROR` | Read stream failed during `storeFile`. Partial chunks may have been written to Git ODB (unreachable; handled by `git gc`). Meta includes `{ chunksWritten: <number> }`. | Task 2.4 |
+| `MISSING_KEY` | Encryption key required to restore encrypted content but none was provided. | Task 2.1 |
 | `TREE_PARSE_ERROR` | `git ls-tree` output could not be parsed into valid entries. | Task 2.2 |
 | `MANIFEST_NOT_FOUND` | No manifest entry (e.g. `manifest.json` / `manifest.cbor`) found in the Git tree. | Task 4.1 |
 | `GIT_ERROR` | Underlying Git plumbing command failed. Wraps the original error from the plumbing layer. | Task 2.2, Task 4.1 |
@@ -107,11 +108,11 @@ Return and throw semantics for every public method (current and planned).
 - **Throws:** Standard Node.js crypto errors on invalid parameters.
 
 ### CLI: `git cas store <file> --slug <slug> [--key-file <path>]` *(planned — Task 2.5)*
-- **Output:** Prints manifest JSON to stdout (tree OID if `--tree` flag is passed).
+- **Output:** Prints manifest JSON to stdout. If `--tree` is passed, prints only the Git tree OID instead.
 - **Exit 0:** Store succeeded.
 - **Exit 1:** Store failed (error message to stderr).
 
-### CLI: `git cas tree --slug <slug>` *(planned — Task 2.5)*
+### CLI: `git cas tree --manifest <path>` *(planned — Task 2.5)*
 - **Output:** Prints Git tree OID to stdout.
 - **Exit 0:** Tree created.
 - **Exit 1:** Invalid manifest or Git error (message to stderr).
