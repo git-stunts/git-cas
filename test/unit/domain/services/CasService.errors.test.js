@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createHash } from 'node:crypto';
-import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { createReadStream, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import CasService from '../../../../src/domain/services/CasService.js';
+import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 
 /** Deterministic SHA-256 hex digest for a given string. */
@@ -25,37 +27,41 @@ describe('CasService – error paths', () => {
   describe('constructor – chunkSize validation', () => {
     it('throws when chunkSize is 0', () => {
       expect(
-        () => new CasService({ persistence: mockPersistence, chunkSize: 0 }),
+        () => new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new JsonCodec(), chunkSize: 0 }),
       ).toThrow('Chunk size must be at least 1024 bytes');
     });
 
     it('throws when chunkSize is 512', () => {
       expect(
-        () => new CasService({ persistence: mockPersistence, chunkSize: 512 }),
+        () => new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new JsonCodec(), chunkSize: 512 }),
       ).toThrow('Chunk size must be at least 1024 bytes');
     });
 
     it('accepts chunkSize of exactly 1024', () => {
       const service = new CasService({
         persistence: mockPersistence,
+        crypto: new NodeCryptoAdapter(),
+        codec: new JsonCodec(),
         chunkSize: 1024,
       });
       expect(service.chunkSize).toBe(1024);
     });
   });
 
-  // ─── storeFile – nonexistent file ───────────────────────────────────
+  // ─── store – nonexistent file ───────────────────────────────────
 
-  describe('storeFile', () => {
-    it('rejects when filePath does not exist', async () => {
+  describe('store', () => {
+    it('rejects when source stream errors (nonexistent file)', async () => {
       const service = new CasService({
         persistence: mockPersistence,
+        crypto: new NodeCryptoAdapter(),
+        codec: new JsonCodec(),
         chunkSize: 1024,
       });
 
       await expect(
-        service.storeFile({
-          filePath: '/no/such/file.bin',
+        service.store({
+          source: createReadStream('/no/such/file.bin'),
           slug: 'bad-path',
           filename: 'file.bin',
         }),
@@ -77,6 +83,8 @@ describe('CasService – error paths', () => {
 
       const service = new CasService({
         persistence: mockPersistence,
+        crypto: new NodeCryptoAdapter(),
+        codec: new JsonCodec(),
         chunkSize: 1024,
       });
 
@@ -105,6 +113,8 @@ describe('CasService – error paths', () => {
     it('throws when manifest is not a valid Manifest object', async () => {
       const service = new CasService({
         persistence: mockPersistence,
+        crypto: new NodeCryptoAdapter(),
+        codec: new JsonCodec(),
         chunkSize: 1024,
       });
 
@@ -117,6 +127,8 @@ describe('CasService – error paths', () => {
     it('throws when manifest.toJSON is not a function', async () => {
       const service = new CasService({
         persistence: mockPersistence,
+        crypto: new NodeCryptoAdapter(),
+        codec: new JsonCodec(),
         chunkSize: 1024,
       });
 

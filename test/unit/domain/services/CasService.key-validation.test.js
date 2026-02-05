@@ -1,9 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { randomBytes } from 'node:crypto';
-import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, rmSync, createReadStream } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import CasService from '../../../../src/domain/services/CasService.js';
+import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 
 describe('CasService key validation', () => {
@@ -16,7 +18,12 @@ describe('CasService key validation', () => {
       writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
       readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
     };
-    service = new CasService({ persistence: mockPersistence, chunkSize: 1024 });
+    service = new CasService({
+      persistence: mockPersistence,
+      crypto: new NodeCryptoAdapter(),
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+    });
   });
 
   describe('encrypt() key validation', () => {
@@ -101,7 +108,7 @@ describe('CasService key validation', () => {
     });
   });
 
-  describe('storeFile() key validation', () => {
+  describe('store() key validation', () => {
     let tempDir;
     let filePath;
 
@@ -111,67 +118,66 @@ describe('CasService key validation', () => {
       writeFileSync(filePath, 'test content');
     });
 
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    /** Dummy async iterable that yields nothing — avoids opening a real fd. */
+    async function* emptySource() {}
+
     it('accepts a 32-byte Buffer encryptionKey', async () => {
       const key = Buffer.alloc(32, 0xbb);
       await expect(
-        service.storeFile({ filePath, slug: 's', filename: 'f.txt', encryptionKey: key }),
+        service.store({ source: createReadStream(filePath), slug: 's', filename: 'f.txt', encryptionKey: key }),
       ).resolves.toBeDefined();
-      rmSync(tempDir, { recursive: true, force: true });
     });
 
     it('accepts crypto.randomBytes(32) as encryptionKey', async () => {
       const key = randomBytes(32);
       await expect(
-        service.storeFile({ filePath, slug: 's', filename: 'f.txt', encryptionKey: key }),
+        service.store({ source: createReadStream(filePath), slug: 's', filename: 'f.txt', encryptionKey: key }),
       ).resolves.toBeDefined();
-      rmSync(tempDir, { recursive: true, force: true });
     });
 
     it('stores without error when no encryptionKey is provided', async () => {
       await expect(
-        service.storeFile({ filePath, slug: 's', filename: 'f.txt' }),
+        service.store({ source: createReadStream(filePath), slug: 's', filename: 'f.txt' }),
       ).resolves.toBeDefined();
-      rmSync(tempDir, { recursive: true, force: true });
     });
 
     it('throws INVALID_KEY_LENGTH for a 16-byte encryptionKey', async () => {
       const key = Buffer.alloc(16);
       await expect(
-        service.storeFile({ filePath, slug: 's', filename: 'f.txt', encryptionKey: key }),
+        service.store({ source: emptySource(), slug: 's', filename: 'f.txt', encryptionKey: key }),
       ).rejects.toThrow(CasError);
-      rmSync(tempDir, { recursive: true, force: true });
     });
 
     it('throws INVALID_KEY_LENGTH for a 64-byte encryptionKey', async () => {
       const key = Buffer.alloc(64);
       await expect(
-        service.storeFile({ filePath, slug: 's', filename: 'f.txt', encryptionKey: key }),
+        service.store({ source: emptySource(), slug: 's', filename: 'f.txt', encryptionKey: key }),
       ).rejects.toThrow(CasError);
-      rmSync(tempDir, { recursive: true, force: true });
     });
 
     it('throws INVALID_KEY_TYPE for a string encryptionKey', async () => {
       const key = 'string-key';
       await expect(
-        service.storeFile({ filePath, slug: 's', filename: 'f.txt', encryptionKey: key }),
+        service.store({ source: emptySource(), slug: 's', filename: 'f.txt', encryptionKey: key }),
       ).rejects.toThrow(CasError);
-      rmSync(tempDir, { recursive: true, force: true });
     });
 
     it('throws INVALID_KEY_TYPE for a number encryptionKey', async () => {
       const key = 42;
       await expect(
-        service.storeFile({ filePath, slug: 's', filename: 'f.txt', encryptionKey: key }),
+        service.store({ source: emptySource(), slug: 's', filename: 'f.txt', encryptionKey: key }),
       ).rejects.toThrow(CasError);
-      rmSync(tempDir, { recursive: true, force: true });
     });
 
     it('does not throw for null encryptionKey (treated as no key)', async () => {
-      // null is falsy, so storeFile skips validation entirely
+      // null is falsy, so store skips validation entirely
       await expect(
-        service.storeFile({ filePath, slug: 's', filename: 'f.txt', encryptionKey: null }),
+        service.store({ source: createReadStream(filePath), slug: 's', filename: 'f.txt', encryptionKey: null }),
       ).resolves.toBeDefined();
-      rmSync(tempDir, { recursive: true, force: true });
     });
   });
 

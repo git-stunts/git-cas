@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, rmSync, createReadStream } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import CasService from '../../../../src/domain/services/CasService.js';
+import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import { digestOf } from '../../../helpers/crypto.js';
 
@@ -16,7 +18,12 @@ describe('CasService', () => {
       writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
       readBlob: vi.fn().mockImplementation((oid) => Promise.resolve(Buffer.from(oid === 'b1' ? 'chunk1' : 'chunk2'))),
     };
-    service = new CasService({ persistence: mockPersistence, chunkSize: 1024 });
+    service = new CasService({
+      persistence: mockPersistence,
+      crypto: new NodeCryptoAdapter(),
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+    });
   });
 
   it('chunks a file and stores blobs', async () => {
@@ -26,16 +33,16 @@ describe('CasService', () => {
     const content = 'A'.repeat(2048);
     writeFileSync(filePath, content);
 
-    const manifest = await service.storeFile({ 
-      filePath, 
+    const manifest = await service.store({
+      source: createReadStream(filePath),
       slug: 'test-slug',
-      filename: 'test.txt'
+      filename: 'test.txt',
     });
 
     expect(manifest.chunks).toHaveLength(2);
     expect(mockPersistence.writeBlob).toHaveBeenCalledTimes(2);
     expect(manifest.size).toBe(2048);
-    
+
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -51,7 +58,7 @@ describe('CasService', () => {
     });
 
     const treeOid = await service.createTree({ manifest });
-    
+
     expect(treeOid).toBe('mock-tree-oid');
     expect(mockPersistence.writeBlob).toHaveBeenCalled(); // For the manifest.json
     expect(mockPersistence.writeTree).toHaveBeenCalledWith(expect.arrayContaining([

@@ -10,16 +10,21 @@
     "./schema": "./src/domain/schemas/ManifestSchema.js"
   },
   "scripts": {
-    "test": "sh -c 'if [ \"$GIT_STUNTS_DOCKER\" = \"1\" ]; then vitest run test/unit \"$@\"; else docker compose run --build --rm test npm test -- \"$@\"; fi' --",
-    "benchmark": "sh -c 'if [ \"$GIT_STUNTS_DOCKER\" = \"1\" ]; then vitest bench test/benchmark \"$@\"; else docker compose run --build --rm test npm run benchmark -- \"$@\"; fi' --",
-    "lint": "eslint .",
-    "format": "prettier --write .",
+    "test": "vitest run test/unit",
     "test:local": "vitest run test/unit",
-    "benchmark:local": "vitest bench test/benchmark"
+    "test:node": "docker compose run --build --rm test-node",
+    "test:bun": "docker compose run --build --rm test-bun",
+    "test:deno": "docker compose run --build --rm test-deno",
+    "test:platforms": "bats --jobs 3 test/platform/runtimes.bats",
+    "benchmark": "vitest bench test/benchmark",
+    "benchmark:local": "vitest bench test/benchmark",
+    "lint": "eslint .",
+    "format": "prettier --write ."
   },
   "author": "James Ross <james@flyingrobots.dev>",
   "license": "Apache-2.0",
   "dependencies": {
+    "@git-stunts/alfred": "^0.10.0",
     "@git-stunts/plumbing": "^2.8.0",
     "cbor-x": "^1.6.0",
     "zod": "^3.24.1"

@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, rmSync, createReadStream } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import CasService from '../../../../src/domain/services/CasService.js';
+import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 
 describe('CasService – empty (0-byte) file handling', () => {
   let service;
@@ -16,7 +18,12 @@ describe('CasService – empty (0-byte) file handling', () => {
       writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
       readBlob: vi.fn().mockResolvedValue(Buffer.alloc(0)),
     };
-    service = new CasService({ persistence: mockPersistence, chunkSize: 1024 });
+    service = new CasService({
+      persistence: mockPersistence,
+      crypto: new NodeCryptoAdapter(),
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+    });
     tempDir = mkdtempSync(path.join(os.tmpdir(), 'cas-empty-'));
   });
 
@@ -39,8 +46,8 @@ describe('CasService – empty (0-byte) file handling', () => {
   it('stores a 0-byte file and produces a manifest with size=0 and no chunks', async () => {
     const filePath = emptyFile();
 
-    const manifest = await service.storeFile({
-      filePath,
+    const manifest = await service.store({
+      source: createReadStream(filePath),
       slug: 'empty-slug',
       filename: 'empty.bin',
     });
@@ -59,8 +66,8 @@ describe('CasService – empty (0-byte) file handling', () => {
     const filePath = emptyFile();
     const encryptionKey = randomBytes(32);
 
-    const manifest = await service.storeFile({
-      filePath,
+    const manifest = await service.store({
+      source: createReadStream(filePath),
       slug: 'enc-empty',
       filename: 'empty-enc.bin',
       encryptionKey,
@@ -93,13 +100,13 @@ describe('CasService – empty (0-byte) file handling', () => {
   it('does not call writeBlob for chunk data when storing a plain 0-byte file', async () => {
     const filePath = emptyFile();
 
-    await service.storeFile({
-      filePath,
+    await service.store({
+      source: createReadStream(filePath),
       slug: 'no-blobs',
       filename: 'empty.bin',
     });
 
-    // writeBlob must not have been called at all during storeFile
+    // writeBlob must not have been called at all during store
     // (it is only called inside _chunkAndStore for chunk data).
     expect(mockPersistence.writeBlob).not.toHaveBeenCalled();
   });
@@ -107,13 +114,13 @@ describe('CasService – empty (0-byte) file handling', () => {
   it('calls writeBlob exactly once (for the manifest) when createTree follows a plain 0-byte store', async () => {
     const filePath = emptyFile();
 
-    const manifest = await service.storeFile({
-      filePath,
+    const manifest = await service.store({
+      source: createReadStream(filePath),
       slug: 'tree-empty',
       filename: 'empty.bin',
     });
 
-    // Reset call count after storeFile (which should be 0 already).
+    // Reset call count after store (which should be 0 already).
     mockPersistence.writeBlob.mockClear();
 
     await service.createTree({ manifest });
@@ -131,11 +138,10 @@ describe('CasService – empty (0-byte) file handling', () => {
   // 4. 100 repeated empty-file stores — no state leakage
   // ---------------------------------------------------------------
   it('handles 100 repeated empty-file stores without state leakage', async () => {
-    const filePath = emptyFile();
-
     for (let i = 0; i < 100; i++) {
-      const manifest = await service.storeFile({
-        filePath,
+      const filePath = emptyFile(`empty-${i}.bin`);
+      const manifest = await service.store({
+        source: createReadStream(filePath),
         slug: `iter-${i}`,
         filename: 'empty.bin',
       });

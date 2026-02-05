@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { randomBytes } from 'node:crypto';
 import CasService from '../../../../src/domain/services/CasService.js';
+import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 
 describe('CasService encryption round-trip', () => {
@@ -13,7 +15,12 @@ describe('CasService encryption round-trip', () => {
       writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
       readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
     };
-    service = new CasService({ persistence: mockPersistence, chunkSize: 1024 });
+    service = new CasService({
+      persistence: mockPersistence,
+      crypto: new NodeCryptoAdapter(),
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+    });
   });
 
   // ---------------------------------------------------------------------------

@@ -1,8 +1,4 @@
-import { createHash, createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { createReadStream } from 'node:fs';
-import { Readable } from 'node:stream';
 import Manifest from '../value-objects/Manifest.js';
-import JsonCodec from '../../infrastructure/codecs/JsonCodec.js';
 import CasError from '../errors/CasError.js';
 
 /**
@@ -12,15 +8,17 @@ export default class CasService {
   /**
    * @param {Object} options
    * @param {import('../../ports/GitPersistencePort.js').default} options.persistence
-   * @param {import('../../ports/CodecPort.js').default} [options.codec]
+   * @param {import('../../ports/CodecPort.js').default} options.codec
+   * @param {import('../../ports/CryptoPort.js').default} options.crypto
    * @param {number} [options.chunkSize=262144] - 256 KiB
    */
-  constructor({ persistence, codec = new JsonCodec(), chunkSize = 256 * 1024 }) {
+  constructor({ persistence, codec, crypto, chunkSize = 256 * 1024 }) {
     if (chunkSize < 1024) {
       throw new Error('Chunk size must be at least 1024 bytes');
     }
     this.persistence = persistence;
     this.codec = codec;
+    this.crypto = crypto;
     this.chunkSize = chunkSize;
   }
 
@@ -29,33 +27,33 @@ export default class CasService {
    * @private
    */
   _sha256(buf) {
-    return createHash('sha256').update(buf).digest('hex');
+    return this.crypto.sha256(buf);
   }
 
   /**
-   * Helper to process a stream into chunks and store them.
+   * Helper to process an async iterable into chunks and store them.
    * @private
-   * @param {Readable} stream
+   * @param {AsyncIterable<Buffer>} source
    * @param {Object} manifestData
    */
-  async _chunkAndStore(stream, manifestData) {
+  async _chunkAndStore(source, manifestData) {
     let buffer = Buffer.alloc(0);
-    
-    for await (const chunk of stream) {
+
+    for await (const chunk of source) {
       buffer = Buffer.concat([buffer, chunk]);
-      
+
       while (buffer.length >= this.chunkSize) {
         const chunkBuf = buffer.slice(0, this.chunkSize);
         buffer = buffer.slice(this.chunkSize);
-        
+
         const digest = this._sha256(chunkBuf);
         const blob = await this.persistence.writeBlob(chunkBuf);
-        
+
         manifestData.chunks.push({
-          index: manifestData.chunks.length, 
-          size: chunkBuf.length, 
-          digest, 
-          blob 
+          index: manifestData.chunks.length,
+          size: chunkBuf.length,
+          digest,
+          blob
         });
         manifestData.size += chunkBuf.length;
       }
@@ -65,12 +63,12 @@ export default class CasService {
     if (buffer.length > 0) {
       const digest = this._sha256(buffer);
       const blob = await this.persistence.writeBlob(buffer);
-      
+
       manifestData.chunks.push({
-        index: manifestData.chunks.length, 
-        size: buffer.length, 
+        index: manifestData.chunks.length,
+        size: buffer.length,
         digest,
-        blob 
+        blob
       });
       manifestData.size += buffer.length;
     }
@@ -101,23 +99,10 @@ export default class CasService {
 
   /**
    * Encrypts a buffer using AES-256-GCM.
-   * Note: kept for small buffer convenience, but use storeFile for large files.
    */
   encrypt({ buffer, key }) {
     this._validateKey(key);
-    const nonce = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', key, nonce);
-    const enc = Buffer.concat([cipher.update(buffer), cipher.final()]);
-    const tag = cipher.getAuthTag();
-    return {
-      buf: enc,
-      meta: {
-        algorithm: 'aes-256-gcm',
-        nonce: nonce.toString('base64'),
-        tag: tag.toString('base64'),
-        encrypted: true,
-      },
-    };
+    return this.crypto.encryptBuffer(buffer, key);
   }
 
   /**
@@ -127,65 +112,45 @@ export default class CasService {
     if (!meta?.encrypted) {
       return buffer;
     }
-    const nonce = Buffer.from(meta.nonce, 'base64');
-    const tag = Buffer.from(meta.tag, 'base64');
-    const decipher = createDecipheriv('aes-256-gcm', key, nonce);
-    decipher.setAuthTag(tag);
-    
     try {
-      return Buffer.concat([decipher.update(buffer), decipher.final()]);
+      return this.crypto.decryptBuffer(buffer, key, meta);
     } catch (err) {
+      if (err instanceof CasError) throw err;
       throw new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
     }
   }
 
   /**
-   * Chunks a file and stores it in Git.
-   * 
+   * Chunks an async iterable source and stores it in Git.
+   *
    * If `encryptionKey` is provided, the content (and manifest) will be encrypted
    * using AES-256-GCM, and the `encryption` field in the manifest will be populated.
-   * 
+   *
    * @param {Object} options
-   * @param {string} options.filePath
+   * @param {AsyncIterable<Buffer>} options.source
    * @param {string} options.slug
    * @param {string} options.filename
    * @param {Buffer} [options.encryptionKey]
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
-  async storeFile({ filePath, slug, filename, encryptionKey }) {
+  async store({ source, slug, filename, encryptionKey }) {
     if (encryptionKey) {
       this._validateKey(encryptionKey);
     }
 
     const manifestData = {
       slug,
-      filename: filename || filePath.split('/').pop(),
+      filename,
       size: 0,
       chunks: [],
     };
 
-    const inputStream = createReadStream(filePath);
-
     if (encryptionKey) {
-      const nonce = randomBytes(12);
-      const cipher = createCipheriv('aes-256-gcm', encryptionKey, nonce);
-      
-      // Pipe input through cipher
-      const encryptedStream = inputStream.pipe(cipher);
-      
-      await this._chunkAndStore(encryptedStream, manifestData);
-      
-      // Get auth tag after stream ends
-      const tag = cipher.getAuthTag();
-      
-      manifestData.encryption = {
-        algorithm: 'aes-256-gcm',
-        nonce: nonce.toString('base64'),
-        tag: tag.toString('base64'),
-        encrypted: true,
-      };
+      const { encrypt, finalize } = this.crypto.createEncryptionStream(encryptionKey);
+      await this._chunkAndStore(encrypt(source), manifestData);
+      manifestData.encryption = finalize();
     } else {
-      await this._chunkAndStore(inputStream, manifestData);
+      await this._chunkAndStore(source, manifestData);
     }
 
     return new Manifest(manifestData);
@@ -202,7 +167,7 @@ export default class CasService {
       `100644 blob ${manifestOid}\tmanifest.${this.codec.extension}`,
       ...manifest.chunks.map((c) => `100644 blob ${c.blob}\t${c.digest}`),
     ];
-    
+
     return await this.persistence.writeTree(treeEntries);
   }
 
