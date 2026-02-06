@@ -292,6 +292,96 @@ export default class CasService extends EventEmitter {
   }
 
   /**
+   * Reads a manifest from a Git tree OID.
+   *
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID to read the manifest from
+   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   * @throws {CasError} MANIFEST_NOT_FOUND if no manifest entry exists in the tree
+   * @throws {CasError} GIT_ERROR if the underlying Git command fails
+   */
+  async readManifest({ treeOid }) {
+    let entries;
+    try {
+      entries = await this.persistence.readTree(treeOid);
+    } catch (err) {
+      if (err instanceof CasError) { throw err; }
+      throw new CasError(
+        `Failed to read tree ${treeOid}: ${err.message}`,
+        'GIT_ERROR',
+        { treeOid, originalError: err },
+      );
+    }
+
+    const manifestName = `manifest.${this.codec.extension}`;
+    const manifestEntry = entries.find((e) => e.name === manifestName);
+
+    if (!manifestEntry) {
+      throw new CasError(
+        `No manifest entry (${manifestName}) found in tree ${treeOid}`,
+        'MANIFEST_NOT_FOUND',
+        { treeOid, expectedName: manifestName },
+      );
+    }
+
+    let blob;
+    try {
+      blob = await this.persistence.readBlob(manifestEntry.oid);
+    } catch (err) {
+      if (err instanceof CasError) { throw err; }
+      throw new CasError(
+        `Failed to read manifest blob ${manifestEntry.oid}: ${err.message}`,
+        'GIT_ERROR',
+        { treeOid, manifestOid: manifestEntry.oid, originalError: err },
+      );
+    }
+
+    const decoded = this.codec.decode(blob);
+    return new Manifest(decoded);
+  }
+
+  /**
+   * Returns deletion metadata for an asset stored in a Git tree.
+   * Does not perform any destructive Git operations.
+   *
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID of the asset
+   * @returns {Promise<{ chunksOrphaned: number, slug: string }>}
+   * @throws {CasError} MANIFEST_NOT_FOUND if the tree has no manifest
+   */
+  async deleteAsset({ treeOid }) {
+    const manifest = await this.readManifest({ treeOid });
+    return {
+      slug: manifest.slug,
+      chunksOrphaned: manifest.chunks.length,
+    };
+  }
+
+  /**
+   * Aggregates referenced chunk blob OIDs across multiple stored assets.
+   * Analysis only — does not delete or modify anything.
+   *
+   * @param {Object} options
+   * @param {string[]} options.treeOids - Git tree OIDs to analyze
+   * @returns {Promise<{ referenced: Set<string>, total: number }>}
+   * @throws {CasError} MANIFEST_NOT_FOUND if any treeOid lacks a manifest
+   */
+  async findOrphanedChunks({ treeOids }) {
+    const referenced = new Set();
+    let total = 0;
+
+    for (const treeOid of treeOids) {
+      const manifest = await this.readManifest({ treeOid });
+      for (const chunk of manifest.chunks) {
+        referenced.add(chunk.blob);
+        total += 1;
+      }
+    }
+
+    return { referenced, total };
+  }
+
+  /**
    * Verifies the integrity of a stored file by re-hashing its chunks.
    * @param {import('../value-objects/Manifest.js').default} manifest
    * @returns {Promise<boolean>}

@@ -252,4 +252,39 @@ export default class ContentAddressableStore {
     const service = await this.#getService();
     return await service.verifyIntegrity(manifest);
   }
+
+  /**
+   * Reads a manifest from a Git tree OID.
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID to read the manifest from.
+   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
+   */
+  async readManifest(options) {
+    const service = await this.#getService();
+    return await service.readManifest(options);
+  }
+
+  /**
+   * Returns deletion metadata for an asset stored in a Git tree.
+   * Does not perform any destructive Git operations.
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID of the asset.
+   * @returns {Promise<{ slug: string, chunksOrphaned: number }>}
+   */
+  async deleteAsset(options) {
+    const service = await this.#getService();
+    return await service.deleteAsset(options);
+  }
+
+  /**
+   * Aggregates referenced chunk blob OIDs across multiple stored assets.
+   * Analysis only — does not delete or modify anything.
+   * @param {Object} options
+   * @param {string[]} options.treeOids - Git tree OIDs to analyze.
+   * @returns {Promise<{ referenced: Set<string>, total: number }>}
+   */
+  async findOrphanedChunks(options) {
+    const service = await this.#getService();
+    return await service.findOrphanedChunks(options);
+  }
 }
