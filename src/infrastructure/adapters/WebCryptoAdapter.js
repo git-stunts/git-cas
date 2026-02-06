@@ -116,6 +116,12 @@ export default class WebCryptoAdapter extends CryptoPort {
   }
 
   #validateKey(key) {
+    if (!globalThis.Buffer?.isBuffer(key) && !(key instanceof Uint8Array)) {
+      throw new CasError(
+        'Encryption key must be a Buffer or Uint8Array',
+        'INVALID_KEY_TYPE',
+      );
+    }
     if (key.length !== 32) {
       throw new CasError(
         `Encryption key must be 32 bytes, got ${key.length}`,
