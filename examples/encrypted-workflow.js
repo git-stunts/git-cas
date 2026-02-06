@@ -66,11 +66,13 @@ console.log('\n--- Step 3: Encryption metadata ---');
 if (manifest.encryption?.encrypted) {
   console.log('Encryption details:');
   console.log(`  Algorithm: ${manifest.encryption.algorithm || 'AES-256-GCM'}`);
-  console.log(`  IV length: ${manifest.encryption.iv?.length || 0} bytes`);
-  console.log(`  Auth tag length: ${manifest.encryption.authTag?.length || 0} bytes`);
+  const nonceBytes = manifest.encryption.nonce ? Buffer.from(manifest.encryption.nonce, 'base64') : null;
+  const tagBytes = manifest.encryption.tag ? Buffer.from(manifest.encryption.tag, 'base64') : null;
+  console.log(`  Nonce length: ${nonceBytes?.length || 0} bytes`);
+  console.log(`  Auth tag length: ${tagBytes?.length || 0} bytes`);
 
-  if (manifest.encryption.iv) {
-    console.log(`  IV (hex): ${Buffer.from(manifest.encryption.iv).toString('hex')}`);
+  if (nonceBytes) {
+    console.log(`  Nonce (hex): ${nonceBytes.toString('hex')}`);
   }
 } else {
   console.error('ERROR: File was not encrypted!');

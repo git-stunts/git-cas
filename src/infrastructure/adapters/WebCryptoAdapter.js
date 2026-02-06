@@ -19,7 +19,11 @@ export default class WebCryptoAdapter extends CryptoPort {
 
   /** @override */
   randomBytes(n) {
-    return globalThis.crypto.getRandomValues(new Uint8Array(n));
+    const uint8 = globalThis.crypto.getRandomValues(new Uint8Array(n));
+    if (globalThis.Buffer) {
+      return Buffer.from(uint8.buffer, uint8.byteOffset, uint8.byteLength);
+    }
+    return uint8;
   }
 
   /** @override */

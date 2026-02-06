@@ -126,15 +126,15 @@ Return and throw semantics for every public method (current and planned).
 
 ## 4) Version Plan
 
-| Version | Milestone | Codename | Theme |
-|--------:|-----------|----------|-------|
+| Version | Milestone | Codename | Theme | Status |
+|--------:|-----------|----------|-------|--------|
 | v1.1.0  | M1        | Bedrock  | Foundation hardening | ✅ |
 | v1.2.0  | M2        | Boomerang| File retrieval round trip + CLI | ✅ |
 | v1.3.0  | M3        | Launchpad| CI/CD pipeline | ✅ |
 | v1.4.0  | M4        | Compass  | Lifecycle management | ✅ |
 | v1.5.0  | M5        | Sonar    | Observability | ✅ |
 | v1.6.0  | M6        | Cartographer | Documentation | ✅ |
-| v2.0.0  | M7        | Horizon  | Advanced features |
+| v2.0.0  | M7        | Horizon  | Advanced features | |
 
 ---
 

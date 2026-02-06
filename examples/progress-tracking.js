@@ -112,13 +112,17 @@ const manifest = await cas.storeFile({
 });
 const storeTime = Date.now() - startStore;
 
+// Snapshot Step 1 counters before they accumulate further in Step 4
+const step1StoreChunks = progress.store.chunks;
+const step1StoreBytes = progress.store.bytes;
+
 console.log(`\nStorage completed in ${storeTime}ms`);
-console.log(`Chunks stored: ${progress.store.chunks}`);
-console.log(`Bytes processed: ${progress.store.bytes.toLocaleString()}`);
-console.log(`Average chunk size: ${Math.round(progress.store.bytes / progress.store.chunks).toLocaleString()} bytes`);
+console.log(`Chunks stored: ${step1StoreChunks}`);
+console.log(`Bytes processed: ${step1StoreBytes.toLocaleString()}`);
+console.log(`Average chunk size: ${Math.round(step1StoreBytes / step1StoreChunks).toLocaleString()} bytes`);
 
 // Calculate storage throughput
-const storeThroughputMBps = (progress.store.bytes / 1024 / 1024) / (storeTime / 1000);
+const storeThroughputMBps = (step1StoreBytes / 1024 / 1024) / (storeTime / 1000);
 console.log(`Throughput: ${storeThroughputMBps.toFixed(2)} MB/s`);
 
 // Step 2: Restore the file with progress tracking
@@ -199,10 +203,10 @@ service.removeListener('chunk:stored', progressListener);
 
 // Summary statistics
 console.log('\n--- Performance Summary ---');
-console.log('Storage operation:');
+console.log('Storage operation (Step 1):');
 console.log(`  Time: ${storeTime}ms`);
 console.log(`  Throughput: ${storeThroughputMBps.toFixed(2)} MB/s`);
-console.log(`  Chunks: ${progress.store.chunks}`);
+console.log(`  Chunks: ${step1StoreChunks}`);
 
 console.log('\nRestore operation:');
 console.log(`  Time: ${restoreTime}ms`);

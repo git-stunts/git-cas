@@ -60,7 +60,7 @@ git-cas does NOT provide protection in the following scenarios:
 
 git-cas uses **AES-256-GCM** (Galois/Counter Mode) for authenticated encryption:
 
-- **Algorithm**: `aes-256-gcm` via Node.js `node:crypto` module
+- **Algorithm**: `aes-256-gcm` via runtime-specific adapters (Node.js `node:crypto`, Bun `CryptoHasher` + `node:crypto`, Deno/Web `crypto.subtle`)
 - **Key size**: 256 bits (32 bytes)
 - **Nonce size**: 96 bits (12 bytes), cryptographically random
 - **Authentication tag**: 128 bits (16 bytes)

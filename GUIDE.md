@@ -386,7 +386,8 @@ openssl rand -out vacation.key 32
 Or in Node.js:
 
 ```js
-import { randomBytes, writeFileSync } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 
 const key = randomBytes(32);
 writeFileSync('./vacation.key', key);

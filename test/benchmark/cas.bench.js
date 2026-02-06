@@ -163,7 +163,7 @@ describe('decrypt – 1KB', () => {
 
   bench('1KB', async () => {
     if (!enc) { enc = await service.encrypt({ buffer: buf1KB, key: encryptionKey }); }
-    await service.decrypt({ buffer: enc.buffer, key: encryptionKey, meta: enc.meta });
+    await service.decrypt({ buffer: enc.buf, key: encryptionKey, meta: enc.meta });
   });
 });
 
@@ -173,7 +173,7 @@ describe('decrypt – 1MB', () => {
 
   bench('1MB', async () => {
     if (!enc) { enc = await service.encrypt({ buffer: buf1MB, key: encryptionKey }); }
-    await service.decrypt({ buffer: enc.buffer, key: encryptionKey, meta: enc.meta });
+    await service.decrypt({ buffer: enc.buf, key: encryptionKey, meta: enc.meta });
   });
 });
 
@@ -183,7 +183,7 @@ describe('decrypt – 10MB', () => {
 
   bench('10MB', async () => {
     if (!enc) { enc = await service.encrypt({ buffer: buf10MB, key: encryptionKey }); }
-    await service.decrypt({ buffer: enc.buffer, key: encryptionKey, meta: enc.meta });
+    await service.decrypt({ buffer: enc.buf, key: encryptionKey, meta: enc.meta });
   });
 });
 
