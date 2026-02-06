@@ -58,26 +58,34 @@ export default class ContentAddressableStore {
     this.policyConfig = policy;
     this.cryptoConfig = crypto;
     this.service = null;
+    this.#servicePromise = null;
   }
+
+  #servicePromise = null;
 
   /**
    * Lazily initializes the service to handle async adapter discovery.
    * @private
    */
   async #getService() {
-    if (!this.service) {
-      const persistence = new GitPersistenceAdapter({
-        plumbing: this.plumbing,
-        policy: this.policyConfig
-      });
-      const crypto = this.cryptoConfig || await getDefaultCryptoAdapter();
-      this.service = new CasService({
-        persistence,
-        chunkSize: this.chunkSizeConfig,
-        codec: this.codecConfig || new JsonCodec(),
-        crypto,
-      });
+    if (!this.#servicePromise) {
+      this.#servicePromise = this.#initService();
     }
+    return await this.#servicePromise;
+  }
+
+  async #initService() {
+    const persistence = new GitPersistenceAdapter({
+      plumbing: this.plumbing,
+      policy: this.policyConfig
+    });
+    const crypto = this.cryptoConfig || await getDefaultCryptoAdapter();
+    this.service = new CasService({
+      persistence,
+      chunkSize: this.chunkSizeConfig,
+      codec: this.codecConfig || new JsonCodec(),
+      crypto,
+    });
     return this.service;
   }
 
