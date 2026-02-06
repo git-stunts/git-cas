@@ -10,15 +10,16 @@ import { createCipheriv, createDecipheriv } from 'node:crypto';
  * Uses Bun.CryptoHasher for fast SHA-256 and globalThis.crypto for random bytes.
  */
 export default class BunCryptoAdapter extends CryptoPort {
-  sha256(buf) {
+  async sha256(buf) {
     return new CryptoHasher('sha256').update(buf).digest('hex');
   }
 
   randomBytes(n) {
-    return globalThis.crypto.getRandomValues(new Uint8Array(n));
+    const uint8 = globalThis.crypto.getRandomValues(new Uint8Array(n));
+    return Buffer.from(uint8.buffer, uint8.byteOffset, uint8.byteLength);
   }
 
-  encryptBuffer(buffer, key) {
+  async encryptBuffer(buffer, key) {
     this.#validateKey(key);
     const nonce = this.randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, nonce);
@@ -30,7 +31,8 @@ export default class BunCryptoAdapter extends CryptoPort {
     };
   }
 
-  decryptBuffer(buffer, key, meta) {
+  async decryptBuffer(buffer, key, meta) {
+    this.#validateKey(key);
     const nonce = Buffer.from(meta.nonce, 'base64');
     const tag = Buffer.from(meta.tag, 'base64');
     const decipher = createDecipheriv('aes-256-gcm', key, nonce);
@@ -42,6 +44,7 @@ export default class BunCryptoAdapter extends CryptoPort {
     this.#validateKey(key);
     const nonce = this.randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, nonce);
+    let streamFinalized = false;
 
     const encrypt = async function* (source) {
       for await (const chunk of source) {
@@ -54,9 +57,16 @@ export default class BunCryptoAdapter extends CryptoPort {
       if (final.length > 0) {
         yield final;
       }
+      streamFinalized = true;
     };
 
     const finalize = () => {
+      if (!streamFinalized) {
+        throw new CasError(
+          'Cannot finalize before the encrypt stream is fully consumed',
+          'STREAM_NOT_CONSUMED',
+        );
+      }
       const tag = cipher.getAuthTag();
       return this.#buildMeta(nonce, tag);
     };
