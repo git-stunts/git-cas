@@ -8,11 +8,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOKS_DIR="${SCRIPT_DIR}/git-hooks"
 
-# Make hooks executable
-chmod +x "${HOOKS_DIR}/pre-push"
+# Make all hooks executable
+chmod +x "${HOOKS_DIR}"/*
 
-# Point git to our hooks directory
-git config core.hooksPath "scripts/git-hooks"
+# Point git to our hooks directory using absolute path
+git config core.hooksPath "${HOOKS_DIR}"
 
 echo "✅ Git hooks installed from ${HOOKS_DIR}"
 echo "Current hooks directory: $(git config core.hooksPath)"
