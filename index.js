@@ -177,4 +177,28 @@ export default class ContentAddressableStore {
     const service = await this.#getService();
     return await service.verifyIntegrity(manifest);
   }
+
+  /**
+   * Reads a manifest from a Git tree OID.
+   */
+  async readManifest(options) {
+    const service = await this.#getService();
+    return await service.readManifest(options);
+  }
+
+  /**
+   * Returns deletion metadata for an asset stored in a Git tree.
+   */
+  async deleteAsset(options) {
+    const service = await this.#getService();
+    return await service.deleteAsset(options);
+  }
+
+  /**
+   * Aggregates referenced chunk blob OIDs across multiple stored assets.
+   */
+  async findOrphanedChunks(options) {
+    const service = await this.#getService();
+    return await service.findOrphanedChunks(options);
+  }
 }

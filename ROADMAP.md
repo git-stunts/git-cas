@@ -128,10 +128,10 @@ Return and throw semantics for every public method (current and planned).
 
 | Version | Milestone | Codename | Theme |
 |--------:|-----------|----------|-------|
-| v1.1.0  | M1        | Bedrock  | Foundation hardening |
-| v1.2.0  | M2        | Boomerang| File retrieval round trip + CLI |
-| v1.3.0  | M3        | Launchpad| CI/CD pipeline |
-| v1.4.0  | M4        | Compass  | Lifecycle management |
+| v1.1.0  | M1        | Bedrock  | Foundation hardening | ✅ |
+| v1.2.0  | M2        | Boomerang| File retrieval round trip + CLI | ✅ |
+| v1.3.0  | M3        | Launchpad| CI/CD pipeline | ✅ |
+| v1.4.0  | M4        | Compass  | Lifecycle management | ✅ |
 | v1.5.0  | M5        | Sonar    | Observability |
 | v1.6.0  | M6        | Cartographer | Documentation |
 | v2.0.0  | M7        | Horizon  | Advanced features |
@@ -178,7 +178,7 @@ M3 Launchpad (v1.3.0)   M4 Compass (v1.4.0)
 
 ---
 
-# M1 — Bedrock (v1.1.0)
+# M1 — Bedrock (v1.1.0) ✅
 **Theme:** Close compliance gaps, harden validation, expand test coverage. No new features.
 
 ---
@@ -550,7 +550,7 @@ As a maintainer, I want error conditions covered by tests so regressions in vali
 
 ---
 
-# M2 — Boomerang (v1.2.0)
+# M2 — Boomerang (v1.2.0) ✅
 **Theme:** Complete store→retrieve round trip + CLI.
 
 ---
@@ -903,7 +903,7 @@ As a developer, I want `git cas restore <tree-oid> --out <path>` so I can retrie
 
 ---
 
-# M3 — Launchpad (v1.3.0)
+# M3 — Launchpad (v1.3.0) ✅
 **Theme:** Automated quality gates and release process.
 
 ---
@@ -1014,12 +1014,12 @@ As a maintainer, I want releases published automatically on version tags so publ
 
 ---
 
-# M4 — Compass (v1.4.0)
+# M4 — Compass (v1.4.0) ✅
 **Theme:** Read manifests from Git, manage stored assets, analyze storage.
 
 ---
 
-## Task 4.1: Implement readManifest() on CasService
+## Task 4.1: Implement readManifest() on CasService ✅
 
 **User Story**
 As a developer, I want to reconstruct a Manifest from a Git tree OID so I can inspect and restore assets without holding manifests in memory.
@@ -1073,7 +1073,7 @@ As a developer, I want to reconstruct a Manifest from a Git tree OID so I can in
 
 ---
 
-## Task 4.2: Implement deleteAsset() (logical unlink info)
+## Task 4.2: Implement deleteAsset() (logical unlink info) ✅
 
 **User Story**
 As a developer, I want to "delete" an asset logically so I can manage lifecycle even though Git GC handles physical deletion.
@@ -1124,7 +1124,7 @@ As a developer, I want to "delete" an asset logically so I can manage lifecycle 
 
 ---
 
-## Task 4.3: Implement orphaned chunk analysis
+## Task 4.3: Implement orphaned chunk analysis ✅
 
 **User Story**
 As an operator, I want to identify referenced chunks across many assets so I can assess storage waste.
