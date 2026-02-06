@@ -34,14 +34,14 @@ describe('CasService key validation – encrypt() valid keys', () => {
 
   const plaintext = Buffer.from('hello world');
 
-  it('accepts a 32-byte Buffer key', () => {
+  it('accepts a 32-byte Buffer key', async () => {
     const key = Buffer.alloc(32, 0xaa);
-    expect(() => service.encrypt({ buffer: plaintext, key })).not.toThrow();
+    await expect(service.encrypt({ buffer: plaintext, key })).resolves.toBeDefined();
   });
 
-  it('accepts crypto.randomBytes(32)', () => {
+  it('accepts crypto.randomBytes(32)', async () => {
     const key = randomBytes(32);
-    expect(() => service.encrypt({ buffer: plaintext, key })).not.toThrow();
+    await expect(service.encrypt({ buffer: plaintext, key })).resolves.toBeDefined();
   });
 });
 
@@ -54,11 +54,11 @@ describe('CasService key validation – encrypt() invalid key length', () => {
 
   const plaintext = Buffer.from('hello world');
 
-  it('throws INVALID_KEY_LENGTH for a 16-byte key', () => {
+  it('throws INVALID_KEY_LENGTH for a 16-byte key', async () => {
     const key = Buffer.alloc(16);
-    expect(() => service.encrypt({ buffer: plaintext, key })).toThrow(CasError);
+    await expect(service.encrypt({ buffer: plaintext, key })).rejects.toThrow(CasError);
     try {
-      service.encrypt({ buffer: plaintext, key });
+      await service.encrypt({ buffer: plaintext, key });
     } catch (err) {
       expect(err.code).toBe('INVALID_KEY_LENGTH');
       expect(err.message).toContain('32 bytes');
@@ -66,11 +66,11 @@ describe('CasService key validation – encrypt() invalid key length', () => {
     }
   });
 
-  it('throws INVALID_KEY_LENGTH for a 64-byte key', () => {
+  it('throws INVALID_KEY_LENGTH for a 64-byte key', async () => {
     const key = Buffer.alloc(64);
-    expect(() => service.encrypt({ buffer: plaintext, key })).toThrow(CasError);
+    await expect(service.encrypt({ buffer: plaintext, key })).rejects.toThrow(CasError);
     try {
-      service.encrypt({ buffer: plaintext, key });
+      await service.encrypt({ buffer: plaintext, key });
     } catch (err) {
       expect(err.code).toBe('INVALID_KEY_LENGTH');
       expect(err.message).toContain('32 bytes');
@@ -78,11 +78,11 @@ describe('CasService key validation – encrypt() invalid key length', () => {
     }
   });
 
-  it('throws INVALID_KEY_LENGTH for an empty Buffer', () => {
+  it('throws INVALID_KEY_LENGTH for an empty Buffer', async () => {
     const key = Buffer.alloc(0);
-    expect(() => service.encrypt({ buffer: plaintext, key })).toThrow(CasError);
+    await expect(service.encrypt({ buffer: plaintext, key })).rejects.toThrow(CasError);
     try {
-      service.encrypt({ buffer: plaintext, key });
+      await service.encrypt({ buffer: plaintext, key });
     } catch (err) {
       expect(err.code).toBe('INVALID_KEY_LENGTH');
       expect(err.meta).toEqual({ expected: 32, actual: 0 });
@@ -99,36 +99,36 @@ describe('CasService key validation – encrypt() invalid key type', () => {
 
   const plaintext = Buffer.from('hello world');
 
-  it('throws INVALID_KEY_TYPE for a string key', () => {
+  it('throws INVALID_KEY_TYPE for a string key', async () => {
     const key = 'not-a-buffer-key-string-value!!!';
-    expect(() => service.encrypt({ buffer: plaintext, key })).toThrow(CasError);
+    await expect(service.encrypt({ buffer: plaintext, key })).rejects.toThrow(CasError);
     try {
-      service.encrypt({ buffer: plaintext, key });
+      await service.encrypt({ buffer: plaintext, key });
     } catch (err) {
       expect(err.code).toBe('INVALID_KEY_TYPE');
-      expect(err.message).toContain('must be a Buffer');
+      expect(err.message).toContain('must be a Buffer or Uint8Array');
     }
   });
 
-  it('throws INVALID_KEY_TYPE for a number key', () => {
+  it('throws INVALID_KEY_TYPE for a number key', async () => {
     const key = 12345;
-    expect(() => service.encrypt({ buffer: plaintext, key })).toThrow(CasError);
+    await expect(service.encrypt({ buffer: plaintext, key })).rejects.toThrow(CasError);
     try {
-      service.encrypt({ buffer: plaintext, key });
+      await service.encrypt({ buffer: plaintext, key });
     } catch (err) {
       expect(err.code).toBe('INVALID_KEY_TYPE');
-      expect(err.message).toContain('must be a Buffer');
+      expect(err.message).toContain('must be a Buffer or Uint8Array');
     }
   });
 
-  it('throws INVALID_KEY_TYPE for null key', () => {
+  it('throws INVALID_KEY_TYPE for null key', async () => {
     const key = null;
-    expect(() => service.encrypt({ buffer: plaintext, key })).toThrow(CasError);
+    await expect(service.encrypt({ buffer: plaintext, key })).rejects.toThrow(CasError);
     try {
-      service.encrypt({ buffer: plaintext, key });
+      await service.encrypt({ buffer: plaintext, key });
     } catch (err) {
       expect(err.code).toBe('INVALID_KEY_TYPE');
-      expect(err.message).toContain('must be a Buffer');
+      expect(err.message).toContain('must be a Buffer or Uint8Array');
     }
   });
 });
@@ -223,13 +223,13 @@ describe('CasService key validation – fuzz: key lengths 0..128', () => {
 
   const plaintext = Buffer.from('fuzz test data');
 
-  it('only length 32 passes for encrypt()', () => {
+  it('only length 32 passes for encrypt()', async () => {
     for (let len = 0; len <= 128; len++) {
       const key = Buffer.alloc(len, 0xff);
       if (len === 32) {
-        expect(() => service.encrypt({ buffer: plaintext, key })).not.toThrow();
+        await expect(service.encrypt({ buffer: plaintext, key })).resolves.toBeDefined();
       } else {
-        expect(() => service.encrypt({ buffer: plaintext, key })).toThrow(CasError);
+        await expect(service.encrypt({ buffer: plaintext, key })).rejects.toThrow(CasError);
       }
     }
   });

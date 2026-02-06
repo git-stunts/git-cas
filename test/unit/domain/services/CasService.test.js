@@ -104,15 +104,15 @@ describe('CasService – verifyIntegrity', () => {
 
   it('verifies integrity of chunks', async () => {
     // Helper to calc hash since service._sha256 is private
-    const sha = (d) => service['_sha256'](Buffer.from(d));
+    const sha = async (d) => await service['_sha256'](Buffer.from(d));
 
     const manifest = new Manifest({
       slug: 'test',
       filename: 't.txt',
       size: 12,
       chunks: [
-        { index: 0, size: 6, blob: 'b1', digest: sha('chunk1') },
-        { index: 1, size: 6, blob: 'b2', digest: sha('chunk2') }
+        { index: 0, size: 6, blob: 'b1', digest: await sha('chunk1') },
+        { index: 1, size: 6, blob: 'b2', digest: await sha('chunk2') }
       ]
     });
 

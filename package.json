@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/git-cas",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Content-addressed storage backed by Git's object database, with optional encryption and pluggable codecs",
   "type": "module",
   "main": "index.js",
@@ -11,6 +11,42 @@
     ".": "./index.js",
     "./service": "./src/domain/services/CasService.js",
     "./schema": "./src/domain/schemas/ManifestSchema.js"
+  },
+  "files": [
+    "index.js",
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/git-stunts/git-cas.git"
+  },
+  "keywords": [
+    "git",
+    "cas",
+    "content-addressable",
+    "storage",
+    "deduplication",
+    "encryption",
+    "blob",
+    "bun",
+    "deno"
+  ],
+  "author": "James Ross <james@flyingrobots.dev>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/git-stunts/git-cas/issues"
+  },
+  "homepage": "https://github.com/git-stunts/git-cas#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "test": "vitest run test/unit",
@@ -28,8 +64,6 @@
     "lint": "eslint .",
     "format": "prettier --write ."
   },
-  "author": "James Ross <james@flyingrobots.dev>",
-  "license": "Apache-2.0",
   "dependencies": {
     "@git-stunts/alfred": "^0.10.0",
     "@git-stunts/plumbing": "^2.8.0",
@@ -40,6 +74,7 @@
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "eslint": "^9.17.0",
+    "jsr": "^0.13.3",
     "prettier": "^3.4.2",
     "vitest": "^2.1.8"
   }

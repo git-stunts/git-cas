@@ -1,0 +1,9 @@
+{
+  "name": "@git-stunts/cas",
+  "version": "1.3.0",
+  "exports": {
+    ".": "./index.js",
+    "./service": "./src/domain/services/CasService.js",
+    "./schema": "./src/domain/schemas/ManifestSchema.js"
+  }
+}
