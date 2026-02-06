@@ -5,12 +5,57 @@ on:
     tags:
       - 'v*'
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  release:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify tag matches package version
+        id: check-version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+      - run: pnpm test
+      
+      - name: Integration tests (Node)
+        run: docker compose run --build --rm test-node pnpm vitest run test/integration
+      - name: Integration tests (Bun)
+        run: docker compose run --build --rm test-bun bunx vitest run test/integration
+      - name: Integration tests (Deno)
+        run: docker compose run --build --rm test-deno deno run -A npm:vitest run test/integration
+
+  publish-npm:
+    needs: [validate, test]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      id-token: write # Required for OIDC and provenance
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -21,31 +66,38 @@ jobs:
           node-version: 22
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
-
       - run: pnpm install --frozen-lockfile
-      
-      # Run full quality gates before publishing
-      - run: pnpm run lint
-      - run: pnpm test
-      
-      # Integration tests in Docker
-      - name: Integration tests (Node)
-        run: docker compose run --rm test-node pnpm vitest run test/integration
-      - name: Integration tests (Bun)
-        run: docker compose run --rm test-bun bunx vitest run test/integration
-      - name: Integration tests (Deno)
-        run: docker compose run --rm test-deno deno run -A npm:vitest run test/integration
-
-      # Publish to npm using OIDC for provenance
       - name: Publish to npm
-        run: pnpm publish --provenance --no-git-checks
+        run: pnpm publish --provenance --no-git-checks --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Publish to JSR
+  publish-jsr:
+    needs: [validate, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: Publish to JSR
         run: pnpm dlx jsr publish
 
+  github-release:
+    needs: [validate, publish-npm, publish-jsr]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
