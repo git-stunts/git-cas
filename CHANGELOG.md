@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] — M4 Compass
+
+### Added
+- `CasService.readManifest({ treeOid })` — reads a Git tree, locates and decodes the manifest, returns a validated `Manifest` value object.
+- `CasService.deleteAsset({ treeOid })` — returns logical deletion metadata (`{ slug, chunksOrphaned }`) without performing destructive Git operations.
+- `CasService.findOrphanedChunks({ treeOids })` — aggregates referenced chunk blob OIDs across multiple assets, returning `{ referenced: Set<string>, total: number }`.
+- Facade pass-throughs for `readManifest`, `deleteAsset`, and `findOrphanedChunks` on `ContentAddressableStore`.
+- New error codes: `MANIFEST_NOT_FOUND`, `GIT_ERROR`.
+- 42 new unit tests across three new test suites.
 
 ## [1.3.0] — M3 Launchpad (2026-02-06)
 
