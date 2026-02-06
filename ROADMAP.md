@@ -132,8 +132,8 @@ Return and throw semantics for every public method (current and planned).
 | v1.2.0  | M2        | Boomerang| File retrieval round trip + CLI |
 | v1.3.0  | M3        | Launchpad| CI/CD pipeline |
 | v1.4.0  | M4        | Compass  | Lifecycle management |
-| v1.5.0  | M5        | Sonar    | Observability |
-| v1.6.0  | M6        | Cartographer | Documentation |
+| v1.5.0  | M5        | Sonar    | Observability | ✅ |
+| v1.6.0  | M6        | Cartographer | Documentation | ✅ |
 | v2.0.0  | M7        | Horizon  | Advanced features |
 
 ---
@@ -1175,12 +1175,12 @@ As an operator, I want to identify referenced chunks across many assets so I can
 
 ---
 
-# M5 — Sonar (v1.5.0)
+# M5 — Sonar (v1.5.0) ✅
 **Theme:** Events, hooks, and benchmarks.
 
 ---
 
-## Task 5.1: EventEmitter integration (progress + observability hooks)
+## Task 5.1: EventEmitter integration (progress + observability hooks) ✅
 
 **User Story**
 As an application developer, I want progress and lifecycle events so I can build logging, progress bars, and monitoring.
@@ -1240,7 +1240,7 @@ As an application developer, I want progress and lifecycle events so I can build
 
 ---
 
-## Task 5.2: Comprehensive benchmark suite
+## Task 5.2: Comprehensive benchmark suite ✅
 
 **User Story**
 As a maintainer, I want benchmarks for critical operations so I can detect regressions and make optimization decisions.
@@ -1298,12 +1298,12 @@ As a maintainer, I want benchmarks for critical operations so I can detect regre
 
 ---
 
-# M6 — Cartographer (v1.6.0)
+# M6 — Cartographer (v1.6.0) ✅
 **Theme:** Documentation that makes the library usable and trustworthy.
 
 ---
 
-## Task 6.1: API reference documentation
+## Task 6.1: API reference documentation ✅
 
 **User Story**
 As a developer evaluating this library, I want complete API docs so I can integrate without reading source.
@@ -1353,7 +1353,7 @@ As a developer evaluating this library, I want complete API docs so I can integr
 
 ---
 
-## Task 6.2: Security model documentation
+## Task 6.2: Security model documentation ✅
 
 **User Story**
 As a security reviewer, I want a clear threat model and crypto design description so I can assess safety and limitations.
@@ -1407,7 +1407,7 @@ As a security reviewer, I want a clear threat model and crypto design descriptio
 
 ---
 
-## Task 6.3: Usage examples (cookbook)
+## Task 6.3: Usage examples (cookbook) ✅
 
 **User Story**
 As a new user, I want runnable examples so I can integrate quickly and correctly.

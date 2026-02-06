@@ -2,6 +2,7 @@ import { Policy } from '@git-stunts/alfred';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import CasError from '../../domain/errors/CasError.js';
 
+/** Default resilience policy: 30 s timeout wrapping 2 retries with exponential backoff. */
 const DEFAULT_POLICY = Policy.timeout(30_000).wrap(
   Policy.retry({
     retries: 2,
@@ -12,13 +13,16 @@ const DEFAULT_POLICY = Policy.timeout(30_000).wrap(
 );
 
 /**
- * Implementation of GitPersistencePort using GitPlumbing.
+ * {@link GitPersistencePort} implementation backed by `@git-stunts/plumbing`.
+ *
+ * All Git I/O is wrapped with a configurable resilience {@link Policy}
+ * (timeout + retry by default).
  */
 export default class GitPersistenceAdapter extends GitPersistencePort {
   /**
    * @param {Object} options
-   * @param {import('../../../plumbing/index.js').default} options.plumbing
-   * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy for Git I/O
+   * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance.
+   * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy (defaults to 30 s timeout + 2 retries).
    */
   constructor({ plumbing, policy }) {
     super();
@@ -26,6 +30,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     this.policy = policy ?? DEFAULT_POLICY;
   }
 
+  /** @override */
   async writeBlob(content) {
     return this.policy.execute(() =>
       this.plumbing.execute({
@@ -35,6 +40,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     );
   }
 
+  /** @override */
   async writeTree(entries) {
     return this.policy.execute(() =>
       this.plumbing.execute({
@@ -44,6 +50,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     );
   }
 
+  /** @override */
   async readBlob(oid) {
     return this.policy.execute(async () => {
       const stream = await this.plumbing.executeStream({
@@ -55,6 +62,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     });
   }
 
+  /** @override */
   async readTree(treeOid) {
     return this.policy.execute(async () => {
       const output = await this.plumbing.execute({

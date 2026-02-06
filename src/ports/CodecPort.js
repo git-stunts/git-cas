@@ -1,5 +1,6 @@
 /**
- * Interface for encoding and decoding manifest data.
+ * Abstract interface for encoding and decoding manifest data.
+ * @abstract
  */
 export default class CodecPort {
   /**
