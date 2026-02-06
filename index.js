@@ -25,6 +25,21 @@ export {
 };
 
 /**
+ * Detects the best crypto adapter for the current runtime.
+ */
+async function getDefaultCryptoAdapter() {
+  if (globalThis.Bun) {
+    const { default: BunCryptoAdapter } = await import('./src/infrastructure/adapters/BunCryptoAdapter.js');
+    return new BunCryptoAdapter();
+  }
+  if (globalThis.Deno) {
+    const { default: WebCryptoAdapter } = await import('./src/infrastructure/adapters/WebCryptoAdapter.js');
+    return new WebCryptoAdapter();
+  }
+  return new NodeCryptoAdapter();
+}
+
+/**
  * Facade class for the CAS library.
  */
 export default class ContentAddressableStore {
@@ -37,13 +52,48 @@ export default class ContentAddressableStore {
    * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy for Git I/O
    */
   constructor({ plumbing, chunkSize, codec, policy, crypto }) {
-    const persistence = new GitPersistenceAdapter({ plumbing, policy });
+    this.plumbing = plumbing;
+    this.chunkSizeConfig = chunkSize;
+    this.codecConfig = codec;
+    this.policyConfig = policy;
+    this.cryptoConfig = crypto;
+    this.service = null;
+    this.#servicePromise = null;
+  }
+
+  #servicePromise = null;
+
+  /**
+   * Lazily initializes the service to handle async adapter discovery.
+   * @private
+   */
+  async #getService() {
+    if (!this.#servicePromise) {
+      this.#servicePromise = this.#initService();
+    }
+    return await this.#servicePromise;
+  }
+
+  async #initService() {
+    const persistence = new GitPersistenceAdapter({
+      plumbing: this.plumbing,
+      policy: this.policyConfig
+    });
+    const crypto = this.cryptoConfig || await getDefaultCryptoAdapter();
     this.service = new CasService({
       persistence,
-      chunkSize,
-      codec: codec || new JsonCodec(),
-      crypto: crypto || new NodeCryptoAdapter(),
+      chunkSize: this.chunkSizeConfig,
+      codec: this.codecConfig || new JsonCodec(),
+      crypto,
     });
+    return this.service;
+  }
+
+  /**
+   * Lazily initializes and returns the service.
+   */
+  async getService() {
+    return await this.#getService();
   }
 
   /**
@@ -61,15 +111,17 @@ export default class ContentAddressableStore {
   }
 
   get chunkSize() {
-    return this.service.chunkSize;
+    return this.service?.chunkSize || this.chunkSizeConfig || 256 * 1024;
   }
 
-  encrypt(options) {
-    return this.service.encrypt(options);
+  async encrypt(options) {
+    const service = await this.#getService();
+    return await service.encrypt(options);
   }
 
-  decrypt(options) {
-    return this.service.decrypt(options);
+  async decrypt(options) {
+    const service = await this.#getService();
+    return await service.decrypt(options);
   }
 
   /**
@@ -78,7 +130,8 @@ export default class ContentAddressableStore {
    */
   async storeFile({ filePath, slug, filename, encryptionKey }) {
     const source = createReadStream(filePath);
-    return this.service.store({
+    const service = await this.#getService();
+    return await service.store({
       source,
       slug,
       filename: filename || path.basename(filePath),
@@ -90,14 +143,16 @@ export default class ContentAddressableStore {
    * Direct passthrough for callers who already have an async iterable source.
    */
   async store(options) {
-    return this.service.store(options);
+    const service = await this.#getService();
+    return await service.store(options);
   }
 
   /**
    * Restores a file from its manifest and writes it to outputPath.
    */
   async restoreFile({ manifest, encryptionKey, outputPath }) {
-    const { buffer, bytesWritten } = await this.service.restore({
+    const service = await this.#getService();
+    const { buffer, bytesWritten } = await service.restore({
       manifest,
       encryptionKey,
     });
@@ -109,14 +164,17 @@ export default class ContentAddressableStore {
    * Restores a file from its manifest, returning the buffer directly.
    */
   async restore(options) {
-    return this.service.restore(options);
+    const service = await this.#getService();
+    return await service.restore(options);
   }
 
   async createTree(options) {
-    return this.service.createTree(options);
+    const service = await this.#getService();
+    return await service.createTree(options);
   }
 
   async verifyIntegrity(manifest) {
-    return this.service.verifyIntegrity(manifest);
+    const service = await this.#getService();
+    return await service.verifyIntegrity(manifest);
   }
 }

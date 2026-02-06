@@ -11,23 +11,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
 
   test-unit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm test
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
 
   test-docker:
     runs-on: ubuntu-latest
@@ -38,7 +44,7 @@ jobs:
         runtime: [node, bun, deno]
         include:
           - runtime: node
-            integration_cmd: npx vitest run test/integration
+            integration_cmd: pnpm vitest run test/integration
           - runtime: bun
             integration_cmd: bunx vitest run test/integration
           - runtime: deno

@@ -26,8 +26,8 @@ export default class CasService {
    * Generates a SHA-256 hash for a buffer.
    * @private
    */
-  _sha256(buf) {
-    return this.crypto.sha256(buf);
+  async _sha256(buf) {
+    return await this.crypto.sha256(buf);
   }
 
   /**
@@ -47,7 +47,7 @@ export default class CasService {
           const chunkBuf = buffer.slice(0, this.chunkSize);
           buffer = buffer.slice(this.chunkSize);
 
-          const digest = this._sha256(chunkBuf);
+          const digest = await this._sha256(chunkBuf);
           const blob = await this.persistence.writeBlob(chunkBuf);
 
           manifestData.chunks.push({
@@ -70,7 +70,7 @@ export default class CasService {
 
     // Process remaining buffer
     if (buffer.length > 0) {
-      const digest = this._sha256(buffer);
+      const digest = await this._sha256(buffer);
       const blob = await this.persistence.writeBlob(buffer);
 
       manifestData.chunks.push({
@@ -91,9 +91,9 @@ export default class CasService {
    * @throws {CasError} INVALID_KEY_LENGTH if key is not 32 bytes
    */
   _validateKey(key) {
-    if (!Buffer.isBuffer(key)) {
+    if (!Buffer.isBuffer(key) && !(key instanceof Uint8Array)) {
       throw new CasError(
-        'Encryption key must be a Buffer',
+        'Encryption key must be a Buffer or Uint8Array',
         'INVALID_KEY_TYPE',
       );
     }
@@ -109,20 +109,20 @@ export default class CasService {
   /**
    * Encrypts a buffer using AES-256-GCM.
    */
-  encrypt({ buffer, key }) {
+  async encrypt({ buffer, key }) {
     this._validateKey(key);
-    return this.crypto.encryptBuffer(buffer, key);
+    return await this.crypto.encryptBuffer(buffer, key);
   }
 
   /**
    * Decrypts a buffer.
    */
-  decrypt({ buffer, key, meta }) {
+  async decrypt({ buffer, key, meta }) {
     if (!meta?.encrypted) {
       return buffer;
     }
     try {
-      return this.crypto.decryptBuffer(buffer, key, meta);
+      return await this.crypto.decryptBuffer(buffer, key, meta);
     } catch (err) {
       if (err instanceof CasError) {throw err;}
       throw new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
@@ -199,7 +199,7 @@ export default class CasService {
     const buffers = [];
     for (const chunk of chunks) {
       const blob = await this.persistence.readBlob(chunk.blob);
-      const digest = this._sha256(blob);
+      const digest = await this._sha256(blob);
       if (digest !== chunk.digest) {
         throw new CasError(
           `Chunk ${chunk.index} integrity check failed`,
@@ -232,7 +232,7 @@ export default class CasService {
     let buffer = Buffer.concat(chunks);
 
     if (manifest.encryption?.encrypted) {
-      buffer = this.decrypt({
+      buffer = await this.decrypt({
         buffer,
         key: encryptionKey,
         meta: manifest.encryption,
@@ -250,7 +250,7 @@ export default class CasService {
   async verifyIntegrity(manifest) {
     for (const chunk of manifest.chunks) {
       const blob = await this.persistence.readBlob(chunk.blob);
-      const digest = this._sha256(blob);
+      const digest = await this._sha256(blob);
       if (digest !== chunk.digest) {
         return false;
       }

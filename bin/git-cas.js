@@ -9,7 +9,7 @@ import Manifest from '../src/domain/value-objects/Manifest.js';
 program
   .name('git-cas')
   .description('Content Addressable Storage backed by Git')
-  .version('1.2.0');
+  .version('1.3.0');
 
 /**
  * Read a 32-byte raw encryption key from a file.
@@ -96,9 +96,10 @@ program
   .action(async (treeOid, opts) => {
     try {
       const cas = createCas(opts.cwd);
+      const service = await cas.getService();
 
       // Read the tree to find the manifest
-      const entries = await cas.service.persistence.readTree(treeOid);
+      const entries = await service.persistence.readTree(treeOid);
       const manifestEntry = entries.find(
         (e) => e.name.startsWith('manifest.'),
       );
@@ -107,11 +108,11 @@ program
         process.exit(1);
       }
 
-      const manifestBlob = await cas.service.persistence.readBlob(
+      const manifestBlob = await service.persistence.readBlob(
         manifestEntry.oid,
       );
       const manifest = new Manifest(
-        cas.service.codec.decode(manifestBlob),
+        service.codec.decode(manifestBlob),
       );
 
       const restoreOpts = { manifest };

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+# pre-push git hook
+# Prevents pushing code that fails linting or unit tests.
+
+set -e
+
+echo "Running pre-push quality gates..."
+
+echo "→ Linting..."
+pnpm run lint
+
+echo "→ Unit tests..."
+pnpm test
+
+echo "✅ All local gates passed. Proceeding with push."

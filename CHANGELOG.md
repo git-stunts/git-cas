@@ -5,30 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — M2 Boomerang (v1.2.0)
+## [Unreleased]
+
+## [1.3.0] — M3 Launchpad (2026-02-06)
 
 ### Added
-- `CasService.restore()` — reconstruct files from manifests with per-chunk SHA-256 integrity verification.
-- `ContentAddressableStore.restoreFile()` — facade method that restores and writes to disk.
-- `readTree()` on `GitPersistencePort` / `GitPersistenceAdapter` — parse Git trees via `ls-tree`.
-- `STREAM_ERROR` wrapping — stream failures during `store()` surface as `CasError('STREAM_ERROR')` with `{ chunksWritten }` metadata.
-- `MISSING_KEY` error code — `restore()` now fails fast when manifest is encrypted but no decryption key is provided.
-- CLI: `git cas store`, `git cas tree`, `git cas restore` subcommands via `bin/git-cas.js`.
-- Integration test suite (59 tests) running against real Git bare repos inside Docker.
-- `commander` dependency for CLI.
+- Native Bun support via `BunCryptoAdapter` (uses `Bun.CryptoHasher`).
+- Native Deno/Web standard support via `WebCryptoAdapter` (uses `crypto.subtle`).
+- Automated, secure release workflow (`.github/workflows/release.yml`) with:
+    - **NPM OIDC support** including build provenance.
+    - **JSR support** via `jsr.json` and automated publishing.
+    - **GitHub Releases** with automated release notes.
+    - **Idempotency & Version Checks** to prevent failed partial releases.
+- Dynamic runtime detection in `ContentAddressableStore` to pick the best adapter automatically.
+- Hardened `package.json` with repository metadata, engine constraints, and explicit file inclusion.
+- Local quality gates via `pre-push` git hook and `scripts/install-hooks.sh`.
 
 ### Changed
-- `readBlob()` now normalises `Uint8Array` from plumbing into `Buffer` for codec/crypto compatibility.
-- `readTree()` uses `git ls-tree -z` (NUL-delimited output) for safe parsing of filenames with leading/trailing spaces.
+- **Breaking Change:** `CasService` cryptographic methods (`sha256`, `encrypt`, `decrypt`, `verifyIntegrity`) are now asynchronous to support Web Crypto and native optimizations.
+- `ContentAddressableStore` facade methods are now asynchronous to accommodate lazy service initialization and async crypto.
+- Project migrated from `npm` to `pnpm` for faster, more reliable dependency management.
+- CI workflow (`.github/workflows/ci.yml`) now runs on all branches but prevents duplicate runs on PRs.
+- `Dockerfile` now uses `corepack` for pnpm management.
 
 ### Fixed
-- Fuzz tests in stream-error suite now fail explicitly if `store()` does not throw.
-- ROADMAP: resolved inconsistent CLI signatures for `git cas tree` (`--slug` vs `--manifest`).
+- Fixed recursion bug in `BunCryptoAdapter` where `randomBytes` shadowed the imported function.
+- Resolved lazy-initialization race condition in `ContentAddressableStore` via promise caching.
+- Fixed state leak in `WebCryptoAdapter` streaming encryption.
+- Consolidated double decrypt calls in integrity tests for better performance.
+- Hardened adapter-level key validation with type checks.
 
-### Security
-- None.
-
-## [1.1.0] — M1 Bedrock
+## [1.2.0] — M2 Boomerang (v1.2.0)
 
 ### Added
 - `CryptoPort` interface and `NodeCryptoAdapter` — extracted all `node:crypto` usage from the domain layer.
