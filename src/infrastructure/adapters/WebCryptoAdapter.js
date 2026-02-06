@@ -72,6 +72,7 @@ export default class WebCryptoAdapter extends CryptoPort {
     // NOTE: This limits the "stream" to memory capacity, matching the project's 
     // current CasService.restore limitation.
     const chunks = [];
+    let finalTag = null;
 
     const encrypt = async function* (source) {
       for await (const chunk of source) {
@@ -92,13 +93,13 @@ export default class WebCryptoAdapter extends CryptoPort {
       const fullBuffer = new Uint8Array(encrypted);
       const tagLength = 16;
       const ciphertext = fullBuffer.slice(0, -tagLength);
-      this._finalTag = fullBuffer.slice(-tagLength);
+      finalTag = fullBuffer.slice(-tagLength);
 
       yield Buffer.from(ciphertext);
-    }.bind(this);
+    };
 
     const finalize = () => {
-      return this.#buildMeta(nonce, this._finalTag);
+      return this.#buildMeta(nonce, finalTag);
     };
 
     return { encrypt, finalize };
