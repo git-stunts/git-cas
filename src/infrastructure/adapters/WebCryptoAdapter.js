@@ -7,14 +7,14 @@ import CasError from '../../domain/errors/CasError.js';
  */
 export default class WebCryptoAdapter extends CryptoPort {
   async sha256(buf) {
-    const hashBuffer = await crypto.subtle.digest('SHA-256', buf);
+    const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', buf);
     return Array.from(new Uint8Array(hashBuffer))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
   }
 
   randomBytes(n) {
-    return crypto.getRandomValues(new Uint8Array(n));
+    return globalThis.crypto.getRandomValues(new Uint8Array(n));
   }
 
   async encryptBuffer(buffer, key) {
@@ -23,7 +23,7 @@ export default class WebCryptoAdapter extends CryptoPort {
     const cryptoKey = await this.#importKey(key);
     
     // AES-GCM in Web Crypto includes the tag at the end of the ciphertext
-    const encrypted = await crypto.subtle.encrypt(
+    const encrypted = await globalThis.crypto.subtle.encrypt(
       { name: 'AES-GCM', iv: nonce },
       cryptoKey,
       buffer
@@ -51,7 +51,7 @@ export default class WebCryptoAdapter extends CryptoPort {
     combined.set(tag, buffer.length);
 
     try {
-      const decrypted = await crypto.subtle.decrypt(
+      const decrypted = await globalThis.crypto.subtle.decrypt(
         { name: 'AES-GCM', iv: nonce },
         cryptoKey,
         combined
@@ -65,13 +65,13 @@ export default class WebCryptoAdapter extends CryptoPort {
   createEncryptionStream(key) {
     this.#validateKey(key);
     const nonce = this.randomBytes(12);
-    let cryptoKeyPromise = this.#importKey(key);
+    const cryptoKeyPromise = this.#importKey(key);
     
     // Web Crypto doesn't have a native streaming AES-GCM API like Node
     // We have to buffer for the one-shot call because GCM tag is computed over the whole thing.
     // NOTE: This limits the "stream" to memory capacity, matching the project's 
     // current CasService.restore limitation.
-    let chunks = [];
+    const chunks = [];
 
     const encrypt = async function* (source) {
       for await (const chunk of source) {
@@ -83,7 +83,7 @@ export default class WebCryptoAdapter extends CryptoPort {
       
       const buffer = Buffer.concat(chunks);
       const cryptoKey = await cryptoKeyPromise;
-      const encrypted = await crypto.subtle.encrypt(
+      const encrypted = await globalThis.crypto.subtle.encrypt(
         { name: 'AES-GCM', iv: nonce },
         cryptoKey,
         buffer
@@ -105,7 +105,7 @@ export default class WebCryptoAdapter extends CryptoPort {
   }
 
   async #importKey(rawKey) {
-    return crypto.subtle.importKey(
+    return globalThis.crypto.subtle.importKey(
       'raw',
       rawKey,
       { name: 'AES-GCM' },
@@ -137,13 +137,13 @@ export default class WebCryptoAdapter extends CryptoPort {
     if (globalThis.Buffer) {
       return Buffer.from(buf).toString('base64');
     }
-    return btoa(String.fromCharCode(...new Uint8Array(buf)));
+    return globalThis.btoa(String.fromCharCode(...new Uint8Array(buf)));
   }
 
   #fromBase64(str) {
     if (globalThis.Buffer) {
       return Buffer.from(str, 'base64');
     }
-    return Uint8Array.from(atob(str), c => c.charCodeAt(0));
+    return Uint8Array.from(globalThis.atob(str), c => c.charCodeAt(0));
   }
 }

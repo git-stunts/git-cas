@@ -15,7 +15,7 @@ export default class BunCryptoAdapter extends CryptoPort {
   }
 
   randomBytes(n) {
-    return crypto.getRandomValues(new Uint8Array(n));
+    return globalThis.crypto.getRandomValues(new Uint8Array(n));
   }
 
   encryptBuffer(buffer, key) {
