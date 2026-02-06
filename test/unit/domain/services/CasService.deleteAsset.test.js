@@ -34,9 +34,9 @@ function setup() {
 }
 
 // ---------------------------------------------------------------------------
-// Golden path – standard manifest
+// Golden path – multi-chunk manifest
 // ---------------------------------------------------------------------------
-describe('CasService.deleteAsset() – golden path', () => {
+describe('CasService.deleteAsset() – golden path (multi-chunk)', () => {
   let service;
   let mockPersistence;
 
@@ -55,7 +55,6 @@ describe('CasService.deleteAsset() – golden path', () => {
       ],
     };
 
-    const manifestJson = JSON.stringify(manifestData);
     const codec = new JsonCodec();
     const manifestBlob = codec.encode(manifestData);
 
@@ -76,6 +75,18 @@ describe('CasService.deleteAsset() – golden path', () => {
 
     expect(mockPersistence.readTree).toHaveBeenCalledWith('tree-abc123');
     expect(mockPersistence.readBlob).toHaveBeenCalledWith('manifest-oid');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Golden path – single-chunk manifest
+// ---------------------------------------------------------------------------
+describe('CasService.deleteAsset() – golden path (single-chunk)', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
   });
 
   it('returns slug and chunksOrphaned count for a single-chunk manifest', async () => {
@@ -104,6 +115,18 @@ describe('CasService.deleteAsset() – golden path', () => {
       slug: 'small-file',
       chunksOrphaned: 1,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Golden path – large multi-chunk manifest
+// ---------------------------------------------------------------------------
+describe('CasService.deleteAsset() – golden path (large manifest)', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
   });
 
   it('returns slug and chunksOrphaned count for a large multi-chunk manifest', async () => {
@@ -187,9 +210,9 @@ describe('CasService.deleteAsset() – empty manifest', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Failures – missing manifest
+// Failures – MANIFEST_NOT_FOUND
 // ---------------------------------------------------------------------------
-describe('CasService.deleteAsset() – missing manifest', () => {
+describe('CasService.deleteAsset() – MANIFEST_NOT_FOUND errors', () => {
   let service;
   let mockPersistence;
 
@@ -229,6 +252,18 @@ describe('CasService.deleteAsset() – missing manifest', () => {
       expect(err.code).toBe('MANIFEST_NOT_FOUND');
       expect(err.meta.treeOid).toBe('tree-empty-tree');
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Failures – GIT_ERROR propagation
+// ---------------------------------------------------------------------------
+describe('CasService.deleteAsset() – GIT_ERROR propagation', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
   });
 
   it('propagates GIT_ERROR when readTree fails', async () => {
@@ -322,9 +357,9 @@ describe('CasService.deleteAsset() – encrypted manifest', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Various slug formats
+// Slug variations – special characters
 // ---------------------------------------------------------------------------
-describe('CasService.deleteAsset() – slug variations', () => {
+describe('CasService.deleteAsset() – slug with special characters', () => {
   let service;
   let mockPersistence;
 
@@ -354,6 +389,18 @@ describe('CasService.deleteAsset() – slug variations', () => {
     const result = await service.deleteAsset({ treeOid: 'tree-special' });
 
     expect(result.slug).toBe('my-asset_v2.0');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Slug variations – very long slug
+// ---------------------------------------------------------------------------
+describe('CasService.deleteAsset() – very long slug', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
   });
 
   it('handles very long slug', async () => {

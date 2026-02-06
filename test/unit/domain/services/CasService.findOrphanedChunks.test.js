@@ -48,10 +48,67 @@ function chunk(index, seed, blobOid) {
   };
 }
 
+/**
+ * Helper: builds two manifests that share one chunk OID.
+ */
+function buildDedupFixtures() {
+  const manifest1 = manifestJson({
+    slug: 'asset-1',
+    filename: 'file1.bin',
+    size: 2048,
+    chunks: [
+      chunk(0, 'chunk-0', 'blob-shared'),
+      chunk(1, 'chunk-1', 'blob-unique-1'),
+    ],
+  });
+
+  const manifest2 = manifestJson({
+    slug: 'asset-2',
+    filename: 'file2.bin',
+    size: 2048,
+    chunks: [
+      chunk(0, 'chunk-0', 'blob-shared'),
+      chunk(1, 'chunk-2', 'blob-unique-2'),
+    ],
+  });
+
+  return { manifest1, manifest2 };
+}
+
+/**
+ * Helper: builds 10 manifests with 10 chunks each (5 shared, 5 unique)
+ * and the corresponding treeOids array.
+ */
+function buildSharedChunkFixtures() {
+  const treeOids = [];
+  const manifests = [];
+
+  for (let m = 0; m < 10; m++) {
+    const chunks = [];
+    for (let c = 0; c < 10; c++) {
+      const blobOid = c < 5 ? `blob-shared-${c}` : `blob-m${m}-c${c}`;
+      chunks.push(chunk(c, `chunk-m${m}-c${c}`, blobOid));
+    }
+
+    manifests.push(
+      manifestJson({
+        slug: `asset-${m}`,
+        filename: `file-${m}.bin`,
+        size: 10240,
+        chunks,
+      }),
+    );
+
+    treeOids.push(`tree-${m}`);
+  }
+
+  return { treeOids, manifests };
+}
+
 // ---------------------------------------------------------------------------
-// findOrphanedChunks – golden path
+// findOrphanedChunks – golden path (single manifest)
 // ---------------------------------------------------------------------------
-describe('CasService – findOrphanedChunks – golden path', () => {
+describe('CasService – findOrphanedChunks – golden path (single manifest)', () => {
   let service;
   let mockPersistence;
 
@@ -84,27 +141,21 @@ describe('CasService – findOrphanedChunks – golden path', () => {
     expect(result.referenced.has('blob-oid-2')).toBe(true);
     expect(result.total).toBe(2);
   });
+});
+
+// ---------------------------------------------------------------------------
+// findOrphanedChunks – golden path (dedup across manifests)
+// ---------------------------------------------------------------------------
+describe('CasService – findOrphanedChunks – golden path (dedup)', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
+  });
 
   it('deduplicates shared chunk OIDs across multiple manifests', async () => {
-    const manifest1 = manifestJson({
-      slug: 'asset-1',
-      filename: 'file1.bin',
-      size: 2048,
-      chunks: [
-        chunk(0, 'chunk-0', 'blob-shared'),
-        chunk(1, 'chunk-1', 'blob-unique-1'),
-      ],
-    });
-
-    const manifest2 = manifestJson({
-      slug: 'asset-2',
-      filename: 'file2.bin',
-      size: 2048,
-      chunks: [
-        chunk(0, 'chunk-0', 'blob-shared'),
-        chunk(1, 'chunk-2', 'blob-unique-2'),
-      ],
-    });
+    const { manifest1, manifest2 } = buildDedupFixtures();
 
     mockPersistence.readTree
       .mockResolvedValueOnce([
@@ -129,6 +180,18 @@ describe('CasService – findOrphanedChunks – golden path', () => {
     expect(result.referenced.has('blob-unique-2')).toBe(true);
     // Total counts all chunks: 2 + 2 = 4
     expect(result.total).toBe(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findOrphanedChunks – golden path (identical chunks)
+// ---------------------------------------------------------------------------
+describe('CasService – findOrphanedChunks – golden path (identical chunks)', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
   });
 
   it('counts total correctly even when all chunks are identical', async () => {
@@ -171,6 +234,18 @@ describe('CasService – findOrphanedChunks – golden path', () => {
     expect(result.referenced.has('blob-same')).toBe(true);
     // Total counts all instances: 3
     expect(result.total).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findOrphanedChunks – golden path (empty manifest)
+// ---------------------------------------------------------------------------
+describe('CasService – findOrphanedChunks – golden path (empty manifest)', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
   });
 
   it('handles manifest with no chunks', async () => {
@@ -244,9 +319,9 @@ describe('CasService – findOrphanedChunks – edge cases', () => {
 });
 
 // ---------------------------------------------------------------------------
-// findOrphanedChunks – stress test
+// findOrphanedChunks – stress test (shared chunks)
 // ---------------------------------------------------------------------------
-describe('CasService – findOrphanedChunks – stress test', () => {
+describe('CasService – findOrphanedChunks – stress test (shared chunks)', () => {
   let service;
   let mockPersistence;
 
@@ -255,30 +330,7 @@ describe('CasService – findOrphanedChunks – stress test', () => {
   });
 
   it('handles 10 manifests with 10 chunks each, some shared', async () => {
-    const treeOids = [];
-    const manifests = [];
-
-    // Create 10 manifests
-    for (let m = 0; m < 10; m++) {
-      const chunks = [];
-      for (let c = 0; c < 10; c++) {
-        // First 5 chunks are shared across all manifests
-        // Last 5 chunks are unique to each manifest
-        const blobOid = c < 5 ? `blob-shared-${c}` : `blob-m${m}-c${c}`;
-        chunks.push(chunk(c, `chunk-m${m}-c${c}`, blobOid));
-      }
-
-      manifests.push(
-        manifestJson({
-          slug: `asset-${m}`,
-          filename: `file-${m}.bin`,
-          size: 10240,
-          chunks,
-        }),
-      );
-
-      treeOids.push(`tree-${m}`);
-    }
+    const { treeOids, manifests } = buildSharedChunkFixtures();
 
     // Mock readTree to always return a manifest entry
     mockPersistence.readTree.mockResolvedValue([
@@ -296,7 +348,7 @@ describe('CasService – findOrphanedChunks – stress test', () => {
 
     // Unique blobs:
     // - 5 shared blobs (blob-shared-0 to blob-shared-4)
-    // - 50 unique blobs (5 per manifest × 10 manifests)
+    // - 50 unique blobs (5 per manifest x 10 manifests)
     // Total: 55 unique blobs
     expect(result.referenced.size).toBe(55);
 
@@ -309,13 +361,25 @@ describe('CasService – findOrphanedChunks – stress test', () => {
     expect(result.referenced.has('blob-m0-c5')).toBe(true);
     expect(result.referenced.has('blob-m9-c9')).toBe(true);
 
-    // Total chunks: 10 manifests × 10 chunks = 100
+    // Total chunks: 10 manifests x 10 chunks = 100
     expect(result.total).toBe(100);
 
     // Verify readTree was called 10 times
     expect(mockPersistence.readTree).toHaveBeenCalledTimes(10);
     // Verify readBlob was called 10 times (once per manifest)
     expect(mockPersistence.readBlob).toHaveBeenCalledTimes(10);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findOrphanedChunks – stress test (complete overlap)
+// ---------------------------------------------------------------------------
+describe('CasService – findOrphanedChunks – stress test (complete overlap)', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
   });
 
   it('handles many manifests with complete overlap', async () => {
@@ -353,15 +417,15 @@ describe('CasService – findOrphanedChunks – stress test', () => {
     expect(result.referenced.has('blob-b')).toBe(true);
     expect(result.referenced.has('blob-c')).toBe(true);
 
-    // Total: 20 manifests × 3 chunks = 60
+    // Total: 20 manifests x 3 chunks = 60
     expect(result.total).toBe(60);
   });
 });
 
 // ---------------------------------------------------------------------------
-// findOrphanedChunks – failures (fail closed)
+// findOrphanedChunks – MANIFEST_NOT_FOUND (first tree)
 // ---------------------------------------------------------------------------
-describe('CasService – findOrphanedChunks – failures', () => {
+describe('CasService – findOrphanedChunks – MANIFEST_NOT_FOUND (first tree)', () => {
   let service;
   let mockPersistence;
 
@@ -384,6 +448,18 @@ describe('CasService – findOrphanedChunks – failures', () => {
       expect(err.message).toContain('No manifest entry');
       expect(err.meta.treeOid).toBe('tree-missing');
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findOrphanedChunks – MANIFEST_NOT_FOUND (second tree)
+// ---------------------------------------------------------------------------
+describe('CasService – findOrphanedChunks – MANIFEST_NOT_FOUND (second tree)', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
   });
 
   it('throws MANIFEST_NOT_FOUND when second treeOid has no manifest', async () => {
@@ -418,6 +494,18 @@ describe('CasService – findOrphanedChunks – failures', () => {
       expect(err.code).toBe('MANIFEST_NOT_FOUND');
       expect(err.meta.treeOid).toBe('tree-missing');
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findOrphanedChunks – failures (GIT_ERROR)
+// ---------------------------------------------------------------------------
+describe('CasService – findOrphanedChunks – GIT_ERROR failures', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
   });
 
   it('throws GIT_ERROR when readTree fails', async () => {
@@ -458,6 +546,18 @@ describe('CasService – findOrphanedChunks – failures', () => {
       expect(err.message).toContain('Failed to read manifest blob');
     }
   });
+});
+
+// ---------------------------------------------------------------------------
+// findOrphanedChunks – failures (invalid manifest data)
+// ---------------------------------------------------------------------------
+describe('CasService – findOrphanedChunks – invalid manifest data', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
+  });
 
   it('throws when manifest JSON is invalid', async () => {
     mockPersistence.readTree.mockResolvedValue([
@@ -493,6 +593,18 @@ describe('CasService – findOrphanedChunks – failures', () => {
     await expect(
       service.findOrphanedChunks({ treeOids: ['tree-1'] }),
     ).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findOrphanedChunks – failures (fail-closed behavior)
+// ---------------------------------------------------------------------------
+describe('CasService – findOrphanedChunks – fail-closed behavior', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
   });
 
   it('fails closed on any error by not continuing to next treeOid', async () => {
