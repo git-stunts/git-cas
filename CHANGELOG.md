@@ -16,16 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **NPM OIDC support** including build provenance.
     - **JSR support** via `jsr.json` and automated publishing.
     - **GitHub Releases** with automated release notes.
+    - **Idempotency & Version Checks** to prevent failed partial releases.
 - Dynamic runtime detection in `ContentAddressableStore` to pick the best adapter automatically.
 - Hardened `package.json` with repository metadata, engine constraints, and explicit file inclusion.
+- Local quality gates via `pre-push` git hook and `scripts/install-hooks.sh`.
 
 ### Changed
 - **Breaking Change:** `CasService` cryptographic methods (`sha256`, `encrypt`, `decrypt`, `verifyIntegrity`) are now asynchronous to support Web Crypto and native optimizations.
 - `ContentAddressableStore` facade methods are now asynchronous to accommodate lazy service initialization and async crypto.
-- CI workflow (`.github/workflows/ci.yml`) now runs on all branches.
+- Project migrated from `npm` to `pnpm` for faster, more reliable dependency management.
+- CI workflow (`.github/workflows/ci.yml`) now runs on all branches but prevents duplicate runs on PRs.
+- `Dockerfile` now uses `corepack` for pnpm management.
 
 ### Fixed
 - Fixed recursion bug in `BunCryptoAdapter` where `randomBytes` shadowed the imported function.
+- Resolved lazy-initialization race condition in `ContentAddressableStore` via promise caching.
+- Fixed state leak in `WebCryptoAdapter` streaming encryption.
+- Consolidated double decrypt calls in integrity tests for better performance.
+- Hardened adapter-level key validation with type checks.
 
 ## [1.2.0] — M2 Boomerang (v1.2.0)
 
