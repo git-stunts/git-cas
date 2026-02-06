@@ -31,8 +31,8 @@ importers:
         specifier: ^9.17.0
         version: 9.39.2
       jsr:
-        specifier: ^0.13.3
-        version: 0.13.5
+        specifier: ^0.14.2
+        version: 0.14.2
       prettier:
         specifier: ^3.4.2
         version: 3.8.1
@@ -681,8 +681,8 @@ packages:
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
 
-  jsr@0.13.5:
-    resolution: {integrity: sha512-qQP20ZcG28pYes7bCq3uuvixl1TL1EpJzwLPfoQadSyWk9j2AID66qhW8+aXpRDRFDvDkXFnONsSRhpnnQAupg==}
+  jsr@0.14.2:
+    resolution: {integrity: sha512-yrnhXNyTqX7RWym4SVbGX+P9U63VRRN0llSN4psz4IEoGw20alehT0PX71ecmY5vMxNXtCJ16oWlnfaoVg9wdA==}
     hasBin: true
 
   keyv@4.5.4:
@@ -1452,7 +1452,7 @@ snapshots:
 
   json-stable-stringify-without-jsonify@1.0.1: {}
 
-  jsr@0.13.5:
+  jsr@0.14.2:
     dependencies:
       node-stream-zip: 1.15.0
       semiver: 1.1.0
