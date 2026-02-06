@@ -85,12 +85,9 @@ describe('CasService encryption – wrong key and tampered ciphertext', () => {
 
     const { buf, meta } = await service.encrypt({ buffer: plaintext, key: keyA });
 
-    await expect(service.decrypt({ buffer: buf, key: keyB, meta })).rejects.toThrow(CasError);
-    try {
-      await service.decrypt({ buffer: buf, key: keyB, meta });
-    } catch (err) {
-      expect(err.code).toBe('INTEGRITY_ERROR');
-    }
+    await expect(service.decrypt({ buffer: buf, key: keyB, meta })).rejects.toThrow(
+      expect.objectContaining({ code: 'INTEGRITY_ERROR' }),
+    );
   });
 
   it('throws INTEGRITY_ERROR when a bit is flipped in the encrypted buffer', async () => {
@@ -102,12 +99,9 @@ describe('CasService encryption – wrong key and tampered ciphertext', () => {
     const tampered = Buffer.from(buf);
     tampered[0] ^= 0x01;
 
-    await expect(service.decrypt({ buffer: tampered, key, meta })).rejects.toThrow(CasError);
-    try {
-      await service.decrypt({ buffer: tampered, key, meta });
-    } catch (err) {
-      expect(err.code).toBe('INTEGRITY_ERROR');
-    }
+    await expect(service.decrypt({ buffer: tampered, key, meta })).rejects.toThrow(
+      expect.objectContaining({ code: 'INTEGRITY_ERROR' }),
+    );
   });
 });
 
@@ -142,12 +136,9 @@ describe('CasService encryption – tampered auth tag', () => {
     tagBuf[0] ^= 0x01;
     const tamperedMeta = { ...meta, tag: tagBuf.toString('base64') };
 
-    await expect(service.decrypt({ buffer: buf, key, meta: tamperedMeta })).rejects.toThrow(CasError);
-    try {
-      await service.decrypt({ buffer: buf, key, meta: tamperedMeta });
-    } catch (err) {
-      expect(err.code).toBe('INTEGRITY_ERROR');
-    }
+    await expect(service.decrypt({ buffer: buf, key, meta: tamperedMeta })).rejects.toThrow(
+      expect.objectContaining({ code: 'INTEGRITY_ERROR' }),
+    );
   });
 });
 
@@ -182,12 +173,9 @@ describe('CasService encryption – tampered nonce', () => {
     nonceBuf[0] ^= 0x01;
     const tamperedMeta = { ...meta, nonce: nonceBuf.toString('base64') };
 
-    await expect(service.decrypt({ buffer: buf, key, meta: tamperedMeta })).rejects.toThrow(CasError);
-    try {
-      await service.decrypt({ buffer: buf, key, meta: tamperedMeta });
-    } catch (err) {
-      expect(err.code).toBe('INTEGRITY_ERROR');
-    }
+    await expect(service.decrypt({ buffer: buf, key, meta: tamperedMeta })).rejects.toThrow(
+      expect.objectContaining({ code: 'INTEGRITY_ERROR' }),
+    );
   });
 });
 
@@ -302,12 +290,9 @@ describe('CasService encryption – fuzz tamper', () => {
       const tamperIndex = i % tampered.length;
       tampered[tamperIndex] ^= 0x01;
 
-      await expect(service.decrypt({ buffer: tampered, key, meta })).rejects.toThrow(CasError);
-      try {
-        await service.decrypt({ buffer: tampered, key, meta });
-      } catch (err) {
-        expect(err.code).toBe('INTEGRITY_ERROR');
-      }
+      await expect(service.decrypt({ buffer: tampered, key, meta })).rejects.toThrow(
+        expect.objectContaining({ code: 'INTEGRITY_ERROR' }),
+      );
     });
   }
 });
