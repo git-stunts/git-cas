@@ -13,21 +13,24 @@ jobs:
       id-token: write # Required for OIDC and provenance
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
       
       # Run full quality gates before publishing
-      - run: npm run lint
-      - run: npm test
+      - run: pnpm run lint
+      - run: pnpm test
       
       # Integration tests in Docker
       - name: Integration tests (Node)
-        run: docker compose run --rm test-node npx vitest run test/integration
+        run: docker compose run --rm test-node pnpm vitest run test/integration
       - name: Integration tests (Bun)
         run: docker compose run --rm test-bun bunx vitest run test/integration
       - name: Integration tests (Deno)
@@ -35,13 +38,13 @@ jobs:
 
       # Publish to npm using OIDC for provenance
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: pnpm publish --provenance --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Publish to JSR
       - name: Publish to JSR
-        run: npx jsr publish
+        run: pnpm dlx jsr publish
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

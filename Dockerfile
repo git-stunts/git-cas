@@ -1,12 +1,13 @@
 # --- Node ---
 FROM node:22-slim AS node
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN npm install -g pnpm@10
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY . .
 ENV GIT_STUNTS_DOCKER=1
-CMD ["npx", "vitest", "run", "test/unit"]
+CMD ["pnpm", "vitest", "run", "test/unit"]
 
 # --- Bun ---
 FROM oven/bun:1-slim AS bun
