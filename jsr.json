@@ -5,5 +5,23 @@
     ".": "./index.js",
     "./service": "./src/domain/services/CasService.js",
     "./schema": "./src/domain/schemas/ManifestSchema.js"
-  }
+  },
+  "exclude": [
+    ".devcontainer/",
+    ".github/",
+    "bin/",
+    "docs/",
+    "examples/",
+    "scripts/",
+    "test/",
+    "*.md",
+    "!README.md",
+    "!LICENSE",
+    ".dockerignore",
+    "Dockerfile",
+    "docker-compose.yml",
+    "eslint.config.js",
+    "pnpm-lock.yaml",
+    "schema.json"
+  ]
 }
