@@ -158,8 +158,13 @@ export default class WebCryptoAdapter extends CryptoPort {
   }
 
   async #deriveScrypt({ passphrase, saltBuf, cost, blockSize, parallelization, keyLength, params }) {
-    const { scrypt: scryptCb } = await import('node:crypto');
-    const { promisify: promisifyFn } = await import('node:util');
+    let scryptCb, promisifyFn;
+    try {
+      ({ scrypt: scryptCb } = await import('node:crypto'));
+      ({ promisify: promisifyFn } = await import('node:util'));
+    } catch {
+      throw new Error('scrypt KDF requires a Node.js-compatible runtime (node:crypto unavailable)');
+    }
     const key = await promisifyFn(scryptCb)(passphrase, saltBuf, keyLength, {
       N: cost, r: blockSize, p: parallelization,
     });
