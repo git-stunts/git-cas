@@ -1,4 +1,5 @@
-import { createHash, createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { createHash, createCipheriv, createDecipheriv, randomBytes, pbkdf2, scrypt } from 'node:crypto';
+import { promisify } from 'node:util';
 import CryptoPort from '../../ports/CryptoPort.js';
 import CasError from '../../domain/errors/CasError.js';
 
@@ -63,6 +64,44 @@ export default class NodeCryptoAdapter extends CryptoPort {
     };
 
     return { encrypt, finalize };
+  }
+
+  /** @override */
+  async deriveKey({
+    passphrase,
+    salt,
+    algorithm = 'pbkdf2',
+    iterations = 100_000,
+    cost = 16384,
+    blockSize = 8,
+    parallelization = 1,
+    keyLength = 32,
+  }) {
+    const saltBuf = salt || randomBytes(32);
+    let key;
+    const params = {
+      algorithm,
+      salt: saltBuf.toString('base64'),
+      keyLength,
+    };
+
+    if (algorithm === 'pbkdf2') {
+      key = await promisify(pbkdf2)(passphrase, saltBuf, iterations, keyLength, 'sha512');
+      params.iterations = iterations;
+    } else if (algorithm === 'scrypt') {
+      key = await promisify(scrypt)(passphrase, saltBuf, keyLength, {
+        N: cost,
+        r: blockSize,
+        p: parallelization,
+      });
+      params.cost = cost;
+      params.blockSize = blockSize;
+      params.parallelization = parallelization;
+    } else {
+      throw new Error(`Unsupported KDF algorithm: ${algorithm}`);
+    }
+
+    return { key, salt: saltBuf, params };
   }
 
   /**

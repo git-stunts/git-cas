@@ -196,6 +196,9 @@ export default class ContentAddressableStore {
    * @param {string} options.slug - Logical identifier for the stored asset.
    * @param {string} options.filename - Filename for the manifest.
    * @param {Buffer} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
+   * @param {string} [options.passphrase] - Derive encryption key from passphrase.
+   * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
+   * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
   async store(options) {
@@ -208,14 +211,16 @@ export default class ContentAddressableStore {
    * @param {Object} options
    * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
    * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * @param {string} options.outputPath - Destination file path.
    * @returns {Promise<{ bytesWritten: number }>}
    */
-  async restoreFile({ manifest, encryptionKey, outputPath }) {
+  async restoreFile({ manifest, encryptionKey, passphrase, outputPath }) {
     const service = await this.#getService();
     const { buffer, bytesWritten } = await service.restore({
       manifest,
       encryptionKey,
+      passphrase,
     });
     writeFileSync(outputPath, buffer);
     return { bytesWritten };
@@ -226,6 +231,7 @@ export default class ContentAddressableStore {
    * @param {Object} options
    * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
    * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * @returns {Promise<{ buffer: Buffer, bytesWritten: number }>}
    */
   async restore(options) {
@@ -287,5 +293,23 @@ export default class ContentAddressableStore {
   async findOrphanedChunks(options) {
     const service = await this.#getService();
     return await service.findOrphanedChunks(options);
+  }
+
+  /**
+   * Derives an encryption key from a passphrase using PBKDF2 or scrypt.
+   * @param {Object} options
+   * @param {string} options.passphrase - The passphrase.
+   * @param {Buffer} [options.salt] - Salt (random if omitted).
+   * @param {'pbkdf2'|'scrypt'} [options.algorithm='pbkdf2'] - KDF algorithm.
+   * @param {number} [options.iterations] - PBKDF2 iterations.
+   * @param {number} [options.cost] - scrypt cost (N).
+   * @param {number} [options.blockSize] - scrypt block size (r).
+   * @param {number} [options.parallelization] - scrypt parallelization (p).
+   * @param {number} [options.keyLength=32] - Derived key length.
+   * @returns {Promise<{ key: Buffer, salt: Buffer, params: Object }>}
+   */
+  async deriveKey(options) {
+    const service = await this.#getService();
+    return await service.deriveKey(options);
   }
 }

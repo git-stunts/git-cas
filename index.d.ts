@@ -4,7 +4,7 @@
  */
 
 import Manifest from "./src/domain/value-objects/Manifest.js";
-import type { EncryptionMeta, ManifestData } from "./src/domain/value-objects/Manifest.js";
+import type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef } from "./src/domain/value-objects/Manifest.js";
 import Chunk from "./src/domain/value-objects/Chunk.js";
 import CasService from "./src/domain/services/CasService.js";
 import type {
@@ -12,10 +12,12 @@ import type {
   CodecPort,
   GitPersistencePort,
   CasServiceOptions,
+  DeriveKeyOptions,
+  DeriveKeyResult,
 } from "./src/domain/services/CasService.js";
 
 export { CasService, Manifest, Chunk };
-export type { EncryptionMeta, ManifestData, CryptoPort, CodecPort, GitPersistencePort, CasServiceOptions };
+export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, CryptoPort, CodecPort, GitPersistencePort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult };
 
 /** Abstract port for cryptographic operations. */
 export declare class CryptoPortBase {
@@ -30,6 +32,7 @@ export declare class CryptoPortBase {
     encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
     finalize: () => EncryptionMeta;
   };
+  deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }
 
 /** Abstract port for persisting data to Git's object database. */
@@ -126,17 +129,22 @@ export default class ContentAddressableStore {
     slug: string;
     filename: string;
     encryptionKey?: Buffer;
+    passphrase?: string;
+    kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
+    compression?: { algorithm: "gzip" };
   }): Promise<Manifest>;
 
   restoreFile(options: {
     manifest: Manifest;
     encryptionKey?: Buffer;
+    passphrase?: string;
     outputPath: string;
   }): Promise<{ bytesWritten: number }>;
 
   restore(options: {
     manifest: Manifest;
     encryptionKey?: Buffer;
+    passphrase?: string;
   }): Promise<{ buffer: Buffer; bytesWritten: number }>;
 
   createTree(options: { manifest: Manifest }): Promise<string>;
@@ -152,4 +160,6 @@ export default class ContentAddressableStore {
   findOrphanedChunks(options: {
     treeOids: string[];
   }): Promise<{ referenced: Set<string>; total: number }>;
+
+  deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }

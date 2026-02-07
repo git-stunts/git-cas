@@ -18,10 +18,13 @@ along from first principles to full mastery.
 7. [The CLI](#7-the-cli)
 8. [Lifecycle Management](#8-lifecycle-management)
 9. [Observability](#9-observability)
-10. [Architecture](#10-architecture)
-11. [Codec System](#11-codec-system)
-12. [Error Handling](#12-error-handling)
-13. [FAQ / Troubleshooting](#13-faq--troubleshooting)
+10. [Compression](#10-compression)
+11. [Passphrase Encryption (KDF)](#11-passphrase-encryption-kdf)
+12. [Merkle Manifests](#12-merkle-manifests)
+13. [Architecture](#13-architecture)
+14. [Codec System](#14-codec-system)
+15. [Error Handling](#15-error-handling)
+16. [FAQ / Troubleshooting](#16-faq--troubleshooting)
 
 ---
 
@@ -756,7 +759,209 @@ await cas.verifyIntegrity(manifest);
 
 ---
 
-## 10. Architecture
+## 10. Compression
+
+*New in v2.0.0.*
+
+`git-cas` supports optional gzip compression. When enabled, file content is
+compressed before encryption (if any) and before chunking. This reduces storage
+size for compressible data without changing the round-trip contract.
+
+### Storing with Compression
+
+Pass the `compression` option when storing:
+
+```js
+const manifest = await cas.storeFile({
+  filePath: './vacation.jpg',
+  slug: 'photos/vacation',
+  compression: { algorithm: 'gzip' },
+});
+
+console.log(manifest.compression);
+// { algorithm: 'gzip' }
+```
+
+The manifest gains an optional `compression` field recording the algorithm used.
+
+### Compression + Encryption
+
+Compression and encryption compose naturally. Compression runs first (on
+plaintext), then encryption runs on the compressed bytes:
+
+```js
+const manifest = await cas.storeFile({
+  filePath: './data.csv',
+  slug: 'reports/q4',
+  compression: { algorithm: 'gzip' },
+  encryptionKey,
+});
+```
+
+### Restoring Compressed Content
+
+Decompression on `restore()` is automatic. If the manifest includes a
+`compression` field, the restored bytes are decompressed after decryption
+(if encrypted) and after chunk reassembly:
+
+```js
+await cas.restoreFile({
+  manifest,
+  outputPath: './restored.csv',
+});
+// restored.csv is byte-identical to the original data.csv
+```
+
+### When to Use Compression
+
+Compression is most useful for text, CSV, JSON, XML, and other compressible
+formats. For already-compressed data (JPEG, PNG, MP4, ZIP), compression adds
+CPU cost without meaningful size reduction. Use your judgement.
+
+---
+
+## 11. Passphrase Encryption (KDF)
+
+*New in v2.0.0.*
+
+Instead of managing raw 32-byte encryption keys, you can derive keys from
+passphrases using standard key derivation functions (KDFs). `git-cas` supports
+PBKDF2 (default) and scrypt.
+
+### Storing with a Passphrase
+
+Pass `passphrase` instead of `encryptionKey`:
+
+```js
+const manifest = await cas.storeFile({
+  filePath: './vacation.jpg',
+  slug: 'photos/vacation',
+  passphrase: 'my secret passphrase',
+});
+
+console.log(manifest.encryption.kdf);
+// {
+//   algorithm: 'pbkdf2',
+//   salt: 'base64-encoded-salt',
+//   iterations: 100000,
+//   hash: 'sha-512',
+//   keyLength: 32
+// }
+```
+
+KDF parameters (salt, iterations, algorithm) are stored in the manifest's
+`encryption.kdf` field. The salt is generated randomly for each store
+operation.
+
+### Restoring with a Passphrase
+
+Provide the same passphrase on restore. The KDF parameters in the manifest
+are used to re-derive the key:
+
+```js
+await cas.restoreFile({
+  manifest,
+  passphrase: 'my secret passphrase',
+  outputPath: './restored.jpg',
+});
+```
+
+A wrong passphrase produces a wrong key, which fails with `INTEGRITY_ERROR`
+(AES-256-GCM detects it).
+
+### Using scrypt
+
+Pass `kdfOptions` to select scrypt:
+
+```js
+const manifest = await cas.storeFile({
+  filePath: './secret.bin',
+  slug: 'vault',
+  passphrase: 'strong passphrase',
+  kdfOptions: { algorithm: 'scrypt', cost: 16384 },
+});
+```
+
+### Manual Key Derivation
+
+For advanced workflows, derive the key yourself:
+
+```js
+const { key, salt, params } = await cas.deriveKey({
+  passphrase: 'my secret passphrase',
+  algorithm: 'pbkdf2',
+  iterations: 200000,
+});
+
+// Use the derived key directly
+const manifest = await cas.storeFile({
+  filePath: './vacation.jpg',
+  slug: 'photos/vacation',
+  encryptionKey: key,
+});
+```
+
+### Supported KDF Algorithms
+
+| Algorithm | Default Params | Notes |
+|-----------|---------------|-------|
+| `pbkdf2` (default) | 100,000 iterations, SHA-512 | Widely supported, good baseline |
+| `scrypt` | N=16384, r=8, p=1 | Memory-hard, stronger against GPU attacks |
+
+---
+
+## 12. Merkle Manifests
+
+*New in v2.0.0.*
+
+When storing very large files, the manifest (which lists every chunk) can
+itself become large. Merkle manifests solve this by splitting the chunk list
+into sub-manifests, each stored as a separate Git blob. The root manifest
+references sub-manifests by OID.
+
+### How It Works
+
+When the chunk count exceeds `merkleThreshold` (default: 1000), `git-cas`
+automatically:
+
+1. Groups chunks into sub-manifests (each containing up to `merkleThreshold`
+   chunks).
+2. Stores each sub-manifest as a Git blob.
+3. Writes a root manifest with `version: 2` and a `subManifests` array
+   referencing the sub-manifest blob OIDs.
+
+### Configuring the Threshold
+
+Set `merkleThreshold` at construction time:
+
+```js
+const cas = new ContentAddressableStore({
+  plumbing: git,
+  merkleThreshold: 500,  // Split at 500 chunks instead of 1000
+});
+```
+
+### Transparent Reconstitution
+
+`readManifest()` transparently handles both v1 (flat) and v2 (Merkle)
+manifests. When it encounters a v2 manifest, it reads all sub-manifests,
+concatenates their chunk lists, and returns a flat `Manifest` object:
+
+```js
+const manifest = await cas.readManifest({ treeOid });
+// Works identically whether the manifest is v1 or v2
+console.log(manifest.chunks.length);  // Full chunk list, regardless of structure
+```
+
+### Backward Compatibility
+
+- v2 code reads v1 manifests without any changes.
+- v1 manifests (chunk count below threshold) continue to use the flat format.
+- The `version` field defaults to `1` for existing manifests.
+
+---
+
+## 13. Architecture
 
 `git-cas` follows a hexagonal (ports and adapters) architecture. The domain
 logic in `CasService` has zero direct dependencies on Node.js, Git, or any
@@ -824,6 +1029,7 @@ class CryptoPort {
   encryptBuffer(buffer, key) {}           // Returns { buf, meta }
   decryptBuffer(buffer, key, meta) {}     // Returns Buffer
   createEncryptionStream(key) {}          // Returns { encrypt, finalize }
+  deriveKey(options) {}                   // Returns { key, salt, params }  (v2.0.0)
 }
 ```
 
@@ -889,7 +1095,7 @@ const cas = new ContentAddressableStore({
 
 ---
 
-## 11. Codec System
+## 14. Codec System
 
 ### JSON Codec
 
@@ -978,7 +1184,7 @@ The manifest will be stored in the tree as `manifest.msgpack`.
 
 ---
 
-## 12. Error Handling
+## 15. Error Handling
 
 All errors thrown by `git-cas` are instances of `CasError`, which extends
 `Error` with two additional properties:
@@ -1061,7 +1267,7 @@ try {
 
 ---
 
-## 13. FAQ / Troubleshooting
+## 16. FAQ / Troubleshooting
 
 ### Q: Does this work with bare repositories?
 

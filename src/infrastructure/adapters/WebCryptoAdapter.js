@@ -117,6 +117,53 @@ export default class WebCryptoAdapter extends CryptoPort {
     return { encrypt, finalize };
   }
 
+  /** @override */
+  async deriveKey({
+    passphrase,
+    salt,
+    algorithm = 'pbkdf2',
+    iterations = 100_000,
+    cost = 16384,
+    blockSize = 8,
+    parallelization = 1,
+    keyLength = 32,
+  }) {
+    const saltBuf = salt || this.randomBytes(32);
+    const params = { algorithm, salt: this.#toBase64(saltBuf), keyLength };
+
+    const opts = { passphrase, saltBuf, iterations, cost, blockSize, parallelization, keyLength, params };
+    const key = algorithm === 'pbkdf2'
+      ? await this.#derivePbkdf2(opts)
+      : await this.#deriveScrypt(opts);
+
+    return { key: Buffer.from(key), salt: Buffer.from(saltBuf), params };
+  }
+
+  async #derivePbkdf2({ passphrase, saltBuf, iterations, keyLength, params }) {
+    const enc = new globalThis.TextEncoder();
+    const baseKey = await globalThis.crypto.subtle.importKey(
+      'raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveBits'],
+    );
+    const bits = await globalThis.crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: saltBuf, iterations, hash: 'SHA-512' },
+      baseKey, keyLength * 8,
+    );
+    params.iterations = iterations;
+    return Buffer.from(bits);
+  }
+
+  async #deriveScrypt({ passphrase, saltBuf, cost, blockSize, parallelization, keyLength, params }) {
+    const { scrypt: scryptCb } = await import('node:crypto');
+    const { promisify: promisifyFn } = await import('node:util');
+    const key = await promisifyFn(scryptCb)(passphrase, saltBuf, keyLength, {
+      N: cost, r: blockSize, p: parallelization,
+    });
+    params.cost = cost;
+    params.blockSize = blockSize;
+    params.parallelization = parallelization;
+    return key;
+  }
+
   /**
    * Imports a raw key for use with Web Crypto AES-GCM operations.
    * @param {Buffer|Uint8Array} rawKey - 32-byte raw key material.
