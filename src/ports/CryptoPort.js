@@ -51,4 +51,21 @@ export default class CryptoPort {
   createEncryptionStream(_key) {
     throw new Error('Not implemented');
   }
+
+  /**
+   * Derives an encryption key from a passphrase using a KDF.
+   * @param {Object} options
+   * @param {string} options.passphrase - The passphrase to derive a key from.
+   * @param {Buffer} [options.salt] - Salt for the KDF (random if omitted).
+   * @param {'pbkdf2'|'scrypt'} [options.algorithm='pbkdf2'] - KDF algorithm.
+   * @param {number} [options.iterations=100000] - PBKDF2 iteration count.
+   * @param {number} [options.cost=16384] - scrypt cost parameter (N).
+   * @param {number} [options.blockSize=8] - scrypt block size (r).
+   * @param {number} [options.parallelization=1] - scrypt parallelization (p).
+   * @param {number} [options.keyLength=32] - Derived key length in bytes.
+   * @returns {Promise<{ key: Buffer, salt: Buffer, params: { algorithm: string, salt: string, iterations?: number, cost?: number, blockSize?: number, parallelization?: number, keyLength: number } }>}
+   */
+  deriveKey(_options) {
+    throw new Error('Not implemented');
+  }
 }

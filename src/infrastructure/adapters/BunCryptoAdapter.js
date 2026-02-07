@@ -1,9 +1,10 @@
 import { CryptoHasher } from 'bun';
 import CryptoPort from '../../ports/CryptoPort.js';
 import CasError from '../../domain/errors/CasError.js';
-// We still use node:crypto for AES-GCM because Bun's native implementation 
+// We still use node:crypto for AES-GCM because Bun's native implementation
 // is heavily optimized for these specific Node APIs.
-import { createCipheriv, createDecipheriv } from 'node:crypto';
+import { createCipheriv, createDecipheriv, pbkdf2, scrypt } from 'node:crypto';
+import { promisify } from 'node:util';
 
 /**
  * Bun-native {@link CryptoPort} implementation.
@@ -80,6 +81,38 @@ export default class BunCryptoAdapter extends CryptoPort {
     };
 
     return { encrypt, finalize };
+  }
+
+  /** @override */
+  async deriveKey({
+    passphrase,
+    salt,
+    algorithm = 'pbkdf2',
+    iterations = 100_000,
+    cost = 16384,
+    blockSize = 8,
+    parallelization = 1,
+    keyLength = 32,
+  }) {
+    const saltBuf = salt || this.randomBytes(32);
+    let key;
+    const params = { algorithm, salt: Buffer.from(saltBuf).toString('base64'), keyLength };
+
+    if (algorithm === 'pbkdf2') {
+      key = await promisify(pbkdf2)(passphrase, saltBuf, iterations, keyLength, 'sha512');
+      params.iterations = iterations;
+    } else if (algorithm === 'scrypt') {
+      key = await promisify(scrypt)(passphrase, saltBuf, keyLength, {
+        N: cost, r: blockSize, p: parallelization,
+      });
+      params.cost = cost;
+      params.blockSize = blockSize;
+      params.parallelization = parallelization;
+    } else {
+      throw new Error(`Unsupported KDF algorithm: ${algorithm}`);
+    }
+
+    return { key, salt: Buffer.from(saltBuf), params };
   }
 
   /**

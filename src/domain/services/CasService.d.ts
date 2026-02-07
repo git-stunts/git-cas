@@ -5,7 +5,7 @@
 
 import { EventEmitter } from "node:events";
 import Manifest from "../value-objects/Manifest.js";
-import type { EncryptionMeta } from "../value-objects/Manifest.js";
+import type { EncryptionMeta, CompressionMeta, KdfParams } from "../value-objects/Manifest.js";
 
 /** Port interface for cryptographic operations (hashing, encryption, random bytes). */
 export interface CryptoPort {
@@ -20,6 +20,7 @@ export interface CryptoPort {
     encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
     finalize: () => EncryptionMeta;
   };
+  deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }
 
 /** Port interface for encoding and decoding manifest data. */
@@ -45,6 +46,26 @@ export interface CasServiceOptions {
   codec: CodecPort;
   crypto: CryptoPort;
   chunkSize?: number;
+  merkleThreshold?: number;
+}
+
+/** Options for key derivation. */
+export interface DeriveKeyOptions {
+  passphrase: string;
+  salt?: Buffer;
+  algorithm?: "pbkdf2" | "scrypt";
+  iterations?: number;
+  cost?: number;
+  blockSize?: number;
+  parallelization?: number;
+  keyLength?: number;
+}
+
+/** Result from key derivation. */
+export interface DeriveKeyResult {
+  key: Buffer;
+  salt: Buffer;
+  params: KdfParams;
 }
 
 /**
@@ -58,6 +79,7 @@ export default class CasService extends EventEmitter {
   readonly codec: CodecPort;
   readonly crypto: CryptoPort;
   readonly chunkSize: number;
+  readonly merkleThreshold: number;
 
   constructor(options: CasServiceOptions);
 
@@ -77,6 +99,9 @@ export default class CasService extends EventEmitter {
     slug: string;
     filename: string;
     encryptionKey?: Buffer;
+    passphrase?: string;
+    kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
+    compression?: { algorithm: "gzip" };
   }): Promise<Manifest>;
 
   createTree(options: { manifest: Manifest }): Promise<string>;
@@ -84,6 +109,7 @@ export default class CasService extends EventEmitter {
   restore(options: {
     manifest: Manifest;
     encryptionKey?: Buffer;
+    passphrase?: string;
   }): Promise<{ buffer: Buffer; bytesWritten: number }>;
 
   readManifest(options: { treeOid: string }): Promise<Manifest>;
@@ -97,4 +123,6 @@ export default class CasService extends EventEmitter {
   }): Promise<{ referenced: Set<string>; total: number }>;
 
   verifyIntegrity(manifest: Manifest): Promise<boolean>;
+
+  deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }

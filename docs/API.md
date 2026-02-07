@@ -29,6 +29,7 @@ new ContentAddressableStore(options)
 - `options.codec` (optional): CodecPort implementation (default: JsonCodec)
 - `options.crypto` (optional): CryptoPort implementation (default: auto-detected)
 - `options.policy` (optional): Resilience policy from `@git-stunts/alfred` for Git I/O
+- `options.merkleThreshold` (optional): Chunk count threshold for Merkle manifests (default: 1000)
 
 **Example:**
 
@@ -107,7 +108,7 @@ const service = await cas.getService();
 #### store
 
 ```javascript
-await cas.store({ source, slug, filename, encryptionKey })
+await cas.store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression })
 ```
 
 Stores content from an async iterable source.
@@ -118,6 +119,9 @@ Stores content from an async iterable source.
 - `slug` (required): `string` - Unique identifier for the asset
 - `filename` (required): `string` - Original filename
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
+- `passphrase` (optional): `string` - Derive encryption key from passphrase (alternative to `encryptionKey`)
+- `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`)
+- `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
 
 **Returns:** `Promise<Manifest>`
 
@@ -154,6 +158,9 @@ Convenience method that opens a file and stores it.
 - `slug` (required): `string` - Unique identifier for the asset
 - `filename` (optional): `string` - Filename (defaults to basename of filePath)
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
+- `passphrase` (optional): `string` - Derive encryption key from passphrase
+- `kdfOptions` (optional): `Object` - KDF options when using `passphrase`
+- `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
 
 **Returns:** `Promise<Manifest>`
 
@@ -171,7 +178,7 @@ const manifest = await cas.storeFile({
 #### restore
 
 ```javascript
-await cas.restore({ manifest, encryptionKey })
+await cas.restore({ manifest, encryptionKey, passphrase })
 ```
 
 Restores content from a manifest and returns the buffer.
@@ -180,6 +187,7 @@ Restores content from a manifest and returns the buffer.
 
 - `manifest` (required): `Manifest` - Manifest object
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key (required if content is encrypted)
+- `passphrase` (optional): `string` - Passphrase for KDF-based decryption (alternative to `encryptionKey`)
 
 **Returns:** `Promise<{ buffer: Buffer, bytesWritten: number }>`
 
@@ -209,6 +217,7 @@ Restores content from a manifest and writes it to a file.
 
 - `manifest` (required): `Manifest` - Manifest object
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
+- `passphrase` (optional): `string` - Passphrase for KDF-based decryption
 - `outputPath` (required): `string` - Path to write the restored file
 
 **Returns:** `Promise<{ bytesWritten: number }>`
@@ -321,6 +330,48 @@ Returns logical deletion metadata for an asset. Does not perform any destructive
 const { slug, chunksOrphaned } = await cas.deleteAsset({ treeOid });
 console.log(`Asset "${slug}" has ${chunksOrphaned} chunks to clean up`);
 // Caller must remove refs pointing to treeOid; run `git gc --prune` to reclaim space
+```
+
+#### deriveKey
+
+```javascript
+await cas.deriveKey(options)
+```
+
+Derives an encryption key from a passphrase using PBKDF2 or scrypt.
+
+**Parameters:**
+
+- `options.passphrase` (required): `string` - The passphrase
+- `options.salt` (optional): `Buffer` - Salt (random if omitted)
+- `options.algorithm` (optional): `'pbkdf2' | 'scrypt'` - KDF algorithm (default: `'pbkdf2'`)
+- `options.iterations` (optional): `number` - PBKDF2 iterations (default: 100000)
+- `options.cost` (optional): `number` - scrypt cost parameter N (default: 16384)
+- `options.blockSize` (optional): `number` - scrypt block size r (default: 8)
+- `options.parallelization` (optional): `number` - scrypt parallelization p (default: 1)
+- `options.keyLength` (optional): `number` - Derived key length (default: 32)
+
+**Returns:** `Promise<{ key: Buffer, salt: Buffer, params: Object }>`
+
+- `key` — the derived 32-byte encryption key
+- `salt` — the salt used (save this for re-derivation)
+- `params` — full KDF parameters object (stored in manifest when using `passphrase` option)
+
+**Example:**
+
+```javascript
+const { key, salt, params } = await cas.deriveKey({
+  passphrase: 'my secret passphrase',
+  algorithm: 'pbkdf2',
+  iterations: 200000,
+});
+
+// Use the derived key for encryption
+const manifest = await cas.storeFile({
+  filePath: '/path/to/file.txt',
+  slug: 'my-asset',
+  encryptionKey: key,
+});
 ```
 
 #### findOrphanedChunks
@@ -443,6 +494,7 @@ new CasService({ persistence, codec, crypto, chunkSize })
 - `codec` (required): `CodecPort` implementation
 - `crypto` (required): `CryptoPort` implementation
 - `chunkSize` (optional): `number` - Chunk size in bytes (default: 262144, minimum: 1024)
+- `merkleThreshold` (optional): `number` - Chunk count threshold for Merkle manifests (default: 1000)
 
 **Throws:** `Error` if chunkSize is less than 1024 bytes
 
@@ -607,7 +659,10 @@ new Manifest(data)
 - `data.filename` (required): `string` - Original filename (min length: 1)
 - `data.size` (required): `number` - Total file size in bytes (>= 0)
 - `data.chunks` (required): `Array<Object>` - Chunk metadata array
-- `data.encryption` (optional): `Object` - Encryption metadata
+- `data.encryption` (optional): `Object` - Encryption metadata (may include `kdf` field for passphrase-derived keys)
+- `data.version` (optional): `number` - Manifest version (1 = flat, 2 = Merkle; default: 1)
+- `data.compression` (optional): `Object` - Compression metadata `{ algorithm: 'gzip' }`
+- `data.subManifests` (optional): `Array<Object>` - Sub-manifest references (v2 Merkle manifests only)
 
 **Throws:** `Error` if data does not match ManifestSchema
 
@@ -635,7 +690,10 @@ const manifest = new Manifest({
 - `filename`: `string` - Original filename
 - `size`: `number` - Total file size
 - `chunks`: `Array<Chunk>` - Array of Chunk objects
-- `encryption`: `Object | undefined` - Encryption metadata
+- `encryption`: `Object | undefined` - Encryption metadata (may include `kdf` sub-object)
+- `version`: `number` - Manifest version (1 or 2, default: 1)
+- `compression`: `Object | undefined` - Compression metadata `{ algorithm }`
+- `subManifests`: `Array | undefined` - Sub-manifest references (v2 only)
 
 #### Methods
 
@@ -933,6 +991,27 @@ Creates a streaming encryption context.
 - `encrypt`: `(source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>` - Transform function
 - `finalize`: `() => { algorithm: string, nonce: string, tag: string, encrypted: boolean }` - Get metadata
 
+##### deriveKey
+
+```javascript
+await port.deriveKey(options)
+```
+
+Derives an encryption key from a passphrase using PBKDF2 or scrypt.
+
+**Parameters:**
+
+- `options.passphrase`: `string` - The passphrase
+- `options.salt` (optional): `Buffer` - Salt (random if omitted)
+- `options.algorithm` (optional): `'pbkdf2' | 'scrypt'` - KDF algorithm (default: `'pbkdf2'`)
+- `options.iterations` (optional): `number` - PBKDF2 iterations
+- `options.cost` (optional): `number` - scrypt cost N
+- `options.blockSize` (optional): `number` - scrypt block size r
+- `options.parallelization` (optional): `number` - scrypt parallelization p
+- `options.keyLength` (optional): `number` - Derived key length (default: 32)
+
+**Returns:** `Promise<{ key: Buffer, salt: Buffer, params: Object }>`
+
 **Example Implementation:**
 
 ```javascript
@@ -956,6 +1035,10 @@ class CustomCryptoAdapter extends CryptoPort {
   }
 
   createEncryptionStream(key) {
+    // Implementation
+  }
+
+  async deriveKey(options) {
     // Implementation
   }
 }

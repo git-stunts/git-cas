@@ -21,12 +21,25 @@ We use the object database.
 - **Dedupe for free** Git already hashes objects. We just lean into it.
 - **Chunked storage** big files become stable, reusable blobs.
 - **Optional AES-256-GCM encryption** store secrets without leaking plaintext into the ODB.
+- **Compression** gzip before encryption — smaller blobs, same round-trip.
+- **Passphrase encryption** derive keys from passphrases via PBKDF2 or scrypt — no raw key management.
+- **Merkle manifests** large files auto-split into sub-manifests for scalability.
 - **Manifests** a tiny explicit index of chunks + metadata (JSON/CBOR).
 - **Tree output** generates standard Git trees so assets snap into commits cleanly.
 - **Full round-trip** store, tree, and restore — get your bytes back, verified.
 - **Lifecycle management** `readManifest`, `deleteAsset`, `findOrphanedChunks` — inspect trees, plan deletions, audit storage.
 
 **Use it for:** binary assets, build artifacts, model weights, data packs, secret bundles, weird experiments, etc.
+
+## What's new in v2.0.0
+
+**Compression** — `compression: { algorithm: 'gzip' }` on `store()`. Compression runs before encryption. Decompression on `restore()` is automatic.
+
+**Passphrase-based encryption** — Pass `passphrase` instead of `encryptionKey`. Keys are derived via PBKDF2 (default) or scrypt. KDF parameters are stored in the manifest for deterministic re-derivation. Use `deriveKey()` directly for manual control.
+
+**Merkle tree manifests** — When chunk count exceeds `merkleThreshold` (default: 1000), manifests are automatically split into sub-manifests stored as separate blobs. `readManifest()` transparently reconstitutes them. Full backward compatibility with v1 manifests.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 
 ## Usage (Node API)
 
@@ -56,6 +69,14 @@ const m = await cas.readManifest({ treeOid });
 // Lifecycle: inspect deletion impact, find orphaned chunks
 const { slug, chunksOrphaned } = await cas.deleteAsset({ treeOid });
 const { referenced, total } = await cas.findOrphanedChunks({ treeOids: [treeOid] });
+
+// v2.0.0: Compressed + passphrase-encrypted store
+const manifest2 = await cas.storeFile({
+  filePath: './image.png',
+  slug: 'my-image',
+  passphrase: 'my secret passphrase',
+  compression: { algorithm: 'gzip' },
+});
 ```
 
 ## CLI (git plugin)
