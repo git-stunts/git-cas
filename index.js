@@ -179,9 +179,12 @@ export default class ContentAddressableStore {
    * @param {string} options.slug - Logical identifier for the stored asset.
    * @param {string} [options.filename] - Override filename (defaults to basename of filePath).
    * @param {Buffer} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
+   * @param {string} [options.passphrase] - Derive encryption key from passphrase.
+   * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
+   * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
-  async storeFile({ filePath, slug, filename, encryptionKey }) {
+  async storeFile({ filePath, slug, filename, encryptionKey, passphrase, kdfOptions, compression }) {
     const source = createReadStream(filePath);
     const service = await this.#getService();
     return await service.store({
@@ -189,6 +192,9 @@ export default class ContentAddressableStore {
       slug,
       filename: filename || path.basename(filePath),
       encryptionKey,
+      passphrase,
+      kdfOptions,
+      compression,
     });
   }
 

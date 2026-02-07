@@ -123,6 +123,9 @@ export default class ContentAddressableStore {
     slug: string;
     filename?: string;
     encryptionKey?: Buffer;
+    passphrase?: string;
+    kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
+    compression?: { algorithm: "gzip" };
   }): Promise<Manifest>;
 
   store(options: {
