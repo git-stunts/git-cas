@@ -1,5 +1,5 @@
 {
-  "name": "@git-stunts/cas",
+  "name": "@git-stunts/git-cas",
   "version": "1.6.0",
   "exports": {
     ".": "./index.js",
