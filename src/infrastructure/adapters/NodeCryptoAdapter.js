@@ -6,14 +6,17 @@ import CasError from '../../domain/errors/CasError.js';
  * Node.js implementation of CryptoPort using node:crypto.
  */
 export default class NodeCryptoAdapter extends CryptoPort {
+  /** @override */
   sha256(buf) {
     return createHash('sha256').update(buf).digest('hex');
   }
 
+  /** @override */
   randomBytes(n) {
     return randomBytes(n);
   }
 
+  /** @override */
   encryptBuffer(buffer, key) {
     this.#validateKey(key);
     const nonce = randomBytes(12);
@@ -26,6 +29,7 @@ export default class NodeCryptoAdapter extends CryptoPort {
     };
   }
 
+  /** @override */
   decryptBuffer(buffer, key, meta) {
     const nonce = Buffer.from(meta.nonce, 'base64');
     const tag = Buffer.from(meta.tag, 'base64');
@@ -34,6 +38,7 @@ export default class NodeCryptoAdapter extends CryptoPort {
     return Buffer.concat([decipher.update(buffer), decipher.final()]);
   }
 
+  /** @override */
   createEncryptionStream(key) {
     this.#validateKey(key);
     const nonce = randomBytes(12);
@@ -61,7 +66,9 @@ export default class NodeCryptoAdapter extends CryptoPort {
   }
 
   /**
+   * Validates that a key is a 32-byte Buffer.
    * @param {Buffer} key
+   * @throws {CasError} INVALID_KEY_TYPE | INVALID_KEY_LENGTH
    */
   #validateKey(key) {
     if (!Buffer.isBuffer(key)) {
@@ -80,8 +87,10 @@ export default class NodeCryptoAdapter extends CryptoPort {
   }
 
   /**
-   * @param {Buffer} nonce
-   * @param {Buffer} tag
+   * Builds the encryption metadata object.
+   * @param {Buffer} nonce - 12-byte AES-GCM nonce.
+   * @param {Buffer} tag - 16-byte GCM authentication tag.
+   * @returns {{ algorithm: string, nonce: string, tag: string, encrypted: boolean }}
    */
   #buildMeta(nonce, tag) {
     return {

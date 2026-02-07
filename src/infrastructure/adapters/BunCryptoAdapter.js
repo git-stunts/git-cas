@@ -6,19 +6,25 @@ import CasError from '../../domain/errors/CasError.js';
 import { createCipheriv, createDecipheriv } from 'node:crypto';
 
 /**
- * Bun-native implementation of CryptoPort.
- * Uses Bun.CryptoHasher for fast SHA-256 and globalThis.crypto for random bytes.
+ * Bun-native {@link CryptoPort} implementation.
+ *
+ * Uses `Bun.CryptoHasher` for fast SHA-256 hashing, `globalThis.crypto`
+ * for random bytes, and Node's `createCipheriv`/`createDecipheriv` for
+ * AES-256-GCM (Bun's Node compat layer is heavily optimized for these APIs).
  */
 export default class BunCryptoAdapter extends CryptoPort {
+  /** @override */
   async sha256(buf) {
     return new CryptoHasher('sha256').update(buf).digest('hex');
   }
 
+  /** @override */
   randomBytes(n) {
     const uint8 = globalThis.crypto.getRandomValues(new Uint8Array(n));
     return Buffer.from(uint8.buffer, uint8.byteOffset, uint8.byteLength);
   }
 
+  /** @override */
   async encryptBuffer(buffer, key) {
     this.#validateKey(key);
     const nonce = this.randomBytes(12);
@@ -31,6 +37,7 @@ export default class BunCryptoAdapter extends CryptoPort {
     };
   }
 
+  /** @override */
   async decryptBuffer(buffer, key, meta) {
     this.#validateKey(key);
     const nonce = Buffer.from(meta.nonce, 'base64');
@@ -40,6 +47,7 @@ export default class BunCryptoAdapter extends CryptoPort {
     return Buffer.concat([decipher.update(buffer), decipher.final()]);
   }
 
+  /** @override */
   createEncryptionStream(key) {
     this.#validateKey(key);
     const nonce = this.randomBytes(12);
@@ -74,6 +82,11 @@ export default class BunCryptoAdapter extends CryptoPort {
     return { encrypt, finalize };
   }
 
+  /**
+   * Validates that a key is a 32-byte Buffer or Uint8Array.
+   * @param {Buffer|Uint8Array} key
+   * @throws {CasError} INVALID_KEY_TYPE | INVALID_KEY_LENGTH
+   */
   #validateKey(key) {
     if (!Buffer.isBuffer(key) && !(key instanceof Uint8Array)) {
       throw new CasError(
@@ -90,6 +103,12 @@ export default class BunCryptoAdapter extends CryptoPort {
     }
   }
 
+  /**
+   * Builds the encryption metadata object.
+   * @param {Buffer|Uint8Array} nonce - 12-byte AES-GCM nonce.
+   * @param {Buffer} tag - 16-byte GCM authentication tag.
+   * @returns {{ algorithm: string, nonce: string, tag: string, encrypted: boolean }}
+   */
   #buildMeta(nonce, tag) {
     return {
       algorithm: 'aes-256-gcm',

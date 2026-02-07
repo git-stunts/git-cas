@@ -26,6 +26,7 @@ export {
 
 /**
  * Detects the best crypto adapter for the current runtime.
+ * @returns {Promise<import('./src/ports/CryptoPort.js').default>} A runtime-appropriate CryptoPort implementation.
  */
 async function getDefaultCryptoAdapter() {
   if (globalThis.Bun) {
@@ -40,16 +41,19 @@ async function getDefaultCryptoAdapter() {
 }
 
 /**
- * Facade class for the CAS library.
+ * High-level facade for the Content Addressable Store library.
+ *
+ * Wraps {@link CasService} with lazy initialization, runtime-adaptive crypto
+ * selection, and convenience helpers for file I/O.
  */
 export default class ContentAddressableStore {
   /**
    * @param {Object} options
-   * @param {import('../plumbing/index.js').default} options.plumbing
-   * @param {number} [options.chunkSize]
-   * @param {import('./src/ports/CodecPort.js').default} [options.codec]
-   * @param {import('./src/ports/CryptoPort.js').default} [options.crypto]
-   * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy for Git I/O
+   * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance for Git operations.
+   * @param {number} [options.chunkSize] - Chunk size in bytes (default 256 KiB).
+   * @param {import('./src/ports/CodecPort.js').default} [options.codec] - Manifest codec (default JsonCodec).
+   * @param {import('./src/ports/CryptoPort.js').default} [options.crypto] - Crypto adapter (auto-detected if omitted).
+   * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy for Git I/O.
    */
   constructor({ plumbing, chunkSize, codec, policy, crypto }) {
     this.plumbing = plumbing;
@@ -64,8 +68,9 @@ export default class ContentAddressableStore {
   #servicePromise = null;
 
   /**
-   * Lazily initializes the service to handle async adapter discovery.
+   * Lazily initializes the service, handling async adapter discovery.
    * @private
+   * @returns {Promise<CasService>}
    */
   async #getService() {
     if (!this.#servicePromise) {
@@ -74,6 +79,11 @@ export default class ContentAddressableStore {
     return await this.#servicePromise;
   }
 
+  /**
+   * Constructs the persistence adapter, resolves crypto, and creates the CasService.
+   * @private
+   * @returns {Promise<CasService>}
+   */
   async #initService() {
     const persistence = new GitPersistenceAdapter({
       plumbing: this.plumbing,
@@ -90,7 +100,8 @@ export default class ContentAddressableStore {
   }
 
   /**
-   * Lazily initializes and returns the service.
+   * Lazily initializes and returns the underlying {@link CasService}.
+   * @returns {Promise<CasService>}
    */
   async getService() {
     return await this.#getService();
@@ -98,6 +109,11 @@ export default class ContentAddressableStore {
 
   /**
    * Factory to create a CAS with JSON codec.
+   * @param {Object} options
+   * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance.
+   * @param {number} [options.chunkSize] - Chunk size in bytes.
+   * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy.
+   * @returns {ContentAddressableStore}
    */
   static createJson({ plumbing, chunkSize, policy }) {
     return new ContentAddressableStore({ plumbing, chunkSize, codec: new JsonCodec(), policy });
@@ -105,28 +121,61 @@ export default class ContentAddressableStore {
 
   /**
    * Factory to create a CAS with CBOR codec.
+   * @param {Object} options
+   * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance.
+   * @param {number} [options.chunkSize] - Chunk size in bytes.
+   * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy.
+   * @returns {ContentAddressableStore}
    */
   static createCbor({ plumbing, chunkSize, policy }) {
     return new ContentAddressableStore({ plumbing, chunkSize, codec: new CborCodec(), policy });
   }
 
+  /**
+   * Returns the configured chunk size in bytes.
+   * @returns {number}
+   */
   get chunkSize() {
     return this.service?.chunkSize || this.chunkSizeConfig || 256 * 1024;
   }
 
+  /**
+   * Encrypts a buffer using AES-256-GCM.
+   * @param {Object} options
+   * @param {Buffer} options.buffer - Plaintext data to encrypt.
+   * @param {Buffer} options.key - 32-byte encryption key.
+   * @returns {Promise<{ buf: Buffer, meta: { algorithm: string, nonce: string, tag: string, encrypted: boolean } }>}
+   */
   async encrypt(options) {
     const service = await this.#getService();
     return await service.encrypt(options);
   }
 
+  /**
+   * Decrypts a buffer. Returns it unchanged if `meta.encrypted` is falsy.
+   * @param {Object} options
+   * @param {Buffer} options.buffer - Ciphertext to decrypt.
+   * @param {Buffer} options.key - 32-byte encryption key.
+   * @param {{ encrypted: boolean, algorithm: string, nonce: string, tag: string }} options.meta - Encryption metadata.
+   * @returns {Promise<Buffer>}
+   */
   async decrypt(options) {
     const service = await this.#getService();
     return await service.decrypt(options);
   }
 
   /**
-   * Opens a file and delegates to CasService.store().
-   * Backward-compatible API that accepts a filePath.
+   * Reads a file from disk and stores it in Git as chunked blobs.
+   *
+   * Convenience wrapper that opens a read stream and delegates to
+   * {@link CasService#store}.
+   *
+   * @param {Object} options
+   * @param {string} options.filePath - Absolute or relative path to the file.
+   * @param {string} options.slug - Logical identifier for the stored asset.
+   * @param {string} [options.filename] - Override filename (defaults to basename of filePath).
+   * @param {Buffer} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
+   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
   async storeFile({ filePath, slug, filename, encryptionKey }) {
     const source = createReadStream(filePath);
@@ -140,7 +189,13 @@ export default class ContentAddressableStore {
   }
 
   /**
-   * Direct passthrough for callers who already have an async iterable source.
+   * Stores an async iterable source in Git as chunked blobs.
+   * @param {Object} options
+   * @param {AsyncIterable<Buffer>} options.source - Data to store.
+   * @param {string} options.slug - Logical identifier for the stored asset.
+   * @param {string} options.filename - Filename for the manifest.
+   * @param {Buffer} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
+   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
   async store(options) {
     const service = await this.#getService();
@@ -148,7 +203,12 @@ export default class ContentAddressableStore {
   }
 
   /**
-   * Restores a file from its manifest and writes it to outputPath.
+   * Restores a file from its manifest and writes it to disk.
+   * @param {Object} options
+   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @param {string} options.outputPath - Destination file path.
+   * @returns {Promise<{ bytesWritten: number }>}
    */
   async restoreFile({ manifest, encryptionKey, outputPath }) {
     const service = await this.#getService();
@@ -162,17 +222,32 @@ export default class ContentAddressableStore {
 
   /**
    * Restores a file from its manifest, returning the buffer directly.
+   * @param {Object} options
+   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @returns {Promise<{ buffer: Buffer, bytesWritten: number }>}
    */
   async restore(options) {
     const service = await this.#getService();
     return await service.restore(options);
   }
 
+  /**
+   * Creates a Git tree object from a manifest.
+   * @param {Object} options
+   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @returns {Promise<string>} Git OID of the created tree.
+   */
   async createTree(options) {
     const service = await this.#getService();
     return await service.createTree(options);
   }
 
+  /**
+   * Verifies the integrity of a stored file by re-hashing its chunks.
+   * @param {import('./src/domain/value-objects/Manifest.js').default} manifest - The file manifest.
+   * @returns {Promise<boolean>} `true` if all chunks pass verification.
+   */
   async verifyIntegrity(manifest) {
     const service = await this.#getService();
     return await service.verifyIntegrity(manifest);
@@ -180,6 +255,9 @@ export default class ContentAddressableStore {
 
   /**
    * Reads a manifest from a Git tree OID.
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID to read the manifest from.
+   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
    */
   async readManifest(options) {
     const service = await this.#getService();
@@ -188,6 +266,10 @@ export default class ContentAddressableStore {
 
   /**
    * Returns deletion metadata for an asset stored in a Git tree.
+   * Does not perform any destructive Git operations.
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID of the asset.
+   * @returns {Promise<{ slug: string, chunksOrphaned: number }>}
    */
   async deleteAsset(options) {
     const service = await this.#getService();
@@ -196,6 +278,10 @@ export default class ContentAddressableStore {
 
   /**
    * Aggregates referenced chunk blob OIDs across multiple stored assets.
+   * Analysis only — does not delete or modify anything.
+   * @param {Object} options
+   * @param {string[]} options.treeOids - Git tree OIDs to analyze.
+   * @returns {Promise<{ referenced: Set<string>, total: number }>}
    */
   async findOrphanedChunks(options) {
     const service = await this.#getService();

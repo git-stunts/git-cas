@@ -1,5 +1,6 @@
 /**
- * Port for cryptographic operations.
+ * Abstract port for cryptographic operations (hashing, random bytes, AES-256-GCM).
+ * @abstract
  */
 export default class CryptoPort {
   /**

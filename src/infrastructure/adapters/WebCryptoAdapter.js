@@ -2,10 +2,14 @@ import CryptoPort from '../../ports/CryptoPort.js';
 import CasError from '../../domain/errors/CasError.js';
 
 /**
- * Web Crypto implementation of CryptoPort.
- * Works in Deno and other environments supporting standard Web Crypto.
+ * {@link CryptoPort} implementation using the Web Crypto API.
+ *
+ * Works in Deno, browsers, and other environments supporting `globalThis.crypto.subtle`.
+ * Note: streaming encryption buffers all data internally because Web Crypto's
+ * AES-GCM is a one-shot API (the GCM tag is computed over the entire plaintext).
  */
 export default class WebCryptoAdapter extends CryptoPort {
+  /** @override */
   async sha256(buf) {
     const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', buf);
     return Array.from(new Uint8Array(hashBuffer))
@@ -13,10 +17,16 @@ export default class WebCryptoAdapter extends CryptoPort {
       .join('');
   }
 
+  /** @override */
   randomBytes(n) {
-    return globalThis.crypto.getRandomValues(new Uint8Array(n));
+    const uint8 = globalThis.crypto.getRandomValues(new Uint8Array(n));
+    if (globalThis.Buffer) {
+      return Buffer.from(uint8.buffer, uint8.byteOffset, uint8.byteLength);
+    }
+    return uint8;
   }
 
+  /** @override */
   async encryptBuffer(buffer, key) {
     this.#validateKey(key);
     const nonce = this.randomBytes(12);
@@ -40,6 +50,7 @@ export default class WebCryptoAdapter extends CryptoPort {
     };
   }
 
+  /** @override */
   async decryptBuffer(buffer, key, meta) {
     const nonce = this.#fromBase64(meta.nonce);
     const tag = this.#fromBase64(meta.tag);
@@ -62,6 +73,7 @@ export default class WebCryptoAdapter extends CryptoPort {
     }
   }
 
+  /** @override */
   createEncryptionStream(key) {
     this.#validateKey(key);
     const nonce = this.randomBytes(12);
@@ -105,6 +117,11 @@ export default class WebCryptoAdapter extends CryptoPort {
     return { encrypt, finalize };
   }
 
+  /**
+   * Imports a raw key for use with Web Crypto AES-GCM operations.
+   * @param {Buffer|Uint8Array} rawKey - 32-byte raw key material.
+   * @returns {Promise<CryptoKey>}
+   */
   async #importKey(rawKey) {
     return globalThis.crypto.subtle.importKey(
       'raw',
@@ -115,6 +132,11 @@ export default class WebCryptoAdapter extends CryptoPort {
     );
   }
 
+  /**
+   * Validates that a key is a 32-byte Buffer or Uint8Array.
+   * @param {Buffer|Uint8Array} key
+   * @throws {CasError} INVALID_KEY_TYPE | INVALID_KEY_LENGTH
+   */
   #validateKey(key) {
     if (!globalThis.Buffer?.isBuffer(key) && !(key instanceof Uint8Array)) {
       throw new CasError(
@@ -131,6 +153,12 @@ export default class WebCryptoAdapter extends CryptoPort {
     }
   }
 
+  /**
+   * Builds the encryption metadata object.
+   * @param {Uint8Array} nonce - 12-byte AES-GCM nonce.
+   * @param {Uint8Array} tag - 16-byte GCM authentication tag.
+   * @returns {{ algorithm: string, nonce: string, tag: string, encrypted: boolean }}
+   */
   #buildMeta(nonce, tag) {
     return {
       algorithm: 'aes-256-gcm',
@@ -140,6 +168,11 @@ export default class WebCryptoAdapter extends CryptoPort {
     };
   }
 
+  /**
+   * Encodes binary data to base64, using Buffer when available.
+   * @param {Uint8Array} buf
+   * @returns {string}
+   */
   #toBase64(buf) {
     if (globalThis.Buffer) {
       return Buffer.from(buf).toString('base64');
@@ -147,6 +180,11 @@ export default class WebCryptoAdapter extends CryptoPort {
     return globalThis.btoa(String.fromCharCode(...new Uint8Array(buf)));
   }
 
+  /**
+   * Decodes a base64 string to binary, using Buffer when available.
+   * @param {string} str
+   * @returns {Buffer|Uint8Array}
+   */
   #fromBase64(str) {
     if (globalThis.Buffer) {
       return Buffer.from(str, 'base64');
