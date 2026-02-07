@@ -81,7 +81,7 @@ export default class NodeCryptoAdapter extends CryptoPort {
     let key;
     const params = {
       algorithm,
-      salt: saltBuf.toString('base64'),
+      salt: Buffer.from(saltBuf).toString('base64'),
       keyLength,
     };
 
@@ -101,7 +101,7 @@ export default class NodeCryptoAdapter extends CryptoPort {
       throw new Error(`Unsupported KDF algorithm: ${algorithm}`);
     }
 
-    return { key, salt: saltBuf, params };
+    return { key, salt: Buffer.from(saltBuf), params };
   }
 
   /**
