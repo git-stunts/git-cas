@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.1] — JSR quality fixes (2026-02-07)
+
+### Added
+- TypeScript declaration files (`.d.ts`) for all three entrypoints and shared value objects, resolving JSR "slow types" scoring penalty.
+- `@ts-self-types` directives in `index.js`, `CasService.js`, and `ManifestSchema.js`.
+- `@fileoverview` module doc to `CasService.js` (required by JSR for module docs scoring).
+
+### Fixed
+- JSR package name corrected to `@git-stunts/git-cas`.
+- JSR publication now excludes tests, docs, CI configs, and other non-distribution files via `jsr.json` exclude list.
+- `index.d.ts` added to `package.json` files array for npm distribution.
+
 ## [1.6.0] — M4 Compass + M5 Sonar + M6 Cartographer (2026-02-06)
 
 ### Added
