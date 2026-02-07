@@ -7,6 +7,7 @@ import { EventEmitter } from "node:events";
 import Manifest from "../value-objects/Manifest.js";
 import type { EncryptionMeta } from "../value-objects/Manifest.js";
 
+/** Port interface for cryptographic operations (hashing, encryption, random bytes). */
 export interface CryptoPort {
   sha256(buf: Buffer): string | Promise<string>;
   randomBytes(n: number): Buffer;
@@ -21,12 +22,14 @@ export interface CryptoPort {
   };
 }
 
+/** Port interface for encoding and decoding manifest data. */
 export interface CodecPort {
   encode(data: object): Buffer | string;
   decode(buffer: Buffer | string): object;
   get extension(): string;
 }
 
+/** Port interface for persisting data to Git's object database. */
 export interface GitPersistencePort {
   writeBlob(content: Buffer | string): Promise<string>;
   writeTree(entries: string[]): Promise<string>;
@@ -36,6 +39,7 @@ export interface GitPersistencePort {
   ): Promise<Array<{ mode: string; type: string; oid: string; name: string }>>;
 }
 
+/** Constructor options for {@link CasService}. */
 export interface CasServiceOptions {
   persistence: GitPersistencePort;
   codec: CodecPort;

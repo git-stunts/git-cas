@@ -69,6 +69,7 @@ export declare class CborCodec extends CodecPortBase {
   constructor();
 }
 
+/** Constructor options for {@link ContentAddressableStore}. */
 export interface ContentAddressableStoreOptions {
   plumbing: unknown;
   chunkSize?: number;

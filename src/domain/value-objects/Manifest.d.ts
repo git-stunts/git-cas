@@ -1,5 +1,6 @@
 import Chunk from "./Chunk.js";
 
+/** AES-256-GCM encryption metadata attached to an encrypted manifest. */
 export interface EncryptionMeta {
   algorithm: string;
   nonce: string;
@@ -7,6 +8,7 @@ export interface EncryptionMeta {
   encrypted: boolean;
 }
 
+/** Raw manifest data accepted by the {@link Manifest} constructor. */
 export interface ManifestData {
   slug: string;
   filename: string;

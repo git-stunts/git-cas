@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/git-cas",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Content-addressed storage backed by Git's object database, with optional encryption and pluggable codecs",
   "type": "module",
   "main": "index.js",
