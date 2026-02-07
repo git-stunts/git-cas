@@ -158,7 +158,8 @@ export default class WebCryptoAdapter extends CryptoPort {
   }
 
   async #deriveScrypt({ passphrase, saltBuf, cost, blockSize, parallelization, keyLength, params }) {
-    let scryptCb, promisifyFn;
+    let scryptCb;
+    let promisifyFn;
     try {
       ({ scrypt: scryptCb } = await import('node:crypto'));
       ({ promisify: promisifyFn } = await import('node:util'));

@@ -20,8 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **BREAKING**: Manifest schema now includes `version` field (defaults to 1). Existing v1 manifests are fully backward-compatible.
 - `CasService` constructor accepts new `merkleThreshold` option.
-- `store()` accepts `passphrase`, `kdfOptions`, and `compression` options.
+- `ContentAddressableStore` constructor now accepts and forwards `merkleThreshold` to `CasService`.
+- `store()` and `storeFile()` accept `passphrase`, `kdfOptions`, and `compression` options.
 - `restore()` accepts `passphrase` option.
+
+### Fixed
+- `storeFile()` now forwards `passphrase`, `kdfOptions`, and `compression` options to `store()` (previously silently dropped).
+- `NodeCryptoAdapter.deriveKey()` uses `Buffer.from(salt)` for base64 encoding, preventing corrupt output when salt is a `Uint8Array`.
+- `WebCryptoAdapter.deriveKey()` now validates KDF algorithm and throws for unsupported values instead of silently falling through to scrypt.
+- `WebCryptoAdapter` scrypt derivation now throws a descriptive error when `node:crypto` is unavailable (e.g. in browsers).
 
 ## [1.6.2] — OIDC publishing + JSR docs coverage (2026-02-07)
 
