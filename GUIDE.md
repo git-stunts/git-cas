@@ -844,7 +844,6 @@ console.log(manifest.encryption.kdf);
 //   algorithm: 'pbkdf2',
 //   salt: 'base64-encoded-salt',
 //   iterations: 100000,
-//   hash: 'sha-512',
 //   keyLength: 32
 // }
 ```
