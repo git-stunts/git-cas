@@ -132,9 +132,14 @@ export default class WebCryptoAdapter extends CryptoPort {
     const params = { algorithm, salt: this.#toBase64(saltBuf), keyLength };
 
     const opts = { passphrase, saltBuf, iterations, cost, blockSize, parallelization, keyLength, params };
-    const key = algorithm === 'pbkdf2'
-      ? await this.#derivePbkdf2(opts)
-      : await this.#deriveScrypt(opts);
+    let key;
+    if (algorithm === 'pbkdf2') {
+      key = await this.#derivePbkdf2(opts);
+    } else if (algorithm === 'scrypt') {
+      key = await this.#deriveScrypt(opts);
+    } else {
+      throw new Error(`Unsupported KDF algorithm: ${algorithm}`);
+    }
 
     return { key: Buffer.from(key), salt: Buffer.from(saltBuf), params };
   }
