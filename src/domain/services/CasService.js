@@ -1,3 +1,8 @@
+/* @ts-self-types="./CasService.d.ts" */
+/**
+ * @fileoverview Domain service for Content Addressable Storage operations.
+ * @module
+ */
 import { EventEmitter } from 'node:events';
 import Manifest from '../value-objects/Manifest.js';
 import CasError from '../errors/CasError.js';

@@ -1,3 +1,4 @@
+/* @ts-self-types="./index.d.ts" */
 /**
  * @fileoverview Content Addressable Store - Managed blob storage in Git.
  */

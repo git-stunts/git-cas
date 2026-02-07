@@ -1,3 +1,4 @@
+/* @ts-self-types="./ManifestSchema.d.ts" */
 /**
  * @fileoverview Zod schemas for validating CAS manifest and chunk data.
  */
