@@ -267,6 +267,93 @@ if (!isValid) {
 }
 ```
 
+#### readManifest
+
+```javascript
+await cas.readManifest({ treeOid })
+```
+
+Reads a Git tree, locates the manifest entry, decodes it, and returns a validated Manifest value object.
+
+**Parameters:**
+
+- `treeOid` (required): `string` - Git tree OID
+
+**Returns:** `Promise<Manifest>` - Frozen, Zod-validated Manifest
+
+**Throws:**
+
+- `CasError` with code `MANIFEST_NOT_FOUND` if no manifest entry exists in the tree
+- `CasError` with code `GIT_ERROR` if the underlying Git command fails
+- Zod validation error if the manifest blob is corrupt
+
+**Example:**
+
+```javascript
+const treeOid = 'a1b2c3d4e5f6...';
+const manifest = await cas.readManifest({ treeOid });
+console.log(manifest.slug);      // "photos/vacation"
+console.log(manifest.chunks);    // array of Chunk objects
+```
+
+#### deleteAsset
+
+```javascript
+await cas.deleteAsset({ treeOid })
+```
+
+Returns logical deletion metadata for an asset. Does not perform any destructive Git operations — the caller must remove refs, and physical deletion requires `git gc --prune`.
+
+**Parameters:**
+
+- `treeOid` (required): `string` - Git tree OID
+
+**Returns:** `Promise<{ slug: string, chunksOrphaned: number }>`
+
+**Throws:**
+
+- `CasError` with code `MANIFEST_NOT_FOUND` (delegates to `readManifest`)
+- `CasError` with code `GIT_ERROR` if the underlying Git command fails
+
+**Example:**
+
+```javascript
+const { slug, chunksOrphaned } = await cas.deleteAsset({ treeOid });
+console.log(`Asset "${slug}" has ${chunksOrphaned} chunks to clean up`);
+// Caller must remove refs pointing to treeOid; run `git gc --prune` to reclaim space
+```
+
+#### findOrphanedChunks
+
+```javascript
+await cas.findOrphanedChunks({ treeOids })
+```
+
+Aggregates all chunk blob OIDs referenced across multiple assets and returns a report. Analysis only — does not delete or modify anything.
+
+**Parameters:**
+
+- `treeOids` (required): `Array<string>` - Array of Git tree OIDs
+
+**Returns:** `Promise<{ referenced: Set<string>, total: number }>`
+
+- `referenced` — deduplicated Set of all chunk blob OIDs across the given trees
+- `total` — total number of chunk references (before deduplication)
+
+**Throws:**
+
+- `CasError` with code `MANIFEST_NOT_FOUND` if any `treeOid` lacks a manifest (fail closed)
+- `CasError` with code `GIT_ERROR` if the underlying Git command fails
+
+**Example:**
+
+```javascript
+const { referenced, total } = await cas.findOrphanedChunks({
+  treeOids: [treeOid1, treeOid2, treeOid3]
+});
+console.log(`${referenced.size} unique blobs across ${total} total chunk references`);
+```
+
 #### encrypt
 
 ```javascript
@@ -383,6 +470,9 @@ All methods from ContentAddressableStore delegate to CasService. See ContentAddr
 - `restore({ manifest, encryptionKey })`
 - `createTree({ manifest })`
 - `verifyIntegrity(manifest)`
+- `readManifest({ treeOid })`
+- `deleteAsset({ treeOid })`
+- `findOrphanedChunks({ treeOids })`
 - `encrypt({ buffer, key })`
 - `decrypt({ buffer, key, meta })`
 
@@ -940,6 +1030,8 @@ new CasError(message, code, meta)
 | `MISSING_KEY` | Encryption key required to restore encrypted content but none was provided | `restore()` |
 | `INTEGRITY_ERROR` | Chunk digest verification failed or decryption authentication failed | `restore()`, `verifyIntegrity()`, `decrypt()` |
 | `STREAM_ERROR` | Stream error occurred during store operation | `store()` |
+| `MANIFEST_NOT_FOUND` | No manifest entry found in the Git tree | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()` |
+| `GIT_ERROR` | Underlying Git plumbing command failed | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()` |
 
 ### Error Handling
 

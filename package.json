@@ -1,11 +1,11 @@
 {
   "name": "@git-stunts/git-cas",
-  "version": "1.3.0",
+  "version": "1.6.0",
   "description": "Content-addressed storage backed by Git's object database, with optional encryption and pluggable codecs",
   "type": "module",
   "main": "index.js",
   "bin": {
-    "git-cas": "./bin/git-cas.js"
+    "git-cas": "bin/git-cas.js"
   },
   "exports": {
     ".": "./index.js",

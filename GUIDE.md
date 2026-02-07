@@ -584,25 +584,19 @@ git cas store ./vacation.jpg --slug photos/vacation --cwd /path/to/assets-repo -
 ### Reading a Manifest from a Tree
 
 Given a tree OID (from a commit, tag, or ref), you can reconstruct the
-manifest object:
+manifest object with a single call:
 
 ```js
-import Manifest from '@git-stunts/git-cas/src/domain/value-objects/Manifest.js';
-
-const service = await cas.getService();
-const entries = await service.persistence.readTree(treeOid);
-
-const manifestEntry = entries.find(e => e.name.startsWith('manifest.'));
-if (!manifestEntry) {
-  throw new Error('No manifest found in tree');
-}
-
-const blob = await service.persistence.readBlob(manifestEntry.oid);
-const manifest = new Manifest(service.codec.decode(blob));
+const manifest = await cas.readManifest({ treeOid });
 
 console.log(manifest.slug);      // "photos/vacation"
 console.log(manifest.chunks);    // array of Chunk objects
 ```
+
+`readManifest` reads the tree, locates the manifest entry (e.g.
+`manifest.json` or `manifest.cbor`), decodes it using the configured codec,
+and returns a frozen, Zod-validated `Manifest`. If no manifest entry is found,
+it throws `CasError('MANIFEST_NOT_FOUND')`.
 
 ### Verifying Integrity Over Time
 
@@ -620,25 +614,40 @@ The `verifyIntegrity` method reads each chunk blob from Git, recomputes its
 SHA-256 digest, and compares it against the manifest. It emits either
 `integrity:pass` or `integrity:fail` events (see Section 9).
 
+### Deleting an Asset
+
+`deleteAsset` returns logical deletion metadata for an asset without
+performing any destructive Git operations. The caller is responsible for
+removing refs and running `git gc --prune` to reclaim space:
+
+```js
+const { slug, chunksOrphaned } = await cas.deleteAsset({ treeOid });
+console.log(`Asset "${slug}" has ${chunksOrphaned} chunks to clean up`);
+
+// Remove the ref pointing to the tree, then:
+//   git gc --prune=now
+```
+
+This is intentionally non-destructive: CAS never modifies or deletes Git
+objects. It only tells you what would become unreachable.
+
 ### Finding Orphaned Chunks
 
 When you store the same file multiple times with different chunk sizes, or
 store overlapping files, some chunk blobs may no longer be referenced by any
-manifest. Identifying these orphans is a matter of collecting all blob OIDs
-referenced by your manifests and comparing them against what exists in the
-tree:
+manifest. `findOrphanedChunks` aggregates all referenced chunk blob OIDs
+across multiple assets:
 
 ```js
-const service = await cas.getService();
-const entries = await service.persistence.readTree(treeOid);
-
-// The manifest entry is not a chunk
-const chunkEntries = entries.filter(e => !e.name.startsWith('manifest.'));
-
-// Cross-reference with manifest
-const referencedBlobs = new Set(manifest.chunks.map(c => c.blob));
-const orphaned = chunkEntries.filter(e => !referencedBlobs.has(e.oid));
+const { referenced, total } = await cas.findOrphanedChunks({
+  treeOids: [treeOid1, treeOid2, treeOid3]
+});
+console.log(`${referenced.size} unique blobs across ${total} total chunk references`);
 ```
+
+If any `treeOid` lacks a manifest, the call throws
+`CasError('MANIFEST_NOT_FOUND')` (fail closed). This is analysis only -- no
+objects are deleted or modified.
 
 ### Working with Multiple Assets
 

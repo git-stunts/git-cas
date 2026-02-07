@@ -24,6 +24,7 @@ We use the object database.
 - **Manifests** a tiny explicit index of chunks + metadata (JSON/CBOR).
 - **Tree output** generates standard Git trees so assets snap into commits cleanly.
 - **Full round-trip** store, tree, and restore — get your bytes back, verified.
+- **Lifecycle management** `readManifest`, `deleteAsset`, `findOrphanedChunks` — inspect trees, plan deletions, audit storage.
 
 **Use it for:** binary assets, build artifacts, model weights, data packs, secret bundles, weird experiments, etc.
 
@@ -48,6 +49,13 @@ const treeOid = await cas.createTree({ manifest });
 
 // Restore later — get your bytes back, integrity-verified
 await cas.restoreFile({ manifest, outputPath: './restored.png' });
+
+// Read the manifest back from a tree OID
+const m = await cas.readManifest({ treeOid });
+
+// Lifecycle: inspect deletion impact, find orphaned chunks
+const { slug, chunksOrphaned } = await cas.deleteAsset({ treeOid });
+const { referenced, total } = await cas.findOrphanedChunks({ treeOids: [treeOid] });
 ```
 
 ## CLI (git plugin)

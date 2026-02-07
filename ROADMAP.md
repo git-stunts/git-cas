@@ -61,7 +61,7 @@ Return and throw semantics for every public method (current and planned).
 - **Throws:** Node.js filesystem error if `filePath` does not exist or is unreadable.
 - **Empty file:** Returns `Manifest { size: 0, chunks: [] }` with no blob writes for chunk content.
 
-### `restoreFile({ manifest, encryptionKey?, outputPath })` *(planned — Task 2.1)*
+### `restoreFile({ manifest, encryptionKey?, outputPath })`
 - **Returns:** `Promise<{ bytesWritten: number }>`.
 - **Throws:** `CasError('INTEGRITY_ERROR')` if any chunk's SHA-256 digest does not match `chunk.digest`.
 - **Throws:** `CasError('INTEGRITY_ERROR')` if decryption fails (wrong key or tampered ciphertext).
@@ -82,7 +82,7 @@ Return and throw semantics for every public method (current and planned).
 - **Returns:** `Promise<string>` — Git OID of the created tree.
 - **Throws:** Zod validation error if `manifest` is invalid.
 
-### `readManifest({ treeOid })` *(planned — Task 4.1)*
+### `readManifest({ treeOid })`
 - **Returns:** `Promise<Manifest>` — frozen, Zod-validated value object.
 - **Throws:** `CasError('MANIFEST_NOT_FOUND')` if no manifest entry exists in the tree.
 - **Throws:** `CasError('GIT_ERROR')` if the underlying Git command fails.
@@ -92,12 +92,12 @@ Return and throw semantics for every public method (current and planned).
 - **Returns:** `Promise<boolean>` — `true` if all chunk digests match, `false` otherwise.
 - **Does not throw** on mismatch; returns `false`.
 
-### `deleteAsset({ treeOid })` *(planned — Task 4.2)*
+### `deleteAsset({ treeOid })`
 - **Returns:** `Promise<{ chunksOrphaned: number, slug: string }>`.
 - **Throws:** `CasError('MANIFEST_NOT_FOUND')` (delegates to `readManifest`).
 - **Side effects:** None. Caller must remove refs; physical deletion requires `git gc --prune`.
 
-### `findOrphanedChunks({ treeOids })` *(planned — Task 4.3)*
+### `findOrphanedChunks({ treeOids })`
 - **Returns:** `Promise<{ referenced: Set<string>, total: number }>`.
 - **Throws:** `CasError('MANIFEST_NOT_FOUND')` if any `treeOid` lacks a manifest (fail closed).
 - **Side effects:** None. Analysis only.
@@ -107,17 +107,17 @@ Return and throw semantics for every public method (current and planned).
 - **Algorithms:** `pbkdf2` (default), `scrypt` — both Node.js built-ins.
 - **Throws:** Standard Node.js crypto errors on invalid parameters.
 
-### CLI: `git cas store <file> --slug <slug> [--key-file <path>]` *(planned — Task 2.5)*
+### CLI: `git cas store <file> --slug <slug> [--key-file <path>]`
 - **Output:** Prints manifest JSON to stdout. If `--tree` is passed, prints only the Git tree OID instead.
 - **Exit 0:** Store succeeded.
 - **Exit 1:** Store failed (error message to stderr).
 
-### CLI: `git cas tree --manifest <path>` *(planned — Task 2.5)*
+### CLI: `git cas tree --manifest <path>`
 - **Output:** Prints Git tree OID to stdout.
 - **Exit 0:** Tree created.
 - **Exit 1:** Invalid manifest or Git error (message to stderr).
 
-### CLI: `git cas restore <tree-oid> --out <path> [--key-file <path>]` *(planned — Task 2.6)*
+### CLI: `git cas restore <tree-oid> --out <path> [--key-file <path>]`
 - **Output:** Writes restored file to `--out` path.
 - **Exit 0:** Restore succeeded, prints bytes written to stdout.
 - **Exit 1:** Integrity error, missing manifest, or I/O error (message to stderr).
