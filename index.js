@@ -55,13 +55,15 @@ export default class ContentAddressableStore {
    * @param {import('./src/ports/CodecPort.js').default} [options.codec] - Manifest codec (default JsonCodec).
    * @param {import('./src/ports/CryptoPort.js').default} [options.crypto] - Crypto adapter (auto-detected if omitted).
    * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy for Git I/O.
+   * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
    */
-  constructor({ plumbing, chunkSize, codec, policy, crypto }) {
+  constructor({ plumbing, chunkSize, codec, policy, crypto, merkleThreshold }) {
     this.plumbing = plumbing;
     this.chunkSizeConfig = chunkSize;
     this.codecConfig = codec;
     this.policyConfig = policy;
     this.cryptoConfig = crypto;
+    this.merkleThresholdConfig = merkleThreshold;
     this.service = null;
     this.#servicePromise = null;
   }
@@ -96,6 +98,7 @@ export default class ContentAddressableStore {
       chunkSize: this.chunkSizeConfig,
       codec: this.codecConfig || new JsonCodec(),
       crypto,
+      merkleThreshold: this.merkleThresholdConfig,
     });
     return this.service;
   }

@@ -79,6 +79,7 @@ export interface ContentAddressableStoreOptions {
   codec?: CodecPort;
   crypto?: CryptoPort;
   policy?: unknown;
+  merkleThreshold?: number;
 }
 
 /**
