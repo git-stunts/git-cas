@@ -7,28 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.0.0] — M7 Horizon (2026-02-07)
+## [2.0.0] — M7 Horizon (2026-02-08)
 
 ### Added
 - **Compression support** (Task 7.1): Optional gzip compression pipeline via `compression: { algorithm: 'gzip' }` option on `store()`. Compression is applied before encryption when both are enabled. Manifests include a new optional `compression` field. Decompression on `restore()` is automatic.
 - **KDF support** (Task 7.2): Passphrase-based encryption using PBKDF2 or scrypt via `deriveKey()` method and `passphrase` option on `store()`/`restore()`. KDF parameters are stored in `manifest.encryption.kdf` for deterministic re-derivation. All three crypto adapters (Node, Bun, Web) implement `deriveKey()`.
 - **Merkle tree manifests** (Task 7.3): Large manifests (chunk count exceeding `merkleThreshold`, default 1000) are automatically split into sub-manifests stored as separate blobs. Root manifest uses `version: 2` with `subManifests` references. `readManifest()` transparently reconstitutes v2 manifests into flat chunk lists. Full backward compatibility with v1 manifests.
 - New schema fields: `version`, `compression`, `subManifests` on `ManifestSchema`; `kdf` on `EncryptionSchema`.
-- 52 new unit tests across three new test suites (compression, KDF, Merkle).
+- New error code: `INVALID_OPTIONS` for mutually exclusive options or unsupported option values.
+- 62 new unit tests across three new test suites (compression, KDF, Merkle) plus expanded error tests.
 - Updated API reference (`docs/API.md`), guide (`GUIDE.md`), and README with v2.0.0 feature documentation.
 
 ### Changed
 - **BREAKING**: Manifest schema now includes `version` field (defaults to 1). Existing v1 manifests are fully backward-compatible.
-- `CasService` constructor accepts new `merkleThreshold` option.
+- `CasService` constructor accepts new `merkleThreshold` option (must be a positive integer).
 - `ContentAddressableStore` constructor now accepts and forwards `merkleThreshold` to `CasService`.
 - `store()` and `storeFile()` accept `passphrase`, `kdfOptions`, and `compression` options.
 - `restore()` accepts `passphrase` option.
+- Static imports for `createGzip` and `Readable` in `CasService` (previously dynamic imports on every call).
 
 ### Fixed
+- **Sub-manifest blobs are now included as tree entries** (`sub-manifest-N.json`), preventing them from being garbage-collected by `git gc`.
 - `storeFile()` now forwards `passphrase`, `kdfOptions`, and `compression` options to `store()` (previously silently dropped).
+- `store()` and `restore()` reject when both `passphrase` and `encryptionKey` are provided (`INVALID_OPTIONS`).
+- `store()` rejects unsupported compression algorithms (`INVALID_OPTIONS`).
+- `restore()` throws a descriptive error when passphrase is provided but manifest lacks KDF metadata.
+- Decompression errors are now wrapped as `CasError` with code `INTEGRITY_ERROR` (previously raw zlib errors).
 - `NodeCryptoAdapter.deriveKey()` uses `Buffer.from(salt)` for base64 encoding, preventing corrupt output when salt is a `Uint8Array`.
 - `WebCryptoAdapter.deriveKey()` now validates KDF algorithm and throws for unsupported values instead of silently falling through to scrypt.
 - `WebCryptoAdapter` scrypt derivation now throws a descriptive error when `node:crypto` is unavailable (e.g. in browsers).
+- Orphaned JSDoc blocks for `restore()`, `verifyIntegrity()`, and `store()` reattached to their correct methods.
+- Stale cross-reference in GUIDE.md ("Section 10" → "Section 13").
+- API.md method signatures updated to include all v2 parameters.
 
 ## [1.6.2] — OIDC publishing + JSR docs coverage (2026-02-07)
 
