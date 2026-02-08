@@ -282,7 +282,7 @@ vault
     try {
       const runner = ShellRunnerFactory.create();
       const plumbing = new GitPlumbing({ runner, cwd: opts.cwd || '.' });
-      const args = ['log', '--oneline', 'refs/cas/vault'];
+      const args = ['log', '--oneline', ContentAddressableStore.VAULT_REF];
       if (opts.maxCount) {
         args.push(`-${opts.maxCount}`);
       }
