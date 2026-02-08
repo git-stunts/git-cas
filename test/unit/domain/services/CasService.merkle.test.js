@@ -277,7 +277,55 @@ describe('CasService Merkle – sub-manifest references have correct startIndex 
 });
 
 // ---------------------------------------------------------------------------
-// 7. Exactly at threshold boundary uses v1
+// 7. Sub-manifest blobs are included as tree entries (survive git gc)
+// ---------------------------------------------------------------------------
+describe('CasService Merkle – sub-manifest blobs are included as tree entries', () => {
+  it('includes sub-manifest entries in the Git tree so they survive gc', async () => {
+    const { service, trees, codec } = setup(5);
+
+    // 12 chunks -> 3 sub-manifests
+    const data = generateBuffer(12 * 1024);
+    const manifest = await service.store({
+      source: bufferSource(data),
+      slug: 'tree-entry-test',
+      filename: 'tree-entry.bin',
+    });
+
+    const treeOid = await service.createTree({ manifest });
+    const treeEntries = trees.get(treeOid);
+
+    // Find sub-manifest entries by name pattern
+    const subManifestEntries = treeEntries.filter((e) =>
+      e.includes(`sub-manifest-`),
+    );
+    expect(subManifestEntries).toHaveLength(3);
+    expect(subManifestEntries[0]).toContain(`sub-manifest-0.${codec.extension}`);
+    expect(subManifestEntries[1]).toContain(`sub-manifest-1.${codec.extension}`);
+    expect(subManifestEntries[2]).toContain(`sub-manifest-2.${codec.extension}`);
+  });
+
+  it('does not include sub-manifest entries for v1 manifests', async () => {
+    const { service, trees } = setup(5);
+
+    const data = generateBuffer(3 * 1024); // 3 chunks, below threshold
+    const manifest = await service.store({
+      source: bufferSource(data),
+      slug: 'v1-no-sub',
+      filename: 'v1.bin',
+    });
+
+    const treeOid = await service.createTree({ manifest });
+    const treeEntries = trees.get(treeOid);
+
+    const subManifestEntries = treeEntries.filter((e) =>
+      e.includes('sub-manifest-'),
+    );
+    expect(subManifestEntries).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Exactly at threshold boundary uses v1
 // ---------------------------------------------------------------------------
 describe('CasService Merkle – exactly at threshold boundary uses v1', () => {
   it('stores exactly 5 chunks (= threshold) and produces a v1 manifest', async () => {
@@ -416,6 +464,23 @@ describe('CasService Merkle – fuzz round-trip across various chunk counts', ()
       expect(restored.equals(original)).toBe(true);
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// 11. merkleThreshold validation
+// ---------------------------------------------------------------------------
+describe('CasService Merkle – merkleThreshold validation', () => {
+  it('rejects merkleThreshold of 0', () => {
+    expect(() => setup(0)).toThrow('Merkle threshold must be a positive integer');
+  });
+
+  it('rejects negative merkleThreshold', () => {
+    expect(() => setup(-1)).toThrow('Merkle threshold must be a positive integer');
+  });
+
+  it('rejects non-integer merkleThreshold', () => {
+    expect(() => setup(1.5)).toThrow('Merkle threshold must be a positive integer');
+  });
 });
 
 // ---------------------------------------------------------------------------

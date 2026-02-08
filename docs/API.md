@@ -485,7 +485,7 @@ Core domain service implementing CAS operations. Usually accessed via ContentAdd
 ### Constructor
 
 ```javascript
-new CasService({ persistence, codec, crypto, chunkSize })
+new CasService({ persistence, codec, crypto, chunkSize, merkleThreshold })
 ```
 
 **Parameters:**
@@ -518,8 +518,8 @@ const service = new CasService({
 
 All methods from ContentAddressableStore delegate to CasService. See ContentAddressableStore documentation above for:
 
-- `store({ source, slug, filename, encryptionKey })`
-- `restore({ manifest, encryptionKey })`
+- `store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression })`
+- `restore({ manifest, encryptionKey, passphrase })`
 - `createTree({ manifest })`
 - `verifyIntegrity(manifest)`
 - `readManifest({ treeOid })`
@@ -527,6 +527,7 @@ All methods from ContentAddressableStore delegate to CasService. See ContentAddr
 - `findOrphanedChunks({ treeOids })`
 - `encrypt({ buffer, key })`
 - `decrypt({ buffer, key, meta })`
+- `deriveKey(options)`
 
 ### EventEmitter
 

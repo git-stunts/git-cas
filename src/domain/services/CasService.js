@@ -4,7 +4,8 @@
  * @module
  */
 import { EventEmitter } from 'node:events';
-import { gunzip } from 'node:zlib';
+import { gunzip, createGzip } from 'node:zlib';
+import { Readable } from 'node:stream';
 import { promisify } from 'node:util';
 import Manifest from '../value-objects/Manifest.js';
 import CasError from '../errors/CasError.js';
@@ -44,6 +45,9 @@ export default class CasService extends EventEmitter {
     this.codec = codec;
     this.crypto = crypto;
     this.chunkSize = chunkSize;
+    if (!Number.isInteger(merkleThreshold) || merkleThreshold < 1) {
+      throw new Error('Merkle threshold must be a positive integer');
+    }
     this.merkleThreshold = merkleThreshold;
   }
 
@@ -172,8 +176,6 @@ export default class CasService extends EventEmitter {
    * @returns {AsyncIterable<Buffer>}
    */
   async *_compressStream(source) {
-    const { createGzip } = await import('node:zlib');
-    const { Readable } = await import('node:stream');
     const gz = createGzip();
     const input = Readable.from(source);
     const compressed = input.pipe(gz);
@@ -309,8 +311,13 @@ export default class CasService extends EventEmitter {
     const serializedRoot = this.codec.encode(rootManifestData);
     const rootOid = await this.persistence.writeBlob(serializedRoot);
 
+    const subManifestEntries = subManifestRefs.map(
+      (ref, idx) => `100644 blob ${ref.oid}\tsub-manifest-${idx}.${this.codec.extension}`,
+    );
+
     const treeEntries = [
       `100644 blob ${rootOid}\tmanifest.${this.codec.extension}`,
+      ...subManifestEntries,
       ...chunkBlobEntries,
     ];
 
