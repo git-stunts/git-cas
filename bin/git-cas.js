@@ -58,6 +58,7 @@ async function resolveEncryptionKey(cas, opts) {
   if (metadata?.encryption) {
     return deriveVaultKey(cas, metadata, opts.vaultPassphrase);
   }
+  process.stderr.write('warning: --vault-passphrase ignored (vault is not encrypted)\n');
   return undefined;
 }
 
