@@ -350,7 +350,7 @@ describe('CasService Merkle – exactly at threshold boundary uses v1', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. One above threshold uses v2
+// 9. One above threshold uses v2
 // ---------------------------------------------------------------------------
 describe('CasService Merkle – one above threshold uses v2', () => {
   it('stores 6 chunks (threshold + 1) and produces a v2 manifest', async () => {
@@ -381,7 +381,7 @@ describe('CasService Merkle – one above threshold uses v2', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 9. v2 with encryption round-trip
+// 10. v2 with encryption round-trip
 // ---------------------------------------------------------------------------
 describe('CasService Merkle – v2 with encryption round-trip', () => {
   it('stores encrypted data exceeding threshold, then restores byte-identical data', async () => {
@@ -419,7 +419,7 @@ describe('CasService Merkle – v2 with encryption round-trip', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 10. Fuzz: round-trip across various chunk counts
+// 11. Fuzz: round-trip across various chunk counts
 // ---------------------------------------------------------------------------
 describe('CasService Merkle – fuzz round-trip across various chunk counts', () => {
   const chunkCounts = [1, 5, 6, 10, 25];
@@ -467,7 +467,7 @@ describe('CasService Merkle – fuzz round-trip across various chunk counts', ()
 });
 
 // ---------------------------------------------------------------------------
-// 11. merkleThreshold validation
+// 12. merkleThreshold validation
 // ---------------------------------------------------------------------------
 describe('CasService Merkle – merkleThreshold validation', () => {
   it('rejects merkleThreshold of 0', () => {

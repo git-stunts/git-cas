@@ -43,6 +43,86 @@ describe('CasService – constructor – chunkSize validation', () => {
   });
 });
 
+describe('CasService – store – mutual exclusion and validation', () => {
+  let service;
+
+  beforeEach(() => {
+    service = new CasService({
+      persistence: {
+        writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+        writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+        readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
+      },
+      crypto: new NodeCryptoAdapter(),
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+    });
+  });
+
+  it('rejects when both passphrase and encryptionKey are provided', async () => {
+    await expect(
+      service.store({
+        source: (async function* () { yield Buffer.from('x'); })(),
+        slug: 'both',
+        filename: 'both.bin',
+        encryptionKey: Buffer.alloc(32),
+        passphrase: 'secret',
+      }),
+    ).rejects.toThrow('Provide either encryptionKey or passphrase, not both');
+  });
+
+  it('rejects unsupported compression algorithm', async () => {
+    await expect(
+      service.store({
+        source: (async function* () { yield Buffer.from('x'); })(),
+        slug: 'brotli',
+        filename: 'brotli.bin',
+        compression: { algorithm: 'brotli' },
+      }),
+    ).rejects.toThrow('Unsupported compression algorithm: brotli');
+  });
+});
+
+describe('CasService – restore – mutual exclusion', () => {
+  let service;
+
+  beforeEach(() => {
+    service = new CasService({
+      persistence: {
+        writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+        writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+        readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
+      },
+      crypto: new NodeCryptoAdapter(),
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+    });
+  });
+
+  it('rejects when both passphrase and encryptionKey are provided', async () => {
+    const manifest = new Manifest({
+      slug: 'test', filename: 'test.bin', size: 0, chunks: [],
+      encryption: {
+        algorithm: 'aes-256-gcm', nonce: 'abc', tag: 'def', encrypted: true,
+        kdf: { algorithm: 'pbkdf2', salt: 'c2FsdA==', iterations: 1000, keyLength: 32 },
+      },
+    });
+    await expect(
+      service.restore({ manifest, encryptionKey: Buffer.alloc(32), passphrase: 'secret' }),
+    ).rejects.toThrow('Provide either encryptionKey or passphrase, not both');
+  });
+
+  it('rejects passphrase when manifest has no KDF metadata', async () => {
+    const manifest = new Manifest({
+      slug: 'test', filename: 'test.bin', size: 0, chunks: [],
+      encryption: { algorithm: 'aes-256-gcm', nonce: 'abc', tag: 'def', encrypted: true },
+    });
+    await expect(
+      service.restore({ manifest, passphrase: 'secret' }),
+    ).rejects.toThrow('Manifest was not stored with passphrase-based encryption');
+  });
+});
+
 describe('CasService – store', () => {
   let mockPersistence;
 

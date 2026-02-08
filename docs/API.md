@@ -496,7 +496,10 @@ new CasService({ persistence, codec, crypto, chunkSize, merkleThreshold })
 - `chunkSize` (optional): `number` - Chunk size in bytes (default: 262144, minimum: 1024)
 - `merkleThreshold` (optional): `number` - Chunk count threshold for Merkle manifests (default: 1000)
 
-**Throws:** `Error` if chunkSize is less than 1024 bytes
+**Throws:**
+
+- `Error` if chunkSize is less than 1024 bytes
+- `Error` if merkleThreshold is not a positive integer
 
 **Example:**
 

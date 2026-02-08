@@ -200,7 +200,36 @@ export default class CasService extends EventEmitter {
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
+  /**
+   * Validates that passphrase and encryptionKey are not both provided.
+   * @private
+   */
+  _validateKeySourceExclusive(encryptionKey, passphrase) {
+    if (passphrase && encryptionKey) {
+      throw new CasError(
+        'Provide either encryptionKey or passphrase, not both',
+        'INVALID_OPTIONS',
+      );
+    }
+  }
+
+  /**
+   * Validates and normalizes compression options.
+   * @private
+   */
+  _validateCompression(compression) {
+    if (compression?.algorithm && compression.algorithm !== 'gzip') {
+      throw new CasError(
+        `Unsupported compression algorithm: ${compression.algorithm}`,
+        'INVALID_OPTIONS',
+      );
+    }
+  }
+
   async store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression }) {
+    this._validateKeySourceExclusive(encryptionKey, passphrase);
+    this._validateCompression(compression);
+
     let kdfParams;
     if (passphrase) {
       const derived = await this.deriveKey({ passphrase, ...kdfOptions });
@@ -212,17 +241,12 @@ export default class CasService extends EventEmitter {
       this._validateKey(encryptionKey);
     }
 
-    const manifestData = {
-      slug,
-      filename,
-      size: 0,
-      chunks: [],
-    };
+    const manifestData = { slug, filename, size: 0, chunks: [] };
 
     let processedSource = source;
     if (compression) {
       processedSource = this._compressStream(processedSource);
-      manifestData.compression = { algorithm: compression.algorithm || 'gzip' };
+      manifestData.compression = { algorithm: 'gzip' };
     }
 
     if (encryptionKey) {
@@ -377,17 +401,24 @@ export default class CasService extends EventEmitter {
    * Resolves the encryption key from passphrase or validates the provided key.
    * @private
    */
-  _resolveEncryptionKey(manifest, encryptionKey, passphrase) {
-    if (passphrase && manifest.encryption?.kdf) {
-      return this._resolveKeyFromPassphrase(passphrase, manifest.encryption.kdf);
+  async _resolveEncryptionKey(manifest, encryptionKey, passphrase) {
+    this._validateKeySourceExclusive(encryptionKey, passphrase);
+
+    if (passphrase) {
+      if (manifest.encryption?.kdf) {
+        return this._resolveKeyFromPassphrase(passphrase, manifest.encryption.kdf);
+      }
+      throw new CasError(
+        'Manifest was not stored with passphrase-based encryption; provide encryptionKey instead',
+        'MISSING_KEY',
+      );
     }
     if (encryptionKey) {
       this._validateKey(encryptionKey);
-    }
-    if (manifest.encryption?.encrypted && !encryptionKey) {
+    } else if (manifest.encryption?.encrypted) {
       throw new CasError('Encryption key required to restore encrypted content', 'MISSING_KEY');
     }
-    return Promise.resolve(encryptionKey);
+    return encryptionKey;
   }
 
   /**
