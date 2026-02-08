@@ -198,6 +198,24 @@ describe('readState – metadata errors', () => {
       (e) => e instanceof CasError && e.code === 'VAULT_METADATA_INVALID',
     );
   });
+
+  it('throws when kdf.keyLength is missing', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    const bad = JSON.stringify({
+      version: 1,
+      encryption: {
+        cipher: 'aes-256-gcm',
+        kdf: { algorithm: 'pbkdf2', salt: 'abc', iterations: 100000 },
+      },
+    });
+    setupExistingVault({ ref, persistence, metaJson: bad });
+    const vault = createVault({ ref, persistence });
+
+    await expect(vault.readState()).rejects.toSatisfy(
+      (e) => e instanceof CasError && e.code === 'VAULT_METADATA_INVALID',
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

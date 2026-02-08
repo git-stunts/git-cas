@@ -132,7 +132,7 @@ export default class VaultService {
       return;
     }
     const { cipher, kdf } = metadata.encryption;
-    if (!cipher || !kdf?.algorithm || !kdf?.salt) {
+    if (!cipher || !kdf?.algorithm || !kdf?.salt || !kdf?.keyLength) {
       throw new CasError(
         'Vault encryption metadata missing required fields',
         'VAULT_METADATA_INVALID',
