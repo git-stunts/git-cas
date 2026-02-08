@@ -117,6 +117,21 @@ export default class VaultService {
   // ---------------------------------------------------------------------------
 
   /**
+   * Validates encryption-specific metadata fields.
+   * @private
+   */
+  static #validateEncryption(encryption, metadata) {
+    const { cipher, kdf } = encryption;
+    if (!cipher || !kdf?.algorithm || !kdf?.salt || !kdf?.keyLength) {
+      throw new CasError(
+        'Vault encryption metadata missing required fields',
+        'VAULT_METADATA_INVALID',
+        { metadata },
+      );
+    }
+  }
+
+  /**
    * Validates vault metadata object structure.
    * @private
    */
@@ -128,16 +143,8 @@ export default class VaultService {
         { metadata },
       );
     }
-    if (!metadata.encryption) {
-      return;
-    }
-    const { cipher, kdf } = metadata.encryption;
-    if (!cipher || !kdf?.algorithm || !kdf?.salt || !kdf?.keyLength) {
-      throw new CasError(
-        'Vault encryption metadata missing required fields',
-        'VAULT_METADATA_INVALID',
-        { metadata },
-      );
+    if (metadata.encryption) {
+      VaultService.#validateEncryption(metadata.encryption, metadata);
     }
   }
 

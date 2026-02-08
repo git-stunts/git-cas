@@ -199,7 +199,13 @@ describe('readState – metadata errors', () => {
     );
   });
 
-  it('throws when kdf.keyLength is missing', async () => {
+});
+
+// ---------------------------------------------------------------------------
+// readState – missing kdf.keyLength
+// ---------------------------------------------------------------------------
+describe('readState – missing kdf.keyLength', () => {
+  it('throws VAULT_METADATA_INVALID when kdf.keyLength is missing', async () => {
     const ref = mockRef();
     const persistence = mockPersistence();
     const bad = JSON.stringify({
