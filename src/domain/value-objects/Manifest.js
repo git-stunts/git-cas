@@ -22,11 +22,14 @@ export default class Manifest {
   constructor(data) {
     try {
       ManifestSchema.parse(data);
+      this.version = data.version || 1;
       this.slug = data.slug;
       this.filename = data.filename;
       this.size = data.size;
       this.chunks = data.chunks.map((c) => new Chunk(c));
       this.encryption = data.encryption ? { ...data.encryption } : undefined;
+      this.compression = data.compression ? { ...data.compression } : undefined;
+      this.subManifests = data.subManifests ? data.subManifests.map((s) => ({ ...s })) : undefined;
       Object.freeze(this);
     } catch (error) {
       if (error instanceof ZodError) {
@@ -42,11 +45,14 @@ export default class Manifest {
    */
   toJSON() {
     return {
+      version: this.version,
       slug: this.slug,
       filename: this.filename,
       size: this.size,
       chunks: this.chunks,
       encryption: this.encryption,
+      compression: this.compression,
+      subManifests: this.subManifests,
     };
   }
 }

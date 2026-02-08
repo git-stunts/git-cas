@@ -4,8 +4,13 @@
  * @module
  */
 import { EventEmitter } from 'node:events';
+import { gunzip, createGzip } from 'node:zlib';
+import { Readable } from 'node:stream';
+import { promisify } from 'node:util';
 import Manifest from '../value-objects/Manifest.js';
 import CasError from '../errors/CasError.js';
+
+const gunzipAsync = promisify(gunzip);
 
 /**
  * Domain service for Content Addressable Storage operations.
@@ -29,8 +34,9 @@ export default class CasService extends EventEmitter {
    * @param {import('../../ports/CodecPort.js').default} options.codec
    * @param {import('../../ports/CryptoPort.js').default} options.crypto
    * @param {number} [options.chunkSize=262144] - 256 KiB
+   * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
    */
-  constructor({ persistence, codec, crypto, chunkSize = 256 * 1024 }) {
+  constructor({ persistence, codec, crypto, chunkSize = 256 * 1024, merkleThreshold = 1000 }) {
     super();
     if (chunkSize < 1024) {
       throw new Error('Chunk size must be at least 1024 bytes');
@@ -39,6 +45,10 @@ export default class CasService extends EventEmitter {
     this.codec = codec;
     this.crypto = crypto;
     this.chunkSize = chunkSize;
+    if (!Number.isInteger(merkleThreshold) || merkleThreshold < 1) {
+      throw new Error('Merkle threshold must be a positive integer');
+    }
+    this.merkleThreshold = merkleThreshold;
   }
 
   /**
@@ -160,6 +170,47 @@ export default class CasService extends EventEmitter {
   }
 
   /**
+   * Wraps an async iterable through gzip compression.
+   * @private
+   * @param {AsyncIterable<Buffer>} source
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_compressStream(source) {
+    const gz = createGzip();
+    const input = Readable.from(source);
+    const compressed = input.pipe(gz);
+    for await (const chunk of compressed) {
+      yield chunk;
+    }
+  }
+
+  /**
+   * Validates that passphrase and encryptionKey are not both provided.
+   * @private
+   */
+  _validateKeySourceExclusive(encryptionKey, passphrase) {
+    if (passphrase && encryptionKey) {
+      throw new CasError(
+        'Provide either encryptionKey or passphrase, not both',
+        'INVALID_OPTIONS',
+      );
+    }
+  }
+
+  /**
+   * Validates and normalizes compression options.
+   * @private
+   */
+  _validateCompression(compression) {
+    if (compression?.algorithm && compression.algorithm !== 'gzip') {
+      throw new CasError(
+        `Unsupported compression algorithm: ${compression.algorithm}`,
+        'INVALID_OPTIONS',
+      );
+    }
+  }
+
+  /**
    * Chunks an async iterable source and stores it in Git.
    *
    * If `encryptionKey` is provided, the content (and manifest) will be encrypted
@@ -170,26 +221,44 @@ export default class CasService extends EventEmitter {
    * @param {string} options.slug
    * @param {string} options.filename
    * @param {Buffer} [options.encryptionKey]
+   * @param {string} [options.passphrase] - Derive encryption key from passphrase instead.
+   * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
+   * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
-  async store({ source, slug, filename, encryptionKey }) {
+  async store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression }) {
+    this._validateKeySourceExclusive(encryptionKey, passphrase);
+    this._validateCompression(compression);
+
+    let kdfParams;
+    if (passphrase) {
+      const derived = await this.deriveKey({ passphrase, ...kdfOptions });
+      encryptionKey = derived.key;
+      kdfParams = derived.params;
+    }
+
     if (encryptionKey) {
       this._validateKey(encryptionKey);
     }
 
-    const manifestData = {
-      slug,
-      filename,
-      size: 0,
-      chunks: [],
-    };
+    const manifestData = { slug, filename, size: 0, chunks: [] };
+
+    let processedSource = source;
+    if (compression) {
+      processedSource = this._compressStream(processedSource);
+      manifestData.compression = { algorithm: 'gzip' };
+    }
 
     if (encryptionKey) {
       const { encrypt, finalize } = this.crypto.createEncryptionStream(encryptionKey);
-      await this._chunkAndStore(encrypt(source), manifestData);
-      manifestData.encryption = finalize();
+      await this._chunkAndStore(encrypt(processedSource), manifestData);
+      const encMeta = finalize();
+      if (kdfParams) {
+        encMeta.kdf = kdfParams;
+      }
+      manifestData.encryption = encMeta;
     } else {
-      await this._chunkAndStore(source, manifestData);
+      await this._chunkAndStore(processedSource, manifestData);
     }
 
     const manifest = new Manifest(manifestData);
@@ -210,12 +279,70 @@ export default class CasService extends EventEmitter {
    * @returns {Promise<string>} Git OID of the created tree.
    */
   async createTree({ manifest }) {
+    const chunks = manifest.chunks;
+
+    if (chunks.length > this.merkleThreshold) {
+      return await this._createMerkleTree({ manifest });
+    }
+
     const serializedManifest = this.codec.encode(manifest.toJSON());
     const manifestOid = await this.persistence.writeBlob(serializedManifest);
 
     const treeEntries = [
       `100644 blob ${manifestOid}\tmanifest.${this.codec.extension}`,
-      ...manifest.chunks.map((c) => `100644 blob ${c.blob}\t${c.digest}`),
+      ...chunks.map((c) => `100644 blob ${c.blob}\t${c.digest}`),
+    ];
+
+    return await this.persistence.writeTree(treeEntries);
+  }
+
+  /**
+   * Creates a Merkle tree by splitting chunks into sub-manifests.
+   * @private
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @returns {Promise<string>} Git tree OID.
+   */
+  async _createMerkleTree({ manifest }) {
+    const chunks = [...manifest.chunks];
+    const subManifestRefs = [];
+    const chunkBlobEntries = [];
+
+    for (let i = 0; i < chunks.length; i += this.merkleThreshold) {
+      const group = chunks.slice(i, i + this.merkleThreshold);
+      const subManifestData = { chunks: group.map((c) => ({ index: c.index, size: c.size, digest: c.digest, blob: c.blob })) };
+      const serialized = this.codec.encode(subManifestData);
+      const oid = await this.persistence.writeBlob(serialized);
+
+      subManifestRefs.push({
+        oid,
+        chunkCount: group.length,
+        startIndex: i,
+      });
+
+      for (const c of group) {
+        chunkBlobEntries.push(`100644 blob ${c.blob}\t${c.digest}`);
+      }
+    }
+
+    const rootManifestData = {
+      ...manifest.toJSON(),
+      version: 2,
+      chunks: [],
+      subManifests: subManifestRefs,
+    };
+
+    const serializedRoot = this.codec.encode(rootManifestData);
+    const rootOid = await this.persistence.writeBlob(serializedRoot);
+
+    const subManifestEntries = subManifestRefs.map(
+      (ref, idx) => `100644 blob ${ref.oid}\tsub-manifest-${idx}.${this.codec.extension}`,
+    );
+
+    const treeEntries = [
+      `100644 blob ${rootOid}\tmanifest.${this.codec.extension}`,
+      ...subManifestEntries,
+      ...chunkBlobEntries,
     ];
 
     return await this.persistence.writeTree(treeEntries);
@@ -251,6 +378,50 @@ export default class CasService extends EventEmitter {
   }
 
   /**
+   * Resolves the encryption key from a passphrase using KDF params from the manifest.
+   * @private
+   * @param {string} passphrase
+   * @param {Object} kdf - KDF params from manifest.encryption.kdf.
+   * @returns {Promise<Buffer>}
+   */
+  async _resolveKeyFromPassphrase(passphrase, kdf) {
+    const { key } = await this.deriveKey({
+      passphrase,
+      salt: Buffer.from(kdf.salt, 'base64'),
+      algorithm: kdf.algorithm,
+      iterations: kdf.iterations,
+      cost: kdf.cost,
+      blockSize: kdf.blockSize,
+      parallelization: kdf.parallelization,
+    });
+    return key;
+  }
+
+  /**
+   * Resolves the encryption key from passphrase or validates the provided key.
+   * @private
+   */
+  async _resolveEncryptionKey(manifest, encryptionKey, passphrase) {
+    this._validateKeySourceExclusive(encryptionKey, passphrase);
+
+    if (passphrase) {
+      if (manifest.encryption?.kdf) {
+        return this._resolveKeyFromPassphrase(passphrase, manifest.encryption.kdf);
+      }
+      throw new CasError(
+        'Manifest was not stored with passphrase-based encryption; provide encryptionKey instead',
+        'MISSING_KEY',
+      );
+    }
+    if (encryptionKey) {
+      this._validateKey(encryptionKey);
+    } else if (manifest.encryption?.encrypted) {
+      throw new CasError('Encryption key required to restore encrypted content', 'MISSING_KEY');
+    }
+    return encryptionKey;
+  }
+
+  /**
    * Restores a file from its manifest by reading and reassembling chunks.
    *
    * If the manifest has encryption metadata, decrypts the reassembled
@@ -259,35 +430,31 @@ export default class CasService extends EventEmitter {
    * @param {Object} options
    * @param {import('../value-objects/Manifest.js').default} options.manifest - The file manifest.
    * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * @returns {Promise<{ buffer: Buffer, bytesWritten: number }>}
    * @throws {CasError} MISSING_KEY if manifest is encrypted but no key is provided.
    * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
    */
-  async restore({ manifest, encryptionKey }) {
-    if (encryptionKey) {
-      this._validateKey(encryptionKey);
-    }
-
-    if (manifest.encryption?.encrypted && !encryptionKey) {
-      throw new CasError(
-        'Encryption key required to restore encrypted content',
-        'MISSING_KEY',
-      );
-    }
+  async restore({ manifest, encryptionKey, passphrase }) {
+    const key = await this._resolveEncryptionKey(manifest, encryptionKey, passphrase);
 
     if (manifest.chunks.length === 0) {
       return { buffer: Buffer.alloc(0), bytesWritten: 0 };
     }
 
-    const chunks = await this._readAndVerifyChunks(manifest.chunks);
-    let buffer = Buffer.concat(chunks);
+    let buffer = Buffer.concat(await this._readAndVerifyChunks(manifest.chunks));
 
     if (manifest.encryption?.encrypted) {
-      buffer = await this.decrypt({
-        buffer,
-        key: encryptionKey,
-        meta: manifest.encryption,
-      });
+      buffer = await this.decrypt({ buffer, key, meta: manifest.encryption });
+    }
+
+    if (manifest.compression) {
+      try {
+        buffer = await gunzipAsync(buffer);
+      } catch (err) {
+        if (err instanceof CasError) { throw err; }
+        throw new CasError(`Decompression failed: ${err.message}`, 'INTEGRITY_ERROR', { originalError: err });
+      }
     }
 
     this.emit('file:restored', {
@@ -342,7 +509,46 @@ export default class CasService extends EventEmitter {
     }
 
     const decoded = this.codec.decode(blob);
+
+    if (decoded.version === 2 && decoded.subManifests?.length > 0) {
+      decoded.chunks = await this._resolveSubManifests(decoded.subManifests, treeOid);
+    }
+
     return new Manifest(decoded);
+  }
+
+  /**
+   * Reads and flattens sub-manifest blobs into a single chunk array.
+   * @private
+   * @param {Array<{ oid: string }>} subManifests - Sub-manifest references.
+   * @param {string} treeOid - Parent tree OID (for error context).
+   * @returns {Promise<Array>} Flattened chunk entries.
+   */
+  async _resolveSubManifests(subManifests, treeOid) {
+    const allChunks = [];
+    for (const ref of subManifests) {
+      const subBlob = await this._readSubManifestBlob(ref.oid, treeOid);
+      const subDecoded = this.codec.decode(subBlob);
+      allChunks.push(...subDecoded.chunks);
+    }
+    return allChunks;
+  }
+
+  /**
+   * Reads a sub-manifest blob, wrapping errors as GIT_ERROR.
+   * @private
+   */
+  async _readSubManifestBlob(oid, treeOid) {
+    try {
+      return await this.persistence.readBlob(oid);
+    } catch (err) {
+      if (err instanceof CasError) { throw err; }
+      throw new CasError(
+        `Failed to read sub-manifest blob ${oid}: ${err.message}`,
+        'GIT_ERROR',
+        { treeOid, subManifestOid: oid, originalError: err },
+      );
+    }
   }
 
   /**
@@ -384,6 +590,23 @@ export default class CasService extends EventEmitter {
     }
 
     return { referenced, total };
+  }
+
+  /**
+   * Derives an encryption key from a passphrase using PBKDF2 or scrypt.
+   * @param {Object} options
+   * @param {string} options.passphrase - The passphrase to derive a key from.
+   * @param {Buffer} [options.salt] - Salt (random if omitted).
+   * @param {'pbkdf2'|'scrypt'} [options.algorithm='pbkdf2'] - KDF algorithm.
+   * @param {number} [options.iterations] - PBKDF2 iterations.
+   * @param {number} [options.cost] - scrypt cost (N).
+   * @param {number} [options.blockSize] - scrypt block size (r).
+   * @param {number} [options.parallelization] - scrypt parallelization (p).
+   * @param {number} [options.keyLength=32] - Derived key length.
+   * @returns {Promise<{ key: Buffer, salt: Buffer, params: Object }>}
+   */
+  async deriveKey(options) {
+    return await this.crypto.deriveKey(options);
   }
 
   /**

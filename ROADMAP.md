@@ -134,7 +134,7 @@ Return and throw semantics for every public method (current and planned).
 | v1.4.0  | M4        | Compass  | Lifecycle management | ✅ |
 | v1.5.0  | M5        | Sonar    | Observability | ✅ |
 | v1.6.0  | M6        | Cartographer | Documentation | ✅ |
-| v2.0.0  | M7        | Horizon  | Advanced features | |
+| v2.0.0  | M7        | Horizon  | Advanced features | ✅ |
 
 ---
 
@@ -1461,7 +1461,7 @@ As a new user, I want runnable examples so I can integrate quickly and correctly
 
 ---
 
-# M7 — Horizon (v2.0.0)
+# M7 — Horizon (v2.0.0) ✅
 **Theme:** Advanced capabilities that may change manifest format; major version bump.
 
 ---
