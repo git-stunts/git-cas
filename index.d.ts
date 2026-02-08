@@ -166,4 +166,81 @@ export default class ContentAddressableStore {
   }): Promise<{ referenced: Set<string>; total: number }>;
 
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
+
+  // -------------------------------------------------------------------------
+  // Vault — GC-safe ref-based storage
+  // -------------------------------------------------------------------------
+
+  static VAULT_REF: string;
+
+  /** Validates a vault slug. Throws CasError with code INVALID_SLUG on failure. */
+  _validateSlug(slug: string): void;
+
+  /** Reads the current vault state from refs/cas/vault. */
+  _readVaultState(): Promise<VaultState>;
+
+  /** Writes a new vault commit and updates the ref atomically. */
+  _writeVaultCommit(options: {
+    entries: Map<string, string>;
+    metadata: VaultMetadata;
+    parentCommitOid: string | null;
+    message: string;
+  }): Promise<{ commitOid: string }>;
+
+  /** Initializes the vault, optionally with encryption. */
+  initVault(options?: {
+    passphrase?: string;
+    kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
+  }): Promise<{ commitOid: string }>;
+
+  /** Adds or updates an entry in the vault. */
+  addToVault(options: {
+    slug: string;
+    treeOid: string;
+    force?: boolean;
+  }): Promise<{ commitOid: string }>;
+
+  /** Lists all vault entries sorted by slug. */
+  listVault(): Promise<VaultEntry[]>;
+
+  /** Removes an entry from the vault. */
+  removeFromVault(options: {
+    slug: string;
+  }): Promise<{ commitOid: string; removedTreeOid: string }>;
+
+  /** Resolves a vault entry slug to its tree OID. */
+  resolveVaultEntry(options: { slug: string }): Promise<string>;
+
+  /** Returns the vault metadata, or null if no vault exists. */
+  getVaultMetadata(): Promise<VaultMetadata | null>;
+}
+
+/** A single vault entry. */
+export interface VaultEntry {
+  slug: string;
+  treeOid: string;
+}
+
+/** Vault metadata stored in .vault.json. */
+export interface VaultMetadata {
+  version: number;
+  encryption?: {
+    cipher: string;
+    kdf: {
+      algorithm: string;
+      salt: string;
+      iterations?: number;
+      cost?: number;
+      blockSize?: number;
+      parallelization?: number;
+      keyLength: number;
+    };
+  };
+}
+
+/** Internal vault state returned by _readVaultState. */
+export interface VaultState {
+  entries: Map<string, string>;
+  parentCommitOid: string | null;
+  metadata: VaultMetadata | null;
 }

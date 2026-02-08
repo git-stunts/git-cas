@@ -28,6 +28,7 @@ We use the object database.
 - **Tree output** generates standard Git trees so assets snap into commits cleanly.
 - **Full round-trip** store, tree, and restore — get your bytes back, verified.
 - **Lifecycle management** `readManifest`, `deleteAsset`, `findOrphanedChunks` — inspect trees, plan deletions, audit storage.
+- **Vault** GC-safe ref-based storage. One ref (`refs/cas/vault`) indexes all assets by slug. No more silent data loss from `git gc`.
 
 **Use it for:** binary assets, build artifacts, model weights, data packs, secret bundles, weird experiments, etc.
 
@@ -87,18 +88,24 @@ const manifest2 = await cas.storeFile({
 # Store a file — prints manifest JSON
 git cas store ./image.png --slug my-image
 
-# Store and get a tree OID directly
+# Store and vault the tree OID (GC-safe)
 git cas store ./image.png --slug my-image --tree
 
-# Create a tree from an existing manifest
-git cas tree --manifest manifest.json
+# Restore from a vault slug
+git cas restore --slug my-image --out ./restored.png
 
-# Restore from a tree OID
-git cas restore <tree-oid> --out ./restored.png
+# Restore from a direct tree OID
+git cas restore --oid <tree-oid> --out ./restored.png
 
-# Encrypted round-trip (32-byte raw key file)
-git cas store ./secret.bin --slug vault --key-file ./my.key --tree
-git cas restore <tree-oid> --out ./decrypted.bin --key-file ./my.key
+# Vault management
+git cas vault init
+git cas vault list
+git cas vault remove my-image
+
+# Encrypted vault round-trip
+git cas vault init --vault-passphrase "secret"
+git cas store ./secret.bin --slug vault-entry --tree --vault-passphrase "secret"
+git cas restore --slug vault-entry --out ./decrypted.bin --vault-passphrase "secret"
 ```
 
 ## Why not Git LFS?

@@ -5,12 +5,13 @@ This document provides the complete API reference for git-cas.
 ## Table of Contents
 
 1. [ContentAddressableStore](#contentaddressablestore)
-2. [CasService](#casservice)
-3. [Events](#events)
-4. [Value Objects](#value-objects)
-5. [Ports](#ports)
-6. [Codecs](#codecs)
-7. [Error Codes](#error-codes)
+2. [Vault](#vault)
+3. [CasService](#casservice)
+4. [Events](#events)
+5. [Value Objects](#value-objects)
+6. [Ports](#ports)
+7. [Codecs](#codecs)
+8. [Error Codes](#error-codes)
 
 ## ContentAddressableStore
 
@@ -481,6 +482,229 @@ Returns the configured chunk size in bytes.
 ```javascript
 console.log(cas.chunkSize); // 262144
 ```
+
+## Vault
+
+The vault provides GC-safe storage by maintaining a single Git ref (`refs/cas/vault`) pointing to a commit chain. The commit's tree indexes all stored assets by slug. This prevents `git gc` from garbage-collecting stored data.
+
+### Vault Tree Structure
+
+```
+refs/cas/vault → commit → tree
+                            ├── 100644 blob <oid>  .vault.json
+                            ├── 040000 tree <oid>  demo/hello
+                            ├── 040000 tree <oid>  photos/beach
+```
+
+### Types
+
+#### VaultEntry
+
+```typescript
+interface VaultEntry {
+  slug: string;
+  treeOid: string;
+}
+```
+
+#### VaultMetadata
+
+```typescript
+interface VaultMetadata {
+  version: number;
+  encryption?: {
+    cipher: string;
+    kdf: {
+      algorithm: string;
+      salt: string;
+      iterations?: number;
+      cost?: number;
+      blockSize?: number;
+      parallelization?: number;
+      keyLength: number;
+    };
+  };
+}
+```
+
+### Methods
+
+#### initVault
+
+```javascript
+await cas.initVault({ passphrase?, kdfOptions? })
+```
+
+Initializes the vault. Optionally configures vault-level encryption with a passphrase.
+
+**Parameters:**
+
+- `passphrase` (optional): `string` - Passphrase for vault-level key derivation
+- `kdfOptions` (optional): `Object` - KDF options (`{ algorithm, iterations, cost, ... }`)
+
+**Returns:** `Promise<{ commitOid: string }>`
+
+**Throws:**
+
+- `CasError` with code `VAULT_ENCRYPTION_ALREADY_CONFIGURED` if vault already has encryption
+
+**Example:**
+
+```javascript
+// Without encryption
+await cas.initVault();
+
+// With encryption
+await cas.initVault({
+  passphrase: 'my secret passphrase',
+  kdfOptions: { algorithm: 'pbkdf2' },
+});
+```
+
+#### addToVault
+
+```javascript
+await cas.addToVault({ slug, treeOid, force? })
+```
+
+Adds an entry to the vault. Auto-initializes the vault if it doesn't exist.
+
+**Parameters:**
+
+- `slug` (required): `string` - Entry slug (e.g., `"demo/hello"`, `"photos/beach-2024"`)
+- `treeOid` (required): `string` - Git tree OID
+- `force` (optional): `boolean` - Overwrite existing entry (default: `false`)
+
+**Returns:** `Promise<{ commitOid: string }>`
+
+**Throws:**
+
+- `CasError` with code `INVALID_SLUG` if slug fails validation
+- `CasError` with code `VAULT_ENTRY_EXISTS` if slug exists and `force` is false
+- `CasError` with code `VAULT_CONFLICT` if concurrent update detected after retries
+
+**Example:**
+
+```javascript
+const treeOid = await cas.createTree({ manifest });
+await cas.addToVault({ slug: 'demo/hello', treeOid });
+```
+
+#### listVault
+
+```javascript
+await cas.listVault()
+```
+
+Lists all vault entries sorted by slug.
+
+**Returns:** `Promise<VaultEntry[]>`
+
+**Example:**
+
+```javascript
+const entries = await cas.listVault();
+for (const { slug, treeOid } of entries) {
+  console.log(`${slug}\t${treeOid}`);
+}
+```
+
+#### removeFromVault
+
+```javascript
+await cas.removeFromVault({ slug })
+```
+
+Removes an entry from the vault.
+
+**Parameters:**
+
+- `slug` (required): `string` - Entry slug to remove
+
+**Returns:** `Promise<{ commitOid: string, removedTreeOid: string }>`
+
+**Throws:**
+
+- `CasError` with code `VAULT_ENTRY_NOT_FOUND` if slug does not exist
+
+**Example:**
+
+```javascript
+const { removedTreeOid } = await cas.removeFromVault({ slug: 'demo/hello' });
+```
+
+#### resolveVaultEntry
+
+```javascript
+await cas.resolveVaultEntry({ slug })
+```
+
+Resolves a vault entry slug to its tree OID.
+
+**Parameters:**
+
+- `slug` (required): `string` - Entry slug
+
+**Returns:** `Promise<string>` - The tree OID
+
+**Throws:**
+
+- `CasError` with code `VAULT_ENTRY_NOT_FOUND` if slug does not exist
+
+**Example:**
+
+```javascript
+const treeOid = await cas.resolveVaultEntry({ slug: 'demo/hello' });
+const manifest = await cas.readManifest({ treeOid });
+```
+
+#### getVaultMetadata
+
+```javascript
+await cas.getVaultMetadata()
+```
+
+Returns the vault metadata, or `null` if no vault exists.
+
+**Returns:** `Promise<VaultMetadata | null>`
+
+**Example:**
+
+```javascript
+const metadata = await cas.getVaultMetadata();
+if (metadata?.encryption) {
+  console.log('Vault is encrypted with', metadata.encryption.kdf.algorithm);
+}
+```
+
+### Slug Validation
+
+Slugs are validated with the following rules:
+
+- Must be a non-empty string
+- Must not start or end with `/`
+- Must not contain empty segments (`a//b`)
+- Must not contain `.` or `..` segments
+- Must not contain control characters (0x00–0x1f, 0x7f)
+- Each segment must not exceed 255 bytes
+- Total slug must not exceed 1024 bytes
+
+### Vault-Level Encryption
+
+When a vault is initialized with a passphrase, all store/restore operations through the vault derive the encryption key from the vault's KDF configuration:
+
+```javascript
+// Initialize vault with encryption
+await cas.initVault({ passphrase: 'secret' });
+
+// Store with vault-level encryption (CLI derives key automatically)
+// git-cas store file.txt --slug demo/hello --tree --vault-passphrase secret
+
+// Restore with vault-level encryption
+// git-cas restore --slug demo/hello --out file.txt --vault-passphrase secret
+```
+
+The vault stores the KDF parameters (algorithm, salt, iterations) in `.vault.json` — the passphrase is never stored.
 
 ## CasService
 
@@ -1124,6 +1348,12 @@ new CasError(message, code, meta)
 | `MANIFEST_NOT_FOUND` | No manifest entry found in the Git tree | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()` |
 | `GIT_ERROR` | Underlying Git plumbing command failed | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()` |
 | `INVALID_OPTIONS` | Mutually exclusive options provided or unsupported option value | `store()`, `restore()` |
+| `INVALID_SLUG` | Slug fails validation (empty, control chars, `..` segments, etc.) | `addToVault()` |
+| `VAULT_ENTRY_NOT_FOUND` | Slug does not exist in vault | `removeFromVault()`, `resolveVaultEntry()` |
+| `VAULT_ENTRY_EXISTS` | Slug already exists (use `force` to overwrite) | `addToVault()` |
+| `VAULT_CONFLICT` | Concurrent vault update detected (CAS failure after retries) | `addToVault()`, `removeFromVault()`, `initVault()` |
+| `VAULT_METADATA_INVALID` | `.vault.json` malformed, unknown version, or missing required fields | `_readVaultState()` |
+| `VAULT_ENCRYPTION_ALREADY_CONFIGURED` | Cannot reconfigure encryption without key rotation | `initVault()` |
 
 ### Error Handling
 

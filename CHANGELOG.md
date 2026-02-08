@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Vault** — GC-safe ref-based storage via `refs/cas/vault`. A single Git ref pointing to a commit chain indexes all stored assets by slug. `git gc` can no longer silently discard stored data.
+  - `initVault()` — initialize the vault, optionally with passphrase-based encryption (vault-level KDF policy).
+  - `addToVault()` — add or update an entry by slug + tree OID, with `force` flag for overwrites.
+  - `listVault()` — list all entries sorted by slug.
+  - `removeFromVault()` — remove an entry by slug.
+  - `resolveVaultEntry()` — resolve a slug to its tree OID.
+  - `getVaultMetadata()` — inspect vault metadata (encryption config, version).
+  - Vault metadata (`.vault.json`) supports versioning and optional encryption configuration.
+  - CAS-safe writes with automatic retry (up to 3 attempts with exponential backoff) on concurrent update conflicts.
+  - Strict slug validation: rejects empty strings, `..` traversal, control characters, oversized segments.
+- New CLI subcommands: `vault init`, `vault list`, `vault remove`.
+- CLI `store --tree` now auto-vaults the entry (adds to vault after creating tree).
+- CLI `restore` now supports `--slug` (resolve via vault) and `--oid` (direct tree OID) flags.
+- CLI `--vault-passphrase` flag for vault-level encryption on `store`, `restore`, and `vault init`.
+- New error codes: `INVALID_SLUG`, `VAULT_ENTRY_NOT_FOUND`, `VAULT_ENTRY_EXISTS`, `VAULT_CONFLICT`, `VAULT_METADATA_INVALID`, `VAULT_ENCRYPTION_ALREADY_CONFIGURED`.
+- TypeScript declarations for `VaultEntry`, `VaultMetadata`, `VaultState` interfaces.
+- 42 new unit tests for vault functionality.
+
+### Changed
+- CLI `restore` command no longer takes a positional `<tree-oid>` argument. Use `--oid <tree-oid>` or `--slug <slug>` instead.
+- Purged completed milestones (M1–M7) and their task cards from ROADMAP.md, reducing it from 3,153 to 1,675 lines.
+
 ## [2.0.0] — M7 Horizon (2026-02-08)
 
 ### Added
