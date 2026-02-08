@@ -554,6 +554,35 @@ describe('CAS retry – exhausted', () => {
 });
 
 // ---------------------------------------------------------------------------
+// VAULT_CONFLICT – preserves original error
+// ---------------------------------------------------------------------------
+describe('VAULT_CONFLICT – preserves original error', () => {
+  it('includes originalError in VAULT_CONFLICT meta', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    setupWriteSuccess(persistence, ref);
+    ref.updateRef.mockReset();
+    const rootCause = new Error('permission denied');
+    ref.updateRef.mockRejectedValueOnce(rootCause);
+    const vault = createVault({ ref, persistence });
+
+    try {
+      await vault.writeCommit({
+        entries: new Map(),
+        metadata: { version: 1 },
+        parentCommitOid: null,
+        message: 'test',
+      });
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(CasError);
+      expect(e.code).toBe('VAULT_CONFLICT');
+      expect(e.meta.originalError).toBe(rootCause);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // writeCommit – parent handling
 // ---------------------------------------------------------------------------
 describe('writeCommit – with parent', () => {

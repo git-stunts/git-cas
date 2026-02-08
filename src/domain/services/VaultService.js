@@ -246,11 +246,11 @@ export default class VaultService {
         newOid,
         expectedOldOid,
       });
-    } catch {
+    } catch (err) {
       throw new CasError(
         'Concurrent vault update detected',
         'VAULT_CONFLICT',
-        { expectedParent: expectedOldOid, newCommit: newOid },
+        { expectedParent: expectedOldOid, newCommit: newOid, originalError: err },
       );
     }
   }
