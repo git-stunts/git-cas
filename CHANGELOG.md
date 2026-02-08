@@ -28,7 +28,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GitRefPort` and `GitRefAdapter` — new port/adapter for Git ref and commit operations.
 - `getVaultService()` on facade exposes the underlying `VaultService` for advanced usage.
 - Vault-specific integration tests (`test/integration/vault.test.js`).
-- 43 vault unit tests + facade delegation smoke test.
+- 45 vault unit tests + facade delegation smoke test.
+
+### Fixed
+- `#validateMetadata` now requires `kdf.keyLength` in encryption metadata, preventing downstream KDF failures from manually edited `.vault.json` files.
+- `#casUpdateRef` now preserves the original error in `VAULT_CONFLICT` meta for better diagnostics.
+- CLI `--vault-passphrase` now emits a stderr warning when the vault is not encrypted, instead of silently ignoring the passphrase.
+- `vault history` command now uses `VAULT_REF` constant instead of hardcoded string.
+- API docs: fixed invalid import path `@git-stunts/cas/vault` → `@git-stunts/cas`.
+- API docs: fixed `_readVaultState()` → `readState()` in error codes table.
+- API docs and GUIDE: added `text` language identifier to fenced code blocks (markdownlint MD040).
 
 ### Changed
 - **Vault promoted to domain layer** — all vault logic extracted from facade (`index.js`) into `VaultService` (`src/domain/services/VaultService.js`) with `GitRefPort`/`GitRefAdapter` for ref operations. Facade now delegates to VaultService.
