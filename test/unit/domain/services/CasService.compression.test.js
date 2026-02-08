@@ -261,7 +261,29 @@ describe('CasService compression – backward compatibility', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. Fuzz: round-trip across multiple sizes
+// 8. Decompression failure wraps zlib error as CasError
+// ---------------------------------------------------------------------------
+describe('CasService compression – decompression failure wraps as CasError', () => {
+  it('throws CasError with INTEGRITY_ERROR when decompression fails on corrupt data', async () => {
+    const { service } = setup();
+
+    // Store WITHOUT compression so the raw bytes are not gzip-encoded
+    const original = Buffer.from('This is not gzip data');
+    const manifest = await storeBuffer(service, original);
+
+    // Build a new Manifest from the JSON with compression flag injected,
+    // so restore will attempt gunzip on the non-gzip chunk data.
+    const Manifest = (await import('../../../../src/domain/value-objects/Manifest.js')).default;
+    const tweaked = new Manifest({ ...manifest.toJSON(), compression: { algorithm: 'gzip' } });
+
+    const err = await service.restore({ manifest: tweaked }).catch((e) => e);
+    expect(err.code).toBe('INTEGRITY_ERROR');
+    expect(err.message).toMatch(/Decompression failed/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Fuzz: round-trip across multiple sizes
 // ---------------------------------------------------------------------------
 describe('CasService compression – fuzz round-trip across sizes', () => {
   let service;

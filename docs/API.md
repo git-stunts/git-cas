@@ -130,6 +130,8 @@ Stores content from an async iterable source.
 - `CasError` with code `INVALID_KEY_TYPE` if encryptionKey is not a Buffer
 - `CasError` with code `INVALID_KEY_LENGTH` if encryptionKey is not 32 bytes
 - `CasError` with code `STREAM_ERROR` if the source stream fails
+- `CasError` with code `INVALID_OPTIONS` if both `passphrase` and `encryptionKey` are provided
+- `CasError` with code `INVALID_OPTIONS` if an unsupported compression algorithm is specified
 
 **Example:**
 
@@ -198,6 +200,8 @@ Restores content from a manifest and returns the buffer.
 - `CasError` with code `INVALID_KEY_LENGTH` if encryptionKey is not 32 bytes
 - `CasError` with code `INTEGRITY_ERROR` if chunk digest verification fails
 - `CasError` with code `INTEGRITY_ERROR` if decryption fails
+- `CasError` with code `INTEGRITY_ERROR` if decompression fails
+- `CasError` with code `INVALID_OPTIONS` if both `passphrase` and `encryptionKey` are provided
 
 **Example:**
 
@@ -1119,6 +1123,7 @@ new CasError(message, code, meta)
 | `STREAM_ERROR` | Stream error occurred during store operation | `store()` |
 | `MANIFEST_NOT_FOUND` | No manifest entry found in the Git tree | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()` |
 | `GIT_ERROR` | Underlying Git plumbing command failed | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()` |
+| `INVALID_OPTIONS` | Mutually exclusive options provided or unsupported option value | `store()`, `restore()` |
 
 ### Error Handling
 

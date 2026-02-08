@@ -185,22 +185,6 @@ export default class CasService extends EventEmitter {
   }
 
   /**
-   * Chunks an async iterable source and stores it in Git.
-   *
-   * If `encryptionKey` is provided, the content (and manifest) will be encrypted
-   * using AES-256-GCM, and the `encryption` field in the manifest will be populated.
-   *
-   * @param {Object} options
-   * @param {AsyncIterable<Buffer>} options.source
-   * @param {string} options.slug
-   * @param {string} options.filename
-   * @param {Buffer} [options.encryptionKey]
-   * @param {string} [options.passphrase] - Derive encryption key from passphrase instead.
-   * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
-   * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
-   * @returns {Promise<import('../value-objects/Manifest.js').default>}
-   */
-  /**
    * Validates that passphrase and encryptionKey are not both provided.
    * @private
    */
@@ -226,6 +210,22 @@ export default class CasService extends EventEmitter {
     }
   }
 
+  /**
+   * Chunks an async iterable source and stores it in Git.
+   *
+   * If `encryptionKey` is provided, the content (and manifest) will be encrypted
+   * using AES-256-GCM, and the `encryption` field in the manifest will be populated.
+   *
+   * @param {Object} options
+   * @param {AsyncIterable<Buffer>} options.source
+   * @param {string} options.slug
+   * @param {string} options.filename
+   * @param {Buffer} [options.encryptionKey]
+   * @param {string} [options.passphrase] - Derive encryption key from passphrase instead.
+   * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
+   * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
+   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   */
   async store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression }) {
     this._validateKeySourceExclusive(encryptionKey, passphrase);
     this._validateCompression(compression);
@@ -449,7 +449,12 @@ export default class CasService extends EventEmitter {
     }
 
     if (manifest.compression) {
-      buffer = await gunzipAsync(buffer);
+      try {
+        buffer = await gunzipAsync(buffer);
+      } catch (err) {
+        if (err instanceof CasError) { throw err; }
+        throw new CasError(`Decompression failed: ${err.message}`, 'INTEGRITY_ERROR', { originalError: err });
+      }
     }
 
     this.emit('file:restored', {
