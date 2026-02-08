@@ -489,7 +489,7 @@ The vault provides GC-safe storage by maintaining a single Git ref (`refs/cas/va
 
 ### Vault Tree Structure
 
-```
+```text
 refs/cas/vault → commit → tree
                             ├── 100644 blob <oid>  .vault.json
                             ├── 040000 tree <oid>  demo/hello
@@ -731,7 +731,7 @@ Domain service for vault operations. Requires three ports:
 - `crypto` (`CryptoPort`) — KDF for vault-level encryption
 
 ```javascript
-import VaultService from '@git-stunts/cas/vault'; // or via facade
+import { VaultService } from '@git-stunts/cas'; // or via facade
 const vault = await cas.getVaultService();
 ```
 
@@ -1381,7 +1381,7 @@ new CasError(message, code, meta)
 | `VAULT_ENTRY_NOT_FOUND` | Slug does not exist in vault | `removeFromVault()`, `resolveVaultEntry()` |
 | `VAULT_ENTRY_EXISTS` | Slug already exists (use `force` to overwrite) | `addToVault()` |
 | `VAULT_CONFLICT` | Concurrent vault update detected (CAS failure after retries) | `addToVault()`, `removeFromVault()`, `initVault()` |
-| `VAULT_METADATA_INVALID` | `.vault.json` malformed, unknown version, or missing required fields | `_readVaultState()` |
+| `VAULT_METADATA_INVALID` | `.vault.json` malformed, unknown version, or missing required fields | `readState()` |
 | `VAULT_ENCRYPTION_ALREADY_CONFIGURED` | Cannot reconfigure encryption without key rotation | `initVault()` |
 
 ### Error Handling

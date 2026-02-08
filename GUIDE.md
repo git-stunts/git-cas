@@ -974,7 +974,7 @@ gives you free history of every vault operation.
 
 ### Vault Tree Structure
 
-```
+```text
 refs/cas/vault → commit → tree
                             ├── 100644 blob <oid>  .vault.json
                             ├── 040000 tree <oid>  photos/vacation
