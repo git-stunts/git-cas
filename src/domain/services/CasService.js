@@ -347,19 +347,6 @@ export default class CasService extends EventEmitter {
   }
 
   /**
-   * Restores a file from its manifest by reading and reassembling chunks.
-   *
-   * If the manifest has encryption metadata, decrypts the reassembled
-   * ciphertext using the provided key.
-   *
-   * @param {Object} options
-   * @param {import('../value-objects/Manifest.js').default} options.manifest - The file manifest.
-   * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
-   * @returns {Promise<{ buffer: Buffer, bytesWritten: number }>}
-   * @throws {CasError} MISSING_KEY if manifest is encrypted but no key is provided.
-   * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
-   */
-  /**
    * Resolves the encryption key from a passphrase using KDF params from the manifest.
    * @private
    * @param {string} passphrase
@@ -396,6 +383,20 @@ export default class CasService extends EventEmitter {
     return Promise.resolve(encryptionKey);
   }
 
+  /**
+   * Restores a file from its manifest by reading and reassembling chunks.
+   *
+   * If the manifest has encryption metadata, decrypts the reassembled
+   * ciphertext using the provided key.
+   *
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
+   * @returns {Promise<{ buffer: Buffer, bytesWritten: number }>}
+   * @throws {CasError} MISSING_KEY if manifest is encrypted but no key is provided.
+   * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
+   */
   async restore({ manifest, encryptionKey, passphrase }) {
     const key = await this._resolveEncryptionKey(manifest, encryptionKey, passphrase);
 
@@ -549,11 +550,6 @@ export default class CasService extends EventEmitter {
   }
 
   /**
-   * Verifies the integrity of a stored file by re-hashing its chunks.
-   * @param {import('../value-objects/Manifest.js').default} manifest
-   * @returns {Promise<boolean>}
-   */
-  /**
    * Derives an encryption key from a passphrase using PBKDF2 or scrypt.
    * @param {Object} options
    * @param {string} options.passphrase - The passphrase to derive a key from.
@@ -570,6 +566,11 @@ export default class CasService extends EventEmitter {
     return await this.crypto.deriveKey(options);
   }
 
+  /**
+   * Verifies the integrity of a stored file by re-hashing its chunks.
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {Promise<boolean>}
+   */
   async verifyIntegrity(manifest) {
     for (const chunk of manifest.chunks) {
       const blob = await this.persistence.readBlob(chunk.blob);

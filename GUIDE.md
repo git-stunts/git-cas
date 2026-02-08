@@ -1380,7 +1380,7 @@ Every Git plumbing command is wrapped in a policy from `@git-stunts/alfred`.
 The default policy applies a 30-second timeout and retries up to 2 times with
 exponential backoff (100ms, then up to 2s). This handles transient filesystem
 errors and lock contention gracefully. You can override the policy at
-construction time (see Section 10).
+construction time (see Section 13).
 
 ---
 

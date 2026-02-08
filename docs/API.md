@@ -147,7 +147,7 @@ const manifest = await cas.store({
 #### storeFile
 
 ```javascript
-await cas.storeFile({ filePath, slug, filename, encryptionKey })
+await cas.storeFile({ filePath, slug, filename, encryptionKey, passphrase, kdfOptions, compression })
 ```
 
 Convenience method that opens a file and stores it.
@@ -208,7 +208,7 @@ const { buffer, bytesWritten } = await cas.restore({ manifest });
 #### restoreFile
 
 ```javascript
-await cas.restoreFile({ manifest, encryptionKey, outputPath })
+await cas.restoreFile({ manifest, encryptionKey, passphrase, outputPath })
 ```
 
 Restores content from a manifest and writes it to a file.
