@@ -42,6 +42,24 @@ We use the object database.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 
+## What's new in v3.0.0
+
+**Vault** — GC-safe ref-based storage. A single Git ref (`refs/cas/vault`) indexes all stored assets by slug, so `git gc` can no longer silently discard your data. Initialize with `vault init`, store with `--tree`, restore by `--slug`.
+
+**CLI breaking change** — `git cas restore` no longer takes a positional `<tree-oid>` argument. Use `--oid <tree-oid>` or `--slug <slug>` instead.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
+
+## Install
+
+```bash
+npm install @git-stunts/git-cas
+```
+
+```bash
+npx jsr add @git-stunts/git-cas
+```
+
 ## Usage (Node API)
 
 ```js
