@@ -217,7 +217,7 @@ describe('addToVault – first entry (auto-init)', () => {
     expect(persistence.writeTree).toHaveBeenCalledOnce();
     const treeArg = persistence.writeTree.mock.calls[0][0];
     expect(treeArg.some((l) => l.includes('.vault.json'))).toBe(true);
-    expect(treeArg.some((l) => l.includes('demo/hello'))).toBe(true);
+    expect(treeArg.some((l) => l.includes('demo%2Fhello'))).toBe(true);
   });
 });
 
@@ -269,8 +269,8 @@ describe('addToVault – second entry', () => {
     expect(result.commitOid).toBe('new-commit-oid');
 
     const treeArg = persistence.writeTree.mock.calls[0][0];
-    expect(treeArg.some((l) => l.includes('demo/hello'))).toBe(true);
-    expect(treeArg.some((l) => l.includes('photos/beach'))).toBe(true);
+    expect(treeArg.some((l) => l.includes('demo%2Fhello'))).toBe(true);
+    expect(treeArg.some((l) => l.includes('photos%2Fbeach'))).toBe(true);
   });
 });
 
@@ -333,8 +333,8 @@ describe('removeFromVault – existing entry', () => {
     expect(result.removedTreeOid).toBe('entry-tree-1');
 
     const treeArg = persistence.writeTree.mock.calls[0][0];
-    expect(treeArg.some((l) => l.includes('demo/hello'))).toBe(false);
-    expect(treeArg.some((l) => l.includes('photos/beach'))).toBe(true);
+    expect(treeArg.some((l) => l.includes('demo%2Fhello'))).toBe(false);
+    expect(treeArg.some((l) => l.includes('photos%2Fbeach'))).toBe(true);
   });
 });
 

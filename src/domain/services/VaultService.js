@@ -8,6 +8,25 @@ const MAX_CAS_RETRIES = 3;
 const CAS_RETRY_BASE_MS = 50;
 
 /**
+ * Percent-encodes a vault slug for use as a git tree entry name.
+ * Git tree entry names cannot contain '/'.
+ * @param {string} slug
+ * @returns {string}
+ */
+function encodeSlug(slug) {
+  return slug.replaceAll('%', '%25').replaceAll('/', '%2F');
+}
+
+/**
+ * Decodes a percent-encoded tree entry name back to a vault slug.
+ * @param {string} name
+ * @returns {string}
+ */
+function decodeSlug(name) {
+  return name.replaceAll('%2F', '/').replaceAll('%25', '%');
+}
+
+/**
  * Returns true if the string contains ASCII control characters (0x00–0x1f, 0x7f).
  * @param {string} str
  * @returns {boolean}
@@ -158,7 +177,7 @@ export default class VaultService {
       if (entry.name === '.vault.json') {
         metadataBlobOid = entry.oid;
       } else {
-        entries.set(entry.name, entry.oid);
+        entries.set(decodeSlug(entry.name), entry.oid);
       }
     }
     return { entries, metadataBlobOid };
@@ -202,7 +221,7 @@ export default class VaultService {
 
     const treeLines = [`100644 blob ${metadataBlob}\t.vault.json`];
     for (const [slug, treeOid] of entries) {
-      treeLines.push(`040000 tree ${treeOid}\t${slug}`);
+      treeLines.push(`040000 tree ${treeOid}\t${encodeSlug(slug)}`);
     }
 
     const newTreeOid = await this.persistence.writeTree(treeLines);
