@@ -100,7 +100,9 @@ git cas restore --oid <tree-oid> --out ./restored.png
 # Vault management
 git cas vault init
 git cas vault list
+git cas vault info my-image
 git cas vault remove my-image
+git cas vault history
 
 # Encrypted vault round-trip
 git cas vault init --vault-passphrase "secret"

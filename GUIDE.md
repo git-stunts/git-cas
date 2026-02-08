@@ -1069,8 +1069,15 @@ git cas vault init --vault-passphrase "secret" --algorithm pbkdf2
 # List all vault entries (tab-separated slug + tree OID)
 git cas vault list
 
+# Inspect a single entry
+git cas vault info photos/vacation
+
 # Remove an entry
 git cas vault remove photos/vacation
+
+# View vault commit history
+git cas vault history
+git cas vault history -n 10   # last 10 commits
 ```
 
 ### CLI Restore with Vault

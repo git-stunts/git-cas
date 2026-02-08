@@ -706,6 +706,35 @@ await cas.initVault({ passphrase: 'secret' });
 
 The vault stores the KDF parameters (algorithm, salt, iterations) in `.vault.json` — the passphrase is never stored.
 
+### CLI Vault Commands
+
+```bash
+git cas vault init                               # Initialize vault
+git cas vault init --vault-passphrase "secret"   # With encryption
+git cas vault list                               # List all entries
+git cas vault info <slug>                        # Show slug + tree OID
+git cas vault remove <slug>                      # Remove an entry
+git cas vault history                            # Show commit history
+git cas vault history -n 10                      # Last N commits
+```
+
+### Vault History
+
+The vault maintains a full commit history via `refs/cas/vault`. Each mutation (add, remove, init) creates a new commit. Use `vault history` (or `git log refs/cas/vault`) to inspect the audit trail.
+
+## VaultService
+
+Domain service for vault operations. Requires three ports:
+
+- `persistence` (`GitPersistencePort`) — blob/tree read/write
+- `ref` (`GitRefPort`) — ref resolution, commits, atomic updates
+- `crypto` (`CryptoPort`) — KDF for vault-level encryption
+
+```javascript
+import VaultService from '@git-stunts/cas/vault'; // or via facade
+const vault = await cas.getVaultService();
+```
+
 ## CasService
 
 Core domain service implementing CAS operations. Usually accessed via ContentAddressableStore, but can be used directly for advanced scenarios.

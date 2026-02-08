@@ -18,15 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Vault metadata (`.vault.json`) supports versioning and optional encryption configuration.
   - CAS-safe writes with automatic retry (up to 3 attempts with exponential backoff) on concurrent update conflicts.
   - Strict slug validation: rejects empty strings, `..` traversal, control characters, oversized segments.
-- New CLI subcommands: `vault init`, `vault list`, `vault remove`.
+- New CLI subcommands: `vault init`, `vault list`, `vault info <slug>`, `vault remove <slug>`, `vault history`.
 - CLI `store --tree` now auto-vaults the entry (adds to vault after creating tree).
 - CLI `restore` now supports `--slug` (resolve via vault) and `--oid` (direct tree OID) flags.
 - CLI `--vault-passphrase` flag for vault-level encryption on `store`, `restore`, and `vault init`.
 - New error codes: `INVALID_SLUG`, `VAULT_ENTRY_NOT_FOUND`, `VAULT_ENTRY_EXISTS`, `VAULT_CONFLICT`, `VAULT_METADATA_INVALID`, `VAULT_ENCRYPTION_ALREADY_CONFIGURED`.
-- TypeScript declarations for `VaultEntry`, `VaultMetadata`, `VaultState` interfaces.
-- 42 new unit tests for vault functionality.
+- TypeScript declarations for `VaultEntry`, `VaultMetadata`, `VaultState`, `VaultService`, `GitRefPort` types.
+- `VaultService` — first-class domain service with proper port/adapter separation (hexagonal architecture).
+- `GitRefPort` and `GitRefAdapter` — new port/adapter for Git ref and commit operations.
+- `getVaultService()` on facade exposes the underlying `VaultService` for advanced usage.
+- Vault-specific integration tests (`test/integration/vault.test.js`).
+- 43 vault unit tests + facade delegation smoke test.
 
 ### Changed
+- **Vault promoted to domain layer** — all vault logic extracted from facade (`index.js`) into `VaultService` (`src/domain/services/VaultService.js`) with `GitRefPort`/`GitRefAdapter` for ref operations. Facade now delegates to VaultService.
 - CLI `restore` command no longer takes a positional `<tree-oid>` argument. Use `--oid <tree-oid>` or `--slug <slug>` instead.
 - Purged completed milestones (M1–M7) and their task cards from ROADMAP.md, reducing it from 3,153 to 1,675 lines.
 

@@ -250,4 +250,47 @@ vault
     }
   });
 
+// ---------------------------------------------------------------------------
+// vault info
+// ---------------------------------------------------------------------------
+vault
+  .command('info <slug>')
+  .description('Show info for a vault entry')
+  .option('--cwd <dir>', 'Git working directory', '.')
+  .action(async (slug, opts) => {
+    try {
+      const cas = createCas(opts.cwd);
+      const treeOid = await cas.resolveVaultEntry({ slug });
+      process.stdout.write(`slug\t${slug}\n`);
+      process.stdout.write(`tree\t${treeOid}\n`);
+    } catch (err) {
+      process.stderr.write(`error: ${err.message}\n`);
+      process.exit(1);
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// vault history
+// ---------------------------------------------------------------------------
+vault
+  .command('history')
+  .description('Show vault commit history')
+  .option('--cwd <dir>', 'Git working directory', '.')
+  .option('-n, --max-count <n>', 'Limit number of commits')
+  .action(async (opts) => {
+    try {
+      const runner = ShellRunnerFactory.create();
+      const plumbing = new GitPlumbing({ runner, cwd: opts.cwd || '.' });
+      const args = ['log', '--oneline', 'refs/cas/vault'];
+      if (opts.maxCount) {
+        args.push(`-${opts.maxCount}`);
+      }
+      const output = await plumbing.execute({ args });
+      process.stdout.write(`${output}\n`);
+    } catch (err) {
+      process.stderr.write(`error: ${err.message}\n`);
+      process.exit(1);
+    }
+  });
+
 program.parse();

@@ -45,8 +45,29 @@ export declare class GitPersistencePortBase {
   ): Promise<Array<{ mode: string; type: string; oid: string; name: string }>>;
 }
 
+/** Abstract port for Git ref and commit operations. */
+export declare class GitRefPortBase {
+  resolveRef(ref: string): Promise<string>;
+  resolveTree(commitOid: string): Promise<string>;
+  createCommit(options: {
+    treeOid: string;
+    parentOid?: string | null;
+    message: string;
+  }): Promise<string>;
+  updateRef(options: {
+    ref: string;
+    newOid: string;
+    expectedOldOid?: string | null;
+  }): Promise<void>;
+}
+
 /** Git-backed implementation of the persistence port. */
 export declare class GitPersistenceAdapter extends GitPersistencePortBase {
+  constructor(options: { plumbing: unknown; policy?: unknown });
+}
+
+/** Git-backed implementation of the ref port. */
+export declare class GitRefAdapter extends GitRefPortBase {
   constructor(options: { plumbing: unknown; policy?: unknown });
 }
 
@@ -82,11 +103,95 @@ export interface ContentAddressableStoreOptions {
   merkleThreshold?: number;
 }
 
+/** A single vault entry. */
+export interface VaultEntry {
+  slug: string;
+  treeOid: string;
+}
+
+/** Vault metadata stored in .vault.json. */
+export interface VaultMetadata {
+  version: number;
+  encryption?: {
+    cipher: string;
+    kdf: {
+      algorithm: string;
+      salt: string;
+      iterations?: number;
+      cost?: number;
+      blockSize?: number;
+      parallelization?: number;
+      keyLength: number;
+    };
+  };
+}
+
+/** Internal vault state returned by VaultService.readState(). */
+export interface VaultState {
+  entries: Map<string, string>;
+  parentCommitOid: string | null;
+  metadata: VaultMetadata | null;
+}
+
+/**
+ * Domain service for vault (GC-safe ref-based asset index) operations.
+ */
+export declare class VaultService {
+  static VAULT_REF: string;
+
+  constructor(options: {
+    persistence: GitPersistencePortBase;
+    ref: GitRefPortBase;
+    crypto: CryptoPortBase;
+  });
+
+  /** Validates a vault slug. Throws CasError with code INVALID_SLUG on failure. */
+  validateSlug(slug: string): void;
+
+  /** Reads the current vault state from refs/cas/vault. */
+  readState(): Promise<VaultState>;
+
+  /** Writes a new vault commit and updates the ref atomically. */
+  writeCommit(options: {
+    entries: Map<string, string>;
+    metadata: VaultMetadata;
+    parentCommitOid: string | null;
+    message: string;
+  }): Promise<{ commitOid: string }>;
+
+  /** Initializes the vault, optionally with encryption. */
+  initVault(options?: {
+    passphrase?: string;
+    kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
+  }): Promise<{ commitOid: string }>;
+
+  /** Adds or updates an entry in the vault. */
+  addToVault(options: {
+    slug: string;
+    treeOid: string;
+    force?: boolean;
+  }): Promise<{ commitOid: string }>;
+
+  /** Lists all vault entries sorted by slug. */
+  listVault(): Promise<VaultEntry[]>;
+
+  /** Removes an entry from the vault. */
+  removeFromVault(options: {
+    slug: string;
+  }): Promise<{ commitOid: string; removedTreeOid: string }>;
+
+  /** Resolves a vault entry slug to its tree OID. */
+  resolveVaultEntry(options: { slug: string }): Promise<string>;
+
+  /** Returns the vault metadata, or null if no vault exists. */
+  getVaultMetadata(): Promise<VaultMetadata | null>;
+}
+
 /**
  * High-level facade for the Content Addressable Store library.
  *
- * Wraps CasService with lazy initialization, runtime-adaptive crypto
- * selection, and convenience helpers for file I/O.
+ * Wraps CasService and VaultService with lazy initialization, runtime-adaptive
+ * crypto selection, and convenience helpers for file I/O.
  */
 export default class ContentAddressableStore {
   constructor(options: ContentAddressableStoreOptions);
@@ -94,6 +199,7 @@ export default class ContentAddressableStore {
   get chunkSize(): number;
 
   getService(): Promise<CasService>;
+  getVaultService(): Promise<VaultService>;
 
   static createJson(options: {
     plumbing: unknown;
@@ -167,80 +273,28 @@ export default class ContentAddressableStore {
 
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 
-  // -------------------------------------------------------------------------
-  // Vault — GC-safe ref-based storage
-  // -------------------------------------------------------------------------
+  // Vault — delegates to VaultService
 
   static VAULT_REF: string;
 
-  /** Validates a vault slug. Throws CasError with code INVALID_SLUG on failure. */
-  _validateSlug(slug: string): void;
-
-  /** Reads the current vault state from refs/cas/vault. */
-  _readVaultState(): Promise<VaultState>;
-
-  /** Writes a new vault commit and updates the ref atomically. */
-  _writeVaultCommit(options: {
-    entries: Map<string, string>;
-    metadata: VaultMetadata;
-    parentCommitOid: string | null;
-    message: string;
-  }): Promise<{ commitOid: string }>;
-
-  /** Initializes the vault, optionally with encryption. */
   initVault(options?: {
     passphrase?: string;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
   }): Promise<{ commitOid: string }>;
 
-  /** Adds or updates an entry in the vault. */
   addToVault(options: {
     slug: string;
     treeOid: string;
     force?: boolean;
   }): Promise<{ commitOid: string }>;
 
-  /** Lists all vault entries sorted by slug. */
   listVault(): Promise<VaultEntry[]>;
 
-  /** Removes an entry from the vault. */
   removeFromVault(options: {
     slug: string;
   }): Promise<{ commitOid: string; removedTreeOid: string }>;
 
-  /** Resolves a vault entry slug to its tree OID. */
   resolveVaultEntry(options: { slug: string }): Promise<string>;
 
-  /** Returns the vault metadata, or null if no vault exists. */
   getVaultMetadata(): Promise<VaultMetadata | null>;
-}
-
-/** A single vault entry. */
-export interface VaultEntry {
-  slug: string;
-  treeOid: string;
-}
-
-/** Vault metadata stored in .vault.json. */
-export interface VaultMetadata {
-  version: number;
-  encryption?: {
-    cipher: string;
-    kdf: {
-      algorithm: string;
-      salt: string;
-      iterations?: number;
-      cost?: number;
-      blockSize?: number;
-      parallelization?: number;
-      keyLength: number;
-    };
-  };
-}
-
-/** Internal vault state returned by _readVaultState. */
-export interface VaultState {
-  entries: Map<string, string>;
-  parentCommitOid: string | null;
-  metadata: VaultMetadata | null;
 }
