@@ -159,6 +159,24 @@ describe('readState – existing vault', () => {
 });
 
 // ---------------------------------------------------------------------------
+// readState – decodes percent-encoded slugs
+// ---------------------------------------------------------------------------
+describe('readState – decodes percent-encoded slugs', () => {
+  it('decodes percent-encoded tree entry names', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    setupExistingVault({ ref, persistence, metaJson: JSON.stringify({ version: 1 }), entries: [
+      { mode: '040000', type: 'tree', oid: 'tree-a', name: 'demo%2Fhello' },
+      { mode: '040000', type: 'tree', oid: 'tree-b', name: 'a%2Fb%2Fc' },
+    ] });
+    const vault = createVault({ ref, persistence });
+    const state = await vault.readState();
+    expect(state.entries.get('demo/hello')).toBe('tree-a');
+    expect(state.entries.get('a/b/c')).toBe('tree-b');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // readState – metadata errors
 // ---------------------------------------------------------------------------
 describe('readState – metadata errors', () => {

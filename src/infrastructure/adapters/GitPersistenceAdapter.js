@@ -22,7 +22,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
   /**
    * @param {Object} options
    * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance.
-   * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy (defaults to 30 s timeout + 2 retries).
+   * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy (defaults to 30 s timeout, no retry).
    */
   constructor({ plumbing, policy }) {
     super();

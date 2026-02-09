@@ -9,7 +9,7 @@ import Manifest from '../src/domain/value-objects/Manifest.js';
 program
   .name('git-cas')
   .description('Content Addressable Storage backed by Git')
-  .version('2.0.0');
+  .version('3.0.0');
 
 /**
  * Read a 32-byte raw encryption key from a file.
@@ -284,7 +284,12 @@ vault
       const plumbing = new GitPlumbing({ runner, cwd: opts.cwd || '.' });
       const args = ['log', '--oneline', ContentAddressableStore.VAULT_REF];
       if (opts.maxCount) {
-        args.push(`-${opts.maxCount}`);
+        const n = parseInt(opts.maxCount, 10);
+        if (Number.isNaN(n) || n <= 0) {
+          process.stderr.write('error: --max-count must be a positive integer\n');
+          process.exit(1);
+        }
+        args.push(`-${n}`);
       }
       const output = await plumbing.execute({ args });
       process.stdout.write(`${output}\n`);
