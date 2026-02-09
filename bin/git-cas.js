@@ -45,20 +45,28 @@ async function deriveVaultKey(cas, metadata, passphrase) {
 }
 
 /**
- * Resolve encryption key from --key-file or --vault-passphrase.
+ * Resolve passphrase from --vault-passphrase flag or GIT_CAS_PASSPHRASE env var.
+ */
+function resolvePassphrase(opts) {
+  return opts.vaultPassphrase || process.env.GIT_CAS_PASSPHRASE;
+}
+
+/**
+ * Resolve encryption key from --key-file or --vault-passphrase / GIT_CAS_PASSPHRASE.
  */
 async function resolveEncryptionKey(cas, opts) {
   if (opts.keyFile) {
     return readKeyFile(opts.keyFile);
   }
-  if (!opts.vaultPassphrase) {
+  const passphrase = resolvePassphrase(opts);
+  if (!passphrase) {
     return undefined;
   }
   const metadata = await cas.getVaultMetadata();
   if (metadata?.encryption) {
-    return deriveVaultKey(cas, metadata, opts.vaultPassphrase);
+    return deriveVaultKey(cas, metadata, passphrase);
   }
-  process.stderr.write('warning: --vault-passphrase ignored (vault is not encrypted)\n');
+  process.stderr.write('warning: passphrase ignored (vault is not encrypted)\n');
   return undefined;
 }
 
@@ -201,8 +209,9 @@ vault
     try {
       const cas = createCas(opts.cwd);
       const initOpts = {};
-      if (opts.vaultPassphrase) {
-        initOpts.passphrase = opts.vaultPassphrase;
+      const passphrase = resolvePassphrase(opts);
+      if (passphrase) {
+        initOpts.passphrase = passphrase;
         initOpts.kdfOptions = { algorithm: opts.algorithm };
       }
       const { commitOid } = await cas.initVault(initOpts);

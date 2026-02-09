@@ -495,6 +495,8 @@ const treeOid = await cas.createTree({ manifest });
 
 ## 7. The CLI
 
+<img src="./docs/cli.gif" alt="git-cas CLI demo" />
+
 `git-cas` installs as a Git subcommand. After installation, `git cas` is
 available in any Git repository.
 
@@ -962,6 +964,8 @@ console.log(manifest.chunks.length);  // Full chunk list, regardless of structur
 ---
 
 ## 13. Vault
+
+<img src="./docs/vault.gif" alt="git-cas vault demo" />
 
 When you call `createTree({ manifest })`, the resulting tree is a loose Git
 object. If nothing references it -- no commit, no tag, no ref -- `git gc`

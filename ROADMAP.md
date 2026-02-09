@@ -1673,3 +1673,30 @@ git-cas occupies a specific niche: **Git-native encrypted content-addressed stor
 What it is: the only tool that lets you `git cas store ./model.bin --slug v3-weights --tree --vault-passphrase "secret"`, commit the tree OID, push to any Git remote, and restore it on any machine with `git cas restore --slug v3-weights --out ./model.bin --vault-passphrase "secret"` — no server, no external storage, no second system. Everything is Git objects, Git refs, Git transport.
 
 If that's what you want, nothing else does it. If it's not, the right tool probably isn't git-cas.
+
+---
+
+## Backlog (unscheduled)
+
+Ideas for future milestones. Not committed, not prioritized — just captured.
+
+### Named Vaults
+Multiple vaults instead of one. Refs move from `refs/cas/vault` to `refs/cas/vaults/<name>`. Default vault is `default`. CLI gets `--vault <name>` flag.
+
+### Export
+- **Export vault to archive** — `git cas vault export --format tar.gz` dumps all entries to a tarball/zip.
+- **Export individual entry** — `git cas export --slug photos/vacation --format tar.gz` restores and archives a single entry.
+- **Bulk export** — restore multiple slugs into a single archive.
+
+### Vault Management
+- **Move into vault** — `git cas vault add --slug <slug> --oid <tree-oid>` to adopt an existing CAS tree into the vault (the API `addToVault()` already supports this; just needs a CLI command).
+- **Purge from CAS** — remove an entry from the vault and run `git gc` to reclaim storage. Tricky because git doesn't delete individual objects — you remove refs and let GC handle it.
+
+### Publish / Mount
+- **Publish to working tree** — `git cas publish --slug assets/hero --to docs/hero.gif` reconstitutes a vault entry into the repo's working tree so it's servable by GitHub (markdown images, Pages, etc.).
+- **Publish to branch** — `git cas publish --branch gh-assets` materializes all vault entries onto a dedicated branch. Keeps the main branch clean while making assets accessible via GitHub raw URLs.
+- **Auto-publish hook** — pre-commit or CI step that keeps published assets in sync with vault state.
+
+### Repo Intelligence
+- **Duplicate detection on store** — warn if a file being stored already exists as a tracked git blob (same content hash). "This file is already tracked by git — are you sure you want to store it in CAS too?"
+- **Repo scan / dedup advisor** — `git cas scan` walks the git object database and recommends files that could benefit from CAS (large blobs, binary files, duplicated content across branches). Reports dedup opportunities and potential storage savings.

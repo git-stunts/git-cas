@@ -32,6 +32,8 @@ We use the object database.
 
 **Use it for:** binary assets, build artifacts, model weights, data packs, secret bundles, weird experiments, etc.
 
+<img src="./docs/demo.gif" alt="git-cas demo" />
+
 ## What's new in v2.0.0
 
 **Compression** — `compression: { algorithm: 'gzip' }` on `store()`. Compression runs before encryption. Decompression on `restore()` is automatic.
@@ -122,10 +124,11 @@ git cas vault info my-image
 git cas vault remove my-image
 git cas vault history
 
-# Encrypted vault round-trip
-git cas vault init --vault-passphrase "secret"
-git cas store ./secret.bin --slug vault-entry --tree --vault-passphrase "secret"
-git cas restore --slug vault-entry --out ./decrypted.bin --vault-passphrase "secret"
+# Encrypted vault round-trip (passphrase via env var or --vault-passphrase flag)
+export GIT_CAS_PASSPHRASE="secret"
+git cas vault init
+git cas store ./secret.bin --slug vault-entry --tree
+git cas restore --slug vault-entry --out ./decrypted.bin
 ```
 
 ## Why not Git LFS?
