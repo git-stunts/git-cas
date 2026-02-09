@@ -5,15 +5,27 @@ services:
       target: node
     environment:
       - GIT_STUNTS_DOCKER=1
+      - GIT_AUTHOR_NAME=git-cas-test
+      - GIT_AUTHOR_EMAIL=test@git-cas.local
+      - GIT_COMMITTER_NAME=git-cas-test
+      - GIT_COMMITTER_EMAIL=test@git-cas.local
   test-bun:
     build:
       context: .
       target: bun
     environment:
       - GIT_STUNTS_DOCKER=1
+      - GIT_AUTHOR_NAME=git-cas-test
+      - GIT_AUTHOR_EMAIL=test@git-cas.local
+      - GIT_COMMITTER_NAME=git-cas-test
+      - GIT_COMMITTER_EMAIL=test@git-cas.local
   test-deno:
     build:
       context: .
       target: deno
     environment:
       - GIT_STUNTS_DOCKER=1
+      - GIT_AUTHOR_NAME=git-cas-test
+      - GIT_AUTHOR_EMAIL=test@git-cas.local
+      - GIT_COMMITTER_NAME=git-cas-test
+      - GIT_COMMITTER_EMAIL=test@git-cas.local

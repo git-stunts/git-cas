@@ -6,7 +6,9 @@
 import { createReadStream, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import CasService from './src/domain/services/CasService.js';
+import VaultService from './src/domain/services/VaultService.js';
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';
+import GitRefAdapter from './src/infrastructure/adapters/GitRefAdapter.js';
 import NodeCryptoAdapter from './src/infrastructure/adapters/NodeCryptoAdapter.js';
 import Manifest from './src/domain/value-objects/Manifest.js';
 import Chunk from './src/domain/value-objects/Chunk.js';
@@ -16,7 +18,9 @@ import CborCodec from './src/infrastructure/codecs/CborCodec.js';
 
 export {
   CasService,
+  VaultService,
   GitPersistenceAdapter,
+  GitRefAdapter,
   NodeCryptoAdapter,
   CryptoPort,
   Manifest,
@@ -44,8 +48,8 @@ async function getDefaultCryptoAdapter() {
 /**
  * High-level facade for the Content Addressable Store library.
  *
- * Wraps {@link CasService} with lazy initialization, runtime-adaptive crypto
- * selection, and convenience helpers for file I/O.
+ * Wraps {@link CasService} and {@link VaultService} with lazy initialization,
+ * runtime-adaptive crypto selection, and convenience helpers for file I/O.
  */
 export default class ContentAddressableStore {
   /**
@@ -68,6 +72,8 @@ export default class ContentAddressableStore {
     this.#servicePromise = null;
   }
 
+  /** @type {VaultService|null} */
+  #vault = null;
   #servicePromise = null;
 
   /**
@@ -83,7 +89,7 @@ export default class ContentAddressableStore {
   }
 
   /**
-   * Constructs the persistence adapter, resolves crypto, and creates the CasService.
+   * Constructs adapters, resolves crypto, and creates CasService + VaultService.
    * @private
    * @returns {Promise<CasService>}
    */
@@ -100,7 +106,24 @@ export default class ContentAddressableStore {
       crypto,
       merkleThreshold: this.merkleThresholdConfig,
     });
+
+    const ref = new GitRefAdapter({
+      plumbing: this.plumbing,
+      policy: this.policyConfig,
+    });
+    this.#vault = new VaultService({ persistence, ref, crypto });
+
     return this.service;
+  }
+
+  /**
+   * Lazily initializes and returns the underlying {@link VaultService}.
+   * @private
+   * @returns {Promise<VaultService>}
+   */
+  async #getVault() {
+    await this.#getService();
+    return this.#vault;
   }
 
   /**
@@ -109,6 +132,14 @@ export default class ContentAddressableStore {
    */
   async getService() {
     return await this.#getService();
+  }
+
+  /**
+   * Lazily initializes and returns the underlying {@link VaultService}.
+   * @returns {Promise<VaultService>}
+   */
+  async getVaultService() {
+    return await this.#getVault();
   }
 
   /**
@@ -170,10 +201,6 @@ export default class ContentAddressableStore {
 
   /**
    * Reads a file from disk and stores it in Git as chunked blobs.
-   *
-   * Convenience wrapper that opens a read stream and delegates to
-   * {@link CasService#store}.
-   *
    * @param {Object} options
    * @param {string} options.filePath - Absolute or relative path to the file.
    * @param {string} options.slug - Logical identifier for the stored asset.
@@ -282,7 +309,6 @@ export default class ContentAddressableStore {
 
   /**
    * Returns deletion metadata for an asset stored in a Git tree.
-   * Does not perform any destructive Git operations.
    * @param {Object} options
    * @param {string} options.treeOid - Git tree OID of the asset.
    * @returns {Promise<{ slug: string, chunksOrphaned: number }>}
@@ -294,7 +320,6 @@ export default class ContentAddressableStore {
 
   /**
    * Aggregates referenced chunk blob OIDs across multiple stored assets.
-   * Analysis only — does not delete or modify anything.
    * @param {Object} options
    * @param {string[]} options.treeOids - Git tree OIDs to analyze.
    * @returns {Promise<{ referenced: Set<string>, total: number }>}
@@ -320,5 +345,47 @@ export default class ContentAddressableStore {
   async deriveKey(options) {
     const service = await this.#getService();
     return await service.deriveKey(options);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Vault — delegates to VaultService
+  // ---------------------------------------------------------------------------
+
+  static VAULT_REF = VaultService.VAULT_REF;
+
+  /** @see VaultService#initVault */
+  async initVault(options) {
+    const vault = await this.#getVault();
+    return vault.initVault(options);
+  }
+
+  /** @see VaultService#addToVault */
+  async addToVault(options) {
+    const vault = await this.#getVault();
+    return vault.addToVault(options);
+  }
+
+  /** @see VaultService#listVault */
+  async listVault() {
+    const vault = await this.#getVault();
+    return vault.listVault();
+  }
+
+  /** @see VaultService#removeFromVault */
+  async removeFromVault(options) {
+    const vault = await this.#getVault();
+    return vault.removeFromVault(options);
+  }
+
+  /** @see VaultService#resolveVaultEntry */
+  async resolveVaultEntry(options) {
+    const vault = await this.#getVault();
+    return vault.resolveVaultEntry(options);
+  }
+
+  /** @see VaultService#getVaultMetadata */
+  async getVaultMetadata() {
+    const vault = await this.#getVault();
+    return vault.getVaultMetadata();
   }
 }

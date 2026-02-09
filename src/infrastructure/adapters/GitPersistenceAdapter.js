@@ -2,27 +2,27 @@ import { Policy } from '@git-stunts/alfred';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import CasError from '../../domain/errors/CasError.js';
 
-/** Default resilience policy: 30 s timeout wrapping 2 retries with exponential backoff. */
-const DEFAULT_POLICY = Policy.timeout(30_000).wrap(
-  Policy.retry({
-    retries: 2,
-    backoff: 'exponential',
-    delay: 100,
-    maxDelay: 2_000,
-  }),
-);
+/**
+ * Default resilience policy: 30 s timeout (no retry).
+ *
+ * Plumbing already retries lock-contention errors internally via
+ * {@link ExecutionOrchestrator}, so an additional alfred retry layer is
+ * unnecessary and causes premature process exit: alfred's retry sleep uses
+ * an unref'd timer that allows Node to exit before the next attempt starts.
+ */
+const DEFAULT_POLICY = Policy.timeout(30_000);
 
 /**
  * {@link GitPersistencePort} implementation backed by `@git-stunts/plumbing`.
  *
  * All Git I/O is wrapped with a configurable resilience {@link Policy}
- * (timeout + retry by default).
+ * (30 s timeout by default).
  */
 export default class GitPersistenceAdapter extends GitPersistencePort {
   /**
    * @param {Object} options
    * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance.
-   * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy (defaults to 30 s timeout + 2 retries).
+   * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy (defaults to 30 s timeout, no retry).
    */
   constructor({ plumbing, policy }) {
     super();

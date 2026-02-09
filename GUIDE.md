@@ -21,10 +21,11 @@ along from first principles to full mastery.
 10. [Compression](#10-compression)
 11. [Passphrase Encryption (KDF)](#11-passphrase-encryption-kdf)
 12. [Merkle Manifests](#12-merkle-manifests)
-13. [Architecture](#13-architecture)
-14. [Codec System](#14-codec-system)
-15. [Error Handling](#15-error-handling)
-16. [FAQ / Troubleshooting](#16-faq--troubleshooting)
+13. [Vault](#13-vault)
+14. [Architecture](#14-architecture)
+15. [Codec System](#15-codec-system)
+16. [Error Handling](#16-error-handling)
+17. [FAQ / Troubleshooting](#17-faq--troubleshooting)
 
 ---
 
@@ -960,7 +961,171 @@ console.log(manifest.chunks.length);  // Full chunk list, regardless of structur
 
 ---
 
-## 13. Architecture
+## 13. Vault
+
+When you call `createTree({ manifest })`, the resulting tree is a loose Git
+object. If nothing references it -- no commit, no tag, no ref -- `git gc`
+will garbage-collect it. This can silently lose stored data.
+
+The vault solves this by maintaining a single Git ref (`refs/cas/vault`)
+pointing to a commit chain. The commit's tree indexes all stored assets by
+slug. One ref protects everything from GC, and `git log refs/cas/vault`
+gives you free history of every vault operation.
+
+### Vault Tree Structure
+
+```text
+refs/cas/vault → commit → tree
+                            ├── 100644 blob <oid>  .vault.json
+                            ├── 040000 tree <oid>  photos/vacation
+                            ├── 040000 tree <oid>  models/v3-weights
+```
+
+The `.vault.json` blob contains versioned metadata. Without encryption:
+`{ "version": 1 }`. With encryption, it includes KDF configuration.
+
+### Initializing a Vault
+
+```js
+// Plain vault (no encryption)
+await cas.initVault();
+
+// Vault with passphrase-based encryption
+await cas.initVault({
+  passphrase: 'my vault passphrase',
+  kdfOptions: { algorithm: 'pbkdf2' },
+});
+```
+
+When initialized with a passphrase, the vault generates a salt and stores
+the KDF parameters in `.vault.json`. The passphrase itself is never stored.
+
+### Adding Entries
+
+```js
+// Store a file and add it to the vault
+const manifest = await cas.storeFile({
+  filePath: './vacation.jpg',
+  slug: 'photos/vacation',
+});
+const treeOid = await cas.createTree({ manifest });
+await cas.addToVault({ slug: 'photos/vacation', treeOid });
+```
+
+If the vault does not exist yet, `addToVault` auto-initializes it with
+`{ version: 1 }` metadata (no encryption). If the slug already exists, it
+throws `VAULT_ENTRY_EXISTS` unless you pass `force: true`.
+
+### Listing and Resolving Entries
+
+```js
+// List all entries (sorted by slug)
+const entries = await cas.listVault();
+for (const { slug, treeOid } of entries) {
+  console.log(`${slug}\t${treeOid}`);
+}
+
+// Resolve a slug to its tree OID
+const treeOid = await cas.resolveVaultEntry({ slug: 'photos/vacation' });
+const manifest = await cas.readManifest({ treeOid });
+```
+
+### Removing Entries
+
+```js
+const { removedTreeOid } = await cas.removeFromVault({ slug: 'photos/vacation' });
+```
+
+After removing the last entry, the vault remains (with an empty tree +
+`.vault.json`). The ref stays alive.
+
+### Vault-Level Encryption
+
+When a vault is initialized with a passphrase, the CLI handles key
+derivation automatically:
+
+```bash
+# Initialize an encrypted vault
+git cas vault init --vault-passphrase "secret"
+
+# Store with vault-level encryption (key derived from vault config)
+git cas store ./vacation.jpg --slug photos/vacation --tree --vault-passphrase "secret"
+
+# Restore using vault slug
+git cas restore --slug photos/vacation --out ./restored.jpg --vault-passphrase "secret"
+```
+
+The vault stores the KDF policy (algorithm, salt, iterations). The actual
+encryption is still per-entry AES-256-GCM via the existing `store()`/`restore()`
+paths -- the vault just provides the key-derivation policy.
+
+### CLI Vault Commands
+
+```bash
+# Initialize vault (optionally with encryption)
+git cas vault init
+git cas vault init --vault-passphrase "secret" --algorithm pbkdf2
+
+# List all vault entries (tab-separated slug + tree OID)
+git cas vault list
+
+# Inspect a single entry
+git cas vault info photos/vacation
+
+# Remove an entry
+git cas vault remove photos/vacation
+
+# View vault commit history
+git cas vault history
+git cas vault history -n 10   # last 10 commits
+```
+
+### CLI Restore with Vault
+
+The `restore` command now uses explicit flags instead of a positional argument:
+
+```bash
+# Restore from a vault slug
+git cas restore --slug photos/vacation --out ./restored.jpg
+
+# Restore from a direct tree OID (existing behavior)
+git cas restore --oid a1b2c3d4... --out ./restored.jpg
+```
+
+### GC Survival
+
+Because `refs/cas/vault` points to a commit whose tree references all stored
+asset trees, every blob in the chain is reachable. `git gc --prune=now` will
+not touch any vault data:
+
+```bash
+git cas vault list        # entries exist
+git gc --prune=now        # aggressive garbage collection
+git cas vault list        # entries still intact
+```
+
+### Concurrent Write Safety
+
+The vault uses compare-and-swap (CAS) semantics on `git update-ref`. If
+another process updates the vault between your read and write, the operation
+retries automatically (up to 3 times with exponential backoff). If all
+retries fail, a `VAULT_CONFLICT` error is thrown.
+
+### Slug Validation
+
+Slugs are validated strictly:
+
+- Must be a non-empty string
+- No leading/trailing `/`
+- No empty segments (`a//b`), `.`, or `..` segments
+- No control characters (NUL, tabs, newlines)
+- Each segment <= 255 bytes, total <= 1024 bytes
+
+Invalid slugs throw `INVALID_SLUG`.
+
+---
+
+## 14. Architecture
 
 `git-cas` follows a hexagonal (ports and adapters) architecture. The domain
 logic in `CasService` has zero direct dependencies on Node.js, Git, or any
@@ -1094,7 +1259,7 @@ const cas = new ContentAddressableStore({
 
 ---
 
-## 14. Codec System
+## 15. Codec System
 
 ### JSON Codec
 
@@ -1183,7 +1348,7 @@ The manifest will be stored in the tree as `manifest.msgpack`.
 
 ---
 
-## 15. Error Handling
+## 16. Error Handling
 
 All errors thrown by `git-cas` are instances of `CasError`, which extends
 `Error` with two additional properties:
@@ -1266,7 +1431,7 @@ try {
 
 ---
 
-## 16. FAQ / Troubleshooting
+## 17. FAQ / Troubleshooting
 
 ### Q: Does this work with bare repositories?
 
@@ -1380,7 +1545,7 @@ Every Git plumbing command is wrapped in a policy from `@git-stunts/alfred`.
 The default policy applies a 30-second timeout and retries up to 2 times with
 exponential backoff (100ms, then up to 2s). This handles transient filesystem
 errors and lock contention gracefully. You can override the policy at
-construction time (see Section 13).
+construction time (see Section 14).
 
 ---
 

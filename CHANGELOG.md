@@ -5,7 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.0.0] — Vault (2026-02-08)
+
+### Added
+- **Vault** — GC-safe ref-based storage via `refs/cas/vault`. A single Git ref pointing to a commit chain indexes all stored assets by slug. `git gc` can no longer silently discard stored data.
+  - `initVault()` — initialize the vault, optionally with passphrase-based encryption (vault-level KDF policy).
+  - `addToVault()` — add or update an entry by slug + tree OID, with `force` flag for overwrites.
+  - `listVault()` — list all entries sorted by slug.
+  - `removeFromVault()` — remove an entry by slug.
+  - `resolveVaultEntry()` — resolve a slug to its tree OID.
+  - `getVaultMetadata()` — inspect vault metadata (encryption config, version).
+  - Vault metadata (`.vault.json`) supports versioning and optional encryption configuration.
+  - CAS-safe writes with automatic retry (up to 3 attempts with exponential backoff) on concurrent update conflicts.
+  - Strict slug validation: rejects empty strings, `..` traversal, control characters, oversized segments.
+- New CLI subcommands: `vault init`, `vault list`, `vault info <slug>`, `vault remove <slug>`, `vault history`.
+- CLI `store --tree` now auto-vaults the entry (adds to vault after creating tree).
+- CLI `restore` now supports `--slug` (resolve via vault) and `--oid` (direct tree OID) flags.
+- CLI `--vault-passphrase` flag for vault-level encryption on `store`, `restore`, and `vault init`.
+- New error codes: `INVALID_SLUG`, `VAULT_ENTRY_NOT_FOUND`, `VAULT_ENTRY_EXISTS`, `VAULT_CONFLICT`, `VAULT_METADATA_INVALID`, `VAULT_ENCRYPTION_ALREADY_CONFIGURED`.
+- TypeScript declarations for `VaultEntry`, `VaultMetadata`, `VaultState`, `VaultService`, `GitRefPort` types.
+- `VaultService` — first-class domain service with proper port/adapter separation (hexagonal architecture).
+- `GitRefPort` and `GitRefAdapter` — new port/adapter for Git ref and commit operations.
+- `getVaultService()` on facade exposes the underlying `VaultService` for advanced usage.
+- Vault-specific integration tests (`test/integration/vault.test.js`).
+- 46 vault unit tests + facade delegation smoke test.
+
+### Fixed
+- `#validateMetadata` now requires `kdf.keyLength` in encryption metadata, preventing downstream KDF failures from manually edited `.vault.json` files.
+- `#casUpdateRef` now preserves the original error in `VAULT_CONFLICT` meta for better diagnostics.
+- CLI `--vault-passphrase` now emits a stderr warning when the vault is not encrypted, instead of silently ignoring the passphrase.
+- `vault history` command now uses `VAULT_REF` constant instead of hardcoded string.
+- API docs: fixed invalid import path `@git-stunts/cas/vault` → `@git-stunts/cas`.
+- API docs: fixed `_readVaultState()` → `readState()` in error codes table.
+- API docs and GUIDE: added `text` language identifier to fenced code blocks (markdownlint MD040).
+- CLI version string updated from `2.0.0` to `3.0.0`.
+- CLI `vault history --max-count` now validates input as a positive integer.
+- Stale JSDoc in `GitPersistenceAdapter` corrected (removed mention of retries).
+
+### Changed
+- **Vault promoted to domain layer** — all vault logic extracted from facade (`index.js`) into `VaultService` (`src/domain/services/VaultService.js`) with `GitRefPort`/`GitRefAdapter` for ref operations. Facade now delegates to VaultService.
+- CLI `restore` command no longer takes a positional `<tree-oid>` argument. Use `--oid <tree-oid>` or `--slug <slug>` instead.
+- Purged completed milestones (M1–M7) and their task cards from ROADMAP.md, reducing it from 3,153 to 1,675 lines.
 
 ## [2.0.0] — M7 Horizon (2026-02-08)
 

@@ -9,7 +9,9 @@ This roadmap is structured as:
 3. **Contracts** — Return/throw semantics for all public methods
 4. **Version Plan** — Table mapping versions to milestones
 5. **Milestone Dependency Graph** — ASCII diagram
-6. **Milestones & Task Cards** — 7 milestones, 26 tasks (uniform task card template)
+6. **Milestones & Task Cards** — 5 milestones, 20 tasks (uniform task card template)
+7. **Feature Matrix** — Competitive landscape vs. Git LFS, git-annex, Restic, Age, DVC
+8. **Competitive Analysis** — When to use git-cas and when not to, with concrete scenarios
 
 ---
 
@@ -36,16 +38,23 @@ This roadmap is structured as:
 
 Single registry of all error codes used across the codebase. Each code is a string passed as the `code` argument to `new CasError(message, code, meta)`.
 
-| Code | Description | Introduced By |
-|------|-------------|---------------|
-| `INVALID_KEY_LENGTH` | Encryption key is not exactly 32 bytes (AES-256 requirement). Error meta includes `{ expected: 32, actual: <number> }`. | Task 1.3 |
-| `INVALID_KEY_TYPE` | Encryption key is not a Buffer. | Task 1.3 |
-| `INTEGRITY_ERROR` | Decryption auth-tag verification failed (wrong key, tampered ciphertext, or tampered tag), or chunk digest mismatch on restore. | Exists (decrypt); extended by Task 1.6, Task 2.1 |
-| `STREAM_ERROR` | Read stream failed during `storeFile`. Partial chunks may have been written to Git ODB (unreachable; handled by `git gc`). Meta includes `{ chunksWritten: <number> }`. | Task 2.4 |
-| `MISSING_KEY` | Encryption key required to restore encrypted content but none was provided. | Task 2.1 |
-| `TREE_PARSE_ERROR` | `git ls-tree` output could not be parsed into valid entries. | Task 2.2 |
-| `MANIFEST_NOT_FOUND` | No manifest entry (e.g. `manifest.json` / `manifest.cbor`) found in the Git tree. | Task 4.1 |
-| `GIT_ERROR` | Underlying Git plumbing command failed. Wraps the original error from the plumbing layer. | Task 2.2, Task 4.1 |
+| Code | Description | Planned By |
+|------|-------------|------------|
+| `INVALID_KEY_LENGTH` | Encryption key is not exactly 32 bytes (AES-256 requirement). Error meta includes `{ expected: 32, actual: <number> }`. | v1.1.0 |
+| `INVALID_KEY_TYPE` | Encryption key is not a Buffer. | v1.1.0 |
+| `INTEGRITY_ERROR` | Decryption auth-tag verification failed (wrong key, tampered ciphertext, or tampered tag), or chunk digest mismatch on restore. | v1.1.0 |
+| `STREAM_ERROR` | Read stream failed during `storeFile`. Partial chunks may have been written to Git ODB (unreachable; handled by `git gc`). Meta includes `{ chunksWritten: <number> }`. | v1.2.0 |
+| `MISSING_KEY` | Encryption key required to restore encrypted content but none was provided. | v1.2.0 |
+| `TREE_PARSE_ERROR` | `git ls-tree` output could not be parsed into valid entries. | v1.2.0 |
+| `MANIFEST_NOT_FOUND` | No manifest entry (e.g. `manifest.json` / `manifest.cbor`) found in the Git tree. | v1.4.0 |
+| `GIT_ERROR` | Underlying Git plumbing command failed. Wraps the original error from the plumbing layer. | v1.2.0 |
+| `INVALID_CHUNKING_STRATEGY` | Manifest contains unrecognized chunking strategy (not `fixed` or `cdc`). | Task 10.3 |
+| `NO_MATCHING_RECIPIENT` | No recipient entry matches the provided KEK. Caller's key is not in the recipient list. | Task 11.1 |
+| `DEK_UNWRAP_FAILED` | Failed to unwrap DEK with the provided KEK. Wrong key or tampered wrappedDek. | Task 11.1 |
+| `RECIPIENT_NOT_FOUND` | Recipient label not found in manifest recipient list. | Task 11.2 |
+| `RECIPIENT_ALREADY_EXISTS` | Recipient label already exists in manifest. | Task 11.2 |
+| `CANNOT_REMOVE_LAST_RECIPIENT` | Cannot remove the last recipient — at least one must remain. | Task 11.2 |
+| `ROTATION_NOT_SUPPORTED` | Key rotation requires envelope encryption (DEK/KEK model). Legacy manifests must be re-stored. | Task 12.1 |
 
 ---
 
@@ -102,7 +111,7 @@ Return and throw semantics for every public method (current and planned).
 - **Throws:** `CasError('MANIFEST_NOT_FOUND')` if any `treeOid` lacks a manifest (fail closed).
 - **Side effects:** None. Analysis only.
 
-### `deriveKey({ passphrase, salt?, algorithm?, iterations? })` *(planned — Task 7.2)*
+### `deriveKey({ passphrase, salt?, algorithm?, iterations? })`
 - **Returns:** `Promise<{ key: Buffer, salt: Buffer, params: object }>`.
 - **Algorithms:** `pbkdf2` (default), `scrypt` — both Node.js built-ins.
 - **Throws:** Standard Node.js crypto errors on invalid parameters.
@@ -122,41 +131,65 @@ Return and throw semantics for every public method (current and planned).
 - **Exit 0:** Restore succeeded, prints bytes written to stdout.
 - **Exit 1:** Integrity error, missing manifest, or I/O error (message to stderr).
 
+### `restoreStream({ manifest, encryptionKey?, passphrase? })` *(planned — Task 8.1)*
+- **Returns:** `AsyncIterable<Buffer>` — verified, decrypted, decompressed chunks in index order.
+- **Throws:** `CasError('INTEGRITY_ERROR')` if any chunk fails verification (iteration stops).
+- **Throws:** `CasError('MISSING_KEY')` if encrypted and no key provided.
+- **Memory:** O(chunkSize) — never buffers full file.
+
+### `rotateKey({ manifest, oldKey, newKey, label? })` *(planned — Task 12.1)*
+- **Returns:** `Promise<Manifest>` — updated manifest with re-wrapped DEK and incremented `keyVersion`.
+- **Throws:** `CasError('DEK_UNWRAP_FAILED')` if `oldKey` cannot unwrap the DEK.
+- **Throws:** `CasError('ROTATION_NOT_SUPPORTED')` if manifest uses legacy (non-envelope) encryption.
+- **Side effects:** None. Caller must persist via `createTree()`.
+
+### `addRecipient({ manifest, existingKey, newRecipientKey, label })` *(planned — Task 11.2)*
+- **Returns:** `Promise<Manifest>` — updated manifest with additional recipient entry.
+- **Throws:** `CasError('DEK_UNWRAP_FAILED')` if `existingKey` is wrong.
+- **Throws:** `CasError('RECIPIENT_ALREADY_EXISTS')` if `label` already exists.
+- **Side effects:** None. Caller must persist.
+
+### `removeRecipient({ manifest, label })` *(planned — Task 11.2)*
+- **Returns:** `Promise<Manifest>` — updated manifest without the named recipient.
+- **Throws:** `CasError('RECIPIENT_NOT_FOUND')` if `label` not in recipient list.
+- **Throws:** `CasError('CANNOT_REMOVE_LAST_RECIPIENT')` if only 1 recipient remains.
+
+### CLI: `git cas verify --oid <tree-oid> | --slug <slug>` *(planned — Task 9.2)*
+- **Output:** `ok` on success, `fail` on failure.
+- **Exit 0:** All chunks verified.
+- **Exit 1:** Verification failed or error.
+
+### CLI: `git cas rotate --slug <slug> --old-key-file <path> --new-key-file <path>` *(planned — Task 12.3)*
+- **Output:** New tree OID on success.
+- **Exit 0:** Rotation succeeded, vault updated.
+- **Exit 1:** Wrong old key, unsupported manifest, or vault error.
+
 ---
 
 ## 4) Version Plan
 
 | Version | Milestone | Codename | Theme | Status |
 |--------:|-----------|----------|-------|--------|
-| v1.1.0  | M1        | Bedrock  | Foundation hardening | ✅ |
-| v1.2.0  | M2        | Boomerang| File retrieval round trip + CLI | ✅ |
-| v1.3.0  | M3        | Launchpad| CI/CD pipeline | ✅ |
-| v1.4.0  | M4        | Compass  | Lifecycle management | ✅ |
-| v1.5.0  | M5        | Sonar    | Observability | ✅ |
-| v1.6.0  | M6        | Cartographer | Documentation | ✅ |
-| v2.0.0  | M7        | Horizon  | Advanced features | ✅ |
+| v2.1.0  | M8        | Spit Shine | Review fixups | |
+| v2.2.0  | M9        | Cockpit  | CLI improvements | |
+| v3.0.0  | M10       | Hydra    | Content-defined chunking | |
+| v3.1.0  | M11       | Locksmith | Multi-recipient encryption | |
+| v3.2.0  | M12       | Carousel | Key rotation | |
 
 ---
 
 ## 5) Milestone Dependency Graph
 
 ```text
-M1 Bedrock (v1.1.0)
-│
-v
-M2 Boomerang (v1.2.0) ───┐
-│                       │
-v                       v
-M3 Launchpad (v1.3.0)   M4 Compass (v1.4.0)
-                          │
-                          v
-                        M5 Sonar (v1.5.0)
-                          │
-                          v
-                        M6 Cartographer (v1.6.0)
-                          │
-                          v
-                        M7 Horizon (v2.0.0)
+M7 Horizon (v2.0.0) ✅ ──────────────────────────┐
+  │                                               │
+  ├──────┬──────────┐                              │
+  v      v          v                              v
+M8 Spit  M9 Cockpit  M10 Hydra (v3.0.0)   M11 Locksmith (v3.1.0)
+Shine    (v2.2.0)       │                          │
+(v2.1.0)                │                          v
+                        v                  M12 Carousel (v3.2.0)
+                 (CDC benchmarks)
 ```
 
 ---
@@ -167,607 +200,73 @@ M3 Launchpad (v1.3.0)   M4 Compass (v1.4.0)
 
 | #  | Codename      | Theme                      | Version | Tasks | ~LoC   | ~Hours |
 |---:|--------------|----------------------------|:-------:|------:|-------:|------:|
-| M1 | Bedrock       | Foundation hardening       | v1.1.0  | 7     | ~475   | ~6.5h |
-| M2 | Boomerang     | File retrieval round trip + CLI | v1.2.0  | 6     | ~435   | ~14h  |
-| M3 | Launchpad     | CI/CD pipeline             | v1.3.0  | 2     | ~110   | ~4h   |
-| M4 | Compass       | Lifecycle management       | v1.4.0  | 3     | ~180   | ~5.5h |
-| M5 | Sonar         | Observability              | v1.5.0  | 2     | ~210   | ~5.5h |
-| M6 | Cartographer  | Documentation              | v1.6.0  | 3     | ~750   | ~10h  |
-| M7 | Horizon       | Advanced features          | v2.0.0  | 3     | ~450   | ~17h  |
-|    | **Total**     |                            |         | **26**| **~2,610** | **~62.5h** |
+| M8 | Spit Shine    | Review fixups              | v2.1.0  | 3     | ~290   | ~7h   |
+| M9 | Cockpit       | CLI improvements           | v2.2.0  | 5     | ~260   | ~7h   |
+| M10| Hydra         | Content-defined chunking   | v3.0.0  | 4     | ~690   | ~22h  |
+| M11| Locksmith     | Multi-recipient encryption | v3.1.0  | 4     | ~580   | ~20h  |
+| M12| Carousel      | Key rotation               | v3.2.0  | 4     | ~400   | ~13h  |
+|    | **Total**     |                            |         | **20**| **~2,220** | **~69h** |
 
 ---
 
-# M1 — Bedrock (v1.1.0) ✅
-**Theme:** Close compliance gaps, harden validation, expand test coverage. No new features.
+# M8 — Spit Shine (v2.1.0)
+**Theme:** Polish and harden based on code review findings. Fix asymmetries, eliminate duplication, improve docs. No new features.
 
 ---
 
-## Task 1.1: Add LICENSE file (Apache-2.0)
+## Task 8.1: Streaming restore
 
 **User Story**
-As an open-source consumer, I want an Apache-2.0 LICENSE in the repo root so I can verify licensing terms quickly.
+As a developer restoring large files, I want a streaming restore path so I don't buffer the entire file in memory.
 
 **Requirements**
-- R1: Add full Apache-2.0 license text at `LICENSE` in repository root.
-- R2: Include copyright line: `Copyright 2026 James Ross <james@flyingrobots.dev>`.
-- R3: No code changes required if `package.json` already declares Apache-2.0.
+- R1: Add `CasService.restoreStream({ manifest, encryptionKey, passphrase })` returning `AsyncIterable<Buffer>`.
+- R2: Each yielded buffer is one verified, decrypted, decompressed chunk — ready to write.
+- R3: Integrity verified per-chunk before yield (not after full reassembly).
+- R4: Decompression and decryption applied per-chunk in streaming fashion.
+- R5: `restoreFile()` in the facade uses `restoreStream()` internally with `createWriteStream()` instead of `writeFileSync()`.
+- R6: Existing `restore()` method remains unchanged (returns `{ buffer, bytesWritten }`) for backward compat.
 
 **Acceptance Criteria**
-- AC1: `LICENSE` exists in repo root and matches Apache-2.0 full text.
-- AC2: Copyright line is present and correct.
+- AC1: `restoreStream()` yields chunks that, when concatenated, match the original file byte-for-byte.
+- AC2: Memory usage during streaming restore is O(chunkSize), not O(fileSize).
+- AC3: `restoreFile()` writes via stream and does not call `writeFileSync()`.
+- AC4: Encrypted + compressed files round-trip correctly via streaming restore.
+- AC5: Existing `restore()` method behavior unchanged.
 
 **Scope**
-- In scope: `LICENSE` file creation only.
-- Out of scope: Adding license headers to source files (defer to M6).
+- In scope: `restoreStream()` on CasService + facade, refactor `restoreFile()` to use streaming writes.
+- Out of scope: Parallel chunk reads, resume/partial restore, streaming decrypt rearchitecture.
 
 **Est. Complexity (LoC)**
-- Prod: ~200
-- Tests: ~0
-- Total: ~200
-
-**Est. Human Working Hours**
-- ~0.25h
-
-**Test Plan**
-- Golden path:
-  - Verify file exists and is included in `npm pack` output.
-- Failures:
-  - Missing file fails CI lint step (added in M3).
-- Edges:
-  - None.
-- Fuzz/stress:
-  - None.
-
-**Definition of Done**
-- DoD1: LICENSE file added at repo root.
-- DoD2: `npm pack` includes LICENSE.
-
-**Blocking**
-- Blocks: Task 3.2
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 1.2: Add CHANGELOG.md (Keep a Changelog)
-
-**User Story**
-As a consumer upgrading versions, I want a changelog so I can assess upgrade impact and risk.
-
-**Requirements**
-- R1: Add `CHANGELOG.md` following Keep a Changelog v1.1.0 format.
-- R2: Include `[Unreleased]` section.
-- R3: Retroactively add v1.0.0 entry based on git history.
-- R4: Use sections: Added, Changed, Fixed, Security.
-
-**Acceptance Criteria**
-- AC1: `CHANGELOG.md` exists and follows the required format.
-- AC2: v1.0.0 entry exists with at least one "Added" item.
-- AC3: `[Unreleased]` section exists.
-
-**Scope**
-- In scope: Manual changelog file creation.
-- Out of scope: Automated changelog tooling.
-
-**Est. Complexity (LoC)**
-- Prod: ~40
-- Tests: ~0
-- Total: ~40
-
-**Est. Human Working Hours**
-- ~0.5h
-
-**Test Plan**
-- Golden path:
-  - Ensure release workflow (M3) can extract excerpt from changelog.
-- Failures:
-  - Missing changelog fails release gating (M3).
-- Edges:
-  - None.
-- Fuzz/stress:
-  - None.
-
-**Definition of Done**
-- DoD1: CHANGELOG.md created and reviewed for format compliance.
-- DoD2: v1.0.0 entry populated.
-
-**Blocking**
-- Blocks: Task 3.2
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 1.3: Validate encryption key length (32 bytes for AES-256)
-
-**User Story**
-As a developer, I want invalid encryption keys rejected immediately so I don't get cryptic crypto errors later.
-
-**Requirements**
-- R1: `storeFile({ encryptionKey })` throws `CasError` with code `INVALID_KEY_LENGTH` if key length ≠ 32 bytes.
-- R2: `encrypt({ key })` enforces identical validation and error contract.
-- R3: Error includes expected vs actual length (message or metadata).
-- R4: Validation occurs before any I/O (no persistence calls on failure).
-
-**Acceptance Criteria**
-- AC1: 32-byte Buffer key passes for both `storeFile` and `encrypt`.
-- AC2: Any non-32 length throws `CasError.code === 'INVALID_KEY_LENGTH'`.
-- AC3: Error includes expected=32 and actual length.
-- AC4: No persistence calls occur on validation failure.
-
-**Scope**
-- In scope: Key length validation + tests.
-- Out of scope: Key format rules (hex vs base64), KDF (M7).
-
-**Est. Complexity (LoC)**
-- Prod: ~15
-- Tests: ~30
-- Total: ~45
-
-**Est. Human Working Hours**
-- ~1h
-
-**Test Plan**
-- Golden path:
-  - 32-byte key accepted in both code paths.
-- Failures:
-  - 16-byte key throws INVALID_KEY_LENGTH.
-  - 64-byte key throws INVALID_KEY_LENGTH.
-  - 0-byte key throws INVALID_KEY_LENGTH.
-  - non-Buffer key throws typed error (INVALID_KEY_TYPE).
-- Edges:
-  - `crypto.randomBytes(32)` passes.
-- Fuzz/stress:
-  - Test lengths 0..128 (deterministic seed), assert only 32 passes.
-
-**Definition of Done**
-- DoD1: Shared validation helper exists and is used by both call sites.
-- DoD2: Tests cover all required cases.
-- DoD3: Error contract documented in API docs stub or inline comments.
-
-**Blocking**
-- Blocks: Task 1.6, Task 2.1, Task 6.2, Task 7.2
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 1.4: Handle empty file edge case (0 bytes)
-
-**User Story**
-As a developer, I want storing a zero-byte file to produce a valid manifest so that empty assets are supported.
-
-**Requirements**
-- R1: `storeFile()` on 0-byte file returns Manifest with `size: 0` and `chunks: []`.
-- R2: No chunk blob writes occur for empty content.
-- R3: Works with and without encryption option enabled.
-
-**Acceptance Criteria**
-- AC1: Manifest returned has `size=0` and `chunks.length=0`.
-- AC2: Persistence `writeBlob` is not called for chunk content.
-- AC3: Behavior is identical with encryption enabled (manifest may include encryption metadata; chunks remain empty).
-
-**Scope**
-- In scope: Ensure empty-file store is correct + tests.
-- Out of scope: Empty directory handling.
-
-**Est. Complexity (LoC)**
-- Prod: ~5
-- Tests: ~25
-- Total: ~30
-
-**Est. Human Working Hours**
-- ~0.75h
-
-**Test Plan**
-- Golden path:
-  - Store 0-byte file → manifest size 0, chunks [].
-  - Store 0-byte file with encryption option → manifest valid, chunks [].
-- Failures:
-  - Nonexistent input path (covered more fully in Task 1.7).
-- Edges:
-  - Ensure no chunk writes happen (spy/mock).
-- Fuzz/stress:
-  - Run repeated empty-file stores (e.g., 100) to ensure no state leakage.
-
-**Definition of Done**
-- DoD1: Unit tests added confirming behavior and persistence call counts.
-- DoD2: No regression in non-empty file paths.
-
-**Blocking**
-- Blocks: Task 2.1
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 1.5: Use realistic deterministic test digests
-
-**User Story**
-As a maintainer, I want tests to use realistic SHA-256 digests so digest-length and format bugs can't hide.
-
-**Requirements**
-- R1: Replace placeholder digests (e.g., `'a'.repeat(64)`) with deterministic realistic digests.
-- R2: Add helper `digestOf(seed: string): string` that returns `sha256(seed).hex`.
-- R3: Ensure tests remain deterministic (no random digests).
-
-**Acceptance Criteria**
-- AC1: No remaining `'a'.repeat(64)` / `'b'.repeat(64)` patterns in tests.
-- AC2: Tests pass consistently across repeated runs.
-- AC3: Digests produced are exactly 64 hex chars.
-
-**Scope**
-- In scope: Test data improvements only.
-- Out of scope: Large test refactors.
-
-**Est. Complexity (LoC)**
-- Prod: ~0
-- Tests: ~15
-- Total: ~15
-
-**Est. Human Working Hours**
-- ~0.5h
-
-**Test Plan**
-- Golden path:
-  - All unit tests pass using deterministic digests.
-- Failures:
-  - Helper returns wrong length → tests should fail schema validation.
-- Edges:
-  - Multiple seeds yield distinct digests.
-- Fuzz/stress:
-  - Generate 100 digests from different seeds and validate length/hex format.
-
-**Definition of Done**
-- DoD1: Digest helper added and used across tests.
-- DoD2: All tests deterministic and green.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 1.6: Add encryption round-trip unit tests (encrypt/decrypt)
-
-**User Story**
-As a maintainer, I want encrypt/decrypt tested as a pair (including tamper detection) so crypto refactors are safe.
-
-**Requirements**
-- R1: Add unit tests ensuring encrypt→decrypt returns original plaintext.
-- R2: Wrong key must throw `CasError('INTEGRITY_ERROR')`.
-- R3: Tampered ciphertext must throw `CasError('INTEGRITY_ERROR')`.
-- R4: Tampered auth tag must throw `CasError('INTEGRITY_ERROR')`.
-- R5: If `meta.encrypted === false`, decrypt returns buffer unchanged.
-- R6: If `meta` absent and decrypt supports passthrough, it must return unchanged (or explicitly throw; define contract).
-
-**Acceptance Criteria**
-- AC1: Multiple plaintext sizes round-trip correctly.
-- AC2: Wrong-key and tamper tests fail with INTEGRITY_ERROR.
-- AC3: Passthrough behavior is documented and tested.
-
-**Scope**
-- In scope: Unit tests only.
-- Out of scope: storeFile encryption integration (M2).
-
-**Est. Complexity (LoC)**
-- Prod: ~0
-- Tests: ~60
-- Total: ~60
-
-**Est. Human Working Hours**
-- ~1.5h
-
-**Test Plan**
-- Golden path:
-  - plaintext sizes: 0B, 1B, 1KB, 1MB round-trip.
-- Failures:
-  - wrong key throws INTEGRITY_ERROR.
-  - flip one bit in ciphertext throws INTEGRITY_ERROR.
-  - flip one bit in auth tag throws INTEGRITY_ERROR.
-  - swap nonce (if represented) throws INTEGRITY_ERROR.
-- Edges:
-  - meta.encrypted=false passthrough.
-  - meta undefined behavior explicitly asserted.
-- Fuzz/stress:
-  - 50 randomized plaintext buffers (seeded), assert round-trip holds.
-  - Tamper one random byte each run, assert failure.
-
-**Definition of Done**
-- DoD1: New crypto test suite added and passing.
-- DoD2: Crypto error behavior is stable and enforced by tests.
-
-**Blocking**
-- Blocks: Task 2.1, Task 6.2
-
-**Blocked By**
-- Blocked by: Task 1.3
-
----
-
-## Task 1.7: Add error-path unit tests (constructors + core failures)
-
-**User Story**
-As a maintainer, I want error conditions covered by tests so regressions in validation and failure handling are caught.
-
-**Requirements**
-- R1: Add tests for CasService constructor validation (chunkSize constraints).
-- R2: `storeFile` on nonexistent path rejects with error (wrapped if contract exists).
-- R3: `verifyIntegrity` returns false (or throws) on digest mismatch (define contract).
-- R4: `createTree` rejects invalid manifest input.
-- R5: Manifest constructor rejects invalid data (missing slug, negative size, etc.).
-- R6: Chunk constructor rejects invalid data (negative index, invalid digest length, etc.).
-
-**Acceptance Criteria**
-- AC1: Each listed error path is covered by a unit test.
-- AC2: Error codes/messages are stable enough for consumers (typed where applicable).
-- AC3: Tests fail if validation is removed or loosened.
-
-**Scope**
-- In scope: Unit-level error path tests.
-- Out of scope: Integration error scenarios and retries (M2/M3).
-
-**Est. Complexity (LoC)**
-- Prod: ~0–10 (if missing typed errors)
+- Prod: ~60
 - Tests: ~80
-- Total: ~80–90
-
-**Est. Human Working Hours**
-- ~2h
-
-**Test Plan**
-- Golden path:
-  - chunkSize=1024 passes; valid Manifest/Chunk constructors pass.
-- Failures:
-  - chunkSize=0/512 throws.
-  - storeFile nonexistent path rejects.
-  - verifyIntegrity detects mismatch (returns false per contract).
-  - createTree invalid manifest throws.
-  - Manifest invalid fields throw.
-  - Chunk invalid fields throw.
-- Edges:
-  - boundary chunkSize=1024 exactly passes.
-  - digest length = 63/65 fails.
-- Fuzz/stress:
-  - Generate malformed manifest objects (missing fields, wrong types) and ensure Zod rejects.
-
-**Definition of Done**
-- DoD1: New unit test files added and passing.
-- DoD2: Failure contracts (throw vs return false) documented and consistent.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: None
-
----
-
-# M2 — Boomerang (v1.2.0) ✅
-**Theme:** Complete store→retrieve round trip + CLI.
-
----
-
-## Task 2.1: Implement restoreFile() on CasService
-
-**User Story**
-As a developer, I want to reconstruct a file from its manifest so I can retrieve previously stored assets reliably.
-
-**Requirements**
-- R1: Add `CasService.restoreFile({ manifest, encryptionKey, outputPath })`.
-- R2: Read chunk blobs via `persistence.readBlob(chunk.blob)` in index order.
-- R3: Verify SHA-256 digest per chunk before writing; on mismatch throw `CasError('INTEGRITY_ERROR')`.
-- R4: If encrypted: concatenate ciphertext, decrypt with manifest metadata + key, then write plaintext.
-- R5: Must handle empty manifests (0 chunks) by creating an empty file.
-- R6: Return `{ bytesWritten: number }`.
-
-**Acceptance Criteria**
-- AC1: Plaintext store→restore matches original bytes.
-- AC2: Encrypted store→restore matches original bytes when correct key is provided.
-- AC3: Wrong key throws INTEGRITY_ERROR.
-- AC4: Corrupted chunk throws INTEGRITY_ERROR.
-- AC5: Empty manifest produces 0-byte output.
-
-**Scope**
-- In scope: Restore + integrity verification + writing output.
-- Out of scope: Streaming decryption, resume/partial restore.
-
-**Est. Complexity (LoC)**
-- Prod: ~45
-- Tests: ~80
-- Total: ~125
-
-**Est. Human Working Hours**
-- ~3h
-
-**Test Plan**
-- Golden path:
-  - store 10KB plaintext → restore → byte-for-byte compare.
-  - store 10KB encrypted → restore with key → compare.
-- Failures:
-  - wrong key → INTEGRITY_ERROR.
-  - digest mismatch → INTEGRITY_ERROR.
-  - outputPath unwritable surfaces error (typed if contract added).
-- Edges:
-  - empty manifest restores empty file.
-  - single-chunk file (< chunkSize).
-  - exact multiple of chunkSize.
-- Fuzz/stress:
-  - 200 file sizes (seeded) around boundaries (0..3*chunkSize) ensure correctness.
-  - Optional local-only stress: 50MB restore.
-
-**Definition of Done**
-- DoD1: restoreFile implemented and exported via facade.
-- DoD2: Unit/integration tests added and passing.
-- DoD3: Encrypted restore memory behavior documented (SECURITY.md in M6; add stub note now).
-
-**Blocking**
-- Blocks: Task 2.3, Task 5.1, Task 5.2, Task 4.1
-
-**Blocked By**
-- Blocked by: Task 1.3, Task 1.4
-
----
-
-## Task 2.2: Add readTree() to GitPersistencePort and GitPersistenceAdapter
-
-**User Story**
-As the CAS system, I want to parse a Git tree into entries so I can locate manifest and chunk blobs for lifecycle operations.
-
-**Requirements**
-- R1: Add `readTree(treeOid)` to GitPersistencePort.
-- R2: Implement adapter via `git ls-tree <treeOid>`.
-- R3: Parse each line: `<mode> <type> <oid>\t<name>` into `{ mode, type, oid, name }`.
-- R4: Malformed output throws typed error `CasError('TREE_PARSE_ERROR')`.
-
-**Acceptance Criteria**
-- AC1: Typical ls-tree output parses correctly into expected fields.
-- AC2: Empty output returns [].
-- AC3: Malformed output throws TREE_PARSE_ERROR.
-
-**Scope**
-- In scope: Non-recursive tree parsing.
-- Out of scope: Tree walking / recursion.
-
-**Est. Complexity (LoC)**
-- Prod: ~20
-- Tests: ~25
-- Total: ~45
-
-**Est. Human Working Hours**
-- ~1.5h
-
-**Test Plan**
-- Golden path:
-  - parse output containing manifest + 2 chunk blobs.
-- Failures:
-  - malformed line triggers TREE_PARSE_ERROR.
-  - plumbing failure propagates or wraps as GIT_ERROR (define contract).
-- Edges:
-  - filename contains spaces (tab delimiter must be honored).
-- Fuzz/stress:
-  - parse synthetic output with 1,000 entries.
-
-**Definition of Done**
-- DoD1: Port and adapter methods implemented.
-- DoD2: Parser tests added and green.
-- DoD3: No breaking API changes (additive only).
-
-**Blocking**
-- Blocks: Task 2.3, Task 4.1
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 2.3: Integration tests (store + restore round trip)
-
-**User Story**
-As a maintainer, I want end-to-end tests against real Git so the system is validated beyond mocks.
-
-**Requirements**
-- R1: Add integration test suite that runs against a real Git repo.
-- R2: Test uses a temp bare repo (`git init --bare`) as ODB.
-- R3: Exercises: storeFile → createTree → readTree → readManifest/restoreFile.
-- R4: Test both JSON and CBOR codec paths.
-- R5: Test encrypted and unencrypted paths.
-- R6: Integration tests run in Docker to ensure consistent Git availability.
-
-**Acceptance Criteria**
-- AC1: Integration suite passes locally and in CI (M3).
-- AC2: Round-trip comparisons are byte-for-byte equal.
-- AC3: Both codecs validated end-to-end.
-
-**Scope**
-- In scope: Integration test harness + docker runner + scenarios.
-- Out of scope: Performance benchmarks (M5).
-
-**Est. Complexity (LoC)**
-- Prod: ~0
-- Tests: ~120
-- Total: ~120
+- Total: ~140
 
 **Est. Human Working Hours**
 - ~4h
 
 **Test Plan**
 - Golden path:
-  - 10KB plaintext → round trip.
-  - 10KB encrypted → round trip with key.
-  - CBOR codec round trip.
+  - Store 10KB → restoreStream → collect → byte-compare original.
+  - Store encrypted + compressed → restoreStream → collect → compare.
+  - restoreFile writes correct file via streaming (spy confirms no writeFileSync).
 - Failures:
-  - wrong key restore fails with INTEGRITY_ERROR.
+  - Corrupted chunk mid-stream → throws INTEGRITY_ERROR, iteration stops.
+  - Wrong key → throws INTEGRITY_ERROR on first encrypted chunk.
 - Edges:
-  - 0-byte file round trip.
-  - exact chunkSize file round trip.
-  - exact 3*chunkSize file round trip.
+  - 0-byte manifest yields empty iterable.
+  - Single-chunk file yields exactly 1 buffer.
+  - Exact multiple of chunkSize yields expected count.
 - Fuzz/stress:
-  - 50 random file sizes (seeded) around chunk boundaries.
-  - Optional local-only: 100MB store/restore smoke (not CI).
+  - 50 random file sizes (seeded) — streaming restore matches buffered restore byte-for-byte.
+  - Memory profiling: restoreStream on 10MB file stays under 2× chunkSize peak.
 
 **Definition of Done**
-- DoD1: Integration tests runnable via npm script.
-- DoD2: Docker harness documented in test README or comments.
-- DoD3: Integration tests pass in CI once M3 lands.
-
-**Blocking**
-- Blocks: Task 3.1
-
-**Blocked By**
-- Blocked by: Task 2.1, Task 2.2
-
----
-
-## Task 2.4: Stream error recovery — wrap and document partial writes
-
-**User Story**
-As a developer, I want storeFile to fail safely on stream errors so partial stores don't produce misleading manifests.
-
-**Requirements**
-- R1: If stream errors mid-store, storeFile rejects and does not return a Manifest.
-- R2: Wrap stream errors as `CasError('STREAM_ERROR')` including partial chunks written count.
-- R3: Document that orphaned chunk blobs may remain, and are handled by Git GC if unreachable.
-- R4: Ensure manifest is not written/returned on partial store.
-
-**Acceptance Criteria**
-- AC1: Simulated stream failure returns STREAM_ERROR with metadata `{ chunksWritten }`.
-- AC2: No manifest is returned/created on failure.
-- AC3: Documentation note exists (inline or docs placeholder).
-
-**Scope**
-- In scope: Error wrapping + tests + documentation note.
-- Out of scope: Deleting blobs, resume functionality.
-
-**Est. Complexity (LoC)**
-- Prod: ~15
-- Tests: ~20
-- Total: ~35
-
-**Est. Human Working Hours**
-- ~1h
-
-**Test Plan**
-- Golden path:
-  - No change to successful stores.
-- Failures:
-  - stream emits error after N chunks → STREAM_ERROR and metadata correct.
-- Edges:
-  - error occurs before any chunks written → chunksWritten=0.
-- Fuzz/stress:
-  - randomized failure point across 0..N chunks (seeded) to ensure metadata correctness.
-
-**Definition of Done**
-- DoD1: storeFile wraps stream errors consistently.
-- DoD2: Tests prove manifest is not produced.
-- DoD3: Partial-write behavior documented.
+- DoD1: `restoreStream()` implemented on CasService and exposed via facade.
+- DoD2: `restoreFile()` refactored to use streaming writes.
+- DoD3: All existing restore tests still pass.
+- DoD4: New streaming tests added and green.
 
 **Blocking**
 - Blocks: None
@@ -777,162 +276,31 @@ As a developer, I want storeFile to fail safely on stream errors so partial stor
 
 ---
 
-## Task 2.5: CLI scaffold + `store` and `tree` subcommands
+## Task 8.2: Extract shared crypto helpers to CryptoPort base class
 
 **User Story**
-As a developer, I want `git cas store` and `git cas tree` commands so I can use CAS from the terminal without writing Node scripts.
+As a maintainer, I want duplicated crypto helpers consolidated so changes to validation or metadata format are made in one place.
 
 **Requirements**
-- R1: Add `bin/git-cas.js` entry point (Git discovers `git-cas` on PATH for `git cas` subcommands).
-- R2: Add `"bin": { "git-cas": "./bin/git-cas.js" }` to `package.json`.
-- R3: Use a lightweight CLI framework (e.g., `commander`) for subcommand routing.
-- R4: `git cas store <file> --slug <slug> [--key-file <path>] [--tree]`:
-  - Reads the file, calls `storeFile()`.
-  - Prints manifest JSON to stdout by default.
-  - If `--tree` is passed, also calls `createTree()` and prints tree OID.
-  - `--key-file` reads a 32-byte raw key from a file for encryption.
-- R5: `git cas tree --manifest <path>`:
-  - Reads a manifest JSON from file/stdin, calls `createTree()`.
-  - Prints tree OID to stdout.
-- R6: Exit 0 on success, exit 1 on error with message to stderr.
-- R7: `--cwd` flag to set Git working directory (defaults to `.`).
+- R1: Move key validation to `CryptoPort` as concrete `_validateKey(key)`. Adapters call `super._validateKey(key)` or inherit directly.
+- R2: Move `buildMeta(nonce, tag)` to `CryptoPort` as concrete `_buildMeta(nonce, tag)`. Returns `{ algorithm: 'aes-256-gcm', nonce: string, tag: string, encrypted: true }`.
+- R3: Move KDF parameter defaults to `CryptoPort.deriveKey()` as a concrete method that normalizes parameters, then calls abstract `_doDeriveKey(passphrase, salt, normalizedParams)` template method.
+- R4: Remove `CasService._validateKey()` — service delegates to `crypto._validateKey()`.
+- R5: All 3 adapters use inherited helpers. No behavioral change.
 
 **Acceptance Criteria**
-- AC1: `npx git-cas store ./test.txt --slug test` prints manifest JSON.
-- AC2: `npx git-cas store ./test.txt --slug test --tree` prints tree OID.
-- AC3: `npx git-cas tree --manifest manifest.json` prints tree OID.
-- AC4: Invalid arguments produce helpful usage message and exit 1.
-- AC5: `--key-file` with valid 32-byte file encrypts successfully.
-- AC6: `--key-file` with wrong-size file exits 1 with clear error.
+- AC1: `CryptoPort` has concrete `_validateKey()`, `_buildMeta()`, and `deriveKey()` methods.
+- AC2: `NodeCryptoAdapter`, `BunCryptoAdapter`, `WebCryptoAdapter` no longer duplicate these methods.
+- AC3: `CasService._validateKey()` is removed; key validation delegates to crypto port.
+- AC4: All existing tests pass without modification (behavior unchanged).
 
 **Scope**
-- In scope: CLI scaffold, store subcommand, tree subcommand, key-file reading.
-- Out of scope: `restore` subcommand (Task 2.6), shell completions, config files.
+- In scope: Refactor crypto helpers into base class + remove CasService duplication.
+- Out of scope: Changing validation rules, adding new key types.
 
 **Est. Complexity (LoC)**
-- Prod: ~80
-- Tests: ~30
-- Total: ~110
-
-**Est. Human Working Hours**
-- ~3h
-
-**Test Plan**
-- Golden path:
-  - store a file via CLI → valid manifest JSON on stdout.
-  - store with `--tree` → tree OID on stdout.
-  - tree from manifest file → tree OID on stdout.
-- Failures:
-  - missing file → exit 1 with error.
-  - missing `--slug` → exit 1 with usage message.
-  - bad key file → exit 1 with INVALID_KEY_LENGTH/TYPE error.
-- Edges:
-  - 0-byte file store.
-  - manifest piped via stdin (if supported).
-- Fuzz/stress:
-  - None (thin wrapper over tested API).
-
-**Definition of Done**
-- DoD1: `bin/git-cas.js` exists with store and tree subcommands.
-- DoD2: `package.json` declares bin entry.
-- DoD3: `npx git-cas --help` prints usage.
-- DoD4: Integration smoke test passes against real Git repo.
-
-**Blocking**
-- Blocks: Task 2.6
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 2.6: CLI `restore` subcommand
-
-**User Story**
-As a developer, I want `git cas restore <tree-oid> --out <path>` so I can retrieve stored assets from the terminal.
-
-**Requirements**
-- R1: `git cas restore <tree-oid> --out <path> [--key-file <path>]`:
-  - Reads the tree, extracts the manifest, restores the file to `--out`.
-  - Prints bytes written to stdout on success.
-  - `--key-file` supplies decryption key for encrypted assets.
-- R2: Exit 0 on success, exit 1 on error (INTEGRITY_ERROR, MANIFEST_NOT_FOUND, etc.) with message to stderr.
-- R3: Requires `restoreFile()` (Task 2.1) and `readManifest()` or equivalent tree-reading capability.
-
-**Acceptance Criteria**
-- AC1: `npx git-cas restore <oid> --out ./restored.txt` writes correct file.
-- AC2: Encrypted asset with `--key-file` restores correctly.
-- AC3: Wrong key exits 1 with INTEGRITY_ERROR message.
-- AC4: Invalid tree OID exits 1 with clear error.
-
-**Scope**
-- In scope: restore subcommand wired to restoreFile API.
-- Out of scope: Streaming output to stdout, partial restore, resume.
-
-**Est. Complexity (LoC)**
-- Prod: ~30
-- Tests: ~20
-- Total: ~50
-
-**Est. Human Working Hours**
-- ~1.5h
-
-**Test Plan**
-- Golden path:
-  - store → tree → restore → byte-compare original.
-  - encrypted store → tree → restore with key → byte-compare.
-- Failures:
-  - wrong key → exit 1 INTEGRITY_ERROR.
-  - nonexistent tree OID → exit 1.
-  - missing `--out` → exit 1 with usage.
-- Edges:
-  - 0-byte file round-trip via CLI.
-- Fuzz/stress:
-  - None (thin wrapper over tested API).
-
-**Definition of Done**
-- DoD1: `restore` subcommand added to `bin/git-cas.js`.
-- DoD2: Full CLI round-trip (store → tree → restore) documented and tested.
-- DoD3: README CLI section is now accurate and deliverable.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 2.1, Task 2.5
-
----
-
-# M3 — Launchpad (v1.3.0) ✅
-**Theme:** Automated quality gates and release process.
-
----
-
-## Task 3.1: GitHub Actions CI workflow
-
-**User Story**
-As a maintainer, I want CI to run lint + unit + integration tests on every push/PR so regressions are caught early.
-
-**Requirements**
-- R1: Add `.github/workflows/ci.yml`.
-- R2: Triggers on push to main and pull_request to main.
-- R3: Uses Node 22.
-- R4: Steps: checkout, install, lint, unit tests, integration tests.
-- R5: Integration tests run via Docker harness.
-- R6: Cache dependencies for speed.
-
-**Acceptance Criteria**
-- AC1: CI runs automatically on PRs and pushes.
-- AC2: CI fails if lint/tests fail.
-- AC3: Integration tests execute in CI and pass.
-
-**Scope**
-- In scope: CI workflow only.
-- Out of scope: CD publishing (Task 3.2), multi-OS matrix.
-
-**Est. Complexity (LoC)**
-- Prod: ~60
-- Tests: ~0
+- Prod: ~40 (add to base, remove from 4 sites)
+- Tests: ~20 (base class unit tests)
 - Total: ~60
 
 **Est. Human Working Hours**
@@ -940,110 +308,108 @@ As a maintainer, I want CI to run lint + unit + integration tests on every push/
 
 **Test Plan**
 - Golden path:
-  - Push branch → CI green.
+  - All existing crypto round-trip tests pass unchanged.
+  - All existing KDF tests pass unchanged.
 - Failures:
-  - Intentionally break a unit test → CI red.
-  - Intentionally break integration test → CI red.
+  - Invalid key type/length still throws same CasError codes.
 - Edges:
-  - Cache miss still succeeds.
+  - NodeCryptoAdapter strict Buffer validation still enforced (override `_validateKey` if needed).
 - Fuzz/stress:
-  - Run CI twice with different dependency states (lockfile change) to validate caching behavior.
+  - Run full existing crypto fuzz suite — no regressions.
 
 **Definition of Done**
-- DoD1: CI workflow merged and green on main.
-- DoD2: CI clearly reports which step failed.
-
-**Blocking**
-- Blocks: Task 3.2
-
-**Blocked By**
-- Blocked by: Task 2.3
-
----
-
-## Task 3.2: npm publish workflow (tag-driven releases)
-
-**User Story**
-As a maintainer, I want releases published automatically on version tags so publishing is reproducible and low-friction.
-
-**Requirements**
-- R1: Add `.github/workflows/release.yml`.
-- R2: Trigger on tag push matching `v*`.
-- R3: Run full CI gates before publish.
-- R4: Publish to npm with `--access public`.
-- R5: Requires `NPM_TOKEN` secret.
-- R6: Create GitHub Release from tag and include CHANGELOG excerpt.
-
-**Acceptance Criteria**
-- AC1: Tag push triggers release workflow.
-- AC2: Workflow fails if CI fails.
-- AC3: Successful workflow publishes package and creates GitHub Release.
-
-**Scope**
-- In scope: Tag-based publish workflow.
-- Out of scope: Auto version bumping, changelog generation tooling.
-
-**Est. Complexity (LoC)**
-- Prod: ~50
-- Tests: ~0
-- Total: ~50
-
-**Est. Human Working Hours**
-- ~2h
-
-**Test Plan**
-- Golden path:
-  - Create tag in test repo → workflow runs through dry-run or publish to test namespace.
-- Failures:
-  - Missing NPM_TOKEN → workflow fails with clear message.
-  - CHANGELOG missing → workflow fails.
-- Edges:
-  - Tag format mismatch does not trigger.
-- Fuzz/stress:
-  - Tag multiple versions sequentially (v1.1.0, v1.1.1) in fork to ensure idempotent behavior.
-
-**Definition of Done**
-- DoD1: Release workflow exists and passes in a fork/test environment.
-- DoD2: Release notes include changelog excerpt.
+- DoD1: Shared helpers live on CryptoPort.
+- DoD2: All duplicated code removed from adapters and CasService.
+- DoD3: Full test suite green.
 
 **Blocking**
 - Blocks: None
 
 **Blocked By**
-- Blocked by: Task 3.1, Task 1.1, Task 1.2
+- Blocked by: None
 
 ---
 
-# M4 — Compass (v1.4.0) ✅
-**Theme:** Read manifests from Git, manage stored assets, analyze storage.
-
----
-
-## Task 4.1: Implement readManifest() on CasService ✅
+## Task 8.3: README polish and architectural decision record
 
 **User Story**
-As a developer, I want to reconstruct a Manifest from a Git tree OID so I can inspect and restore assets without holding manifests in memory.
+As a new user, I want the README to get me started quickly. As a contributor, I want to understand why vault lives in the facade.
 
 **Requirements**
-- R1: Add `CasService.readManifest({ treeOid })`.
-- R2: Use `persistence.readTree(treeOid)` to list entries.
-- R3: Locate manifest entry based on codec (e.g., `manifest.json` / `manifest.cbor`).
-- R4: Read manifest blob via `persistence.readBlob(oid)`.
-- R5: Decode via `codec.decode(blob)` and validate via Manifest schema.
-- R6: Throw `CasError('MANIFEST_NOT_FOUND')` if missing.
+- R1: Add installation instructions to README.md (`npm install @git-stunts/git-cas @git-stunts/plumbing`).
+- R2: Add links to GUIDE.md and API.md in README.md.
+- R3: Add `docs/ADR-001-vault-in-facade.md` documenting the decision to place vault logic in `ContentAddressableStore` rather than `CasService`, including rationale, alternatives considered, and trade-offs.
 
 **Acceptance Criteria**
-- AC1: Returns valid Manifest value object for correct tree.
-- AC2: Missing manifest entry throws MANIFEST_NOT_FOUND.
-- AC3: Corrupt manifest fails validation (typed error or schema error).
+- AC1: README contains install command.
+- AC2: README links to GUIDE.md ("Getting Started") and API.md ("API Reference").
+- AC3: ADR exists and explains the vault-in-facade decision with alternatives considered.
 
 **Scope**
-- In scope: Read+decode+validate single manifest.
-- Out of scope: Multi-manifest trees, recursion.
+- In scope: README edits + ADR document.
+- Out of scope: Full README rewrite, new documentation pages.
 
 **Est. Complexity (LoC)**
-- Prod: ~30
-- Tests: ~40
+- Prod: ~0
+- Docs: ~90 (README edits ~30, ADR ~60)
+- Total: ~90
+
+**Est. Human Working Hours**
+- ~1h
+
+**Test Plan**
+- Golden path:
+  - Verify install command is correct by running it in a fresh project.
+  - Verify links resolve to existing files.
+- Failures:
+  - Dead link in README → fix before merge.
+- Edges:
+  - None.
+- Fuzz/stress:
+  - None (documentation).
+
+**Definition of Done**
+- DoD1: README updated with install instructions and doc links.
+- DoD2: ADR-001 created in `docs/` directory.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: None
+
+---
+
+# M9 — Cockpit (v2.2.0)
+**Theme:** CLI polish — progress feedback, structured output, better errors, and new commands. Make the terminal experience match the API's capability.
+
+---
+
+## Task 9.1: CLI progress feedback
+
+**User Story**
+As a CLI user storing or restoring large files, I want visible progress so I know the operation is working and not hung.
+
+**Requirements**
+- R1: Wire `CasService` events (`chunk:stored`, `chunk:restored`, `file:stored`, `file:restored`) to CLI output.
+- R2: Display a progress counter during store/restore: `Storing chunk 5/12…` or similar.
+- R3: Progress output goes to stderr (stdout reserved for structured output).
+- R4: Progress suppressed when stdout is not a TTY (piped mode) or when `--quiet` is passed.
+- R5: Add `--quiet` global flag to suppress progress output.
+
+**Acceptance Criteria**
+- AC1: `git cas store` shows per-chunk progress on stderr in TTY mode.
+- AC2: `git cas restore` shows per-chunk progress on stderr in TTY mode.
+- AC3: Piped mode (`git cas store … | jq`) shows no progress.
+- AC4: `--quiet` suppresses all progress output.
+
+**Scope**
+- In scope: Progress display for store and restore.
+- Out of scope: Progress bars with ETA, spinners, color output, verbose debug logging.
+
+**Est. Complexity (LoC)**
+- Prod: ~50
+- Tests: ~20
 - Total: ~70
 
 **Est. Human Working Hours**
@@ -1051,575 +417,1259 @@ As a developer, I want to reconstruct a Manifest from a Git tree OID so I can in
 
 **Test Plan**
 - Golden path:
-  - mock readTree includes manifest entry; mock readBlob returns encoded manifest; returns Manifest.
+  - Store 3-chunk file in TTY mode → stderr shows 3 progress messages.
+  - Restore → stderr shows 3 progress messages.
 - Failures:
-  - no manifest entry → MANIFEST_NOT_FOUND.
-  - corrupt JSON/CBOR → decode/validation error thrown.
+  - None expected (progress is best-effort, non-blocking).
 - Edges:
-  - codec switch determines expected filename.
+  - 0-chunk file (empty) → no progress messages.
+  - 1-chunk file → exactly 1 progress message.
+  - Non-TTY mode → no progress on stderr.
+  - `--quiet` → no progress on stderr.
 - Fuzz/stress:
-  - generate malformed manifest blobs and ensure validation rejects consistently.
+  - None (thin display layer).
 
 **Definition of Done**
-- DoD1: readManifest implemented and exported via facade.
-- DoD2: Unit tests cover missing/corrupt cases.
-- DoD3: Manifest filename behavior documented (or CodecPort exposes manifest filename).
+- DoD1: Progress feedback visible in CLI during store and restore.
+- DoD2: `--quiet` flag implemented and functional.
+- DoD3: Non-TTY detection works correctly.
 
 **Blocking**
-- Blocks: Task 4.2, Task 4.3, Task 6.1
+- Blocks: None
 
 **Blocked By**
-- Blocked by: Task 2.2
+- Blocked by: None
 
 ---
 
-## Task 4.2: Implement deleteAsset() (logical unlink info) ✅
+## Task 9.2: CLI `verify` command
 
 **User Story**
-As a developer, I want to "delete" an asset logically so I can manage lifecycle even though Git GC handles physical deletion.
+As an operator, I want to verify stored asset integrity from the command line without restoring the file.
 
 **Requirements**
-- R1: Add `CasService.deleteAsset({ treeOid })`.
-- R2: Read manifest, return deletion metadata `{ chunksOrphaned, slug }`.
-- R3: Document that caller must remove refs/commits pointing to tree; physical deletion requires `git gc --prune`.
-- R4: No destructive Git operations performed by CAS.
+- R1: Add `git cas verify` subcommand.
+- R2: Accept `--oid <tree-oid>` or `--slug <slug>` (exactly one required, same mutual-exclusion validation as `restore`).
+- R3: Read manifest from tree, call `verifyIntegrity(manifest)`.
+- R4: Print `ok` and exit 0 on success. Print `fail` with details and exit 1 on failure.
+- R5: Supports `--cwd` and `--json` (if Task 9.3 is complete) flags.
 
 **Acceptance Criteria**
-- AC1: Returns slug and chunk count from manifest.
-- AC2: Does not invoke Git ref updates or gc.
-- AC3: Documentation clearly describes expected caller action.
+- AC1: Valid asset → prints `ok`, exits 0.
+- AC2: Corrupted asset → prints `fail`, exits 1.
+- AC3: Nonexistent OID/slug → prints error, exits 1.
 
 **Scope**
-- In scope: Logical deletion metadata only.
-- Out of scope: Ref management, physical deletion.
+- In scope: `verify` subcommand wired to existing `verifyIntegrity()`.
+- Out of scope: Repair, per-chunk corruption report, re-verification against original file.
 
 **Est. Complexity (LoC)**
-- Prod: ~15
+- Prod: ~25
+- Tests: ~15
+- Total: ~40
+
+**Est. Human Working Hours**
+- ~1h
+
+**Test Plan**
+- Golden path:
+  - Store file, verify via CLI → exit 0.
+- Failures:
+  - Verify with bad OID → exit 1.
+  - Verify with both --slug and --oid → exit 1 (mutual exclusion).
+  - Neither --slug nor --oid → exit 1.
+- Edges:
+  - 0-chunk manifest verifies successfully (vacuously true).
+- Fuzz/stress:
+  - None (thin wrapper over tested API).
+
+**Definition of Done**
+- DoD1: `verify` subcommand added and functional.
+- DoD2: Unit tests cover pass and fail paths.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: None
+
+---
+
+## Task 9.3: CLI `--json` output mode
+
+**User Story**
+As a CI/CD pipeline author, I want structured JSON output from the CLI so I can parse results programmatically.
+
+**Requirements**
+- R1: Add `--json` global flag.
+- R2: When `--json` is passed, all command output is valid JSON on stdout:
+  - `store`: `{ "manifest": {...} }` or `{ "treeOid": "..." }` (with `--tree`).
+  - `restore`: `{ "bytesWritten": N }`.
+  - `verify`: `{ "ok": true|false, "slug": "...", "chunks": N }`.
+  - `vault list`: `[{ "slug": "...", "treeOid": "..." }, ...]`.
+  - `vault init`: `{ "commitOid": "..." }`.
+  - `vault remove`: `{ "commitOid": "...", "removedTreeOid": "..." }`.
+- R3: Errors in JSON mode: `{ "error": "...", "code": "..." }` on stderr with non-zero exit.
+- R4: Non-JSON mode behavior unchanged.
+
+**Acceptance Criteria**
+- AC1: `git cas store --json …` outputs parseable JSON.
+- AC2: `git cas vault list --json` outputs JSON array.
+- AC3: `git cas store --json … | jq .treeOid` works end-to-end.
+- AC4: Error in JSON mode is valid JSON with error and code fields.
+
+**Scope**
+- In scope: JSON output for all existing commands.
+- Out of scope: NDJSON streaming, custom output format templates.
+
+**Est. Complexity (LoC)**
+- Prod: ~30
 - Tests: ~20
-- Total: ~35
+- Total: ~50
 
 **Est. Human Working Hours**
 - ~1.5h
 
 **Test Plan**
 - Golden path:
-  - deleteAsset returns expected slug and chunksOrphaned.
+  - Each command with `--json` → output is valid JSON (`JSON.parse` succeeds).
 - Failures:
-  - missing manifest propagates MANIFEST_NOT_FOUND.
+  - Error with `--json` → valid JSON error object.
 - Edges:
-  - empty manifest returns chunksOrphaned=0.
+  - Empty vault list → `[]`.
+  - 0-byte store → valid JSON manifest with empty chunks array.
 - Fuzz/stress:
-  - run deleteAsset across N manifests (seeded) ensure stable aggregation.
+  - None (formatting layer).
 
 **Definition of Done**
-- DoD1: deleteAsset implemented and exported.
-- DoD2: Unit tests pass.
-- DoD3: Documentation note added.
+- DoD1: All commands support `--json`.
+- DoD2: Tests validate JSON output is parseable.
 
 **Blocking**
 - Blocks: None
 
 **Blocked By**
-- Blocked by: Task 4.1
+- Blocked by: None
 
 ---
 
-## Task 4.3: Implement orphaned chunk analysis ✅
+## Task 9.4: CLI error handler DRY cleanup + actionable error messages
 
 **User Story**
-As an operator, I want to identify referenced chunks across many assets so I can assess storage waste.
+As a CLI user, I want error messages that suggest what to do next. As a maintainer, I want error handling to live in one place.
 
 **Requirements**
-- R1: Add `CasService.findOrphanedChunks({ treeOids })`.
-- R2: For each treeOid, read manifest and collect all referenced chunk blob OIDs.
-- R3: Return report `{ referenced: Set<string>, total: number }` where total is total referenced chunk count.
-- R4: Analysis only; does not delete or invoke git gc.
+- R1: Extract shared `runAction(fn)` wrapper that handles try/catch, stderr output, and `process.exit(1)`.
+- R2: All 6 command actions use `runAction()` instead of inline try/catch.
+- R3: Error messages include the CasError `code` when available: `error [INTEGRITY_ERROR]: message`.
+- R4: Add actionable hints for common errors:
+  - `MISSING_KEY` → "Provide --key-file or --vault-passphrase"
+  - `MANIFEST_NOT_FOUND` → "Verify the tree OID contains a manifest"
+  - `VAULT_ENTRY_NOT_FOUND` → "Run 'git cas vault list' to see available entries"
+  - `VAULT_ENTRY_EXISTS` → "Use --force to overwrite"
+  - `INTEGRITY_ERROR` → "Check that the correct key or passphrase was used"
 
 **Acceptance Criteria**
-- AC1: Given treeOids, returns a Set of referenced blob OIDs.
-- AC2: total equals sum of chunks across manifests.
-- AC3: Does not perform destructive operations.
+- AC1: All command actions delegate to `runAction()`.
+- AC2: Error output includes CasError code when present.
+- AC3: At least 5 common errors include actionable hints.
+- AC4: No behavioral change for non-error paths.
 
 **Scope**
-- In scope: Analysis and aggregation.
-- Out of scope: Physical deletion, git gc invocation.
+- In scope: Error handler extraction + actionable hints.
+- Out of scope: Verbose/debug mode, error logging to file.
 
 **Est. Complexity (LoC)**
-- Prod: ~25
-- Tests: ~30
+- Prod: ~45
+- Tests: ~0 (existing tests cover error paths; hints verified manually)
+- Total: ~45
+
+**Est. Human Working Hours**
+- ~1h
+
+**Test Plan**
+- Golden path:
+  - All existing CLI tests pass unchanged.
+- Failures:
+  - Trigger each hinted error → verify hint appears in stderr.
+- Edges:
+  - Non-CasError (e.g., ENOENT) → generic message, no hint.
+- Fuzz/stress:
+  - None.
+
+**Definition of Done**
+- DoD1: `runAction()` wrapper used by all commands.
+- DoD2: Error output includes codes and hints.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: None
+
+---
+
+## Task 9.5: Vault list filtering and table formatting
+
+**User Story**
+As a user with many vault entries, I want to filter and scan the list quickly.
+
+**Requirements**
+- R1: Add `--filter <pattern>` option to `vault list`. Glob-style matching against slugs (e.g., `photos/*`, `*.bin`).
+- R2: Default output is table-formatted (aligned columns) when stdout is a TTY. Header row: `SLUG  TREE OID`.
+- R3: Pipe-friendly: tab-separated output when stdout is not a TTY (existing behavior preserved).
+- R4: `--json` mode outputs filtered JSON array (if Task 9.3 is complete).
+
+**Acceptance Criteria**
+- AC1: `vault list --filter "photos/*"` shows only matching entries.
+- AC2: TTY output shows aligned table with headers.
+- AC3: Non-TTY output is tab-separated (backward compatible).
+
+**Scope**
+- In scope: Glob filtering + TTY-aware table formatting.
+- Out of scope: Sort options, metadata columns (size, date), pagination.
+
+**Est. Complexity (LoC)**
+- Prod: ~35
+- Tests: ~20
 - Total: ~55
 
 **Est. Human Working Hours**
-- ~2h
+- ~1.5h
 
 **Test Plan**
 - Golden path:
-  - two manifests share some chunk oids → referenced set dedupes correctly.
+  - 5 entries, filter matches 2 → 2 shown.
+  - TTY mode → table with headers.
 - Failures:
-  - one treeOid missing manifest → throws MANIFEST_NOT_FOUND (fail closed).
+  - No matches → empty output, exit 0.
+  - Invalid glob syntax → exit 1 with error.
 - Edges:
-  - empty treeOids list returns referenced empty set, total=0.
+  - No `--filter` → show all (default behavior preserved).
+  - Single entry → table still formatted correctly.
 - Fuzz/stress:
-  - simulate 1,000 manifests with 10 chunks each in-memory, validate set size and performance.
+  - None.
 
 **Definition of Done**
-- DoD1: findOrphanedChunks implemented and exported.
-- DoD2: Tests cover dedupe + empty input.
-- DoD3: Contract documented (throw on missing manifests — fail closed).
+- DoD1: `--filter` flag functional.
+- DoD2: TTY-aware table formatting implemented.
+- DoD3: Backward-compatible pipe behavior preserved.
 
 **Blocking**
 - Blocks: None
 
 **Blocked By**
-- Blocked by: Task 4.1
+- Blocked by: None
 
 ---
 
-# M5 — Sonar (v1.5.0) ✅
-**Theme:** Events, hooks, and benchmarks.
+# M10 — Hydra (v3.0.0)
+**Theme:** Content-defined chunking for dramatically better dedup on versioned files. Fixed-size chunking invalidates every chunk after an edit; CDC limits the blast radius to 1–2 chunks. Major version bump for new chunking port and manifest metadata.
 
 ---
 
-## Task 5.1: EventEmitter integration (progress + observability hooks) ✅
+## Task 10.1: Buzhash rolling hash + CDC chunking engine
 
 **User Story**
-As an application developer, I want progress and lifecycle events so I can build logging, progress bars, and monitoring.
+As a developer storing versioned files, I want content-defined chunk boundaries so incremental changes don't invalidate every chunk downstream of the edit point.
 
 **Requirements**
-- R1: CasService extends EventEmitter.
-- R2: Emit events with object payloads:
-  - `chunk:stored` { index, size, digest, blob }
-  - `chunk:restored` { index, size, digest }
-  - `file:stored` { slug, size, chunkCount, encrypted }
-  - `file:restored` { slug, size, chunkCount }
-  - `integrity:pass` { slug }
-  - `integrity:fail` { slug, chunkIndex, expected, actual }
-  - `error` { code, message }
-- R3: No breaking API changes.
-- R4: Emissions must not violate lint limits (single object arg).
+- R1: Implement Buzhash rolling hash algorithm with a 256-entry random byte table (deterministic seed).
+- R2: Implement CDC chunker that uses rolling hash to find chunk boundaries.
+- R3: Configurable parameters: `minChunkSize` (default 64 KiB), `maxChunkSize` (default 1 MiB), `targetChunkSize` (default 256 KiB).
+- R4: Chunk boundary determined when `hash & mask === 0`, where mask is derived from `targetChunkSize` (e.g., `targetChunkSize - 1` for power-of-2 targets).
+- R5: Force boundary at `maxChunkSize` if no natural boundary found (prevent unbounded chunks).
+- R6: Force minimum chunk size: never split below `minChunkSize` (prevent tiny chunks).
+- R7: Deterministic: same input always produces same chunks regardless of runtime.
+- R8: Streaming: operates on `AsyncIterable<Buffer>` with O(1) memory.
 
 **Acceptance Criteria**
-- AC1: storeFile emits chunk:stored per chunk and file:stored once.
-- AC2: restoreFile emits chunk:restored per chunk and file:restored once.
-- AC3: verifyIntegrity emits integrity:pass/fail accordingly.
-- AC4: Error paths emit `error` with typed code.
+- AC1: CDC chunker produces variable-size chunks bounded by min/max.
+- AC2: Identical input always produces identical chunks (deterministic).
+- AC3: Inserting 10 bytes in the middle of a 1MB file changes only 1–2 chunks (not all downstream chunks).
+- AC4: Average chunk size approximates `targetChunkSize`.
+- AC5: No chunk smaller than `minChunkSize` (except final chunk of file).
+- AC6: No chunk larger than `maxChunkSize`.
 
 **Scope**
-- In scope: Event emission and tests.
-- Out of scope: Logging implementation, metrics exporter.
+- In scope: Rolling hash + CDC chunker implementation + unit tests.
+- Out of scope: Integration with CasService (Task 10.2), Rabin fingerprinting (Buzhash is simpler and sufficient), gear-based CDC.
 
 **Est. Complexity (LoC)**
-- Prod: ~20
-- Tests: ~40
-- Total: ~60
+- Prod: ~200 (Buzhash table + rolling hash + CDC logic)
+- Tests: ~150 (determinism, boundary detection, size bounds, dedup)
+- Total: ~350
 
 **Est. Human Working Hours**
-- ~2.5h
+- ~12h
 
 **Test Plan**
 - Golden path:
-  - attach listeners; storeFile emits expected sequence and payload shapes.
-  - restoreFile emits expected sequence.
+  - 1MB buffer → produces ~4 chunks (target 256KB).
+  - Same buffer → same chunks every time.
+  - Modify 10 bytes at offset 500KB → only 1–2 chunks differ vs. original.
 - Failures:
-  - trigger integrity failure; assert integrity:fail emitted and error emitted.
+  - minChunkSize > maxChunkSize → throws configuration error.
+  - targetChunkSize outside [min, max] → throws.
 - Edges:
-  - no listeners attached; no errors and no observable overhead assumptions violated.
+  - File smaller than minChunkSize → single chunk.
+  - File exactly maxChunkSize → single chunk.
+  - All-zero file (degenerate hash behavior) → chunks bounded by max.
+  - File = 1 byte → single chunk.
 - Fuzz/stress:
-  - store/restore across 200 randomized file sizes; ensure event counts match chunk counts.
+  - 100 random buffers (1KB–10MB, seeded): verify all chunks satisfy min/max bounds.
+  - Determinism: chunk same buffer 100 times, assert identical output.
+  - Dedup test: insert/delete 1–100 bytes at random offsets, measure % of chunks unchanged (expect >80% for small edits).
 
 **Definition of Done**
-- DoD1: CasService inherits EventEmitter and emits events consistently.
-- DoD2: Tests validate payload shape contracts.
-- DoD3: API docs updated later (M6) but event names frozen here.
+- DoD1: Buzhash + CDC chunker implemented as standalone module under `src/infrastructure/chunkers/`.
+- DoD2: All boundary and determinism tests pass.
+- DoD3: Performance: >100 MB/s throughput on chunking alone (no I/O).
 
 **Blocking**
-- Blocks: Task 6.1, Task 6.3
+- Blocks: Task 10.2, Task 10.4
 
 **Blocked By**
-- Blocked by: Task 2.1
+- Blocked by: None
 
 ---
 
-## Task 5.2: Comprehensive benchmark suite ✅
+## Task 10.2: ChunkingPort abstraction
 
 **User Story**
-As a maintainer, I want benchmarks for critical operations so I can detect regressions and make optimization decisions.
+As an architect, I want chunking strategy behind a port so fixed-size and CDC can be swapped without modifying the domain service.
 
 **Requirements**
-- R1: Replace trivial bench with comprehensive suite using vitest bench.
-- R2: Benchmark:
-  - storeFile 1MB/10MB/100MB plaintext
-  - storeFile 1MB/10MB encrypted
-  - restoreFile 1MB/10MB plaintext + encrypted
-  - createTree 10/100/1000 chunks
-  - verifyIntegrity 10/100/1000 chunks
-  - encrypt/decrypt 1KB/1MB/10MB
-  - JsonCodec vs CborCodec encode/decode
-- R3: Use mock persistence (in-memory Map) to avoid git variability.
-- R4: Output is human-readable (ops/sec or MB/s).
+- R1: Add `src/ports/ChunkingPort.js` with abstract method `chunk(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>`.
+- R2: Implement `FixedChunker` adapter wrapping existing `_chunkAndStore` buffer-slicing logic.
+- R3: Implement `CdcChunker` adapter wrapping Task 10.1's CDC engine.
+- R4: `CasService` constructor accepts optional `chunker` port. Defaults to `FixedChunker(chunkSize)`.
+- R5: Refactor `CasService._chunkAndStore()` to use the chunking port instead of inline buffer slicing.
+- R6: `ContentAddressableStore` constructor accepts optional `chunking` config: `{ strategy: 'fixed' | 'cdc', …params }`.
 
 **Acceptance Criteria**
-- AC1: Bench suite runs without errors.
-- AC2: Report includes all required cases.
-- AC3: Results are reasonably stable run-to-run (variance target < 20% in local runs).
+- AC1: `CasService({ chunker: new CdcChunker(…) })` uses CDC.
+- AC2: Default behavior (no chunker specified) is identical to current fixed-size chunking.
+- AC3: All existing store/restore tests pass without modification.
+- AC4: CDC chunker plugs in and produces valid manifests that restore correctly.
 
 **Scope**
-- In scope: Synthetic benchmarks with mock persistence.
-- Out of scope: CI benchmark tracking, real Git benchmarking.
+- In scope: Port + 2 adapters + CasService refactor + facade config.
+- Out of scope: Additional chunking strategies, auto-detection of optimal strategy.
 
 **Est. Complexity (LoC)**
-- Prod: ~0
-- Tests: ~150
-- Total: ~150
-
-**Est. Human Working Hours**
-- ~3h
-
-**Test Plan**
-- Golden path:
-  - bench suite executes and prints results.
-- Failures:
-  - missing restoreFile or encrypt paths fail suite (ensures dependencies).
-- Edges:
-  - include empty buffer case in encrypt/decrypt bench.
-- Fuzz/stress:
-  - run suite 3 times; check variance bounds informally (document expected variability).
-
-**Definition of Done**
-- DoD1: Bench suite includes all required scenarios.
-- DoD2: Bench is isolated from Git and deterministic enough for comparisons.
-- DoD3: Docs note how to run benches and interpret output.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 2.1
-
----
-
-# M6 — Cartographer (v1.6.0) ✅
-**Theme:** Documentation that makes the library usable and trustworthy.
-
----
-
-## Task 6.1: API reference documentation ✅
-
-**User Story**
-As a developer evaluating this library, I want complete API docs so I can integrate without reading source.
-
-**Requirements**
-- R1: Add `docs/API.md` covering all public methods and types.
-- R2: For each method: signature, parameters, returns, throws, example.
-- R3: Document Manifest and Chunk fields.
-- R4: Document ports: GitPersistencePort and CodecPort contracts.
-
-**Acceptance Criteria**
-- AC1: API.md includes every public method listed in requirements.
-- AC2: Examples are runnable or obviously correct pseudo-code.
-- AC3: Error contracts are documented (CasError codes).
-
-**Scope**
-- In scope: Markdown docs.
-- Out of scope: Generated HTML docs, full JSDoc automation.
-
-**Est. Complexity (LoC)**
-- Prod: ~0
-- Tests: ~0
-- Total: ~300 (docs)
+- Prod: ~80 (port + 2 adapters + service refactor + facade config)
+- Tests: ~40 (port contract tests, integration with both chunkers)
+- Total: ~120
 
 **Est. Human Working Hours**
 - ~4h
 
 **Test Plan**
 - Golden path:
-  - Copy examples into examples scripts; verify they run (manual).
+  - Store with FixedChunker → same behavior as before (byte-identical manifests).
+  - Store with CdcChunker → valid manifest, restore succeeds.
 - Failures:
-  - Missing method documentation flagged in review checklist.
+  - Chunker that yields empty buffers → handled gracefully (skip empty).
 - Edges:
-  - Document behavior differences for encrypted vs plaintext restore.
+  - Switch chunker between store and restore → restore still works (chunking strategy doesn't affect restore — chunks are self-describing via manifest).
 - Fuzz/stress:
-  - None (documentation).
+  - 50 random files stored with both chunkers → all restore correctly.
 
 **Definition of Done**
-- DoD1: API.md complete and reviewed.
-- DoD2: Examples compile/run where applicable.
+- DoD1: ChunkingPort, FixedChunker, CdcChunker implemented.
+- DoD2: CasService uses chunking port.
+- DoD3: All existing tests pass (no regression).
 
 **Blocking**
-- Blocks: None
+- Blocks: Task 10.3
 
 **Blocked By**
-- Blocked by: Task 4.1, Task 5.1
+- Blocked by: Task 10.1
 
 ---
 
-## Task 6.2: Security model documentation ✅
+## Task 10.3: CDC manifest metadata + backward compatibility
 
 **User Story**
-As a security reviewer, I want a clear threat model and crypto design description so I can assess safety and limitations.
+As a user, I want CDC manifests to record their chunking strategy so future tools can understand or reproduce the chunk boundaries.
 
 **Requirements**
-- R1: Add `docs/SECURITY.md` covering:
-  - threat model
-  - AES-256-GCM design (nonce, tag)
-  - key handling expectations (CAS never stores keys)
-  - limitations (encrypted restore memory)
-  - chunk digest verification behavior
-  - Git object immutability and GC behavior
-- R2: Document CasError codes relevant to security/integrity.
+- R1: Add optional `chunking` field to ManifestSchema: `{ strategy: 'fixed' | 'cdc', params: { … } }`.
+- R2: Fixed-size manifests omit the field (backward compatible with all existing manifests).
+- R3: CDC manifests include `{ strategy: 'cdc', params: { target: N, min: N, max: N } }`.
+- R4: `readManifest()` handles manifests with or without `chunking` field.
+- R5: v1 and v2 manifests remain valid (no migration required).
+- R6: Add `INVALID_CHUNKING_STRATEGY` error code for unrecognized strategies.
 
 **Acceptance Criteria**
-- AC1: SECURITY.md covers all required sections.
-- AC2: Limitations are explicit and unambiguous.
-- AC3: Crypto invariants align with implementation and tests.
+- AC1: CDC store produces manifest with `chunking` field.
+- AC2: Fixed-size store produces manifests without `chunking` field (backward compatible).
+- AC3: Old manifests (no `chunking` field) read correctly on new code.
+- AC4: Unrecognized strategy in manifest throws `INVALID_CHUNKING_STRATEGY`.
 
 **Scope**
-- In scope: Documentation.
-- Out of scope: Formal audit, pentesting.
+- In scope: Schema extension, backward compat, error code.
+- Out of scope: Migration tooling for old manifests, manifest version bump (chunking field is additive).
 
 **Est. Complexity (LoC)**
-- Prod: ~0
-- Tests: ~0
-- Total: ~200 (docs)
-
-**Est. Human Working Hours**
-- ~3h
-
-**Test Plan**
-- Golden path:
-  - Cross-check doc claims against unit tests (Task 1.6) and restore behavior (Task 2.1).
-- Failures:
-  - Doc contradicts implementation → fix either code or doc before release.
-- Edges:
-  - Spell out what "integrity" means for plaintext vs encrypted.
-- Fuzz/stress:
-  - None (documentation).
-
-**Definition of Done**
-- DoD1: SECURITY.md complete and reviewed.
-- DoD2: All claims are consistent with code/tests.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 1.3, Task 1.6
-
----
-
-## Task 6.3: Usage examples (cookbook) ✅
-
-**User Story**
-As a new user, I want runnable examples so I can integrate quickly and correctly.
-
-**Requirements**
-- R1: Add `examples/` scripts:
-  - `store-and-restore.js`
-  - `encrypted-workflow.js`
-  - `custom-codec.js`
-  - `progress-tracking.js`
-- R2: Add examples README with prerequisites and commands.
-- R3: Examples are self-contained and runnable.
-
-**Acceptance Criteria**
-- AC1: All scripts run successfully with expected output.
-- AC2: README explains setup clearly.
-- AC3: Examples use public API only (no internals).
-
-**Scope**
-- In scope: Example scripts + README.
-- Out of scope: Advanced feature examples (M7).
-
-**Est. Complexity (LoC)**
-- Prod: ~0
-- Tests: ~0
-- Total: ~250 (examples+docs)
-
-**Est. Human Working Hours**
-- ~3h
-
-**Test Plan**
-- Golden path:
-  - run each example script and verify outputs manually.
-- Failures:
-  - invalid key example demonstrates correct failure and error code.
-- Edges:
-  - include a 0-byte file example in store-and-restore.
-- Fuzz/stress:
-  - None (examples).
-
-**Definition of Done**
-- DoD1: Examples directory added with runnable scripts.
-- DoD2: README present and accurate.
-- DoD3: Scripts align with API docs.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 5.1
-
----
-
-# M7 — Horizon (v2.0.0) ✅
-**Theme:** Advanced capabilities that may change manifest format; major version bump.
-
----
-
-## Task 7.1: Compression support (gzip; pipeline design)
-
-**User Story**
-As a developer storing compressible data, I want optional compression before encryption so I can reduce storage size.
-
-**Requirements**
-- R1: Add optional compression pipeline step prior to encryption.
-- R2: Decide compression granularity:
-  - Default: per-chunk compression (stream-friendly).
-- R3: Manifest adds optional `compression` field `{ algorithm, level }`.
-- R4: storeFile and restoreFile support compression+encryption combination.
-- R5: gzip implementation using zlib streams.
-
-**Acceptance Criteria**
-- AC1: store+restore with compression yields byte-identical original output.
-- AC2: compression+encryption works together.
-- AC3: For compressible input, compressed storage is smaller than uncompressed (within reason).
-
-**Scope**
-- In scope: gzip compression + schema update + tests.
-- Out of scope: Brotli, custom compression plugins (future).
-
-**Est. Complexity (LoC)**
-- Prod: ~60
-- Tests: ~40
+- Prod: ~40 (schema + Manifest value object + error code)
+- Tests: ~60 (round-trip, backward compat, unknown strategy)
 - Total: ~100
 
 **Est. Human Working Hours**
-- ~5h
+- ~3h
 
 **Test Plan**
 - Golden path:
-  - compressible text file compress+restore round trip.
-  - compress+encrypt+restore round trip.
+  - CDC store → manifest includes `chunking.strategy === 'cdc'`.
+  - Fixed store → manifest has no `chunking` field.
+  - Read old manifest without `chunking` → works fine.
 - Failures:
-  - corrupted compressed chunk fails restore (typed error).
+  - Manifest with `chunking.strategy === 'unknown'` → throws INVALID_CHUNKING_STRATEGY.
 - Edges:
-  - incompressible data does not break; may grow slightly.
-  - empty file with compression.
+  - v1 manifest with compression + encryption + no chunking field → still valid.
+  - v2 merkle manifest with CDC → both `subManifests` and `chunking` fields present.
 - Fuzz/stress:
-  - random buffers at multiple sizes (seeded), ensure round-trip correctness.
+  - Generate 100 manifests with random valid/invalid chunking fields → validate schema behavior.
 
 **Definition of Done**
-- DoD1: Compression pipeline implemented and documented.
-- DoD2: Schema updated with optional compression field.
-- DoD3: Tests cover plaintext + encrypted paths.
+- DoD1: ManifestSchema extended with optional chunking field.
+- DoD2: Backward compatibility verified across v1/v2 manifests.
+- DoD3: Error code registered and tested.
 
 **Blocking**
 - Blocks: None
 
 **Blocked By**
-- Blocked by: Task 2.1
+- Blocked by: Task 10.2
 
 ---
 
-## Task 7.2: KDF support (PBKDF2/scrypt)
+## Task 10.4: CDC benchmarks + dedup efficiency comparison
 
 **User Story**
-As a developer, I want passphrase-based encryption using standard KDFs so I don't need to manage raw 32-byte keys.
+As a maintainer, I want empirical data comparing CDC vs fixed chunking so I can document trade-offs and tune defaults.
 
 **Requirements**
-- R1: Add `CasService.deriveKey({ passphrase, salt, algorithm, iterations })`.
-- R2: Support algorithms: pbkdf2, scrypt (Node built-ins).
-- R3: Return `{ key: Buffer, salt: Buffer, params: object }`.
-- R4: Manifest encryption metadata optionally includes `kdf` params.
-- R5: storeFile/restoreFile can accept passphrase (derive key) instead of raw key.
+- R1: Add benchmark suite comparing fixed vs CDC chunking across file sizes (1MB, 10MB, 100MB).
+- R2: Measure chunking throughput (MB/s) for both strategies.
+- R3: Measure dedup efficiency: for a file modified by N random byte insertions, what % of chunks remain unchanged?
+- R4: Output results as a comparison table (console).
 
 **Acceptance Criteria**
-- AC1: Passphrase store+restore succeeds and matches original content.
-- AC2: Wrong passphrase fails restore with INTEGRITY_ERROR.
-- AC3: Different salts yield different keys for same passphrase.
+- AC1: Benchmark suite runs without errors.
+- AC2: CDC shows significantly better dedup for incrementally modified files (>80% chunk reuse for small edits vs. ~0% for fixed).
+- AC3: CDC throughput is within 2× of fixed chunking (rolling hash overhead is bounded).
 
 **Scope**
-- In scope: KDF support + schema + tests.
-- Out of scope: Argon2 (native dependency), formal KDF benchmarking.
+- In scope: Synthetic benchmarks with in-memory data.
+- Out of scope: CI benchmark tracking, real-world file corpus, regression detection.
 
 **Est. Complexity (LoC)**
-- Prod: ~50
-- Tests: ~40
-- Total: ~90
+- Prod: ~0
+- Tests/Bench: ~120
+- Total: ~120
 
 **Est. Human Working Hours**
-- ~4h
+- ~3h
 
 **Test Plan**
 - Golden path:
-  - derive key with stored salt/params; restore succeeds.
+  - Bench suite completes and prints results table.
 - Failures:
-  - wrong passphrase → decrypt fails INTEGRITY_ERROR.
+  - N/A (benchmarks are informational).
 - Edges:
-  - ensure derived key validated by existing key length validation.
+  - Include 0-byte and 1-byte files in benchmark.
 - Fuzz/stress:
-  - run multiple passphrases and salts (seeded) ensure stability and no collisions in test space.
+  - Run 3 times; verify <20% variance in throughput measurements.
 
 **Definition of Done**
-- DoD1: deriveKey implemented for pbkdf2 and scrypt.
-- DoD2: Manifest schema supports kdf metadata.
-- DoD3: Passphrase workflow documented in SECURITY.md and API.md.
+- DoD1: Benchmark suite added to `test/benchmark/`.
+- DoD2: Results documented in commit message or GUIDE.md addendum.
+- DoD3: Default CDC parameters tuned based on results if needed.
 
 **Blocking**
 - Blocks: None
 
 **Blocked By**
-- Blocked by: Task 1.3
+- Blocked by: Task 10.1
 
 ---
 
-## Task 7.3: Merkle tree manifests for very large files
+# M11 — Locksmith (v3.1.0)
+**Theme:** Multi-recipient encryption via envelope encryption (DEK/KEK model). Each file is encrypted with a random Data Encryption Key; the DEK is wrapped per-recipient. Adding or removing access never re-encrypts the data.
+
+---
+
+## Task 11.1: Envelope encryption (DEK/KEK model)
 
 **User Story**
-As a developer storing extremely large files, I want manifests to scale by using a Merkle structure so the manifest itself doesn't become a bottleneck.
+As a team member, I want each file encrypted with a random data key so that access control is managed by wrapping that key, not by re-encrypting the file.
 
 **Requirements**
-- R1: Add manifest versioning: v1 flat vs v2 merkle.
-- R2: When chunk count exceeds threshold (configurable), split into sub-manifests each referencing up to N chunks.
-- R3: Root manifest references sub-manifest OIDs.
-- R4: restoreFile and readManifest transparently handle both v1 and v2 manifests.
-- R5: Backward compatibility: v2 code reads v1 manifests.
+- R1: On encrypted store, generate a random 32-byte Data Encryption Key (DEK).
+- R2: Encrypt file content with the DEK using existing AES-256-GCM pipeline.
+- R3: Wrap (encrypt) the DEK with each recipient's Key Encryption Key (KEK) using AES-256-GCM key-wrapping.
+- R4: Store wrapped DEKs in manifest under `encryption.recipients: [{ label, wrappedDek, nonce, tag }]`.
+- R5: On restore, caller provides their KEK; system tries each recipient entry, unwraps DEK, then decrypts content.
+- R6: Single-recipient mode (existing behavior) remains a special case: 1 recipient, no label required.
+- R7: Backward compatible: old manifests (direct key encryption, no `recipients` field) still restore correctly using the existing code path.
 
 **Acceptance Criteria**
-- AC1: Large simulated file produces v2 manifest structure.
-- AC2: restore from v2 manifest matches original bytes.
-- AC3: v1 manifest still restores successfully under v2 code.
+- AC1: Multi-recipient store → restore with any recipient's KEK succeeds.
+- AC2: Restore with a non-recipient KEK throws `NO_MATCHING_RECIPIENT`.
+- AC3: Old-style manifests (no `recipients` field) restore as before.
+- AC4: DEK never appears in plaintext in the manifest.
 
 **Scope**
-- In scope: Merkle manifest implementation + schema versioning + tests.
-- Out of scope: Parallel chunk reads, content-defined chunking (CDC).
+- In scope: DEK/KEK model, wrap/unwrap, manifest schema changes, backward compat.
+- Out of scope: Asymmetric KEKs (X25519), key exchange protocols, KMS integration, HSM support.
 
 **Est. Complexity (LoC)**
-- Prod: ~100
-- Tests: ~80
-- Total: ~180
+- Prod: ~120 (envelope encrypt/decrypt + CasService changes + schema)
+- Tests: ~100 (multi-recipient round-trip, wrong key, backward compat)
+- Total: ~220
 
 **Est. Human Working Hours**
 - ~8h
 
 **Test Plan**
 - Golden path:
-  - exceed threshold → store returns v2 manifest; restore succeeds.
-  - backward compat: v1 manifest restore succeeds.
+  - Store with 2 recipients → restore with recipient A → byte-compare original.
+  - Store with 2 recipients → restore with recipient B → byte-compare original.
+  - Single-recipient store → restore as before.
 - Failures:
-  - missing sub-manifest blob → typed failure.
+  - Restore with non-recipient key → NO_MATCHING_RECIPIENT.
+  - Tampered wrappedDek → DEK_UNWRAP_FAILED.
 - Edges:
-  - exactly at threshold boundary uses v1 or v2 per spec (define and test).
+  - 1 recipient (degenerate multi-recipient = current behavior).
+  - 10 recipients → all can restore.
+  - Old manifest without recipients field → restore unchanged.
 - Fuzz/stress:
-  - simulate 100k chunk references via generated sub-manifests and ensure traversal remains correct and bounded.
+  - 50 random plaintexts × 3 random KEKs → all round-trip correctly.
+  - Tamper each recipient entry independently → correct error for each.
 
 **Definition of Done**
-- DoD1: Manifest versioning implemented and documented.
-- DoD2: restoreFile/readManifest support both versions.
-- DoD3: Tests cover v1/v2 + failure modes.
+- DoD1: Envelope encryption implemented in CasService.
+- DoD2: Schema updated with recipients field.
+- DoD3: Backward compatibility tested with v1/v2 manifests.
+- DoD4: Security design documented in SECURITY.md addendum.
+
+**Blocking**
+- Blocks: Task 11.2, Task 11.4, Task 12.1
+
+**Blocked By**
+- Blocked by: None
+
+---
+
+## Task 11.2: Recipient management API
+
+**User Story**
+As a developer, I want to add and remove recipients from an existing encrypted asset without re-encrypting the data.
+
+**Requirements**
+- R1: Add `CasService.addRecipient({ manifest, existingKey, newRecipientKey, label })`.
+  - Unwrap DEK with `existingKey`, re-wrap with `newRecipientKey`, append to recipients list.
+  - Return updated Manifest (new value object — manifests are immutable).
+- R2: Add `CasService.removeRecipient({ manifest, label })`.
+  - Remove recipient entry by label.
+  - Return updated Manifest.
+- R3: Removing last recipient throws `CasError('CANNOT_REMOVE_LAST_RECIPIENT')`.
+- R4: Adding duplicate label throws `CasError('RECIPIENT_ALREADY_EXISTS')`.
+- R5: Updated manifest must be re-persisted (`createTree` + vault update) by the caller.
+
+**Acceptance Criteria**
+- AC1: addRecipient → new manifest has additional recipient entry.
+- AC2: removeRecipient → manifest has one fewer recipient entry.
+- AC3: Data is never re-encrypted (only DEK is re-wrapped).
+- AC4: All existing recipients can still restore after addRecipient.
+
+**Scope**
+- In scope: Add/remove recipient methods + manifest mutation + validation.
+- Out of scope: Batch operations, per-recipient permissions, key escrow.
+
+**Est. Complexity (LoC)**
+- Prod: ~100 (add/remove methods + validation)
+- Tests: ~80 (add, remove, edge cases, round-trips)
+- Total: ~180
+
+**Est. Human Working Hours**
+- ~6h
+
+**Test Plan**
+- Golden path:
+  - Store with 1 recipient → addRecipient → both can restore.
+  - Store with 2 recipients → removeRecipient → remaining recipient restores.
+- Failures:
+  - addRecipient with wrong existingKey → DEK_UNWRAP_FAILED.
+  - Add duplicate label → RECIPIENT_ALREADY_EXISTS.
+  - Remove last recipient → CANNOT_REMOVE_LAST_RECIPIENT.
+  - Remove nonexistent label → RECIPIENT_NOT_FOUND.
+- Edges:
+  - Add 100 recipients → all can restore.
+  - Remove all but 1 → that 1 still works.
+- Fuzz/stress:
+  - Repeatedly add/remove recipients (100 cycles) → final recipient set is correct.
+
+**Definition of Done**
+- DoD1: addRecipient and removeRecipient implemented and exposed via facade.
+- DoD2: Edge cases tested.
+- DoD3: API documented in API.md.
+
+**Blocking**
+- Blocks: Task 11.4
+
+**Blocked By**
+- Blocked by: Task 11.1
+
+---
+
+## Task 11.3: Manifest schema for multi-recipient metadata
+
+**User Story**
+As a maintainer, I want the multi-recipient manifest structure validated by Zod schema so malformed recipient entries are caught early.
+
+**Requirements**
+- R1: Add `RecipientSchema` to ManifestSchema.js: `{ label: string, wrappedDek: base64 string, nonce: base64 string, tag: base64 string, kekType?: string }`.
+- R2: Extend `EncryptionSchema` with optional `recipients: z.array(RecipientSchema)`.
+- R3: Existing encryption metadata (nonce, tag on the outer level) represents the DEK encryption of the file content.
+- R4: Validate: if `recipients` is present and non-empty, at least one entry must exist.
+- R5: Register error codes: `NO_MATCHING_RECIPIENT`, `DEK_UNWRAP_FAILED`, `RECIPIENT_NOT_FOUND`, `RECIPIENT_ALREADY_EXISTS`, `CANNOT_REMOVE_LAST_RECIPIENT`.
+
+**Acceptance Criteria**
+- AC1: Manifest with valid recipients passes schema validation.
+- AC2: Manifest with malformed recipient (missing label, bad wrappedDek) fails validation.
+- AC3: Manifest without recipients field passes (backward compat).
+
+**Scope**
+- In scope: Schema definitions + error code registration.
+- Out of scope: Runtime encryption logic (covered by Tasks 11.1 and 11.2).
+
+**Est. Complexity (LoC)**
+- Prod: ~40 (schema definitions)
+- Tests: ~50 (schema validation positive/negative)
+- Total: ~90
+
+**Est. Human Working Hours**
+- ~3h
+
+**Test Plan**
+- Golden path:
+  - Valid manifest with 2 recipients → schema passes.
+- Failures:
+  - Missing label → schema rejects.
+  - Missing wrappedDek → schema rejects.
+  - Non-string wrappedDek → schema rejects.
+- Edges:
+  - Empty recipients array → passes schema (runtime validates separately).
+  - Recipients with unknown extra fields → stripped by schema.
+- Fuzz/stress:
+  - 100 random malformed recipient objects → all correctly rejected.
+
+**Definition of Done**
+- DoD1: RecipientSchema and error codes added.
+- DoD2: Schema tests cover positive and negative paths.
 
 **Blocking**
 - Blocks: None
 
 **Blocked By**
-- Blocked by: Task 2.1, Task 4.1
+- Blocked by: None (can be done in parallel with Task 11.1)
+
+---
+
+## Task 11.4: CLI multi-recipient support
+
+**User Story**
+As a CLI user, I want to encrypt assets for multiple recipients and manage the recipient list from the terminal.
+
+**Requirements**
+- R1: Add `--recipient <label:keyfile>` repeatable flag to `git cas store`. Each occurrence adds a recipient KEK.
+- R2: Add `git cas recipient add <slug> --label <label> --key-file <path> --existing-key-file <path>`.
+- R3: Add `git cas recipient remove <slug> --label <label>`.
+- R4: Add `git cas recipient list <slug>` — shows recipient labels.
+- R5: `git cas restore --key-file <path>` automatically scans recipient list for a matching KEK.
+
+**Acceptance Criteria**
+- AC1: Store with 2 `--recipient` flags → manifest has 2 recipients.
+- AC2: `recipient add` → manifest updated in vault (new tree OID committed).
+- AC3: `recipient remove` → manifest updated in vault.
+- AC4: `recipient list` → shows labels.
+- AC5: Restore with any recipient's key file → succeeds.
+
+**Scope**
+- In scope: CLI commands for multi-recipient workflows.
+- Out of scope: Passphrase-based recipients (key-file only), interactive key generation.
+
+**Est. Complexity (LoC)**
+- Prod: ~60 (new subcommands + flag handling)
+- Tests: ~30
+- Total: ~90
+
+**Est. Human Working Hours**
+- ~3h
+
+**Test Plan**
+- Golden path:
+  - Store with 2 recipients → restore with each → success.
+  - Add recipient → restore with new key → success.
+  - Remove recipient → restore with removed key → fails.
+  - List → shows expected labels.
+- Failures:
+  - Add with wrong existing key → exit 1.
+  - Remove last recipient → exit 1 with CANNOT_REMOVE_LAST_RECIPIENT.
+- Edges:
+  - Single recipient via CLI → same as current behavior.
+- Fuzz/stress:
+  - None (thin CLI wrapper over tested API).
+
+**Definition of Done**
+- DoD1: Multi-recipient CLI commands implemented.
+- DoD2: Full CLI round-trip tested.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: Task 11.2
+
+---
+
+# M12 — Carousel (v3.2.0)
+**Theme:** Key rotation without re-encrypting data. The DEK/KEK model from M11 makes this possible — rotating a key means re-wrapping the DEK, not re-encrypting blobs. Includes vault-level rotation for changing the master passphrase.
+
+---
+
+## Task 12.1: Key rotation workflow
+
+**User Story**
+As an operator, I want to rotate encryption keys without re-encrypting the actual data, so key compromise doesn't require re-storing all assets.
+
+**Requirements**
+- R1: Add `CasService.rotateKey({ manifest, oldKey, newKey, label? })`.
+- R2: Unwrap DEK using `oldKey`, re-wrap with `newKey`, update recipient entry (or all entries if no label specified).
+- R3: Return updated Manifest. Caller must persist via `createTree()` + vault update.
+- R4: Data blobs are never re-read or re-encrypted — only the DEK wrapping changes.
+- R5: Track rotation with `keyVersion` counter in manifest encryption metadata.
+- R6: If the manifest uses legacy (non-envelope) encryption, throw `ROTATION_NOT_SUPPORTED` with hint to re-store using envelope encryption.
+
+**Acceptance Criteria**
+- AC1: rotateKey → restore with new key succeeds, old key fails.
+- AC2: `keyVersion` increments after rotation.
+- AC3: Data blobs are never accessed during rotation (spy: zero readBlob calls).
+- AC4: Legacy manifest → `ROTATION_NOT_SUPPORTED` error.
+
+**Scope**
+- In scope: Key rotation method + key version tracking.
+- Out of scope: Automatic vault-wide rotation (Task 12.4), key version history/audit log, scheduled rotation policies.
+
+**Est. Complexity (LoC)**
+- Prod: ~80 (rotation logic + version tracking)
+- Tests: ~60 (round-trip, old-key-fails, version increment, legacy error)
+- Total: ~140
+
+**Est. Human Working Hours**
+- ~5h
+
+**Test Plan**
+- Golden path:
+  - Store → rotateKey → restore with new key → byte-compare original.
+  - Verify old key no longer works after rotation.
+  - Verify keyVersion incremented.
+- Failures:
+  - rotateKey with wrong oldKey → DEK_UNWRAP_FAILED.
+  - rotateKey on legacy manifest → ROTATION_NOT_SUPPORTED.
+- Edges:
+  - Rotate twice → keyVersion = 2, both old keys fail.
+  - Rotate with label → only that recipient updated, others unchanged.
+- Fuzz/stress:
+  - 20 sequential rotations → final key works, all 19 previous keys fail, keyVersion = 20.
+
+**Definition of Done**
+- DoD1: rotateKey implemented and exposed via facade.
+- DoD2: keyVersion tracking in manifest.
+- DoD3: Legacy manifest guard in place.
+- DoD4: Security implications documented in SECURITY.md.
+
+**Blocking**
+- Blocks: Task 12.3, Task 12.4
+
+**Blocked By**
+- Blocked by: Task 11.1
+
+---
+
+## Task 12.2: Key version tracking in manifest
+
+**User Story**
+As a security auditor, I want to see which key version was used for each recipient so I can verify rotation compliance.
+
+**Requirements**
+- R1: Add `keyVersion` field (non-negative integer, default 0) to manifest `encryption` metadata.
+- R2: Each recipient entry carries `keyVersion` indicating which KEK version was used to wrap the DEK.
+- R3: `rotateKey()` increments manifest-level `keyVersion` and updates the rotated recipient's `keyVersion`.
+- R4: Extend ManifestSchema `EncryptionSchema` to include optional `keyVersion` field.
+- R5: Old manifests without `keyVersion` treated as version 0 (backward compatible).
+
+**Acceptance Criteria**
+- AC1: New manifests include `keyVersion: 0` by default (or omit for backward compat).
+- AC2: After rotation, manifest `keyVersion` increments.
+- AC3: Each recipient's `keyVersion` reflects when their wrapping was last updated.
+- AC4: Old manifests without `keyVersion` read correctly (treated as 0).
+
+**Scope**
+- In scope: Schema extension + version tracking logic.
+- Out of scope: Version history/audit log, policy enforcement (e.g., "rotate after N days"), automated compliance checks.
+
+**Est. Complexity (LoC)**
+- Prod: ~30 (schema + version logic in rotateKey)
+- Tests: ~40 (version increment, backward compat, per-recipient version)
+- Total: ~70
+
+**Est. Human Working Hours**
+- ~2h
+
+**Test Plan**
+- Golden path:
+  - Store → keyVersion 0. Rotate → keyVersion 1.
+- Failures:
+  - Manually set negative keyVersion → schema rejects.
+- Edges:
+  - Old manifest with no keyVersion → treated as 0.
+  - Multi-recipient: rotate one recipient → only that recipient's keyVersion changes.
+- Fuzz/stress:
+  - 100 sequential version increments → correct final version value.
+
+**Definition of Done**
+- DoD1: keyVersion in schema and runtime.
+- DoD2: Version tracking tested.
+- DoD3: Backward compatibility verified.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: Task 11.1 (needs recipients in schema)
+
+---
+
+## Task 12.3: CLI key rotation commands
+
+**User Story**
+As an operator, I want to rotate keys from the command line so I can perform routine key maintenance without writing scripts.
+
+**Requirements**
+- R1: Add `git cas rotate --slug <slug> --old-key-file <path> --new-key-file <path> [--label <label>]`.
+- R2: Reads manifest from vault, calls `rotateKey()`, persists updated manifest (createTree + vault update with `--force`).
+- R3: Prints new tree OID on success.
+- R4: Add `--oid <tree-oid>` as alternative to `--slug` (prints updated manifest, doesn't touch vault).
+
+**Acceptance Criteria**
+- AC1: `git cas rotate --slug myfile --old-key-file old.key --new-key-file new.key` → vault updated.
+- AC2: Subsequent restore with new key succeeds; old key fails.
+- AC3: keyVersion printed or included in JSON output.
+
+**Scope**
+- In scope: `rotate` CLI command.
+- Out of scope: Interactive key generation, passphrase-based rotation (use `vault rotate` for that).
+
+**Est. Complexity (LoC)**
+- Prod: ~50 (new subcommand)
+- Tests: ~30
+- Total: ~80
+
+**Est. Human Working Hours**
+- ~2h
+
+**Test Plan**
+- Golden path:
+  - Store → rotate via CLI → restore with new key → success.
+- Failures:
+  - Wrong old key → exit 1 with DEK_UNWRAP_FAILED.
+  - Legacy (non-envelope) manifest → exit 1 with ROTATION_NOT_SUPPORTED.
+- Edges:
+  - Rotate with --label → only named recipient updated.
+- Fuzz/stress:
+  - None (thin wrapper over tested API).
+
+**Definition of Done**
+- DoD1: `rotate` command added.
+- DoD2: Full CLI round-trip tested.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: Task 12.1
+
+---
+
+## Task 12.4: Vault-level key rotation
+
+**User Story**
+As an operator, I want to rotate the vault passphrase so a compromised passphrase can be revoked without re-storing all assets.
+
+**Requirements**
+- R1: Add `ContentAddressableStore.rotateVaultPassphrase({ oldPassphrase, newPassphrase, kdfOptions? })`.
+- R2: Derive old KEK from `oldPassphrase` + stored KDF params. Derive new KEK from `newPassphrase` (new salt, optionally new algorithm).
+- R3: For each vault entry with envelope encryption: unwrap DEK with old KEK, re-wrap with new KEK.
+- R4: Update vault metadata with new KDF params (new salt, potentially new algorithm/iterations).
+- R5: Atomic: all entries rotated in a single vault commit. CAS retry on conflict.
+- R6: Add `git cas vault rotate --old-passphrase <old> --new-passphrase <new> [--algorithm <alg>]` CLI command.
+
+**Acceptance Criteria**
+- AC1: After rotation, all entries restorable with new passphrase.
+- AC2: Old passphrase no longer works for any entry.
+- AC3: Vault metadata updated with new KDF params.
+- AC4: Atomic: partial rotation never committed (all-or-nothing).
+
+**Scope**
+- In scope: Vault-level rotation API + CLI command.
+- Out of scope: Per-entry passphrase rotation (use Task 12.1), online rotation (vault is locked during rotation), rollback on failure.
+
+**Est. Complexity (LoC)**
+- Prod: ~60 (rotation logic + CLI command)
+- Tests: ~50 (round-trip, atomicity, backward compat)
+- Total: ~110
+
+**Est. Human Working Hours**
+- ~4h
+
+**Test Plan**
+- Golden path:
+  - Init vault with passphrase A → store 3 entries → rotate to passphrase B → restore all 3 with B.
+- Failures:
+  - Wrong old passphrase → exit 1 with DEK_UNWRAP_FAILED.
+  - Concurrent vault update during rotation → CAS retry or VAULT_CONFLICT.
+- Edges:
+  - Vault with no encrypted entries → metadata updated, no DEK rotation needed.
+  - Vault with 1 entry → atomic commit with single rotation.
+- Fuzz/stress:
+  - Rotate 10 times sequentially → final passphrase works, all 9 prior fail.
+
+**Definition of Done**
+- DoD1: Vault rotation implemented and exposed via facade.
+- DoD2: CLI command added.
+- DoD3: Atomicity verified (no partial rotations).
+- DoD4: SECURITY.md updated with vault rotation guidance.
+
+---
+
+# 7) Feature Matrix
+
+Competitive landscape for content-addressed storage, encrypted binary assets, and large-file Git tooling. Rows represent the union of features across the space — not just what git-cas offers, but what users encounter and expect when evaluating tools in this category.
+
+**Legend:** ✅ Yes | ⚠️ Partial | ❌ No | 🗓 Planned | N/A Not applicable
+
+**Competitors:**
+- **Git LFS** — Large file storage via external server + pointer files
+- **git-annex** — Distributed file management with GPG encryption and location tracking
+- **Restic** — Encrypted backup with CDC dedup
+- **Age** — Modern file encryption primitive (not a storage system)
+- **DVC** — Data/ML version control with multi-backend remotes
+
+---
+
+### Storage & Chunking
+
+| Feature | git-cas v2.0 | Planned | Git LFS | git-annex | Restic | Age | DVC | Use Case | Remarks | What it would take |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Content-addressed storage | ✅ SHA-256 | — | ✅ SHA-256 | ✅ SHA-256/512 | ✅ SHA-256 | ❌ | ✅ MD5 | Dedup, integrity, immutability | git-cas is Git-native; others use separate object stores | — |
+| Fixed-size chunking | ✅ 256 KiB default, configurable | — | ❌ | ⚠️ Special remotes only | ❌ | ❌ | ❌ | Break large files into stable blobs | Simple and deterministic; poor dedup on edits | — |
+| Content-defined chunking (CDC) | ❌ | 🗓 M10 Hydra | ❌ | ❌ | ✅ Rabin fingerprint, 512K–8M | ❌ | ❌ | Sub-file dedup on versioned data | Only Restic offers this today; dramatically better dedup | Buzhash engine + ChunkingPort. ~350 LoC, ~12h (Task 10.1) |
+| Sub-file deduplication | ✅ Via chunking | ✅ Via CDC | ❌ | ⚠️ Chunk-level only | ✅ Via CDC | ❌ | ❌ | Avoid storing redundant bytes | Fixed chunks dedup exact matches; CDC handles shifted content | CDC (M10) improves from exact-match to shift-tolerant |
+| File-level deduplication | ✅ Git ODB | — | ✅ | ✅ | ✅ | ❌ | ✅ | Identical files stored once | All CAS systems get this for free | — |
+| Git-native storage (ODB) | ✅ Blobs + trees | — | ❌ Separate LFS store | ⚠️ Pointers in ODB, content in annex | ❌ Custom format | ❌ | ❌ Cache dir | Inspectable via `git log`, replicable via `git push` | Unique to git-cas. Competitors use custom storage layers | — |
+| External server required | ❌ | — | ✅ LFS server | ❌ | ❌ | ❌ | ❌ | Self-contained local operation | git-cas and git-annex work fully offline. LFS requires server infra | — |
+
+---
+
+### Encryption & Key Management
+
+| Feature | git-cas v2.0 | Planned | Git LFS | git-annex | Restic | Age | DVC | Use Case | Remarks | What it would take |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Client-side encryption | ✅ AES-256-GCM | — | ❌ | ✅ GPG | ✅ AES-256-CTR + Poly1305 | ✅ ChaCha20-Poly1305 | ❌ | Protect data at rest in untrusted storage | git-cas is the only Git-native tool with integrated encryption | — |
+| Authenticated encryption (AEAD) | ✅ GCM auth tag | — | ❌ | ⚠️ GPG signature optional | ✅ Poly1305 | ✅ Poly1305 | ❌ | Tamper detection + confidentiality | GCM and Poly1305 both provide authentication. GPG can but doesn't by default | — |
+| Per-chunk encryption | ✅ Streaming | — | ❌ | ❌ Whole-file | ❌ Per-pack | ✅ 64 KiB chunks | ❌ | Encrypt without buffering full file | git-cas and Age both stream; Restic encrypts packed blobs | — |
+| Multi-recipient encryption | ❌ | 🗓 M11 Locksmith | ❌ | ✅ Multiple GPG keys | ✅ Multiple passwords | ✅ Multiple X25519 | ❌ | Team access without sharing a single key | Envelope encryption (DEK/KEK model). ~220 LoC, ~8h (Task 11.1) | DEK/KEK model + recipient management. ~580 LoC total, ~20h (M11) |
+| Key rotation (no re-encrypt) | ❌ | 🗓 M12 Carousel | N/A | ⚠️ Can add keys; revoke requires re-encrypt | ✅ Re-wrap master key | ❌ | N/A | Respond to key compromise without re-storing data | Requires DEK/KEK model. Re-wraps DEK, data blobs untouched | Depends on M11. rotateKey + vault rotation. ~400 LoC, ~13h (M12) |
+| KDF / passphrase keys | ✅ PBKDF2, scrypt | — | ❌ | ✅ GPG S2K | ✅ scrypt | ✅ scrypt | ❌ | Derive keys from passwords instead of managing raw bytes | git-cas supports both PBKDF2 (100k iterations) and scrypt | — |
+| Argon2 KDF | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Memory-hard KDF resists GPU/ASIC attacks | No tool in this space supports Argon2 yet. Would require native/WASM addon | ~80 LoC + native dep. ~4h. Low priority — scrypt is adequate |
+| Hardware security (YubiKey/HSM) | ❌ | ❌ | ❌ | ✅ GPG smartcard | ❌ | ✅ age-plugin-yubikey | ❌ | Keys never leave hardware token | Would require plugin system or GPG integration | Plugin architecture + PIV applet integration. ~300 LoC, ~16h. Low priority |
+| SSH key as encryption identity | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ ed25519/RSA | ❌ | Encrypt to existing SSH keys without new key material | Age's signature feature; niche but convenient | X25519 key derivation from SSH ed25519. ~150 LoC, ~8h. Low priority |
+
+---
+
+### Compression & I/O
+
+| Feature | git-cas v2.0 | Planned | Git LFS | git-annex | Restic | Age | DVC | Use Case | Remarks | What it would take |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Compression | ✅ gzip | — | ❌ | ⚠️ Via GPG (zlib/bzip2) | ✅ zstandard | ❌ | ❌ | Reduce storage size for compressible data | Compress-before-encrypt pipeline. Only git-cas and Restic offer explicit control | — |
+| Compression algorithm selection | ❌ gzip only | ❌ | ❌ | ⚠️ GPG's choice | ✅ zstd auto/max/off | ❌ | ❌ | Tune speed vs. ratio per workload | zstd is faster + better ratio than gzip. Would need CompressionPort | CompressionPort + zstd adapter. ~120 LoC, ~6h. Medium priority |
+| Streaming store (O(1) memory) | ✅ AsyncIterable | — | ⚠️ Transfer adapters | ✅ GPG pipeline | ✅ Pack streaming | ✅ 64 KiB chunks | ❌ | Store arbitrarily large files without OOM | git-cas chunks and encrypts in streaming fashion | — |
+| Streaming restore (O(1) memory) | ❌ Buffers in memory | 🗓 M8 Spit Shine | ⚠️ | ✅ | ✅ | ✅ | ❌ | Restore large files without OOM | Current restore() buffers entire file. Asymmetry with store path | restoreStream() + restoreFile refactor. ~140 LoC, ~4h (Task 8.1) |
+| Partial restore / byte-range | ❌ | ❌ | ❌ | ⚠️ Per-chunk retrieval | ✅ FUSE mount | ❌ | ❌ | Extract byte ranges without restoring full file | Manifest has chunk offsets; byte-range index is feasible | Chunk offset index + range API. ~200 LoC, ~10h. Low priority |
+
+---
+
+### Manifests & Indexing
+
+| Feature | git-cas v2.0 | Planned | Git LFS | git-annex | Restic | Age | DVC | Use Case | Remarks | What it would take |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Manifest / index format | ✅ JSON or CBOR | — | Pointer files (text) | Symlinks + location log | JSON index (encrypted) | Binary header | YAML .dvc files | Describe stored assets for retrieval | git-cas is unique in offering codec choice (JSON for humans, CBOR for perf) | — |
+| Codec pluggability | ✅ JsonCodec, CborCodec | — | ❌ | ❌ | ❌ | ❌ | ❌ | Choose manifest format per use case | Extensible via CodecPort. No other tool offers this | — |
+| Merkle tree manifests | ✅ v2 auto-split | — | ❌ | ❌ | ❌ | ❌ | ❌ | Scale manifests for millions of chunks | Auto-splits at threshold (default 1000). Transparent reconstitution | — |
+| Vault / ref-based indexing | ✅ refs/cas/vault | — | ❌ | ✅ git-annex branch | ❌ | ❌ | ❌ | GC-safe asset index that survives `git gc` | CAS semantics with retry. Unique among Git-native tools | — |
+| Manifest versioning | ✅ v1 flat, v2 Merkle | 🗓 M10 adds chunking field | Pointer v1 only | ❌ | ❌ | ❌ | ❌ | Evolve format without breaking old manifests | Full backward compat: v2 code reads v1 manifests | Additive schema fields for CDC metadata (Task 10.3) |
+
+---
+
+### Lifecycle & Management
+
+| Feature | git-cas v2.0 | Planned | Git LFS | git-annex | Restic | Age | DVC | Use Case | Remarks | What it would take |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Integrity verification | ✅ SHA-256 + GCM tag | — | ✅ SHA-256 | ✅ `annex fsck` | ✅ `restic check` | ✅ Poly1305 | ✅ MD5/SHA256 | Detect corruption or tampering | Per-chunk digest + auth tag. `verifyIntegrity()` API | — |
+| Garbage collection | ⚠️ Vault prevents GC loss; manual `git gc` for cleanup | — | ✅ `lfs prune` | ✅ `unused` + `dropunused` | ✅ `forget` + `prune` | N/A | ✅ `dvc gc` | Reclaim storage from deleted assets | Vault refs keep blobs reachable. No automated sweeper | Vault squash + storage stats. ~80 LoC, ~3h. Low priority |
+| Lifecycle management | ✅ readManifest, deleteAsset, findOrphanedChunks | — | ⚠️ Prune + server policies | ✅ Full (unused, drop, dead, whereis, numcopies) | ✅ Retention policies | N/A | ⚠️ `dvc gc` with scope flags | Inspect, audit, and plan deletions | git-annex is most mature. git-cas provides the primitives | — |
+| Retention policies (time/count) | ❌ | ❌ | ❌ | ❌ | ✅ keep-last, keep-daily, keep-weekly, etc. | N/A | ❌ | Automated pruning by age or count | Backup-oriented feature. Out of scope for CAS library | Policy engine + vault history scanning. ~200 LoC, ~8h. Not planned |
+| Incremental backups / snapshots | ❌ | ❌ | N/A | ✅ Sync transfers only changed content | ✅ Core design | N/A | ✅ Only changed files pushed | Efficient repeated backups | git-cas stores individual assets, not snapshot trees | Snapshot tree structure + diff engine. ~400 LoC, ~20h. Not planned |
+| Location tracking | ❌ | ❌ | ❌ | ✅ `whereis`, numcopies, trust levels | ❌ | N/A | ❌ | Know which remotes hold copies of each file | git-annex's defining feature. Orthogonal to CAS | Location log in vault metadata. ~250 LoC, ~12h. Not planned |
+| FUSE mount | ❌ | ❌ | ❌ | ⚠️ Third-party | ✅ `restic mount` | ⚠️ Rust `rage` only | ❌ | Browse stored assets as a filesystem | Requires platform-specific FUSE bindings | libfuse binding + virtual FS. ~500 LoC, ~24h. Not planned |
+
+---
+
+### Observability & Developer Experience
+
+| Feature | git-cas v2.0 | Planned | Git LFS | git-annex | Restic | Age | DVC | Use Case | Remarks | What it would take |
+|---|---|---|---|---|---|---|---|---|---|---|
+| CLI tool | ✅ `git cas` subcommand | — | ✅ `git lfs` | ✅ `git annex` | ✅ `restic` | ✅ `age` | ✅ `dvc` | Terminal-based workflows | All tools have CLIs. git-cas integrates as a Git subcommand | — |
+| Programmatic API / library | ✅ Node.js (ESM) | — | ⚠️ Go internal | ⚠️ Haskell | ⚠️ Go internal | ✅ Go, Rust, JS, Java, Python | ✅ Python | Integrate CAS into applications | git-cas and Age are the strongest library stories | — |
+| Multi-runtime support | ✅ Node, Bun, Deno | — | ❌ Go only | ❌ Haskell only | ❌ Go only | ✅ Go, Rust, JS, Java, Python | ❌ Python only | Same library works across JS runtimes | Only git-cas and Age support multiple runtimes | — |
+| Progress events (structured) | ✅ EventEmitter (7 events) | — | ✅ Transfer protocol | ⚠️ Terminal bars | ✅ JSON Lines | ❌ | ⚠️ Terminal bars | Build progress bars, logging, monitoring | git-cas emits typed object payloads per chunk | — |
+| CLI progress feedback | ❌ Silent | 🗓 M9 Cockpit | ✅ | ✅ | ✅ | ❌ | ✅ | Users know operations are working | Events exist but CLI doesn't display them | Wire events to stderr counter. ~70 LoC, ~2h (Task 9.1) |
+| Structured output (--json) | ❌ | 🗓 M9 Cockpit | ❌ | ❌ | ✅ `--json` | ❌ | ✅ `--json` | CI/CD pipeline integration | Restic is the gold standard here (JSON Lines for all output) | Global `--json` flag. ~50 LoC, ~1.5h (Task 9.3) |
+| CLI `verify` command | ❌ API only | 🗓 M9 Cockpit | ✅ Implicit on checkout | ✅ `annex fsck` | ✅ `restic check` | ❌ | ✅ `dvc check-ignore` | Audit integrity without restoring | API exists (`verifyIntegrity`); CLI just needs to expose it | 25 LoC, ~1h (Task 9.2) |
+| Actionable error messages | ❌ Generic `err.message` | 🗓 M9 Cockpit | ⚠️ | ⚠️ | ✅ | ❌ | ✅ | Users know what went wrong and what to do next | Error codes exist but CLI doesn't show hints | Error handler + hint map. ~45 LoC, ~1h (Task 9.4) |
+
+---
+
+### Integration & Ecosystem
+
+| Feature | git-cas v2.0 | Planned | Git LFS | git-annex | Restic | Age | DVC | Use Case | Remarks | What it would take |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Multi-backend storage (S3, etc.) | ❌ Git ODB only | ❌ | ⚠️ Custom transfer adapters | ✅ S3, rsync, WebDAV, IPFS, bittorrent, rclone, etc. | ✅ S3, SFTP, Azure, GCS, Swift | N/A | ✅ S3, Azure, GCS, HDFS, SSH | Store content on cloud/remote infrastructure | git-cas deliberately uses Git as the transport layer (push/pull) | Remote backend port. ~300 LoC, ~16h. Not planned — Git remotes serve this role |
+| File locking (pessimistic) | ❌ | ❌ | ✅ Lock API | ❌ | N/A | N/A | ❌ | Prevent concurrent edits on binary files | LFS-specific feature for team workflows on unmergeable files | Lock API on vault entries. ~150 LoC, ~8h. Not planned |
+| Plugin / extension system | ❌ Ports (compile-time) | ❌ | ✅ Transfer adapters | ✅ External special remotes | ❌ | ✅ age-plugin-* | ✅ Remote plugins | Extend with custom backends, crypto, etc. | git-cas uses ports/adapters pattern (hexagonal), but no runtime plugin loading | Runtime plugin discovery. ~200 LoC, ~10h. Not planned |
+| ML experiment tracking | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ Metrics, params, plots, DVCLive | Track ML experiments with data versioning | DVC's differentiator. Out of scope for a CAS library | N/A — different product category |
+| Pipeline / DAG execution | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ `dvc.yaml` + `dvc repro` | Reproducible data processing pipelines | DVC-specific. Out of scope | N/A — different product category |
+| Post-quantum cryptography | ❌ | ❌ | ❌ | ❌ | ❌ | 🗓 X-Wing hybrid | ❌ | Future-proof against quantum attacks | Age has this on its roadmap (X-Wing KEM). Very early-stage across the industry | X-Wing KEM integration. Research-stage. Not planned |
+
+---
+
+### Competitive Summary
+
+|  | git-cas | Git LFS | git-annex | Restic | Age | DVC |
+|---|---|---|---|---|---|---|
+| **Core identity** | Git-native CAS with encryption | Git large file offloading | Distributed file management | Encrypted backup with dedup | File encryption primitive | ML data version control |
+| **Strongest at** | Git ODB integration, pluggable codecs, Merkle manifests, vault | Simplicity, file locking, ecosystem adoption | Backend diversity, location tracking, metadata views | CDC dedup, retention policies, FUSE mount | Multi-recipient, HSM, multi-language, simplicity | ML pipelines, experiment tracking, Python ecosystem |
+| **Weakest at** | No multi-backend, single-key encryption, gzip only | No encryption, no compression, requires server | Complexity, Haskell-only, no CDC | No Git integration, no library API | Not a storage system | No encryption, no chunking, no streaming |
+| **Server required** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Best use case** | Encrypted binary assets in Git repos | Large files in GitHub/GitLab repos | Distributed archive management | Encrypted backups of filesystems | Encrypting files for recipients | ML model/data versioning |
+
+---
+
+### Where git-cas leads
+
+1. **Git-native CAS** — Only tool that stores content directly in Git's object database. Assets are inspectable via `git log`, replicable via `git push`, and addressable via tree OIDs. No custom binary format, no external server.
+2. **Merkle tree manifests** — No competitor offers automatic manifest splitting for very large files.
+3. **Codec pluggability** — JSON for human readability, CBOR for binary efficiency. No other tool lets you choose.
+4. **Vault with CAS semantics** — Atomic ref-based indexing with conflict detection and retry. Assets survive `git gc`.
+5. **Multi-runtime JS library** — Works on Node, Bun, and Deno. Only Age offers comparable multi-runtime coverage.
+
+### Where git-cas trails (and what closes the gap)
+
+1. **Multi-recipient encryption** → M11 Locksmith (v3.1.0). DEK/KEK envelope encryption. ~580 LoC, ~20h.
+2. **Content-defined chunking** → M10 Hydra (v3.0.0). Buzhash CDC engine + ChunkingPort. ~690 LoC, ~22h.
+3. **Key rotation** → M12 Carousel (v3.2.0). Re-wrap DEK without re-encrypting data. ~400 LoC, ~13h.
+4. **Streaming restore** → M8 Spit Shine (v2.1.0). restoreStream() returning AsyncIterable. ~140 LoC, ~4h.
+5. **CLI polish** → M9 Cockpit (v2.2.0). Progress, verify, --json, actionable errors. ~260 LoC, ~7h.
+6. **Multi-backend storage** → Not planned. Git remotes serve as the transport layer by design. Adding S3/SFTP backends would dilute the "Git-native" identity.
+7. **Compression algorithm selection** → Not on roadmap. CompressionPort + zstd adapter would cost ~120 LoC, ~6h. Medium priority.
+8. **FUSE mount / partial restore** → Not planned. Niche for a CAS library. Would require ~500 LoC + platform-specific bindings.
+
+---
+
+# 8) Competitive Analysis — When to Use git-cas (and When Not To)
+
+## The one-line pitch
+
+git-cas is for people who want Git to be the whole stack — object store, transport, access control, audit log — and don't want to bolt on a second system for binary assets.
+
+Every competitor in this space either requires an external server (Git LFS), invents a custom storage format (Restic, DVC), or isn't a storage system at all (Age). git-cas is the only tool that writes content directly into Git's object database as native blobs and trees, meaning your assets travel with `git push`, deduplicate with `git gc`, and are addressable with tree OIDs in commits and tags. If that sentence excited you, this is your tool. If it didn't, keep reading — one of the others might be a better fit.
+
+---
+
+## When to use git-cas
+
+### 1. Encrypted binary assets in a Git monorepo
+
+**Scenario:** You're building a game, a design system, or a firmware project. You have binary assets (textures, fonts, model weights, firmware images) that belong in the same repo as your source code. Some of them are sensitive (signing keys, license bundles, proprietary models) and need to be encrypted at rest, even in private repos.
+
+**Why git-cas:** Assets live in the Git ODB alongside your source. They're committed, branched, tagged, and pushed like any other object. Encryption is AES-256-GCM, integrated into the chunking pipeline, not bolted on after the fact. The vault keeps them GC-safe. You don't need a second storage system, a second credential set, or a second billing account.
+
+**Why not Git LFS:** LFS can't encrypt. LFS requires a server. LFS pointer files are not the content — they're redirects to an external store that you have to provision, pay for, and maintain separately.
+
+**Why not git-annex:** git-annex can do this, but it stores content in `.git/annex/objects`, not in the Git ODB. It requires GPG for encryption (heavyweight, config-heavy, S2K-based KDF). It's a Haskell binary — you can't import it as a library in your Node/TypeScript build system. If you're already in the Haskell ecosystem and need distributed location tracking, git-annex is phenomenal. If you're in the JavaScript ecosystem and want a library, it's the wrong tool.
+
+---
+
+### 2. Self-hosted secret bundles without external infrastructure
+
+**Scenario:** Your team stores deployment secrets, TLS certificates, or environment bundles in a private Git repo. You want encryption at rest, passphrase-based access, and zero dependency on external services (no Vault server, no AWS KMS, no 1Password CLI).
+
+**Why git-cas:** `git cas store ./secrets.tar.gz --slug prod-secrets --tree --vault-passphrase "correct horse battery staple"` — done. Encrypted, vaulted, GC-safe, and replicable to any Git remote. Restore with the passphrase. No infrastructure. No SaaS. No tokens to rotate (until M12 ships, and then you can rotate those too).
+
+**Why not sops/Age:** If your secrets are structured YAML/JSON (Kubernetes secrets, Terraform vars), sops is purpose-built for that — it encrypts individual values within the file, so you can `git diff` the structure without decrypting. git-cas encrypts the entire blob. If you need per-field encryption and diffable ciphertext, use sops. If you need to store opaque binary bundles (tarballs, keystores, firmware signing keys), git-cas is the better fit.
+
+---
+
+### 3. Deterministic, content-addressed artifact storage
+
+**Scenario:** Your CI pipeline produces build artifacts (WASM bundles, compiled binaries, ML model checkpoints). You want to store them content-addressed so identical builds don't duplicate storage, and you want to reference them by tree OID in release commits.
+
+**Why git-cas:** Store the artifact, get a tree OID, commit that OID in your release tag. The artifact is now permanently addressable at that commit. `git cas restore --oid <tree-oid> --out ./artifact.wasm` retrieves it anywhere the repo is cloned. Deduplication is free — if two builds produce identical output, Git stores one copy. Manifests give you a chunk-level inventory with SHA-256 digests.
+
+**Why not DVC:** If your artifacts are outputs of a reproducible pipeline with parameters, metrics, and experiments, DVC is built exactly for that. DVC tracks inputs → outputs through a DAG, supports experiment comparison, and integrates with ML frameworks via DVCLive. git-cas stores blobs — it doesn't understand pipelines, parameters, or metrics. If you need `dvc repro` and `dvc exp`, use DVC. If you need a dumb content-addressed blob store that lives inside Git, use git-cas.
+
+---
+
+### 4. Embedding binary data packs in libraries or SDKs
+
+**Scenario:** You're shipping an npm package or JSR module that needs to bundle a data file (a wasm binary, a trained model, a lookup table) that's too large for Git's comfort zone but too tightly coupled to the code to live in a separate system.
+
+**Why git-cas:** Store the data pack via the programmatic API (`cas.storeFile()`), commit the tree OID, and restore it in your build script or at runtime. The data travels with `git clone` — no post-install fetch from a CDN, no `git lfs pull`, no separate authentication. Your consumers don't need to know git-cas exists; they just clone and build.
+
+**Why not Git LFS:** LFS requires consumers to have LFS installed and configured, and it requires a server to host the objects. If your package is on npm or JSR, the LFS objects don't travel with `npm install` — they're left behind on the LFS server, which your consumers may not have access to.
+
+---
+
+### 5. Offline-first or air-gapped environments
+
+**Scenario:** You're working in a classified environment, an air-gapped network, or a submarine (it happens). You need encrypted binary asset management with zero network dependencies.
+
+**Why git-cas:** Everything is local. `git init`, `npm install @git-stunts/git-cas`, and go. No server, no cloud, no tokens, no DNS resolution. Push to a USB drive via `git bundle` if you need to transfer. Encryption is client-side. The vault is a Git ref. The entire system fits in a single repo directory.
+
+**Why not anything cloud-dependent:** Git LFS needs a server. DVC's value proposition is built around remote storage (S3, GCS). Restic can work locally but is designed around the backup-to-remote workflow. git-annex is the closest competitor here — it also works fully offline — but it brings GPG complexity and doesn't integrate as a JavaScript library.
+
+---
+
+## When NOT to use git-cas
+
+### 1. You need to back up an entire filesystem
+
+**Use instead: Restic**
+
+**Scenario:** You want nightly encrypted backups of `/home` or a database dump directory, with 30-day retention, incremental snapshots, and the ability to mount old snapshots as a virtual filesystem.
+
+**Why not git-cas:** git-cas stores individual assets by slug. It doesn't have a concept of filesystem snapshots, retention policies, or incremental diffing. You'd have to build all of that yourself. It doesn't have FUSE mounting. It doesn't have `--keep-daily 7 --keep-weekly 4 --keep-monthly 12`.
+
+**Why Restic:** Restic was built for exactly this. Content-defined chunking means incremental backups only store changed chunks. Retention policies automate pruning. `restic mount` lets you browse any snapshot. AES-256 encryption is mandatory and always-on. scrypt KDF. JSON progress output. It's the gold standard for encrypted backups.
+
+---
+
+### 2. You need large file storage on GitHub/GitLab with team workflows
+
+**Use instead: Git LFS**
+
+**Scenario:** Your team of 30 designers commits Photoshop files, video assets, and 3D models to a GitHub repo. You need file locking so two people don't edit the same binary simultaneously, and you want GitHub's UI to show file sizes and download links.
+
+**Why not git-cas:** git-cas has no file locking. It has no integration with GitHub's LFS API, no web UI support for previewing large files, and no concept of "tracks" or `.gitattributes`-based auto-detection. You'd be managing everything manually through the CLI or API.
+
+**Why Git LFS:** LFS is the ecosystem default. GitHub, GitLab, Bitbucket, and Gitea all speak the LFS protocol natively. File locking prevents concurrent binary edits. `.gitattributes` tracks patterns automatically. The web UI shows LFS-tracked files with download links. It's less capable (no encryption, no compression, no chunking), but it's the path of least resistance for teams on hosted Git platforms.
+
+---
+
+### 3. You need to distribute files across dozens of storage backends
+
+**Use instead: git-annex**
+
+**Scenario:** You're managing a research dataset that's replicated across 5 university servers (rsync), 2 S3 buckets, a WebDAV share, and a colleague's external hard drive. You need to track which copies exist where, enforce minimum replica counts, and selectively sync subsets.
+
+**Why not git-cas:** git-cas stores everything in the Git ODB. The only "remote" is wherever you `git push` to. There's no concept of special remotes, location tracking, numcopies enforcement, or selective sync. Your data goes where Git goes, period.
+
+**Why git-annex:** This is git-annex's entire reason for existing. It supports S3, rsync, WebDAV, Tahoe-LAFS, bittorrent, IPFS, rclone, and custom external remotes. `git annex whereis` tells you which remotes hold each file. `numcopies` ensures a minimum replica count. `git annex get --from=university-server` fetches specific files from specific remotes. No other tool in this space comes close to this level of distributed file management.
+
+---
+
+### 4. You're building ML pipelines with experiment tracking
+
+**Use instead: DVC**
+
+**Scenario:** You're training ML models. You want to version your training data, track hyperparameters, compare metrics across experiments, and reproduce any previous run. Your data lives on S3 and your code is on GitHub.
+
+**Why not git-cas:** git-cas is a content-addressed blob store. It doesn't understand what a "parameter" is, what a "metric" is, or what a "pipeline stage" is. It can store your model weights, but it can't track which hyperparameters produced them, compare accuracy across runs, or rerun a training pipeline.
+
+**Why DVC:** DVC was purpose-built for this workflow. `dvc.yaml` defines pipeline stages with dependencies and outputs. `dvc exp run` executes experiments with parameter variations. `dvc metrics diff` compares runs. `dvc plots` visualizes training curves. DVCLive integrates with PyTorch and TensorFlow for live logging. The Python API (`dvc.api.open()`) reads versioned data from any DVC remote. It's the MLOps standard.
+
+---
+
+### 5. You need to encrypt files for specific people using their SSH or PGP keys
+
+**Use instead: Age**
+
+**Scenario:** You want to encrypt a file so that Alice (SSH key), Bob (age key), and Carol (YubiKey) can all decrypt it. You don't need storage, chunking, or manifests — just "encrypt this file for these three people."
+
+**Why not git-cas:** git-cas v2.0 uses a single symmetric key. There's no concept of recipients, public-key encryption, or hardware tokens. M11 Locksmith will add multi-recipient via DEK/KEK, but it won't support SSH keys, X25519 identity files, or YubiKey PIV — it's symmetric KEKs only.
+
+**Why Age:** Age is a pure encryption primitive that does one thing exceptionally well. `age -r ssh-ed25519:AAAA... -r age1... -o secret.enc secret.txt` encrypts for two recipients using their existing keys. The `age-plugin-yubikey` adds hardware token support. Implementations exist in Go, Rust, JavaScript, Java, and Python. It's heading toward post-quantum readiness with X-Wing. If your problem is "encrypt a file for specific people," Age is the answer.
+
+---
+
+### 6. Your repo has >10 GB of binary assets and you need fast clone times
+
+**Use instead: Git LFS or DVC**
+
+**Scenario:** Your game repo has 50 GB of textures and audio. New developers need to clone the repo and start working without downloading all 50 GB upfront.
+
+**Why not git-cas:** git-cas stores blobs in the Git ODB. `git clone` downloads everything. There's no lazy fetching, no sparse checkout for binary assets, no "download only what you need." The vault keeps objects reachable, which means `git gc` won't prune them, which means every clone gets the full history of every binary asset.
+
+**Why Git LFS / DVC:** Both use pointer files in the Git tree and store actual content externally. `git clone` downloads only the small pointer files. `git lfs pull` or `dvc pull` fetches the actual content on demand, optionally filtered by path or pattern. For very large asset repositories, this deferred-fetch model is essential for developer productivity.
+
+---
+
+## Decision flowchart
+
+```text
+Do you need encrypted binary storage inside Git's ODB?
+├── YES → git-cas
+│   ├── Need multi-recipient? → Wait for M11 or use Age for the encryption layer
+│   ├── Need CDC dedup? → Wait for M10
+│   └── Need >10 GB with lazy clone? → git-cas is the wrong tool. Use LFS + separate encryption
+│
+├── NO, I need filesystem backups
+│   └── Restic
+│
+├── NO, I need large files on GitHub with team workflows
+│   └── Git LFS
+│
+├── NO, I need distributed file replication across many backends
+│   └── git-annex
+│
+├── NO, I need ML pipeline tracking + data versioning
+│   └── DVC
+│
+└── NO, I just need to encrypt a file for specific people
+    └── Age
+```
+
+---
+
+## The honest assessment
+
+git-cas occupies a specific niche: **Git-native encrypted content-addressed storage for people who want one system, not two.** It's not the best backup tool (Restic is). It's not the best large-file-on-GitHub tool (LFS is). It's not the best distributed file manager (git-annex is). It's not the best ML data versioner (DVC is). It's not the best encryption primitive (Age is).
+
+What it is: the only tool that lets you `git cas store ./model.bin --slug v3-weights --tree --vault-passphrase "secret"`, commit the tree OID, push to any Git remote, and restore it on any machine with `git cas restore --slug v3-weights --out ./model.bin --vault-passphrase "secret"` — no server, no external storage, no second system. Everything is Git objects, Git refs, Git transport.
+
+If that's what you want, nothing else does it. If it's not, the right tool probably isn't git-cas.
