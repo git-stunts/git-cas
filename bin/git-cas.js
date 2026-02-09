@@ -48,7 +48,7 @@ async function deriveVaultKey(cas, metadata, passphrase) {
  * Resolve passphrase from --vault-passphrase flag or GIT_CAS_PASSPHRASE env var.
  */
 function resolvePassphrase(opts) {
-  return opts.vaultPassphrase || process.env.GIT_CAS_PASSPHRASE;
+  return opts.vaultPassphrase ?? process.env.GIT_CAS_PASSPHRASE;
 }
 
 /**
@@ -108,7 +108,7 @@ program
   .option('--key-file <path>', 'Path to 32-byte raw encryption key file')
   .option('--tree', 'Also create a Git tree and print its OID')
   .option('--force', 'Overwrite existing vault entry')
-  .option('--vault-passphrase <pass>', 'Vault-level passphrase for encryption')
+  .option('--vault-passphrase <pass>', 'Vault-level passphrase for encryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(async (file, opts) => {
     try {
@@ -165,7 +165,7 @@ program
   .option('--slug <slug>', 'Resolve tree OID from vault slug')
   .option('--oid <tree-oid>', 'Direct tree OID')
   .option('--key-file <path>', 'Path to 32-byte raw encryption key file')
-  .option('--vault-passphrase <pass>', 'Vault-level passphrase for decryption')
+  .option('--vault-passphrase <pass>', 'Vault-level passphrase for decryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(async (opts) => {
     try {
@@ -202,7 +202,7 @@ const vault = program
 vault
   .command('init')
   .description('Initialize the vault')
-  .option('--vault-passphrase <pass>', 'Passphrase for vault-level encryption')
+  .option('--vault-passphrase <pass>', 'Passphrase for vault-level encryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--algorithm <alg>', 'KDF algorithm (pbkdf2 or scrypt)', 'pbkdf2')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(async (opts) => {
