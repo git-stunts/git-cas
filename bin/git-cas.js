@@ -299,4 +299,4 @@ vault
     }
   });
 
-program.parse();
+await program.parseAsync();

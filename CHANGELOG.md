@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI version string updated from `2.0.0` to `3.0.0`.
 - CLI `vault history --max-count` now validates input as a positive integer.
 - Stale JSDoc in `GitPersistenceAdapter` corrected (removed mention of retries).
+- CLI uses `program.parseAsync()` instead of `program.parse()` to prevent Bun from hanging on async action handlers.
 
 ### Changed
 - **Vault promoted to domain layer** — all vault logic extracted from facade (`index.js`) into `VaultService` (`src/domain/services/VaultService.js`) with `GitRefPort`/`GitRefAdapter` for ref operations. Facade now delegates to VaultService.
