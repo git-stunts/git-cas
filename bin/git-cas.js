@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 import { program } from 'commander';
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
 import ContentAddressableStore from '../index.js';
-import Manifest from '../src/domain/value-objects/Manifest.js';
 
 program
   .name('git-cas')
@@ -68,20 +67,6 @@ async function resolveEncryptionKey(cas, opts) {
   }
   process.stderr.write('warning: passphrase ignored (vault is not encrypted)\n');
   return undefined;
-}
-
-/**
- * Read the manifest from a tree OID.
- */
-async function readManifestFromTree(service, treeOid) {
-  const entries = await service.persistence.readTree(treeOid);
-  const entry = entries.find((e) => e.name.startsWith('manifest.'));
-  if (!entry) {
-    process.stderr.write('error: No manifest found in tree\n');
-    process.exit(1);
-  }
-  const blob = await service.persistence.readBlob(entry.oid);
-  return new Manifest(service.codec.decode(blob));
 }
 
 /**
@@ -172,8 +157,7 @@ program
       validateRestoreFlags(opts);
       const cas = createCas(opts.cwd);
       const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
-      const service = await cas.getService();
-      const manifest = await readManifestFromTree(service, treeOid);
+      const manifest = await cas.readManifest({ treeOid });
 
       const restoreOpts = { manifest };
       const encryptionKey = await resolveEncryptionKey(cas, opts);

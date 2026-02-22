@@ -16,6 +16,8 @@ import { execSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import GitPlumbing from '@git-stunts/plumbing';
+import ContentAddressableStore from '../../index.js';
 
 // Hard gate: refuse to run outside Docker
 if (process.env.GIT_STUNTS_DOCKER !== '1') {
@@ -178,6 +180,57 @@ describe.skipIf(IS_BUN)('vault CLI — encrypted workflow', () => {
     );
     const restored = readFileSync(outPath);
     expect(restored.equals(encOriginal)).toBe(true);
+    rmSync(outDir, { recursive: true, force: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CLI restore --oid with Merkle manifests
+// ---------------------------------------------------------------------------
+describe.skipIf(IS_BUN)('vault CLI — restore --oid with Merkle manifest', () => {
+  let merkleRepoDir;
+  let merkleInputFile;
+  let merkleInputDir;
+  let merkleTreeOid;
+  const merkleOriginal = Buffer.alloc(6 * 1024);
+
+  beforeAll(async () => {
+    for (let i = 0; i < merkleOriginal.length; i++) {
+      merkleOriginal[i] = i % 251;
+    }
+
+    merkleRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-merkle-integ-'));
+    execSync('git init --bare', { cwd: merkleRepoDir, stdio: 'ignore' });
+    ({ filePath: merkleInputFile, dir: merkleInputDir } = tempFile(merkleOriginal));
+
+    const plumbing = GitPlumbing.createDefault({ cwd: merkleRepoDir });
+    const cas = new ContentAddressableStore({
+      plumbing,
+      chunkSize: 1024,
+      merkleThreshold: 2, // Force v2 Merkle manifests for this fixture.
+    });
+
+    const manifest = await cas.storeFile({
+      filePath: merkleInputFile,
+      slug: 'merkle/asset',
+    });
+    merkleTreeOid = await cas.createTree({ manifest });
+  });
+
+  afterAll(() => {
+    rmSync(merkleRepoDir, { recursive: true, force: true });
+    rmSync(merkleInputDir, { recursive: true, force: true });
+  });
+
+  it('restores full content via --oid for v2 manifests', () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-merkle-out-'));
+    const outPath = path.join(outDir, 'restored.bin');
+    const bytesWritten = cli(`restore --oid ${merkleTreeOid} --out ${outPath}`, merkleRepoDir);
+
+    expect(bytesWritten).toBe(String(merkleOriginal.length));
+
+    const restored = readFileSync(outPath);
+    expect(restored.equals(merkleOriginal)).toBe(true);
     rmSync(outDir, { recursive: true, force: true });
   });
 });
