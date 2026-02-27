@@ -142,11 +142,28 @@ describe('dashboard edge cases', () => {
     expect(next.cursor).toBe(0);
   });
 
-  it('load-error sets error and status on model', () => {
+  it('load-error from entries sets error and status on model', () => {
     const app = createDashboardApp(makeDeps());
-    const [next] = app.update({ type: 'load-error', error: 'boom' }, makeModel());
+    const [next] = app.update({ type: 'load-error', source: 'entries', error: 'boom' }, makeModel());
     expect(next.error).toBe('boom');
     expect(next.status).toBe('error');
+  });
+
+  it('load-error from manifest does not set global error', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({ status: 'ready', entries, filtered: entries });
+    const [next] = app.update({ type: 'load-error', source: 'manifest', slug: 'alpha', error: 'oops' }, model);
+    expect(next.status).toBe('ready');
+    expect(next.error).toBeNull();
+  });
+
+  it('loaded-entries clamps cursor to filtered bounds', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({ status: 'loading', cursor: 5, filterText: 'al' });
+    const msg = { type: 'loaded-entries', entries, metadata: null };
+    const [next] = app.update(msg, model);
+    expect(next.cursor).toBe(0);
+    expect(next.filtered).toHaveLength(1);
   });
 
   it('filter-start resets filtered to all entries', () => {

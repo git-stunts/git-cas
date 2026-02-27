@@ -56,12 +56,15 @@ function applyFilter(entries, text) {
  * Handle the loaded-entries message.
  */
 function handleLoadedEntries(msg, model, cas) {
+  const filtered = applyFilter(msg.entries, model.filterText);
+  const cursor = Math.max(0, Math.min(model.cursor, filtered.length - 1));
   const cmds = msg.entries.map(e => loadManifestCmd(cas, e.slug, e.treeOid));
   return [{
     ...model,
     status: 'ready',
     entries: msg.entries,
-    filtered: applyFilter(msg.entries, model.filterText),
+    filtered,
+    cursor,
     metadata: msg.metadata,
   }, cmds];
 }
@@ -139,7 +142,12 @@ function handleAction(action, model, deps) {
 function handleAppMsg(msg, model, cas) {
   if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, cas); }
   if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model); }
-  if (msg.type === 'load-error') { return [{ ...model, status: 'error', error: msg.error }, []]; }
+  if (msg.type === 'load-error') {
+    if (msg.source === 'manifest') {
+      return [model, []];
+    }
+    return [{ ...model, status: 'error', error: msg.error }, []];
+  }
   return [model, []];
 }
 

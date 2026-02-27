@@ -14,7 +14,7 @@ export function loadEntriesCmd(cas) {
       ]);
       return { type: 'loaded-entries', entries, metadata };
     } catch (err) {
-      return { type: 'load-error', error: err.message };
+      return { type: 'load-error', source: 'entries', error: err.message };
     }
   };
 }
@@ -28,7 +28,7 @@ export function loadManifestCmd(cas, slug, treeOid) {
       const manifest = await cas.readManifest({ treeOid });
       return { type: 'loaded-manifest', slug, manifest };
     } catch (err) {
-      return { type: 'load-error', error: err.message };
+      return { type: 'load-error', source: 'manifest', slug, error: err.message };
     }
   };
 }
