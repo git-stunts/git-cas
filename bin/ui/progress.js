@@ -32,7 +32,7 @@ function formatBytes(bytes) {
  * @param {boolean} [options.quiet] - Suppress all progress output.
  * @returns {{ attach(service: EventEmitter): void, detach(): void }}
  */
-export function createStoreProgress({ filePath, chunkSize, quiet }) {
+export function createStoreProgress({ filePath, chunkSize, quiet, fileSize: providedSize }) {
   if (quiet) {
     return { attach() {}, detach() {} };
   }
@@ -42,7 +42,7 @@ export function createStoreProgress({ filePath, chunkSize, quiet }) {
     return { attach() {}, detach() {} };
   }
 
-  const fileSize = statSync(filePath).size;
+  const fileSize = providedSize ?? statSync(filePath).size;
   const totalChunks = fileSize === 0 ? 0 : Math.ceil(fileSize / chunkSize);
 
   if (totalChunks === 0) {

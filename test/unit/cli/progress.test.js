@@ -6,11 +6,9 @@ vi.mock('../../../bin/ui/context.js', () => ({
   getCliContext: () => makeCtx('static'),
 }));
 
-vi.mock('node:fs', () => ({
-  statSync: vi.fn(() => ({ size: 5 * 256 * 1024 })),
-}));
-
 const { createStoreProgress, createRestoreProgress } = await import('../../../bin/ui/progress.js');
+
+const FILE_SIZE = 5 * 256 * 1024;
 
 describe('createStoreProgress', () => {
   it('returns no-op when quiet is true', () => {
@@ -23,7 +21,7 @@ describe('createStoreProgress', () => {
   });
 
   it('attaches and detaches from EventEmitter', () => {
-    const p = createStoreProgress({ filePath: 'test.bin', chunkSize: 256 * 1024, quiet: false });
+    const p = createStoreProgress({ filePath: 'test.bin', chunkSize: 256 * 1024, quiet: false, fileSize: FILE_SIZE });
     const emitter = new EventEmitter();
     p.attach(emitter);
     expect(emitter.listenerCount('chunk:stored')).toBe(1);
@@ -32,7 +30,7 @@ describe('createStoreProgress', () => {
   });
 
   it('tracks chunk events without throwing', () => {
-    const p = createStoreProgress({ filePath: 'test.bin', chunkSize: 256 * 1024, quiet: false });
+    const p = createStoreProgress({ filePath: 'test.bin', chunkSize: 256 * 1024, quiet: false, fileSize: FILE_SIZE });
     const emitter = new EventEmitter();
     p.attach(emitter);
     for (let i = 0; i < 5; i++) {
