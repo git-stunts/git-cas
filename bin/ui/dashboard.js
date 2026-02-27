@@ -61,7 +61,7 @@ function handleLoadedEntries(msg, model, cas) {
     ...model,
     status: 'ready',
     entries: msg.entries,
-    filtered: msg.entries,
+    filtered: applyFilter(msg.entries, model.filterText),
     metadata: msg.metadata,
   }, cmds];
 }
@@ -123,7 +123,7 @@ function handleAction(action, model, deps) {
   if (action.type === 'quit') { return [model, [quit()]]; }
   if (action.type === 'move') { return handleMove(action, model); }
   if (action.type === 'filter-start') {
-    return [{ ...model, filtering: true, filterText: '' }, []];
+    return [{ ...model, filtering: true, filterText: '', filtered: model.entries }, []];
   }
   if (action.type === 'scroll-detail') {
     const scroll = Math.max(0, model.detailScroll + action.delta);

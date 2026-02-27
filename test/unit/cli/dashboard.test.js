@@ -121,6 +121,31 @@ describe('dashboard data loading', () => {
     const [next] = app.update(keyMsg('escape'), model);
     expect(next.filtering).toBe(false);
   });
+
+});
+
+describe('dashboard edge cases', () => {
+  it('filter-backspace removes last char and re-filters', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({ filtering: true, filterText: 'al', entries, filtered: [entries[0]] });
+    const [next] = app.update(keyMsg('backspace'), model);
+    expect(next.filterText).toBe('a');
+    expect(next.filtered).toHaveLength(2);
+  });
+
+  it('load-error sets error on model', () => {
+    const app = createDashboardApp(makeDeps());
+    const [next] = app.update({ type: 'load-error', error: 'boom' }, makeModel());
+    expect(next.error).toBe('boom');
+  });
+
+  it('select on uncached entry returns loadManifestCmd', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({ entries, filtered: entries, cursor: 0 });
+    const [next, cmds] = app.update(keyMsg('enter'), model);
+    expect(next.loadingSlug).toBe('alpha');
+    expect(cmds).toHaveLength(1);
+  });
 });
 
 describe('dashboard view rendering', () => {

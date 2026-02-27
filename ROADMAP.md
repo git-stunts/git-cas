@@ -164,17 +164,17 @@ Return and throw semantics for every public method (current and planned).
 - **Exit 0:** Rotation succeeded, vault updated.
 - **Exit 1:** Wrong old key, unsupported manifest, or vault error.
 
-### CLI: `git cas vault dashboard` *(planned — Task 13.2)*
+### CLI: `git cas vault dashboard` *(implemented)*
 - **Output:** Interactive full-screen TUI in TTY mode; static table in non-TTY.
 - **Exit 0:** User quit normally.
 - **Exit 1:** Vault ref missing or error.
 
-### CLI: `git cas inspect --slug <slug> | --oid <tree-oid> [--heatmap]` *(planned — Tasks 13.4, 13.5)*
+### CLI: `git cas inspect --slug <slug> | --oid <tree-oid> [--heatmap]` *(implemented)*
 - **Output:** Structured manifest anatomy view in TTY; JSON dump in non-TTY.
 - **Exit 0:** Manifest read and displayed.
 - **Exit 1:** Manifest not found or error.
 
-### CLI: `git cas vault history --pretty` *(planned — Task 13.3)*
+### CLI: `git cas vault history --pretty` *(implemented)*
 - **Output:** Color-coded timeline in TTY; plain `git log --oneline` without `--pretty`.
 - **Exit 0:** History displayed.
 - **Exit 1:** Vault ref missing or error.

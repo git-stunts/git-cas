@@ -13,7 +13,8 @@ function formatSize(bytes) {
   if (bytes < 1024) { return `${bytes}B`; }
   if (bytes < 1024 * 1024) { return `${(bytes / 1024).toFixed(1)}K`; }
   if (bytes < 1024 * 1024 * 1024) { return `${(bytes / (1024 * 1024)).toFixed(1)}M`; }
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}G`; }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}G`;
+}
 
 /**
  * Format manifest stats for the list.
@@ -26,11 +27,12 @@ function formatStats(manifest) {
 /**
  * Render a single list item.
  */
-function renderListItem(entry, index, model) {
-  const prefix = index === model.cursor ? '> ' : '  ';
-  const manifest = model.manifestCache.get(entry.slug);
+function renderListItem(entry, index, opts) {
+  const prefix = index === opts.model.cursor ? '> ' : '  ';
+  const manifest = opts.model.manifestCache.get(entry.slug);
   const stats = manifest ? formatStats(manifest) : '...';
-  return `${prefix}${entry.slug}  ${stats}`;
+  const line = `${prefix}${entry.slug}  ${stats}`;
+  return opts.width ? line.slice(0, opts.width) : line;
 }
 
 /**
@@ -70,7 +72,7 @@ function renderListPane(model, size) {
   const { start, end } = visibleRange(model.cursor, items.length, listHeight);
   const lines = [];
   for (let i = start; i < end; i++) {
-    lines.push(renderListItem(items[i], i, model));
+    lines.push(renderListItem(items[i], i, { model, width: size.width }));
   }
   return padToHeight(lines.join('\n'), listHeight, filterLine);
 }
@@ -103,7 +105,7 @@ function renderBody(model, deps, size) {
   const listBasis = Math.floor(size.width * 0.35);
   return flex(
     { direction: 'row', width: size.width, height: size.height, gap: 1 },
-    { content: (_w, h) => renderListPane(model, { height: h }), basis: listBasis },
+    { content: (_w, h) => renderListPane(model, { height: h, width: listBasis }), basis: listBasis },
     { content: (w, h) => renderDetailPane(model, { width: w, height: h, ctx: deps.ctx }), flex: 1 },
   );
 }
