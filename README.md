@@ -44,11 +44,15 @@ We use the object database.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 
-## What's new in v3.0.0
+## What's new in v3.1.0
 
-**Vault** — GC-safe ref-based storage. A single Git ref (`refs/cas/vault`) indexes all stored assets by slug, so `git gc` can no longer silently discard your data. Initialize with `vault init`, store with `--tree`, restore by `--slug`.
+**Interactive vault dashboard** — `git cas vault dashboard` launches a full TUI with split-pane layout, manifest detail view, keyboard navigation, and real-time filtering. Browse entries, inspect chunks, and view encryption status without memorizing CLI flags.
 
-**CLI breaking change** — `git cas restore` no longer takes a positional `<tree-oid>` argument. Use `--oid <tree-oid>` or `--slug <slug>` instead.
+**Progress bars** — `store` and `restore` now show animated progress with throughput reporting. Suppress with `--quiet`.
+
+**Pretty history** — `git cas vault history --pretty` renders a color-coded, paginated timeline of vault commits.
+
+**Inspect command** — `git cas inspect <tree-oid>` renders manifest details with chunk table, encryption info, and compression badges.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 

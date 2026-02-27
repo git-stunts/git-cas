@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] — Bijou (2026-02-27)
+
+### Added
+- **Interactive vault dashboard** (`git cas vault dashboard`) — TEA-based TUI with split-pane layout, manifest detail view, keyboard navigation (`j`/`k`/`Enter`/`/`), and real-time filtering.
+- **Manifest inspector** (`git cas inspect <tree-oid>`) — renders manifest details with chunk table, encryption info, and compression badges.
+- **Progress bars** for `store` and `restore` operations — animated progress with throughput reporting, auto-disabled in non-TTY environments.
+- **History timeline** (`git cas vault history --pretty`) — color-coded, paginated timeline view of vault commit history.
+- **Encryption info card** (`git cas vault info --encryption`) — detailed KDF parameters and encryption configuration display.
+- **Chunk heatmap** — chunk-size distribution grid with colored legend, displayed in manifest detail views.
+- `--quiet` / `-q` flag to suppress all progress output.
+- `GIT_CAS_PASSPHRASE` environment variable — alternative to `--vault-passphrase` flag for passphrase-based encryption.
+- New runtime dependencies: `@flyingrobots/bijou`, `@flyingrobots/bijou-node`, `@flyingrobots/bijou-tui`.
+
+### Fixed
+- CLI `restore` now uses the canonical `readManifest` path instead of duplicating manifest resolution logic.
+- Progress trackers wrapped in `try`/`finally` to prevent event listener leaks when `storeFile` or `restoreFile` throws.
+- Dashboard filter and error lines clamped to pane width to prevent wrapping artifacts in narrow terminals.
+- Dashboard differentiates entry vs manifest load errors — a single manifest preload failure no longer sets global error state.
+- Dashboard clamps cursor position after applying filter on entry load.
+- Passphrase resolution uses nullish coalescing for correct falsy-value handling.
+- Locale-agnostic number formatting in encryption card tests.
+- Consolidated duplicated restore flag validation into `validateRestoreFlags()`.
+- Eliminated `vi.mock('node:fs')` pattern in progress tests for Bun Docker compatibility.
+
 ## [3.0.0] — Vault (2026-02-08)
 
 ### Added

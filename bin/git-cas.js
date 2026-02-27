@@ -14,7 +14,7 @@ import { renderHeatmap } from './ui/heatmap.js';
 program
   .name('git-cas')
   .description('Content Addressable Storage backed by Git')
-  .version('3.0.0')
+  .version('3.1.0')
   .option('-q, --quiet', 'Suppress progress output');
 
 /**

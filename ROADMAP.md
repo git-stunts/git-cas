@@ -190,7 +190,7 @@ Return and throw semantics for every public method (current and planned).
 | v3.0.0  | M10       | Hydra    | Content-defined chunking | |
 | v3.1.0  | M11       | Locksmith | Multi-recipient encryption | |
 | v3.2.0  | M12       | Carousel | Key rotation | |
-| v3.3.0  | M13       | Bijou    | TUI dashboard & progress | |
+| v3.1.0  | M13       | Bijou    | TUI dashboard & progress | ✅ |
 
 ---
 
@@ -208,7 +208,7 @@ Shine    (v2.2.0)       │                          │
            │     (CDC benchmarks)
            │
            v
-    M13 Bijou (v3.3.0)
+    M13 Bijou (v3.1.0) ✅
     (TUI dashboard & progress)
 ```
 
@@ -225,7 +225,7 @@ Shine    (v2.2.0)       │                          │
 | M10| Hydra         | Content-defined chunking   | v3.0.0  | 4     | ~690   | ~22h  |
 | M11| Locksmith     | Multi-recipient encryption | v3.1.0  | 4     | ~580   | ~20h  |
 | M12| Carousel      | Key rotation               | v3.2.0  | 4     | ~400   | ~13h  |
-| M13| Bijou         | TUI dashboard & progress   | v3.3.0  | 6     | ~650   | ~20h  |
+| M13| Bijou         | TUI dashboard & progress   | v3.1.0  | 6     | ~650   | ~20h  |
 |    | **Total**     |                            |         | **26**| **~2,870** | **~89h** |
 
 ---
@@ -1714,7 +1714,7 @@ If that's what you want, nothing else does it. If it's not, the right tool proba
 
 ---
 
-# M13 — Bijou (v3.3.0)
+# M13 — Bijou (v3.1.0) ✅
 **Theme:** Beautiful terminal UI powered by `@flyingrobots/bijou`. Replace silent CLI operations with animated progress, and add an interactive vault dashboard for exploring stored assets. Depends on M9 Cockpit for the `--quiet` flag and event wiring foundation.
 
 ---
