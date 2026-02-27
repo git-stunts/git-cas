@@ -3,12 +3,12 @@
  * @fileoverview Domain service for Content Addressable Storage operations.
  * @module
  */
-import { EventEmitter } from 'node:events';
 import { gunzip, createGzip } from 'node:zlib';
 import { Readable } from 'node:stream';
 import { promisify } from 'node:util';
 import Manifest from '../value-objects/Manifest.js';
 import CasError from '../errors/CasError.js';
+import Semaphore from './Semaphore.js';
 
 const gunzipAsync = promisify(gunzip);
 
@@ -16,39 +16,36 @@ const gunzipAsync = promisify(gunzip);
  * Domain service for Content Addressable Storage operations.
  *
  * Provides chunking, encryption, and integrity verification for storing
- * arbitrary data in Git's object database. Extends {@link EventEmitter} to
- * emit progress events during store/restore operations.
- *
- * @fires CasService#chunk:stored
- * @fires CasService#chunk:restored
- * @fires CasService#file:stored
- * @fires CasService#file:restored
- * @fires CasService#integrity:pass
- * @fires CasService#integrity:fail
- * @fires CasService#error
+ * arbitrary data in Git's object database.
  */
-export default class CasService extends EventEmitter {
+export default class CasService {
   /**
    * @param {Object} options
    * @param {import('../../ports/GitPersistencePort.js').default} options.persistence
    * @param {import('../../ports/CodecPort.js').default} options.codec
    * @param {import('../../ports/CryptoPort.js').default} options.crypto
+   * @param {import('../../ports/ObservabilityPort.js').default} options.observability
    * @param {number} [options.chunkSize=262144] - 256 KiB
    * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
+   * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
    */
-  constructor({ persistence, codec, crypto, chunkSize = 256 * 1024, merkleThreshold = 1000 }) {
-    super();
+  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1 }) {
     if (chunkSize < 1024) {
       throw new Error('Chunk size must be at least 1024 bytes');
     }
     this.persistence = persistence;
     this.codec = codec;
     this.crypto = crypto;
+    this.observability = observability;
     this.chunkSize = chunkSize;
     if (!Number.isInteger(merkleThreshold) || merkleThreshold < 1) {
       throw new Error('Merkle threshold must be a positive integer');
     }
     this.merkleThreshold = merkleThreshold;
+    if (!Number.isInteger(concurrency) || concurrency < 1) {
+      throw new Error('Concurrency must be a positive integer');
+    }
+    this.concurrency = concurrency;
   }
 
   /**
@@ -62,18 +59,17 @@ export default class CasService extends EventEmitter {
   }
 
   /**
-   * Stores a single buffer chunk in Git and appends its metadata to the manifest.
+   * Stores a single buffer chunk in Git, returning its metadata.
    * @private
    * @param {Buffer} buf - The chunk data to store.
-   * @param {Object} manifestData - Mutable manifest accumulator.
+   * @param {number} index - Chunk index.
+   * @returns {Promise<{ index: number, size: number, digest: string, blob: string }>}
    */
-  async _storeChunk(buf, manifestData) {
+  async _storeChunk(buf, index) {
     const digest = await this._sha256(buf);
     const blob = await this.persistence.writeBlob(buf);
-    const entry = { index: manifestData.chunks.length, size: buf.length, digest, blob };
-    manifestData.chunks.push(entry);
-    manifestData.size += buf.length;
-    this.emit('chunk:stored', { index: entry.index, size: entry.size, digest, blob });
+    this.observability.metric('chunk', { action: 'stored', index, size: buf.length, digest, blob });
+    return { index, size: buf.length, digest, blob };
   }
 
   /**
@@ -85,12 +81,26 @@ export default class CasService extends EventEmitter {
    */
   async _chunkAndStore(source, manifestData) {
     let buffer = Buffer.alloc(0);
+    const sem = new Semaphore(this.concurrency);
+    const pending = [];
+    let nextIndex = 0;
+
+    const launchWrite = (buf, idx) => {
+      const p = sem.acquire().then(async () => {
+        try {
+          return await this._storeChunk(buf, idx);
+        } finally {
+          sem.release();
+        }
+      });
+      pending.push(p);
+    };
 
     try {
       for await (const chunk of source) {
         buffer = Buffer.concat([buffer, chunk]);
         while (buffer.length >= this.chunkSize) {
-          await this._storeChunk(buffer.slice(0, this.chunkSize), manifestData);
+          launchWrite(buffer.slice(0, this.chunkSize), nextIndex++);
           buffer = buffer.slice(this.chunkSize);
         }
       }
@@ -99,16 +109,21 @@ export default class CasService extends EventEmitter {
       const casErr = new CasError(
         `Stream error during store: ${err.message}`,
         'STREAM_ERROR',
-        { chunksWritten: manifestData.chunks.length, originalError: err },
+        { chunksWritten: nextIndex, originalError: err },
       );
-      if (this.listenerCount('error') > 0) {
-        this.emit('error', { code: casErr.code, message: casErr.message });
-      }
+      this.observability.metric('error', { code: casErr.code, message: casErr.message });
       throw casErr;
     }
 
     if (buffer.length > 0) {
-      await this._storeChunk(buffer, manifestData);
+      launchWrite(buffer, nextIndex++);
+    }
+
+    const results = await Promise.all(pending);
+    results.sort((a, b) => a.index - b.index);
+    for (const entry of results) {
+      manifestData.chunks.push(entry);
+      manifestData.size += entry.size;
     }
   }
 
@@ -262,8 +277,8 @@ export default class CasService extends EventEmitter {
     }
 
     const manifest = new Manifest(manifestData);
-    this.emit('file:stored', {
-      slug, size: manifest.size, chunkCount: manifest.chunks.length, encrypted: !!encryptionKey,
+    this.observability.metric('file', {
+      action: 'stored', slug, size: manifest.size, chunkCount: manifest.chunks.length, encrypted: !!encryptionKey,
     });
     return manifest;
   }
@@ -366,13 +381,11 @@ export default class CasService extends EventEmitter {
           'INTEGRITY_ERROR',
           { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
         );
-        if (this.listenerCount('error') > 0) {
-          this.emit('error', { code: err.code, message: err.message });
-        }
+        this.observability.metric('error', { code: err.code, message: err.message });
         throw err;
       }
       buffers.push(blob);
-      this.emit('chunk:restored', { index: chunk.index, size: blob.length, digest: chunk.digest });
+      this.observability.metric('chunk', { action: 'restored', index: chunk.index, size: blob.length, digest: chunk.digest });
     }
     return buffers;
   }
@@ -436,12 +449,48 @@ export default class CasService extends EventEmitter {
    * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
    */
   async restore({ manifest, encryptionKey, passphrase }) {
+    const chunks = [];
+    for await (const chunk of this.restoreStream({ manifest, encryptionKey, passphrase })) {
+      chunks.push(chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+    return { buffer, bytesWritten: buffer.length };
+  }
+
+  /**
+   * Restores a file from its manifest as an async iterable of Buffer chunks.
+   *
+   * For unencrypted, uncompressed files this is true per-chunk streaming
+   * with O(chunkSize) memory. For encrypted or compressed files, all chunks
+   * are buffered internally for decryption/decompression, then yielded.
+   *
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
+   * @yields {Buffer}
+   * @throws {CasError} MISSING_KEY if manifest is encrypted but no key is provided.
+   * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
+   */
+  async *restoreStream({ manifest, encryptionKey, passphrase }) {
     const key = await this._resolveEncryptionKey(manifest, encryptionKey, passphrase);
 
     if (manifest.chunks.length === 0) {
-      return { buffer: Buffer.alloc(0), bytesWritten: 0 };
+      return;
     }
 
+    if (manifest.encryption?.encrypted || manifest.compression) {
+      yield* this._restoreBuffered(manifest, key);
+    } else {
+      yield* this._restoreStreaming(manifest);
+    }
+  }
+
+  /**
+   * Buffered restore path for encrypted/compressed manifests.
+   * @private
+   */
+  async *_restoreBuffered(manifest, key) {
     let buffer = Buffer.concat(await this._readAndVerifyChunks(manifest.chunks));
 
     if (manifest.encryption?.encrypted) {
@@ -449,18 +498,74 @@ export default class CasService extends EventEmitter {
     }
 
     if (manifest.compression) {
-      try {
-        buffer = await gunzipAsync(buffer);
-      } catch (err) {
-        if (err instanceof CasError) { throw err; }
-        throw new CasError(`Decompression failed: ${err.message}`, 'INTEGRITY_ERROR', { originalError: err });
-      }
+      buffer = await this._decompress(buffer);
     }
 
-    this.emit('file:restored', {
-      slug: manifest.slug, size: buffer.length, chunkCount: manifest.chunks.length,
+    this.observability.metric('file', {
+      action: 'restored', slug: manifest.slug, size: buffer.length, chunkCount: manifest.chunks.length,
     });
-    return { buffer, bytesWritten: buffer.length };
+
+    for (let offset = 0; offset < buffer.length; offset += this.chunkSize) {
+      yield buffer.subarray(offset, offset + this.chunkSize);
+    }
+  }
+
+  /**
+   * Per-chunk streaming restore with read-ahead.
+   * @private
+   */
+  async *_restoreStreaming(manifest) {
+    const chunks = manifest.chunks;
+    const N = this.concurrency;
+    let totalSize = 0;
+
+    const readAndVerify = async (chunk) => {
+      const blob = await this.persistence.readBlob(chunk.blob);
+      const digest = await this._sha256(blob);
+      if (digest !== chunk.digest) {
+        const err = new CasError(
+          `Chunk ${chunk.index} integrity check failed`,
+          'INTEGRITY_ERROR',
+          { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
+        );
+        this.observability.metric('error', { code: err.code, message: err.message });
+        throw err;
+      }
+      return blob;
+    };
+
+    const ahead = [];
+    for (let i = 0; i < Math.min(N, chunks.length); i++) {
+      ahead.push(readAndVerify(chunks[i]));
+    }
+
+    for (let i = 0; i < chunks.length; i++) {
+      const blob = await ahead[i % N];
+      this.observability.metric('chunk', { action: 'restored', index: chunks[i].index, size: blob.length, digest: chunks[i].digest });
+      totalSize += blob.length;
+      const nextIdx = i + N;
+      if (nextIdx < chunks.length) {
+        ahead[i % N] = readAndVerify(chunks[nextIdx]);
+      }
+      yield blob;
+    }
+
+    this.observability.metric('file', {
+      action: 'restored', slug: manifest.slug, size: totalSize, chunkCount: chunks.length,
+    });
+  }
+
+  /**
+   * Decompresses a gzip buffer.
+   * @private
+   */
+  async _decompress(buffer) {
+    try {
+      return await gunzipAsync(buffer);
+    } catch (err) {
+      if (err instanceof CasError) { throw err; }
+      throw new CasError(`Decompression failed: ${err.message}`, 'INTEGRITY_ERROR', { originalError: err });
+    }
   }
 
   /**
@@ -619,13 +724,13 @@ export default class CasService extends EventEmitter {
       const blob = await this.persistence.readBlob(chunk.blob);
       const digest = await this._sha256(blob);
       if (digest !== chunk.digest) {
-        this.emit('integrity:fail', {
-          slug: manifest.slug, chunkIndex: chunk.index, expected: chunk.digest, actual: digest,
+        this.observability.metric('integrity', {
+          action: 'fail', slug: manifest.slug, chunkIndex: chunk.index, expected: chunk.digest, actual: digest,
         });
         return false;
       }
     }
-    this.emit('integrity:pass', { slug: manifest.slug });
+    this.observability.metric('integrity', { action: 'pass', slug: manifest.slug });
     return true;
   }
 }

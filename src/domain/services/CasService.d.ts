@@ -3,7 +3,6 @@
  * Domain service for Content Addressable Storage operations.
  */
 
-import { EventEmitter } from "node:events";
 import Manifest from "../value-objects/Manifest.js";
 import type { EncryptionMeta, CompressionMeta, KdfParams } from "../value-objects/Manifest.js";
 
@@ -40,13 +39,22 @@ export interface GitPersistencePort {
   ): Promise<Array<{ mode: string; type: string; oid: string; name: string }>>;
 }
 
+/** Port interface for observability (metrics, logging, tracing). */
+export interface ObservabilityPort {
+  metric(channel: string, data: Record<string, unknown>): void;
+  log(level: "debug" | "info" | "warn" | "error", msg: string, meta?: Record<string, unknown>): void;
+  span(name: string): { end(meta?: Record<string, unknown>): void };
+}
+
 /** Constructor options for {@link CasService}. */
 export interface CasServiceOptions {
   persistence: GitPersistencePort;
   codec: CodecPort;
   crypto: CryptoPort;
+  observability: ObservabilityPort;
   chunkSize?: number;
   merkleThreshold?: number;
+  concurrency?: number;
 }
 
 /** Options for key derivation. */
@@ -74,12 +82,14 @@ export interface DeriveKeyResult {
  * Provides chunking, encryption, and integrity verification for storing
  * arbitrary data in Git's object database.
  */
-export default class CasService extends EventEmitter {
+export default class CasService {
   readonly persistence: GitPersistencePort;
   readonly codec: CodecPort;
   readonly crypto: CryptoPort;
+  readonly observability: ObservabilityPort;
   readonly chunkSize: number;
   readonly merkleThreshold: number;
+  readonly concurrency: number;
 
   constructor(options: CasServiceOptions);
 
@@ -111,6 +121,12 @@ export default class CasService extends EventEmitter {
     encryptionKey?: Buffer;
     passphrase?: string;
   }): Promise<{ buffer: Buffer; bytesWritten: number }>;
+
+  restoreStream(options: {
+    manifest: Manifest;
+    encryptionKey?: Buffer;
+    passphrase?: string;
+  }): AsyncIterable<Buffer>;
 
   readManifest(options: { treeOid: string }): Promise<Manifest>;
 

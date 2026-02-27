@@ -3,8 +3,11 @@
  * @fileoverview Content Addressable Store - Managed blob storage in Git.
  */
 
-import { createReadStream, writeFileSync } from 'node:fs';
+import { createReadStream } from 'node:fs';
 import path from 'node:path';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { createWriteStream } from 'node:fs';
 import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';
@@ -13,8 +16,12 @@ import NodeCryptoAdapter from './src/infrastructure/adapters/NodeCryptoAdapter.j
 import Manifest from './src/domain/value-objects/Manifest.js';
 import Chunk from './src/domain/value-objects/Chunk.js';
 import CryptoPort from './src/ports/CryptoPort.js';
+import ObservabilityPort from './src/ports/ObservabilityPort.js';
 import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
+import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
+import EventEmitterObserver from './src/infrastructure/adapters/EventEmitterObserver.js';
+import StatsCollector from './src/infrastructure/adapters/StatsCollector.js';
 
 export {
   CasService,
@@ -23,10 +30,14 @@ export {
   GitRefAdapter,
   NodeCryptoAdapter,
   CryptoPort,
+  ObservabilityPort,
   Manifest,
   Chunk,
   JsonCodec,
-  CborCodec
+  CborCodec,
+  SilentObserver,
+  EventEmitterObserver,
+  StatsCollector,
 };
 
 /**
@@ -58,16 +69,20 @@ export default class ContentAddressableStore {
    * @param {number} [options.chunkSize] - Chunk size in bytes (default 256 KiB).
    * @param {import('./src/ports/CodecPort.js').default} [options.codec] - Manifest codec (default JsonCodec).
    * @param {import('./src/ports/CryptoPort.js').default} [options.crypto] - Crypto adapter (auto-detected if omitted).
+   * @param {import('./src/ports/ObservabilityPort.js').default} [options.observability] - Observability adapter (SilentObserver if omitted).
    * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy for Git I/O.
    * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
+   * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
    */
-  constructor({ plumbing, chunkSize, codec, policy, crypto, merkleThreshold }) {
+  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency }) {
     this.plumbing = plumbing;
     this.chunkSizeConfig = chunkSize;
     this.codecConfig = codec;
     this.policyConfig = policy;
     this.cryptoConfig = crypto;
+    this.observabilityConfig = observability;
     this.merkleThresholdConfig = merkleThreshold;
+    this.concurrencyConfig = concurrency;
     this.service = null;
     this.#servicePromise = null;
   }
@@ -104,7 +119,9 @@ export default class ContentAddressableStore {
       chunkSize: this.chunkSizeConfig,
       codec: this.codecConfig || new JsonCodec(),
       crypto,
+      observability: this.observabilityConfig || new SilentObserver(),
       merkleThreshold: this.merkleThresholdConfig,
+      concurrency: this.concurrencyConfig,
     });
 
     const ref = new GitRefAdapter({
@@ -253,12 +270,17 @@ export default class ContentAddressableStore {
    */
   async restoreFile({ manifest, encryptionKey, passphrase, outputPath }) {
     const service = await this.#getService();
-    const { buffer, bytesWritten } = await service.restore({
-      manifest,
-      encryptionKey,
-      passphrase,
+    const iterable = service.restoreStream({ manifest, encryptionKey, passphrase });
+    const readable = Readable.from(iterable);
+    const writable = createWriteStream(outputPath);
+    let bytesWritten = 0;
+    const counter = new Transform({
+      transform(chunk, _encoding, cb) {
+        bytesWritten += chunk.length;
+        cb(null, chunk);
+      },
     });
-    writeFileSync(outputPath, buffer);
+    await pipeline(readable, counter, writable);
     return { bytesWritten };
   }
 
@@ -273,6 +295,19 @@ export default class ContentAddressableStore {
   async restore(options) {
     const service = await this.#getService();
     return await service.restore(options);
+  }
+
+  /**
+   * Restores a file from its manifest as an async iterable of Buffer chunks.
+   * @param {Object} options
+   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *restoreStream(options) {
+    const service = await this.#getService();
+    yield* service.restoreStream(options);
   }
 
   /**

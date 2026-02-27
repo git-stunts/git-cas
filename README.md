@@ -44,15 +44,13 @@ We use the object database.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 
-## What's new in v3.1.0
+## What's new in v4.0.0
 
-**Interactive vault dashboard** — `git cas vault dashboard` launches a full TUI with split-pane layout, manifest detail view, keyboard navigation, and real-time filtering. Browse entries, inspect chunks, and view encryption status without memorizing CLI flags.
+**ObservabilityPort** — `CasService` no longer extends `EventEmitter`. A new hexagonal `ObservabilityPort` decouples the domain from Node's event infrastructure. Three adapters ship out of the box: `SilentObserver` (no-op default), `EventEmitterObserver` (backward-compatible event bridge), and `StatsCollector` (metric accumulator).
 
-**Progress bars** — `store` and `restore` now show animated progress with throughput reporting. Suppress with `--quiet`.
+**Streaming restore** — `restoreStream()` returns an `AsyncIterable<Buffer>` with O(chunkSize) memory for unencrypted files. `restoreFile()` now writes via `createWriteStream` + `pipeline` instead of buffering.
 
-**Pretty history** — `git cas vault history --pretty` renders a color-coded, paginated timeline of vault commits.
-
-**Inspect command** — `git cas inspect <tree-oid>` renders manifest details with chunk table, encryption info, and compression badges.
+**Parallel chunk I/O** — new `concurrency` option gates store writes and restore reads through a counting semaphore. `concurrency: 4` can significantly speed up large-file operations.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Progress tracking demonstration using EventEmitter
+ * Progress tracking demonstration using EventEmitterObserver
  *
  * This example shows:
- * 1. Accessing the CasService to attach event listeners
+ * 1. Creating an EventEmitterObserver for observability
  * 2. Tracking chunk-by-chunk progress during store
  * 3. Tracking chunk-by-chunk progress during restore
  * 4. Building a real-time progress indicator
@@ -16,7 +16,7 @@ import { execSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import GitPlumbing from '@git-stunts/plumbing';
-import ContentAddressableStore from '@git-stunts/git-cas';
+import ContentAddressableStore, { EventEmitterObserver } from '@git-stunts/git-cas';
 
 console.log('=== Progress Tracking Example ===\n');
 
@@ -25,8 +25,9 @@ const repoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-progress-'));
 console.log(`Created temporary repository: ${repoDir}`);
 execSync('git init --bare', { cwd: repoDir, stdio: 'ignore' });
 
-// Initialize plumbing and CAS
+// Initialize plumbing and CAS with an EventEmitterObserver
 const plumbing = GitPlumbing.createDefault({ cwd: repoDir });
+const observer = new EventEmitterObserver();
 const cas = ContentAddressableStore.createJson({ plumbing, chunkSize: 128 * 1024 }); // 128 KB chunks
 
 // Create a larger test file to see multiple chunks
@@ -41,55 +42,52 @@ console.log(`File size: ${fileSize.toLocaleString()} bytes`);
 console.log(`Chunk size: ${(128 * 1024).toLocaleString()} bytes`);
 console.log(`Expected chunks: ~${Math.ceil(fileSize / (128 * 1024))}`);
 
-// Get the CasService to attach event listeners
-const service = await cas.getService();
-
 // Progress tracker state
 const progress = {
   store: { chunks: 0, bytes: 0 },
   restore: { chunks: 0, bytes: 0 }
 };
 
-// Event listeners for storage operations
+// Event listeners for storage operations — subscribe on the observer
 console.log('\n--- Setting up event listeners ---');
 
-service.on('chunk:stored', (event) => {
+observer.on('chunk:stored', (event) => {
   progress.store.chunks++;
   progress.store.bytes += event.size;
   console.log(`[STORE] Chunk ${event.index} stored: ${event.size.toLocaleString()} bytes (digest: ${event.digest.substring(0, 8)}...)`);
 });
 
-service.on('file:stored', (event) => {
+observer.on('file:stored', (event) => {
   console.log(`[STORE] File complete: ${event.slug}`);
   console.log(`  Total size: ${event.size.toLocaleString()} bytes`);
   console.log(`  Total chunks: ${event.chunkCount}`);
   console.log(`  Encrypted: ${event.encrypted ? 'Yes' : 'No'}`);
 });
 
-service.on('chunk:restored', (event) => {
+observer.on('chunk:restored', (event) => {
   progress.restore.chunks++;
   progress.restore.bytes += event.size;
   console.log(`[RESTORE] Chunk ${event.index} restored: ${event.size.toLocaleString()} bytes (digest: ${event.digest.substring(0, 8)}...)`);
 });
 
-service.on('file:restored', (event) => {
+observer.on('file:restored', (event) => {
   console.log(`[RESTORE] File complete: ${event.slug}`);
   console.log(`  Total size: ${event.size.toLocaleString()} bytes`);
   console.log(`  Total chunks: ${event.chunkCount}`);
 });
 
-service.on('integrity:pass', (event) => {
+observer.on('integrity:pass', (event) => {
   console.log(`[INTEGRITY] Passed for: ${event.slug}`);
 });
 
-service.on('integrity:fail', (event) => {
+observer.on('integrity:fail', (event) => {
   console.error(`[INTEGRITY] FAILED for: ${event.slug}`);
   console.error(`  Chunk index: ${event.chunkIndex}`);
   console.error(`  Expected: ${event.expected}`);
   console.error(`  Actual: ${event.actual}`);
 });
 
-service.on('error', (event) => {
+observer.on('error', (event) => {
   console.error(`[ERROR] ${event.code}: ${event.message}`);
 });
 
@@ -103,9 +101,16 @@ console.log('  - integrity:fail');
 console.log('  - error');
 
 // Step 1: Store the file with progress tracking
+// NOTE: We pass the observer to createJson options for the CAS to use it
+const cas2 = new ContentAddressableStore({
+  plumbing: GitPlumbing.createDefault({ cwd: repoDir }),
+  chunkSize: 128 * 1024,
+  observability: observer,
+});
+
 console.log('\n--- Step 1: Storing file (watch for chunk events) ---\n');
 const startStore = Date.now();
-const manifest = await cas.storeFile({
+const manifest = await cas2.storeFile({
   filePath: testFilePath,
   slug: 'progress-demo',
   filename: 'large-file.bin'
@@ -128,7 +133,7 @@ console.log(`Throughput: ${storeThroughputMBps.toFixed(2)} MB/s`);
 // Step 2: Restore the file with progress tracking
 console.log('\n--- Step 2: Restoring file (watch for chunk events) ---\n');
 const startRestore = Date.now();
-const { buffer, bytesWritten } = await cas.restore({ manifest });
+const { buffer, bytesWritten } = await cas2.restore({ manifest });
 const restoreTime = Date.now() - startRestore;
 
 console.log(`\nRestore completed in ${restoreTime}ms`);
@@ -152,7 +157,7 @@ if (!contentMatches) {
 // Step 3: Run integrity verification with events
 console.log('\n--- Step 3: Integrity verification (watch for events) ---\n');
 const startVerify = Date.now();
-const isValid = await cas.verifyIntegrity(manifest);
+const isValid = await cas2.verifyIntegrity(manifest);
 const verifyTime = Date.now() - startVerify;
 
 console.log(`\nIntegrity verification completed in ${verifyTime}ms`);
@@ -183,13 +188,13 @@ const progressListener = (event) => {
   process.stdout.write(`\rProgress: [${progressBar}] ${percentage}% (${storeChunkCount}/${totalChunks} chunks)`);
 };
 
-service.on('chunk:stored', progressListener);
+observer.on('chunk:stored', progressListener);
 
 // Store another test file
 const testFilePath2 = path.join(testDir, 'progress-demo.bin');
 writeFileSync(testFilePath2, randomBytes(fileSize));
 
-const manifest2 = await cas.storeFile({
+const manifest2 = await cas2.storeFile({
   filePath: testFilePath2,
   slug: 'progress-demo-2',
   filename: 'progress-demo.bin'
@@ -199,7 +204,7 @@ console.log('\n\nProgress tracking complete!');
 console.log(`Final chunk count: ${storeChunkCount}`);
 
 // Remove the progress listener to avoid cluttering output
-service.removeListener('chunk:stored', progressListener);
+observer.removeListener('chunk:stored', progressListener);
 
 // Summary statistics
 console.log('\n--- Performance Summary ---');
@@ -224,7 +229,8 @@ console.log('Temporary files removed');
 
 console.log('\n=== Example completed successfully! ===');
 console.log('\nKey takeaways:');
-console.log('- Access CasService via cas.getService() for events');
+console.log('- Create an EventEmitterObserver and pass it to ContentAddressableStore');
+console.log('- Subscribe to events on the observer (not the service)');
 console.log('- chunk:stored fires for each chunk during storage');
 console.log('- chunk:restored fires for each chunk during restore');
 console.log('- file:stored and file:restored fire when operations complete');

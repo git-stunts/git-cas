@@ -5,6 +5,7 @@ import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCrypt
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 function digestOf(seed) {
   return createHash('sha256').update(seed).digest('hex');
@@ -38,6 +39,7 @@ function setup() {
     crypto: new NodeCryptoAdapter(),
     codec,
     chunkSize: 1024,
+    observability: new SilentObserver(),
   });
 
   return { service, mockPersistence, codec };

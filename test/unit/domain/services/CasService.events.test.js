@@ -3,11 +3,14 @@ import { randomBytes } from 'node:crypto';
 import CasService from '../../../../src/domain/services/CasService.js';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
+import EventEmitterObserver from '../../../../src/infrastructure/adapters/EventEmitterObserver.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 
 function setup() {
   const crypto = new NodeCryptoAdapter();
   const blobStore = new Map();
+  const observer = new EventEmitterObserver();
 
   const mockPersistence = {
     writeBlob: vi.fn().mockImplementation(async (content) => {
@@ -28,10 +31,11 @@ function setup() {
     persistence: mockPersistence,
     crypto,
     codec: new JsonCodec(),
+    observability: observer,
     chunkSize: 1024,
   });
 
-  return { crypto, blobStore, mockPersistence, service };
+  return { crypto, blobStore, mockPersistence, service, observer };
 }
 
 async function storeBuffer(svc, buf, opts = {}) {
@@ -46,9 +50,9 @@ async function storeBuffer(svc, buf, opts = {}) {
 
 describe('CasService events – chunk:stored', () => {
   it('emits chunk:stored per chunk with correct payload', async () => {
-    const { service } = setup();
+    const { service, observer } = setup();
     const onChunkStored = vi.fn();
-    service.on('chunk:stored', onChunkStored);
+    observer.on('chunk:stored', onChunkStored);
 
     await storeBuffer(service, randomBytes(2048));
 
@@ -64,9 +68,9 @@ describe('CasService events – chunk:stored', () => {
 
 describe('CasService events – file:stored', () => {
   it('emits file:stored once with correct payload', async () => {
-    const { service } = setup();
+    const { service, observer } = setup();
     const onFileStored = vi.fn();
-    service.on('file:stored', onFileStored);
+    observer.on('file:stored', onFileStored);
 
     await storeBuffer(service, randomBytes(2048));
 
@@ -77,9 +81,9 @@ describe('CasService events – file:stored', () => {
   });
 
   it('emits encrypted=true when encryption used', async () => {
-    const { service } = setup();
+    const { service, observer } = setup();
     const onFileStored = vi.fn();
-    service.on('file:stored', onFileStored);
+    observer.on('file:stored', onFileStored);
 
     await storeBuffer(service, randomBytes(1024), { encryptionKey: randomBytes(32) });
 
@@ -89,11 +93,11 @@ describe('CasService events – file:stored', () => {
 
 describe('CasService events – chunk:restored', () => {
   it('emits chunk:restored per chunk with correct payload', async () => {
-    const { service } = setup();
+    const { service, observer } = setup();
     const manifest = await storeBuffer(service, randomBytes(2048));
 
     const onChunkRestored = vi.fn();
-    service.on('chunk:restored', onChunkRestored);
+    observer.on('chunk:restored', onChunkRestored);
     await service.restore({ manifest });
 
     expect(onChunkRestored).toHaveBeenCalledTimes(2);
@@ -108,11 +112,11 @@ describe('CasService events – chunk:restored', () => {
 
 describe('CasService events – file:restored', () => {
   it('emits file:restored once with correct payload', async () => {
-    const { service } = setup();
+    const { service, observer } = setup();
     const manifest = await storeBuffer(service, randomBytes(2048));
 
     const onFileRestored = vi.fn();
-    service.on('file:restored', onFileRestored);
+    observer.on('file:restored', onFileRestored);
     await service.restore({ manifest });
 
     expect(onFileRestored).toHaveBeenCalledTimes(1);
@@ -124,11 +128,11 @@ describe('CasService events – file:restored', () => {
 
 describe('CasService events – integrity:pass', () => {
   it('emits integrity:pass on successful verification', async () => {
-    const { service } = setup();
+    const { service, observer } = setup();
     const manifest = await storeBuffer(service, randomBytes(2048));
 
     const onPass = vi.fn();
-    service.on('integrity:pass', onPass);
+    observer.on('integrity:pass', onPass);
     await service.verifyIntegrity(manifest);
 
     expect(onPass).toHaveBeenCalledTimes(1);
@@ -138,13 +142,13 @@ describe('CasService events – integrity:pass', () => {
 
 describe('CasService events – integrity:fail', () => {
   it('emits integrity:fail on chunk mismatch', async () => {
-    const { service, blobStore } = setup();
+    const { service, observer, blobStore } = setup();
     const manifest = await storeBuffer(service, randomBytes(2048));
 
     blobStore.set(manifest.chunks[0].blob, Buffer.from('corrupted'));
 
     const onFail = vi.fn();
-    service.on('integrity:fail', onFail);
+    observer.on('integrity:fail', onFail);
     await service.verifyIntegrity(manifest);
 
     expect(onFail).toHaveBeenCalledTimes(1);
@@ -156,13 +160,13 @@ describe('CasService events – integrity:fail', () => {
 
 describe('CasService events – error on restore integrity failure', () => {
   it('emits error event on integrity failure during restore', async () => {
-    const { service, blobStore } = setup();
+    const { service, observer, blobStore } = setup();
     const manifest = await storeBuffer(service, randomBytes(1024));
 
     blobStore.set(manifest.chunks[0].blob, Buffer.from('corrupted'));
 
     const onError = vi.fn();
-    service.on('error', onError);
+    observer.on('error', onError);
 
     await expect(service.restore({ manifest })).rejects.toThrow(CasError);
 
@@ -173,20 +177,43 @@ describe('CasService events – error on restore integrity failure', () => {
   });
 });
 
-describe('CasService events – no listeners attached', () => {
-  it('store succeeds without listeners', async () => {
-    const { service } = setup();
+function setupSilent() {
+  const crypto = new NodeCryptoAdapter();
+  const blobStore = new Map();
+  const mockPersistence = {
+    writeBlob: vi.fn().mockImplementation(async (content) => {
+      const buf = Buffer.isBuffer(content) ? content : Buffer.from(content);
+      const oid = await crypto.sha256(buf);
+      blobStore.set(oid, buf);
+      return oid;
+    }),
+    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    readBlob: vi.fn().mockImplementation(async (oid) => {
+      const buf = blobStore.get(oid);
+      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
+      return buf;
+    }),
+  };
+  return new CasService({
+    persistence: mockPersistence, crypto, codec: new JsonCodec(),
+    observability: new SilentObserver(), chunkSize: 1024,
+  });
+}
+
+describe('CasService events – no listeners attached (SilentObserver)', () => {
+  it('store succeeds with SilentObserver', async () => {
+    const service = setupSilent();
     await expect(storeBuffer(service, randomBytes(2048))).resolves.toBeDefined();
   });
 
-  it('restore succeeds without listeners', async () => {
-    const { service } = setup();
+  it('restore succeeds with SilentObserver', async () => {
+    const service = setupSilent();
     const manifest = await storeBuffer(service, randomBytes(1024));
     await expect(service.restore({ manifest })).resolves.toBeDefined();
   });
 
-  it('verifyIntegrity succeeds without listeners', async () => {
-    const { service } = setup();
+  it('verifyIntegrity succeeds with SilentObserver', async () => {
+    const service = setupSilent();
     const manifest = await storeBuffer(service, randomBytes(1024));
     await expect(service.verifyIntegrity(manifest)).resolves.toBe(true);
   });
@@ -194,26 +221,26 @@ describe('CasService events – no listeners attached', () => {
 
 describe('CasService events – event count verification', () => {
   it('emits 3 chunk:stored for 3-chunk file', async () => {
-    const { service } = setup();
+    const { service, observer } = setup();
     const listener = vi.fn();
-    service.on('chunk:stored', listener);
+    observer.on('chunk:stored', listener);
     await storeBuffer(service, randomBytes(3072));
     expect(listener).toHaveBeenCalledTimes(3);
   });
 
   it('emits 3 chunk:restored for 3-chunk file', async () => {
-    const { service } = setup();
+    const { service, observer } = setup();
     const manifest = await storeBuffer(service, randomBytes(3072));
     const listener = vi.fn();
-    service.on('chunk:restored', listener);
+    observer.on('chunk:restored', listener);
     await service.restore({ manifest });
     expect(listener).toHaveBeenCalledTimes(3);
   });
 
   it('emits 1 chunk:stored for sub-chunk file', async () => {
-    const { service } = setup();
+    const { service, observer } = setup();
     const listener = vi.fn();
-    service.on('chunk:stored', listener);
+    observer.on('chunk:stored', listener);
     await storeBuffer(service, randomBytes(512));
     expect(listener).toHaveBeenCalledTimes(1);
   });

@@ -11,13 +11,14 @@ import type {
   CryptoPort,
   CodecPort,
   GitPersistencePort,
+  ObservabilityPort,
   CasServiceOptions,
   DeriveKeyOptions,
   DeriveKeyResult,
 } from "./src/domain/services/CasService.js";
 
 export { CasService, Manifest, Chunk };
-export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, CryptoPort, CodecPort, GitPersistencePort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult };
+export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult };
 
 /** Abstract port for cryptographic operations. */
 export declare class CryptoPortBase {
@@ -93,14 +94,47 @@ export declare class CborCodec extends CodecPortBase {
   constructor();
 }
 
+/** No-op observability adapter. */
+export declare class SilentObserver {
+  metric(channel: string, data: Record<string, unknown>): void;
+  log(level: string, msg: string, meta?: Record<string, unknown>): void;
+  span(name: string): { end(meta?: Record<string, unknown>): void };
+}
+
+/** EventEmitter-based observability adapter for backward compatibility. */
+export declare class EventEmitterObserver {
+  metric(channel: string, data: Record<string, unknown>): void;
+  log(level: string, msg: string, meta?: Record<string, unknown>): void;
+  span(name: string): { end(meta?: Record<string, unknown>): void };
+  on(event: string, listener: (...args: unknown[]) => void): this;
+  removeListener(event: string, listener: (...args: unknown[]) => void): this;
+  listenerCount(event: string): number;
+}
+
+/** Stats-collecting observability adapter. */
+export declare class StatsCollector {
+  metric(channel: string, data: Record<string, unknown>): void;
+  log(level: string, msg: string, meta?: Record<string, unknown>): void;
+  span(name: string): { end(meta?: Record<string, unknown>): void };
+  summary(): {
+    chunksProcessed: number;
+    bytesTotal: number;
+    elapsed: number;
+    throughput: number;
+    errors: number;
+  };
+}
+
 /** Constructor options for {@link ContentAddressableStore}. */
 export interface ContentAddressableStoreOptions {
   plumbing: unknown;
   chunkSize?: number;
   codec?: CodecPort;
   crypto?: CryptoPort;
+  observability?: ObservabilityPort;
   policy?: unknown;
   merkleThreshold?: number;
+  concurrency?: number;
 }
 
 /** A single vault entry. */
@@ -256,6 +290,12 @@ export default class ContentAddressableStore {
     encryptionKey?: Buffer;
     passphrase?: string;
   }): Promise<{ buffer: Buffer; bytesWritten: number }>;
+
+  restoreStream(options: {
+    manifest: Manifest;
+    encryptionKey?: Buffer;
+    passphrase?: string;
+  }): AsyncIterable<Buffer>;
 
   createTree(options: { manifest: Manifest }): Promise<string>;
 

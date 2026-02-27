@@ -6,6 +6,7 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 import { digestOf } from '../../../helpers/crypto.js';
 
 /**
@@ -22,6 +23,7 @@ function setup() {
     crypto: new NodeCryptoAdapter(),
     codec: new JsonCodec(),
     chunkSize: 1024,
+    observability: new SilentObserver(),
   });
   return { mockPersistence, service };
 }

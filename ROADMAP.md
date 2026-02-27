@@ -185,6 +185,7 @@ Return and throw semantics for every public method (current and planned).
 
 | Version | Milestone | Codename | Theme | Status |
 |--------:|-----------|----------|-------|--------|
+| v4.0.0  | M14       | Conduit  | Streaming I/O, observability, parallel chunks | |
 | v2.1.0  | M8        | Spit Shine | Review fixups | |
 | v2.2.0  | M9        | Cockpit  | CLI improvements | |
 | v3.0.0  | M10       | Hydra    | Content-defined chunking | |
@@ -201,15 +202,19 @@ M7 Horizon (v2.0.0) ✅ ──────────────────�
   │                                               │
   ├──────┬──────────┐                              │
   v      v          v                              v
-M8 Spit  M9 Cockpit  M10 Hydra (v3.0.0)   M11 Locksmith (v3.1.0)
+M8 Spit  M9 Cockpit  M10 Hydra        M11 Locksmith
 Shine    (v2.2.0)       │                          │
 (v2.1.0)   │            │                          v
-           │            v                  M12 Carousel (v3.2.0)
+           │            v                  M12 Carousel
            │     (CDC benchmarks)
            │
            v
     M13 Bijou (v3.1.0) ✅
     (TUI dashboard & progress)
+           │
+           v
+    M14 Conduit (v4.0.0) ◀── NEXT
+    (Streaming I/O + Observability + Parallel chunks)
 ```
 
 ---
@@ -220,13 +225,272 @@ Shine    (v2.2.0)       │                          │
 
 | #  | Codename      | Theme                      | Version | Tasks | ~LoC   | ~Hours |
 |---:|--------------|----------------------------|:-------:|------:|-------:|------:|
+| M14| Conduit       | Streaming I/O, observability, parallel chunks | v4.0.0 | 4 | ~600 | ~18h |
 | M8 | Spit Shine    | Review fixups              | v2.1.0  | 3     | ~290   | ~7h   |
 | M9 | Cockpit       | CLI improvements           | v2.2.0  | 5     | ~260   | ~7h   |
 | M10| Hydra         | Content-defined chunking   | v3.0.0  | 4     | ~690   | ~22h  |
 | M11| Locksmith     | Multi-recipient encryption | v3.1.0  | 4     | ~580   | ~20h  |
 | M12| Carousel      | Key rotation               | v3.2.0  | 4     | ~400   | ~13h  |
 | M13| Bijou         | TUI dashboard & progress   | v3.1.0  | 6     | ~650   | ~20h  |
-|    | **Total**     |                            |         | **26**| **~2,870** | **~89h** |
+|    | **Total**     |                            |         | **30**| **~3,470** | **~107h** |
+
+---
+
+# M14 — Conduit (v4.0.0)
+**Theme:** Replace `EventEmitter` inheritance with a proper `ObservabilityPort`, add streaming restore, and enable parallel chunk I/O. Major version bump: removes `extends EventEmitter` from `CasService`, adds `observability` as a required constructor port.
+
+---
+
+## Task 14.1: ObservabilityPort and adapters
+
+**User Story**
+As a library consumer, I want structured observability (metrics, logs, spans) from CAS operations so I can monitor throughput, track errors, and integrate with my own tooling — without the domain layer depending on Node's EventEmitter.
+
+**Requirements**
+- R1: Define `ObservabilityPort` interface with three methods:
+  - `metric(channel: string, data: object)` — emit a named metric (channels: `chunk`, `file`, `integrity`, `vault`).
+  - `log(level: string, message: string, meta?: object)` — structured log (`debug`, `info`, `warn`, `error`).
+  - `span(name: string) → { end(meta?: object): void }` — timed operation bracket.
+- R2: Remove `extends EventEmitter` from `CasService`. All `this.emit()` calls replaced with `this.observability.metric()` or `this.observability.log()`.
+- R3: `observability` becomes a required constructor parameter on `CasService` (like `persistence`, `codec`, `crypto`).
+- R4: Implement `SilentObserver` adapter (no-op — all methods are empty). This is the default when no observability is needed.
+- R5: Implement `EventEmitterObserver` adapter that translates `metric()` calls to `EventEmitter.emit()` calls for backward compatibility. Consumers who relied on `service.on('chunk:stored', ...)` can wrap with this adapter.
+- R6: Implement `StatsCollector` adapter that accumulates metrics and exposes a summary object: `{ chunksProcessed, bytesTotal, elapsed, throughput, errors }`.
+- R7: Facade (`ContentAddressableStore`) creates a default `SilentObserver` if no observability adapter is provided, and passes it to `CasService`.
+- R8: Update `.d.ts` declarations for new port and adapters.
+
+**Acceptance Criteria**
+- AC1: `CasService` no longer extends `EventEmitter`.
+- AC2: All existing event emission points emit metrics via `ObservabilityPort`.
+- AC3: `EventEmitterObserver` adapter produces identical events to the old `extends EventEmitter` behavior.
+- AC4: `StatsCollector` accumulates correct stats across a full store+restore cycle.
+- AC5: `SilentObserver` introduces zero overhead (no-op methods).
+- AC6: Span `end()` captures elapsed time in the metric.
+
+**Scope**
+- In scope: Port definition, 3 adapters, CasService refactor, facade wiring, TypeScript declarations.
+- Out of scope: TUI adapter (M13 already has its own bijou integration — it can wrap `EventEmitterObserver` or adopt `ObservabilityPort` in a follow-up). Log levels beyond the 4 basics. Persistent metrics storage.
+
+**Est. Complexity (LoC)**
+- Prod: ~180 (port ~30, 3 adapters ~90, CasService refactor ~40, facade ~20)
+- Tests: ~120
+- Total: ~300
+
+**Est. Human Working Hours**
+- ~8h
+
+**Test Plan**
+- Golden path:
+  - Store file with `StatsCollector` → verify `chunksProcessed`, `bytesTotal`, `throughput` are correct.
+  - Store + restore with `EventEmitterObserver` → assert same events as old EventEmitter behavior.
+  - `SilentObserver` → store + restore completes with no errors, no output.
+- Failures:
+  - Missing `observability` param → constructor throws with descriptive error.
+  - Corrupted chunk → `observability.log('error', ...)` called before throw.
+- Edges:
+  - 0-byte file → span starts and ends, no chunk metrics emitted.
+  - Span `end()` called twice → no error (idempotent).
+- Fuzz/stress:
+  - All existing CasService tests must pass with `SilentObserver` injected.
+
+**Definition of Done**
+- DoD1: `CasService` does not extend `EventEmitter`.
+- DoD2: `ObservabilityPort` defined with metric/log/span.
+- DoD3: 3 adapters implemented and tested.
+- DoD4: All existing tests updated and green.
+- DoD5: TypeScript declarations updated.
+
+**Blocking**
+- Blocks: Task 14.2, 14.3, 14.4
+
+**Blocked By**
+- Blocked by: None
+
+---
+
+## Task 14.2: Streaming restore
+
+**User Story**
+As a developer restoring large files, I want a streaming restore path so memory usage is O(chunkSize), not O(fileSize).
+
+**Requirements**
+- R1: Add `CasService.restoreStream({ manifest, encryptionKey, passphrase })` returning `AsyncIterable<Buffer>`.
+- R2: Each yielded buffer is one verified, decrypted, decompressed chunk — ready to write.
+- R3: Integrity verified per-chunk before yield (not after full reassembly).
+- R4: Decompression and decryption applied per-chunk in streaming fashion.
+- R5: `restoreFile()` in the facade uses `restoreStream()` internally with `createWriteStream()` instead of `writeFileSync()`.
+- R6: Existing `restore()` method reimplemented as: collect `restoreStream()` into buffer. Single code path, two interfaces.
+- R7: Emit `observability.metric('chunk', ...)` per chunk and `observability.span('restore')` for the full operation.
+
+**Acceptance Criteria**
+- AC1: `restoreStream()` yields chunks that, when concatenated, match the original file byte-for-byte.
+- AC2: Memory usage during streaming restore is O(chunkSize), not O(fileSize).
+- AC3: `restoreFile()` writes via `createWriteStream()` — no `writeFileSync()`.
+- AC4: Encrypted + compressed files round-trip correctly via streaming restore.
+- AC5: Existing `restore()` method returns identical results (backward compat).
+
+**Scope**
+- In scope: `restoreStream()` on CasService + facade, refactor `restoreFile()` and `restore()`.
+- Out of scope: Parallel chunk reads (Task 14.3), resume/partial restore.
+
+**Est. Complexity (LoC)**
+- Prod: ~80
+- Tests: ~100
+- Total: ~180
+
+**Est. Human Working Hours**
+- ~5h
+
+**Test Plan**
+- Golden path:
+  - Store 10KB → restoreStream → collect → byte-compare original.
+  - Store encrypted + compressed → restoreStream → collect → compare.
+  - restoreFile writes correct file via streaming (spy confirms no writeFileSync).
+- Failures:
+  - Corrupted chunk mid-stream → throws INTEGRITY_ERROR, iteration stops.
+  - Wrong key → throws INTEGRITY_ERROR on first encrypted chunk.
+- Edges:
+  - 0-byte manifest yields empty iterable.
+  - Single-chunk file yields exactly 1 buffer.
+  - Exact multiple of chunkSize yields expected count.
+- Fuzz/stress:
+  - 50 random file sizes (seeded) — streaming restore matches buffered restore byte-for-byte.
+
+**Definition of Done**
+- DoD1: `restoreStream()` implemented on CasService and exposed via facade.
+- DoD2: `restoreFile()` refactored to use streaming writes.
+- DoD3: `restore()` reimplemented on top of `restoreStream()`.
+- DoD4: All existing restore tests still pass.
+- DoD5: New streaming tests added and green.
+
+**Blocking**
+- Blocks: Task 14.3
+
+**Blocked By**
+- Blocked by: Task 14.1 (observability wiring)
+
+---
+
+## Task 14.3: Parallel chunk I/O
+
+**User Story**
+As a user storing or restoring files with many chunks, I want the system to read/write multiple chunks concurrently so operations complete faster.
+
+**Requirements**
+- R1: Add `concurrency` option to `CasService` constructor (positive integer, default: 1).
+- R2: Store path (`_chunkAndStore`): up to N chunks written to Git in parallel. Chunk ordering in the manifest is preserved regardless of write completion order.
+- R3: Restore path (`restoreStream`): up to N chunks read from Git in parallel. Yield order matches manifest chunk order (read ahead, buffer up to N, yield in sequence).
+- R4: Implement a simple `Semaphore` utility (internal, not exported) to gate concurrent persistence calls.
+- R5: `concurrency: 1` produces identical behavior to current sequential code (no functional change).
+- R6: Emit `observability.metric('chunk', ...)` per chunk regardless of parallelism. `observability.span('chunk:read')` / `observability.span('chunk:write')` wrap each individual I/O operation.
+- R7: Expose `concurrency` option on `ContentAddressableStore` constructor, forwarded to `CasService`.
+
+**Acceptance Criteria**
+- AC1: With `concurrency: 4`, a 20-chunk store completes measurably faster than sequential (benchmark, not unit test).
+- AC2: With `concurrency: 4`, restore produces byte-identical output to sequential.
+- AC3: With `concurrency: 1`, all existing tests pass unchanged.
+- AC4: Manifest chunk order is always preserved regardless of concurrency setting.
+- AC5: Semaphore correctly limits concurrent persistence calls.
+
+**Scope**
+- In scope: Semaphore, parallel store loop, parallel restore with ordered yield, concurrency config.
+- Out of scope: Adaptive concurrency (auto-tuning), per-operation concurrency overrides, connection pooling in GitPersistenceAdapter.
+
+**Est. Complexity (LoC)**
+- Prod: ~100 (Semaphore ~25, store refactor ~30, restore refactor ~30, config ~15)
+- Tests: ~80
+- Total: ~180
+
+**Est. Human Working Hours**
+- ~6h
+
+**Test Plan**
+- Golden path:
+  - Store + restore with concurrency: 4, verify byte-for-byte match.
+  - Store + restore with concurrency: 1, verify identical to current behavior.
+  - Encrypted + compressed + concurrency: 4 → correct round-trip.
+- Failures:
+  - concurrency: 0 → constructor throws.
+  - concurrency: -1 → constructor throws.
+  - One chunk write fails mid-batch → error propagated, partial writes are safe (unreachable blobs GC'd by Git).
+- Edges:
+  - File with 1 chunk + concurrency: 4 → works (no deadlock).
+  - File with 3 chunks + concurrency: 10 → only 3 in flight.
+  - 0-byte file + any concurrency → no-op.
+- Fuzz/stress:
+  - Benchmark: 100-chunk file, concurrency 1 vs 4 vs 8, measure wall-clock time.
+
+**Definition of Done**
+- DoD1: Semaphore utility implemented.
+- DoD2: Store and restore support configurable concurrency.
+- DoD3: All tests pass at concurrency: 1.
+- DoD4: Parallel tests added and green.
+- DoD5: Benchmark script demonstrates speedup.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: Task 14.2 (restoreStream)
+
+---
+
+## Task 14.4: Migrate CLI and TUI to ObservabilityPort
+
+**User Story**
+As a CLI user, I want progress bars and stats to work with the new observability system so the terminal experience is unchanged after the v4 migration.
+
+**Requirements**
+- R1: Refactor `bin/ui/progress.js` to subscribe to `ObservabilityPort` metrics instead of EventEmitter events.
+- R2: Progress trackers use `observability.metric('chunk', ...)` events for progress updates.
+- R3: CLI `store` and `restore` commands wire the observability adapter into CasService via the facade.
+- R4: Dashboard and other TUI components continue to function (adapt to new metric format if needed).
+- R5: `--quiet` flag still works (uses `SilentObserver`).
+- R6: Stats summary printed after store/restore when not in quiet mode (throughput, total bytes, elapsed time).
+
+**Acceptance Criteria**
+- AC1: `git cas store` shows progress bar identical to v3.1.0 behavior.
+- AC2: `git cas restore` shows progress bar identical to v3.1.0 behavior.
+- AC3: `--quiet` suppresses all output.
+- AC4: Stats summary displayed after operation completes.
+- AC5: Dashboard renders correctly with new observability wiring.
+
+**Scope**
+- In scope: CLI progress migration, stats summary, dashboard adaptation.
+- Out of scope: New TUI features, log file output, verbose debug mode.
+
+**Est. Complexity (LoC)**
+- Prod: ~60 (progress refactor ~30, CLI wiring ~20, stats display ~10)
+- Tests: ~20
+- Total: ~80
+
+**Est. Human Working Hours**
+- ~3h
+
+**Test Plan**
+- Golden path:
+  - Store with progress → verify metric events drive progress display.
+  - Restore with progress → same.
+  - Stats summary printed with correct values.
+- Failures:
+  - None expected (thin adapter layer).
+- Edges:
+  - Quiet mode → SilentObserver, no output.
+  - Pipe mode → no progress, no stats.
+- Fuzz/stress:
+  - None (display layer).
+
+**Definition of Done**
+- DoD1: Progress bars work with ObservabilityPort.
+- DoD2: Stats summary displays after operations.
+- DoD3: All CLI tests pass.
+- DoD4: Dashboard functional with new wiring.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: Task 14.1 (ObservabilityPort)
 
 ---
 
@@ -235,7 +499,7 @@ Shine    (v2.2.0)       │                          │
 
 ---
 
-## Task 8.1: Streaming restore
+## Task 8.1: Streaming restore *(superseded by Task 14.2)*
 
 **User Story**
 As a developer restoring large files, I want a streaming restore path so I don't buffer the entire file in memory.

@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] — Conduit (2026-02-27)
+
+### Breaking Changes
+- **`CasService` no longer extends `EventEmitter`** — event subscriptions must use the new `ObservabilityPort` adapters instead of `service.on()`. The `EventEmitterObserver` adapter provides full backward compatibility for existing event-based code.
+- **`observability` is a required constructor port** for `CasService`. The facade (`ContentAddressableStore`) defaults to `SilentObserver` when omitted.
+
+### Added
+- **ObservabilityPort** — new hexagonal port (`src/ports/ObservabilityPort.js`) with `metric(channel, data)`, `log(level, msg, meta?)`, and `span(name)` methods. Decouples the domain layer from Node's event infrastructure.
+- **SilentObserver** — no-op adapter (default). Zero overhead when observability is not needed.
+- **EventEmitterObserver** — bridges `metric()` calls to EventEmitter events (`chunk:stored`, `file:restored`, etc.) for backward-compatible progress tracking. Exposes `.on()`, `.removeListener()`, `.listenerCount()`.
+- **StatsCollector** — accumulates metrics and exposes `summary()` with `chunksProcessed`, `bytesTotal`, `elapsed`, `throughput`, and `errors`.
+- **`restoreStream()`** — new async generator on `CasService` and facade. Returns `AsyncIterable<Buffer>` for streaming restore with O(chunkSize) memory for unencrypted, uncompressed files. Encrypted/compressed files buffer internally but expose the same streaming API.
+- **`restoreFile()` now uses streaming I/O** — writes via `createWriteStream` + `pipeline` instead of buffering the entire file with `writeFileSync`.
+- **Parallel chunk I/O** — new `concurrency` option (default: 1). Store operations launch chunk writes through a counting semaphore. Streaming restore uses read-ahead for concurrent blob fetches. `concurrency: 1` produces identical sequential behavior.
+- **Semaphore** — internal counting semaphore (`src/domain/services/Semaphore.js`) for concurrency control.
+- 43 new unit tests (567 total).
+
+### Changed
+- CLI `store` and `restore` commands now create an `EventEmitterObserver` and pass it to the CAS instance, attaching progress tracking to the observer instead of the service.
+- `restore()` reimplemented as a collector over `restoreStream()`.
+- `_chunkAndStore()` refactored to use semaphore-gated parallel writes with `Promise.all`, sorting results by index after completion.
+- Progress tracking example (`examples/progress-tracking.js`) updated to use `EventEmitterObserver` pattern.
+
 ## [3.1.0] — Bijou (2026-02-27)
 
 ### Added
