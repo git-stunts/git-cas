@@ -6,13 +6,9 @@ vi.mock('../../../bin/ui/context.js', () => ({
   getCliContext: () => makeCtx('static'),
 }));
 
-vi.mock('node:fs', async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    statSync: vi.fn(() => ({ size: 5 * 256 * 1024 })),
-  };
-});
+vi.mock('node:fs', () => ({
+  statSync: vi.fn(() => ({ size: 5 * 256 * 1024 })),
+}));
 
 const { createStoreProgress, createRestoreProgress } = await import('../../../bin/ui/progress.js');
 
