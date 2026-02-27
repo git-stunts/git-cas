@@ -8,6 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@flyingrobots/bijou':
+        specifier: ^0.2.0
+        version: 0.2.0
+      '@flyingrobots/bijou-node':
+        specifier: ^0.2.0
+        version: 0.2.0
+      '@flyingrobots/bijou-tui':
+        specifier: ^0.2.0
+        version: 0.2.0
       '@git-stunts/alfred':
         specifier: ^0.10.0
         version: 0.10.0
@@ -247,6 +256,18 @@ packages:
   '@eslint/plugin-kit@0.4.1':
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@flyingrobots/bijou-node@0.2.0':
+    resolution: {integrity: sha512-QaIaoBF0OMRHGtLsga1knplfFEmAeC6Lt4SxWkCKIJahMdNqXatCWM3RdzXcbjfcXqRIXyeEpm1agmmwi4gneQ==}
+    engines: {node: '>=18'}
+
+  '@flyingrobots/bijou-tui@0.2.0':
+    resolution: {integrity: sha512-pXEo/Am6svRIKvez7926avdGUbfVndlSOpidBPc42YjCQHU5ZQrEuJpjI7niJb63N0ruxu0VXHci8N0wzBYSow==}
+    engines: {node: '>=18'}
+
+  '@flyingrobots/bijou@0.2.0':
+    resolution: {integrity: sha512-Oix2Kqq4w87KCkyK2W+8u4E4aGVQiraUy8BF3Bk/NRtT+UlUI0ETs+E7GwpwOyOvHvt0cIOjcMmVPxzKa52P4A==}
+    engines: {node: '>=18'}
 
   '@git-stunts/alfred@0.10.0':
     resolution: {integrity: sha512-0DPhJdKhYTcsPuoOnYIIyvlwaIM7yIx4fQM4Q48abe/VDLTfZef1ubeT1pYio+ZTp1lKXtSG663973ewBbi/yw==}
@@ -500,6 +521,10 @@ packages:
   chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
     engines: {node: '>=10'}
+
+  chalk@5.6.2:
+    resolution: {integrity: sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==}
+    engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
 
   check-error@2.1.3:
     resolution: {integrity: sha512-PAJdDJusoxnwm1VwW07VWwUN1sl7smmC3OKggvndJFadxxDRyFJBX/ggnu/KE4kQAB7a3Dp8f/YXC1FlUprWmA==}
@@ -1062,6 +1087,17 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
+  '@flyingrobots/bijou-node@0.2.0':
+    dependencies:
+      '@flyingrobots/bijou': 0.2.0
+      chalk: 5.6.2
+
+  '@flyingrobots/bijou-tui@0.2.0':
+    dependencies:
+      '@flyingrobots/bijou': 0.2.0
+
+  '@flyingrobots/bijou@0.2.0': {}
+
   '@git-stunts/alfred@0.10.0': {}
 
   '@git-stunts/plumbing@2.8.0':
@@ -1260,6 +1296,8 @@ snapshots:
     dependencies:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
+
+  chalk@5.6.2: {}
 
   check-error@2.1.3: {}
 
