@@ -139,7 +139,7 @@ function handleAction(action, model, deps) {
 function handleAppMsg(msg, model, cas) {
   if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, cas); }
   if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model); }
-  if (msg.type === 'load-error') { return [{ ...model, error: msg.error }, []]; }
+  if (msg.type === 'load-error') { return [{ ...model, status: 'error', error: msg.error }, []]; }
   return [model, []];
 }
 

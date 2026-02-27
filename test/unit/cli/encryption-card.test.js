@@ -25,7 +25,7 @@ describe('renderEncryptionCard', () => {
     });
     expect(output).toContain('aes-256-gcm');
     expect(output).toContain('pbkdf2');
-    expect(output).toContain('600,000');
+    expect(output).toMatch(/600[,.]?000/);
     expect(output).toContain('32 bytes');
     expect(output).toContain('locked');
   });

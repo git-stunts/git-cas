@@ -11,7 +11,7 @@ function mockCas() {
   return {
     listVault: vi.fn().mockResolvedValue([]),
     getVaultMetadata: vi.fn().mockResolvedValue(null),
-    readManifest: vi.fn(),
+    readManifest: vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -142,10 +142,11 @@ describe('dashboard edge cases', () => {
     expect(next.cursor).toBe(0);
   });
 
-  it('load-error sets error on model', () => {
+  it('load-error sets error and status on model', () => {
     const app = createDashboardApp(makeDeps());
     const [next] = app.update({ type: 'load-error', error: 'boom' }, makeModel());
     expect(next.error).toBe('boom');
+    expect(next.status).toBe('error');
   });
 
   it('filter-start resets filtered to all entries', () => {
@@ -180,6 +181,13 @@ describe('dashboard view rendering', () => {
     const output = app.view(model);
     expect(output).toContain('alpha');
     expect(output).toContain('bravo');
+  });
+
+  it('renders error message on error status', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({ status: 'error', error: 'connection failed' });
+    const output = app.view(model);
+    expect(output).toContain('Error: connection failed');
   });
 
   it('renders footer keybinding hints', () => {

@@ -165,14 +165,7 @@ program
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(async (opts) => {
     try {
-      if (opts.slug && opts.oid) {
-        process.stderr.write('error: Provide --slug or --oid, not both\n');
-        process.exit(1);
-      }
-      if (!opts.slug && !opts.oid) {
-        process.stderr.write('error: Provide --slug <slug> or --oid <tree-oid>\n');
-        process.exit(1);
-      }
+      validateRestoreFlags(opts);
       const cas = createCas(opts.cwd);
       const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
       const manifest = await cas.readManifest({ treeOid });

@@ -65,7 +65,7 @@ function renderListPane(model, size) {
   const items = model.filtered;
 
   if (items.length === 0) {
-    const msg = model.status === 'loading' ? 'Loading...' : 'No entries';
+    const msg = model.status === 'loading' ? 'Loading...' : model.error ? `Error: ${model.error}` : 'No entries';
     return padToHeight(msg, listHeight, filterLine);
   }
 
