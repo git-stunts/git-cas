@@ -116,8 +116,12 @@ program
         filePath: file, chunkSize: cas.chunkSize, quiet: program.opts().quiet,
       });
       progress.attach(service);
-      const manifest = await cas.storeFile(storeOpts);
-      progress.detach();
+      let manifest;
+      try {
+        manifest = await cas.storeFile(storeOpts);
+      } finally {
+        progress.detach();
+      }
 
       if (opts.tree) {
         const treeOid = await cas.createTree({ manifest });
@@ -213,11 +217,15 @@ program
         totalChunks: manifest.chunks.length, quiet: program.opts().quiet,
       });
       progress.attach(service);
-      const { bytesWritten } = await cas.restoreFile({
-        ...restoreOpts,
-        outputPath: opts.out,
-      });
-      progress.detach();
+      let bytesWritten;
+      try {
+        ({ bytesWritten } = await cas.restoreFile({
+          ...restoreOpts,
+          outputPath: opts.out,
+        }));
+      } finally {
+        progress.detach();
+      }
       process.stdout.write(`${bytesWritten}\n`);
     } catch (err) {
       process.stderr.write(`error: ${err.message}\n`);
