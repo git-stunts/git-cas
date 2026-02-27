@@ -55,4 +55,9 @@ describe('Semaphore – validation', () => {
   it('throws on concurrency: 1.5', () => {
     expect(() => new Semaphore(1.5)).toThrow();
   });
+
+  it('throws when release is called without an active permit', () => {
+    const sem = new Semaphore(1);
+    expect(() => sem.release()).toThrow('Semaphore release called without an active permit');
+  });
 });

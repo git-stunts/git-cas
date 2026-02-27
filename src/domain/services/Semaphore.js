@@ -38,6 +38,9 @@ export default class Semaphore {
       const next = this.#queue.shift();
       next();
     } else {
+      if (this.#active === 0) {
+        throw new Error('Semaphore release called without an active permit');
+      }
       this.#active--;
     }
   }

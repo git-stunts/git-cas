@@ -2403,7 +2403,7 @@ This enables offline transfer between air-gapped systems without needing `git pu
 
 **Bundle Format**
 
-```
+```text
 ┌─────────────────────────────┐
 │ Magic: "CASB\x01"   (5B)   │  ← Version 1 bundle
 │ Header length       (4B)    │
@@ -2517,7 +2517,7 @@ Zstd alone would give 5-10x faster compression with equal or better ratio. For a
 | 1. Port definition | `src/ports/CompressionPort.js` — `compress(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>` and `decompress(buffer: Buffer): Promise<Buffer>`. Property: `algorithm: string`. | ~20 | ~1h |
 | 2. GzipAdapter | Wrap existing `createGzip()` / `gunzipAsync()` logic into adapter. Remove inline gzip from CasService. | ~30 | ~1h |
 | 3. ZstdAdapter | Use `@napi-rs/zstd` (native binding, 0-dep) or `fzstd` (pure JS fallback). Streaming compress via transform. | ~40 | ~2h |
-| 4. CasService refactor | Replace inline compression with `this.compression.compress(source)` and `this.compression.decompress(buffer)`. Facade accepts `compression: { algorithm: 'gzip' | 'zstd' }` and selects adapter. | ~30 | ~2h |
+| 4. CasService refactor | Replace inline compression with `this.compression.compress(source)` and `this.compression.decompress(buffer)`. Facade accepts `compression: { algorithm: 'gzip' \| 'zstd' }` and selects adapter. | ~30 | ~2h |
 | 5. Tests + benchmarks | Round-trip with each algorithm. Benchmark: 10 MB file, gzip vs zstd compress speed and ratio. | ~60 | ~2h |
 | **Total** | | **~180** | **~8h** |
 
@@ -2558,7 +2558,7 @@ Zstd alone would give 5-10x faster compression with equal or better ratio. For a
 
 Replace `--vault-passphrase "my secret"` (visible in shell history, `ps` output, and CI logs) with an interactive TTY prompt that reads the passphrase from stdin with echo disabled. Like `gpg`, `ssh-keygen`, and `sudo`.
 
-```
+```shell
 $ git cas store ./secrets.tar.gz --slug prod-secrets --vault-passphrase
 Enter vault passphrase: ••••••••••
 Confirm passphrase: ••••••••••
@@ -2607,7 +2607,7 @@ The JSDoc note added in the M14 review documents this, but there's no runtime gu
 
 **Defensive Tests**
 
-```
+```js
 describe('Concern 1: Memory guard on encrypted restore', () => {
   it('throws RESTORE_TOO_LARGE when manifest.size exceeds maxRestoreBufferSize', ...);
   it('succeeds when manifest.size is within maxRestoreBufferSize', ...);
@@ -2644,7 +2644,7 @@ The `await Promise.allSettled(pending)` fix from C1 ensures in-flight writes com
 
 **Defensive Tests**
 
-```
+```js
 describe('Concern 2: Orphaned blob tracking on STREAM_ERROR', () => {
   it('includes orphanedBlobs array in STREAM_ERROR meta', ...);
   it('orphanedBlobs contains blob OIDs from successful writes before failure', ...);
@@ -2674,7 +2674,7 @@ Additionally, Git repositories have practical performance limits on individual b
 
 **Defensive Tests**
 
-```
+```js
 describe('Concern 3: Chunk size upper bound', () => {
   it('throws when chunkSize exceeds 100 MiB', ...);
   it('accepts chunkSize of exactly 100 MiB', ...);
@@ -2706,7 +2706,7 @@ The NodeCryptoAdapter and BunCryptoAdapter use `node:crypto` Cipher streams whic
 
 **Defensive Tests**
 
-```
+```js
 describe('Concern 4: Web Crypto buffering guard', () => {
   it('throws ENCRYPTION_BUFFER_EXCEEDED when accumulated bytes exceed limit', ...);
   it('succeeds for files within buffer limit', ...);
@@ -2736,14 +2736,14 @@ The `GIT_CAS_PASSPHRASE` env var is better (not in shell history) but still visi
 |---|-----------|--------|--------|
 | M1 | **Interactive prompt**: See Vision 6 above. `--vault-passphrase` without a value triggers TTY prompt with echo disabled. Confirmation on first use. | ~90 LoC | Eliminates history exposure |
 | M2 | **File-based passphrase**: `--vault-passphrase-file <path>` reads the passphrase from a file (like `docker secret`, `kubectl --token-file`). File can be tmpfs-backed, permissions-restricted, or injected by a secrets manager. | ~15 LoC | CI-friendly, no process exposure |
-| M3 | **Stdin passphrase**: `echo "secret" | git cas store --vault-passphrase -` reads from stdin. Useful in pipes. | ~10 LoC | Scriptable |
+| M3 | **Stdin passphrase**: `echo "secret" \| git cas store --vault-passphrase -` reads from stdin. Useful in pipes. | ~10 LoC | Scriptable |
 | M4 | **Documentation warning**: Add security note in README and `--help` output: "Avoid passing passphrases on the command line. Use `GIT_CAS_PASSPHRASE` env var, `--vault-passphrase-file`, or omit the value for interactive prompt." | ~0 LoC | Awareness |
 
 **Recommended**: M1 + M2 + M4. Interactive prompt for humans, file-based for CI, documentation for everyone.
 
 **Defensive Tests**
 
-```
+```js
 describe('Concern 5: Passphrase input security', () => {
   it('reads passphrase from file when --vault-passphrase-file is used', ...);
   it('prompts interactively when --vault-passphrase is passed without value in TTY', ...);
@@ -2779,7 +2779,7 @@ For a strong passphrase (>80 bits of entropy), this is fine — but many users c
 
 **Defensive Tests**
 
-```
+```js
 describe('Concern 6: KDF brute-force awareness', () => {
   it('emits decryption_failed metric on wrong passphrase', ...);
   it('emits metric with slug context for audit trail', ...);
@@ -2806,14 +2806,14 @@ For a single user storing files with one key, this is not a practical concern �
 | # | Mitigation | Effort | Impact |
 |---|-----------|--------|--------|
 | M1 | **Document the bound**: Add to SECURITY.md: "AES-256-GCM with random nonces is safe for up to 2^32 encryptions per key. For higher volumes, rotate keys (M12) or use a counter-based nonce scheme." | ~0 LoC | Awareness |
-| M2 | **Nonce counter option** (long-term): Add optional `nonceStrategy: 'random' | 'counter'` to encryption options. Counter-based nonces guarantee uniqueness but require persistent state (a counter stored in the vault metadata). Random remains the default for simplicity. | ~60 LoC | Eliminates collision risk |
+| M2 | **Nonce counter option** (long-term): Add optional `nonceStrategy: 'random' \| 'counter'` to encryption options. Counter-based nonces guarantee uniqueness but require persistent state (a counter stored in the vault metadata). Random remains the default for simplicity. | ~60 LoC | Eliminates collision risk |
 | M3 | **Key usage counter in vault**: Track `encryptionCount` in vault metadata. When it exceeds 2^31, emit a warning via observability: "Key has been used for N encryptions. Consider rotating." | ~20 LoC | Proactive warning |
 
 **Recommended**: M1 (immediate, zero-cost) + M3 (proactive warning). M2 is a significant design change that adds state management complexity — only needed for extremely high-volume use cases.
 
 **Defensive Tests**
 
-```
+```js
 describe('Concern 7: Nonce uniqueness', () => {
   it('generates unique nonces across 1000 consecutive encryptions', ...);
   it('nonce is exactly 12 bytes (96 bits)', ...);

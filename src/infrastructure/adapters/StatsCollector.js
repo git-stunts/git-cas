@@ -13,7 +13,8 @@ export default class StatsCollector {
     }
     if (channel === 'chunk') {
       this.#chunksProcessed++;
-      this.#bytesTotal += data.size || 0;
+      const size = Number.isFinite(data?.size) ? data.size : 0;
+      this.#bytesTotal += size;
     }
     if (channel === 'error') {
       this.#errors++;

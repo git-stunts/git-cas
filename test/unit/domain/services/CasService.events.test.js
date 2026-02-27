@@ -245,3 +245,24 @@ describe('CasService events – event count verification', () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('CasService events – empty manifest file:restored', () => {
+  it('emits file:restored with size 0 for empty manifest', async () => {
+    const { service, observer } = setup();
+
+    async function* emptySource() {}
+    const manifest = await service.store({
+      source: emptySource(), slug: 'empty', filename: 'empty.bin',
+    });
+    expect(manifest.chunks).toHaveLength(0);
+
+    const onFileRestored = vi.fn();
+    observer.on('file:restored', onFileRestored);
+    await service.restore({ manifest });
+
+    expect(onFileRestored).toHaveBeenCalledTimes(1);
+    expect(onFileRestored).toHaveBeenCalledWith(expect.objectContaining({
+      slug: 'empty', size: 0, chunkCount: 0,
+    }));
+  });
+});

@@ -29,6 +29,30 @@ function setup() {
 }
 
 // ---------------------------------------------------------------------------
+// observability validation
+// ---------------------------------------------------------------------------
+describe('CasService – observability validation', () => {
+  it('throws when observability is missing', () => {
+    expect(() => new CasService({
+      persistence: {},
+      crypto: new NodeCryptoAdapter(),
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+    })).toThrow('observability must implement ObservabilityPort');
+  });
+
+  it('throws when observability is missing metric()', () => {
+    expect(() => new CasService({
+      persistence: {},
+      crypto: new NodeCryptoAdapter(),
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+      observability: { log() {}, span() { return { end() {} }; } },
+    })).toThrow('observability must implement ObservabilityPort');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // store
 // ---------------------------------------------------------------------------
 describe('CasService – store', () => {

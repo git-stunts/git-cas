@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import StatsCollector from '../../../../src/infrastructure/adapters/StatsCollector.js';
 
-describe('StatsCollector', () => {
+describe('StatsCollector – accumulation', () => {
   it('accumulates chunk metrics', () => {
     const stats = new StatsCollector();
     stats.metric('chunk', { action: 'stored', size: 1024 });
@@ -40,6 +40,21 @@ describe('StatsCollector', () => {
     const s = stats.summary();
     expect(s.elapsed).toBeGreaterThan(0);
     expect(s.throughput).toBeGreaterThan(0);
+  });
+});
+
+describe('StatsCollector – robustness', () => {
+  it('handles malformed chunk payloads gracefully', () => {
+    const stats = new StatsCollector();
+    stats.metric('chunk', { action: 'stored' });
+    stats.metric('chunk', { action: 'stored', size: undefined });
+    stats.metric('chunk', { action: 'stored', size: NaN });
+    stats.metric('chunk', { action: 'stored', size: 'not-a-number' });
+    stats.metric('chunk', { action: 'stored', size: Infinity });
+
+    const s = stats.summary();
+    expect(s.chunksProcessed).toBe(5);
+    expect(s.bytesTotal).toBe(0);
   });
 
   it('log() and span() do not throw', () => {

@@ -30,6 +30,7 @@ export default class CasService {
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
    */
   constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1 }) {
+    CasService._validateObservability(observability);
     if (chunkSize < 1024) {
       throw new Error('Chunk size must be at least 1024 bytes');
     }
@@ -46,6 +47,22 @@ export default class CasService {
       throw new Error('Concurrency must be a positive integer');
     }
     this.concurrency = concurrency;
+  }
+
+  /**
+   * Validates that observability implements ObservabilityPort.
+   * @private
+   * @param {*} observability
+   */
+  static _validateObservability(observability) {
+    if (
+      !observability ||
+      typeof observability.metric !== 'function' ||
+      typeof observability.log !== 'function' ||
+      typeof observability.span !== 'function'
+    ) {
+      throw new Error('observability must implement ObservabilityPort');
+    }
   }
 
   /**
@@ -105,6 +122,7 @@ export default class CasService {
         }
       }
     } catch (err) {
+      await Promise.allSettled(pending);
       if (err instanceof CasError) { throw err; }
       const casErr = new CasError(
         `Stream error during store: ${err.message}`,
@@ -482,6 +500,9 @@ export default class CasService {
     const key = await this._resolveEncryptionKey(manifest, encryptionKey, passphrase);
 
     if (manifest.chunks.length === 0) {
+      this.observability.metric('file', {
+        action: 'restored', slug: manifest.slug, size: 0, chunkCount: 0,
+      });
       return;
     }
 
@@ -545,15 +566,19 @@ export default class CasService {
       ahead.push(readAndVerify(chunks[i]));
     }
 
-    for (let i = 0; i < chunks.length; i++) {
-      const blob = await ahead[i % readAhead];
-      this.observability.metric('chunk', { action: 'restored', index: chunks[i].index, size: blob.length, digest: chunks[i].digest });
-      totalSize += blob.length;
-      const nextIdx = i + readAhead;
-      if (nextIdx < chunks.length) {
-        ahead[i % readAhead] = readAndVerify(chunks[nextIdx]);
+    try {
+      for (let i = 0; i < chunks.length; i++) {
+        const blob = await ahead[i % readAhead];
+        this.observability.metric('chunk', { action: 'restored', index: chunks[i].index, size: blob.length, digest: chunks[i].digest });
+        totalSize += blob.length;
+        const nextIdx = i + readAhead;
+        if (nextIdx < chunks.length) {
+          ahead[i % readAhead] = readAndVerify(chunks[nextIdx]);
+        }
+        yield blob;
       }
-      yield blob;
+    } finally {
+      await Promise.allSettled(ahead);
     }
 
     this.observability.metric('file', {
