@@ -105,7 +105,7 @@ function renderBody(model, deps, size) {
   const listBasis = Math.floor(size.width * 0.35);
   return flex(
     { direction: 'row', width: size.width, height: size.height, gap: 1 },
-    { content: (_w, h) => renderListPane(model, { height: h, width: listBasis }), basis: listBasis },
+    { content: (w, h) => renderListPane(model, { height: h, width: w }), basis: listBasis },
     { content: (w, h) => renderDetailPane(model, { width: w, height: h, ctx: deps.ctx }), flex: 1 },
   );
 }

@@ -123,7 +123,7 @@ function handleAction(action, model, deps) {
   if (action.type === 'quit') { return [model, [quit()]]; }
   if (action.type === 'move') { return handleMove(action, model); }
   if (action.type === 'filter-start') {
-    return [{ ...model, filtering: true, filterText: '', filtered: model.entries }, []];
+    return [{ ...model, filtering: true, filterText: '', filtered: model.entries, cursor: 0 }, []];
   }
   if (action.type === 'scroll-detail') {
     const scroll = Math.max(0, model.detailScroll + action.delta);

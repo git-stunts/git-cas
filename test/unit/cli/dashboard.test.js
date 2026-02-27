@@ -122,6 +122,14 @@ describe('dashboard data loading', () => {
     expect(next.filtering).toBe(false);
   });
 
+  it('loaded-entries applies active filter', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({ status: 'loading', filterText: 'al', filtering: true });
+    const msg = { type: 'loaded-entries', entries, metadata: null };
+    const [next] = app.update(msg, model);
+    expect(next.filtered).toHaveLength(1);
+    expect(next.filtered[0].slug).toBe('alpha');
+  });
 });
 
 describe('dashboard edge cases', () => {
@@ -131,12 +139,21 @@ describe('dashboard edge cases', () => {
     const [next] = app.update(keyMsg('backspace'), model);
     expect(next.filterText).toBe('a');
     expect(next.filtered).toHaveLength(2);
+    expect(next.cursor).toBe(0);
   });
 
   it('load-error sets error on model', () => {
     const app = createDashboardApp(makeDeps());
     const [next] = app.update({ type: 'load-error', error: 'boom' }, makeModel());
     expect(next.error).toBe('boom');
+  });
+
+  it('filter-start resets filtered to all entries', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({ entries, filtered: [entries[0]], filterText: 'al' });
+    const [next] = app.update(keyMsg('/'), model);
+    expect(next.filtered).toHaveLength(2);
+    expect(next.filterText).toBe('');
   });
 
   it('select on uncached entry returns loadManifestCmd', () => {
