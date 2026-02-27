@@ -4,11 +4,18 @@ import { readFileSync } from 'node:fs';
 import { program } from 'commander';
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
 import ContentAddressableStore from '../index.js';
+import Manifest from '../src/domain/value-objects/Manifest.js';
+import { createStoreProgress, createRestoreProgress } from './ui/progress.js';
+import { renderEncryptionCard } from './ui/encryption-card.js';
+import { renderHistoryTimeline } from './ui/history-timeline.js';
+import { renderManifestView } from './ui/manifest-view.js';
+import { renderHeatmap } from './ui/heatmap.js';
 
 program
   .name('git-cas')
   .description('Content Addressable Storage backed by Git')
-  .version('3.0.0');
+  .version('3.0.0')
+  .option('-q, --quiet', 'Suppress progress output');
 
 /**
  * Read a 32-byte raw encryption key from a file.
@@ -104,7 +111,13 @@ program
         storeOpts.encryptionKey = encryptionKey;
       }
 
+      const service = await cas.getService();
+      const progress = createStoreProgress({
+        filePath: file, chunkSize: cas.chunkSize, quiet: program.opts().quiet,
+      });
+      progress.attach(service);
       const manifest = await cas.storeFile(storeOpts);
+      progress.detach();
 
       if (opts.tree) {
         const treeOid = await cas.createTree({ manifest });
@@ -141,6 +154,43 @@ program
   });
 
 // ---------------------------------------------------------------------------
+// inspect
+// ---------------------------------------------------------------------------
+program
+  .command('inspect')
+  .description('Inspect a stored manifest')
+  .option('--slug <slug>', 'Resolve tree OID from vault slug')
+  .option('--oid <tree-oid>', 'Direct tree OID')
+  .option('--heatmap', 'Show chunk heatmap visualization')
+  .option('--cwd <dir>', 'Git working directory', '.')
+  .action(async (opts) => {
+    try {
+      if (opts.slug && opts.oid) {
+        process.stderr.write('error: Provide --slug or --oid, not both\n');
+        process.exit(1);
+      }
+      if (!opts.slug && !opts.oid) {
+        process.stderr.write('error: Provide --slug <slug> or --oid <tree-oid>\n');
+        process.exit(1);
+      }
+      const cas = createCas(opts.cwd);
+      const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
+      const manifest = await cas.readManifest({ treeOid });
+
+      if (opts.heatmap) {
+        process.stdout.write(renderHeatmap({ manifest }));
+      } else if (process.stdout.isTTY) {
+        process.stdout.write(renderManifestView({ manifest }));
+      } else {
+        process.stdout.write(`${JSON.stringify(manifest.toJSON(), null, 2)}\n`);
+      }
+    } catch (err) {
+      process.stderr.write(`error: ${err.message}\n`);
+      process.exit(1);
+    }
+  });
+
+// ---------------------------------------------------------------------------
 // restore
 // ---------------------------------------------------------------------------
 program
@@ -165,10 +215,16 @@ program
         restoreOpts.encryptionKey = encryptionKey;
       }
 
+      const service = await cas.getService();
+      const progress = createRestoreProgress({
+        totalChunks: manifest.chunks.length, quiet: program.opts().quiet,
+      });
+      progress.attach(service);
       const { bytesWritten } = await cas.restoreFile({
         ...restoreOpts,
         outputPath: opts.out,
       });
+      progress.detach();
       process.stdout.write(`${bytesWritten}\n`);
     } catch (err) {
       process.stderr.write(`error: ${err.message}\n`);
@@ -250,6 +306,7 @@ vault
 vault
   .command('info <slug>')
   .description('Show info for a vault entry')
+  .option('--encryption', 'Show vault encryption details')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(async (slug, opts) => {
     try {
@@ -257,6 +314,10 @@ vault
       const treeOid = await cas.resolveVaultEntry({ slug });
       process.stdout.write(`slug\t${slug}\n`);
       process.stdout.write(`tree\t${treeOid}\n`);
+      if (opts.encryption) {
+        const metadata = await cas.getVaultMetadata();
+        process.stdout.write(`\n${renderEncryptionCard({ metadata })}\n`);
+      }
     } catch (err) {
       process.stderr.write(`error: ${err.message}\n`);
       process.exit(1);
@@ -271,6 +332,7 @@ vault
   .description('Show vault commit history')
   .option('--cwd <dir>', 'Git working directory', '.')
   .option('-n, --max-count <n>', 'Limit number of commits')
+  .option('--pretty', 'Render as color-coded timeline')
   .action(async (opts) => {
     try {
       const runner = ShellRunnerFactory.create();
@@ -285,7 +347,29 @@ vault
         args.push(`-${n}`);
       }
       const output = await plumbing.execute({ args });
-      process.stdout.write(`${output}\n`);
+      if (opts.pretty && process.stdout.isTTY) {
+        process.stdout.write(`${renderHistoryTimeline(output)}\n`);
+      } else {
+        process.stdout.write(`${output}\n`);
+      }
+    } catch (err) {
+      process.stderr.write(`error: ${err.message}\n`);
+      process.exit(1);
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// vault dashboard
+// ---------------------------------------------------------------------------
+vault
+  .command('dashboard')
+  .description('Interactive vault explorer')
+  .option('--cwd <dir>', 'Git working directory', '.')
+  .action(async (opts) => {
+    try {
+      const cas = createCas(opts.cwd);
+      const { launchDashboard } = await import('./ui/dashboard.js');
+      await launchDashboard(cas);
     } catch (err) {
       process.stderr.write(`error: ${err.message}\n`);
       process.exit(1);
