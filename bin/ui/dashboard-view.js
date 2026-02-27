@@ -60,12 +60,19 @@ function renderHeader(model, ctx) {
  * Render the list pane.
  */
 function renderListPane(model, size) {
-  const filterLine = model.filtering ? `/${model.filterText}\u2588` : '';
+  const clamp = (s) => (size.width ? s.slice(0, size.width) : s);
+  const filterLine = model.filtering ? clamp(`/${model.filterText}\u2588`) : '';
   const listHeight = model.filtering ? size.height - 1 : size.height;
   const items = model.filtered;
 
   if (items.length === 0) {
-    const msg = model.status === 'loading' ? 'Loading...' : model.error ? `Error: ${model.error}` : 'No entries';
+    const msg = clamp(
+      model.status === 'loading'
+        ? 'Loading...'
+        : model.error
+          ? `Error: ${model.error}`
+          : 'No entries',
+    );
     return padToHeight(msg, listHeight, filterLine);
   }
 
