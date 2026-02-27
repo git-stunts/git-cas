@@ -20,13 +20,13 @@ export default class EventEmitterObserver {
    * @param {Object} data - Must include `action` to form the event name.
    */
   metric(channel, data) {
-    const eventName = `${channel}:${data.action}`;
     if (channel === 'error') {
       if (this.#emitter.listenerCount('error') > 0) {
         this.#emitter.emit('error', data);
       }
       return;
     }
+    const eventName = `${channel}:${data.action}`;
     const payload = Object.fromEntries(Object.entries(data).filter(([k]) => k !== 'action'));
     this.#emitter.emit(eventName, payload);
   }

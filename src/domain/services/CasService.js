@@ -109,8 +109,9 @@ export default class CasService {
       const casErr = new CasError(
         `Stream error during store: ${err.message}`,
         'STREAM_ERROR',
-        { chunksWritten: nextIndex, originalError: err },
+        { chunksDispatched: nextIndex, originalError: err },
       );
+      await Promise.allSettled(pending);
       this.observability.metric('error', { code: casErr.code, message: casErr.message });
       throw casErr;
     }
@@ -468,6 +469,11 @@ export default class CasService {
    * @param {import('../value-objects/Manifest.js').default} options.manifest - The file manifest.
    * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
+   * Note: For unencrypted files, each yielded buffer corresponds to an original
+   * stored chunk. For encrypted/compressed files, yielded buffers are
+   * chunkSize-sliced pieces of the decrypted/decompressed result and may not
+   * correspond 1:1 to the original chunks.
+   *
    * @yields {Buffer}
    * @throws {CasError} MISSING_KEY if manifest is encrypted but no key is provided.
    * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
@@ -516,7 +522,7 @@ export default class CasService {
    */
   async *_restoreStreaming(manifest) {
     const chunks = manifest.chunks;
-    const N = this.concurrency;
+    const readAhead = this.concurrency;
     let totalSize = 0;
 
     const readAndVerify = async (chunk) => {
@@ -535,17 +541,17 @@ export default class CasService {
     };
 
     const ahead = [];
-    for (let i = 0; i < Math.min(N, chunks.length); i++) {
+    for (let i = 0; i < Math.min(readAhead, chunks.length); i++) {
       ahead.push(readAndVerify(chunks[i]));
     }
 
     for (let i = 0; i < chunks.length; i++) {
-      const blob = await ahead[i % N];
+      const blob = await ahead[i % readAhead];
       this.observability.metric('chunk', { action: 'restored', index: chunks[i].index, size: blob.length, digest: chunks[i].digest });
       totalSize += blob.length;
-      const nextIdx = i + N;
+      const nextIdx = i + readAhead;
       if (nextIdx < chunks.length) {
-        ahead[i % N] = readAndVerify(chunks[nextIdx]);
+        ahead[i % readAhead] = readAndVerify(chunks[nextIdx]);
       }
       yield blob;
     }

@@ -3,11 +3,10 @@
  * @fileoverview Content Addressable Store - Managed blob storage in Git.
  */
 
-import { createReadStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
 import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { createWriteStream } from 'node:fs';
 import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';

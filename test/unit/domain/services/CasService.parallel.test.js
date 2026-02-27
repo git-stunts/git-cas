@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import CasService from '../../../../src/domain/services/CasService.js';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
+import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 function setup(concurrency = 1) {
@@ -102,6 +103,41 @@ describe('Parallel I/O – encrypted + compressed', () => {
     const manifest = await storeBuffer(service, original);
     const { buffer } = await service.restore({ manifest });
     expect(buffer.equals(original)).toBe(true);
+  });
+});
+
+describe('Parallel I/O – stream error', () => {
+  function failingSource(chunksBeforeError, chunkSize = 1024) {
+    let yielded = 0;
+    return {
+      [Symbol.asyncIterator]() {
+        return {
+          async next() {
+            if (yielded >= chunksBeforeError) {
+              throw new Error('simulated stream failure');
+            }
+            yielded++;
+            return { value: Buffer.alloc(chunkSize, 0xaa), done: false };
+          },
+        };
+      },
+    };
+  }
+
+  it('concurrency: 4 — STREAM_ERROR with correct chunksDispatched', async () => {
+    const { service } = setup(4);
+    try {
+      await service.store({
+        source: failingSource(3),
+        slug: 'parallel-fail',
+        filename: 'fail.bin',
+      });
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(CasError);
+      expect(err.code).toBe('STREAM_ERROR');
+      expect(err.meta.chunksDispatched).toBe(3);
+    }
   });
 });
 

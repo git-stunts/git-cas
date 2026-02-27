@@ -25,10 +25,8 @@ const repoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-progress-'));
 console.log(`Created temporary repository: ${repoDir}`);
 execSync('git init --bare', { cwd: repoDir, stdio: 'ignore' });
 
-// Initialize plumbing and CAS with an EventEmitterObserver
-const plumbing = GitPlumbing.createDefault({ cwd: repoDir });
+// Initialize CAS with an EventEmitterObserver
 const observer = new EventEmitterObserver();
-const cas = ContentAddressableStore.createJson({ plumbing, chunkSize: 128 * 1024 }); // 128 KB chunks
 
 // Create a larger test file to see multiple chunks
 const testDir = mkdtempSync(path.join(os.tmpdir(), 'cas-test-'));
@@ -101,8 +99,7 @@ console.log('  - integrity:fail');
 console.log('  - error');
 
 // Step 1: Store the file with progress tracking
-// NOTE: We pass the observer to createJson options for the CAS to use it
-const cas2 = new ContentAddressableStore({
+const cas = new ContentAddressableStore({
   plumbing: GitPlumbing.createDefault({ cwd: repoDir }),
   chunkSize: 128 * 1024,
   observability: observer,
@@ -110,7 +107,7 @@ const cas2 = new ContentAddressableStore({
 
 console.log('\n--- Step 1: Storing file (watch for chunk events) ---\n');
 const startStore = Date.now();
-const manifest = await cas2.storeFile({
+const manifest = await cas.storeFile({
   filePath: testFilePath,
   slug: 'progress-demo',
   filename: 'large-file.bin'
@@ -133,7 +130,7 @@ console.log(`Throughput: ${storeThroughputMBps.toFixed(2)} MB/s`);
 // Step 2: Restore the file with progress tracking
 console.log('\n--- Step 2: Restoring file (watch for chunk events) ---\n');
 const startRestore = Date.now();
-const { buffer, bytesWritten } = await cas2.restore({ manifest });
+const { buffer, bytesWritten } = await cas.restore({ manifest });
 const restoreTime = Date.now() - startRestore;
 
 console.log(`\nRestore completed in ${restoreTime}ms`);
@@ -157,7 +154,7 @@ if (!contentMatches) {
 // Step 3: Run integrity verification with events
 console.log('\n--- Step 3: Integrity verification (watch for events) ---\n');
 const startVerify = Date.now();
-const isValid = await cas2.verifyIntegrity(manifest);
+const isValid = await cas.verifyIntegrity(manifest);
 const verifyTime = Date.now() - startVerify;
 
 console.log(`\nIntegrity verification completed in ${verifyTime}ms`);
@@ -194,7 +191,7 @@ observer.on('chunk:stored', progressListener);
 const testFilePath2 = path.join(testDir, 'progress-demo.bin');
 writeFileSync(testFilePath2, randomBytes(fileSize));
 
-const manifest2 = await cas2.storeFile({
+const manifest2 = await cas.storeFile({
   filePath: testFilePath2,
   slug: 'progress-demo-2',
   filename: 'progress-demo.bin'

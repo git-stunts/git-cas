@@ -72,7 +72,7 @@ describe('CasService stream error – STREAM_ERROR after 3 chunks', () => {
       });
     } catch (err) {
       expect(err.code).toBe('STREAM_ERROR');
-      expect(err.meta.chunksWritten).toBe(3);
+      expect(err.meta.chunksDispatched).toBe(3);
       expect(err.message).toContain('simulated stream failure');
     }
   });
@@ -88,7 +88,7 @@ describe('CasService stream error – STREAM_ERROR immediate failure', () => {
     ({ service } = setup());
   });
 
-  it('throws STREAM_ERROR with chunksWritten=0 when stream fails immediately', async () => {
+  it('throws STREAM_ERROR with chunksDispatched=0 when stream fails immediately', async () => {
     await expect(
       service.store({
         source: failingSource(0),
@@ -105,7 +105,7 @@ describe('CasService stream error – STREAM_ERROR immediate failure', () => {
       });
     } catch (err) {
       expect(err.code).toBe('STREAM_ERROR');
-      expect(err.meta.chunksWritten).toBe(0);
+      expect(err.meta.chunksDispatched).toBe(0);
     }
   });
 });
@@ -210,7 +210,7 @@ describe('CasService stream error – fuzz', () => {
   for (let i = 0; i < 20; i++) {
     const failAfter = i;
 
-    it(`STREAM_ERROR with chunksWritten=${failAfter} (iteration ${i})`, async () => {
+    it(`STREAM_ERROR with chunksDispatched=${failAfter} (iteration ${i})`, async () => {
       await expect(
         service.store({
           source: failingSource(failAfter),
@@ -227,7 +227,7 @@ describe('CasService stream error – fuzz', () => {
         });
       } catch (err) {
         expect(err.code).toBe('STREAM_ERROR');
-        expect(err.meta.chunksWritten).toBe(failAfter);
+        expect(err.meta.chunksDispatched).toBe(failAfter);
       }
     });
   }
