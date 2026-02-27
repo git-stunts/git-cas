@@ -164,6 +164,21 @@ Return and throw semantics for every public method (current and planned).
 - **Exit 0:** Rotation succeeded, vault updated.
 - **Exit 1:** Wrong old key, unsupported manifest, or vault error.
 
+### CLI: `git cas vault dashboard` *(planned — Task 13.2)*
+- **Output:** Interactive full-screen TUI in TTY mode; static table in non-TTY.
+- **Exit 0:** User quit normally.
+- **Exit 1:** Vault ref missing or error.
+
+### CLI: `git cas inspect --slug <slug> | --oid <tree-oid> [--heatmap]` *(planned — Tasks 13.4, 13.5)*
+- **Output:** Structured manifest anatomy view in TTY; JSON dump in non-TTY.
+- **Exit 0:** Manifest read and displayed.
+- **Exit 1:** Manifest not found or error.
+
+### CLI: `git cas vault history --pretty` *(planned — Task 13.3)*
+- **Output:** Color-coded timeline in TTY; plain `git log --oneline` without `--pretty`.
+- **Exit 0:** History displayed.
+- **Exit 1:** Vault ref missing or error.
+
 ---
 
 ## 4) Version Plan
@@ -175,6 +190,7 @@ Return and throw semantics for every public method (current and planned).
 | v3.0.0  | M10       | Hydra    | Content-defined chunking | |
 | v3.1.0  | M11       | Locksmith | Multi-recipient encryption | |
 | v3.2.0  | M12       | Carousel | Key rotation | |
+| v3.3.0  | M13       | Bijou    | TUI dashboard & progress | |
 
 ---
 
@@ -187,9 +203,13 @@ M7 Horizon (v2.0.0) ✅ ──────────────────�
   v      v          v                              v
 M8 Spit  M9 Cockpit  M10 Hydra (v3.0.0)   M11 Locksmith (v3.1.0)
 Shine    (v2.2.0)       │                          │
-(v2.1.0)                │                          v
-                        v                  M12 Carousel (v3.2.0)
-                 (CDC benchmarks)
+(v2.1.0)   │            │                          v
+           │            v                  M12 Carousel (v3.2.0)
+           │     (CDC benchmarks)
+           │
+           v
+    M13 Bijou (v3.3.0)
+    (TUI dashboard & progress)
 ```
 
 ---
@@ -205,7 +225,8 @@ Shine    (v2.2.0)       │                          │
 | M10| Hydra         | Content-defined chunking   | v3.0.0  | 4     | ~690   | ~22h  |
 | M11| Locksmith     | Multi-recipient encryption | v3.1.0  | 4     | ~580   | ~20h  |
 | M12| Carousel      | Key rotation               | v3.2.0  | 4     | ~400   | ~13h  |
-|    | **Total**     |                            |         | **20**| **~2,220** | **~69h** |
+| M13| Bijou         | TUI dashboard & progress   | v3.3.0  | 6     | ~650   | ~20h  |
+|    | **Total**     |                            |         | **26**| **~2,870** | **~89h** |
 
 ---
 
@@ -1567,6 +1588,20 @@ Every competitor in this space either requires an external server (Git LFS), inv
 
 ## When NOT to use git-cas
 
+### 0. You just want images or demos in your README
+
+**Use instead: an orphan branch**
+
+**Scenario:** You want to put screenshots, demo GIFs, and logos in your repo's README. The assets are public, small (< 5 MB each), and you want GitHub to render them inline.
+
+**Why not git-cas:** It's overkill. You don't need encryption, chunking, manifests, or a vault for a 200 KiB screenshot. git-cas adds a dependency, a CLI workflow, and conceptual overhead for a problem that's already solved by 5 git commands.
+
+**Why an orphan branch:** `git checkout --orphan assets`, `git rm -rf .`, add your images, commit, push. Reference them with `![Demo](../assets/demo.gif?raw=true)`. No dependencies, no tooling, no build step. GitHub renders them directly. Every developer on your team already knows how to do this. The approach is documented everywhere and works with every Git host.
+
+**The honest line:** If your assets are public and small, the orphan branch pattern is simpler and better. git-cas earns its keep when you need encryption, dedup, compression, integrity verification, or lifecycle management — not when you need a GIF in a README.
+
+---
+
 ### 1. You need to back up an entire filesystem
 
 **Use instead: Restic**
@@ -1648,6 +1683,9 @@ Do you need encrypted binary storage inside Git's ODB?
 │   ├── Need CDC dedup? → Wait for M10
 │   └── Need >10 GB with lazy clone? → git-cas is the wrong tool. Use LFS + separate encryption
 │
+├── NO, I just need images/demos in my README
+│   └── Orphan branch (git checkout --orphan assets). Zero dependencies, GitHub renders inline.
+│
 ├── NO, I need filesystem backups
 │   └── Restic
 │
@@ -1673,6 +1711,332 @@ git-cas occupies a specific niche: **Git-native encrypted content-addressed stor
 What it is: the only tool that lets you `git cas store ./model.bin --slug v3-weights --tree --vault-passphrase "secret"`, commit the tree OID, push to any Git remote, and restore it on any machine with `git cas restore --slug v3-weights --out ./model.bin --vault-passphrase "secret"` — no server, no external storage, no second system. Everything is Git objects, Git refs, Git transport.
 
 If that's what you want, nothing else does it. If it's not, the right tool probably isn't git-cas.
+
+---
+
+# M13 — Bijou (v3.3.0)
+**Theme:** Beautiful terminal UI powered by `@flyingrobots/bijou`. Replace silent CLI operations with animated progress, and add an interactive vault dashboard for exploring stored assets. Depends on M9 Cockpit for the `--quiet` flag and event wiring foundation.
+
+---
+
+## Task 13.1: Animated store/restore progress
+
+**User Story**
+As a CLI user, I want a smooth animated progress bar with chunk counts and throughput when storing or restoring files, so I can see that the operation is working and estimate time remaining.
+
+**Requirements**
+- R1: Add `@flyingrobots/bijou` and `@flyingrobots/bijou-node` as dependencies.
+- R2: Wire `CasService` events (`chunk:stored`, `chunk:restored`) to a bijou `createAnimatedProgressBar()` with spring physics (preset: `gentle`).
+- R3: Display gradient progress bar (theme `CYAN_MAGENTA`) with chunk counter (`78/193 chunks`) and throughput (`19.2 MiB/s`).
+- R4: Show last-processed chunk digest and blob OID below the progress bar.
+- R5: Progress renders to stderr; stdout reserved for structured output.
+- R6: Graceful degradation: static counter in CI, plain text in pipe mode, no output with `--quiet`.
+
+**Acceptance Criteria**
+- AC1: `git cas store` shows animated progress bar in TTY mode.
+- AC2: `git cas restore` shows animated progress bar in TTY mode.
+- AC3: CI mode (`CI=true`) falls back to static line-by-line progress.
+- AC4: Pipe mode shows no progress output.
+- AC5: `--quiet` suppresses all progress.
+
+**Scope**
+- In scope: Progress bar for store and restore commands.
+- Out of scope: Full TUI app, interactive elements, vault commands.
+
+**Est. Complexity (LoC)**
+- Prod: ~80
+- Tests: ~30
+- Total: ~110
+
+**Est. Human Working Hours**
+- ~3h
+
+**Test Plan**
+- Golden path:
+  - Store 5-chunk file → progress bar advances 5 times, final state shows 100%.
+  - Restore 5-chunk file → same.
+- Edges:
+  - 0-chunk file (empty) → no progress bar shown.
+  - 1-chunk file → bar jumps to 100%.
+  - Non-TTY → static fallback or silent.
+
+**Definition of Done**
+- DoD1: Animated progress bar visible during store/restore in interactive terminals.
+- DoD2: Graceful degradation works across all four output modes.
+- DoD3: No visual artifacts or leftover ANSI codes in non-TTY environments.
+
+**Blocking**
+- Blocks: Task 13.2 (vault dashboard uses same bijou dependency)
+
+**Blocked By**
+- Blocked by: Task 9.1 (CLI progress feedback foundation, `--quiet` flag)
+
+---
+
+## Task 13.2: Vault dashboard — interactive TUI app
+
+**User Story**
+As a developer managing multiple vault entries, I want an interactive terminal dashboard to browse entries, inspect manifests, and view encryption status without memorizing CLI flags.
+
+**Requirements**
+- R1: Add `@flyingrobots/bijou-tui` as a dependency.
+- R2: New subcommand: `git cas vault dashboard` (or `git cas vault ui`).
+- R3: Full-screen TEA app with flexbox layout: entry list (left pane) + detail view (right pane).
+- R4: Entry list shows slug, size (human-readable), chunk count, and badges for encryption/compression/merkle.
+- R5: Detail view shows manifest anatomy: metadata, encryption config, compression, sub-manifests, and paginated chunk list.
+- R6: Keyboard navigation: `j/k` or arrows to move, `enter` to expand, `/` to filter, `q` to quit.
+- R7: Vault-level header showing encryption status, asset count, and vault ref.
+- R8: Graceful degradation: static table output in CI/pipe mode (reuse Task 9.5 table formatting).
+
+**Acceptance Criteria**
+- AC1: `git cas vault dashboard` launches interactive TUI in TTY mode.
+- AC2: All vault entries listed with correct metadata.
+- AC3: Selecting an entry shows full manifest detail.
+- AC4: Filter narrows the list by slug substring.
+- AC5: `q` or `ctrl-c` exits cleanly (restores terminal state).
+- AC6: Non-TTY falls back to static vault list.
+
+**Scope**
+- In scope: Read-only dashboard for browsing vault state.
+- Out of scope: Mutating operations (store/restore/remove) from the dashboard.
+
+**Est. Complexity (LoC)**
+- Prod: ~200
+- Tests: ~60
+- Total: ~260
+
+**Est. Human Working Hours**
+- ~7h
+
+**Test Plan**
+- Golden path:
+  - Launch with 3 vault entries → all listed with correct badges.
+  - Select entry → detail pane populates with manifest data.
+  - Filter by substring → list narrows correctly.
+- Edges:
+  - Empty vault → shows "No entries" message.
+  - Entry with Merkle sub-manifests → sub-manifest section rendered.
+  - Very long slug names → truncated with ellipsis.
+- Failures:
+  - Vault ref doesn't exist → shows initialization prompt.
+
+**Definition of Done**
+- DoD1: Interactive dashboard launches and renders vault state.
+- DoD2: Navigation, selection, and filtering work.
+- DoD3: Clean exit restores terminal state.
+- DoD4: Static fallback works in non-TTY.
+
+**Blocking**
+- Blocks: Task 13.4, Task 13.5
+
+**Blocked By**
+- Blocked by: Task 13.1 (bijou dependency), Task 9.5 (vault table formatting)
+
+---
+
+## Task 13.3: Vault history timeline view
+
+**User Story**
+As a developer, I want to see vault commit history as a visual timeline so I can understand how the vault has evolved over time.
+
+**Requirements**
+- R1: New subcommand: `git cas vault history --pretty` (or integrate into dashboard as a tab).
+- R2: Render vault commits using bijou `timeline()` component with status indicators.
+- R3: Color-code by operation: green for `add`, yellow for `update`, red for `remove`, blue for `init`.
+- R4: Show commit OID (short), operation, slug, and relative timestamp.
+- R5: Paginate with bijou `paginator()` for long histories.
+- R6: Static fallback: plain `git log --oneline` output (current behavior).
+
+**Acceptance Criteria**
+- AC1: `git cas vault history --pretty` renders color-coded timeline in TTY mode.
+- AC2: Operations correctly color-coded by parsing commit messages.
+- AC3: Pagination works for vaults with >20 commits.
+- AC4: Without `--pretty`, behavior unchanged (backward compatible).
+
+**Scope**
+- In scope: Timeline rendering of vault history.
+- Out of scope: Interactive revert, diff between history points.
+
+**Est. Complexity (LoC)**
+- Prod: ~60
+- Tests: ~25
+- Total: ~85
+
+**Est. Human Working Hours**
+- ~2h
+
+**Test Plan**
+- Golden path:
+  - Vault with 5 commits → 5 timeline entries, correctly colored.
+- Edges:
+  - Empty vault (no commits) → "No history" message.
+  - 100+ commits → paginated display.
+
+**Definition of Done**
+- DoD1: Timeline renders with color-coded operations.
+- DoD2: Pagination functional.
+- DoD3: `--pretty` flag documented in `--help`.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: Task 13.1 (bijou dependency)
+
+---
+
+## Task 13.4: Manifest anatomy view
+
+**User Story**
+As a developer debugging storage issues, I want a rich visual breakdown of a manifest showing its structure, encryption metadata, compression settings, and chunk layout.
+
+**Requirements**
+- R1: New subcommand: `git cas inspect --slug <slug>` (or `--oid <tree-oid>`).
+- R2: Render manifest using bijou `box()`, `accordion()`, and `tree()` components.
+- R3: Sections: metadata (slug, filename, size, version), encryption (algorithm, KDF params), compression, sub-manifests (if Merkle), and chunks.
+- R4: Chunks section uses `paginator()` — show 20 chunks per page with index, size, digest (truncated), and blob OID.
+- R5: Badges for encryption status, compression, Merkle, manifest version.
+- R6: Static fallback: JSON dump (current `readManifest` behavior).
+
+**Acceptance Criteria**
+- AC1: `git cas inspect --slug <slug>` renders structured manifest view.
+- AC2: Accordion sections expand/collapse.
+- AC3: Chunk pagination works.
+- AC4: Encrypted manifests show full KDF parameter breakdown.
+- AC5: Merkle manifests show sub-manifest tree.
+
+**Scope**
+- In scope: Read-only manifest inspection.
+- Out of scope: Editing manifests, verifying integrity (that's `git cas verify`).
+
+**Est. Complexity (LoC)**
+- Prod: ~70
+- Tests: ~30
+- Total: ~100
+
+**Est. Human Working Hours**
+- ~3h
+
+**Test Plan**
+- Golden path:
+  - Inspect unencrypted v1 manifest → metadata + chunks displayed.
+  - Inspect encrypted v2 Merkle manifest → all sections populated.
+- Edges:
+  - Empty manifest (0 chunks) → shows "No chunks" in chunks section.
+  - Very large manifest (1000+ chunks) → pagination handles cleanly.
+
+**Definition of Done**
+- DoD1: Manifest anatomy renders with all sections.
+- DoD2: Accordion expand/collapse works.
+- DoD3: Chunk pagination works.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: Task 13.2 (shared component patterns)
+
+---
+
+## Task 13.5: Chunk heatmap visualization
+
+**User Story**
+As a developer, I want a visual block map of chunks in a stored file so I can quickly see the storage layout, Merkle boundaries, and progress during operations.
+
+**Requirements**
+- R1: Render a grid of `█` / `░` blocks, one per chunk, sized to terminal width.
+- R2: Color via bijou `gradientText()` from start to end of file.
+- R3: Show Merkle sub-manifest boundaries with `│` separators in the grid.
+- R4: Legend showing chunk count, sub-manifest count, chunk size.
+- R5: Integrate into `git cas inspect` as an optional `--heatmap` flag.
+- R6: During store/restore (Task 13.1), optionally show filling heatmap instead of progress bar via `--heatmap` flag.
+
+**Acceptance Criteria**
+- AC1: `git cas inspect --slug <slug> --heatmap` renders chunk grid.
+- AC2: Gradient coloring spans the full grid.
+- AC3: Merkle boundaries visually distinct.
+- AC4: Grid reflows to terminal width.
+
+**Scope**
+- In scope: Static heatmap for stored files.
+- Out of scope: Live-updating heatmap during store/restore (stretch goal for R6).
+
+**Est. Complexity (LoC)**
+- Prod: ~40
+- Tests: ~15
+- Total: ~55
+
+**Est. Human Working Hours**
+- ~2h
+
+**Test Plan**
+- Golden path:
+  - 40-chunk file, 80-col terminal → 2 rows of 40 blocks.
+  - 2500-chunk Merkle file → blocks with boundary markers.
+- Edges:
+  - 1-chunk file → single block.
+  - Terminal narrower than chunk count → wraps correctly.
+
+**Definition of Done**
+- DoD1: Heatmap renders correctly for v1 and v2 manifests.
+- DoD2: Gradient coloring works.
+- DoD3: Terminal width adaptation works.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: Task 13.2 (shared component patterns)
+
+---
+
+## Task 13.6: Encryption info card
+
+**User Story**
+As a security-conscious user, I want a clear visual summary of my vault's encryption configuration so I can verify the crypto parameters at a glance.
+
+**Requirements**
+- R1: Render encryption details using bijou `box()` with labeled rows.
+- R2: Show cipher, KDF algorithm, KDF parameters (iterations/cost/blockSize/parallelization), salt (truncated), and key length.
+- R3: Status badge: `● locked` (red) when no key provided, `● unlocked` (green) when key resolved.
+- R4: Integrate into vault dashboard header and `git cas inspect` encryption accordion.
+- R5: Standalone via `git cas vault info --encryption`.
+
+**Acceptance Criteria**
+- AC1: Encryption card renders all KDF parameters.
+- AC2: Correct badge for locked/unlocked state.
+- AC3: Works for both pbkdf2 and scrypt vaults.
+- AC4: Non-encrypted vault → "No encryption configured" message.
+
+**Scope**
+- In scope: Display-only encryption summary.
+- Out of scope: Key verification, passphrase prompting.
+
+**Est. Complexity (LoC)**
+- Prod: ~30
+- Tests: ~10
+- Total: ~40
+
+**Est. Human Working Hours**
+- ~1h
+
+**Test Plan**
+- Golden path:
+  - PBKDF2 vault → shows iterations, salt, key length.
+  - Scrypt vault → shows cost, blockSize, parallelization.
+- Edges:
+  - Non-encrypted vault → "No encryption" message.
+
+**Definition of Done**
+- DoD1: Encryption card renders with correct parameters.
+- DoD2: Badge reflects locked/unlocked state.
+- DoD3: Both KDF algorithms handled.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: Task 13.1 (bijou dependency)
 
 ---
 

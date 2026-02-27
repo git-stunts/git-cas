@@ -131,16 +131,30 @@ git cas store ./secret.bin --slug vault-entry --tree
 git cas restore --slug vault-entry --out ./decrypted.bin
 ```
 
-## Why not Git LFS?
+## When to use git-cas (and when not to)
 
-Because sometimes you want the Git object database to be the store:
+### "I just want screenshots in my README"
 
-- deterministic 
-- content-addressed 
-- locally replicable 
-- commit-addressable
+Use an **orphan branch**. Seriously. It's 5 git commands, zero dependencies, and GitHub renders the images inline. Google "git orphan branch assets" — that's all you need. git-cas is overkill for public images and demo GIFs.
 
-Also because LFS is, well... LFS.
+### "I need encrypted secrets / large binaries / deduplicated assets in a Git repo"
+
+That's git-cas. The orphan branch gives you none of:
+
+| | Orphan branch | git-cas |
+|---|---|---|
+| **Encryption** | None — plaintext forever in history | AES-256-GCM + passphrase KDF |
+| **Large files** | Bloats `git clone` for everyone | Chunked, restored on demand |
+| **Dedup** | None | Chunk-level content addressing |
+| **Integrity** | Git SHA-1 | SHA-256 per chunk + GCM auth tag |
+| **Lifecycle** | `git rm` (still in reflog) | Vault with audit trail + `git gc` reclaims |
+| **Compression** | None | gzip before encryption |
+
+### "Why not Git LFS?"
+
+Because sometimes you want the Git object database to be the store — deterministic, content-addressed, locally replicable, commit-addressable — with no external server, no LFS endpoint, and no second system to manage.
+
+If your team uses GitHub and needs file locking + web UI previews, use LFS. If you want encrypted, self-contained, server-free binary storage that travels with `git clone`, use git-cas.
 
 ---
 
