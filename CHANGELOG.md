@@ -5,26 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — M8 Spit Shine (code review fixes)
+## [4.0.1] — M8 Spit Shine + M9 Cockpit (2026-02-28)
+
+### Added
+- **`git cas verify`** command — verify stored asset integrity from the CLI (checks blob hashes; no key needed).
+- **`--json` global flag** — structured JSON output for all commands (`store`, `restore`, `verify`, `inspect`, `vault list/init/remove/info/history`).
+- **`runAction` error handler** (`bin/actions.js`) — centralized `try`/`catch` with CasError code display and actionable hints for 5 common errors.
+- **Vault list `--filter <pattern>`** — glob-based slug filtering with TTY-aware table formatting.
+- **`CryptoPort` base class** — shared `_validateKey()`, `_buildMeta()`, and `deriveKey()` (template method pattern with `_doDeriveKey()`). Eliminates duplication across Node/Bun/Web adapters.
+- **ADR-001** (`docs/ADR-001-vault-in-facade.md`) — architectural decision record for vault service composition.
+- **STATUS.md** — project status dashboard with shipped versions, roadmap, dependency graph, and known concerns.
+- **COMPLETED_TASKS.md** / **GRAVEYARD.md** — archived M1–M7 task cards and superseded tasks.
+- `WebCryptoAdapter.finalize()` guard — throws `STREAM_NOT_CONSUMED` if called before encrypt stream is fully consumed.
 
 ### Fixed
-- **C1** `verify` command uses `process.exitCode = 1` instead of `process.exit(1)` to allow stdout to drain on pipes.
-- **M4** `vault info --json --encryption` now includes encryption metadata in JSON output instead of silently dropping it.
-- **M3** `NodeCryptoAdapter._validateKey` removed — inherits base class `CryptoPort._validateKey` which accepts both `Buffer` and `Uint8Array`, matching the port contract.
-- **M2** `matchGlob` rejects patterns longer than 200 characters to prevent ReDoS on pathological input.
-- **L1** `writeError` guards against non-Error throws (`err?.message ?? String(err)`).
-- **L4** `store` action hoists `--json` flag read before `quiet` assignment (single call instead of two).
-- **L5** `CasService.encrypt()` removed redundant `_validateKey` call — `encryptBuffer` already validates internally.
-- **L3** `verify` command description clarified: "checks blob hashes; no key needed".
-- **N1** ADR-001 method names corrected to match actual facade API (`initVault`, `addToVault`, etc.).
-- **N3** Removed trailing blank line at EOF in `bin/git-cas.js`.
-- **M1** STATUS.md test count updated; M8/M9 task checkboxes marked complete.
-- `runAction` uses `process.exitCode = 1` instead of `process.exit(1)` for consistent exit behavior across all commands.
+- `verify` command uses `process.exitCode = 1` instead of `process.exit(1)` to allow stdout to drain on pipes.
+- `runAction` uses `process.exitCode = 1` for consistent exit behavior across all commands.
+- `vault info --json --encryption` now includes encryption metadata in JSON output.
 - `store --force` without `--tree` now throws immediately instead of silently ignoring the flag.
 - `inspect --json` now emits JSON even in TTY mode (previously fell through to rich view).
 - `vault history --json` now emits structured JSON array of `{ commitOid, message }` objects.
-- `matchGlob` `?` wildcard no longer matches `/` path separator, consistent with standard glob semantics.
-- Orphaned JSDoc comment removed from `NodeCryptoAdapter`; `_doDeriveKey` now properly `await`s promisified calls.
+- `NodeCryptoAdapter._validateKey` removed — inherits base class which accepts both `Buffer` and `Uint8Array`.
+- `CasService.encrypt()` removed redundant `_validateKey` call.
+- `matchGlob` rejects patterns > 200 chars (ReDoS guard); `?` no longer matches `/` path separator.
+- `writeError` guards against non-Error throws.
+- `_doDeriveKey` in `NodeCryptoAdapter` now properly `await`s promisified calls.
+
+### Changed
+- `CryptoPort` is now the single source of truth for key validation, metadata building, and KDF parameter normalization. All three adapters override only `_doDeriveKey()`.
+- ROADMAP.md pruned: completed M1–M7 task cards moved to COMPLETED_TASKS.md.
 
 ## [4.0.0] — Conduit (2026-02-27)
 

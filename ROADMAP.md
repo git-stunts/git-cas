@@ -9,7 +9,7 @@ This roadmap is structured as:
 3. **Contracts** — Return/throw semantics for all public methods
 4. **Version Plan** — Table mapping versions to milestones
 5. **Milestone Dependency Graph** — ASCII diagram
-6. **Milestones & Task Cards** — 7 milestones (2 closed, 5 open), remaining task cards
+6. **Milestones & Task Cards** — 7 milestones (4 closed, 3 open), remaining task cards
 7. **Feature Matrix** — Competitive landscape vs. Git LFS, git-annex, Restic, Age, DVC
 8. **Competitive Analysis** — When to use git-cas and when not to, with concrete scenarios
 
@@ -41,7 +41,7 @@ Single registry of all error codes used across the codebase. Each code is a stri
 | Code | Description | Planned By |
 |------|-------------|------------|
 | `INVALID_KEY_LENGTH` | Encryption key is not exactly 32 bytes (AES-256 requirement). Error meta includes `{ expected: 32, actual: <number> }`. | v1.1.0 |
-| `INVALID_KEY_TYPE` | Encryption key is not a Buffer. | v1.1.0 |
+| `INVALID_KEY_TYPE` | Encryption key is not a Buffer or Uint8Array. | v1.1.0 |
 | `INTEGRITY_ERROR` | Decryption auth-tag verification failed (wrong key, tampered ciphertext, or tampered tag), or chunk digest mismatch on restore. | v1.1.0 |
 | `STREAM_ERROR` | Read stream failed during `storeFile`. Partial chunks may have been written to Git ODB (unreachable; handled by `git gc`). Meta includes `{ chunksWritten: <number> }`. | v1.2.0 |
 | `MISSING_KEY` | Encryption key required to restore encrypted content but none was provided. | v1.2.0 |
@@ -55,6 +55,7 @@ Single registry of all error codes used across the codebase. Each code is a stri
 | `RECIPIENT_ALREADY_EXISTS` | Recipient label already exists in manifest. | Task 11.2 |
 | `CANNOT_REMOVE_LAST_RECIPIENT` | Cannot remove the last recipient — at least one must remain. | Task 11.2 |
 | `ROTATION_NOT_SUPPORTED` | Key rotation requires envelope encryption (DEK/KEK model). Legacy manifests must be re-stored. | Task 12.1 |
+| `STREAM_NOT_CONSUMED` | `finalize()` called on encryption stream before the generator was fully consumed. | v4.0.1 |
 
 ---
 
@@ -185,31 +186,26 @@ Return and throw semantics for every public method (current and planned).
 
 | Version | Milestone | Codename | Theme | Status |
 |--------:|-----------|----------|-------|--------|
+| v4.0.1  | M8+M9     | Spit Shine + Cockpit | CryptoPort refactor, verify, --json, error handler, vault list | ✅ |
 | v4.0.0  | M14       | Conduit  | Streaming I/O, observability, parallel chunks | ✅ |
-| v2.1.0  | M8        | Spit Shine | Review fixups | |
-| v2.2.0  | M9        | Cockpit  | CLI improvements | |
-| v3.0.0  | M10       | Hydra    | Content-defined chunking | |
-| v3.1.0  | M11       | Locksmith | Multi-recipient encryption | |
-| v3.2.0  | M12       | Carousel | Key rotation | |
 | v3.1.0  | M13       | Bijou    | TUI dashboard & progress | ✅ |
+| v5.0.0  | M10       | Hydra    | Content-defined chunking | |
+| v5.1.0  | M11       | Locksmith | Multi-recipient encryption | |
+| v5.2.0  | M12       | Carousel | Key rotation | |
 
 ---
 
 ## 5) Milestone Dependency Graph
 
 ```text
-M7 Horizon (v2.0.0) ✅ ──────────────────────────┐
-  │                                               │
-  ├──────┬──────────┐                              │
-  v      v          v                              v
-M8 Spit  M9 Cockpit  M10 Hydra        M11 Locksmith
-Shine    (v2.2.0)       │                          │
-(v2.1.0)                │                          v
-                        v                  M12 Carousel
-                 (CDC benchmarks)
-
+M7 Horizon (v2.0.0) ✅
 M13 Bijou (v3.1.0) ✅
 M14 Conduit (v4.0.0) ✅
+M8 Spit Shine + M9 Cockpit (v4.0.1) ✅
+
+M10 Hydra ──────────── (independent)
+M11 Locksmith ──────── (independent)
+  └──► M12 Carousel ── (needs M11)
 ```
 
 ---
@@ -222,11 +218,11 @@ M14 Conduit (v4.0.0) ✅
 |---:|--------------|----------------------------|:-------:|------:|-------:|------:|:------:|
 | M14| Conduit       | Streaming I/O, observability, parallel chunks | v4.0.0 | 4 | ~600 | ~18h | ✅ CLOSED |
 | M13| Bijou         | TUI dashboard & progress   | v3.1.0  | 6     | ~650   | ~20h  | ✅ CLOSED |
-| M8 | Spit Shine    | Review fixups              | v2.1.0  | 2     | ~150   | ~3h   | open |
-| M9 | Cockpit       | CLI improvements           | v2.2.0  | 4     | ~190   | ~5h   | open |
-| M10| Hydra         | Content-defined chunking   | v3.0.0  | 4     | ~690   | ~22h  | open |
-| M11| Locksmith     | Multi-recipient encryption | v3.1.0  | 4     | ~580   | ~20h  | open |
-| M12| Carousel      | Key rotation               | v3.2.0  | 4     | ~400   | ~13h  | open |
+| M8 | Spit Shine    | Review fixups              | v4.0.1  | 2     | ~150   | ~3h   | ✅ CLOSED |
+| M9 | Cockpit       | CLI improvements           | v4.0.1  | 4     | ~190   | ~5h   | ✅ CLOSED |
+| M10| Hydra         | Content-defined chunking   | v5.0.0  | 4     | ~690   | ~22h  | open |
+| M11| Locksmith     | Multi-recipient encryption | v5.1.0  | 4     | ~580   | ~20h  | open |
+| M12| Carousel      | Key rotation               | v5.2.0  | 4     | ~400   | ~13h  | open |
 
 Completed task cards are in [COMPLETED_TASKS.md](./COMPLETED_TASKS.md). Superseded tasks are in [GRAVEYARD.md](./GRAVEYARD.md).
 
@@ -238,338 +234,15 @@ All tasks completed (14.1–14.4). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md
 
 ---
 
-# M8 — Spit Shine (v2.1.0)
-**Theme:** Polish and harden based on code review findings. Fix asymmetries, eliminate duplication, improve docs. No new features.
+# M8 — Spit Shine (v4.0.1) ✅ CLOSED
+
+All tasks completed (8.2–8.3). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
 
 ---
 
-## Task 8.2: Extract shared crypto helpers to CryptoPort base class
+# M9 — Cockpit (v4.0.1) ✅ CLOSED
 
-**User Story**
-As a maintainer, I want duplicated crypto helpers consolidated so changes to validation or metadata format are made in one place.
-
-**Requirements**
-- R1: Move key validation to `CryptoPort` as concrete `_validateKey(key)`. Adapters call `super._validateKey(key)` or inherit directly.
-- R2: Move `buildMeta(nonce, tag)` to `CryptoPort` as concrete `_buildMeta(nonce, tag)`. Returns `{ algorithm: 'aes-256-gcm', nonce: string, tag: string, encrypted: true }`.
-- R3: Move KDF parameter defaults to `CryptoPort.deriveKey()` as a concrete method that normalizes parameters, then calls abstract `_doDeriveKey(passphrase, salt, normalizedParams)` template method.
-- R4: Remove `CasService._validateKey()` — service delegates to `crypto._validateKey()`.
-- R5: All 3 adapters use inherited helpers. No behavioral change.
-
-**Acceptance Criteria**
-- AC1: `CryptoPort` has concrete `_validateKey()`, `_buildMeta()`, and `deriveKey()` methods.
-- AC2: `NodeCryptoAdapter`, `BunCryptoAdapter`, `WebCryptoAdapter` no longer duplicate these methods.
-- AC3: `CasService._validateKey()` is removed; key validation delegates to crypto port.
-- AC4: All existing tests pass without modification (behavior unchanged).
-
-**Scope**
-- In scope: Refactor crypto helpers into base class + remove CasService duplication.
-- Out of scope: Changing validation rules, adding new key types.
-
-**Est. Complexity (LoC)**
-- Prod: ~40 (add to base, remove from 4 sites)
-- Tests: ~20 (base class unit tests)
-- Total: ~60
-
-**Est. Human Working Hours**
-- ~2h
-
-**Test Plan**
-- Golden path:
-  - All existing crypto round-trip tests pass unchanged.
-  - All existing KDF tests pass unchanged.
-- Failures:
-  - Invalid key type/length still throws same CasError codes.
-- Edges:
-  - NodeCryptoAdapter strict Buffer validation still enforced (override `_validateKey` if needed).
-- Fuzz/stress:
-  - Run full existing crypto fuzz suite — no regressions.
-
-**Definition of Done**
-- DoD1: Shared helpers live on CryptoPort.
-- DoD2: All duplicated code removed from adapters and CasService.
-- DoD3: Full test suite green.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 8.3: README polish and architectural decision record
-
-**User Story**
-As a new user, I want the README to get me started quickly. As a contributor, I want to understand why vault lives in the facade.
-
-**Requirements**
-- R1: Add installation instructions to README.md (`npm install @git-stunts/git-cas @git-stunts/plumbing`).
-- R2: Add links to GUIDE.md and API.md in README.md.
-- R3: Add `docs/ADR-001-vault-in-facade.md` documenting the decision to place vault logic in `ContentAddressableStore` rather than `CasService`, including rationale, alternatives considered, and trade-offs.
-
-**Acceptance Criteria**
-- AC1: README contains install command.
-- AC2: README links to GUIDE.md ("Getting Started") and API.md ("API Reference").
-- AC3: ADR exists and explains the vault-in-facade decision with alternatives considered.
-
-**Scope**
-- In scope: README edits + ADR document.
-- Out of scope: Full README rewrite, new documentation pages.
-
-**Est. Complexity (LoC)**
-- Prod: ~0
-- Docs: ~90 (README edits ~30, ADR ~60)
-- Total: ~90
-
-**Est. Human Working Hours**
-- ~1h
-
-**Test Plan**
-- Golden path:
-  - Verify install command is correct by running it in a fresh project.
-  - Verify links resolve to existing files.
-- Failures:
-  - Dead link in README → fix before merge.
-- Edges:
-  - None.
-- Fuzz/stress:
-  - None (documentation).
-
-**Definition of Done**
-- DoD1: README updated with install instructions and doc links.
-- DoD2: ADR-001 created in `docs/` directory.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: None
-
----
-
-# M9 — Cockpit (v2.2.0)
-**Theme:** CLI polish — progress feedback, structured output, better errors, and new commands. Make the terminal experience match the API's capability.
-
----
-
-## Task 9.2: CLI `verify` command
-
-**User Story**
-As an operator, I want to verify stored asset integrity from the command line without restoring the file.
-
-**Requirements**
-- R1: Add `git cas verify` subcommand.
-- R2: Accept `--oid <tree-oid>` or `--slug <slug>` (exactly one required, same mutual-exclusion validation as `restore`).
-- R3: Read manifest from tree, call `verifyIntegrity(manifest)`.
-- R4: Print `ok` and exit 0 on success. Print `fail` with details and exit 1 on failure.
-- R5: Supports `--cwd` and `--json` (if Task 9.3 is complete) flags.
-
-**Acceptance Criteria**
-- AC1: Valid asset → prints `ok`, exits 0.
-- AC2: Corrupted asset → prints `fail`, exits 1.
-- AC3: Nonexistent OID/slug → prints error, exits 1.
-
-**Scope**
-- In scope: `verify` subcommand wired to existing `verifyIntegrity()`.
-- Out of scope: Repair, per-chunk corruption report, re-verification against original file.
-
-**Est. Complexity (LoC)**
-- Prod: ~25
-- Tests: ~15
-- Total: ~40
-
-**Est. Human Working Hours**
-- ~1h
-
-**Test Plan**
-- Golden path:
-  - Store file, verify via CLI → exit 0.
-- Failures:
-  - Verify with bad OID → exit 1.
-  - Verify with both --slug and --oid → exit 1 (mutual exclusion).
-  - Neither --slug nor --oid → exit 1.
-- Edges:
-  - 0-chunk manifest verifies successfully (vacuously true).
-- Fuzz/stress:
-  - None (thin wrapper over tested API).
-
-**Definition of Done**
-- DoD1: `verify` subcommand added and functional.
-- DoD2: Unit tests cover pass and fail paths.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 9.3: CLI `--json` output mode
-
-**User Story**
-As a CI/CD pipeline author, I want structured JSON output from the CLI so I can parse results programmatically.
-
-**Requirements**
-- R1: Add `--json` global flag.
-- R2: When `--json` is passed, all command output is valid JSON on stdout:
-  - `store`: `{ "manifest": {...} }` or `{ "treeOid": "..." }` (with `--tree`).
-  - `restore`: `{ "bytesWritten": N }`.
-  - `verify`: `{ "ok": true|false, "slug": "...", "chunks": N }`.
-  - `vault list`: `[{ "slug": "...", "treeOid": "..." }, ...]`.
-  - `vault init`: `{ "commitOid": "..." }`.
-  - `vault remove`: `{ "commitOid": "...", "removedTreeOid": "..." }`.
-- R3: Errors in JSON mode: `{ "error": "...", "code": "..." }` on stderr with non-zero exit.
-- R4: Non-JSON mode behavior unchanged.
-
-**Acceptance Criteria**
-- AC1: `git cas store --json …` outputs parseable JSON.
-- AC2: `git cas vault list --json` outputs JSON array.
-- AC3: `git cas store --json … | jq .treeOid` works end-to-end.
-- AC4: Error in JSON mode is valid JSON with error and code fields.
-
-**Scope**
-- In scope: JSON output for all existing commands.
-- Out of scope: NDJSON streaming, custom output format templates.
-
-**Est. Complexity (LoC)**
-- Prod: ~30
-- Tests: ~20
-- Total: ~50
-
-**Est. Human Working Hours**
-- ~1.5h
-
-**Test Plan**
-- Golden path:
-  - Each command with `--json` → output is valid JSON (`JSON.parse` succeeds).
-- Failures:
-  - Error with `--json` → valid JSON error object.
-- Edges:
-  - Empty vault list → `[]`.
-  - 0-byte store → valid JSON manifest with empty chunks array.
-- Fuzz/stress:
-  - None (formatting layer).
-
-**Definition of Done**
-- DoD1: All commands support `--json`.
-- DoD2: Tests validate JSON output is parseable.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 9.4: CLI error handler DRY cleanup + actionable error messages
-
-**User Story**
-As a CLI user, I want error messages that suggest what to do next. As a maintainer, I want error handling to live in one place.
-
-**Requirements**
-- R1: Extract shared `runAction(fn)` wrapper that handles try/catch, stderr output, and `process.exit(1)`.
-- R2: All 6 command actions use `runAction()` instead of inline try/catch.
-- R3: Error messages include the CasError `code` when available: `error [INTEGRITY_ERROR]: message`.
-- R4: Add actionable hints for common errors:
-  - `MISSING_KEY` → "Provide --key-file or --vault-passphrase"
-  - `MANIFEST_NOT_FOUND` → "Verify the tree OID contains a manifest"
-  - `VAULT_ENTRY_NOT_FOUND` → "Run 'git cas vault list' to see available entries"
-  - `VAULT_ENTRY_EXISTS` → "Use --force to overwrite"
-  - `INTEGRITY_ERROR` → "Check that the correct key or passphrase was used"
-
-**Acceptance Criteria**
-- AC1: All command actions delegate to `runAction()`.
-- AC2: Error output includes CasError code when present.
-- AC3: At least 5 common errors include actionable hints.
-- AC4: No behavioral change for non-error paths.
-
-**Scope**
-- In scope: Error handler extraction + actionable hints.
-- Out of scope: Verbose/debug mode, error logging to file.
-
-**Est. Complexity (LoC)**
-- Prod: ~45
-- Tests: ~0 (existing tests cover error paths; hints verified manually)
-- Total: ~45
-
-**Est. Human Working Hours**
-- ~1h
-
-**Test Plan**
-- Golden path:
-  - All existing CLI tests pass unchanged.
-- Failures:
-  - Trigger each hinted error → verify hint appears in stderr.
-- Edges:
-  - Non-CasError (e.g., ENOENT) → generic message, no hint.
-- Fuzz/stress:
-  - None.
-
-**Definition of Done**
-- DoD1: `runAction()` wrapper used by all commands.
-- DoD2: Error output includes codes and hints.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 9.5: Vault list filtering and table formatting
-
-**User Story**
-As a user with many vault entries, I want to filter and scan the list quickly.
-
-**Requirements**
-- R1: Add `--filter <pattern>` option to `vault list`. Glob-style matching against slugs (e.g., `photos/*`, `*.bin`).
-- R2: Default output is table-formatted (aligned columns) when stdout is a TTY. Header row: `SLUG  TREE OID`.
-- R3: Pipe-friendly: tab-separated output when stdout is not a TTY (existing behavior preserved).
-- R4: `--json` mode outputs filtered JSON array (if Task 9.3 is complete).
-
-**Acceptance Criteria**
-- AC1: `vault list --filter "photos/*"` shows only matching entries.
-- AC2: TTY output shows aligned table with headers.
-- AC3: Non-TTY output is tab-separated (backward compatible).
-
-**Scope**
-- In scope: Glob filtering + TTY-aware table formatting.
-- Out of scope: Sort options, metadata columns (size, date), pagination.
-
-**Est. Complexity (LoC)**
-- Prod: ~35
-- Tests: ~20
-- Total: ~55
-
-**Est. Human Working Hours**
-- ~1.5h
-
-**Test Plan**
-- Golden path:
-  - 5 entries, filter matches 2 → 2 shown.
-  - TTY mode → table with headers.
-- Failures:
-  - No matches → empty output, exit 0.
-  - Invalid glob syntax → exit 1 with error.
-- Edges:
-  - No `--filter` → show all (default behavior preserved).
-  - Single entry → table still formatted correctly.
-- Fuzz/stress:
-  - None.
-
-**Definition of Done**
-- DoD1: `--filter` flag functional.
-- DoD2: TTY-aware table formatting implemented.
-- DoD3: Backward-compatible pipe behavior preserved.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: None
+All tasks completed (9.2–9.5). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
 
 ---
 

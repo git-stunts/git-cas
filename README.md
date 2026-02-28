@@ -44,6 +44,20 @@ We use the object database.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 
+## What's new in v4.0.1
+
+**`git cas verify`** — verify stored asset integrity from the CLI without restoring (`git cas verify --slug my-asset`).
+
+**`--json` everywhere** — all commands now support `--json` for structured output. Pipe `git cas vault list --json | jq` in CI.
+
+**CryptoPort base class** — shared key validation, metadata building, and KDF normalization. All three adapters (Node/Bun/Web) inherit from a single source of truth.
+
+**Centralized error handling** — `runAction` wrapper with CasError codes and actionable hints (e.g., "Provide --key-file or --vault-passphrase").
+
+**Vault list filtering** — `git cas vault list --filter "photos/*"` with TTY-aware table formatting.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
+
 ## What's new in v4.0.0
 
 **ObservabilityPort** — `CasService` no longer extends `EventEmitter`. A new hexagonal `ObservabilityPort` decouples the domain from Node's event infrastructure. Three adapters ship out of the box: `SilentObserver` (no-op default), `EventEmitterObserver` (backward-compatible event bridge), and `StatsCollector` (metric accumulator).

@@ -1,7 +1,7 @@
 # @git-stunts/cas — Project Status
 
-**Current version:** v4.0.0 (Conduit)
-**Last release:** 2026-02-27
+**Current version:** v4.0.1 (Spit Shine + Cockpit)
+**Last release:** 2026-02-28
 **Test suite:** 618 tests (vitest)
 **Runtimes:** Node.js 22.x, Bun, Deno
 
@@ -11,6 +11,7 @@
 
 | Version | Codename | Highlights |
 |---------|----------|------------|
+| v4.0.1 | Spit Shine + Cockpit | CryptoPort refactor, `verify` command, `--json` mode, `runAction`, vault list filtering |
 | v4.0.0 | Conduit | ObservabilityPort, `restoreStream()`, parallel chunk I/O, `concurrency` option |
 | v3.1.0 | Bijou | Interactive vault dashboard, animated progress bars, `git cas inspect`, chunk heatmap |
 | v3.0.0 | Vault | GC-safe ref-based storage (`refs/cas/vault`), slug-based addressing, vault CLI |
@@ -21,21 +22,7 @@
 
 ## What's next
 
-Five open milestones remain. M8/M9 are quick wins; M10–M12 are larger features.
-
-### M8 — Spit Shine (~3h)
-Code review polish. No new features.
-
-- [x] **8.2** Extract shared crypto helpers to CryptoPort base class
-- [x] **8.3** README polish and architectural decision record (ADR-001)
-
-### M9 — Cockpit (~5h)
-CLI improvements for CI/CD and operator workflows.
-
-- [x] **9.2** CLI `verify` command (`git cas verify --slug <slug>`)
-- [x] **9.3** CLI `--json` output mode (structured JSON for all commands)
-- [x] **9.4** CLI error handler DRY cleanup + actionable error messages
-- [x] **9.5** Vault list filtering (`--filter`) and table formatting
+Three open milestones remain. M10–M12 are larger features.
 
 ### M10 — Hydra (~22h)
 Content-defined chunking for dramatically better dedup on versioned files.
@@ -66,8 +53,8 @@ Key rotation without re-encrypting data.
 ## Dependency graph
 
 ```
-M8 Spit Shine ──────── (independent)
-M9 Cockpit ─────────── (independent)
+M8 Spit Shine ──────── ✅ v4.0.1
+M9 Cockpit ─────────── ✅ v4.0.1
 M10 Hydra ──────────── (independent)
 M11 Locksmith ──────── (independent)
   └──► M12 Carousel ── (needs M11)

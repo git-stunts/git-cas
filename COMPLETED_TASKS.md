@@ -4,6 +4,30 @@ Task cards moved here from ROADMAP.md after completion. Organized by milestone.
 
 ---
 
+# M8 — Spit Shine (v4.0.1) ✅ CLOSED
+
+**Theme:** Polish and harden based on code review findings. Fix asymmetries, eliminate duplication, improve docs. No new features.
+
+**Completed:** v4.0.1 (2026-02-28)
+
+- **Task 8.2:** Extract shared crypto helpers to CryptoPort base class — `_validateKey()`, `_buildMeta()`, `deriveKey()` with `_doDeriveKey()` template method. All three adapters inherit from base. `CasService._validateKey()` removed.
+- **Task 8.3:** README polish and ADR-001 (vault-in-facade architectural decision record).
+
+---
+
+# M9 — Cockpit (v4.0.1) ✅ CLOSED
+
+**Theme:** CLI polish — structured output, better errors, new commands.
+
+**Completed:** v4.0.1 (2026-02-28)
+
+- **Task 9.2:** `git cas verify` command — verify stored asset integrity without restoring.
+- **Task 9.3:** `--json` global flag — structured JSON output for all commands.
+- **Task 9.4:** `runAction` error handler — centralized try/catch with CasError codes and actionable hints.
+- **Task 9.5:** Vault list `--filter` + TTY-aware table formatting.
+
+---
+
 # M14 — Conduit (v4.0.0) ✅ CLOSED
 
 **Theme:** Replace `EventEmitter` inheritance with a proper `ObservabilityPort`, add streaming restore, and enable parallel chunk I/O. Major version bump: removes `extends EventEmitter` from `CasService`, adds `observability` as a required constructor port.
