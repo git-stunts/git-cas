@@ -32,7 +32,7 @@ git-cas provides defense against the following threat scenarios:
 
 git-cas does NOT provide protection in the following scenarios:
 
-1. **Key management**: git-cas does not store, manage, or rotate encryption keys. Key storage and lifecycle management are entirely the caller's responsibility.
+1. **Key management**: git-cas does not store or manage encryption keys. Key storage and lifecycle management are entirely the caller's responsibility. Key rotation is supported for envelope-encrypted content via `rotateKey()` (v5.2.0+).
 
 2. **Access control**: git-cas does not implement access control lists or authorization policies. If an attacker can access the Git repository and has the encryption key, they can read all content.
 
@@ -50,7 +50,7 @@ git-cas does NOT provide protection in the following scenarios:
 
 7. **Deletion guarantees**: Logical deletion from the manifest does not physically remove data from Git's object database. See [Git Object Immutability](#git-object-immutability).
 
-8. **Concurrent key rotation**: There is no support for re-encrypting content with a different key while maintaining availability.
+8. **Concurrent key rotation**: Envelope-encrypted content supports key rotation without re-encryption (v5.2.0+). Legacy (non-envelope) encrypted content still requires manual re-store.
 
 ---
 
@@ -117,7 +117,7 @@ git-cas **does not store encryption keys**. All key management responsibilities 
 1. **Key generation**: The caller must generate cryptographically secure 256-bit (32-byte) keys.
 2. **Key storage**: The caller must securely store keys (e.g., in environment variables, key management systems, hardware security modules).
 3. **Key distribution**: If keys need to be shared across systems, the caller must implement secure key distribution.
-4. **Key rotation**: The caller must implement key rotation policies. git-cas does not support re-encrypting content with a new key.
+4. **Key rotation**: For envelope-encrypted content (v5.2.0+), use `rotateKey()` to re-wrap the DEK with a new KEK without touching data blobs. For vault-wide rotation, use `rotateVaultPassphrase()`. Legacy (non-envelope) content requires manual re-store with a new key.
 
 ### Key Validation
 
@@ -398,20 +398,18 @@ let buffer = Buffer.concat(chunks);
 
 **Future improvement**: Investigate chunked AEAD modes or encrypt-then-MAC schemes that allow incremental authentication.
 
-### 3. No Key Rotation
+### 3. Key Rotation (v5.2.0+)
 
-**Issue**: git-cas does not support re-encrypting content with a new key while maintaining the same manifest structure.
+**Envelope-encrypted content** supports key rotation without re-encrypting data blobs:
 
-**Impact**:
-- If a key is compromised, all content encrypted with that key must be manually re-encrypted by:
-  1. Restoring content with the old key.
-  2. Storing content again with the new key.
-  3. Updating all references to the old manifest tree to the new manifest tree.
+- `rotateKey({ manifest, oldKey, newKey, label? })` — unwraps the DEK with `oldKey`, re-wraps with `newKey`, increments `keyVersion`. Data blobs are never read.
+- `rotateVaultPassphrase({ oldPassphrase, newPassphrase })` — rotates all envelope-encrypted vault entries atomically.
 
-**Workaround**:
-- Implement application-level key rotation by maintaining a key version identifier alongside each manifest.
+**Limitations**:
+- **Legacy (non-envelope) encrypted content** does not support rotation. You must restore with the old key and re-store with envelope encryption.
+- **Rotation does not invalidate old ciphertext**: The encrypted data blobs remain unchanged in the Git object database. An attacker who has both the old wrapped DEK (from a prior manifest commit) and the old KEK can still decrypt. To fully revoke access, the old manifest commits must be unreachable (e.g., via vault history squash + `git gc`).
 
-**Future improvement**: Add a `reencrypt()` method that re-encrypts content with a new key without requiring full restore.
+**Best practice**: Track `keyVersion` in manifests to audit rotation compliance. Rotate keys after suspected compromise, on personnel changes, or on a regular schedule (e.g., every 90 days).
 
 ### 4. Nonce Collision Risk After 2^32 Operations
 
@@ -610,7 +608,7 @@ git-cas provides strong at-rest encryption and integrity guarantees through AES-
 
 - **Key management is entirely your responsibility**. git-cas does not store or manage keys.
 - **Encrypted restore is not streaming**. Large encrypted files may cause memory issues.
-- **No key rotation support**. Re-encrypting content requires manual restore/store cycles.
+- **Key rotation supported for envelope encryption** (v5.2.0+). Legacy (non-envelope) content still requires manual restore/store cycles.
 - **Metadata is not encrypted**. File structure and sizes are visible to anyone with repository access.
 - **Logical deletion does not physically remove data**. Use `git gc` to prune unreferenced objects.
 

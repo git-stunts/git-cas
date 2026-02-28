@@ -465,6 +465,72 @@ Decrypts a buffer using AES-256-GCM.
 const decrypted = await cas.decrypt({ buffer: buf, key, meta });
 ```
 
+#### rotateKey
+
+```javascript
+await cas.rotateKey({ manifest, oldKey, newKey, label })
+```
+
+Rotates a recipient's encryption key without re-encrypting data blobs. Unwraps the DEK with `oldKey`, re-wraps with `newKey`, and increments `keyVersion` counters.
+
+**Parameters:**
+
+- `manifest` (required): `Manifest` - Envelope-encrypted manifest
+- `oldKey` (required): `Buffer` - Current 32-byte KEK
+- `newKey` (required): `Buffer` - New 32-byte KEK
+- `label` (optional): `string` - If provided, only rotate the named recipient
+
+**Returns:** `Promise<Manifest>` - Updated manifest with re-wrapped DEK and incremented `keyVersion`
+
+**Throws:**
+
+- `CasError` with code `ROTATION_NOT_SUPPORTED` if manifest has no recipients (legacy/unencrypted)
+- `CasError` with code `RECIPIENT_NOT_FOUND` if `label` doesn't exist
+- `CasError` with code `DEK_UNWRAP_FAILED` if `oldKey` doesn't match the recipient
+- `CasError` with code `NO_MATCHING_RECIPIENT` if no label is provided and `oldKey` matches no entry
+
+**Example:**
+
+```javascript
+const rotated = await cas.rotateKey({
+  manifest, oldKey: aliceOldKey, newKey: aliceNewKey, label: 'alice',
+});
+const treeOid = await cas.createTree({ manifest: rotated });
+await cas.addToVault({ slug: 'my-asset', treeOid, force: true });
+```
+
+#### rotateVaultPassphrase
+
+```javascript
+await cas.rotateVaultPassphrase({ oldPassphrase, newPassphrase, kdfOptions })
+```
+
+Rotates the vault-level encryption passphrase. Re-wraps every envelope-encrypted entry's DEK with a new KEK derived from `newPassphrase`. Non-envelope entries are skipped.
+
+**Parameters:**
+
+- `oldPassphrase` (required): `string` - Current vault passphrase
+- `newPassphrase` (required): `string` - New vault passphrase
+- `kdfOptions` (optional): `Object` - KDF options for new passphrase (e.g., `{ algorithm: 'scrypt' }`)
+
+**Returns:** `Promise<{ commitOid: string, rotatedSlugs: string[], skippedSlugs: string[] }>`
+
+**Throws:**
+
+- `CasError` with code `VAULT_METADATA_INVALID` if vault is not encrypted
+- `CasError` with code `DEK_UNWRAP_FAILED` or `NO_MATCHING_RECIPIENT` if old passphrase is wrong
+- `CasError` with code `VAULT_CONFLICT` if concurrent vault updates exhaust retries
+
+**Example:**
+
+```javascript
+const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase({
+  oldPassphrase: 'old-secret', newPassphrase: 'new-secret',
+});
+console.log(`Rotated: ${rotatedSlugs.join(', ')}`);
+console.log(`Skipped: ${skippedSlugs.join(', ')}`);
+```
+
 ### Properties
 
 #### chunkSize
@@ -716,7 +782,45 @@ git cas vault info <slug>                        # Show slug + tree OID
 git cas vault remove <slug>                      # Remove an entry
 git cas vault history                            # Show commit history
 git cas vault history -n 10                      # Last N commits
+git cas vault rotate --old-passphrase "old" --new-passphrase "new"
+git cas vault rotate --old-passphrase "old" --new-passphrase "new" --algorithm scrypt
 ```
+
+### CLI Key Rotation Commands
+
+```bash
+# Rotate a single asset's key (by vault slug)
+git cas rotate --slug demo/hello \
+  --old-key-file old.key --new-key-file new.key
+
+# Rotate a single asset's key (by tree OID)
+git cas rotate --oid <tree-oid> \
+  --old-key-file old.key --new-key-file new.key
+
+# Rotate only a named recipient
+git cas rotate --slug demo/hello \
+  --old-key-file old.key --new-key-file new.key --label alice
+```
+
+#### `git cas rotate` flags
+
+| Flag | Description |
+|------|-------------|
+| `--slug <slug>` | Resolve tree OID from vault slug (updates vault entry) |
+| `--oid <tree-oid>` | Direct tree OID (outputs updated manifest) |
+| `--old-key-file <path>` | Path to current 32-byte key file (required) |
+| `--new-key-file <path>` | Path to new 32-byte key file (required) |
+| `--label <label>` | Only rotate the named recipient entry |
+| `--cwd <dir>` | Git working directory (default: `.`) |
+
+#### `git cas vault rotate` flags
+
+| Flag | Description |
+|------|-------------|
+| `--old-passphrase <pass>` | Current vault passphrase (required) |
+| `--new-passphrase <pass>` | New vault passphrase (required) |
+| `--algorithm <alg>` | KDF algorithm for new passphrase (`pbkdf2` or `scrypt`) |
+| `--cwd <dir>` | Git working directory (default: `.`) |
 
 ### Vault History
 
@@ -1380,9 +1484,15 @@ new CasError(message, code, meta)
 | `INVALID_SLUG` | Slug fails validation (empty, control chars, `..` segments, etc.) | `addToVault()` |
 | `VAULT_ENTRY_NOT_FOUND` | Slug does not exist in vault | `removeFromVault()`, `resolveVaultEntry()` |
 | `VAULT_ENTRY_EXISTS` | Slug already exists (use `force` to overwrite) | `addToVault()` |
-| `VAULT_CONFLICT` | Concurrent vault update detected (CAS failure after retries) | `addToVault()`, `removeFromVault()`, `initVault()` |
-| `VAULT_METADATA_INVALID` | `.vault.json` malformed, unknown version, or missing required fields | `readState()` |
+| `VAULT_CONFLICT` | Concurrent vault update detected (CAS failure after retries) | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
+| `VAULT_METADATA_INVALID` | `.vault.json` malformed, unknown version, or missing required fields | `readState()`, `rotateVaultPassphrase()` |
 | `VAULT_ENCRYPTION_ALREADY_CONFIGURED` | Cannot reconfigure encryption without key rotation | `initVault()` |
+| `NO_MATCHING_RECIPIENT` | No recipient entry matches the provided KEK | `restore()`, `rotateKey()` |
+| `DEK_UNWRAP_FAILED` | Failed to unwrap DEK with the provided KEK | `addRecipient()`, `rotateKey()` |
+| `RECIPIENT_NOT_FOUND` | Recipient label not found in manifest | `removeRecipient()`, `rotateKey()` |
+| `RECIPIENT_ALREADY_EXISTS` | Recipient label already exists | `addRecipient()` |
+| `CANNOT_REMOVE_LAST_RECIPIENT` | Cannot remove the last recipient | `removeRecipient()` |
+| `ROTATION_NOT_SUPPORTED` | Key rotation requires envelope encryption (recipients) | `rotateKey()` |
 
 ### Error Handling
 

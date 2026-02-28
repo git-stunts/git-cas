@@ -13,6 +13,7 @@ const HINTS = {
   RECIPIENT_NOT_FOUND: 'No recipient with that label exists in the manifest',
   RECIPIENT_ALREADY_EXISTS: 'A recipient with that label already exists',
   CANNOT_REMOVE_LAST_RECIPIENT: 'At least one recipient must remain in the manifest',
+  ROTATION_NOT_SUPPORTED: 'Key rotation requires envelope encryption — store with --recipient first',
 };
 
 /**

@@ -31,6 +31,7 @@ export declare const RecipientSchema: z.ZodObject<{
   nonce: z.ZodString;
   tag: z.ZodString;
   kekType: z.ZodOptional<z.ZodString>;
+  keyVersion: z.ZodOptional<z.ZodNumber>;
 }>;
 
 /** Validates the encryption metadata attached to an encrypted manifest. */
@@ -41,6 +42,7 @@ export declare const EncryptionSchema: z.ZodObject<{
   encrypted: z.ZodDefault<z.ZodBoolean>;
   kdf: z.ZodOptional<typeof KdfSchema>;
   recipients: z.ZodOptional<z.ZodArray<typeof RecipientSchema>>;
+  keyVersion: z.ZodOptional<z.ZodNumber>;
 }>;
 
 /** Validates compression metadata. */

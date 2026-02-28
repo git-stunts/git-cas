@@ -138,29 +138,29 @@ Return and throw semantics for every public method (current and planned).
 - **Throws:** `CasError('MISSING_KEY')` if encrypted and no key provided.
 - **Memory:** O(chunkSize) — never buffers full file.
 
-### `rotateKey({ manifest, oldKey, newKey, label? })` *(planned — Task 12.1)*
+### `rotateKey({ manifest, oldKey, newKey, label? })` *(implemented — v5.2.0)*
 - **Returns:** `Promise<Manifest>` — updated manifest with re-wrapped DEK and incremented `keyVersion`.
 - **Throws:** `CasError('DEK_UNWRAP_FAILED')` if `oldKey` cannot unwrap the DEK.
 - **Throws:** `CasError('ROTATION_NOT_SUPPORTED')` if manifest uses legacy (non-envelope) encryption.
 - **Side effects:** None. Caller must persist via `createTree()`.
 
-### `addRecipient({ manifest, existingKey, newRecipientKey, label })` *(planned — Task 11.2)*
+### `addRecipient({ manifest, existingKey, newRecipientKey, label })` *(implemented — v5.1.0)*
 - **Returns:** `Promise<Manifest>` — updated manifest with additional recipient entry.
 - **Throws:** `CasError('DEK_UNWRAP_FAILED')` if `existingKey` is wrong.
 - **Throws:** `CasError('RECIPIENT_ALREADY_EXISTS')` if `label` already exists.
 - **Side effects:** None. Caller must persist.
 
-### `removeRecipient({ manifest, label })` *(planned — Task 11.2)*
+### `removeRecipient({ manifest, label })` *(implemented — v5.1.0)*
 - **Returns:** `Promise<Manifest>` — updated manifest without the named recipient.
 - **Throws:** `CasError('RECIPIENT_NOT_FOUND')` if `label` not in recipient list.
 - **Throws:** `CasError('CANNOT_REMOVE_LAST_RECIPIENT')` if only 1 recipient remains.
 
-### CLI: `git cas verify --oid <tree-oid> | --slug <slug>` *(planned — Task 9.2)*
+### CLI: `git cas verify --oid <tree-oid> | --slug <slug>` *(implemented — v4.0.1)*
 - **Output:** `ok` on success, `fail` on failure.
 - **Exit 0:** All chunks verified.
 - **Exit 1:** Verification failed or error.
 
-### CLI: `git cas rotate --slug <slug> --old-key-file <path> --new-key-file <path>` *(planned — Task 12.3)*
+### CLI: `git cas rotate --slug <slug> --old-key-file <path> --new-key-file <path>` *(implemented — v5.2.0)*
 - **Output:** New tree OID on success.
 - **Exit 0:** Rotation succeeded, vault updated.
 - **Exit 1:** Wrong old key, unsupported manifest, or vault error.
@@ -191,7 +191,7 @@ Return and throw semantics for every public method (current and planned).
 | v3.1.0  | M13       | Bijou    | TUI dashboard & progress | ✅ |
 | v5.0.0  | M10       | Hydra    | Content-defined chunking | ✅ |
 | v5.1.0  | M11       | Locksmith | Multi-recipient encryption | ✅ |
-| v5.2.0  | M12       | Carousel | Key rotation | |
+| v5.2.0  | M12       | Carousel | Key rotation | ✅ |
 
 ---
 
@@ -205,7 +205,7 @@ M8 Spit Shine + M9 Cockpit (v4.0.1) ✅
 
 M10 Hydra ──────────── ✅ v5.0.0
 M11 Locksmith ──────── ✅ v5.1.0
-  └──► M12 Carousel ── (ready)
+  └──► M12 Carousel ── ✅ v5.2.0
 ```
 
 ---
@@ -222,7 +222,7 @@ M11 Locksmith ──────── ✅ v5.1.0
 | M9 | Cockpit       | CLI improvements           | v4.0.1  | 4     | ~190   | ~5h   | ✅ CLOSED |
 | M10| Hydra         | Content-defined chunking   | v5.0.0  | 4     | ~690   | ~22h  | ✅ CLOSED |
 | M11| Locksmith     | Multi-recipient encryption | v5.1.0  | 4     | ~580   | ~20h  | ✅ CLOSED |
-| M12| Carousel      | Key rotation               | v5.2.0  | 4     | ~400   | ~13h  | open |
+| M12| Carousel      | Key rotation               | v5.2.0  | 4     | ~400   | ~13h  | ✅ CLOSED |
 
 Completed task cards are in [COMPLETED_TASKS.md](./COMPLETED_TASKS.md). Superseded tasks are in [GRAVEYARD.md](./GRAVEYARD.md).
 
@@ -256,223 +256,9 @@ All tasks completed (11.1–11.4). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md
 
 ---
 
-# M12 — Carousel (v5.2.0)
-**Theme:** Key rotation without re-encrypting data. The DEK/KEK model from M11 makes this possible — rotating a key means re-wrapping the DEK, not re-encrypting blobs. Includes vault-level rotation for changing the master passphrase.
+# M12 — Carousel (v5.2.0) ✅ CLOSED
 
----
-
-## Task 12.1: Key rotation workflow
-
-**User Story**
-As an operator, I want to rotate encryption keys without re-encrypting the actual data, so key compromise doesn't require re-storing all assets.
-
-**Requirements**
-- R1: Add `CasService.rotateKey({ manifest, oldKey, newKey, label? })`.
-- R2: Unwrap DEK using `oldKey`, re-wrap with `newKey`, update recipient entry (or all entries if no label specified).
-- R3: Return updated Manifest. Caller must persist via `createTree()` + vault update.
-- R4: Data blobs are never re-read or re-encrypted — only the DEK wrapping changes.
-- R5: Track rotation with `keyVersion` counter in manifest encryption metadata.
-- R6: If the manifest uses legacy (non-envelope) encryption, throw `ROTATION_NOT_SUPPORTED` with hint to re-store using envelope encryption.
-
-**Acceptance Criteria**
-- AC1: rotateKey → restore with new key succeeds, old key fails.
-- AC2: `keyVersion` increments after rotation.
-- AC3: Data blobs are never accessed during rotation (spy: zero readBlob calls).
-- AC4: Legacy manifest → `ROTATION_NOT_SUPPORTED` error.
-
-**Scope**
-- In scope: Key rotation method + key version tracking.
-- Out of scope: Automatic vault-wide rotation (Task 12.4), key version history/audit log, scheduled rotation policies.
-
-**Est. Complexity (LoC)**
-- Prod: ~80 (rotation logic + version tracking)
-- Tests: ~60 (round-trip, old-key-fails, version increment, legacy error)
-- Total: ~140
-
-**Est. Human Working Hours**
-- ~5h
-
-**Test Plan**
-- Golden path:
-  - Store → rotateKey → restore with new key → byte-compare original.
-  - Verify old key no longer works after rotation.
-  - Verify keyVersion incremented.
-- Failures:
-  - rotateKey with wrong oldKey → DEK_UNWRAP_FAILED.
-  - rotateKey on legacy manifest → ROTATION_NOT_SUPPORTED.
-- Edges:
-  - Rotate twice → keyVersion = 2, both old keys fail.
-  - Rotate with label → only that recipient updated, others unchanged.
-- Fuzz/stress:
-  - 20 sequential rotations → final key works, all 19 previous keys fail, keyVersion = 20.
-
-**Definition of Done**
-- DoD1: rotateKey implemented and exposed via facade.
-- DoD2: keyVersion tracking in manifest.
-- DoD3: Legacy manifest guard in place.
-- DoD4: Security implications documented in SECURITY.md.
-
-**Blocking**
-- Blocks: Task 12.3, Task 12.4
-
-**Blocked By**
-- Blocked by: Task 11.1
-
----
-
-## Task 12.2: Key version tracking in manifest
-
-**User Story**
-As a security auditor, I want to see which key version was used for each recipient so I can verify rotation compliance.
-
-**Requirements**
-- R1: Add `keyVersion` field (non-negative integer, default 0) to manifest `encryption` metadata.
-- R2: Each recipient entry carries `keyVersion` indicating which KEK version was used to wrap the DEK.
-- R3: `rotateKey()` increments manifest-level `keyVersion` and updates the rotated recipient's `keyVersion`.
-- R4: Extend ManifestSchema `EncryptionSchema` to include optional `keyVersion` field.
-- R5: Old manifests without `keyVersion` treated as version 0 (backward compatible).
-
-**Acceptance Criteria**
-- AC1: New manifests include `keyVersion: 0` by default (or omit for backward compat).
-- AC2: After rotation, manifest `keyVersion` increments.
-- AC3: Each recipient's `keyVersion` reflects when their wrapping was last updated.
-- AC4: Old manifests without `keyVersion` read correctly (treated as 0).
-
-**Scope**
-- In scope: Schema extension + version tracking logic.
-- Out of scope: Version history/audit log, policy enforcement (e.g., "rotate after N days"), automated compliance checks.
-
-**Est. Complexity (LoC)**
-- Prod: ~30 (schema + version logic in rotateKey)
-- Tests: ~40 (version increment, backward compat, per-recipient version)
-- Total: ~70
-
-**Est. Human Working Hours**
-- ~2h
-
-**Test Plan**
-- Golden path:
-  - Store → keyVersion 0. Rotate → keyVersion 1.
-- Failures:
-  - Manually set negative keyVersion → schema rejects.
-- Edges:
-  - Old manifest with no keyVersion → treated as 0.
-  - Multi-recipient: rotate one recipient → only that recipient's keyVersion changes.
-- Fuzz/stress:
-  - 100 sequential version increments → correct final version value.
-
-**Definition of Done**
-- DoD1: keyVersion in schema and runtime.
-- DoD2: Version tracking tested.
-- DoD3: Backward compatibility verified.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 11.1 (needs recipients in schema)
-
----
-
-## Task 12.3: CLI key rotation commands
-
-**User Story**
-As an operator, I want to rotate keys from the command line so I can perform routine key maintenance without writing scripts.
-
-**Requirements**
-- R1: Add `git cas rotate --slug <slug> --old-key-file <path> --new-key-file <path> [--label <label>]`.
-- R2: Reads manifest from vault, calls `rotateKey()`, persists updated manifest (createTree + vault update with `--force`).
-- R3: Prints new tree OID on success.
-- R4: Add `--oid <tree-oid>` as alternative to `--slug` (prints updated manifest, doesn't touch vault).
-
-**Acceptance Criteria**
-- AC1: `git cas rotate --slug myfile --old-key-file old.key --new-key-file new.key` → vault updated.
-- AC2: Subsequent restore with new key succeeds; old key fails.
-- AC3: keyVersion printed or included in JSON output.
-
-**Scope**
-- In scope: `rotate` CLI command.
-- Out of scope: Interactive key generation, passphrase-based rotation (use `vault rotate` for that).
-
-**Est. Complexity (LoC)**
-- Prod: ~50 (new subcommand)
-- Tests: ~30
-- Total: ~80
-
-**Est. Human Working Hours**
-- ~2h
-
-**Test Plan**
-- Golden path:
-  - Store → rotate via CLI → restore with new key → success.
-- Failures:
-  - Wrong old key → exit 1 with DEK_UNWRAP_FAILED.
-  - Legacy (non-envelope) manifest → exit 1 with ROTATION_NOT_SUPPORTED.
-- Edges:
-  - Rotate with --label → only named recipient updated.
-- Fuzz/stress:
-  - None (thin wrapper over tested API).
-
-**Definition of Done**
-- DoD1: `rotate` command added.
-- DoD2: Full CLI round-trip tested.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 12.1
-
----
-
-## Task 12.4: Vault-level key rotation
-
-**User Story**
-As an operator, I want to rotate the vault passphrase so a compromised passphrase can be revoked without re-storing all assets.
-
-**Requirements**
-- R1: Add `ContentAddressableStore.rotateVaultPassphrase({ oldPassphrase, newPassphrase, kdfOptions? })`.
-- R2: Derive old KEK from `oldPassphrase` + stored KDF params. Derive new KEK from `newPassphrase` (new salt, optionally new algorithm).
-- R3: For each vault entry with envelope encryption: unwrap DEK with old KEK, re-wrap with new KEK.
-- R4: Update vault metadata with new KDF params (new salt, potentially new algorithm/iterations).
-- R5: Atomic: all entries rotated in a single vault commit. CAS retry on conflict.
-- R6: Add `git cas vault rotate --old-passphrase <old> --new-passphrase <new> [--algorithm <alg>]` CLI command.
-
-**Acceptance Criteria**
-- AC1: After rotation, all entries restorable with new passphrase.
-- AC2: Old passphrase no longer works for any entry.
-- AC3: Vault metadata updated with new KDF params.
-- AC4: Atomic: partial rotation never committed (all-or-nothing).
-
-**Scope**
-- In scope: Vault-level rotation API + CLI command.
-- Out of scope: Per-entry passphrase rotation (use Task 12.1), online rotation (vault is locked during rotation), rollback on failure.
-
-**Est. Complexity (LoC)**
-- Prod: ~60 (rotation logic + CLI command)
-- Tests: ~50 (round-trip, atomicity, backward compat)
-- Total: ~110
-
-**Est. Human Working Hours**
-- ~4h
-
-**Test Plan**
-- Golden path:
-  - Init vault with passphrase A → store 3 entries → rotate to passphrase B → restore all 3 with B.
-- Failures:
-  - Wrong old passphrase → exit 1 with DEK_UNWRAP_FAILED.
-  - Concurrent vault update during rotation → CAS retry or VAULT_CONFLICT.
-- Edges:
-  - Vault with no encrypted entries → metadata updated, no DEK rotation needed.
-  - Vault with 1 entry → atomic commit with single rotation.
-- Fuzz/stress:
-  - Rotate 10 times sequentially → final passphrase works, all 9 prior fail.
-
-**Definition of Done**
-- DoD1: Vault rotation implemented and exposed via facade.
-- DoD2: CLI command added.
-- DoD3: Atomicity verified (no partial rotations).
-- DoD4: SECURITY.md updated with vault rotation guidance.
+All tasks completed (12.1–12.4). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
 
 ---
 
@@ -512,8 +298,8 @@ Competitive landscape for content-addressed storage, encrypted binary assets, an
 | Client-side encryption | ✅ AES-256-GCM | — | ❌ | ✅ GPG | ✅ AES-256-CTR + Poly1305 | ✅ ChaCha20-Poly1305 | ❌ | Protect data at rest in untrusted storage | git-cas is the only Git-native tool with integrated encryption | — |
 | Authenticated encryption (AEAD) | ✅ GCM auth tag | — | ❌ | ⚠️ GPG signature optional | ✅ Poly1305 | ✅ Poly1305 | ❌ | Tamper detection + confidentiality | GCM and Poly1305 both provide authentication. GPG can but doesn't by default | — |
 | Per-chunk encryption | ✅ Streaming | — | ❌ | ❌ Whole-file | ❌ Per-pack | ✅ 64 KiB chunks | ❌ | Encrypt without buffering full file | git-cas and Age both stream; Restic encrypts packed blobs | — |
-| Multi-recipient encryption | ❌ | ✅ M11 Locksmith | ❌ | ✅ Multiple GPG keys | ✅ Multiple passwords | ✅ Multiple X25519 | ❌ | Team access without sharing a single key | Envelope encryption (DEK/KEK model). ~220 LoC, ~8h (Task 11.1) | DEK/KEK model + recipient management. ~580 LoC total, ~20h (M11) |
-| Key rotation (no re-encrypt) | ❌ | 🗓 M12 Carousel | N/A | ⚠️ Can add keys; revoke requires re-encrypt | ✅ Re-wrap master key | ❌ | N/A | Respond to key compromise without re-storing data | Requires DEK/KEK model. Re-wraps DEK, data blobs untouched | Depends on M11. rotateKey + vault rotation. ~400 LoC, ~13h (M12) |
+| Multi-recipient encryption | ✅ M11 Locksmith | — | ❌ | ✅ Multiple GPG keys | ✅ Multiple passwords | ✅ Multiple X25519 | ❌ | Team access without sharing a single key | Envelope encryption (DEK/KEK model) | — |
+| Key rotation (no re-encrypt) | ✅ M12 Carousel | — | N/A | ⚠️ Can add keys; revoke requires re-encrypt | ✅ Re-wrap master key | ❌ | N/A | Respond to key compromise without re-storing data | Re-wraps DEK, data blobs untouched | — |
 | KDF / passphrase keys | ✅ PBKDF2, scrypt | — | ❌ | ✅ GPG S2K | ✅ scrypt | ✅ scrypt | ❌ | Derive keys from passwords instead of managing raw bytes | git-cas supports both PBKDF2 (100k iterations) and scrypt | — |
 | Argon2 KDF | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Memory-hard KDF resists GPU/ASIC attacks | No tool in this space supports Argon2 yet. Would require native/WASM addon | ~80 LoC + native dep. ~4h. Low priority — scrypt is adequate |
 | Hardware security (YubiKey/HSM) | ❌ | ❌ | ❌ | ✅ GPG smartcard | ❌ | ✅ age-plugin-yubikey | ❌ | Keys never leave hardware token | Would require plugin system or GPG integration | Plugin architecture + PIV applet integration. ~300 LoC, ~16h. Low priority |
@@ -568,9 +354,9 @@ Competitive landscape for content-addressed storage, encrypted binary assets, an
 | Multi-runtime support | ✅ Node, Bun, Deno | — | ❌ Go only | ❌ Haskell only | ❌ Go only | ✅ Go, Rust, JS, Java, Python | ❌ Python only | Same library works across JS runtimes | Only git-cas and Age support multiple runtimes | — |
 | Progress events (structured) | ✅ ObservabilityPort (metric/log/span) | — | ✅ Transfer protocol | ⚠️ Terminal bars | ✅ JSON Lines | ❌ | ⚠️ Terminal bars | Build progress bars, logging, monitoring | git-cas emits typed metrics per chunk via ObservabilityPort (v4.0.0) | — |
 | CLI progress feedback | ✅ Animated (bijou) | — | ✅ | ✅ | ✅ | ❌ | ✅ | Users know operations are working | Implemented in v3.1.0 (M13 Bijou) | — |
-| Structured output (--json) | ❌ | 🗓 M9 Cockpit | ❌ | ❌ | ✅ `--json` | ❌ | ✅ `--json` | CI/CD pipeline integration | Restic is the gold standard here (JSON Lines for all output) | Global `--json` flag. ~50 LoC, ~1.5h (Task 9.3) |
-| CLI `verify` command | ❌ API only | 🗓 M9 Cockpit | ✅ Implicit on checkout | ✅ `annex fsck` | ✅ `restic check` | ❌ | ✅ `dvc check-ignore` | Audit integrity without restoring | API exists (`verifyIntegrity`); CLI just needs to expose it | 25 LoC, ~1h (Task 9.2) |
-| Actionable error messages | ❌ Generic `err.message` | 🗓 M9 Cockpit | ⚠️ | ⚠️ | ✅ | ❌ | ✅ | Users know what went wrong and what to do next | Error codes exist but CLI doesn't show hints | Error handler + hint map. ~45 LoC, ~1h (Task 9.4) |
+| Structured output (--json) | ✅ `--json` | — | ❌ | ❌ | ✅ `--json` | ❌ | ✅ `--json` | CI/CD pipeline integration | Global `--json` flag on all commands | — |
+| CLI `verify` command | ✅ `git cas verify` | — | ✅ Implicit on checkout | ✅ `annex fsck` | ✅ `restic check` | ❌ | ✅ `dvc check-ignore` | Audit integrity without restoring | Per-chunk SHA-256 verification | — |
+| Actionable error messages | ✅ Hints | — | ⚠️ | ⚠️ | ✅ | ❌ | ✅ | Users know what went wrong and what to do next | Error codes + actionable hint map | — |
 
 ---
 
@@ -593,7 +379,7 @@ Competitive landscape for content-addressed storage, encrypted binary assets, an
 |---|---|---|---|---|---|---|
 | **Core identity** | Git-native CAS with encryption | Git large file offloading | Distributed file management | Encrypted backup with dedup | File encryption primitive | ML data version control |
 | **Strongest at** | Git ODB integration, pluggable codecs, Merkle manifests, vault | Simplicity, file locking, ecosystem adoption | Backend diversity, location tracking, metadata views | CDC dedup, retention policies, FUSE mount | Multi-recipient, HSM, multi-language, simplicity | ML pipelines, experiment tracking, Python ecosystem |
-| **Weakest at** | No multi-backend, single-key encryption, gzip only, no CDC | No encryption, no compression, requires server | Complexity, Haskell-only, no CDC | No Git integration, no library API | Not a storage system | No encryption, no chunking, no streaming |
+| **Weakest at** | No multi-backend, gzip only | No encryption, no compression, requires server | Complexity, Haskell-only, no CDC | No Git integration, no library API | Not a storage system | No encryption, no chunking, no streaming |
 | **Server required** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Best use case** | Encrypted binary assets in Git repos | Large files in GitHub/GitLab repos | Distributed archive management | Encrypted backups of filesystems | Encrypting files for recipients | ML model/data versioning |
 

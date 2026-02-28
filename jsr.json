@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/git-cas",
-  "version": "5.1.0",
+  "version": "5.2.1",
   "exports": {
     ".": "./index.js",
     "./service": "./src/domain/services/CasService.js",

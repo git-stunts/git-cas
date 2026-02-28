@@ -17,6 +17,19 @@ Task cards moved here from ROADMAP.md after completion. Organized by milestone.
 
 ---
 
+# M12 — Carousel (v5.2.0) ✅ CLOSED
+
+**Theme:** Key rotation without re-encrypting data. Rotate recipient keys or vault passphrases by re-wrapping the DEK, leaving data blobs untouched.
+
+**Completed:** v5.2.0 (2026-02-28)
+
+- **Task 12.1:** Key rotation workflow — `CasService.rotateKey({ manifest, oldKey, newKey, label? })` unwraps DEK with `oldKey`, re-wraps with `newKey`. Data blobs never accessed. `keyVersion` counter tracks rotation history. Legacy (non-envelope) manifests throw `ROTATION_NOT_SUPPORTED`.
+- **Task 12.2:** Key version tracking in manifest — `keyVersion` field (non-negative integer, default 0) at manifest-level and per-recipient. `rotateKey()` increments both counters. Old manifests without `keyVersion` treated as version 0 (backward compatible).
+- **Task 12.3:** CLI key rotation commands — `git cas rotate --slug <slug> --old-key-file <path> --new-key-file <path> [--label <label>]`. Also supports `--oid <tree-oid>` for manifest-only rotation without vault round-trip.
+- **Task 12.4:** Vault-level key rotation — `rotateVaultPassphrase({ oldPassphrase, newPassphrase, kdfOptions? })` re-wraps every envelope-encrypted entry's DEK in a single atomic commit. `git cas vault rotate` CLI command. CAS retry on `VAULT_CONFLICT`.
+
+---
+
 # M10 — Hydra (v5.0.0) ✅ CLOSED
 
 **Theme:** Content-defined chunking for dramatically better dedup on versioned files.

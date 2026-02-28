@@ -31,6 +31,7 @@ export const RecipientSchema = z.object({
   nonce: z.string().min(1),
   tag: z.string().min(1),
   kekType: z.string().optional(),
+  keyVersion: z.number().int().min(0).optional(),
 });
 
 /** Validates the encryption metadata attached to an encrypted manifest. */
@@ -41,6 +42,7 @@ export const EncryptionSchema = z.object({
   encrypted: z.boolean().default(true),
   kdf: KdfSchema.optional(),
   recipients: z.array(RecipientSchema).min(1).optional(),
+  keyVersion: z.number().int().min(0).optional(),
 });
 
 /** Validates compression metadata. */

@@ -22,6 +22,7 @@ We use the object database.
 - **Chunked storage** big files become stable, reusable blobs. Fixed-size or content-defined chunking (CDC).
 - **Optional AES-256-GCM encryption** store secrets without leaking plaintext into the ODB.
 - **Multi-recipient encryption** envelope model (DEK/KEK) — add/remove access without re-encrypting data.
+- **Key rotation** rotate keys without re-encrypting data blobs. Respond to compromise in seconds.
 - **Compression** gzip before encryption — smaller blobs, same round-trip.
 - **Passphrase encryption** derive keys from passphrases via PBKDF2 or scrypt — no raw key management.
 - **Merkle manifests** large files auto-split into sub-manifests for scalability.
@@ -36,6 +37,32 @@ We use the object database.
 **Use it for:** binary assets, build artifacts, model weights, data packs, secret bundles, weird experiments, etc.
 
 <img src="./docs/demo.gif" alt="git-cas demo" />
+
+## What's new in v5.2.0
+
+**Key rotation without re-encrypting data** — Rotate a recipient's key by re-wrapping the DEK. Data blobs are never touched. Respond to key compromise in seconds, not hours.
+
+```js
+// Rotate a single recipient's key
+const rotated = await cas.rotateKey({
+  manifest, oldKey: aliceOldKey, newKey: aliceNewKey, label: 'alice',
+});
+
+// Rotate the vault passphrase (all entries, atomic commit)
+const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase({
+  oldPassphrase: 'old-secret', newPassphrase: 'new-secret',
+});
+```
+
+```bash
+# Rotate a recipient key
+git cas rotate --slug prod-secrets --old-key-file old.key --new-key-file new.key
+
+# Rotate vault passphrase
+git cas vault rotate --old-passphrase old-secret --new-passphrase new-secret
+```
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 
 ## What's new in v5.1.0
 
@@ -225,6 +252,13 @@ git cas recipient list shared
 git cas recipient add shared --label carol --key-file ./keys/carol.key --existing-key-file ./keys/alice.key
 git cas recipient remove shared --label bob
 
+# Key rotation (no re-encryption)
+git cas rotate --slug shared --old-key-file old.key --new-key-file new.key
+git cas rotate --slug shared --old-key-file old.key --new-key-file new.key --label alice
+
+# Vault passphrase rotation
+git cas vault rotate --old-passphrase old-secret --new-passphrase new-secret
+
 # Encrypted vault round-trip (passphrase via env var or --vault-passphrase flag)
 export GIT_CAS_PASSPHRASE="secret"
 git cas vault init
@@ -254,7 +288,7 @@ That's git-cas. The orphan branch gives you none of:
 
 | | Orphan branch | git-cas |
 |---|---|---|
-| **Encryption** | None — plaintext forever in history | AES-256-GCM + passphrase KDF + multi-recipient |
+| **Encryption** | None — plaintext forever in history | AES-256-GCM + passphrase KDF + multi-recipient + key rotation |
 | **Large files** | Bloats `git clone` for everyone | Chunked, restored on demand |
 | **Dedup** | None | Chunk-level content addressing |
 | **Integrity** | Git SHA-1 | SHA-256 per chunk + GCM auth tag |
