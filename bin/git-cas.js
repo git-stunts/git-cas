@@ -10,12 +10,17 @@ import { renderEncryptionCard } from './ui/encryption-card.js';
 import { renderHistoryTimeline } from './ui/history-timeline.js';
 import { renderManifestView } from './ui/manifest-view.js';
 import { renderHeatmap } from './ui/heatmap.js';
+import { runAction } from './actions.js';
+import { filterEntries, formatTable, formatTabSeparated } from './ui/vault-list.js';
+
+const getJson = () => program.opts().json;
 
 program
   .name('git-cas')
   .description('Content Addressable Storage backed by Git')
   .version('4.0.0')
-  .option('-q, --quiet', 'Suppress progress output');
+  .option('-q, --quiet', 'Suppress progress output')
+  .option('--json', 'Output results as JSON');
 
 /**
  * Read a 32-byte raw encryption key from a file.
@@ -81,12 +86,10 @@ async function resolveEncryptionKey(cas, opts) {
  */
 function validateRestoreFlags(opts) {
   if (opts.slug && opts.oid) {
-    process.stderr.write('error: Provide --slug or --oid, not both\n');
-    process.exit(1);
+    throw new Error('Provide --slug or --oid, not both');
   }
   if (!opts.slug && !opts.oid) {
-    process.stderr.write('error: Provide --slug <slug> or --oid <tree-oid>\n');
-    process.exit(1);
+    throw new Error('Provide --slug <slug> or --oid <tree-oid>');
   }
 }
 
@@ -102,39 +105,45 @@ program
   .option('--force', 'Overwrite existing vault entry')
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for encryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(async (file, opts) => {
-    try {
-      const observer = new EventEmitterObserver();
-      const cas = createCas(opts.cwd, { observability: observer });
-      const encryptionKey = await resolveEncryptionKey(cas, opts);
-      const storeOpts = { filePath: file, slug: opts.slug };
-      if (encryptionKey) {
-        storeOpts.encryptionKey = encryptionKey;
-      }
-
-      const progress = createStoreProgress({
-        filePath: file, chunkSize: cas.chunkSize, quiet: program.opts().quiet,
-      });
-      progress.attach(observer);
-      let manifest;
-      try {
-        manifest = await cas.storeFile(storeOpts);
-      } finally {
-        progress.detach();
-      }
-
-      if (opts.tree) {
-        const treeOid = await cas.createTree({ manifest });
-        await cas.addToVault({ slug: opts.slug, treeOid, force: !!opts.force });
-        process.stdout.write(`${treeOid}\n`);
-      } else {
-        process.stdout.write(`${JSON.stringify(manifest.toJSON(), null, 2)}\n`);
-      }
-    } catch (err) {
-      process.stderr.write(`error: ${err.message}\n`);
-      process.exit(1);
+  .action(runAction(async (file, opts) => {
+    const json = program.opts().json;
+    const quiet = program.opts().quiet || json;
+    const observer = new EventEmitterObserver();
+    const cas = createCas(opts.cwd, { observability: observer });
+    const encryptionKey = await resolveEncryptionKey(cas, opts);
+    if (opts.force && !opts.tree) {
+      throw new Error('--force requires --tree');
     }
-  });
+    const storeOpts = { filePath: file, slug: opts.slug };
+    if (encryptionKey) {
+      storeOpts.encryptionKey = encryptionKey;
+    }
+
+    const progress = createStoreProgress({
+      filePath: file, chunkSize: cas.chunkSize, quiet,
+    });
+    progress.attach(observer);
+    let manifest;
+    try {
+      manifest = await cas.storeFile(storeOpts);
+    } finally {
+      progress.detach();
+    }
+
+    if (opts.tree) {
+      const treeOid = await cas.createTree({ manifest });
+      await cas.addToVault({ slug: opts.slug, treeOid, force: !!opts.force });
+      if (json) {
+        process.stdout.write(`${JSON.stringify({ treeOid })}\n`);
+      } else {
+        process.stdout.write(`${treeOid}\n`);
+      }
+    } else if (json) {
+      process.stdout.write(`${JSON.stringify({ manifest: manifest.toJSON() })}\n`);
+    } else {
+      process.stdout.write(`${JSON.stringify(manifest.toJSON(), null, 2)}\n`);
+    }
+  }, getJson));
 
 // ---------------------------------------------------------------------------
 // tree
@@ -144,18 +153,18 @@ program
   .description('Create a Git tree from a manifest')
   .requiredOption('--manifest <path>', 'Path to manifest JSON file')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(async (opts) => {
-    try {
-      const cas = createCas(opts.cwd);
-      const raw = readFileSync(opts.manifest, 'utf8');
-      const manifest = new Manifest(JSON.parse(raw));
-      const treeOid = await cas.createTree({ manifest });
+  .action(runAction(async (opts) => {
+    const cas = createCas(opts.cwd);
+    const raw = readFileSync(opts.manifest, 'utf8');
+    const manifest = new Manifest(JSON.parse(raw));
+    const treeOid = await cas.createTree({ manifest });
+    const json = program.opts().json;
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ treeOid })}\n`);
+    } else {
       process.stdout.write(`${treeOid}\n`);
-    } catch (err) {
-      process.stderr.write(`error: ${err.message}\n`);
-      process.exit(1);
     }
-  });
+  }, getJson));
 
 // ---------------------------------------------------------------------------
 // inspect
@@ -167,25 +176,23 @@ program
   .option('--oid <tree-oid>', 'Direct tree OID')
   .option('--heatmap', 'Show chunk heatmap visualization')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(async (opts) => {
-    try {
-      validateRestoreFlags(opts);
-      const cas = createCas(opts.cwd);
-      const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
-      const manifest = await cas.readManifest({ treeOid });
+  .action(runAction(async (opts) => {
+    validateRestoreFlags(opts);
+    const cas = createCas(opts.cwd);
+    const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
+    const manifest = await cas.readManifest({ treeOid });
+    const json = program.opts().json;
 
-      if (opts.heatmap) {
-        process.stdout.write(renderHeatmap({ manifest }));
-      } else if (process.stdout.isTTY) {
-        process.stdout.write(renderManifestView({ manifest }));
-      } else {
-        process.stdout.write(`${JSON.stringify(manifest.toJSON(), null, 2)}\n`);
-      }
-    } catch (err) {
-      process.stderr.write(`error: ${err.message}\n`);
-      process.exit(1);
+    if (json) {
+      process.stdout.write(`${JSON.stringify(manifest.toJSON())}\n`);
+    } else if (opts.heatmap) {
+      process.stdout.write(renderHeatmap({ manifest }));
+    } else if (process.stdout.isTTY) {
+      process.stdout.write(renderManifestView({ manifest }));
+    } else {
+      process.stdout.write(`${JSON.stringify(manifest.toJSON(), null, 2)}\n`);
     }
-  });
+  }, getJson));
 
 // ---------------------------------------------------------------------------
 // restore
@@ -199,39 +206,66 @@ program
   .option('--key-file <path>', 'Path to 32-byte raw encryption key file')
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for decryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(async (opts) => {
-    try {
-      validateRestoreFlags(opts);
-      const observer = new EventEmitterObserver();
-      const cas = createCas(opts.cwd, { observability: observer });
-      const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
-      const manifest = await cas.readManifest({ treeOid });
+  .action(runAction(async (opts) => {
+    validateRestoreFlags(opts);
+    const quiet = program.opts().quiet || program.opts().json;
+    const observer = new EventEmitterObserver();
+    const cas = createCas(opts.cwd, { observability: observer });
+    const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
+    const manifest = await cas.readManifest({ treeOid });
 
-      const restoreOpts = { manifest };
-      const encryptionKey = await resolveEncryptionKey(cas, opts);
-      if (encryptionKey) {
-        restoreOpts.encryptionKey = encryptionKey;
-      }
-
-      const progress = createRestoreProgress({
-        totalChunks: manifest.chunks.length, quiet: program.opts().quiet,
-      });
-      progress.attach(observer);
-      let bytesWritten;
-      try {
-        ({ bytesWritten } = await cas.restoreFile({
-          ...restoreOpts,
-          outputPath: opts.out,
-        }));
-      } finally {
-        progress.detach();
-      }
-      process.stdout.write(`${bytesWritten}\n`);
-    } catch (err) {
-      process.stderr.write(`error: ${err.message}\n`);
-      process.exit(1);
+    const restoreOpts = { manifest };
+    const encryptionKey = await resolveEncryptionKey(cas, opts);
+    if (encryptionKey) {
+      restoreOpts.encryptionKey = encryptionKey;
     }
-  });
+
+    const progress = createRestoreProgress({
+      totalChunks: manifest.chunks.length, quiet,
+    });
+    progress.attach(observer);
+    let bytesWritten;
+    try {
+      ({ bytesWritten } = await cas.restoreFile({
+        ...restoreOpts,
+        outputPath: opts.out,
+      }));
+    } finally {
+      progress.detach();
+    }
+    const json = program.opts().json;
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ bytesWritten })}\n`);
+    } else {
+      process.stdout.write(`${bytesWritten}\n`);
+    }
+  }, getJson));
+
+// ---------------------------------------------------------------------------
+// verify
+// ---------------------------------------------------------------------------
+program
+  .command('verify')
+  .description('Verify integrity of a stored asset (checks blob hashes; no key needed)')
+  .option('--slug <slug>', 'Resolve tree OID from vault slug')
+  .option('--oid <tree-oid>', 'Direct tree OID')
+  .option('--cwd <dir>', 'Git working directory', '.')
+  .action(runAction(async (opts) => {
+    validateRestoreFlags(opts);
+    const cas = createCas(opts.cwd);
+    const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
+    const manifest = await cas.readManifest({ treeOid });
+    const ok = await cas.verifyIntegrity(manifest);
+    const json = program.opts().json;
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ ok, slug: manifest.slug, chunks: manifest.chunks.length })}\n`);
+    } else {
+      process.stdout.write(ok ? 'ok\n' : `fail: ${manifest.slug}\n`);
+    }
+    if (!ok) {
+      process.exitCode = 1;
+    }
+  }, getJson));
 
 // ---------------------------------------------------------------------------
 // vault init
@@ -246,22 +280,22 @@ vault
   .option('--vault-passphrase <pass>', 'Passphrase for vault-level encryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--algorithm <alg>', 'KDF algorithm (pbkdf2 or scrypt)', 'pbkdf2')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(async (opts) => {
-    try {
-      const cas = createCas(opts.cwd);
-      const initOpts = {};
-      const passphrase = resolvePassphrase(opts);
-      if (passphrase) {
-        initOpts.passphrase = passphrase;
-        initOpts.kdfOptions = { algorithm: opts.algorithm };
-      }
-      const { commitOid } = await cas.initVault(initOpts);
-      process.stdout.write(`${commitOid}\n`);
-    } catch (err) {
-      process.stderr.write(`error: ${err.message}\n`);
-      process.exit(1);
+  .action(runAction(async (opts) => {
+    const cas = createCas(opts.cwd);
+    const initOpts = {};
+    const passphrase = resolvePassphrase(opts);
+    if (passphrase) {
+      initOpts.passphrase = passphrase;
+      initOpts.kdfOptions = { algorithm: opts.algorithm };
     }
-  });
+    const { commitOid } = await cas.initVault(initOpts);
+    const json = program.opts().json;
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ commitOid })}\n`);
+    } else {
+      process.stdout.write(`${commitOid}\n`);
+    }
+  }, getJson));
 
 // ---------------------------------------------------------------------------
 // vault list
@@ -269,19 +303,21 @@ vault
 vault
   .command('list')
   .description('List vault entries')
+  .option('--filter <pattern>', 'Filter entries by glob pattern')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(async (opts) => {
-    try {
-      const cas = createCas(opts.cwd);
-      const entries = await cas.listVault();
-      for (const { slug, treeOid } of entries) {
-        process.stdout.write(`${slug}\t${treeOid}\n`);
-      }
-    } catch (err) {
-      process.stderr.write(`error: ${err.message}\n`);
-      process.exit(1);
+  .action(runAction(async (opts) => {
+    const cas = createCas(opts.cwd);
+    const all = await cas.listVault();
+    const entries = filterEntries(all, opts.filter);
+    const json = program.opts().json;
+    if (json) {
+      process.stdout.write(`${JSON.stringify(entries)}\n`);
+    } else if (process.stdout.isTTY) {
+      process.stdout.write(formatTable(entries));
+    } else {
+      process.stdout.write(formatTabSeparated(entries));
     }
-  });
+  }, getJson));
 
 // ---------------------------------------------------------------------------
 // vault remove
@@ -290,16 +326,16 @@ vault
   .command('remove <slug>')
   .description('Remove an entry from the vault')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(async (slug, opts) => {
-    try {
-      const cas = createCas(opts.cwd);
-      const { removedTreeOid } = await cas.removeFromVault({ slug });
+  .action(runAction(async (slug, opts) => {
+    const cas = createCas(opts.cwd);
+    const { commitOid, removedTreeOid } = await cas.removeFromVault({ slug });
+    const json = program.opts().json;
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ commitOid, removedTreeOid })}\n`);
+    } else {
       process.stdout.write(`${removedTreeOid}\n`);
-    } catch (err) {
-      process.stderr.write(`error: ${err.message}\n`);
-      process.exit(1);
     }
-  });
+  }, getJson));
 
 // ---------------------------------------------------------------------------
 // vault info
@@ -309,21 +345,28 @@ vault
   .description('Show info for a vault entry')
   .option('--encryption', 'Show vault encryption details')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(async (slug, opts) => {
-    try {
-      const cas = createCas(opts.cwd);
-      const treeOid = await cas.resolveVaultEntry({ slug });
+  .action(runAction(async (slug, opts) => {
+    const cas = createCas(opts.cwd);
+    const treeOid = await cas.resolveVaultEntry({ slug });
+    const json = program.opts().json;
+    if (json) {
+      const result = { slug, treeOid };
+      if (opts.encryption) {
+        const metadata = await cas.getVaultMetadata();
+        if (metadata?.encryption) {
+          result.encryption = metadata.encryption;
+        }
+      }
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+    } else {
       process.stdout.write(`slug\t${slug}\n`);
       process.stdout.write(`tree\t${treeOid}\n`);
       if (opts.encryption) {
         const metadata = await cas.getVaultMetadata();
         process.stdout.write(`\n${renderEncryptionCard({ metadata })}\n`);
       }
-    } catch (err) {
-      process.stderr.write(`error: ${err.message}\n`);
-      process.exit(1);
     }
-  });
+  }, getJson));
 
 // ---------------------------------------------------------------------------
 // vault history
@@ -334,30 +377,34 @@ vault
   .option('--cwd <dir>', 'Git working directory', '.')
   .option('-n, --max-count <n>', 'Limit number of commits')
   .option('--pretty', 'Render as color-coded timeline')
-  .action(async (opts) => {
-    try {
-      const runner = ShellRunnerFactory.create();
-      const plumbing = new GitPlumbing({ runner, cwd: opts.cwd || '.' });
-      const args = ['log', '--oneline', ContentAddressableStore.VAULT_REF];
-      if (opts.maxCount) {
-        const n = parseInt(opts.maxCount, 10);
-        if (Number.isNaN(n) || n <= 0) {
-          process.stderr.write('error: --max-count must be a positive integer\n');
-          process.exit(1);
-        }
-        args.push(`-${n}`);
+  .action(runAction(async (opts) => {
+    const runner = ShellRunnerFactory.create();
+    const plumbing = new GitPlumbing({ runner, cwd: opts.cwd || '.' });
+    const args = ['log', '--oneline', ContentAddressableStore.VAULT_REF];
+    if (opts.maxCount) {
+      const n = parseInt(opts.maxCount, 10);
+      if (Number.isNaN(n) || n <= 0) {
+        throw new Error('--max-count must be a positive integer');
       }
-      const output = await plumbing.execute({ args });
-      if (opts.pretty && process.stdout.isTTY) {
-        process.stdout.write(`${renderHistoryTimeline(output)}\n`);
-      } else {
-        process.stdout.write(`${output}\n`);
-      }
-    } catch (err) {
-      process.stderr.write(`error: ${err.message}\n`);
-      process.exit(1);
+      args.push(`-${n}`);
     }
-  });
+    const output = await plumbing.execute({ args });
+    const json = program.opts().json;
+    if (json) {
+      const history = output
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+          const [commitOid, ...messageParts] = line.trim().split(/\s+/);
+          return { commitOid, message: messageParts.join(' ') };
+        });
+      process.stdout.write(`${JSON.stringify(history)}\n`);
+    } else if (opts.pretty && process.stdout.isTTY) {
+      process.stdout.write(`${renderHistoryTimeline(output)}\n`);
+    } else {
+      process.stdout.write(`${output}\n`);
+    }
+  }, getJson));
 
 // ---------------------------------------------------------------------------
 // vault dashboard
@@ -366,15 +413,10 @@ vault
   .command('dashboard')
   .description('Interactive vault explorer')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(async (opts) => {
-    try {
-      const cas = createCas(opts.cwd);
-      const { launchDashboard } = await import('./ui/dashboard.js');
-      await launchDashboard(cas);
-    } catch (err) {
-      process.stderr.write(`error: ${err.message}\n`);
-      process.exit(1);
-    }
-  });
+  .action(runAction(async (opts) => {
+    const cas = createCas(opts.cwd);
+    const { launchDashboard } = await import('./ui/dashboard.js');
+    await launchDashboard(cas);
+  }, getJson));
 
 await program.parseAsync();

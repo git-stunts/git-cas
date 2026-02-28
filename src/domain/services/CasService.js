@@ -147,29 +147,6 @@ export default class CasService {
   }
 
   /**
-   * Validates that an encryption key is a 32-byte Buffer or Uint8Array.
-   * @private
-   * @param {*} key
-   * @throws {CasError} INVALID_KEY_TYPE if key is not a Buffer
-   * @throws {CasError} INVALID_KEY_LENGTH if key is not 32 bytes
-   */
-  _validateKey(key) {
-    if (!Buffer.isBuffer(key) && !(key instanceof Uint8Array)) {
-      throw new CasError(
-        'Encryption key must be a Buffer or Uint8Array',
-        'INVALID_KEY_TYPE',
-      );
-    }
-    if (key.length !== 32) {
-      throw new CasError(
-        `Encryption key must be 32 bytes, got ${key.length}`,
-        'INVALID_KEY_LENGTH',
-        { expected: 32, actual: key.length },
-      );
-    }
-  }
-
-  /**
    * Encrypts a buffer using AES-256-GCM.
    * @param {Object} options
    * @param {Buffer} options.buffer - Plaintext data to encrypt.
@@ -178,7 +155,6 @@ export default class CasService {
    * @throws {CasError} INVALID_KEY_TYPE | INVALID_KEY_LENGTH if the key is invalid.
    */
   async encrypt({ buffer, key }) {
-    this._validateKey(key);
     return await this.crypto.encryptBuffer(buffer, key);
   }
 
@@ -272,7 +248,7 @@ export default class CasService {
     }
 
     if (encryptionKey) {
-      this._validateKey(encryptionKey);
+      this.crypto._validateKey(encryptionKey);
     }
 
     const manifestData = { slug, filename, size: 0, chunks: [] };
@@ -446,7 +422,7 @@ export default class CasService {
       );
     }
     if (encryptionKey) {
-      this._validateKey(encryptionKey);
+      this.crypto._validateKey(encryptionKey);
     } else if (manifest.encryption?.encrypted) {
       throw new CasError('Encryption key required to restore encrypted content', 'MISSING_KEY');
     }
