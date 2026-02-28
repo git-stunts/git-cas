@@ -5,6 +5,12 @@
 import { gradientText } from '@flyingrobots/bijou';
 import { getCliContext } from './context.js';
 
+/**
+ * @typedef {import('../../src/domain/value-objects/Manifest.js').ManifestData} ManifestData
+ * @typedef {import('../../src/domain/value-objects/Manifest.js').SubManifestRef} SubManifestRef
+ */
+
+/** @type {import('@flyingrobots/bijou').GradientStop[]} */
 const GRADIENT_STOPS = [
   { pos: 0, color: [0, 255, 255] },
   { pos: 1, color: [255, 0, 255] },
@@ -12,6 +18,9 @@ const GRADIENT_STOPS = [
 
 /**
  * Format bytes as human-readable string.
+ *
+ * @param {number} bytes
+ * @returns {string}
  */
 function formatBytes(bytes) {
   if (bytes < 1024) {
@@ -28,6 +37,11 @@ function formatBytes(bytes) {
 
 /**
  * Build the block grid string from chunks.
+ *
+ * @param {ManifestData['chunks']} chunks
+ * @param {Set<number>} boundaries
+ * @param {number} width
+ * @returns {string}
  */
 function buildGrid(chunks, boundaries, width) {
   let grid = '';
@@ -56,6 +70,10 @@ function buildGrid(chunks, boundaries, width) {
 
 /**
  * Build the legend line.
+ *
+ * @param {ManifestData['chunks']} chunks
+ * @param {SubManifestRef[]} subManifests
+ * @returns {string}
  */
 function buildLegend(chunks, subManifests) {
   const chunkSize = chunks.length > 0 ? chunks[0].size : 0;
@@ -73,12 +91,12 @@ function buildLegend(chunks, subManifests) {
  * Render a chunk heatmap for a manifest.
  *
  * @param {Object} options
- * @param {Object} options.manifest - The manifest (from readManifest).
+ * @param {any} options.manifest - The manifest (Manifest instance or plain ManifestData).
  * @returns {string}
  */
 export function renderHeatmap({ manifest }) {
   const ctx = getCliContext();
-  const m = manifest.toJSON ? manifest.toJSON() : manifest;
+  const m = /** @type {ManifestData} */ (manifest.toJSON ? manifest.toJSON() : manifest);
   const chunks = m.chunks || [];
 
   if (chunks.length === 0) {

@@ -23,12 +23,12 @@
     "src/**/*.js",
     "src/**/*.d.ts",
     "index.d.ts",
-    "src/types/ambient.d.ts"
+    "src/types/ambient.d.ts",
+    "bin/**/*.js"
   ],
   "exclude": [
     "node_modules",
     "test",
-    "examples",
-    "bin"
+    "examples"
   ]
 }

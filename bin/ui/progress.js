@@ -9,6 +9,9 @@ import { getCliContext } from './context.js';
 
 /**
  * Format bytes as human-readable string.
+ *
+ * @param {number} bytes
+ * @returns {string}
  */
 function formatBytes(bytes) {
   if (bytes < 1024) {
@@ -24,13 +27,21 @@ function formatBytes(bytes) {
 }
 
 /**
+ * @typedef {import('../actions.js')} ActionsModule
+ * @typedef {{ on(event: string, fn: Function): void, removeListener(event: string, fn: Function): void }} Observer
+ * @typedef {{ attach(observer: Observer): void, detach(): void }} ProgressTracker
+ */
+
+/**
  * Create a progress tracker for store operations.
  *
  * @param {Object} options
  * @param {string} options.filePath - Path to the file being stored.
  * @param {number} options.chunkSize - Chunk size in bytes.
  * @param {boolean} [options.quiet] - Suppress all progress output.
- * @returns {{ attach(observer: { on(event: string, fn: Function): void, removeListener(event: string, fn: Function): void }): void, detach(): void }}
+ * @param {number} [options.fileSize] - Pre-computed file size (avoids stat).
+ * @param {import('@flyingrobots/bijou').BijouContext} [options.ctx] - Context override.
+ * @returns {ProgressTracker}
  */
 export function createStoreProgress({ filePath, chunkSize, quiet, fileSize: providedSize, ctx: providedCtx }) {
   if (quiet) {
@@ -58,7 +69,8 @@ export function createStoreProgress({ filePath, chunkSize, quiet, fileSize: prov
  * @param {Object} options
  * @param {number} options.totalChunks - Number of chunks to restore.
  * @param {boolean} [options.quiet] - Suppress all progress output.
- * @returns {{ attach(observer: { on(event: string, fn: Function): void, removeListener(event: string, fn: Function): void }): void, detach(): void }}
+ * @param {import('@flyingrobots/bijou').BijouContext} [options.ctx] - Context override.
+ * @returns {ProgressTracker}
  */
 export function createRestoreProgress({ totalChunks, quiet, ctx: providedCtx }) {
   if (quiet || totalChunks === 0) {
@@ -74,53 +86,63 @@ export function createRestoreProgress({ totalChunks, quiet, ctx: providedCtx }) 
 }
 
 /**
+ * @typedef {Object} TrackerState
+ * @property {number} chunksProcessed
+ * @property {number} bytesProcessed
+ * @property {number | null} startTime
+ * @property {Observer | null} service
+ * @property {((evt: { size: number }) => void) | null} handler
+ */
+
+/**
+ * Handle a single chunk event (shared by store/restore).
+ *
+ * @param {{ size: number }} evt
+ * @param {TrackerState} state
+ * @param {{ ctx: import('@flyingrobots/bijou').BijouContext, totalChunks: number, label: string, bar: { update(pct: number): void } }} deps
+ */
+function handleChunkEvent({ size }, state, deps) {
+  if (!state.startTime) { state.startTime = Date.now(); }
+  state.chunksProcessed++;
+  state.bytesProcessed += size;
+  const pct = (state.chunksProcessed / deps.totalChunks) * 100;
+  const elapsed = (Date.now() - state.startTime) / 1000;
+  const throughput = elapsed > 0 ? state.bytesProcessed / elapsed : 0;
+  if (deps.ctx.mode === 'interactive') {
+    const status = `  ${deps.label} ${state.chunksProcessed}/${deps.totalChunks}  ${formatBytes(throughput)}/s  `;
+    process.stderr.write(`\r\x1b[K${status}`);
+    deps.bar.update(pct);
+  } else if (state.chunksProcessed === 1 || state.chunksProcessed === deps.totalChunks || state.chunksProcessed % 10 === 0) {
+    deps.ctx.io.write(`${deps.label} ${state.chunksProcessed}/${deps.totalChunks}  ${Math.round(pct)}%\n`);
+  }
+}
+
+/**
  * Internal: builds the progress tracker object.
+ *
+ * @param {{ ctx: import('@flyingrobots/bijou').BijouContext, totalChunks: number, event: string, label: string }} params
+ * @returns {ProgressTracker}
  */
 function createProgressTracker({ ctx, totalChunks, event, label }) {
   const width = Math.min(40, (ctx.runtime.columns || 80) - 30);
   const bar = createAnimatedProgressBar({ width, showPercent: false, ctx });
-
-  let chunksProcessed = 0;
-  let bytesProcessed = 0;
-  let startTime = null;
-  let service = null;
-  let handler = null;
-
-  function onChunk({ size }) {
-    if (!startTime) {
-      startTime = Date.now();
-    }
-    chunksProcessed++;
-    bytesProcessed += size;
-
-    const pct = (chunksProcessed / totalChunks) * 100;
-    const elapsed = (Date.now() - startTime) / 1000;
-    const throughput = elapsed > 0 ? bytesProcessed / elapsed : 0;
-
-    if (ctx.mode === 'interactive') {
-      const status = `  ${label} ${chunksProcessed}/${totalChunks}  ${formatBytes(throughput)}/s  `;
-      process.stderr.write(`\r\x1b[K${status}`);
-      bar.update(pct);
-    } else if (chunksProcessed === 1 || chunksProcessed === totalChunks || chunksProcessed % 10 === 0) {
-      ctx.io.write(`${label} ${chunksProcessed}/${totalChunks}  ${Math.round(pct)}%\n`);
-    }
-  }
+  /** @type {TrackerState} */
+  const state = { chunksProcessed: 0, bytesProcessed: 0, startTime: null, service: null, handler: null };
+  const deps = { ctx, totalChunks, label, bar };
 
   return {
+    /** @param {Observer} svc */
     attach(svc) {
-      service = svc;
-      handler = onChunk;
+      state.service = svc;
+      state.handler = (/** @type {{ size: number }} */ evt) => handleChunkEvent(evt, state, deps);
       bar.start();
-      service.on(event, handler);
+      state.service.on(event, state.handler);
     },
     detach() {
-      if (service && handler) {
-        service.removeListener(event, handler);
-      }
-      const elapsed = startTime ? (Date.now() - startTime) / 1000 : 0;
-      const throughput = elapsed > 0 ? bytesProcessed / elapsed : 0;
-      const msg = `  ${label} ${chunksProcessed}/${totalChunks} done  ${formatBytes(throughput)}/s`;
-      bar.stop(msg);
+      if (state.service && state.handler) { state.service.removeListener(event, state.handler); }
+      const elapsed = state.startTime ? (Date.now() - state.startTime) / 1000 : 0;
+      const throughput = elapsed > 0 ? state.bytesProcessed / elapsed : 0;
+      bar.stop(`  ${label} ${state.chunksProcessed}/${totalChunks} done  ${formatBytes(throughput)}/s`);
     },
   };
 }
