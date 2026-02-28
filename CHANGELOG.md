@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — Locksmith
+## [5.1.0] — Locksmith (2026-02-28)
 
 ### Added
 - **Envelope encryption (DEK/KEK)** — multi-recipient model where a random DEK encrypts content and per-recipient KEKs wrap the DEK. Recipients can be added/removed without re-encrypting data.
@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`removeRecipient` post-filter guard** — defense-in-depth check prevents zero recipients when duplicate labels exist in corrupted/crafted manifests.
 - **`EncryptionSchema` empty recipients** — `recipients` array now enforces `min(1)` to reject undecryptable envelope manifests.
 - **`parseRecipient` empty keyfile** — CLI now rejects `--recipient alice:` (missing keyfile path) with a clear error.
+- **CLI 30s hang in Docker** — `process.exit()` with I/O flushing prevents `setTimeout` leak in containerized runtimes.
+- **Deno Dockerfile** — multi-stage Node 22 copy replaces `apt install nodejs`, improving layer caching and image size.
+- **Runtime-neutral Docker hint** in integration tests; `afterAll` guards `rmSync` against partial `beforeAll` failures.
 
 ## [5.0.0] — Hydra (2026-02-28)
 
