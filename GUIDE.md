@@ -912,6 +912,73 @@ const manifest = await cas.storeFile({
 
 ---
 
+## 11b. Multi-Recipient Encryption & Key Rotation
+
+*New in v5.1.0 (recipients), v5.2.0 (rotation).*
+
+### Envelope Encryption
+
+Instead of encrypting with a single key, you can encrypt for multiple recipients. A random DEK encrypts the data; each recipient's KEK wraps the DEK:
+
+```javascript
+const manifest = await cas.store({
+  source, slug: 'shared', filename: 'shared.bin',
+  recipients: [
+    { label: 'alice', key: aliceKey },
+    { label: 'bob', key: bobKey },
+  ],
+});
+```
+
+Any recipient can restore independently:
+
+```javascript
+const { buffer } = await cas.restore({ manifest, encryptionKey: bobKey });
+```
+
+### Key Rotation
+
+When a key is compromised, rotate it without re-encrypting data:
+
+```javascript
+const rotated = await cas.rotateKey({
+  manifest, oldKey: aliceOldKey, newKey: aliceNewKey, label: 'alice',
+});
+// Persist the updated manifest
+const treeOid = await cas.createTree({ manifest: rotated });
+```
+
+The `keyVersion` counter increments with each rotation:
+
+```javascript
+console.log(rotated.encryption.keyVersion);           // 1
+console.log(rotated.encryption.recipients[0].keyVersion); // 1
+```
+
+### Vault Passphrase Rotation
+
+Rotate the master passphrase for all vault entries at once:
+
+```javascript
+const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase({
+  oldPassphrase: 'old-secret', newPassphrase: 'new-secret',
+});
+```
+
+Non-envelope entries (direct-key encryption) are skipped — they require manual re-store.
+
+### CLI
+
+```bash
+# Rotate a single recipient's key
+git cas rotate --slug shared --old-key-file old.key --new-key-file new.key --label alice
+
+# Rotate vault passphrase
+git cas vault rotate --old-passphrase old-secret --new-passphrase new-secret
+```
+
+---
+
 ## 12. Merkle Manifests
 
 *New in v2.0.0.*

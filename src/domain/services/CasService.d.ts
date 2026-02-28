@@ -153,6 +153,13 @@ export default class CasService {
 
   listRecipients(manifest: Manifest): string[];
 
+  rotateKey(options: {
+    manifest: Manifest;
+    oldKey: Buffer;
+    newKey: Buffer;
+    label?: string;
+  }): Promise<Manifest>;
+
   verifyIntegrity(manifest: Manifest): Promise<boolean>;
 
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;

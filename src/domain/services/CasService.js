@@ -977,6 +977,96 @@ export default class CasService {
   }
 
   /**
+   * Rotates a recipient's key without re-encrypting data blobs.
+   *
+   * Re-wraps the DEK with `newKey` for the matched recipient entry.
+   * Increments `keyVersion` at both manifest-level and recipient-level.
+   *
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @param {Buffer} options.oldKey - Current KEK of the recipient to rotate.
+   * @param {Buffer} options.newKey - New KEK to wrap the DEK with.
+   * @param {string} [options.label] - If provided, only rotate the named recipient.
+   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   * @throws {CasError} ROTATION_NOT_SUPPORTED if manifest has no recipients.
+   * @throws {CasError} RECIPIENT_NOT_FOUND if label doesn't exist.
+   * @throws {CasError} DEK_UNWRAP_FAILED if oldKey doesn't match the recipient.
+   */
+  async rotateKey({ manifest, oldKey, newKey, label }) {
+    const recipients = manifest.encryption?.recipients;
+    if (!recipients || recipients.length === 0) {
+      throw new CasError(
+        'Key rotation requires envelope encryption (recipients)',
+        'ROTATION_NOT_SUPPORTED',
+      );
+    }
+
+    this.crypto._validateKey(oldKey);
+    this.crypto._validateKey(newKey);
+
+    const { matchIndex, dek } = label
+      ? await this._findRecipientByLabel(recipients, label, oldKey)
+      : await this._findRecipientByKey(recipients, oldKey);
+
+    return this._buildRotatedManifest({ manifest, recipients, matchIndex, dek, newKey });
+  }
+
+  /**
+   * Finds a recipient by label and unwraps the DEK.
+   * @private
+   */
+  async _findRecipientByLabel(recipients, label, oldKey) {
+    const matchIndex = recipients.findIndex((r) => r.label === label);
+    if (matchIndex === -1) {
+      throw new CasError(`Recipient "${label}" not found`, 'RECIPIENT_NOT_FOUND', { label });
+    }
+    const dek = await this._unwrapDek(recipients[matchIndex], oldKey);
+    return { matchIndex, dek };
+  }
+
+  /**
+   * Finds the first recipient whose DEK can be unwrapped with the given key.
+   * @private
+   */
+  async _findRecipientByKey(recipients, oldKey) {
+    for (let i = 0; i < recipients.length; i++) {
+      try {
+        const dek = await this._unwrapDek(recipients[i], oldKey);
+        return { matchIndex: i, dek };
+      } catch (err) {
+        if (!(err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED')) { throw err; }
+      }
+    }
+    throw new CasError(
+      'No recipient entry could be unwrapped with the provided key',
+      'NO_MATCHING_RECIPIENT',
+    );
+  }
+
+  /**
+   * Builds a new Manifest with the rotated recipient entry and updated keyVersions.
+   * @private
+   */
+  async _buildRotatedManifest({ manifest, recipients, matchIndex, dek, newKey }) {
+    const newWrapped = await this._wrapDek(dek, newKey);
+    const manifestKeyVersion = (manifest.encryption.keyVersion || 0) + 1;
+    const recipientKeyVersion = (recipients[matchIndex].keyVersion || 0) + 1;
+
+    const json = manifest.toJSON();
+    const updatedRecipients = recipients.map((r, i) => {
+      if (i === matchIndex) {
+        return { ...r, ...newWrapped, keyVersion: recipientKeyVersion };
+      }
+      return { ...r };
+    });
+
+    return new Manifest({
+      ...json,
+      encryption: { ...json.encryption, recipients: updatedRecipients, keyVersion: manifestKeyVersion },
+    });
+  }
+
+  /**
    * Verifies the integrity of a stored file by re-hashing its chunks.
    * @param {import('../value-objects/Manifest.js').default} manifest
    * @returns {Promise<boolean>}

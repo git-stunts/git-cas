@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.2.0] — Carousel (2026-02-28)
+
+### Added
+- **Key rotation without re-encrypting data** — `CasService.rotateKey()` re-wraps the DEK with a new KEK, leaving data blobs untouched. Enables key compromise response without re-storing assets.
+- **`keyVersion` tracking** — manifest-level and per-recipient `keyVersion` counters track rotation history for audit compliance. Optional field, backward-compatible with existing manifests.
+- **`git cas rotate` CLI command** — rotate a recipient's key via `--slug` (vault round-trip) or `--oid` (manifest-only). Supports `--label` for targeted single-recipient rotation.
+- **`rotateVaultPassphrase()`** — rotate the vault-level encryption passphrase across all envelope-encrypted entries in a single atomic commit. Non-envelope entries are skipped with reporting.
+- **`git cas vault rotate` CLI command** — rotate vault passphrase from the command line with `--old-passphrase` and `--new-passphrase`.
+- **`ROTATION_NOT_SUPPORTED` error code** — thrown when `rotateKey()` is called on a manifest without envelope encryption (legacy/direct-key).
+- 27 new unit tests covering key rotation, schema validation, and vault passphrase rotation.
+
 ## [5.1.0] — Locksmith (2026-02-28)
 
 ### Added

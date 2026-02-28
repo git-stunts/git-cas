@@ -18,7 +18,7 @@ const getJson = () => program.opts().json;
 program
   .name('git-cas')
   .description('Content Addressable Storage backed by Git')
-  .version('5.0.0')
+  .version('5.2.0')
   .option('-q, --quiet', 'Suppress progress output')
   .option('--json', 'Output results as JSON');
 
@@ -430,6 +430,40 @@ vault
   }, getJson));
 
 // ---------------------------------------------------------------------------
+// vault rotate
+// ---------------------------------------------------------------------------
+vault
+  .command('rotate')
+  .description('Rotate vault-level encryption passphrase')
+  .requiredOption('--old-passphrase <pass>', 'Current vault passphrase')
+  .requiredOption('--new-passphrase <pass>', 'New vault passphrase')
+  .option('--algorithm <alg>', 'KDF algorithm (pbkdf2 or scrypt)')
+  .option('--cwd <dir>', 'Git working directory', '.')
+  .action(runAction(async (opts) => {
+    const cas = createCas(opts.cwd);
+    const rotateOpts = {
+      oldPassphrase: opts.oldPassphrase,
+      newPassphrase: opts.newPassphrase,
+    };
+    if (opts.algorithm) {
+      rotateOpts.kdfOptions = { algorithm: opts.algorithm };
+    }
+    const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase(rotateOpts);
+    const json = program.opts().json;
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ commitOid, rotatedSlugs, skippedSlugs })}\n`);
+    } else {
+      process.stdout.write(`${commitOid}\n`);
+      if (rotatedSlugs.length) {
+        process.stderr.write(`rotated: ${rotatedSlugs.join(', ')}\n`);
+      }
+      if (skippedSlugs.length) {
+        process.stderr.write(`skipped: ${skippedSlugs.join(', ')}\n`);
+      }
+    }
+  }, getJson));
+
+// ---------------------------------------------------------------------------
 // vault dashboard
 // ---------------------------------------------------------------------------
 vault
@@ -440,6 +474,48 @@ vault
     const cas = createCas(opts.cwd);
     const { launchDashboard } = await import('./ui/dashboard.js');
     await launchDashboard(cas);
+  }, getJson));
+
+// ---------------------------------------------------------------------------
+// rotate
+// ---------------------------------------------------------------------------
+program
+  .command('rotate')
+  .description('Rotate an encryption key without re-encrypting data')
+  .option('--slug <slug>', 'Resolve tree OID from vault slug')
+  .option('--oid <tree-oid>', 'Direct tree OID')
+  .requiredOption('--old-key-file <path>', 'Path to current 32-byte key file')
+  .requiredOption('--new-key-file <path>', 'Path to new 32-byte key file')
+  .option('--label <label>', 'Rotate only the named recipient')
+  .option('--cwd <dir>', 'Git working directory', '.')
+  .action(runAction(async (opts) => {
+    validateRestoreFlags(opts);
+    const cas = createCas(opts.cwd);
+    const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
+    const manifest = await cas.readManifest({ treeOid });
+
+    const oldKey = readKeyFile(opts.oldKeyFile);
+    const newKey = readKeyFile(opts.newKeyFile);
+
+    const rotateOpts = { manifest, oldKey, newKey };
+    if (opts.label) { rotateOpts.label = opts.label; }
+
+    const updated = await cas.rotateKey(rotateOpts);
+    const json = program.opts().json;
+
+    if (opts.slug) {
+      const newTreeOid = await cas.createTree({ manifest: updated });
+      await cas.addToVault({ slug: opts.slug, treeOid: newTreeOid, force: true });
+      if (json) {
+        process.stdout.write(`${JSON.stringify({ treeOid: newTreeOid, keyVersion: updated.encryption.keyVersion })}\n`);
+      } else {
+        process.stdout.write(`${newTreeOid}\n`);
+      }
+    } else if (json) {
+      process.stdout.write(`${JSON.stringify(updated.toJSON())}\n`);
+    } else {
+      process.stdout.write(`${JSON.stringify(updated.toJSON(), null, 2)}\n`);
+    }
   }, getJson));
 
 // ---------------------------------------------------------------------------

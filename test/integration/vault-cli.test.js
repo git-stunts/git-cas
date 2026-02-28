@@ -189,6 +189,68 @@ describe('vault CLI — encrypted workflow', () => {
 });
 
 // ---------------------------------------------------------------------------
+// rotate CLI — envelope encryption key rotation
+// ---------------------------------------------------------------------------
+describe('vault CLI — rotate', () => { // eslint-disable-line max-lines-per-function
+  let rotateRepoDir;
+  let rotateInputFile;
+  let rotateInputDir;
+  const rotateOriginal = randomBytes(2048);
+  let oldKeyFile;
+  let newKeyFile;
+  let keyDir;
+
+  beforeAll(() => {
+    rotateRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-rotate-integ-'));
+    execSync('git init --bare', { cwd: rotateRepoDir, stdio: 'ignore' });
+    ({ filePath: rotateInputFile, dir: rotateInputDir } = tempFile(rotateOriginal));
+
+    keyDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-keys-'));
+    const oldKey = randomBytes(32);
+    const newKey = randomBytes(32);
+    oldKeyFile = path.join(keyDir, 'old.key');
+    newKeyFile = path.join(keyDir, 'new.key');
+    writeFileSync(oldKeyFile, oldKey);
+    writeFileSync(newKeyFile, newKey);
+  });
+
+  afterAll(() => {
+    if (rotateRepoDir) { rmSync(rotateRepoDir, { recursive: true, force: true }); }
+    if (rotateInputDir) { rmSync(rotateInputDir, { recursive: true, force: true }); }
+    if (keyDir) { rmSync(keyDir, { recursive: true, force: true }); }
+  });
+
+  it('vault init + store with recipient', () => {
+    cli('vault init', rotateRepoDir);
+    const oid = cli(
+      `store ${rotateInputFile} --tree --slug rotate/asset --recipient alice:${oldKeyFile}`,
+      rotateRepoDir,
+    );
+    expect(oid).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it('rotate --slug rotates key and updates vault', () => {
+    const oid = cli(
+      `rotate --slug rotate/asset --old-key-file ${oldKeyFile} --new-key-file ${newKeyFile}`,
+      rotateRepoDir,
+    );
+    expect(oid).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it('restore with new key succeeds after rotation', () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-rotate-out-'));
+    const outPath = path.join(outDir, 'restored.bin');
+    cli(
+      `restore --slug rotate/asset --out ${outPath} --key-file ${newKeyFile}`,
+      rotateRepoDir,
+    );
+    const restored = readFileSync(outPath);
+    expect(restored.equals(rotateOriginal)).toBe(true);
+    rmSync(outDir, { recursive: true, force: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // CLI restore --oid with Merkle manifests
 // ---------------------------------------------------------------------------
 describe('vault CLI — restore --oid with Merkle manifest', () => {

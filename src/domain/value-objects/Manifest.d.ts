@@ -18,6 +18,7 @@ export interface RecipientEntry {
   nonce: string;
   tag: string;
   kekType?: string;
+  keyVersion?: number;
 }
 
 /** AES-256-GCM encryption metadata attached to an encrypted manifest. */
@@ -28,6 +29,7 @@ export interface EncryptionMeta {
   encrypted: boolean;
   kdf?: KdfParams;
   recipients?: RecipientEntry[];
+  keyVersion?: number;
 }
 
 /** Compression metadata. */

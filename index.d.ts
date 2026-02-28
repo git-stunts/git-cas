@@ -365,6 +365,13 @@ export default class ContentAddressableStore {
 
   listRecipients(manifest: Manifest): Promise<string[]>;
 
+  rotateKey(options: {
+    manifest: Manifest;
+    oldKey: Buffer;
+    newKey: Buffer;
+    label?: string;
+  }): Promise<Manifest>;
+
   // Vault — delegates to VaultService
 
   static VAULT_REF: string;
@@ -389,4 +396,14 @@ export default class ContentAddressableStore {
   resolveVaultEntry(options: { slug: string }): Promise<string>;
 
   getVaultMetadata(): Promise<VaultMetadata | null>;
+
+  rotateVaultPassphrase(options: {
+    oldPassphrase: string;
+    newPassphrase: string;
+    kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
+  }): Promise<{
+    commitOid: string;
+    rotatedSlugs: string[];
+    skippedSlugs: string[];
+  }>;
 }
