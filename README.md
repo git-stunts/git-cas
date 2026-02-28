@@ -38,6 +38,12 @@ We use the object database.
 
 <img src="./docs/demo.gif" alt="git-cas demo" />
 
+## What's new in v5.2.1
+
+Bug fix: `rotateVaultPassphrase` now honours `kdfOptions.algorithm` — previously the `--algorithm` flag was silently ignored, always reusing the old KDF algorithm. CLI flag tables in `docs/API.md` are now split per command with `--cwd` documented.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
+
 ## What's new in v5.2.0
 
 **Key rotation without re-encrypting data** — Rotate a recipient's key by re-wrapping the DEK. Data blobs are never touched. Respond to key compromise in seconds, not hours.
