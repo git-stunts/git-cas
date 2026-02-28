@@ -94,7 +94,7 @@ export default class CryptoPort {
    *
    * @param {Object} options
    * @param {string} options.passphrase - The passphrase to derive a key from.
-   * @param {Buffer} [options.salt] - Salt for the KDF (random if omitted).
+   * @param {Buffer|Uint8Array} [options.salt] - Salt for the KDF (random if omitted).
    * @param {'pbkdf2'|'scrypt'} [options.algorithm='pbkdf2'] - KDF algorithm.
    * @param {number} [options.iterations=100000] - PBKDF2 iteration count.
    * @param {number} [options.cost=16384] - scrypt cost parameter (N).

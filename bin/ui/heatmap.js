@@ -91,12 +91,12 @@ function buildLegend(chunks, subManifests) {
  * Render a chunk heatmap for a manifest.
  *
  * @param {Object} options
- * @param {any} options.manifest - The manifest (Manifest instance or plain ManifestData).
+ * @param {ManifestData | { toJSON(): ManifestData }} options.manifest - The manifest (Manifest instance or plain ManifestData).
  * @returns {string}
  */
 export function renderHeatmap({ manifest }) {
   const ctx = getCliContext();
-  const m = /** @type {ManifestData} */ (manifest.toJSON ? manifest.toJSON() : manifest);
+  const m = /** @type {ManifestData} */ ('toJSON' in manifest ? manifest.toJSON() : manifest);
   const chunks = m.chunks || [];
 
   if (chunks.length === 0) {

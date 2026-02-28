@@ -91,7 +91,7 @@ function renderHeader(model, ctx) {
  * @returns {string}
  */
 function renderListPane(model, size) {
-  const clamp = (/** @type {string} */ s) => (size.width ? s.slice(0, size.width) : s);
+  const clamp = (/** @type {string} */ s) => (typeof size.width === 'number' && size.width > 0 ? s.slice(0, size.width) : s);
   const filterLine = model.filtering ? clamp(`/${model.filterText}\u2588`) : '';
   const listHeight = model.filtering ? size.height - 1 : size.height;
   const items = model.filtered;

@@ -86,11 +86,11 @@ function renderEncryptionSection(enc, ctx) {
  */
 function renderChunksSection(chunks, ctx) {
   const displayChunks = chunks.slice(0, 20);
-  const chunkRows = displayChunks.map((/** @type {{ index: number, size: number, digest: string, blob: string }} */ c) => [
+  const chunkRows = displayChunks.map((/** @type {{ index: number, size: number, digest: string, blob?: string }} */ c) => [
     String(c.index),
     formatBytes(c.size),
-    `${c.digest.slice(0, 12)}...`,
-    `${c.blob.slice(0, 12)}...`,
+    typeof c.digest === 'string' ? `${c.digest.slice(0, 12)}...` : '-',
+    typeof c.blob === 'string' ? `${c.blob.slice(0, 12)}...` : '-',
   ]);
   const chunkTable = table({
     columns: [{ header: '#' }, { header: 'Size' }, { header: 'Digest' }, { header: 'Blob' }],
@@ -139,12 +139,12 @@ function renderSubManifestsSection(m, ctx) {
  * Render a full manifest anatomy view.
  *
  * @param {Object} options
- * @param {any} options.manifest - The manifest (Manifest instance or plain ManifestData).
+ * @param {ManifestData | { toJSON(): ManifestData }} options.manifest - The manifest (Manifest instance or plain ManifestData).
  * @param {BijouContext} [options.ctx] - Optional bijou context override.
  * @returns {string}
  */
 export function renderManifestView({ manifest, ctx = getCliContext() }) {
-  const m = /** @type {ManifestData} */ (manifest.toJSON ? manifest.toJSON() : manifest);
+  const m = /** @type {ManifestData} */ ('toJSON' in manifest ? manifest.toJSON() : manifest);
   const sections = [renderBadges(m, ctx), renderMetadataSection(m, ctx)];
 
   if (m.encryption) {

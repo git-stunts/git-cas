@@ -17,13 +17,16 @@ export default class EventEmitterObserver {
    * the previous CasService behavior that guarded `this.emit('error', ...)`).
    *
    * @param {string} channel - Metric channel.
-   * @param {Record<string, unknown> & { action?: string }} data - Must include `action` to form the event name.
+   * @param {Record<string, unknown> & { action: string }} data - Must include `action` to form the event name.
    */
   metric(channel, data) {
     if (channel === 'error') {
       if (this.#emitter.listenerCount('error') > 0) {
         this.#emitter.emit('error', data);
       }
+      return;
+    }
+    if (typeof data.action !== 'string') {
       return;
     }
     const eventName = `${channel}:${data.action}`;

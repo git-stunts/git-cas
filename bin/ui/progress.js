@@ -110,7 +110,7 @@ function handleChunkEvent({ size }, state, deps) {
   const throughput = elapsed > 0 ? state.bytesProcessed / elapsed : 0;
   if (deps.ctx.mode === 'interactive') {
     const status = `  ${deps.label} ${state.chunksProcessed}/${deps.totalChunks}  ${formatBytes(throughput)}/s  `;
-    process.stderr.write(`\r\x1b[K${status}`);
+    deps.ctx.io.write(`\r\x1b[K${status}`);
     deps.bar.update(pct);
   } else if (state.chunksProcessed === 1 || state.chunksProcessed === deps.totalChunks || state.chunksProcessed % 10 === 0) {
     deps.ctx.io.write(`${deps.label} ${state.chunksProcessed}/${deps.totalChunks}  ${Math.round(pct)}%\n`);

@@ -29,7 +29,11 @@ program
  * @returns {Buffer}
  */
 function readKeyFile(keyFilePath) {
-  return readFileSync(keyFilePath);
+  const buf = readFileSync(keyFilePath);
+  if (buf.length !== 32) {
+    throw new Error(`Invalid key length: expected 32 bytes, got ${buf.length} (${keyFilePath})`);
+  }
+  return buf;
 }
 
 /**
@@ -54,7 +58,10 @@ function createCas(cwd, opts = {}) {
  * @returns {Promise<Buffer>}
  */
 async function deriveVaultKey(cas, metadata, passphrase) {
-  const { kdf } = /** @type {NonNullable<import('../index.js').VaultMetadata['encryption']>} */ (metadata.encryption);
+  if (!metadata.encryption?.kdf) {
+    throw new Error('Missing or malformed encryption metadata');
+  }
+  const { kdf } = metadata.encryption;
   const { key } = await cas.deriveKey({
     passphrase,
     salt: Buffer.from(kdf.salt, 'base64'),
@@ -117,15 +124,25 @@ function validateRestoreFlags(opts) {
 // ---------------------------------------------------------------------------
 // store
 // ---------------------------------------------------------------------------
+
+/**
+ * @typedef {Object} StoreFileOpts
+ * @property {string} filePath - Path to the file to store.
+ * @property {string} slug - Asset slug identifier.
+ * @property {Buffer} [encryptionKey] - 32-byte AES-256-GCM key.
+ * @property {Array<{ label: string, key: Buffer }>} [recipients] - Envelope recipients.
+ */
+
 /**
  * Build store options, resolving encryption key or recipients.
  *
  * @param {ContentAddressableStore} cas
  * @param {string} file
  * @param {Record<string, any>} opts
+ * @returns {Promise<StoreFileOpts>}
  */
 async function buildStoreOpts(cas, file, opts) {
-  /** @type {Record<string, any>} */
+  /** @type {StoreFileOpts} */
   const storeOpts = { filePath: file, slug: opts.slug };
   if (opts.recipient) {
     storeOpts.recipients = opts.recipient;
@@ -186,7 +203,7 @@ program
     const progress = createStoreProgress({ filePath: file, chunkSize: cas.chunkSize, quiet });
     progress.attach(observer);
     let manifest;
-    try { manifest = await cas.storeFile(/** @type {any} */ (storeOpts)); } finally { progress.detach(); }
+    try { manifest = await cas.storeFile(storeOpts); } finally { progress.detach(); }
 
     if (opts.tree) {
       const treeOid = await cas.createTree({ manifest });
@@ -267,12 +284,7 @@ program
     const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
     const manifest = await cas.readManifest({ treeOid });
 
-    /** @type {Record<string, any>} */
-    const restoreOpts = { manifest };
     const encryptionKey = await resolveEncryptionKey(cas, opts);
-    if (encryptionKey) {
-      restoreOpts.encryptionKey = encryptionKey;
-    }
 
     const progress = createRestoreProgress({
       totalChunks: manifest.chunks.length, quiet,
@@ -280,10 +292,11 @@ program
     progress.attach(observer);
     let bytesWritten;
     try {
-      ({ bytesWritten } = await cas.restoreFile(/** @type {any} */ ({
-        ...restoreOpts,
+      ({ bytesWritten } = await cas.restoreFile({
+        manifest,
+        ...(encryptionKey ? { encryptionKey } : {}),
         outputPath: opts.out,
-      })));
+      }));
     } finally {
       progress.detach();
     }
@@ -336,12 +349,12 @@ vault
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
-    /** @type {Record<string, any>} */
+    /** @type {{ passphrase?: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
     const initOpts = {};
     const passphrase = resolvePassphrase(opts);
     if (passphrase) {
       initOpts.passphrase = passphrase;
-      initOpts.kdfOptions = { algorithm: opts.algorithm };
+      initOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };
     }
     const { commitOid } = await cas.initVault(initOpts);
     const json = program.opts().json;
@@ -474,15 +487,15 @@ vault
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
-    /** @type {Record<string, any>} */
+    /** @type {{ oldPassphrase: string, newPassphrase: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
     const rotateOpts = {
       oldPassphrase: opts.oldPassphrase,
       newPassphrase: opts.newPassphrase,
     };
     if (opts.algorithm) {
-      rotateOpts.kdfOptions = { algorithm: opts.algorithm };
+      rotateOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };
     }
-    const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase(/** @type {any} */ (rotateOpts));
+    const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase(rotateOpts);
     const json = program.opts().json;
     if (json) {
       process.stdout.write(`${JSON.stringify({ commitOid, rotatedSlugs, skippedSlugs })}\n`);
@@ -531,11 +544,11 @@ program
     const oldKey = readKeyFile(opts.oldKeyFile);
     const newKey = readKeyFile(opts.newKeyFile);
 
-    /** @type {Record<string, any>} */
+    /** @type {{ manifest: Manifest, oldKey: Buffer, newKey: Buffer, label?: string }} */
     const rotateOpts = { manifest, oldKey, newKey };
     if (opts.label) { rotateOpts.label = opts.label; }
 
-    const updated = await cas.rotateKey(/** @type {any} */ (rotateOpts));
+    const updated = await cas.rotateKey(rotateOpts);
     const json = program.opts().json;
 
     if (opts.slug) {

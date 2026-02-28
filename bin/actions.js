@@ -4,6 +4,7 @@
 
 /** @typedef {{ code?: string, message?: string }} ErrorLike */
 
+/** @type {Readonly<Record<string, string>>} */
 const HINTS = {
   MISSING_KEY: 'Provide --key-file or --vault-passphrase',
   MANIFEST_NOT_FOUND: 'Verify the tree OID contains a manifest',
@@ -35,11 +36,24 @@ function writeError(err, json) {
   } else {
     const prefix = code ? `error [${code}]: ` : 'error: ';
     process.stderr.write(`${prefix}${message}\n`);
-    const hint = code ? HINTS[/** @type {keyof HINTS} */ (code)] : undefined;
+    const hint = getHint(code);
     if (hint) {
       process.stderr.write(`hint: ${hint}\n`);
     }
   }
+}
+
+/**
+ * Look up a hint for the given error code, guarding against prototype keys.
+ *
+ * @param {string | undefined} code
+ * @returns {string | undefined}
+ */
+function getHint(code) {
+  if (code && Object.prototype.hasOwnProperty.call(HINTS, code)) {
+    return HINTS[code];
+  }
+  return undefined;
 }
 
 /**
