@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`--recipient <label:keyfile>` CLI flag** — repeatable flag on `git cas store` for envelope encryption.
 - **`git cas recipient add/remove/list`** subcommands — CLI management of envelope recipients.
 - **`RecipientEntry` type re-exported** from `index.d.ts`.
-- 48 new unit tests (757 total).
+- 48 new unit tests covering envelope store/restore, recipient management, edge cases, and fuzz round-trips.
 
 ### Fixed
 - **`_wrapDek` / `_unwrapDek` missing `await`** — these called async `encryptBuffer()` / `decryptBuffer()` without `await`, silently producing garbage on Bun/Deno runtimes where crypto is async.
