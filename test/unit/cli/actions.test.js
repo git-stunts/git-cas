@@ -68,29 +68,29 @@ describe('writeError — JSON mode', () => {
 });
 
 describe('runAction', () => {
-  let exitSpy;
   let stderrSpy;
+  const originalExitCode = process.exitCode;
 
   beforeEach(() => {
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
+    process.exitCode = undefined;
     stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
   });
 
   afterEach(() => {
-    exitSpy.mockRestore();
+    process.exitCode = originalExitCode;
     stderrSpy.mockRestore();
   });
 
-  it('does not exit on success', async () => {
+  it('does not set exitCode on success', async () => {
     const action = runAction(async () => {}, () => false);
     await action();
-    expect(exitSpy).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
   });
 
-  it('calls process.exit(1) on error', async () => {
+  it('sets process.exitCode = 1 on error', async () => {
     const action = runAction(async () => { throw new Error('fail'); }, () => false);
     await action();
-    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(process.exitCode).toBe(1);
   });
 
   it('passes arguments through to the wrapped function', async () => {

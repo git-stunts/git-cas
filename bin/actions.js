@@ -46,7 +46,7 @@ export function runAction(fn, getJson) {
       await fn(...args);
     } catch (err) {
       writeError(err, getJson());
-      process.exit(1);
+      process.exitCode = 1;
     }
   };
 }

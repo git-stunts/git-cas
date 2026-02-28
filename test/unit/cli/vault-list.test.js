@@ -31,6 +31,16 @@ describe('matchGlob', () => {
     expect(matchGlob('exact', 'exact')).toBe(true);
     expect(matchGlob('exact', 'other')).toBe(false);
   });
+
+  it('rejects patterns longer than 200 characters', () => {
+    const longPattern = 'a'.repeat(201);
+    expect(() => matchGlob(longPattern, 'test')).toThrow(/too long/);
+  });
+
+  it('? does not match path separator', () => {
+    expect(matchGlob('a?b', 'a/b')).toBe(false);
+    expect(matchGlob('a?b', 'axb')).toBe(true);
+  });
 });
 
 describe('filterEntries', () => {

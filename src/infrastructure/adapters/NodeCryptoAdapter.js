@@ -65,14 +65,12 @@ export default class NodeCryptoAdapter extends CryptoPort {
     return { encrypt, finalize };
   }
 
-  /** @override – delegate to base class which accepts both Buffer and Uint8Array */
-
   /** @override */
   async _doDeriveKey(passphrase, saltBuf, { algorithm, iterations, cost, blockSize, parallelization, keyLength }) {
     if (algorithm === 'pbkdf2') {
-      return promisify(pbkdf2)(passphrase, saltBuf, iterations, keyLength, 'sha512');
+      return await promisify(pbkdf2)(passphrase, saltBuf, iterations, keyLength, 'sha512');
     }
-    return promisify(scrypt)(passphrase, saltBuf, keyLength, {
+    return await promisify(scrypt)(passphrase, saltBuf, keyLength, {
       N: cost,
       r: blockSize,
       p: parallelization,

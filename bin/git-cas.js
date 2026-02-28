@@ -111,6 +111,9 @@ program
     const observer = new EventEmitterObserver();
     const cas = createCas(opts.cwd, { observability: observer });
     const encryptionKey = await resolveEncryptionKey(cas, opts);
+    if (opts.force && !opts.tree) {
+      throw new Error('--force requires --tree');
+    }
     const storeOpts = { filePath: file, slug: opts.slug };
     if (encryptionKey) {
       storeOpts.encryptionKey = encryptionKey;
@@ -178,8 +181,11 @@ program
     const cas = createCas(opts.cwd);
     const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
     const manifest = await cas.readManifest({ treeOid });
+    const json = program.opts().json;
 
-    if (opts.heatmap) {
+    if (json) {
+      process.stdout.write(`${JSON.stringify(manifest.toJSON())}\n`);
+    } else if (opts.heatmap) {
       process.stdout.write(renderHeatmap({ manifest }));
     } else if (process.stdout.isTTY) {
       process.stdout.write(renderManifestView({ manifest }));
@@ -383,7 +389,17 @@ vault
       args.push(`-${n}`);
     }
     const output = await plumbing.execute({ args });
-    if (opts.pretty && process.stdout.isTTY) {
+    const json = program.opts().json;
+    if (json) {
+      const history = output
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+          const [commitOid, ...messageParts] = line.trim().split(/\s+/);
+          return { commitOid, message: messageParts.join(' ') };
+        });
+      process.stdout.write(`${JSON.stringify(history)}\n`);
+    } else if (opts.pretty && process.stdout.isTTY) {
       process.stdout.write(`${renderHistoryTimeline(output)}\n`);
     } else {
       process.stdout.write(`${output}\n`);

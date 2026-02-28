@@ -18,7 +18,7 @@ export function matchGlob(pattern, str) {
     .replace(/\*\*/g, '\0')
     .replace(/\*/g, '[^/]*')
     .replace(/\0/g, '.*')
-    .replace(/\?/g, '.');
+    .replace(/\?/g, '[^/]');
   return new RegExp(`^${escaped}$`).test(str);
 }
 
