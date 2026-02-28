@@ -20,9 +20,11 @@ ENV GIT_STUNTS_DOCKER=1
 CMD ["bunx", "vitest", "run", "test/unit"]
 
 # --- Deno ---
+FROM node:22-slim AS node-bin
 FROM denoland/deno:2.7.1 AS deno
 USER root
-RUN apt-get update && apt-get install -y git nodejs && rm -rf /var/lib/apt/lists/*
+COPY --from=node-bin /usr/local/bin/node /usr/local/bin/node
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json deno.lock* ./
 RUN deno install --allow-scripts || true

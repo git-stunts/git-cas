@@ -526,7 +526,4 @@ recipient
   }, getJson));
 
 await program.parseAsync();
-
-// Force exit — piped stdio in some environments (e.g. Node ≤20 in Docker)
-// keeps the libuv loop alive at the C++ level even with no JS handles.
 process.exit(process.exitCode || 0);
