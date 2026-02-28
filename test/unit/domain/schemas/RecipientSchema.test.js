@@ -1,20 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { RecipientSchema, EncryptionSchema } from '../../../../src/domain/schemas/ManifestSchema.js';
 
-// ---------------------------------------------------------------------------
-// RecipientSchema
-// ---------------------------------------------------------------------------
-describe('RecipientSchema', () => {
-  const validRecipient = () => ({
-    label: 'alice',
-    wrappedDek: 'AAAA',
-    nonce: 'BBBB',
-    tag: 'CCCC',
-  });
+const validRecipient = () => ({
+  label: 'alice',
+  wrappedDek: 'AAAA',
+  nonce: 'BBBB',
+  tag: 'CCCC',
+});
 
+// ---------------------------------------------------------------------------
+// RecipientSchema — happy path
+// ---------------------------------------------------------------------------
+describe('RecipientSchema — happy path', () => {
   it('accepts a valid recipient entry', () => {
-    const result = RecipientSchema.safeParse(validRecipient());
-    expect(result.success).toBe(true);
+    expect(RecipientSchema.safeParse(validRecipient()).success).toBe(true);
   });
 
   it('accepts optional kekType', () => {
@@ -22,41 +21,20 @@ describe('RecipientSchema', () => {
     expect(result.success).toBe(true);
     expect(result.data.kekType).toBe('raw');
   });
+});
 
-  it('rejects missing label', () => {
-    const { label, ...rest } = validRecipient();
-    expect(RecipientSchema.safeParse(rest).success).toBe(false);
+// ---------------------------------------------------------------------------
+// RecipientSchema — rejections
+// ---------------------------------------------------------------------------
+describe('RecipientSchema — rejections', () => {
+  it.each(['label', 'wrappedDek', 'nonce', 'tag'])('rejects missing %s', (field) => {
+    const data = validRecipient();
+    delete data[field];
+    expect(RecipientSchema.safeParse(data).success).toBe(false);
   });
 
-  it('rejects empty label', () => {
-    expect(RecipientSchema.safeParse({ ...validRecipient(), label: '' }).success).toBe(false);
-  });
-
-  it('rejects missing wrappedDek', () => {
-    const { wrappedDek, ...rest } = validRecipient();
-    expect(RecipientSchema.safeParse(rest).success).toBe(false);
-  });
-
-  it('rejects empty wrappedDek', () => {
-    expect(RecipientSchema.safeParse({ ...validRecipient(), wrappedDek: '' }).success).toBe(false);
-  });
-
-  it('rejects missing nonce', () => {
-    const { nonce, ...rest } = validRecipient();
-    expect(RecipientSchema.safeParse(rest).success).toBe(false);
-  });
-
-  it('rejects empty nonce', () => {
-    expect(RecipientSchema.safeParse({ ...validRecipient(), nonce: '' }).success).toBe(false);
-  });
-
-  it('rejects missing tag', () => {
-    const { tag, ...rest } = validRecipient();
-    expect(RecipientSchema.safeParse(rest).success).toBe(false);
-  });
-
-  it('rejects empty tag', () => {
-    expect(RecipientSchema.safeParse({ ...validRecipient(), tag: '' }).success).toBe(false);
+  it.each(['label', 'wrappedDek', 'nonce', 'tag'])('rejects empty %s', (field) => {
+    expect(RecipientSchema.safeParse({ ...validRecipient(), [field]: '' }).success).toBe(false);
   });
 });
 
@@ -69,13 +47,6 @@ describe('EncryptionSchema — recipients', () => {
     nonce: 'bm9uY2U=',
     tag: 'dGFn',
     encrypted: true,
-  });
-
-  const validRecipient = () => ({
-    label: 'alice',
-    wrappedDek: 'AAAA',
-    nonce: 'BBBB',
-    tag: 'CCCC',
   });
 
   it('backward compat: no recipients field → valid', () => {
@@ -106,13 +77,11 @@ describe('EncryptionSchema — recipients', () => {
 
   it('accepts empty recipients array', () => {
     const data = { ...baseEncryption(), recipients: [] };
-    const result = EncryptionSchema.safeParse(data);
-    expect(result.success).toBe(true);
+    expect(EncryptionSchema.safeParse(data).success).toBe(true);
   });
 
   it('rejects recipients with invalid entry', () => {
     const data = { ...baseEncryption(), recipients: [{ label: '' }] };
-    const result = EncryptionSchema.safeParse(data);
-    expect(result.success).toBe(false);
+    expect(EncryptionSchema.safeParse(data).success).toBe(false);
   });
 });

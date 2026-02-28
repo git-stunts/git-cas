@@ -96,52 +96,72 @@ function validateRestoreFlags(opts) {
 // ---------------------------------------------------------------------------
 // store
 // ---------------------------------------------------------------------------
+/**
+ * Build store options, resolving encryption key or recipients.
+ */
+async function buildStoreOpts(cas, file, opts) {
+  const storeOpts = { filePath: file, slug: opts.slug };
+  if (opts.recipient) {
+    storeOpts.recipients = opts.recipient;
+  } else {
+    const encryptionKey = await resolveEncryptionKey(cas, opts);
+    if (encryptionKey) { storeOpts.encryptionKey = encryptionKey; }
+  }
+  return storeOpts;
+}
+
+/**
+ * Parse a --recipient flag value into { label, key }.
+ * Format: label:keyfile
+ */
+function parseRecipient(value, previous) {
+  const sep = value.indexOf(':');
+  if (sep < 1) {
+    throw new Error(`Invalid --recipient format "${value}": expected label:keyfile`);
+  }
+  const label = value.slice(0, sep);
+  const keyfile = value.slice(sep + 1);
+  const key = readKeyFile(keyfile);
+  const list = previous || [];
+  list.push({ label, key });
+  return list;
+}
+
 program
   .command('store <file>')
   .description('Store a file into Git CAS')
   .requiredOption('--slug <slug>', 'Asset slug identifier')
   .option('--key-file <path>', 'Path to 32-byte raw encryption key file')
+  .option('--recipient <label:keyfile>', 'Envelope recipient (repeatable)', parseRecipient)
   .option('--tree', 'Also create a Git tree and print its OID')
   .option('--force', 'Overwrite existing vault entry')
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for encryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (file, opts) => {
+    if (opts.recipient && opts.keyFile) {
+      throw new Error('Provide --key-file or --recipient, not both');
+    }
+    if (opts.force && !opts.tree) {
+      throw new Error('--force requires --tree');
+    }
     const json = program.opts().json;
     const quiet = program.opts().quiet || json;
     const observer = new EventEmitterObserver();
     const cas = createCas(opts.cwd, { observability: observer });
-    const encryptionKey = await resolveEncryptionKey(cas, opts);
-    if (opts.force && !opts.tree) {
-      throw new Error('--force requires --tree');
-    }
-    const storeOpts = { filePath: file, slug: opts.slug };
-    if (encryptionKey) {
-      storeOpts.encryptionKey = encryptionKey;
-    }
 
-    const progress = createStoreProgress({
-      filePath: file, chunkSize: cas.chunkSize, quiet,
-    });
+    const storeOpts = await buildStoreOpts(cas, file, opts);
+    const progress = createStoreProgress({ filePath: file, chunkSize: cas.chunkSize, quiet });
     progress.attach(observer);
     let manifest;
-    try {
-      manifest = await cas.storeFile(storeOpts);
-    } finally {
-      progress.detach();
-    }
+    try { manifest = await cas.storeFile(storeOpts); } finally { progress.detach(); }
 
     if (opts.tree) {
       const treeOid = await cas.createTree({ manifest });
       await cas.addToVault({ slug: opts.slug, treeOid, force: !!opts.force });
-      if (json) {
-        process.stdout.write(`${JSON.stringify({ treeOid })}\n`);
-      } else {
-        process.stdout.write(`${treeOid}\n`);
-      }
-    } else if (json) {
-      process.stdout.write(`${JSON.stringify({ manifest: manifest.toJSON() })}\n`);
+      process.stdout.write(json ? `${JSON.stringify({ treeOid })}\n` : `${treeOid}\n`);
     } else {
-      process.stdout.write(`${JSON.stringify(manifest.toJSON(), null, 2)}\n`);
+      const output = json ? JSON.stringify({ manifest: manifest.toJSON() }) : JSON.stringify(manifest.toJSON(), null, 2);
+      process.stdout.write(`${output}\n`);
     }
   }, getJson));
 
@@ -417,6 +437,89 @@ vault
     const cas = createCas(opts.cwd);
     const { launchDashboard } = await import('./ui/dashboard.js');
     await launchDashboard(cas);
+  }, getJson));
+
+// ---------------------------------------------------------------------------
+// recipient add / remove / list
+// ---------------------------------------------------------------------------
+const recipient = program
+  .command('recipient')
+  .description('Manage envelope encryption recipients');
+
+recipient
+  .command('add <slug>')
+  .description('Add a recipient to an envelope-encrypted asset')
+  .requiredOption('--label <label>', 'Label for the new recipient')
+  .requiredOption('--key-file <path>', 'Path to 32-byte key file for the new recipient')
+  .requiredOption('--existing-key-file <path>', 'Path to key file of an existing recipient')
+  .option('--cwd <dir>', 'Git working directory', '.')
+  .action(runAction(async (slug, opts) => {
+    const cas = createCas(opts.cwd);
+    const treeOid = await cas.resolveVaultEntry({ slug });
+    const manifest = await cas.readManifest({ treeOid });
+
+    const existingKey = readKeyFile(opts.existingKeyFile);
+    const newRecipientKey = readKeyFile(opts.keyFile);
+
+    const updated = await cas.addRecipient({
+      manifest,
+      existingKey,
+      newRecipientKey,
+      label: opts.label,
+    });
+
+    const newTreeOid = await cas.createTree({ manifest: updated });
+    await cas.addToVault({ slug, treeOid: newTreeOid, force: true });
+
+    const json = program.opts().json;
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ treeOid: newTreeOid })}\n`);
+    } else {
+      process.stdout.write(`${newTreeOid}\n`);
+    }
+  }, getJson));
+
+recipient
+  .command('remove <slug>')
+  .description('Remove a recipient from an envelope-encrypted asset')
+  .requiredOption('--label <label>', 'Label of the recipient to remove')
+  .option('--cwd <dir>', 'Git working directory', '.')
+  .action(runAction(async (slug, opts) => {
+    const cas = createCas(opts.cwd);
+    const treeOid = await cas.resolveVaultEntry({ slug });
+    const manifest = await cas.readManifest({ treeOid });
+
+    const updated = await cas.removeRecipient({ manifest, label: opts.label });
+
+    const newTreeOid = await cas.createTree({ manifest: updated });
+    await cas.addToVault({ slug, treeOid: newTreeOid, force: true });
+
+    const json = program.opts().json;
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ treeOid: newTreeOid })}\n`);
+    } else {
+      process.stdout.write(`${newTreeOid}\n`);
+    }
+  }, getJson));
+
+recipient
+  .command('list <slug>')
+  .description('List recipients of an envelope-encrypted asset')
+  .option('--cwd <dir>', 'Git working directory', '.')
+  .action(runAction(async (slug, opts) => {
+    const cas = createCas(opts.cwd);
+    const treeOid = await cas.resolveVaultEntry({ slug });
+    const manifest = await cas.readManifest({ treeOid });
+
+    const labels = await cas.listRecipients(manifest);
+    const json = program.opts().json;
+    if (json) {
+      process.stdout.write(`${JSON.stringify(labels)}\n`);
+    } else {
+      for (const label of labels) {
+        process.stdout.write(`${label}\n`);
+      }
+    }
   }, getJson));
 
 await program.parseAsync();

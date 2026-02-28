@@ -180,20 +180,15 @@ describe('Manifest – backward compatibility (chunking)', () => { // eslint-dis
 });
 
 // ---------------------------------------------------------------------------
-// Recipients field
+// Recipients field – creation and serialization
 // ---------------------------------------------------------------------------
-describe('Manifest – recipients', () => {
+describe('Manifest – recipients (creation)', () => {
   it('validates manifest with recipients in encryption', () => {
     const data = {
       ...validManifestData(),
       encryption: {
-        algorithm: 'aes-256-gcm',
-        nonce: 'bm9uY2U=',
-        tag: 'dGFn',
-        encrypted: true,
-        recipients: [
-          { label: 'alice', wrappedDek: 'AAAA', nonce: 'BBBB', tag: 'CCCC' },
-        ],
+        algorithm: 'aes-256-gcm', nonce: 'bm9uY2U=', tag: 'dGFn', encrypted: true,
+        recipients: [{ label: 'alice', wrappedDek: 'AAAA', nonce: 'BBBB', tag: 'CCCC' }],
       },
     };
     const m = new Manifest(data);
@@ -205,55 +200,43 @@ describe('Manifest – recipients', () => {
     const data = {
       ...validManifestData(),
       encryption: {
-        algorithm: 'aes-256-gcm',
-        nonce: 'bm9uY2U=',
-        tag: 'dGFn',
-        encrypted: true,
+        algorithm: 'aes-256-gcm', nonce: 'bm9uY2U=', tag: 'dGFn', encrypted: true,
         recipients: [
           { label: 'alice', wrappedDek: 'AAAA', nonce: 'BBBB', tag: 'CCCC' },
           { label: 'bob', wrappedDek: 'DDDD', nonce: 'EEEE', tag: 'FFFF' },
         ],
       },
     };
-    const m = new Manifest(data);
-    const json = m.toJSON();
+    const json = new Manifest(data).toJSON();
     expect(json.encryption.recipients).toHaveLength(2);
     expect(json.encryption.recipients[0].label).toBe('alice');
-    expect(json.encryption.recipients[1].label).toBe('bob');
-  });
-
-  it('deep-copies recipients so source mutation does not affect manifest', () => {
-    const recipients = [
-      { label: 'alice', wrappedDek: 'AAAA', nonce: 'BBBB', tag: 'CCCC' },
-    ];
-    const data = {
-      ...validManifestData(),
-      encryption: {
-        algorithm: 'aes-256-gcm',
-        nonce: 'bm9uY2U=',
-        tag: 'dGFn',
-        encrypted: true,
-        recipients,
-      },
-    };
-    const m = new Manifest(data);
-    // Mutate source
-    recipients[0].label = 'eve';
-    expect(m.encryption.recipients[0].label).toBe('alice');
   });
 
   it('allows encryption without recipients (backward compat)', () => {
     const data = {
       ...validManifestData(),
+      encryption: { algorithm: 'aes-256-gcm', nonce: 'bm9uY2U=', tag: 'dGFn', encrypted: true },
+    };
+    expect(new Manifest(data).encryption.recipients).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Recipients field – deep-copy isolation
+// ---------------------------------------------------------------------------
+describe('Manifest – recipients (deep-copy)', () => {
+  it('deep-copies recipients so source mutation does not affect manifest', () => {
+    const recipients = [{ label: 'alice', wrappedDek: 'AAAA', nonce: 'BBBB', tag: 'CCCC' }];
+    const data = {
+      ...validManifestData(),
       encryption: {
-        algorithm: 'aes-256-gcm',
-        nonce: 'bm9uY2U=',
-        tag: 'dGFn',
-        encrypted: true,
+        algorithm: 'aes-256-gcm', nonce: 'bm9uY2U=', tag: 'dGFn', encrypted: true,
+        recipients,
       },
     };
     const m = new Manifest(data);
-    expect(m.encryption.recipients).toBeUndefined();
+    recipients[0].label = 'eve';
+    expect(m.encryption.recipients[0].label).toBe('alice');
   });
 });
 

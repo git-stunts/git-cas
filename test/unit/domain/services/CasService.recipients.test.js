@@ -5,7 +5,6 @@ import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCrypt
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
-import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,7 +23,7 @@ function setup() {
     writeTree: async () => 'mock-tree-oid',
     readBlob: async (oid) => {
       const buf = blobStore.get(oid);
-      if (!buf) throw new Error(`Blob not found: ${oid}`);
+      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
       return buf;
     },
   };

@@ -246,36 +246,48 @@ export default class CasService {
   async _resolveDecryptionKey(manifest, encryptionKey, passphrase) {
     this._validateKeySourceExclusive(encryptionKey, passphrase);
 
-    if (passphrase) {
-      if (manifest.encryption?.kdf) {
-        encryptionKey = await this._resolveKeyFromPassphrase(passphrase, manifest.encryption.kdf);
-      } else {
-        throw new CasError(
-          'Manifest was not stored with passphrase-based encryption; provide encryptionKey instead',
-          'MISSING_KEY',
-        );
-      }
-    }
+    const key = passphrase
+      ? await this._resolvePassphraseForDecryption(manifest, passphrase)
+      : encryptionKey;
 
-    if (!encryptionKey) {
+    if (!key) {
       if (manifest.encryption?.encrypted) {
         throw new CasError('Encryption key required to restore encrypted content', 'MISSING_KEY');
       }
       return undefined;
     }
 
-    this.crypto._validateKey(encryptionKey);
+    this.crypto._validateKey(key);
+    return this._resolveKeyForRecipients(manifest, key);
+  }
 
+  /**
+   * Resolves passphrase to a key for decryption.
+   * @private
+   */
+  async _resolvePassphraseForDecryption(manifest, passphrase) {
+    if (!manifest.encryption?.kdf) {
+      throw new CasError(
+        'Manifest was not stored with passphrase-based encryption; provide encryptionKey instead',
+        'MISSING_KEY',
+      );
+    }
+    return this._resolveKeyFromPassphrase(passphrase, manifest.encryption.kdf);
+  }
+
+  /**
+   * If manifest uses envelope encryption, unwraps the DEK. Otherwise returns key directly.
+   * @private
+   */
+  _resolveKeyForRecipients(manifest, key) {
     const recipients = manifest.encryption?.recipients;
     if (!recipients || recipients.length === 0) {
-      // Legacy path — key is used directly
-      return encryptionKey;
+      return key;
     }
 
-    // Envelope path — try each recipient entry
     for (const entry of recipients) {
       try {
-        return this._unwrapDek(entry, encryptionKey);
+        return this._unwrapDek(entry, key);
       } catch {
         // Not this recipient's KEK, try next
       }
@@ -348,81 +360,71 @@ export default class CasService {
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
   async store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression, recipients }) {
-    // Mutual exclusivity: recipients vs encryptionKey/passphrase
     if (recipients && (encryptionKey || passphrase)) {
-      throw new CasError(
-        'Provide recipients or encryptionKey/passphrase, not both',
-        'INVALID_OPTIONS',
-      );
+      throw new CasError('Provide recipients or encryptionKey/passphrase, not both', 'INVALID_OPTIONS');
     }
-
     this._validateKeySourceExclusive(encryptionKey, passphrase);
     this._validateCompression(compression);
 
-    let kdfParams;
-    let recipientEntries;
-    let actualEncryptionKey;
+    const keyInfo = recipients
+      ? this._resolveRecipientsForStore(recipients)
+      : await this._resolveKeyForStore(encryptionKey, passphrase, kdfOptions);
 
-    if (recipients) {
-      // Envelope encryption: generate random DEK, wrap for each recipient
-      for (const r of recipients) {
-        this.crypto._validateKey(r.key);
-      }
-      const dek = this.crypto.randomBytes(32);
-      recipientEntries = recipients.map((r) => ({
-        label: r.label,
-        ...this._wrapDek(dek, r.key),
-      }));
-      actualEncryptionKey = dek;
-    } else {
-      if (passphrase) {
-        const derived = await this.deriveKey({ passphrase, ...kdfOptions });
-        encryptionKey = derived.key;
-        kdfParams = derived.params;
-      }
+    const manifestData = this._buildManifestData(slug, filename, compression);
+    const processedSource = compression ? this._compressStream(source) : source;
 
-      if (encryptionKey) {
-        this.crypto._validateKey(encryptionKey);
-      }
-      actualEncryptionKey = encryptionKey;
-    }
-
-    const manifestData = { slug, filename, size: 0, chunks: [] };
-
-    // Record chunking metadata for non-default strategies
-    if (this.chunker.strategy !== 'fixed') {
-      manifestData.chunking = {
-        strategy: this.chunker.strategy,
-        params: this.chunker.params,
-      };
-    }
-
-    let processedSource = source;
-    if (compression) {
-      processedSource = this._compressStream(processedSource);
-      manifestData.compression = { algorithm: 'gzip' };
-    }
-
-    if (actualEncryptionKey) {
-      const { encrypt, finalize } = this.crypto.createEncryptionStream(actualEncryptionKey);
+    if (keyInfo.key) {
+      const { encrypt, finalize } = this.crypto.createEncryptionStream(keyInfo.key);
       await this._chunkAndStore(encrypt(processedSource), manifestData);
-      const encMeta = finalize();
-      if (kdfParams) {
-        encMeta.kdf = kdfParams;
-      }
-      if (recipientEntries) {
-        encMeta.recipients = recipientEntries;
-      }
-      manifestData.encryption = encMeta;
+      manifestData.encryption = { ...finalize(), ...keyInfo.encExtra };
     } else {
       await this._chunkAndStore(processedSource, manifestData);
     }
 
     const manifest = new Manifest(manifestData);
     this.observability.metric('file', {
-      action: 'stored', slug, size: manifest.size, chunkCount: manifest.chunks.length, encrypted: !!actualEncryptionKey,
+      action: 'stored', slug, size: manifest.size, chunkCount: manifest.chunks.length, encrypted: !!keyInfo.key,
     });
     return manifest;
+  }
+
+  /**
+   * Resolves envelope recipients into a DEK and wrapped entries for store().
+   * @private
+   */
+  _resolveRecipientsForStore(recipients) {
+    for (const r of recipients) { this.crypto._validateKey(r.key); }
+    const dek = this.crypto.randomBytes(32);
+    const entries = recipients.map((r) => ({ label: r.label, ...this._wrapDek(dek, r.key) }));
+    return { key: dek, encExtra: { recipients: entries } };
+  }
+
+  /**
+   * Resolves encryptionKey/passphrase into a key and optional KDF params for store().
+   * @private
+   */
+  async _resolveKeyForStore(encryptionKey, passphrase, kdfOptions) {
+    let kdfParams;
+    if (passphrase) {
+      const derived = await this.deriveKey({ passphrase, ...kdfOptions });
+      encryptionKey = derived.key;
+      kdfParams = derived.params;
+    }
+    if (encryptionKey) { this.crypto._validateKey(encryptionKey); }
+    return { key: encryptionKey, encExtra: kdfParams ? { kdf: kdfParams } : {} };
+  }
+
+  /**
+   * Builds initial manifest data with optional chunking and compression metadata.
+   * @private
+   */
+  _buildManifestData(slug, filename, compression) {
+    const data = { slug, filename, size: 0, chunks: [] };
+    if (this.chunker.strategy !== 'fixed') {
+      data.chunking = { strategy: this.chunker.strategy, params: this.chunker.params };
+    }
+    if (compression) { data.compression = { algorithm: 'gzip' }; }
+    return data;
   }
 
   /**

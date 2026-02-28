@@ -23,7 +23,7 @@ function setup() {
     writeTree: async () => 'mock-tree-oid',
     readBlob: async (oid) => {
       const buf = blobStore.get(oid);
-      if (!buf) throw new Error(`Blob not found: ${oid}`);
+      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
       return buf;
     },
   };
@@ -266,9 +266,9 @@ describe('CasService – envelope encryption (edge cases)', () => { // eslint-di
 });
 
 // ---------------------------------------------------------------------------
-// Fuzz
+// Fuzz — round-trips
 // ---------------------------------------------------------------------------
-describe('CasService – envelope encryption (fuzz)', () => {
+describe('CasService – envelope encryption (fuzz round-trips)', () => {
   let service;
   beforeEach(() => { ({ service } = setup()); });
 
@@ -286,13 +286,18 @@ describe('CasService – envelope encryption (fuzz)', () => {
       });
 
       const idx = Math.floor(Math.random() * 3);
-      const { buffer } = await service.restore({
-        manifest,
-        encryptionKey: keys[idx],
-      });
+      const { buffer } = await service.restore({ manifest, encryptionKey: keys[idx] });
       expect(buffer.equals(original)).toBe(true);
     }
   });
+});
+
+// ---------------------------------------------------------------------------
+// Fuzz — tamper detection
+// ---------------------------------------------------------------------------
+describe('CasService – envelope encryption (fuzz tamper)', () => {
+  let service;
+  beforeEach(() => { ({ service } = setup()); });
 
   it('tamper each recipient entry independently → fails', async () => {
     const keys = [randomBytes(32), randomBytes(32), randomBytes(32)];
@@ -307,14 +312,11 @@ describe('CasService – envelope encryption (fuzz)', () => {
 
     const Manifest = (await import('../../../../src/domain/value-objects/Manifest.js')).default;
 
-    // Tamper each entry and verify the legitimate key no longer works for that entry
     for (let t = 0; t < 3; t++) {
       const json = JSON.parse(JSON.stringify(manifest.toJSON()));
       const dek = Buffer.from(json.encryption.recipients[t].wrappedDek, 'base64');
       dek[0] ^= 0xff;
       json.encryption.recipients[t].wrappedDek = dek.toString('base64');
-
-      // Remove the other two recipients so only the tampered one remains
       json.encryption.recipients = [json.encryption.recipients[t]];
       const tamperedManifest = new Manifest(json);
 
