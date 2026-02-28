@@ -18,7 +18,7 @@ const getJson = () => program.opts().json;
 program
   .name('git-cas')
   .description('Content Addressable Storage backed by Git')
-  .version('4.0.1')
+  .version('5.0.0')
   .option('-q, --quiet', 'Suppress progress output')
   .option('--json', 'Output results as JSON');
 

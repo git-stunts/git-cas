@@ -293,6 +293,7 @@ export default class ContentAddressableStore {
    * @param {string} [options.passphrase] - Derive encryption key from passphrase.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
+   * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
   async store(options) {

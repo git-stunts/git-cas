@@ -230,6 +230,39 @@ describe('CasService – removeRecipient', () => { // eslint-disable-line max-li
       expect(err.code).toBe('CANNOT_REMOVE_LAST_RECIPIENT');
     }
   });
+
+  it('non-envelope manifest → INVALID_OPTIONS', async () => {
+    const manifest = await service.store({
+      source: bufferSource(Buffer.from('data')),
+      slug: 'test',
+      filename: 'test.bin',
+      encryptionKey: randomBytes(32),
+    });
+
+    try {
+      await service.removeRecipient({ manifest, label: 'alice' });
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(CasError);
+      expect(err.code).toBe('INVALID_OPTIONS');
+    }
+  });
+
+  it('unencrypted manifest → INVALID_OPTIONS', async () => {
+    const manifest = await service.store({
+      source: bufferSource(Buffer.from('data')),
+      slug: 'test',
+      filename: 'test.bin',
+    });
+
+    try {
+      await service.removeRecipient({ manifest, label: 'alice' });
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(CasError);
+      expect(err.code).toBe('INVALID_OPTIONS');
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -288,7 +288,8 @@ export default class CasService {
     for (const entry of recipients) {
       try {
         return await this._unwrapDek(entry, key);
-      } catch {
+      } catch (err) {
+        if (!(err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED')) { throw err; }
         // Not this recipient's KEK, try next
       }
     }
@@ -394,7 +395,7 @@ export default class CasService {
    * @private
    */
   async _resolveRecipientsForStore(recipients) {
-    if (!recipients || recipients.length === 0) {
+    if (recipients.length === 0) {
       throw new CasError('At least one recipient is required', 'INVALID_OPTIONS');
     }
     const labels = recipients.map((r) => r.label);
@@ -899,7 +900,7 @@ export default class CasService {
       dek = await this._resolveKeyForRecipients(manifest, existingKey);
     } catch (err) {
       if (err instanceof CasError && err.code === 'NO_MATCHING_RECIPIENT') {
-        throw new CasError('Failed to unwrap DEK: authentication failed', 'DEK_UNWRAP_FAILED');
+        throw new CasError('Failed to unwrap DEK: authentication failed', 'DEK_UNWRAP_FAILED', { originalError: err });
       }
       throw err;
     }
@@ -931,7 +932,13 @@ export default class CasService {
    */
   async removeRecipient({ manifest, label }) {
     const recipients = manifest.encryption?.recipients;
-    if (!recipients?.some((r) => r.label === label)) {
+    if (!recipients || recipients.length === 0) {
+      throw new CasError(
+        'Manifest does not use envelope encryption (no recipients)',
+        'INVALID_OPTIONS',
+      );
+    }
+    if (!recipients.some((r) => r.label === label)) {
       throw new CasError(
         `Recipient "${label}" not found`,
         'RECIPIENT_NOT_FOUND',

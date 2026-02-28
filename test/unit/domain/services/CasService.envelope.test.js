@@ -291,6 +291,25 @@ describe('CasService – envelope encryption (edge cases)', () => { // eslint-di
     expect(manifest.encryption.tag).toBeDefined();
     expect(manifest.encryption.encrypted).toBe(true);
   });
+
+  it('envelope + compression round-trips', async () => {
+    const kek = randomBytes(32);
+    const original = randomBytes(2048);
+
+    const manifest = await service.store({
+      source: bufferSource(original),
+      slug: 'comp',
+      filename: 'comp.bin',
+      recipients: [{ label: 'alice', key: kek }],
+      compression: { algorithm: 'gzip' },
+    });
+
+    expect(manifest.encryption).toBeDefined();
+    expect(manifest.compression).toEqual({ algorithm: 'gzip' });
+
+    const { buffer } = await service.restore({ manifest, encryptionKey: kek });
+    expect(buffer.equals(original)).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
