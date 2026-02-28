@@ -2,6 +2,7 @@
  * @fileoverview Domain service for vault (GC-safe ref-based asset index) operations.
  */
 import CasError from '../errors/CasError.js';
+import buildKdfMetadata from '../helpers/buildKdfMetadata.js';
 
 const VAULT_REF = 'refs/cas/vault';
 const MAX_CAS_RETRIES = 3;
@@ -327,15 +328,7 @@ export default class VaultService {
   static #buildEncryptionMeta(salt, params) {
     return {
       cipher: 'aes-256-gcm',
-      kdf: {
-        algorithm: params.algorithm,
-        salt: salt.toString('base64'),
-        ...('iterations' in params && { iterations: params.iterations }),
-        ...('cost' in params && { cost: params.cost }),
-        ...('blockSize' in params && { blockSize: params.blockSize }),
-        ...('parallelization' in params && { parallelization: params.parallelization }),
-        keyLength: params.keyLength,
-      },
+      kdf: buildKdfMetadata(salt, params),
     };
   }
 

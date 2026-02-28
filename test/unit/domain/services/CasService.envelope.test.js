@@ -9,6 +9,19 @@ import CasError from '../../../../src/domain/errors/CasError.js';
 const testCrypto = await getTestCryptoAdapter();
 
 // ---------------------------------------------------------------------------
+// Deterministic PRNG (xorshift32) — keeps fuzz tests reproducible
+// ---------------------------------------------------------------------------
+function createSeededRng(seed = 42) {
+  let s = seed >>> 0 || 1;
+  return (max) => {
+    s ^= s << 13;
+    s ^= s >>> 17;
+    s ^= s << 5;
+    return (s >>> 0) % max;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 function setup() {
@@ -310,8 +323,9 @@ describe('CasService – envelope encryption (fuzz round-trips)', () => {
   beforeEach(() => { ({ service } = setup()); });
 
   it('50 random plaintexts × 3 random KEKs all round-trip', async () => {
+    const rng = createSeededRng(12345);
     for (let i = 0; i < 50; i++) {
-      const size = Math.floor(Math.random() * 4096);
+      const size = rng(4096);
       const original = randomBytes(size);
       const keys = [randomBytes(32), randomBytes(32), randomBytes(32)];
 
@@ -322,7 +336,7 @@ describe('CasService – envelope encryption (fuzz round-trips)', () => {
         recipients: keys.map((key, j) => ({ label: `k${j}`, key })),
       });
 
-      const idx = Math.floor(Math.random() * 3);
+      const idx = rng(3);
       const { buffer } = await service.restore({ manifest, encryptionKey: keys[idx] });
       expect(buffer.equals(original)).toBe(true);
     }
