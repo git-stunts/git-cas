@@ -22,7 +22,7 @@ CMD ["bunx", "vitest", "run", "test/unit"]
 # --- Deno ---
 FROM denoland/deno:2.7.1 AS deno
 USER root
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git nodejs && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json deno.lock* ./
 RUN deno install --allow-scripts || true
