@@ -22,7 +22,7 @@ import ContentAddressableStore from '../../index.js';
 if (process.env.GIT_STUNTS_DOCKER !== '1') {
   throw new Error(
     'Integration tests MUST run inside Docker (GIT_STUNTS_DOCKER=1). ' +
-    'Use: npm run test:integration:node',
+    'Use: docker compose run --build --rm test-<runtime>',
   );
 }
 
@@ -75,8 +75,8 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  rmSync(repoDir, { recursive: true, force: true });
-  rmSync(inputDir, { recursive: true, force: true });
+  if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); }
+  if (inputDir) { rmSync(inputDir, { recursive: true, force: true }); }
 });
 
 // ---------------------------------------------------------------------------
@@ -158,8 +158,8 @@ describe('vault CLI — encrypted workflow', () => {
   });
 
   afterAll(() => {
-    rmSync(encRepoDir, { recursive: true, force: true });
-    rmSync(encInputDir, { recursive: true, force: true });
+    if (encRepoDir) { rmSync(encRepoDir, { recursive: true, force: true }); }
+    if (encInputDir) { rmSync(encInputDir, { recursive: true, force: true }); }
   });
 
   it('vault init --vault-passphrase prints commit OID', () => {
@@ -222,8 +222,8 @@ describe('vault CLI — restore --oid with Merkle manifest', () => {
   });
 
   afterAll(() => {
-    rmSync(merkleRepoDir, { recursive: true, force: true });
-    rmSync(merkleInputDir, { recursive: true, force: true });
+    if (merkleRepoDir) { rmSync(merkleRepoDir, { recursive: true, force: true }); }
+    if (merkleInputDir) { rmSync(merkleInputDir, { recursive: true, force: true }); }
   });
 
   it('restores full content via --oid for v2 manifests', () => {
