@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — Locksmith
+
+### Added
+- **Envelope encryption (DEK/KEK)** — multi-recipient model where a random DEK encrypts content and per-recipient KEKs wrap the DEK. Recipients can be added/removed without re-encrypting data.
+- **`RecipientSchema`** — Zod schema for validating recipient entries in manifests.
+- **`recipients` field on `EncryptionSchema`** — optional array of `{ label, wrappedDek, nonce, tag }` entries.
+- **`CasService.addRecipient()` / `removeRecipient()` / `listRecipients()`** — manage envelope recipients on existing manifests.
+- **`--recipient <label:keyfile>` CLI flag** — repeatable flag on `git cas store` for envelope encryption.
+- **`git cas recipient add/remove/list`** subcommands — CLI management of envelope recipients.
+- **`RecipientEntry` type re-exported** from `index.d.ts`.
+- 42 new unit tests (751 total).
+
+### Fixed
+- **`_wrapDek` / `_unwrapDek` missing `await`** — these called async `encryptBuffer()` / `decryptBuffer()` without `await`, silently producing garbage on Bun/Deno runtimes where crypto is async.
+- **`--recipient` + `--vault-passphrase` not guarded** — CLI now rejects combining `--recipient` with `--key-file` or `--vault-passphrase`.
+- **Dead `_resolveEncryptionKey` method removed** — superseded by `_resolveDecryptionKey` but left behind.
+- **Redundant `RECIPIENT_NOT_FOUND` guards** in `removeRecipient` collapsed into one.
+- **`addRecipient` duplicated unwrap loop** replaced with `_resolveKeyForRecipients` reuse.
+
 ## [5.0.0] — Hydra (2026-02-28)
 
 ### Breaking Changes

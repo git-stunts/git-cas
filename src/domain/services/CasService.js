@@ -195,10 +195,10 @@ export default class CasService {
    * @private
    * @param {Buffer} dek - 32-byte data encryption key.
    * @param {Buffer} kek - 32-byte key encryption key.
-   * @returns {{ wrappedDek: string, nonce: string, tag: string }}
+   * @returns {Promise<{ wrappedDek: string, nonce: string, tag: string }>}
    */
-  _wrapDek(dek, kek) {
-    const { buf, meta } = this.crypto.encryptBuffer(dek, kek);
+  async _wrapDek(dek, kek) {
+    const { buf, meta } = await this.crypto.encryptBuffer(dek, kek);
     return {
       wrappedDek: buf.toString('base64'),
       nonce: meta.nonce,
@@ -211,10 +211,10 @@ export default class CasService {
    * @private
    * @param {{ wrappedDek: string, nonce: string, tag: string }} recipientEntry
    * @param {Buffer} kek - 32-byte key encryption key.
-   * @returns {Buffer} The unwrapped DEK.
+   * @returns {Promise<Buffer>} The unwrapped DEK.
    * @throws {CasError} DEK_UNWRAP_FAILED if decryption fails.
    */
-  _unwrapDek(recipientEntry, kek) {
+  async _unwrapDek(recipientEntry, kek) {
     try {
       const ciphertext = Buffer.from(recipientEntry.wrappedDek, 'base64');
       const meta = {
@@ -223,7 +223,7 @@ export default class CasService {
         tag: recipientEntry.tag,
         encrypted: true,
       };
-      return this.crypto.decryptBuffer(ciphertext, kek, meta);
+      return await this.crypto.decryptBuffer(ciphertext, kek, meta);
     } catch (err) {
       if (err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED') { throw err; }
       throw new CasError(
@@ -279,7 +279,7 @@ export default class CasService {
    * If manifest uses envelope encryption, unwraps the DEK. Otherwise returns key directly.
    * @private
    */
-  _resolveKeyForRecipients(manifest, key) {
+  async _resolveKeyForRecipients(manifest, key) {
     const recipients = manifest.encryption?.recipients;
     if (!recipients || recipients.length === 0) {
       return key;
@@ -287,7 +287,7 @@ export default class CasService {
 
     for (const entry of recipients) {
       try {
-        return this._unwrapDek(entry, key);
+        return await this._unwrapDek(entry, key);
       } catch {
         // Not this recipient's KEK, try next
       }
@@ -346,8 +346,8 @@ export default class CasService {
   /**
    * Chunks an async iterable source and stores it in Git.
    *
-   * If `encryptionKey` is provided, the content (and manifest) will be encrypted
-   * using AES-256-GCM, and the `encryption` field in the manifest will be populated.
+   * Supports two encryption modes: direct key/passphrase or envelope encryption
+   * via `recipients` (DEK/KEK model). The modes are mutually exclusive.
    *
    * @param {Object} options
    * @param {AsyncIterable<Buffer>} options.source
@@ -357,6 +357,7 @@ export default class CasService {
    * @param {string} [options.passphrase] - Derive encryption key from passphrase instead.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
+   * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
   async store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression, recipients }) {
@@ -367,7 +368,7 @@ export default class CasService {
     this._validateCompression(compression);
 
     const keyInfo = recipients
-      ? this._resolveRecipientsForStore(recipients)
+      ? await this._resolveRecipientsForStore(recipients)
       : await this._resolveKeyForStore(encryptionKey, passphrase, kdfOptions);
 
     const manifestData = this._buildManifestData(slug, filename, compression);
@@ -392,10 +393,13 @@ export default class CasService {
    * Resolves envelope recipients into a DEK and wrapped entries for store().
    * @private
    */
-  _resolveRecipientsForStore(recipients) {
+  async _resolveRecipientsForStore(recipients) {
     for (const r of recipients) { this.crypto._validateKey(r.key); }
     const dek = this.crypto.randomBytes(32);
-    const entries = recipients.map((r) => ({ label: r.label, ...this._wrapDek(dek, r.key) }));
+    const entries = [];
+    for (const r of recipients) {
+      entries.push({ label: r.label, ...(await this._wrapDek(dek, r.key)) });
+    }
     return { key: dek, encExtra: { recipients: entries } };
   }
 
@@ -552,30 +556,6 @@ export default class CasService {
       parallelization: kdf.parallelization,
     });
     return key;
-  }
-
-  /**
-   * Resolves the encryption key from passphrase or validates the provided key.
-   * @private
-   */
-  async _resolveEncryptionKey(manifest, encryptionKey, passphrase) {
-    this._validateKeySourceExclusive(encryptionKey, passphrase);
-
-    if (passphrase) {
-      if (manifest.encryption?.kdf) {
-        return this._resolveKeyFromPassphrase(passphrase, manifest.encryption.kdf);
-      }
-      throw new CasError(
-        'Manifest was not stored with passphrase-based encryption; provide encryptionKey instead',
-        'MISSING_KEY',
-      );
-    }
-    if (encryptionKey) {
-      this.crypto._validateKey(encryptionKey);
-    } else if (manifest.encryption?.encrypted) {
-      throw new CasError('Encryption key required to restore encrypted content', 'MISSING_KEY');
-    }
-    return encryptionKey;
   }
 
   /**
@@ -908,23 +888,17 @@ export default class CasService {
 
     // Unwrap DEK using the existing key
     let dek;
-    for (const entry of recipients) {
-      try {
-        dek = this._unwrapDek(entry, existingKey);
-        break;
-      } catch {
-        // Try next
+    try {
+      dek = await this._resolveKeyForRecipients(manifest, existingKey);
+    } catch (err) {
+      if (err.code === 'NO_MATCHING_RECIPIENT') {
+        throw new CasError('Failed to unwrap DEK: authentication failed', 'DEK_UNWRAP_FAILED');
       }
-    }
-    if (!dek) {
-      throw new CasError(
-        'Failed to unwrap DEK: authentication failed',
-        'DEK_UNWRAP_FAILED',
-      );
+      throw err;
     }
 
     // Wrap DEK for the new recipient
-    const newEntry = { label, ...this._wrapDek(dek, newRecipientKey) };
+    const newEntry = { label, ...(await this._wrapDek(dek, newRecipientKey)) };
 
     const json = manifest.toJSON();
     const updatedEncryption = {
@@ -950,15 +924,7 @@ export default class CasService {
    */
   async removeRecipient({ manifest, label }) {
     const recipients = manifest.encryption?.recipients;
-    if (!recipients || recipients.length === 0) {
-      throw new CasError(
-        `Recipient "${label}" not found`,
-        'RECIPIENT_NOT_FOUND',
-        { label },
-      );
-    }
-
-    if (!recipients.some((r) => r.label === label)) {
+    if (!recipients?.some((r) => r.label === label)) {
       throw new CasError(
         `Recipient "${label}" not found`,
         'RECIPIENT_NOT_FOUND',

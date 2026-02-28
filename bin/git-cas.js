@@ -138,8 +138,8 @@ program
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for encryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (file, opts) => {
-    if (opts.recipient && opts.keyFile) {
-      throw new Error('Provide --key-file or --recipient, not both');
+    if (opts.recipient && (opts.keyFile || resolvePassphrase(opts))) {
+      throw new Error('Provide --key-file/--vault-passphrase or --recipient, not both');
     }
     if (opts.force && !opts.tree) {
       throw new Error('--force requires --tree');
