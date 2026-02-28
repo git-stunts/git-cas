@@ -351,6 +351,20 @@ export default class ContentAddressableStore {
 
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 
+  addRecipient(options: {
+    manifest: Manifest;
+    existingKey: Buffer;
+    newRecipientKey: Buffer;
+    label: string;
+  }): Promise<Manifest>;
+
+  removeRecipient(options: {
+    manifest: Manifest;
+    label: string;
+  }): Promise<Manifest>;
+
+  listRecipients(manifest: Manifest): Promise<string[]>;
+
   // Vault — delegates to VaultService
 
   static VAULT_REF: string;

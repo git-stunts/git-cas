@@ -139,6 +139,20 @@ export default class CasService {
     treeOids: string[];
   }): Promise<{ referenced: Set<string>; total: number }>;
 
+  addRecipient(options: {
+    manifest: Manifest;
+    existingKey: Buffer;
+    newRecipientKey: Buffer;
+    label: string;
+  }): Promise<Manifest>;
+
+  removeRecipient(options: {
+    manifest: Manifest;
+    label: string;
+  }): Promise<Manifest>;
+
+  listRecipients(manifest: Manifest): string[];
+
   verifyIntegrity(manifest: Manifest): Promise<boolean>;
 
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;

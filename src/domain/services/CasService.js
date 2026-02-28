@@ -869,6 +869,126 @@ export default class CasService {
   }
 
   /**
+   * Adds a new recipient to an envelope-encrypted manifest.
+   *
+   * Unwraps the DEK using `existingKey`, wraps it with `newRecipientKey`,
+   * and returns a new Manifest with the appended recipient entry.
+   *
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @param {Buffer} options.existingKey - KEK of an existing recipient.
+   * @param {Buffer} options.newRecipientKey - KEK for the new recipient.
+   * @param {string} options.label - Label for the new recipient.
+   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   * @throws {CasError} INVALID_OPTIONS if manifest has no recipients.
+   * @throws {CasError} RECIPIENT_ALREADY_EXISTS if label is a duplicate.
+   * @throws {CasError} DEK_UNWRAP_FAILED if existingKey doesn't match any recipient.
+   */
+  async addRecipient({ manifest, existingKey, newRecipientKey, label }) {
+    const recipients = manifest.encryption?.recipients;
+    if (!recipients || recipients.length === 0) {
+      throw new CasError(
+        'Manifest does not use envelope encryption (no recipients)',
+        'INVALID_OPTIONS',
+      );
+    }
+
+    if (recipients.some((r) => r.label === label)) {
+      throw new CasError(
+        `Recipient "${label}" already exists`,
+        'RECIPIENT_ALREADY_EXISTS',
+        { label },
+      );
+    }
+
+    this.crypto._validateKey(existingKey);
+    this.crypto._validateKey(newRecipientKey);
+
+    // Unwrap DEK using the existing key
+    let dek;
+    for (const entry of recipients) {
+      try {
+        dek = this._unwrapDek(entry, existingKey);
+        break;
+      } catch {
+        // Try next
+      }
+    }
+    if (!dek) {
+      throw new CasError(
+        'Failed to unwrap DEK: authentication failed',
+        'DEK_UNWRAP_FAILED',
+      );
+    }
+
+    // Wrap DEK for the new recipient
+    const newEntry = { label, ...this._wrapDek(dek, newRecipientKey) };
+
+    const json = manifest.toJSON();
+    const updatedEncryption = {
+      ...json.encryption,
+      recipients: [...recipients.map((r) => ({ ...r })), newEntry],
+    };
+
+    return new Manifest({ ...json, encryption: updatedEncryption });
+  }
+
+  /**
+   * Removes a recipient from an envelope-encrypted manifest.
+   *
+   * Returns a new Manifest with the recipient entry removed. Does not
+   * require a key — this is a manifest-only mutation.
+   *
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @param {string} options.label - Label of the recipient to remove.
+   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   * @throws {CasError} RECIPIENT_NOT_FOUND if label doesn't exist.
+   * @throws {CasError} CANNOT_REMOVE_LAST_RECIPIENT if only one recipient remains.
+   */
+  async removeRecipient({ manifest, label }) {
+    const recipients = manifest.encryption?.recipients;
+    if (!recipients || recipients.length === 0) {
+      throw new CasError(
+        `Recipient "${label}" not found`,
+        'RECIPIENT_NOT_FOUND',
+        { label },
+      );
+    }
+
+    if (!recipients.some((r) => r.label === label)) {
+      throw new CasError(
+        `Recipient "${label}" not found`,
+        'RECIPIENT_NOT_FOUND',
+        { label },
+      );
+    }
+
+    if (recipients.length === 1) {
+      throw new CasError(
+        'Cannot remove the last recipient',
+        'CANNOT_REMOVE_LAST_RECIPIENT',
+      );
+    }
+
+    const filtered = recipients.filter((r) => r.label !== label).map((r) => ({ ...r }));
+    const json = manifest.toJSON();
+    const updatedEncryption = { ...json.encryption, recipients: filtered };
+
+    return new Manifest({ ...json, encryption: updatedEncryption });
+  }
+
+  /**
+   * Lists recipient labels from an envelope-encrypted manifest.
+   *
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {string[]} Recipient labels, or empty array if not envelope-encrypted.
+   */
+  listRecipients(manifest) {
+    return (manifest.encryption?.recipients || []).map((r) => r.label);
+  }
+
+  /**
    * Verifies the integrity of a stored file by re-hashing its chunks.
    * @param {import('../value-objects/Manifest.js').default} manifest
    * @returns {Promise<boolean>}
