@@ -32,12 +32,12 @@ function formatBytes(bytes) {
  * @param {boolean} [options.quiet] - Suppress all progress output.
  * @returns {{ attach(observer: { on(event: string, fn: Function): void, removeListener(event: string, fn: Function): void }): void, detach(): void }}
  */
-export function createStoreProgress({ filePath, chunkSize, quiet, fileSize: providedSize }) {
+export function createStoreProgress({ filePath, chunkSize, quiet, fileSize: providedSize, ctx: providedCtx }) {
   if (quiet) {
     return { attach() {}, detach() {} };
   }
 
-  const ctx = getCliContext();
+  const ctx = providedCtx || getCliContext();
   if (ctx.mode === 'pipe') {
     return { attach() {}, detach() {} };
   }
@@ -60,12 +60,12 @@ export function createStoreProgress({ filePath, chunkSize, quiet, fileSize: prov
  * @param {boolean} [options.quiet] - Suppress all progress output.
  * @returns {{ attach(observer: { on(event: string, fn: Function): void, removeListener(event: string, fn: Function): void }): void, detach(): void }}
  */
-export function createRestoreProgress({ totalChunks, quiet }) {
+export function createRestoreProgress({ totalChunks, quiet, ctx: providedCtx }) {
   if (quiet || totalChunks === 0) {
     return { attach() {}, detach() {} };
   }
 
-  const ctx = getCliContext();
+  const ctx = providedCtx || getCliContext();
   if (ctx.mode === 'pipe') {
     return { attach() {}, detach() {} };
   }

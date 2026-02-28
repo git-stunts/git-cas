@@ -1,18 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import EventEmitterObserver from '../../../src/infrastructure/adapters/EventEmitterObserver.js';
+import { createStoreProgress, createRestoreProgress } from '../../../bin/ui/progress.js';
 import { makeCtx } from './_testContext.js';
 
-vi.mock('../../../bin/ui/context.js', () => ({
-  getCliContext: () => makeCtx('static'),
-}));
-
-const { createStoreProgress, createRestoreProgress } = await import('../../../bin/ui/progress.js');
-
 const FILE_SIZE = 5 * 256 * 1024;
+const ctx = makeCtx('static');
 
 describe('createStoreProgress', () => {
   it('returns no-op when quiet is true', () => {
-    const p = createStoreProgress({ filePath: 'test.bin', chunkSize: 256 * 1024, quiet: true });
+    const p = createStoreProgress({ filePath: 'test.bin', chunkSize: 256 * 1024, quiet: true, ctx });
     const emitter = new EventEmitterObserver();
     p.attach(emitter);
     emitter.metric('chunk', { action: 'stored', index: 0, size: 256 * 1024 });
@@ -21,7 +17,7 @@ describe('createStoreProgress', () => {
   });
 
   it('attaches and detaches from EventEmitter', () => {
-    const p = createStoreProgress({ filePath: 'test.bin', chunkSize: 256 * 1024, quiet: false, fileSize: FILE_SIZE });
+    const p = createStoreProgress({ filePath: 'test.bin', chunkSize: 256 * 1024, quiet: false, fileSize: FILE_SIZE, ctx });
     const emitter = new EventEmitterObserver();
     p.attach(emitter);
     expect(emitter.listenerCount('chunk:stored')).toBe(1);
@@ -30,7 +26,7 @@ describe('createStoreProgress', () => {
   });
 
   it('tracks chunk events without throwing', () => {
-    const p = createStoreProgress({ filePath: 'test.bin', chunkSize: 256 * 1024, quiet: false, fileSize: FILE_SIZE });
+    const p = createStoreProgress({ filePath: 'test.bin', chunkSize: 256 * 1024, quiet: false, fileSize: FILE_SIZE, ctx });
     const emitter = new EventEmitterObserver();
     p.attach(emitter);
     for (let i = 0; i < 5; i++) {
@@ -43,7 +39,7 @@ describe('createStoreProgress', () => {
 
 describe('createRestoreProgress', () => {
   it('returns no-op when quiet is true', () => {
-    const p = createRestoreProgress({ totalChunks: 5, quiet: true });
+    const p = createRestoreProgress({ totalChunks: 5, quiet: true, ctx });
     const emitter = new EventEmitterObserver();
     p.attach(emitter);
     p.detach();
@@ -51,7 +47,7 @@ describe('createRestoreProgress', () => {
   });
 
   it('returns no-op for 0-chunk manifests', () => {
-    const p = createRestoreProgress({ totalChunks: 0, quiet: false });
+    const p = createRestoreProgress({ totalChunks: 0, quiet: false, ctx });
     const emitter = new EventEmitterObserver();
     p.attach(emitter);
     p.detach();
@@ -59,7 +55,7 @@ describe('createRestoreProgress', () => {
   });
 
   it('attaches and detaches from EventEmitter', () => {
-    const p = createRestoreProgress({ totalChunks: 3, quiet: false });
+    const p = createRestoreProgress({ totalChunks: 3, quiet: false, ctx });
     const emitter = new EventEmitterObserver();
     p.attach(emitter);
     expect(emitter.listenerCount('chunk:restored')).toBe(1);
