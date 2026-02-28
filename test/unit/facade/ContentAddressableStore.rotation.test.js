@@ -13,6 +13,8 @@ import ContentAddressableStore from '../../../index.js';
 function createRepo() {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'cas-rotation-'));
   execSync('git init --bare', { cwd: dir, stdio: 'ignore' });
+  execSync('git config user.name "test"', { cwd: dir, stdio: 'ignore' });
+  execSync('git config user.email "test@test"', { cwd: dir, stdio: 'ignore' });
   return dir;
 }
 
