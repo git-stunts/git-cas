@@ -258,7 +258,7 @@ export default class CasService {
     }
 
     this.crypto._validateKey(key);
-    return this._resolveKeyForRecipients(manifest, key);
+    return await this._resolveKeyForRecipients(manifest, key);
   }
 
   /**
@@ -394,10 +394,17 @@ export default class CasService {
    * @private
    */
   async _resolveRecipientsForStore(recipients) {
-    for (const r of recipients) { this.crypto._validateKey(r.key); }
+    if (!recipients || recipients.length === 0) {
+      throw new CasError('At least one recipient is required', 'INVALID_OPTIONS');
+    }
+    const labels = recipients.map((r) => r.label);
+    if (new Set(labels).size !== labels.length) {
+      throw new CasError('Duplicate recipient labels are not allowed', 'INVALID_OPTIONS');
+    }
     const dek = this.crypto.randomBytes(32);
     const entries = [];
     for (const r of recipients) {
+      this.crypto._validateKey(r.key);
       entries.push({ label: r.label, ...(await this._wrapDek(dek, r.key)) });
     }
     return { key: dek, encExtra: { recipients: entries } };
@@ -891,7 +898,7 @@ export default class CasService {
     try {
       dek = await this._resolveKeyForRecipients(manifest, existingKey);
     } catch (err) {
-      if (err.code === 'NO_MATCHING_RECIPIENT') {
+      if (err instanceof CasError && err.code === 'NO_MATCHING_RECIPIENT') {
         throw new CasError('Failed to unwrap DEK: authentication failed', 'DEK_UNWRAP_FAILED');
       }
       throw err;

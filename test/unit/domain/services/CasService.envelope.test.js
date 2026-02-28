@@ -248,6 +248,34 @@ describe('CasService – envelope encryption (edge cases)', () => { // eslint-di
     ).rejects.toThrow(/recipients or encryptionKey/);
   });
 
+  it('empty recipients array → INVALID_OPTIONS', async () => {
+    await expect(
+      service.store({
+        source: bufferSource(Buffer.from('x')),
+        slug: 'test',
+        filename: 'test.bin',
+        recipients: [],
+      }),
+    ).rejects.toThrow(/At least one recipient/);
+  });
+
+  it('duplicate recipient labels → INVALID_OPTIONS', async () => {
+    const key1 = randomBytes(32);
+    const key2 = randomBytes(32);
+
+    await expect(
+      service.store({
+        source: bufferSource(Buffer.from('x')),
+        slug: 'test',
+        filename: 'test.bin',
+        recipients: [
+          { label: 'alice', key: key1 },
+          { label: 'alice', key: key2 },
+        ],
+      }),
+    ).rejects.toThrow(/Duplicate recipient labels/);
+  });
+
   it('envelope manifest includes encryption metadata (algorithm, nonce, tag)', async () => {
     const kek = randomBytes(32);
 
