@@ -781,7 +781,36 @@ git cas vault info <slug>                        # Show slug + tree OID
 git cas vault remove <slug>                      # Remove an entry
 git cas vault history                            # Show commit history
 git cas vault history -n 10                      # Last N commits
+git cas vault rotate --old-passphrase "old" --new-passphrase "new"
+git cas vault rotate --old-passphrase "old" --new-passphrase "new" --algorithm scrypt
 ```
+
+### CLI Key Rotation Commands
+
+```bash
+# Rotate a single asset's key (by vault slug)
+git cas rotate --slug demo/hello \
+  --old-key-file old.key --new-key-file new.key
+
+# Rotate a single asset's key (by tree OID)
+git cas rotate --oid <tree-oid> \
+  --old-key-file old.key --new-key-file new.key
+
+# Rotate only a named recipient
+git cas rotate --slug demo/hello \
+  --old-key-file old.key --new-key-file new.key --label alice
+```
+
+| Flag | Description |
+|------|-------------|
+| `--slug <slug>` | Resolve tree OID from vault slug (updates vault entry) |
+| `--oid <tree-oid>` | Direct tree OID (outputs updated manifest) |
+| `--old-key-file <path>` | Path to current 32-byte key file (required) |
+| `--new-key-file <path>` | Path to new 32-byte key file (required) |
+| `--label <label>` | Only rotate the named recipient entry |
+| `--old-passphrase <pass>` | Current vault passphrase (vault rotate) |
+| `--new-passphrase <pass>` | New vault passphrase (vault rotate) |
+| `--algorithm <alg>` | KDF algorithm for new passphrase (`pbkdf2` or `scrypt`) |
 
 ### Vault History
 
@@ -1445,8 +1474,8 @@ new CasError(message, code, meta)
 | `INVALID_SLUG` | Slug fails validation (empty, control chars, `..` segments, etc.) | `addToVault()` |
 | `VAULT_ENTRY_NOT_FOUND` | Slug does not exist in vault | `removeFromVault()`, `resolveVaultEntry()` |
 | `VAULT_ENTRY_EXISTS` | Slug already exists (use `force` to overwrite) | `addToVault()` |
-| `VAULT_CONFLICT` | Concurrent vault update detected (CAS failure after retries) | `addToVault()`, `removeFromVault()`, `initVault()` |
-| `VAULT_METADATA_INVALID` | `.vault.json` malformed, unknown version, or missing required fields | `readState()` |
+| `VAULT_CONFLICT` | Concurrent vault update detected (CAS failure after retries) | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
+| `VAULT_METADATA_INVALID` | `.vault.json` malformed, unknown version, or missing required fields | `readState()`, `rotateVaultPassphrase()` |
 | `VAULT_ENCRYPTION_ALREADY_CONFIGURED` | Cannot reconfigure encryption without key rotation | `initVault()` |
 | `NO_MATCHING_RECIPIENT` | No recipient entry matches the provided KEK | `restore()`, `rotateKey()` |
 | `DEK_UNWRAP_FAILED` | Failed to unwrap DEK with the provided KEK | `addRecipient()`, `rotateKey()` |

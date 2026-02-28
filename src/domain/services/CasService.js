@@ -1005,17 +1005,16 @@ export default class CasService {
     this.crypto._validateKey(newKey);
 
     const { matchIndex, dek } = label
-      ? await this._findRecipientByLabel(recipients, label, oldKey)
-      : await this._findRecipientByKey(recipients, oldKey);
+      ? await this.#findRecipientByLabel(recipients, label, oldKey)
+      : await this.#findRecipientByKey(recipients, oldKey);
 
-    return this._buildRotatedManifest({ manifest, recipients, matchIndex, dek, newKey });
+    return this.#buildRotatedManifest({ manifest, recipients, matchIndex, dek, newKey });
   }
 
   /**
    * Finds a recipient by label and unwraps the DEK.
-   * @private
    */
-  async _findRecipientByLabel(recipients, label, oldKey) {
+  async #findRecipientByLabel(recipients, label, oldKey) {
     const matchIndex = recipients.findIndex((r) => r.label === label);
     if (matchIndex === -1) {
       throw new CasError(`Recipient "${label}" not found`, 'RECIPIENT_NOT_FOUND', { label });
@@ -1026,9 +1025,8 @@ export default class CasService {
 
   /**
    * Finds the first recipient whose DEK can be unwrapped with the given key.
-   * @private
    */
-  async _findRecipientByKey(recipients, oldKey) {
+  async #findRecipientByKey(recipients, oldKey) {
     for (let i = 0; i < recipients.length; i++) {
       try {
         const dek = await this._unwrapDek(recipients[i], oldKey);
@@ -1045,9 +1043,8 @@ export default class CasService {
 
   /**
    * Builds a new Manifest with the rotated recipient entry and updated keyVersions.
-   * @private
    */
-  async _buildRotatedManifest({ manifest, recipients, matchIndex, dek, newKey }) {
+  async #buildRotatedManifest({ manifest, recipients, matchIndex, dek, newKey }) {
     const newWrapped = await this._wrapDek(dek, newKey);
     const manifestKeyVersion = (manifest.encryption.keyVersion || 0) + 1;
     const recipientKeyVersion = (recipients[matchIndex].keyVersion || 0) + 1;

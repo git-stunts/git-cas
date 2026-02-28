@@ -60,10 +60,10 @@ describe('ContentAddressableStore – rotateVaultPassphrase', () => { // eslint-
     if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); }
   });
 
-  it('3 envelope entries → rotate → all restorable with new passphrase', { timeout: 15_000 }, async () => {
+  it('3 envelope entries → rotate → all restorable with new passphrase', async () => {
     const oldPass = 'old-pass';
     const newPass = 'new-pass';
-    await cas.initVault({ passphrase: oldPass });
+    await cas.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
 
     const originals = {};
     for (const name of ['alpha', 'beta', 'gamma']) {
