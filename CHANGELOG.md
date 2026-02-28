@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`--recipient <label:keyfile>` CLI flag** — repeatable flag on `git cas store` for envelope encryption.
 - **`git cas recipient add/remove/list`** subcommands — CLI management of envelope recipients.
 - **`RecipientEntry` type re-exported** from `index.d.ts`.
-- 47 new unit tests (756 total).
+- 48 new unit tests (757 total).
 
 ### Fixed
 - **`_wrapDek` / `_unwrapDek` missing `await`** — these called async `encryptBuffer()` / `decryptBuffer()` without `await`, silently producing garbage on Bun/Deno runtimes where crypto is async.
@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dead `_resolveEncryptionKey` method removed** — superseded by `_resolveDecryptionKey` but left behind.
 - **Redundant `RECIPIENT_NOT_FOUND` guards** in `removeRecipient` collapsed into one.
 - **`addRecipient` duplicated unwrap loop** replaced with `_resolveKeyForRecipients` reuse.
+- **`removeRecipient` post-filter guard** — defense-in-depth check prevents zero recipients when duplicate labels exist in corrupted/crafted manifests.
+- **`EncryptionSchema` empty recipients** — `recipients` array now enforces `min(1)` to reject undecryptable envelope manifests.
+- **`parseRecipient` empty keyfile** — CLI now rejects `--recipient alice:` (missing keyfile path) with a clear error.
 
 ## [5.0.0] — Hydra (2026-02-28)
 
