@@ -2,7 +2,7 @@
 
 **Current version:** v4.0.0 (Conduit)
 **Last release:** 2026-02-27
-**Test suite:** 567 tests (vitest)
+**Test suite:** 616 tests (vitest)
 **Runtimes:** Node.js 22.x, Bun, Deno
 
 ---

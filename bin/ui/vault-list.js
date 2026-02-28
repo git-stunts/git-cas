@@ -10,6 +10,9 @@
  * @returns {boolean}
  */
 export function matchGlob(pattern, str) {
+  if (pattern.length > 200) {
+    throw new Error(`Glob pattern too long (${pattern.length} chars, max 200)`);
+  }
   const escaped = pattern
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')
     .replace(/\*\*/g, '\0')

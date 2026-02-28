@@ -29,6 +29,6 @@ Vault logic lives in `VaultService`, a separate domain service. `ContentAddressa
 
 ## Consequences
 
-- The facade has 7 vault pass-through methods (`vaultInit`, `vaultStore`, `vaultRestore`, `vaultList`, `vaultInfo`, `vaultRemove`, `vaultHistory`). This is acceptable given the flat API benefit.
+- The facade has 7 vault pass-through methods (`initVault`, `addToVault`, `listVault`, `removeFromVault`, `resolveVaultEntry`, `getVaultMetadata`, `getVaultService`). This is acceptable given the flat API benefit.
 - Users must go through the facade or explicitly create `VaultService` — there is no implicit vault available on a bare `CasService`.
 - VaultService can evolve independently (e.g., named vaults, cross-repo sync) without touching CasService internals.

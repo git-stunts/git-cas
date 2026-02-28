@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — M8 Spit Shine (code review fixes)
+
+### Fixed
+- **C1** `verify` command uses `process.exitCode = 1` instead of `process.exit(1)` to allow stdout to drain on pipes.
+- **M4** `vault info --json --encryption` now includes encryption metadata in JSON output instead of silently dropping it.
+- **M3** `NodeCryptoAdapter._validateKey` removed — inherits base class `CryptoPort._validateKey` which accepts both `Buffer` and `Uint8Array`, matching the port contract.
+- **M2** `matchGlob` rejects patterns longer than 200 characters to prevent ReDoS on pathological input.
+- **L1** `writeError` guards against non-Error throws (`err?.message ?? String(err)`).
+- **L4** `store` action hoists `--json` flag read before `quiet` assignment (single call instead of two).
+- **L5** `CasService.encrypt()` removed redundant `_validateKey` call — `encryptBuffer` already validates internally.
+- **L3** `verify` command description clarified: "checks blob hashes; no key needed".
+- **N1** ADR-001 method names corrected to match actual facade API (`initVault`, `addToVault`, etc.).
+- **N3** Removed trailing blank line at EOF in `bin/git-cas.js`.
+- **M1** STATUS.md test count updated from 567 to 616.
+
 ## [4.0.0] — Conduit (2026-02-27)
 
 ### Breaking Changes

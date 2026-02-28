@@ -106,7 +106,8 @@ program
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for encryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (file, opts) => {
-    const quiet = program.opts().quiet || program.opts().json;
+    const json = program.opts().json;
+    const quiet = program.opts().quiet || json;
     const observer = new EventEmitterObserver();
     const cas = createCas(opts.cwd, { observability: observer });
     const encryptionKey = await resolveEncryptionKey(cas, opts);
@@ -126,7 +127,6 @@ program
       progress.detach();
     }
 
-    const json = program.opts().json;
     if (opts.tree) {
       const treeOid = await cas.createTree({ manifest });
       await cas.addToVault({ slug: opts.slug, treeOid, force: !!opts.force });
@@ -240,7 +240,7 @@ program
 // ---------------------------------------------------------------------------
 program
   .command('verify')
-  .description('Verify integrity of a stored asset')
+  .description('Verify integrity of a stored asset (checks blob hashes; no key needed)')
   .option('--slug <slug>', 'Resolve tree OID from vault slug')
   .option('--oid <tree-oid>', 'Direct tree OID')
   .option('--cwd <dir>', 'Git working directory', '.')
@@ -257,7 +257,7 @@ program
       process.stdout.write(ok ? 'ok\n' : `fail: ${manifest.slug}\n`);
     }
     if (!ok) {
-      process.exit(1);
+      process.exitCode = 1;
     }
   }, getJson));
 
@@ -344,14 +344,21 @@ vault
     const treeOid = await cas.resolveVaultEntry({ slug });
     const json = program.opts().json;
     if (json) {
-      process.stdout.write(`${JSON.stringify({ slug, treeOid })}\n`);
+      const result = { slug, treeOid };
+      if (opts.encryption) {
+        const metadata = await cas.getVaultMetadata();
+        if (metadata?.encryption) {
+          result.encryption = metadata.encryption;
+        }
+      }
+      process.stdout.write(`${JSON.stringify(result)}\n`);
     } else {
       process.stdout.write(`slug\t${slug}\n`);
       process.stdout.write(`tree\t${treeOid}\n`);
-    }
-    if (opts.encryption && !json) {
-      const metadata = await cas.getVaultMetadata();
-      process.stdout.write(`\n${renderEncryptionCard({ metadata })}\n`);
+      if (opts.encryption) {
+        const metadata = await cas.getVaultMetadata();
+        process.stdout.write(`\n${renderEncryptionCard({ metadata })}\n`);
+      }
     }
   }, getJson));
 

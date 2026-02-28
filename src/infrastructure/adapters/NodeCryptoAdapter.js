@@ -1,7 +1,6 @@
 import { createHash, createCipheriv, createDecipheriv, randomBytes, pbkdf2, scrypt } from 'node:crypto';
 import { promisify } from 'node:util';
 import CryptoPort from '../../ports/CryptoPort.js';
-import CasError from '../../domain/errors/CasError.js';
 
 /**
  * Node.js implementation of CryptoPort using node:crypto.
@@ -66,27 +65,7 @@ export default class NodeCryptoAdapter extends CryptoPort {
     return { encrypt, finalize };
   }
 
-  /**
-   * Validates that a key is a 32-byte Buffer (strict Node.js check).
-   * @override
-   * @param {Buffer} key
-   * @throws {CasError} INVALID_KEY_TYPE | INVALID_KEY_LENGTH
-   */
-  _validateKey(key) {
-    if (!Buffer.isBuffer(key)) {
-      throw new CasError(
-        'Encryption key must be a Buffer',
-        'INVALID_KEY_TYPE',
-      );
-    }
-    if (key.length !== 32) {
-      throw new CasError(
-        `Encryption key must be 32 bytes, got ${key.length}`,
-        'INVALID_KEY_LENGTH',
-        { expected: 32, actual: key.length },
-      );
-    }
-  }
+  /** @override – delegate to base class which accepts both Buffer and Uint8Array */
 
   /** @override */
   async _doDeriveKey(passphrase, saltBuf, { algorithm, iterations, cost, blockSize, parallelization, keyLength }) {

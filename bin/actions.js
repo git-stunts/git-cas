@@ -17,16 +17,16 @@ const HINTS = {
  * @param {boolean} json - Whether to output JSON.
  */
 function writeError(err, json) {
+  const message = err?.message ?? String(err);
+  const code = typeof err?.code === 'string' ? err.code : undefined;
   if (json) {
-    const obj = { error: err.message };
-    if (typeof err.code === 'string') {
-      obj.code = err.code;
-    }
+    const obj = { error: message };
+    if (code) { obj.code = code; }
     process.stderr.write(`${JSON.stringify(obj)}\n`);
   } else {
-    const prefix = typeof err.code === 'string' ? `error [${err.code}]: ` : 'error: ';
-    process.stderr.write(`${prefix}${err.message}\n`);
-    const hint = typeof err.code === 'string' ? HINTS[err.code] : undefined;
+    const prefix = code ? `error [${code}]: ` : 'error: ';
+    process.stderr.write(`${prefix}${message}\n`);
+    const hint = code ? HINTS[code] : undefined;
     if (hint) {
       process.stderr.write(`hint: ${hint}\n`);
     }

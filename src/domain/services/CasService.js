@@ -155,7 +155,6 @@ export default class CasService {
    * @throws {CasError} INVALID_KEY_TYPE | INVALID_KEY_LENGTH if the key is invalid.
    */
   async encrypt({ buffer, key }) {
-    this.crypto._validateKey(key);
     return await this.crypto.encryptBuffer(buffer, key);
   }
 
