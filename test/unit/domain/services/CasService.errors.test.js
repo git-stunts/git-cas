@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import CasService from '../../../../src/domain/services/CasService.js';
-import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+
+const testCrypto = await getTestCryptoAdapter();
 
 /** Deterministic SHA-256 hex digest for a given string. */
 const sha256 = (str) => createHash('sha256').update(str).digest('hex');
@@ -23,20 +25,20 @@ describe('CasService – constructor – chunkSize validation', () => {
 
   it('throws when chunkSize is 0', () => {
     expect(
-      () => new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new JsonCodec(), chunkSize: 0, observability: new SilentObserver() }),
+      () => new CasService({ persistence: mockPersistence, crypto: testCrypto, codec: new JsonCodec(), chunkSize: 0, observability: new SilentObserver() }),
     ).toThrow('Chunk size must be at least 1024 bytes');
   });
 
   it('throws when chunkSize is 512', () => {
     expect(
-      () => new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new JsonCodec(), chunkSize: 512, observability: new SilentObserver() }),
+      () => new CasService({ persistence: mockPersistence, crypto: testCrypto, codec: new JsonCodec(), chunkSize: 512, observability: new SilentObserver() }),
     ).toThrow('Chunk size must be at least 1024 bytes');
   });
 
   it('accepts chunkSize of exactly 1024', () => {
     const service = new CasService({
       persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
@@ -55,7 +57,7 @@ describe('CasService – store – mutual exclusion and validation', () => {
         writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
         readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
       },
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
@@ -96,7 +98,7 @@ describe('CasService – restore – mutual exclusion', () => {
         writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
         readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
       },
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
@@ -141,7 +143,7 @@ describe('CasService – store', () => {
   it('rejects when source stream errors (nonexistent file)', async () => {
     const service = new CasService({
       persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
@@ -179,7 +181,7 @@ describe('CasService – verifyIntegrity', () => {
 
     const service = new CasService({
       persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
@@ -218,7 +220,7 @@ describe('CasService – createTree', () => {
   it('throws when manifest is not a valid Manifest object', async () => {
     const service = new CasService({
       persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
@@ -233,7 +235,7 @@ describe('CasService – createTree', () => {
   it('throws when manifest.toJSON is not a function', async () => {
     const service = new CasService({
       persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),

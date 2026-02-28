@@ -526,4 +526,8 @@ recipient
   }, getJson));
 
 await program.parseAsync();
-process.exit(process.exitCode || 0);
+
+// Flush stdout/stderr before exiting — spawned git child processes leave
+// libuv handles that prevent natural exit in containerized environments.
+const code = process.exitCode || 0;
+process.stdout.write('', () => process.stderr.write('', () => process.exit(code)));

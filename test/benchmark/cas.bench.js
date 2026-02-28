@@ -1,12 +1,14 @@
 import { bench, describe } from 'vitest';
 import { createHash, randomBytes } from 'node:crypto';
 import CasService from '../../src/domain/services/CasService.js';
-import NodeCryptoAdapter from '../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import { getTestCryptoAdapter } from '../helpers/crypto-adapter.js';
 import JsonCodec from '../../src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from '../../src/infrastructure/codecs/CborCodec.js';
 import Manifest from '../../src/domain/value-objects/Manifest.js';
 
-const crypto = new NodeCryptoAdapter();
+const testCrypto = await getTestCryptoAdapter();
+
+const crypto = testCrypto;
 
 function digestOf(seed) {
   return createHash('sha256').update(seed).digest('hex');

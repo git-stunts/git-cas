@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { randomBytes } from 'node:crypto';
 import CasService from '../../../../src/domain/services/CasService.js';
-import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+
+const testCrypto = await getTestCryptoAdapter();
 
 // ---------------------------------------------------------------------------
 // 1. Round-trip golden path
@@ -20,7 +22,7 @@ describe('CasService encryption – round-trip golden path', () => {
     };
     service = new CasService({
       persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
@@ -73,7 +75,7 @@ describe('CasService encryption – wrong key and tampered ciphertext', () => {
     };
     service = new CasService({
       persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
@@ -122,7 +124,7 @@ describe('CasService encryption – tampered auth tag', () => {
     };
     service = new CasService({
       persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
@@ -160,7 +162,7 @@ describe('CasService encryption – tampered nonce', () => {
     };
     service = new CasService({
       persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
@@ -198,7 +200,7 @@ describe('CasService encryption – passthrough', () => {
     };
     service = new CasService({
       persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
@@ -233,7 +235,7 @@ describe('CasService encryption – fuzz round-trip', () => {
     };
     service = new CasService({
       persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
@@ -273,7 +275,7 @@ describe('CasService encryption – fuzz tamper', () => {
     };
     service = new CasService({
       persistence: mockPersistence,
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
