@@ -85,13 +85,11 @@ export default class WebCryptoAdapter extends CryptoPort {
     // current CasService.restore limitation.
     const chunks = [];
     let finalTag = null;
+    let streamConsumed = false;
 
     const encrypt = async function* (source) {
       for await (const chunk of source) {
         chunks.push(chunk);
-        // We can't yield partial encrypted chunks for GCM in Web Crypto
-        // without complex chunk-chaining which would break compatibility
-        // with the Node adapter's single-stream GCM.
       }
 
       const buffer = Buffer.concat(chunks);
@@ -106,11 +104,18 @@ export default class WebCryptoAdapter extends CryptoPort {
       const tagLength = 16;
       const ciphertext = fullBuffer.slice(0, -tagLength);
       finalTag = fullBuffer.slice(-tagLength);
+      streamConsumed = true;
 
       yield Buffer.from(ciphertext);
     };
 
     const finalize = () => {
+      if (!streamConsumed) {
+        throw new CasError(
+          'Cannot finalize before the encrypt stream is fully consumed',
+          'STREAM_NOT_CONSUMED',
+        );
+      }
       return this._buildMeta(this.#toBase64(nonce), this.#toBase64(finalTag));
     };
 
