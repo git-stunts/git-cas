@@ -2,7 +2,7 @@
 
 **Current version:** v4.0.0 (Conduit)
 **Last release:** 2026-02-27
-**Test suite:** 616 tests (vitest)
+**Test suite:** 618 tests (vitest)
 **Runtimes:** Node.js 22.x, Bun, Deno
 
 ---
@@ -26,16 +26,16 @@ Five open milestones remain. M8/M9 are quick wins; M10–M12 are larger features
 ### M8 — Spit Shine (~3h)
 Code review polish. No new features.
 
-- [ ] **8.2** Extract shared crypto helpers to CryptoPort base class
-- [ ] **8.3** README polish and architectural decision record (ADR-001)
+- [x] **8.2** Extract shared crypto helpers to CryptoPort base class
+- [x] **8.3** README polish and architectural decision record (ADR-001)
 
 ### M9 — Cockpit (~5h)
 CLI improvements for CI/CD and operator workflows.
 
-- [ ] **9.2** CLI `verify` command (`git cas verify --slug <slug>`)
-- [ ] **9.3** CLI `--json` output mode (structured JSON for all commands)
-- [ ] **9.4** CLI error handler DRY cleanup + actionable error messages
-- [ ] **9.5** Vault list filtering (`--filter`) and table formatting
+- [x] **9.2** CLI `verify` command (`git cas verify --slug <slug>`)
+- [x] **9.3** CLI `--json` output mode (structured JSON for all commands)
+- [x] **9.4** CLI error handler DRY cleanup + actionable error messages
+- [x] **9.5** Vault list filtering (`--filter`) and table formatting
 
 ### M10 — Hydra (~22h)
 Content-defined chunking for dramatically better dedup on versioned files.

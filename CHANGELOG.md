@@ -18,7 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **L3** `verify` command description clarified: "checks blob hashes; no key needed".
 - **N1** ADR-001 method names corrected to match actual facade API (`initVault`, `addToVault`, etc.).
 - **N3** Removed trailing blank line at EOF in `bin/git-cas.js`.
-- **M1** STATUS.md test count updated from 567 to 616.
+- **M1** STATUS.md test count updated; M8/M9 task checkboxes marked complete.
+- `runAction` uses `process.exitCode = 1` instead of `process.exit(1)` for consistent exit behavior across all commands.
+- `store --force` without `--tree` now throws immediately instead of silently ignoring the flag.
+- `inspect --json` now emits JSON even in TTY mode (previously fell through to rich view).
+- `vault history --json` now emits structured JSON array of `{ commitOid, message }` objects.
+- `matchGlob` `?` wildcard no longer matches `/` path separator, consistent with standard glob semantics.
+- Orphaned JSDoc comment removed from `NodeCryptoAdapter`; `_doDeriveKey` now properly `await`s promisified calls.
 
 ## [4.0.0] — Conduit (2026-02-27)
 
