@@ -116,13 +116,7 @@ describe('CasService – envelope encryption (multi-recipient)', () => { // esli
 
     await expect(
       service.restore({ manifest, encryptionKey: wrongKey }),
-    ).rejects.toThrow(CasError);
-
-    try {
-      await service.restore({ manifest, encryptionKey: wrongKey });
-    } catch (err) {
-      expect(err.code).toBe('NO_MATCHING_RECIPIENT');
-    }
+    ).rejects.toMatchObject({ name: 'CasError', code: 'NO_MATCHING_RECIPIENT' });
   });
 
   it('tampered wrappedDek fails with NO_MATCHING_RECIPIENT', async () => {
@@ -147,13 +141,7 @@ describe('CasService – envelope encryption (multi-recipient)', () => { // esli
 
     await expect(
       service.restore({ manifest: tamperedManifest, encryptionKey: kek }),
-    ).rejects.toThrow(CasError);
-
-    try {
-      await service.restore({ manifest: tamperedManifest, encryptionKey: kek });
-    } catch (err) {
-      expect(err.code).toBe('NO_MATCHING_RECIPIENT');
-    }
+    ).rejects.toMatchObject({ name: 'CasError', code: 'NO_MATCHING_RECIPIENT' });
   });
 });
 
