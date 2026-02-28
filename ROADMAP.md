@@ -605,7 +605,7 @@ All tasks completed (13.1–13.6). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md
 
 ---
 
-## M14 — Prism (code hygiene)
+## M15 — Prism (code hygiene)
 
 Consistency and DRY fixes surfaced by architecture audit. No new features, no API changes.
 
