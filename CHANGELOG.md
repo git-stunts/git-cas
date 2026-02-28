@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.2.1] — Carousel polish (2026-02-28)
+
+### Changed
+- Rotation helpers in `CasService` use native `#private` methods, matching the facade's style.
+- `VAULT_CONFLICT` and `VAULT_METADATA_INVALID` error code docs now list `rotateVaultPassphrase()`.
+
+### Fixed
+- Rotation integration test no longer flaps under CI load (reduced test-only KDF iterations).
+
+### Added
+- CLI reference in `docs/API.md` for `git cas rotate` and `git cas vault rotate` flags.
+
 ## [5.2.0] — Carousel (2026-02-28)
 
 ### Added
@@ -15,14 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`git cas vault rotate` CLI command** — rotate vault passphrase from the command line with `--old-passphrase` and `--new-passphrase`.
 - **`ROTATION_NOT_SUPPORTED` error code** — thrown when `rotateKey()` is called on a manifest without envelope encryption (legacy/direct-key).
 - 27 new unit tests covering key rotation, schema validation, and vault passphrase rotation.
-- CLI reference in `docs/API.md` for `git cas rotate` and `git cas vault rotate` flags.
-
-### Changed
-- Rotation helpers in `CasService` use native `#private` methods, matching the facade's style.
-- `VAULT_CONFLICT` and `VAULT_METADATA_INVALID` error code docs now list `rotateVaultPassphrase()`.
-
-### Fixed
-- Rotation integration test no longer flaps under CI load (reduced test-only KDF iterations).
 
 ## [5.1.0] — Locksmith (2026-02-28)
 
