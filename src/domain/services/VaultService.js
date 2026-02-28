@@ -8,6 +8,28 @@ const MAX_CAS_RETRIES = 3;
 const CAS_RETRY_BASE_MS = 50;
 
 /**
+ * Vault encryption metadata stored in .vault.json.
+ * @typedef {Object} VaultEncryptionMeta
+ * @property {string} cipher - Cipher algorithm (e.g. 'aes-256-gcm').
+ * @property {{ algorithm: string, salt: string, iterations?: number, cost?: number, blockSize?: number, parallelization?: number, keyLength: number }} kdf - KDF parameters.
+ */
+
+/**
+ * Vault metadata stored in .vault.json.
+ * @typedef {Object} VaultMetadata
+ * @property {number} version - Metadata version (currently 1).
+ * @property {VaultEncryptionMeta} [encryption] - Encryption configuration.
+ */
+
+/**
+ * Vault state read from refs/cas/vault.
+ * @typedef {Object} VaultState
+ * @property {Map<string, string>} entries - Slug→treeOid map.
+ * @property {string|null} parentCommitOid - Parent commit OID.
+ * @property {VaultMetadata|null} metadata - Vault metadata.
+ */
+
+/**
  * Percent-encodes a vault slug for use as a git tree entry name.
  * Git tree entry names cannot contain '/'.
  * @param {string} slug
@@ -59,9 +81,9 @@ export default class VaultService {
 
   /**
    * @param {Object} options
-   * @param {import('../../../src/ports/GitPersistencePort.js').default} options.persistence
-   * @param {import('../../../src/ports/GitRefPort.js').default} options.ref
-   * @param {import('../../../src/ports/CryptoPort.js').default} options.crypto
+   * @param {import('../../ports/GitPersistencePort.js').default} options.persistence
+   * @param {import('../../ports/GitRefPort.js').default} options.ref
+   * @param {import('../../ports/CryptoPort.js').default} options.crypto
    */
   constructor({ persistence, ref, crypto }) {
     this.persistence = persistence;
@@ -75,7 +97,8 @@ export default class VaultService {
 
   /**
    * Validates a single slug segment.
-   * @private
+   * @param {string} seg - Segment to validate.
+   * @param {string} slug - Full slug (for error context).
    */
   static #validateSegment(seg, slug) {
     if (seg.length === 0) {
@@ -118,7 +141,8 @@ export default class VaultService {
 
   /**
    * Validates encryption-specific metadata fields.
-   * @private
+   * @param {VaultEncryptionMeta} encryption - Encryption metadata.
+   * @param {VaultMetadata} metadata - Full metadata (for error context).
    */
   static #validateEncryption(encryption, metadata) {
     const { cipher, kdf } = encryption;
@@ -133,7 +157,7 @@ export default class VaultService {
 
   /**
    * Validates vault metadata object structure.
-   * @private
+   * @param {VaultMetadata} metadata - Metadata to validate.
    */
   static #validateMetadata(metadata) {
     if (typeof metadata.version !== 'number' || metadata.version !== 1) {
@@ -150,7 +174,8 @@ export default class VaultService {
 
   /**
    * Reads and validates vault metadata from a blob OID.
-   * @private
+   * @param {string} blobOid - Git blob OID of the .vault.json file.
+   * @returns {Promise<VaultMetadata>}
    */
   async #readMetadataBlob(blobOid) {
     try {
@@ -161,7 +186,7 @@ export default class VaultService {
     } catch (err) {
       if (err instanceof CasError) { throw err; }
       throw new CasError(
-        `Failed to parse .vault.json: ${err.message}`,
+        `Failed to parse .vault.json: ${/** @type {Error} */ (err).message}`,
         'VAULT_METADATA_INVALID',
         { originalError: err },
       );
@@ -174,8 +199,8 @@ export default class VaultService {
 
   /**
    * Separates vault tree entries into slug→OID map and metadata blob OID.
-   * @private
    * @param {Array<{ mode: string, type: string, oid: string, name: string }>} treeEntries
+   * @returns {{ entries: Map<string, string>, metadataBlobOid: string|null }}
    */
   static #parseTreeEntries(treeEntries) {
     const entries = new Map();
@@ -192,7 +217,7 @@ export default class VaultService {
 
   /**
    * Reads the current vault state from refs/cas/vault.
-   * @returns {Promise<{ entries: Map<string, string>, parentCommitOid: string|null, metadata: object|null }>}
+   * @returns {Promise<VaultState>}
    */
   async readState() {
     let commitOid;
@@ -216,7 +241,7 @@ export default class VaultService {
    * Writes a new vault commit and updates the ref atomically.
    * @param {Object} options
    * @param {Map<string, string>} options.entries - Slug→treeOid map.
-   * @param {object} options.metadata - Vault metadata (.vault.json contents).
+   * @param {VaultMetadata} options.metadata - Vault metadata (.vault.json contents).
    * @param {string|null} options.parentCommitOid - Parent commit OID (null for first commit).
    * @param {string} options.message - Commit message.
    * @returns {Promise<{ commitOid: string }>}
@@ -244,7 +269,8 @@ export default class VaultService {
 
   /**
    * Atomically updates the vault ref with CAS semantics.
-   * @private
+   * @param {string} newOid - New commit OID.
+   * @param {string|null} expectedOldOid - Expected current commit OID.
    */
   async #casUpdateRef(newOid, expectedOldOid) {
     try {
@@ -264,8 +290,7 @@ export default class VaultService {
 
   /**
    * Wraps a vault mutation with CAS retry logic.
-   * @private
-   * @param {function} mutationFn - Async function(state) → { entries, metadata, message }
+   * @param {(state: VaultState) => { entries: Map<string, string>, metadata: VaultMetadata, message: string }|Promise<{ entries: Map<string, string>, metadata: VaultMetadata, message: string }>} mutationFn - Mutation function (sync or async).
    * @returns {Promise<{ commitOid: string }>}
    */
   async #retryMutation(mutationFn) {
@@ -295,7 +320,9 @@ export default class VaultService {
 
   /**
    * Builds vault encryption metadata from KDF result.
-   * @private
+   * @param {Buffer} salt - KDF salt.
+   * @param {import('../../ports/CryptoPort.js').KdfParamSet} params - KDF parameters.
+   * @returns {VaultEncryptionMeta}
    */
   static #buildEncryptionMeta(salt, params) {
     return {
@@ -333,6 +360,7 @@ export default class VaultService {
       );
     }
 
+    /** @type {VaultMetadata} */
     const metadata = { version: 1 };
     if (passphrase) {
       const { salt, params } = await this.crypto.deriveKey({ passphrase, ...kdfOptions });
@@ -394,6 +422,7 @@ export default class VaultService {
    * @returns {Promise<{ commitOid: string, removedTreeOid: string }>}
    */
   async removeFromVault({ slug }) {
+    /** @type {string|undefined} */
     let removedTreeOid;
 
     const result = await this.#retryMutation((state) => {
@@ -413,7 +442,7 @@ export default class VaultService {
       };
     });
 
-    return { commitOid: result.commitOid, removedTreeOid };
+    return { commitOid: result.commitOid, removedTreeOid: /** @type {string} */ (removedTreeOid) };
   }
 
   /**
@@ -431,12 +460,12 @@ export default class VaultService {
         { slug },
       );
     }
-    return entries.get(slug);
+    return /** @type {string} */ (entries.get(slug));
   }
 
   /**
    * Returns the vault metadata, or null if no vault exists.
-   * @returns {Promise<object|null>}
+   * @returns {Promise<VaultMetadata|null>}
    */
   async getVaultMetadata() {
     const { metadata } = await this.readState();

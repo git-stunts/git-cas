@@ -9,15 +9,24 @@ import CasError from '../../domain/errors/CasError.js';
  * AES-GCM is a one-shot API (the GCM tag is computed over the entire plaintext).
  */
 export default class WebCryptoAdapter extends CryptoPort {
-  /** @override */
+  /**
+   * @override
+   * @param {Buffer|Uint8Array} buf - Data to hash.
+   * @returns {Promise<string>} 64-char hex digest.
+   */
   async sha256(buf) {
+    // @ts-ignore -- Buffer satisfies BufferSource at runtime; TS strictness mismatch
     const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', buf);
     return Array.from(new Uint8Array(hashBuffer))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {number} n - Number of random bytes.
+   * @returns {Buffer|Uint8Array}
+   */
   randomBytes(n) {
     const uint8 = globalThis.crypto.getRandomValues(new Uint8Array(n));
     if (globalThis.Buffer) {
@@ -26,7 +35,12 @@ export default class WebCryptoAdapter extends CryptoPort {
     return uint8;
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {Buffer|Uint8Array} buffer - Plaintext to encrypt.
+   * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @returns {Promise<{ buf: Buffer, meta: import('../../ports/CryptoPort.js').EncryptionMeta }>}
+   */
   async encryptBuffer(buffer, key) {
     this._validateKey(key);
     const nonce = this.randomBytes(12);
@@ -34,7 +48,8 @@ export default class WebCryptoAdapter extends CryptoPort {
 
     // AES-GCM in Web Crypto includes the tag at the end of the ciphertext
     const encrypted = await globalThis.crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv: nonce },
+      // @ts-ignore -- Uint8Array satisfies BufferSource at runtime
+      { name: 'AES-GCM', iv: /** @type {Uint8Array} */ (nonce) },
       cryptoKey,
       buffer
     );
@@ -50,7 +65,13 @@ export default class WebCryptoAdapter extends CryptoPort {
     };
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {Buffer|Uint8Array} buffer - Ciphertext to decrypt.
+   * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @param {import('../../ports/CryptoPort.js').EncryptionMeta} meta - Encryption metadata.
+   * @returns {Promise<Buffer>}
+   */
   async decryptBuffer(buffer, key, meta) {
     const nonce = this.#fromBase64(meta.nonce);
     const tag = this.#fromBase64(meta.tag);
@@ -63,7 +84,8 @@ export default class WebCryptoAdapter extends CryptoPort {
 
     try {
       const decrypted = await globalThis.crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: nonce },
+        // @ts-ignore -- Uint8Array satisfies BufferSource at runtime
+        { name: 'AES-GCM', iv: /** @type {Uint8Array} */ (nonce) },
         cryptoKey,
         combined
       );
@@ -73,20 +95,24 @@ export default class WebCryptoAdapter extends CryptoPort {
     }
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @returns {{ encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>, finalize: () => import('../../ports/CryptoPort.js').EncryptionMeta }}
+   */
   createEncryptionStream(key) {
     this._validateKey(key);
     const nonce = this.randomBytes(12);
     const cryptoKeyPromise = this.#importKey(key);
 
-    // Web Crypto doesn't have a native streaming AES-GCM API like Node
-    // We have to buffer for the one-shot call because GCM tag is computed over the whole thing.
-    // NOTE: This limits the "stream" to memory capacity, matching the project's
-    // current CasService.restore limitation.
+    // Web Crypto buffers all data for the one-shot AES-GCM call (GCM tag spans the whole plaintext).
+    /** @type {Buffer[]} */
     const chunks = [];
+    /** @type {Uint8Array|null} */
     let finalTag = null;
     let streamConsumed = false;
 
+    /** @param {AsyncIterable<Buffer>} source */
     const encrypt = async function* (source) {
       for await (const chunk of source) {
         chunks.push(chunk);
@@ -95,7 +121,8 @@ export default class WebCryptoAdapter extends CryptoPort {
       const buffer = Buffer.concat(chunks);
       const cryptoKey = await cryptoKeyPromise;
       const encrypted = await globalThis.crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv: nonce },
+        // @ts-ignore -- Uint8Array satisfies BufferSource at runtime
+        { name: 'AES-GCM', iv: /** @type {Uint8Array} */ (nonce) },
         cryptoKey,
         buffer
       );
@@ -116,13 +143,19 @@ export default class WebCryptoAdapter extends CryptoPort {
           'STREAM_NOT_CONSUMED',
         );
       }
-      return this._buildMeta(this.#toBase64(nonce), this.#toBase64(finalTag));
+      return this._buildMeta(this.#toBase64(nonce), this.#toBase64(/** @type {Uint8Array} */ (finalTag)));
     };
 
     return { encrypt, finalize };
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {string} passphrase - The passphrase.
+   * @param {Buffer|Uint8Array} saltBuf - Salt bytes.
+   * @param {import('../../ports/CryptoPort.js').DeriveKeyParams} params - KDF parameters.
+   * @returns {Promise<Buffer>}
+   */
   async _doDeriveKey(passphrase, saltBuf, { algorithm, iterations, cost, blockSize, parallelization, keyLength }) {
     if (algorithm === 'pbkdf2') {
       return this.#derivePbkdf2(passphrase, saltBuf, { iterations, keyLength });
@@ -130,18 +163,33 @@ export default class WebCryptoAdapter extends CryptoPort {
     return this.#deriveScrypt(passphrase, saltBuf, { cost, blockSize, parallelization, keyLength });
   }
 
+  /**
+   * Derives a key using PBKDF2 via Web Crypto.
+   * @param {string} passphrase - The passphrase.
+   * @param {Buffer|Uint8Array} saltBuf - Salt bytes.
+   * @param {{ iterations: number, keyLength: number }} params - PBKDF2 parameters.
+   * @returns {Promise<Buffer>}
+   */
   async #derivePbkdf2(passphrase, saltBuf, params) {
     const enc = new globalThis.TextEncoder();
     const baseKey = await globalThis.crypto.subtle.importKey(
       'raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveBits'],
     );
     const bits = await globalThis.crypto.subtle.deriveBits(
-      { name: 'PBKDF2', salt: saltBuf, iterations: params.iterations, hash: 'SHA-512' },
+      // @ts-ignore -- Uint8Array satisfies BufferSource at runtime
+      { name: 'PBKDF2', salt: /** @type {Uint8Array} */ (saltBuf), iterations: params.iterations, hash: 'SHA-512' },
       baseKey, params.keyLength * 8,
     );
     return Buffer.from(bits);
   }
 
+  /**
+   * Derives a key using scrypt via Node's crypto module (fallback).
+   * @param {string} passphrase - The passphrase.
+   * @param {Buffer|Uint8Array} saltBuf - Salt bytes.
+   * @param {{ cost: number, blockSize: number, parallelization: number, keyLength: number }} params - scrypt parameters.
+   * @returns {Promise<Buffer>}
+   */
   async #deriveScrypt(passphrase, saltBuf, params) {
     let scryptCb;
     let promisifyFn;
@@ -151,6 +199,7 @@ export default class WebCryptoAdapter extends CryptoPort {
     } catch {
       throw new Error('scrypt KDF requires a Node.js-compatible runtime (node:crypto unavailable)');
     }
+    // @ts-ignore -- promisify(scrypt) accepts options as 4th arg at runtime
     return promisifyFn(scryptCb)(passphrase, saltBuf, params.keyLength, {
       N: params.cost, r: params.blockSize, p: params.parallelization,
     });
@@ -164,7 +213,8 @@ export default class WebCryptoAdapter extends CryptoPort {
   async #importKey(rawKey) {
     return globalThis.crypto.subtle.importKey(
       'raw',
-      rawKey,
+      // @ts-ignore -- Buffer/Uint8Array satisfies BufferSource at runtime
+      /** @type {Uint8Array} */ (rawKey),
       { name: 'AES-GCM' },
       false,
       ['encrypt', 'decrypt']
@@ -173,7 +223,7 @@ export default class WebCryptoAdapter extends CryptoPort {
 
   /**
    * Encodes binary data to base64, using Buffer when available.
-   * @param {Uint8Array} buf
+   * @param {Buffer|Uint8Array} buf - Binary data to encode.
    * @returns {string}
    */
   #toBase64(buf) {
@@ -185,7 +235,7 @@ export default class WebCryptoAdapter extends CryptoPort {
 
   /**
    * Decodes a base64 string to binary, using Buffer when available.
-   * @param {string} str
+   * @param {string} str - Base64-encoded string.
    * @returns {Buffer|Uint8Array}
    */
   #fromBase64(str) {

@@ -5,15 +5,20 @@ export default class StatsCollector {
   #chunksProcessed = 0;
   #bytesTotal = 0;
   #errors = 0;
+  /** @type {number|null} */
   #startTime = null;
 
+  /**
+   * @param {string} channel - Metric channel.
+   * @param {Record<string, unknown>} data - Metric payload.
+   */
   metric(channel, data) {
     if (!this.#startTime) {
       this.#startTime = Date.now();
     }
     if (channel === 'chunk') {
       this.#chunksProcessed++;
-      const size = Number.isFinite(data?.size) ? data.size : 0;
+      const size = Number.isFinite(data?.size) ? /** @type {number} */ (data.size) : 0;
       this.#bytesTotal += size;
     }
     if (channel === 'error') {
@@ -21,8 +26,17 @@ export default class StatsCollector {
     }
   }
 
+  /**
+   * @param {'debug'|'info'|'warn'|'error'} _level - Log level.
+   * @param {string} _msg - Log message.
+   * @param {Record<string, unknown>} [_meta] - Optional metadata.
+   */
   log(_level, _msg, _meta) {}
 
+  /**
+   * @param {string} _name - Span name.
+   * @returns {{ end(meta?: Record<string, unknown>): void }}
+   */
   span(_name) {
     return { end() {} };
   }

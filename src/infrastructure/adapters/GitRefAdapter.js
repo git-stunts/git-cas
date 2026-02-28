@@ -29,21 +29,36 @@ export default class GitRefAdapter extends GitRefPort {
     this.policy = policy ?? DEFAULT_POLICY;
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {string} ref - Git ref to resolve.
+   * @returns {Promise<string>} The commit OID.
+   */
   async resolveRef(ref) {
     return this.policy.execute(() =>
       this.plumbing.execute({ args: ['rev-parse', ref] }),
     );
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {string} commitOid - Git commit OID.
+   * @returns {Promise<string>} The tree OID.
+   */
   async resolveTree(commitOid) {
     return this.policy.execute(() =>
       this.plumbing.execute({ args: ['rev-parse', `${commitOid}^{tree}`] }),
     );
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {Object} options
+   * @param {string} options.treeOid - Tree OID for the commit.
+   * @param {string|null} [options.parentOid] - Parent commit OID.
+   * @param {string} options.message - Commit message.
+   * @returns {Promise<string>} The new commit OID.
+   */
   async createCommit({ treeOid, parentOid, message }) {
     const args = ['commit-tree', treeOid, '-m', message];
     if (parentOid) {
@@ -54,13 +69,20 @@ export default class GitRefAdapter extends GitRefPort {
     );
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {Object} options
+   * @param {string} options.ref - Git ref to update.
+   * @param {string} options.newOid - New OID to set.
+   * @param {string|null} [options.expectedOldOid] - Expected current OID for CAS.
+   * @returns {Promise<void>}
+   */
   async updateRef({ ref, newOid, expectedOldOid }) {
     const args = ['update-ref', ref, newOid];
     if (expectedOldOid) {
       args.push(expectedOldOid);
     }
-    return this.policy.execute(() =>
+    await this.policy.execute(() =>
       this.plumbing.execute({ args }),
     );
   }

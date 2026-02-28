@@ -4,6 +4,7 @@
 export default class Semaphore {
   #max;
   #active = 0;
+  /** @type {Array<() => void>} */
   #queue = [];
 
   /**
@@ -35,8 +36,7 @@ export default class Semaphore {
    */
   release() {
     if (this.#queue.length > 0) {
-      const next = this.#queue.shift();
-      next();
+      /** @type {() => void} */ (this.#queue.shift())();
     } else {
       if (this.#active === 0) {
         throw new Error('Semaphore release called without an active permit');
