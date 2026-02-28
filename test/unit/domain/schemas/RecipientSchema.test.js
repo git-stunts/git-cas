@@ -75,9 +75,9 @@ describe('EncryptionSchema — recipients', () => {
     expect(result.data.recipients).toHaveLength(2);
   });
 
-  it('accepts empty recipients array', () => {
+  it('rejects empty recipients array', () => {
     const data = { ...baseEncryption(), recipients: [] };
-    expect(EncryptionSchema.safeParse(data).success).toBe(true);
+    expect(EncryptionSchema.safeParse(data).success).toBe(false);
   });
 
   it('rejects recipients with invalid entry', () => {

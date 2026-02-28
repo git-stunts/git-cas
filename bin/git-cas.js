@@ -121,6 +121,9 @@ function parseRecipient(value, previous) {
   }
   const label = value.slice(0, sep);
   const keyfile = value.slice(sep + 1);
+  if (!keyfile) {
+    throw new Error(`Invalid --recipient format "${value}": missing keyfile path`);
+  }
   const key = readKeyFile(keyfile);
   const list = previous || [];
   list.push({ label, key });

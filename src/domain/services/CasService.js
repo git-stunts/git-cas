@@ -954,6 +954,12 @@ export default class CasService {
     }
 
     const filtered = recipients.filter((r) => r.label !== label).map((r) => ({ ...r }));
+    if (filtered.length === 0) {
+      throw new CasError(
+        'Cannot remove the last recipient',
+        'CANNOT_REMOVE_LAST_RECIPIENT',
+      );
+    }
     const json = manifest.toJSON();
     const updatedEncryption = { ...json.encryption, recipients: filtered };
 

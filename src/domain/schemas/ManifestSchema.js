@@ -40,7 +40,7 @@ export const EncryptionSchema = z.object({
   tag: z.string(),
   encrypted: z.boolean().default(true),
   kdf: KdfSchema.optional(),
-  recipients: z.array(RecipientSchema).optional(),
+  recipients: z.array(RecipientSchema).min(1).optional(),
 });
 
 /** Validates compression metadata. */

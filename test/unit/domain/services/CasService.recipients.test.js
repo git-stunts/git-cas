@@ -5,6 +5,7 @@ import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCrypt
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
+import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -261,6 +262,35 @@ describe('CasService – removeRecipient', () => { // eslint-disable-line max-li
     } catch (err) {
       expect(err).toBeInstanceOf(CasError);
       expect(err.code).toBe('INVALID_OPTIONS');
+    }
+  });
+
+  it('duplicate-label manifest → post-filter guard prevents zero recipients', async () => {
+    const alice = randomBytes(32);
+    const bob = randomBytes(32);
+
+    // Create a valid 2-recipient manifest, then tamper to create duplicate labels
+    const manifest = await service.store({
+      source: bufferSource(Buffer.from('data')),
+      slug: 'test',
+      filename: 'test.bin',
+      recipients: [
+        { label: 'alice', key: alice },
+        { label: 'bob', key: bob },
+      ],
+    });
+
+    const json = manifest.toJSON();
+    // Overwrite bob's entry label with 'alice' to simulate duplicates
+    json.encryption.recipients[1] = { ...json.encryption.recipients[1], label: 'alice' };
+    const tampered = new Manifest(json);
+
+    try {
+      await service.removeRecipient({ manifest: tampered, label: 'alice' });
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(CasError);
+      expect(err.code).toBe('CANNOT_REMOVE_LAST_RECIPIENT');
     }
   });
 });
