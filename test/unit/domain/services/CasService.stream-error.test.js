@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import CasService from '../../../../src/domain/services/CasService.js';
-import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+
+const testCrypto = await getTestCryptoAdapter();
 
 /**
  * Creates an async iterable that yields `n` chunks of `chunkSize` bytes
@@ -37,7 +39,7 @@ function setup() {
   };
   const service = new CasService({
     persistence: mockPersistence,
-    crypto: new NodeCryptoAdapter(),
+    crypto: testCrypto,
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability: new SilentObserver(),

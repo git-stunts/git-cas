@@ -112,6 +112,7 @@ export default class CasService {
     passphrase?: string;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
+    recipients?: Array<{ label: string; key: Buffer }>;
   }): Promise<Manifest>;
 
   createTree(options: { manifest: Manifest }): Promise<string>;
@@ -137,6 +138,20 @@ export default class CasService {
   findOrphanedChunks(options: {
     treeOids: string[];
   }): Promise<{ referenced: Set<string>; total: number }>;
+
+  addRecipient(options: {
+    manifest: Manifest;
+    existingKey: Buffer;
+    newRecipientKey: Buffer;
+    label: string;
+  }): Promise<Manifest>;
+
+  removeRecipient(options: {
+    manifest: Manifest;
+    label: string;
+  }): Promise<Manifest>;
+
+  listRecipients(manifest: Manifest): string[];
 
   verifyIntegrity(manifest: Manifest): Promise<boolean>;
 

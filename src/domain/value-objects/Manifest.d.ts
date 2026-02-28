@@ -11,6 +11,15 @@ export interface KdfParams {
   keyLength: number;
 }
 
+/** A single recipient entry in an envelope-encrypted manifest. */
+export interface RecipientEntry {
+  label: string;
+  wrappedDek: string;
+  nonce: string;
+  tag: string;
+  kekType?: string;
+}
+
 /** AES-256-GCM encryption metadata attached to an encrypted manifest. */
 export interface EncryptionMeta {
   algorithm: string;
@@ -18,6 +27,7 @@ export interface EncryptionMeta {
   tag: string;
   encrypted: boolean;
   kdf?: KdfParams;
+  recipients?: RecipientEntry[];
 }
 
 /** Compression metadata. */

@@ -5,9 +5,11 @@ import {
   ChunkingSchema,
 } from '../../../../src/domain/schemas/ManifestSchema.js';
 import CasService from '../../../../src/domain/services/CasService.js';
-import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+
+const testCrypto = await getTestCryptoAdapter();
 
 // ---------------------------------------------------------------------------
 // FixedChunkingSchema
@@ -120,7 +122,7 @@ describe('CasService – _validateChunking', () => {
         writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
         readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
       },
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),

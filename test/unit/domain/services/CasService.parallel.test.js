@@ -1,13 +1,15 @@
 import { describe, it, expect, vi } from 'vitest';
 import { randomBytes } from 'node:crypto';
 import CasService from '../../../../src/domain/services/CasService.js';
-import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
+const testCrypto = await getTestCryptoAdapter();
+
 function setup(concurrency = 1) {
-  const crypto = new NodeCryptoAdapter();
+  const crypto = testCrypto;
   const blobStore = new Map();
 
   const mockPersistence = {

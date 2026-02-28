@@ -3,11 +3,13 @@ import { writeFileSync, mkdtempSync, rmSync, createReadStream } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import CasService from '../../../../src/domain/services/CasService.js';
-import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 import { digestOf } from '../../../helpers/crypto.js';
+
+const testCrypto = await getTestCryptoAdapter();
 
 /**
  * Shared factory: builds the standard test fixtures.
@@ -20,7 +22,7 @@ function setup() {
   };
   const service = new CasService({
     persistence: mockPersistence,
-    crypto: new NodeCryptoAdapter(),
+    crypto: testCrypto,
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability: new SilentObserver(),
@@ -35,7 +37,7 @@ describe('CasService – observability validation', () => {
   it('throws when observability is missing', () => {
     expect(() => new CasService({
       persistence: {},
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
     })).toThrow('observability must implement ObservabilityPort');
@@ -44,7 +46,7 @@ describe('CasService – observability validation', () => {
   it('throws when observability is missing metric()', () => {
     expect(() => new CasService({
       persistence: {},
-      crypto: new NodeCryptoAdapter(),
+      crypto: testCrypto,
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: { log() {}, span() { return { end() {} }; } },

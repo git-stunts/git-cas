@@ -24,6 +24,15 @@ export const KdfSchema = z.object({
   keyLength: z.number().int().positive().default(32),
 });
 
+/** Validates a single recipient entry in an envelope-encrypted manifest. */
+export const RecipientSchema = z.object({
+  label: z.string().min(1),
+  wrappedDek: z.string().min(1),
+  nonce: z.string().min(1),
+  tag: z.string().min(1),
+  kekType: z.string().optional(),
+});
+
 /** Validates the encryption metadata attached to an encrypted manifest. */
 export const EncryptionSchema = z.object({
   algorithm: z.string(),
@@ -31,6 +40,7 @@ export const EncryptionSchema = z.object({
   tag: z.string(),
   encrypted: z.boolean().default(true),
   kdf: KdfSchema.optional(),
+  recipients: z.array(RecipientSchema).min(1).optional(),
 });
 
 /** Validates compression metadata. */

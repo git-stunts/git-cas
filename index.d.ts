@@ -4,7 +4,7 @@
  */
 
 import Manifest from "./src/domain/value-objects/Manifest.js";
-import type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef } from "./src/domain/value-objects/Manifest.js";
+import type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry } from "./src/domain/value-objects/Manifest.js";
 import Chunk from "./src/domain/value-objects/Chunk.js";
 import CasService from "./src/domain/services/CasService.js";
 import type {
@@ -18,7 +18,7 @@ import type {
 } from "./src/domain/services/CasService.js";
 
 export { CasService, Manifest, Chunk };
-export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult };
+export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult };
 
 /** Abstract port for splitting a byte stream into chunks. */
 export declare class ChunkingPort {
@@ -302,6 +302,7 @@ export default class ContentAddressableStore {
     passphrase?: string;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
+    recipients?: Array<{ label: string; key: Buffer }>;
   }): Promise<Manifest>;
 
   store(options: {
@@ -312,6 +313,7 @@ export default class ContentAddressableStore {
     passphrase?: string;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
+    recipients?: Array<{ label: string; key: Buffer }>;
   }): Promise<Manifest>;
 
   restoreFile(options: {
@@ -348,6 +350,20 @@ export default class ContentAddressableStore {
   }): Promise<{ referenced: Set<string>; total: number }>;
 
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
+
+  addRecipient(options: {
+    manifest: Manifest;
+    existingKey: Buffer;
+    newRecipientKey: Buffer;
+    label: string;
+  }): Promise<Manifest>;
+
+  removeRecipient(options: {
+    manifest: Manifest;
+    label: string;
+  }): Promise<Manifest>;
+
+  listRecipients(manifest: Manifest): Promise<string[]>;
 
   // Vault — delegates to VaultService
 

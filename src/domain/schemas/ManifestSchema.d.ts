@@ -24,6 +24,15 @@ export declare const KdfSchema: z.ZodObject<{
   keyLength: z.ZodDefault<z.ZodNumber>;
 }>;
 
+/** Validates a single recipient entry in an envelope-encrypted manifest. */
+export declare const RecipientSchema: z.ZodObject<{
+  label: z.ZodString;
+  wrappedDek: z.ZodString;
+  nonce: z.ZodString;
+  tag: z.ZodString;
+  kekType: z.ZodOptional<z.ZodString>;
+}>;
+
 /** Validates the encryption metadata attached to an encrypted manifest. */
 export declare const EncryptionSchema: z.ZodObject<{
   algorithm: z.ZodString;
@@ -31,6 +40,7 @@ export declare const EncryptionSchema: z.ZodObject<{
   tag: z.ZodString;
   encrypted: z.ZodDefault<z.ZodBoolean>;
   kdf: z.ZodOptional<typeof KdfSchema>;
+  recipients: z.ZodOptional<z.ZodArray<typeof RecipientSchema>>;
 }>;
 
 /** Validates compression metadata. */

@@ -117,4 +117,12 @@ describe('HINTS', () => {
     expect(HINTS).toHaveProperty('VAULT_ENTRY_EXISTS');
     expect(HINTS).toHaveProperty('INTEGRITY_ERROR');
   });
+
+  it('contains envelope encryption error codes', () => {
+    expect(HINTS).toHaveProperty('NO_MATCHING_RECIPIENT');
+    expect(HINTS).toHaveProperty('DEK_UNWRAP_FAILED');
+    expect(HINTS).toHaveProperty('RECIPIENT_NOT_FOUND');
+    expect(HINTS).toHaveProperty('RECIPIENT_ALREADY_EXISTS');
+    expect(HINTS).toHaveProperty('CANNOT_REMOVE_LAST_RECIPIENT');
+  });
 });

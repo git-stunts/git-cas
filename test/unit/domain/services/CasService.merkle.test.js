@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { randomBytes } from 'node:crypto';
 import CasService from '../../../../src/domain/services/CasService.js';
-import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
+import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+
+const testCrypto = await getTestCryptoAdapter();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -22,13 +24,13 @@ async function* bufferSource(buf) {
  * @param {number} merkleThreshold Chunk count threshold for Merkle manifests.
  */
 function setup(merkleThreshold = 5) {
-  const crypto = new NodeCryptoAdapter();
+  const crypto = testCrypto;
   const blobs = new Map();
   const trees = new Map();
   let treeCounter = 0;
   const mockPersistence = {
-    writeBlob: vi.fn().mockImplementation((content) => {
-      const oid = crypto.sha256(Buffer.isBuffer(content) ? content : Buffer.from(content));
+    writeBlob: vi.fn().mockImplementation(async (content) => {
+      const oid = await crypto.sha256(Buffer.isBuffer(content) ? content : Buffer.from(content));
       blobs.set(oid, Buffer.isBuffer(content) ? content : Buffer.from(content));
       return Promise.resolve(oid);
     }),

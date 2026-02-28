@@ -191,6 +191,116 @@ export default class CasService {
   }
 
   /**
+   * Wraps a DEK with a KEK using AES-256-GCM.
+   * @private
+   * @param {Buffer} dek - 32-byte data encryption key.
+   * @param {Buffer} kek - 32-byte key encryption key.
+   * @returns {Promise<{ wrappedDek: string, nonce: string, tag: string }>}
+   */
+  async _wrapDek(dek, kek) {
+    const { buf, meta } = await this.crypto.encryptBuffer(dek, kek);
+    return {
+      wrappedDek: buf.toString('base64'),
+      nonce: meta.nonce,
+      tag: meta.tag,
+    };
+  }
+
+  /**
+   * Unwraps a DEK from a recipient entry using the given KEK.
+   * @private
+   * @param {{ wrappedDek: string, nonce: string, tag: string }} recipientEntry
+   * @param {Buffer} kek - 32-byte key encryption key.
+   * @returns {Promise<Buffer>} The unwrapped DEK.
+   * @throws {CasError} DEK_UNWRAP_FAILED if decryption fails.
+   */
+  async _unwrapDek(recipientEntry, kek) {
+    try {
+      const ciphertext = Buffer.from(recipientEntry.wrappedDek, 'base64');
+      const meta = {
+        algorithm: 'aes-256-gcm',
+        nonce: recipientEntry.nonce,
+        tag: recipientEntry.tag,
+        encrypted: true,
+      };
+      return await this.crypto.decryptBuffer(ciphertext, kek, meta);
+    } catch (err) {
+      if (err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED') { throw err; }
+      throw new CasError(
+        'Failed to unwrap DEK: authentication failed',
+        'DEK_UNWRAP_FAILED',
+        { originalError: err },
+      );
+    }
+  }
+
+  /**
+   * Resolves the decryption key from a manifest, handling both legacy and
+   * envelope (multi-recipient) encrypted manifests.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} [encryptionKey]
+   * @param {string} [passphrase]
+   * @returns {Promise<Buffer|undefined>}
+   */
+  async _resolveDecryptionKey(manifest, encryptionKey, passphrase) {
+    this._validateKeySourceExclusive(encryptionKey, passphrase);
+
+    const key = passphrase
+      ? await this._resolvePassphraseForDecryption(manifest, passphrase)
+      : encryptionKey;
+
+    if (!key) {
+      if (manifest.encryption?.encrypted) {
+        throw new CasError('Encryption key required to restore encrypted content', 'MISSING_KEY');
+      }
+      return undefined;
+    }
+
+    this.crypto._validateKey(key);
+    return await this._resolveKeyForRecipients(manifest, key);
+  }
+
+  /**
+   * Resolves passphrase to a key for decryption.
+   * @private
+   */
+  async _resolvePassphraseForDecryption(manifest, passphrase) {
+    if (!manifest.encryption?.kdf) {
+      throw new CasError(
+        'Manifest was not stored with passphrase-based encryption; provide encryptionKey instead',
+        'MISSING_KEY',
+      );
+    }
+    return this._resolveKeyFromPassphrase(passphrase, manifest.encryption.kdf);
+  }
+
+  /**
+   * If manifest uses envelope encryption, unwraps the DEK. Otherwise returns key directly.
+   * @private
+   */
+  async _resolveKeyForRecipients(manifest, key) {
+    const recipients = manifest.encryption?.recipients;
+    if (!recipients || recipients.length === 0) {
+      return key;
+    }
+
+    for (const entry of recipients) {
+      try {
+        return await this._unwrapDek(entry, key);
+      } catch (err) {
+        if (!(err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED')) { throw err; }
+        // Not this recipient's KEK, try next
+      }
+    }
+
+    throw new CasError(
+      'No recipient entry could be unwrapped with the provided key',
+      'NO_MATCHING_RECIPIENT',
+    );
+  }
+
+  /**
    * Validates that passphrase and encryptionKey are not both provided.
    * @private
    */
@@ -237,8 +347,8 @@ export default class CasService {
   /**
    * Chunks an async iterable source and stores it in Git.
    *
-   * If `encryptionKey` is provided, the content (and manifest) will be encrypted
-   * using AES-256-GCM, and the `encryption` field in the manifest will be populated.
+   * Supports two encryption modes: direct key/passphrase or envelope encryption
+   * via `recipients` (DEK/KEK model). The modes are mutually exclusive.
    *
    * @param {Object} options
    * @param {AsyncIterable<Buffer>} options.source
@@ -248,56 +358,85 @@ export default class CasService {
    * @param {string} [options.passphrase] - Derive encryption key from passphrase instead.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
+   * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
-  async store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression }) {
+  async store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression, recipients }) {
+    if (recipients && (encryptionKey || passphrase)) {
+      throw new CasError('Provide recipients or encryptionKey/passphrase, not both', 'INVALID_OPTIONS');
+    }
     this._validateKeySourceExclusive(encryptionKey, passphrase);
     this._validateCompression(compression);
 
-    let kdfParams;
-    if (passphrase) {
-      const derived = await this.deriveKey({ passphrase, ...kdfOptions });
-      encryptionKey = derived.key;
-      kdfParams = derived.params;
-    }
+    const keyInfo = recipients
+      ? await this._resolveRecipientsForStore(recipients)
+      : await this._resolveKeyForStore(encryptionKey, passphrase, kdfOptions);
 
-    if (encryptionKey) {
-      this.crypto._validateKey(encryptionKey);
-    }
+    const manifestData = this._buildManifestData(slug, filename, compression);
+    const processedSource = compression ? this._compressStream(source) : source;
 
-    const manifestData = { slug, filename, size: 0, chunks: [] };
-
-    // Record chunking metadata for non-default strategies
-    if (this.chunker.strategy !== 'fixed') {
-      manifestData.chunking = {
-        strategy: this.chunker.strategy,
-        params: this.chunker.params,
-      };
-    }
-
-    let processedSource = source;
-    if (compression) {
-      processedSource = this._compressStream(processedSource);
-      manifestData.compression = { algorithm: 'gzip' };
-    }
-
-    if (encryptionKey) {
-      const { encrypt, finalize } = this.crypto.createEncryptionStream(encryptionKey);
+    if (keyInfo.key) {
+      const { encrypt, finalize } = this.crypto.createEncryptionStream(keyInfo.key);
       await this._chunkAndStore(encrypt(processedSource), manifestData);
-      const encMeta = finalize();
-      if (kdfParams) {
-        encMeta.kdf = kdfParams;
-      }
-      manifestData.encryption = encMeta;
+      manifestData.encryption = { ...finalize(), ...keyInfo.encExtra };
     } else {
       await this._chunkAndStore(processedSource, manifestData);
     }
 
     const manifest = new Manifest(manifestData);
     this.observability.metric('file', {
-      action: 'stored', slug, size: manifest.size, chunkCount: manifest.chunks.length, encrypted: !!encryptionKey,
+      action: 'stored', slug, size: manifest.size, chunkCount: manifest.chunks.length, encrypted: !!keyInfo.key,
     });
     return manifest;
+  }
+
+  /**
+   * Resolves envelope recipients into a DEK and wrapped entries for store().
+   * @private
+   */
+  async _resolveRecipientsForStore(recipients) {
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+      throw new CasError('At least one recipient is required', 'INVALID_OPTIONS');
+    }
+    const labels = recipients.map((r) => r.label);
+    if (new Set(labels).size !== labels.length) {
+      throw new CasError('Duplicate recipient labels are not allowed', 'INVALID_OPTIONS');
+    }
+    const dek = this.crypto.randomBytes(32);
+    const entries = [];
+    for (const r of recipients) {
+      this.crypto._validateKey(r.key);
+      entries.push({ label: r.label, ...(await this._wrapDek(dek, r.key)) });
+    }
+    return { key: dek, encExtra: { recipients: entries } };
+  }
+
+  /**
+   * Resolves encryptionKey/passphrase into a key and optional KDF params for store().
+   * @private
+   */
+  async _resolveKeyForStore(encryptionKey, passphrase, kdfOptions) {
+    let kdfParams;
+    if (passphrase) {
+      const derived = await this.deriveKey({ passphrase, ...kdfOptions });
+      encryptionKey = derived.key;
+      kdfParams = derived.params;
+    }
+    if (encryptionKey) { this.crypto._validateKey(encryptionKey); }
+    return { key: encryptionKey, encExtra: kdfParams ? { kdf: kdfParams } : {} };
+  }
+
+  /**
+   * Builds initial manifest data with optional chunking and compression metadata.
+   * @private
+   */
+  _buildManifestData(slug, filename, compression) {
+    const data = { slug, filename, size: 0, chunks: [] };
+    if (this.chunker.strategy !== 'fixed') {
+      data.chunking = { strategy: this.chunker.strategy, params: this.chunker.params };
+    }
+    if (compression) { data.compression = { algorithm: 'gzip' }; }
+    return data;
   }
 
   /**
@@ -428,30 +567,6 @@ export default class CasService {
   }
 
   /**
-   * Resolves the encryption key from passphrase or validates the provided key.
-   * @private
-   */
-  async _resolveEncryptionKey(manifest, encryptionKey, passphrase) {
-    this._validateKeySourceExclusive(encryptionKey, passphrase);
-
-    if (passphrase) {
-      if (manifest.encryption?.kdf) {
-        return this._resolveKeyFromPassphrase(passphrase, manifest.encryption.kdf);
-      }
-      throw new CasError(
-        'Manifest was not stored with passphrase-based encryption; provide encryptionKey instead',
-        'MISSING_KEY',
-      );
-    }
-    if (encryptionKey) {
-      this.crypto._validateKey(encryptionKey);
-    } else if (manifest.encryption?.encrypted) {
-      throw new CasError('Encryption key required to restore encrypted content', 'MISSING_KEY');
-    }
-    return encryptionKey;
-  }
-
-  /**
    * Restores a file from its manifest by reading and reassembling chunks.
    *
    * If the manifest has encryption metadata, decrypts the reassembled
@@ -495,7 +610,7 @@ export default class CasService {
    * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
    */
   async *restoreStream({ manifest, encryptionKey, passphrase }) {
-    const key = await this._resolveEncryptionKey(manifest, encryptionKey, passphrase);
+    const key = await this._resolveDecryptionKey(manifest, encryptionKey, passphrase);
 
     if (manifest.chunks.length === 0) {
       this.observability.metric('file', {
@@ -741,6 +856,124 @@ export default class CasService {
    */
   async deriveKey(options) {
     return await this.crypto.deriveKey(options);
+  }
+
+  /**
+   * Adds a new recipient to an envelope-encrypted manifest.
+   *
+   * Unwraps the DEK using `existingKey`, wraps it with `newRecipientKey`,
+   * and returns a new Manifest with the appended recipient entry.
+   *
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @param {Buffer} options.existingKey - KEK of an existing recipient.
+   * @param {Buffer} options.newRecipientKey - KEK for the new recipient.
+   * @param {string} options.label - Label for the new recipient.
+   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   * @throws {CasError} INVALID_OPTIONS if manifest has no recipients.
+   * @throws {CasError} RECIPIENT_ALREADY_EXISTS if label is a duplicate.
+   * @throws {CasError} DEK_UNWRAP_FAILED if existingKey doesn't match any recipient.
+   */
+  async addRecipient({ manifest, existingKey, newRecipientKey, label }) {
+    const recipients = manifest.encryption?.recipients;
+    if (!recipients || recipients.length === 0) {
+      throw new CasError(
+        'Manifest does not use envelope encryption (no recipients)',
+        'INVALID_OPTIONS',
+      );
+    }
+
+    if (recipients.some((r) => r.label === label)) {
+      throw new CasError(
+        `Recipient "${label}" already exists`,
+        'RECIPIENT_ALREADY_EXISTS',
+        { label },
+      );
+    }
+
+    this.crypto._validateKey(existingKey);
+    this.crypto._validateKey(newRecipientKey);
+
+    // Unwrap DEK using the existing key
+    let dek;
+    try {
+      dek = await this._resolveKeyForRecipients(manifest, existingKey);
+    } catch (err) {
+      if (err instanceof CasError && err.code === 'NO_MATCHING_RECIPIENT') {
+        throw new CasError('Failed to unwrap DEK: authentication failed', 'DEK_UNWRAP_FAILED', { originalError: err });
+      }
+      throw err;
+    }
+
+    // Wrap DEK for the new recipient
+    const newEntry = { label, ...(await this._wrapDek(dek, newRecipientKey)) };
+
+    const json = manifest.toJSON();
+    const updatedEncryption = {
+      ...json.encryption,
+      recipients: [...recipients.map((r) => ({ ...r })), newEntry],
+    };
+
+    return new Manifest({ ...json, encryption: updatedEncryption });
+  }
+
+  /**
+   * Removes a recipient from an envelope-encrypted manifest.
+   *
+   * Returns a new Manifest with the recipient entry removed. Does not
+   * require a key — this is a manifest-only mutation.
+   *
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @param {string} options.label - Label of the recipient to remove.
+   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   * @throws {CasError} RECIPIENT_NOT_FOUND if label doesn't exist.
+   * @throws {CasError} CANNOT_REMOVE_LAST_RECIPIENT if only one recipient remains.
+   */
+  async removeRecipient({ manifest, label }) {
+    const recipients = manifest.encryption?.recipients;
+    if (!recipients || recipients.length === 0) {
+      throw new CasError(
+        'Manifest does not use envelope encryption (no recipients)',
+        'INVALID_OPTIONS',
+      );
+    }
+    if (!recipients.some((r) => r.label === label)) {
+      throw new CasError(
+        `Recipient "${label}" not found`,
+        'RECIPIENT_NOT_FOUND',
+        { label },
+      );
+    }
+
+    if (recipients.length === 1) {
+      throw new CasError(
+        'Cannot remove the last recipient',
+        'CANNOT_REMOVE_LAST_RECIPIENT',
+      );
+    }
+
+    const filtered = recipients.filter((r) => r.label !== label).map((r) => ({ ...r }));
+    if (filtered.length === 0) {
+      throw new CasError(
+        'Cannot remove the last recipient',
+        'CANNOT_REMOVE_LAST_RECIPIENT',
+      );
+    }
+    const json = manifest.toJSON();
+    const updatedEncryption = { ...json.encryption, recipients: filtered };
+
+    return new Manifest({ ...json, encryption: updatedEncryption });
+  }
+
+  /**
+   * Lists recipient labels from an envelope-encrypted manifest.
+   *
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {string[]} Recipient labels, or empty array if not envelope-encrypted.
+   */
+  listRecipients(manifest) {
+    return (manifest.encryption?.recipients || []).map((r) => r.label);
   }
 
   /**

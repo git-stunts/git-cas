@@ -27,7 +27,9 @@ export default class Manifest {
       this.filename = data.filename;
       this.size = data.size;
       this.chunks = data.chunks.map((c) => new Chunk(c));
-      this.encryption = data.encryption ? { ...data.encryption } : undefined;
+      this.encryption = data.encryption
+        ? { ...data.encryption, recipients: data.encryption.recipients?.map((r) => ({ ...r })) }
+        : undefined;
       this.compression = data.compression ? { ...data.compression } : undefined;
       this.chunking = data.chunking
         ? { strategy: data.chunking.strategy, params: { ...data.chunking.params } }

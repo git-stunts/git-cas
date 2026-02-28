@@ -265,9 +265,10 @@ export default class ContentAddressableStore {
    * @param {string} [options.passphrase] - Derive encryption key from passphrase.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
+   * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
-  async storeFile({ filePath, slug, filename, encryptionKey, passphrase, kdfOptions, compression }) {
+  async storeFile({ filePath, slug, filename, encryptionKey, passphrase, kdfOptions, compression, recipients }) {
     const source = createReadStream(filePath);
     const service = await this.#getService();
     return await service.store({
@@ -278,6 +279,7 @@ export default class ContentAddressableStore {
       passphrase,
       kdfOptions,
       compression,
+      recipients,
     });
   }
 
@@ -291,6 +293,7 @@ export default class ContentAddressableStore {
    * @param {string} [options.passphrase] - Derive encryption key from passphrase.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
+   * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
   async store(options) {
@@ -419,6 +422,46 @@ export default class ContentAddressableStore {
   async deriveKey(options) {
     const service = await this.#getService();
     return await service.deriveKey(options);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Recipient management — delegates to CasService
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Adds a recipient to an envelope-encrypted manifest.
+   * @param {Object} options
+   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest
+   * @param {Buffer} options.existingKey - KEK of an existing recipient.
+   * @param {Buffer} options.newRecipientKey - KEK for the new recipient.
+   * @param {string} options.label - Label for the new recipient.
+   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
+   */
+  async addRecipient(options) {
+    const service = await this.#getService();
+    return await service.addRecipient(options);
+  }
+
+  /**
+   * Removes a recipient from an envelope-encrypted manifest.
+   * @param {Object} options
+   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest
+   * @param {string} options.label - Label to remove.
+   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
+   */
+  async removeRecipient(options) {
+    const service = await this.#getService();
+    return await service.removeRecipient(options);
+  }
+
+  /**
+   * Lists recipient labels from an envelope-encrypted manifest.
+   * @param {import('./src/domain/value-objects/Manifest.js').default} manifest
+   * @returns {Promise<string[]>}
+   */
+  async listRecipients(manifest) {
+    const service = await this.#getService();
+    return service.listRecipients(manifest);
   }
 
   // ---------------------------------------------------------------------------

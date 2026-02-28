@@ -8,6 +8,11 @@ const HINTS = {
   VAULT_ENTRY_NOT_FOUND: "Run 'git cas vault list' to see available entries",
   VAULT_ENTRY_EXISTS: 'Use --force to overwrite',
   INTEGRITY_ERROR: 'Check that the correct key or passphrase was used',
+  NO_MATCHING_RECIPIENT: 'The provided key does not match any recipient in the manifest',
+  DEK_UNWRAP_FAILED: 'The existing key does not match any recipient — cannot unwrap DEK',
+  RECIPIENT_NOT_FOUND: 'No recipient with that label exists in the manifest',
+  RECIPIENT_ALREADY_EXISTS: 'A recipient with that label already exists',
+  CANNOT_REMOVE_LAST_RECIPIENT: 'At least one recipient must remain in the manifest',
 };
 
 /**
