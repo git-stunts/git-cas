@@ -7,15 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [5.2.1] — Carousel polish (2026-02-28)
 
+### Added
+- CLI reference in `docs/API.md` for `git cas rotate` and `git cas vault rotate` flags.
+
 ### Changed
 - Rotation helpers in `CasService` use native `#private` methods, matching the facade's style.
 - `VAULT_CONFLICT` and `VAULT_METADATA_INVALID` error code docs now list `rotateVaultPassphrase()`.
 
 ### Fixed
+- `rotateVaultPassphrase` now honours `kdfOptions.algorithm` instead of silently using the old algorithm.
 - Rotation integration test no longer flaps under CI load (reduced test-only KDF iterations).
-
-### Added
-- CLI reference in `docs/API.md` for `git cas rotate` and `git cas vault rotate` flags.
 
 ## [5.2.0] — Carousel (2026-02-28)
 

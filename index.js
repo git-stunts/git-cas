@@ -552,7 +552,7 @@ export default class ContentAddressableStore {
       const { kdf } = state.metadata.encryption;
       const oldKek = await ContentAddressableStore.#deriveKekFromKdf(service, oldPassphrase, kdf);
       const { key: newKek, salt: newSalt, params: newParams } = await service.deriveKey({
-        passphrase: newPassphrase, ...kdfOptions, algorithm: kdf.algorithm,
+        passphrase: newPassphrase, ...kdfOptions, algorithm: kdfOptions?.algorithm || kdf.algorithm,
       });
 
       const result = await ContentAddressableStore.#rotateEntries({ service, entries: state.entries, oldKek, newKek });

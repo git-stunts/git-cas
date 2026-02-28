@@ -157,6 +157,26 @@ describe('ContentAddressableStore – rotateVaultPassphrase', () => { // eslint-
     ).rejects.toMatchObject({ code: 'VAULT_METADATA_INVALID' });
   });
 
+  it('kdfOptions.algorithm overrides existing algorithm', async () => {
+    const oldPass = 'old-pass';
+    const newPass = 'new-pass';
+    // Init with default algorithm (pbkdf2)
+    await cas.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await storeEnvelope({ cas, slug: 'asset', data: randomBytes(128), passphrase: oldPass });
+
+    const oldMeta = await cas.getVaultMetadata();
+    expect(oldMeta.encryption.kdf.algorithm).toBe('pbkdf2');
+
+    await cas.rotateVaultPassphrase({
+      oldPassphrase: oldPass,
+      newPassphrase: newPass,
+      kdfOptions: { algorithm: 'scrypt' },
+    });
+
+    const newMeta = await cas.getVaultMetadata();
+    expect(newMeta.encryption.kdf.algorithm).toBe('scrypt');
+  });
+
   it('metadata updated with new KDF salt', async () => {
     const oldPass = 'old-pass';
     const newPass = 'new-pass';

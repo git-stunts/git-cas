@@ -519,6 +519,7 @@ Rotates the vault-level encryption passphrase. Re-wraps every envelope-encrypted
 
 - `CasError` with code `VAULT_METADATA_INVALID` if vault is not encrypted
 - `CasError` with code `DEK_UNWRAP_FAILED` or `NO_MATCHING_RECIPIENT` if old passphrase is wrong
+- `CasError` with code `VAULT_CONFLICT` if concurrent vault updates exhaust retries
 
 **Example:**
 
@@ -801,6 +802,8 @@ git cas rotate --slug demo/hello \
   --old-key-file old.key --new-key-file new.key --label alice
 ```
 
+#### `git cas rotate` flags
+
 | Flag | Description |
 |------|-------------|
 | `--slug <slug>` | Resolve tree OID from vault slug (updates vault entry) |
@@ -808,9 +811,16 @@ git cas rotate --slug demo/hello \
 | `--old-key-file <path>` | Path to current 32-byte key file (required) |
 | `--new-key-file <path>` | Path to new 32-byte key file (required) |
 | `--label <label>` | Only rotate the named recipient entry |
-| `--old-passphrase <pass>` | Current vault passphrase (vault rotate) |
-| `--new-passphrase <pass>` | New vault passphrase (vault rotate) |
+| `--cwd <dir>` | Git working directory (default: `.`) |
+
+#### `git cas vault rotate` flags
+
+| Flag | Description |
+|------|-------------|
+| `--old-passphrase <pass>` | Current vault passphrase (required) |
+| `--new-passphrase <pass>` | New vault passphrase (required) |
 | `--algorithm <alg>` | KDF algorithm for new passphrase (`pbkdf2` or `scrypt`) |
+| `--cwd <dir>` | Git working directory (default: `.`) |
 
 ### Vault History
 

@@ -991,6 +991,7 @@ export default class CasService {
    * @throws {CasError} ROTATION_NOT_SUPPORTED if manifest has no recipients.
    * @throws {CasError} RECIPIENT_NOT_FOUND if label doesn't exist.
    * @throws {CasError} DEK_UNWRAP_FAILED if oldKey doesn't match the recipient.
+   * @throws {CasError} NO_MATCHING_RECIPIENT if no label and oldKey matches no entry.
    */
   async rotateKey({ manifest, oldKey, newKey, label }) {
     const recipients = manifest.encryption?.recipients;
