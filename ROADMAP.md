@@ -9,7 +9,7 @@ This roadmap is structured as:
 3. **Contracts** — Return/throw semantics for all public methods
 4. **Version Plan** — Table mapping versions to milestones
 5. **Milestone Dependency Graph** — ASCII diagram
-6. **Milestones & Task Cards** — 5 milestones, 20 tasks (uniform task card template)
+6. **Milestones & Task Cards** — 7 milestones (2 closed, 5 open), remaining task cards
 7. **Feature Matrix** — Competitive landscape vs. Git LFS, git-annex, Restic, Age, DVC
 8. **Competitive Analysis** — When to use git-cas and when not to, with concrete scenarios
 
@@ -131,7 +131,7 @@ Return and throw semantics for every public method (current and planned).
 - **Exit 0:** Restore succeeded, prints bytes written to stdout.
 - **Exit 1:** Integrity error, missing manifest, or I/O error (message to stderr).
 
-### `restoreStream({ manifest, encryptionKey?, passphrase? })` *(planned — Task 8.1)*
+### `restoreStream({ manifest, encryptionKey?, passphrase? })` *(implemented — v4.0.0)*
 - **Returns:** `AsyncIterable<Buffer>` — verified, decrypted, decompressed chunks in index order.
 - **Throws:** `CasError('INTEGRITY_ERROR')` if any chunk fails verification (iteration stops).
 - **Throws:** `CasError('MISSING_KEY')` if encrypted and no key provided.
@@ -185,7 +185,7 @@ Return and throw semantics for every public method (current and planned).
 
 | Version | Milestone | Codename | Theme | Status |
 |--------:|-----------|----------|-------|--------|
-| v4.0.0  | M14       | Conduit  | Streaming I/O, observability, parallel chunks | |
+| v4.0.0  | M14       | Conduit  | Streaming I/O, observability, parallel chunks | ✅ |
 | v2.1.0  | M8        | Spit Shine | Review fixups | |
 | v2.2.0  | M9        | Cockpit  | CLI improvements | |
 | v3.0.0  | M10       | Hydra    | Content-defined chunking | |
@@ -204,17 +204,12 @@ M7 Horizon (v2.0.0) ✅ ──────────────────�
   v      v          v                              v
 M8 Spit  M9 Cockpit  M10 Hydra        M11 Locksmith
 Shine    (v2.2.0)       │                          │
-(v2.1.0)   │            │                          v
-           │            v                  M12 Carousel
-           │     (CDC benchmarks)
-           │
-           v
-    M13 Bijou (v3.1.0) ✅
-    (TUI dashboard & progress)
-           │
-           v
-    M14 Conduit (v4.0.0) ◀── NEXT
-    (Streaming I/O + Observability + Parallel chunks)
+(v2.1.0)                │                          v
+                        v                  M12 Carousel
+                 (CDC benchmarks)
+
+M13 Bijou (v3.1.0) ✅
+M14 Conduit (v4.0.0) ✅
 ```
 
 ---
@@ -223,341 +218,28 @@ Shine    (v2.2.0)       │                          │
 
 ### Milestones at a glance
 
-| #  | Codename      | Theme                      | Version | Tasks | ~LoC   | ~Hours |
-|---:|--------------|----------------------------|:-------:|------:|-------:|------:|
-| M14| Conduit       | Streaming I/O, observability, parallel chunks | v4.0.0 | 4 | ~600 | ~18h |
-| M8 | Spit Shine    | Review fixups              | v2.1.0  | 3     | ~290   | ~7h   |
-| M9 | Cockpit       | CLI improvements           | v2.2.0  | 5     | ~260   | ~7h   |
-| M10| Hydra         | Content-defined chunking   | v3.0.0  | 4     | ~690   | ~22h  |
-| M11| Locksmith     | Multi-recipient encryption | v3.1.0  | 4     | ~580   | ~20h  |
-| M12| Carousel      | Key rotation               | v3.2.0  | 4     | ~400   | ~13h  |
-| M13| Bijou         | TUI dashboard & progress   | v3.1.0  | 6     | ~650   | ~20h  |
-|    | **Total**     |                            |         | **30**| **~3,470** | **~107h** |
+| #  | Codename      | Theme                      | Version | Tasks | ~LoC   | ~Hours | Status |
+|---:|--------------|----------------------------|:-------:|------:|-------:|------:|:------:|
+| M14| Conduit       | Streaming I/O, observability, parallel chunks | v4.0.0 | 4 | ~600 | ~18h | ✅ CLOSED |
+| M13| Bijou         | TUI dashboard & progress   | v3.1.0  | 6     | ~650   | ~20h  | ✅ CLOSED |
+| M8 | Spit Shine    | Review fixups              | v2.1.0  | 2     | ~150   | ~3h   | open |
+| M9 | Cockpit       | CLI improvements           | v2.2.0  | 4     | ~190   | ~5h   | open |
+| M10| Hydra         | Content-defined chunking   | v3.0.0  | 4     | ~690   | ~22h  | open |
+| M11| Locksmith     | Multi-recipient encryption | v3.1.0  | 4     | ~580   | ~20h  | open |
+| M12| Carousel      | Key rotation               | v3.2.0  | 4     | ~400   | ~13h  | open |
+
+Completed task cards are in [COMPLETED_TASKS.md](./COMPLETED_TASKS.md). Superseded tasks are in [GRAVEYARD.md](./GRAVEYARD.md).
 
 ---
 
-# M14 — Conduit (v4.0.0)
-**Theme:** Replace `EventEmitter` inheritance with a proper `ObservabilityPort`, add streaming restore, and enable parallel chunk I/O. Major version bump: removes `extends EventEmitter` from `CasService`, adds `observability` as a required constructor port.
+# M14 — Conduit (v4.0.0) ✅ CLOSED
 
----
-
-## Task 14.1: ObservabilityPort and adapters
-
-**User Story**
-As a library consumer, I want structured observability (metrics, logs, spans) from CAS operations so I can monitor throughput, track errors, and integrate with my own tooling — without the domain layer depending on Node's EventEmitter.
-
-**Requirements**
-- R1: Define `ObservabilityPort` interface with three methods:
-  - `metric(channel: string, data: object)` — emit a named metric (channels: `chunk`, `file`, `integrity`, `vault`).
-  - `log(level: string, message: string, meta?: object)` — structured log (`debug`, `info`, `warn`, `error`).
-  - `span(name: string) → { end(meta?: object): void }` — timed operation bracket.
-- R2: Remove `extends EventEmitter` from `CasService`. All `this.emit()` calls replaced with `this.observability.metric()` or `this.observability.log()`.
-- R3: `observability` becomes a required constructor parameter on `CasService` (like `persistence`, `codec`, `crypto`).
-- R4: Implement `SilentObserver` adapter (no-op — all methods are empty). This is the default when no observability is needed.
-- R5: Implement `EventEmitterObserver` adapter that translates `metric()` calls to `EventEmitter.emit()` calls for backward compatibility. Consumers who relied on `service.on('chunk:stored', ...)` can wrap with this adapter.
-- R6: Implement `StatsCollector` adapter that accumulates metrics and exposes a summary object: `{ chunksProcessed, bytesTotal, elapsed, throughput, errors }`.
-- R7: Facade (`ContentAddressableStore`) creates a default `SilentObserver` if no observability adapter is provided, and passes it to `CasService`.
-- R8: Update `.d.ts` declarations for new port and adapters.
-
-**Acceptance Criteria**
-- AC1: `CasService` no longer extends `EventEmitter`.
-- AC2: All existing event emission points emit metrics via `ObservabilityPort`.
-- AC3: `EventEmitterObserver` adapter produces identical events to the old `extends EventEmitter` behavior.
-- AC4: `StatsCollector` accumulates correct stats across a full store+restore cycle.
-- AC5: `SilentObserver` introduces zero overhead (no-op methods).
-- AC6: Span `end()` captures elapsed time in the metric.
-
-**Scope**
-- In scope: Port definition, 3 adapters, CasService refactor, facade wiring, TypeScript declarations.
-- Out of scope: TUI adapter (M13 already has its own bijou integration — it can wrap `EventEmitterObserver` or adopt `ObservabilityPort` in a follow-up). Log levels beyond the 4 basics. Persistent metrics storage.
-
-**Est. Complexity (LoC)**
-- Prod: ~180 (port ~30, 3 adapters ~90, CasService refactor ~40, facade ~20)
-- Tests: ~120
-- Total: ~300
-
-**Est. Human Working Hours**
-- ~8h
-
-**Test Plan**
-- Golden path:
-  - Store file with `StatsCollector` → verify `chunksProcessed`, `bytesTotal`, `throughput` are correct.
-  - Store + restore with `EventEmitterObserver` → assert same events as old EventEmitter behavior.
-  - `SilentObserver` → store + restore completes with no errors, no output.
-- Failures:
-  - Missing `observability` param → constructor throws with descriptive error.
-  - Corrupted chunk → `observability.log('error', ...)` called before throw.
-- Edges:
-  - 0-byte file → span starts and ends, no chunk metrics emitted.
-  - Span `end()` called twice → no error (idempotent).
-- Fuzz/stress:
-  - All existing CasService tests must pass with `SilentObserver` injected.
-
-**Definition of Done**
-- DoD1: `CasService` does not extend `EventEmitter`.
-- DoD2: `ObservabilityPort` defined with metric/log/span.
-- DoD3: 3 adapters implemented and tested.
-- DoD4: All existing tests updated and green.
-- DoD5: TypeScript declarations updated.
-
-**Blocking**
-- Blocks: Task 14.2, 14.3, 14.4
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 14.2: Streaming restore
-
-**User Story**
-As a developer restoring large files, I want a streaming restore path so memory usage is O(chunkSize), not O(fileSize).
-
-**Requirements**
-- R1: Add `CasService.restoreStream({ manifest, encryptionKey, passphrase })` returning `AsyncIterable<Buffer>`.
-- R2: Each yielded buffer is one verified, decrypted, decompressed chunk — ready to write.
-- R3: Integrity verified per-chunk before yield (not after full reassembly).
-- R4: Decompression and decryption applied per-chunk in streaming fashion.
-- R5: `restoreFile()` in the facade uses `restoreStream()` internally with `createWriteStream()` instead of `writeFileSync()`.
-- R6: Existing `restore()` method reimplemented as: collect `restoreStream()` into buffer. Single code path, two interfaces.
-- R7: Emit `observability.metric('chunk', ...)` per chunk and `observability.span('restore')` for the full operation.
-
-**Acceptance Criteria**
-- AC1: `restoreStream()` yields chunks that, when concatenated, match the original file byte-for-byte.
-- AC2: Memory usage during streaming restore is O(chunkSize), not O(fileSize).
-- AC3: `restoreFile()` writes via `createWriteStream()` — no `writeFileSync()`.
-- AC4: Encrypted + compressed files round-trip correctly via streaming restore.
-- AC5: Existing `restore()` method returns identical results (backward compat).
-
-**Scope**
-- In scope: `restoreStream()` on CasService + facade, refactor `restoreFile()` and `restore()`.
-- Out of scope: Parallel chunk reads (Task 14.3), resume/partial restore.
-
-**Est. Complexity (LoC)**
-- Prod: ~80
-- Tests: ~100
-- Total: ~180
-
-**Est. Human Working Hours**
-- ~5h
-
-**Test Plan**
-- Golden path:
-  - Store 10KB → restoreStream → collect → byte-compare original.
-  - Store encrypted + compressed → restoreStream → collect → compare.
-  - restoreFile writes correct file via streaming (spy confirms no writeFileSync).
-- Failures:
-  - Corrupted chunk mid-stream → throws INTEGRITY_ERROR, iteration stops.
-  - Wrong key → throws INTEGRITY_ERROR on first encrypted chunk.
-- Edges:
-  - 0-byte manifest yields empty iterable.
-  - Single-chunk file yields exactly 1 buffer.
-  - Exact multiple of chunkSize yields expected count.
-- Fuzz/stress:
-  - 50 random file sizes (seeded) — streaming restore matches buffered restore byte-for-byte.
-
-**Definition of Done**
-- DoD1: `restoreStream()` implemented on CasService and exposed via facade.
-- DoD2: `restoreFile()` refactored to use streaming writes.
-- DoD3: `restore()` reimplemented on top of `restoreStream()`.
-- DoD4: All existing restore tests still pass.
-- DoD5: New streaming tests added and green.
-
-**Blocking**
-- Blocks: Task 14.3
-
-**Blocked By**
-- Blocked by: Task 14.1 (observability wiring)
-
----
-
-## Task 14.3: Parallel chunk I/O
-
-**User Story**
-As a user storing or restoring files with many chunks, I want the system to read/write multiple chunks concurrently so operations complete faster.
-
-**Requirements**
-- R1: Add `concurrency` option to `CasService` constructor (positive integer, default: 1).
-- R2: Store path (`_chunkAndStore`): up to N chunks written to Git in parallel. Chunk ordering in the manifest is preserved regardless of write completion order.
-- R3: Restore path (`restoreStream`): up to N chunks read from Git in parallel. Yield order matches manifest chunk order (read ahead, buffer up to N, yield in sequence).
-- R4: Implement a simple `Semaphore` utility (internal, not exported) to gate concurrent persistence calls.
-- R5: `concurrency: 1` produces identical behavior to current sequential code (no functional change).
-- R6: Emit `observability.metric('chunk', ...)` per chunk regardless of parallelism. `observability.span('chunk:read')` / `observability.span('chunk:write')` wrap each individual I/O operation.
-- R7: Expose `concurrency` option on `ContentAddressableStore` constructor, forwarded to `CasService`.
-
-**Acceptance Criteria**
-- AC1: With `concurrency: 4`, a 20-chunk store completes measurably faster than sequential (benchmark, not unit test).
-- AC2: With `concurrency: 4`, restore produces byte-identical output to sequential.
-- AC3: With `concurrency: 1`, all existing tests pass unchanged.
-- AC4: Manifest chunk order is always preserved regardless of concurrency setting.
-- AC5: Semaphore correctly limits concurrent persistence calls.
-
-**Scope**
-- In scope: Semaphore, parallel store loop, parallel restore with ordered yield, concurrency config.
-- Out of scope: Adaptive concurrency (auto-tuning), per-operation concurrency overrides, connection pooling in GitPersistenceAdapter.
-
-**Est. Complexity (LoC)**
-- Prod: ~100 (Semaphore ~25, store refactor ~30, restore refactor ~30, config ~15)
-- Tests: ~80
-- Total: ~180
-
-**Est. Human Working Hours**
-- ~6h
-
-**Test Plan**
-- Golden path:
-  - Store + restore with concurrency: 4, verify byte-for-byte match.
-  - Store + restore with concurrency: 1, verify identical to current behavior.
-  - Encrypted + compressed + concurrency: 4 → correct round-trip.
-- Failures:
-  - concurrency: 0 → constructor throws.
-  - concurrency: -1 → constructor throws.
-  - One chunk write fails mid-batch → error propagated, partial writes are safe (unreachable blobs GC'd by Git).
-- Edges:
-  - File with 1 chunk + concurrency: 4 → works (no deadlock).
-  - File with 3 chunks + concurrency: 10 → only 3 in flight.
-  - 0-byte file + any concurrency → no-op.
-- Fuzz/stress:
-  - Benchmark: 100-chunk file, concurrency 1 vs 4 vs 8, measure wall-clock time.
-
-**Definition of Done**
-- DoD1: Semaphore utility implemented.
-- DoD2: Store and restore support configurable concurrency.
-- DoD3: All tests pass at concurrency: 1.
-- DoD4: Parallel tests added and green.
-- DoD5: Benchmark script demonstrates speedup.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 14.2 (restoreStream)
-
----
-
-## Task 14.4: Migrate CLI and TUI to ObservabilityPort
-
-**User Story**
-As a CLI user, I want progress bars and stats to work with the new observability system so the terminal experience is unchanged after the v4 migration.
-
-**Requirements**
-- R1: Refactor `bin/ui/progress.js` to subscribe to `ObservabilityPort` metrics instead of EventEmitter events.
-- R2: Progress trackers use `observability.metric('chunk', ...)` events for progress updates.
-- R3: CLI `store` and `restore` commands wire the observability adapter into CasService via the facade.
-- R4: Dashboard and other TUI components continue to function (adapt to new metric format if needed).
-- R5: `--quiet` flag still works (uses `SilentObserver`).
-- R6: Stats summary printed after store/restore when not in quiet mode (throughput, total bytes, elapsed time).
-
-**Acceptance Criteria**
-- AC1: `git cas store` shows progress bar identical to v3.1.0 behavior.
-- AC2: `git cas restore` shows progress bar identical to v3.1.0 behavior.
-- AC3: `--quiet` suppresses all output.
-- AC4: Stats summary displayed after operation completes.
-- AC5: Dashboard renders correctly with new observability wiring.
-
-**Scope**
-- In scope: CLI progress migration, stats summary, dashboard adaptation.
-- Out of scope: New TUI features, log file output, verbose debug mode.
-
-**Est. Complexity (LoC)**
-- Prod: ~60 (progress refactor ~30, CLI wiring ~20, stats display ~10)
-- Tests: ~20
-- Total: ~80
-
-**Est. Human Working Hours**
-- ~3h
-
-**Test Plan**
-- Golden path:
-  - Store with progress → verify metric events drive progress display.
-  - Restore with progress → same.
-  - Stats summary printed with correct values.
-- Failures:
-  - None expected (thin adapter layer).
-- Edges:
-  - Quiet mode → SilentObserver, no output.
-  - Pipe mode → no progress, no stats.
-- Fuzz/stress:
-  - None (display layer).
-
-**Definition of Done**
-- DoD1: Progress bars work with ObservabilityPort.
-- DoD2: Stats summary displays after operations.
-- DoD3: All CLI tests pass.
-- DoD4: Dashboard functional with new wiring.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 14.1 (ObservabilityPort)
+All tasks completed (14.1–14.4). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
 
 ---
 
 # M8 — Spit Shine (v2.1.0)
 **Theme:** Polish and harden based on code review findings. Fix asymmetries, eliminate duplication, improve docs. No new features.
-
----
-
-## Task 8.1: Streaming restore *(superseded by Task 14.2)*
-
-**User Story**
-As a developer restoring large files, I want a streaming restore path so I don't buffer the entire file in memory.
-
-**Requirements**
-- R1: Add `CasService.restoreStream({ manifest, encryptionKey, passphrase })` returning `AsyncIterable<Buffer>`.
-- R2: Each yielded buffer is one verified, decrypted, decompressed chunk — ready to write.
-- R3: Integrity verified per-chunk before yield (not after full reassembly).
-- R4: Decompression and decryption applied per-chunk in streaming fashion.
-- R5: `restoreFile()` in the facade uses `restoreStream()` internally with `createWriteStream()` instead of `writeFileSync()`.
-- R6: Existing `restore()` method remains unchanged (returns `{ buffer, bytesWritten }`) for backward compat.
-
-**Acceptance Criteria**
-- AC1: `restoreStream()` yields chunks that, when concatenated, match the original file byte-for-byte.
-- AC2: Memory usage during streaming restore is O(chunkSize), not O(fileSize).
-- AC3: `restoreFile()` writes via stream and does not call `writeFileSync()`.
-- AC4: Encrypted + compressed files round-trip correctly via streaming restore.
-- AC5: Existing `restore()` method behavior unchanged.
-
-**Scope**
-- In scope: `restoreStream()` on CasService + facade, refactor `restoreFile()` to use streaming writes.
-- Out of scope: Parallel chunk reads, resume/partial restore, streaming decrypt rearchitecture.
-
-**Est. Complexity (LoC)**
-- Prod: ~60
-- Tests: ~80
-- Total: ~140
-
-**Est. Human Working Hours**
-- ~4h
-
-**Test Plan**
-- Golden path:
-  - Store 10KB → restoreStream → collect → byte-compare original.
-  - Store encrypted + compressed → restoreStream → collect → compare.
-  - restoreFile writes correct file via streaming (spy confirms no writeFileSync).
-- Failures:
-  - Corrupted chunk mid-stream → throws INTEGRITY_ERROR, iteration stops.
-  - Wrong key → throws INTEGRITY_ERROR on first encrypted chunk.
-- Edges:
-  - 0-byte manifest yields empty iterable.
-  - Single-chunk file yields exactly 1 buffer.
-  - Exact multiple of chunkSize yields expected count.
-- Fuzz/stress:
-  - 50 random file sizes (seeded) — streaming restore matches buffered restore byte-for-byte.
-  - Memory profiling: restoreStream on 10MB file stays under 2× chunkSize peak.
-
-**Definition of Done**
-- DoD1: `restoreStream()` implemented on CasService and exposed via facade.
-- DoD2: `restoreFile()` refactored to use streaming writes.
-- DoD3: All existing restore tests still pass.
-- DoD4: New streaming tests added and green.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: None
 
 ---
 
@@ -667,63 +349,6 @@ As a new user, I want the README to get me started quickly. As a contributor, I 
 
 # M9 — Cockpit (v2.2.0)
 **Theme:** CLI polish — progress feedback, structured output, better errors, and new commands. Make the terminal experience match the API's capability.
-
----
-
-## Task 9.1: CLI progress feedback
-
-**User Story**
-As a CLI user storing or restoring large files, I want visible progress so I know the operation is working and not hung.
-
-**Requirements**
-- R1: Wire `CasService` events (`chunk:stored`, `chunk:restored`, `file:stored`, `file:restored`) to CLI output.
-- R2: Display a progress counter during store/restore: `Storing chunk 5/12…` or similar.
-- R3: Progress output goes to stderr (stdout reserved for structured output).
-- R4: Progress suppressed when stdout is not a TTY (piped mode) or when `--quiet` is passed.
-- R5: Add `--quiet` global flag to suppress progress output.
-
-**Acceptance Criteria**
-- AC1: `git cas store` shows per-chunk progress on stderr in TTY mode.
-- AC2: `git cas restore` shows per-chunk progress on stderr in TTY mode.
-- AC3: Piped mode (`git cas store … | jq`) shows no progress.
-- AC4: `--quiet` suppresses all progress output.
-
-**Scope**
-- In scope: Progress display for store and restore.
-- Out of scope: Progress bars with ETA, spinners, color output, verbose debug logging.
-
-**Est. Complexity (LoC)**
-- Prod: ~50
-- Tests: ~20
-- Total: ~70
-
-**Est. Human Working Hours**
-- ~2h
-
-**Test Plan**
-- Golden path:
-  - Store 3-chunk file in TTY mode → stderr shows 3 progress messages.
-  - Restore → stderr shows 3 progress messages.
-- Failures:
-  - None expected (progress is best-effort, non-blocking).
-- Edges:
-  - 0-chunk file (empty) → no progress messages.
-  - 1-chunk file → exactly 1 progress message.
-  - Non-TTY mode → no progress on stderr.
-  - `--quiet` → no progress on stderr.
-- Fuzz/stress:
-  - None (thin display layer).
-
-**Definition of Done**
-- DoD1: Progress feedback visible in CLI during store and restore.
-- DoD2: `--quiet` flag implemented and functional.
-- DoD3: Non-TTY detection works correctly.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: None
 
 ---
 
@@ -1694,7 +1319,7 @@ Competitive landscape for content-addressed storage, encrypted binary assets, an
 | Compression | ✅ gzip | — | ❌ | ⚠️ Via GPG (zlib/bzip2) | ✅ zstandard | ❌ | ❌ | Reduce storage size for compressible data | Compress-before-encrypt pipeline. Only git-cas and Restic offer explicit control | — |
 | Compression algorithm selection | ❌ gzip only | ❌ | ❌ | ⚠️ GPG's choice | ✅ zstd auto/max/off | ❌ | ❌ | Tune speed vs. ratio per workload | zstd is faster + better ratio than gzip. Would need CompressionPort | CompressionPort + zstd adapter. ~120 LoC, ~6h. Medium priority |
 | Streaming store (O(1) memory) | ✅ AsyncIterable | — | ⚠️ Transfer adapters | ✅ GPG pipeline | ✅ Pack streaming | ✅ 64 KiB chunks | ❌ | Store arbitrarily large files without OOM | git-cas chunks and encrypts in streaming fashion | — |
-| Streaming restore (O(1) memory) | ❌ Buffers in memory | 🗓 M8 Spit Shine | ⚠️ | ✅ | ✅ | ✅ | ❌ | Restore large files without OOM | Current restore() buffers entire file. Asymmetry with store path | restoreStream() + restoreFile refactor. ~140 LoC, ~4h (Task 8.1) |
+| Streaming restore (O(1) memory) | ✅ restoreStream() | — | ⚠️ | ✅ | ✅ | ✅ | ❌ | Restore large files without OOM | Implemented in v4.0.0 (M14 Conduit) | — |
 | Partial restore / byte-range | ❌ | ❌ | ❌ | ⚠️ Per-chunk retrieval | ✅ FUSE mount | ❌ | ❌ | Extract byte ranges without restoring full file | Manifest has chunk offsets; byte-range index is feasible | Chunk offset index + range API. ~200 LoC, ~10h. Low priority |
 
 ---
@@ -1732,8 +1357,8 @@ Competitive landscape for content-addressed storage, encrypted binary assets, an
 | CLI tool | ✅ `git cas` subcommand | — | ✅ `git lfs` | ✅ `git annex` | ✅ `restic` | ✅ `age` | ✅ `dvc` | Terminal-based workflows | All tools have CLIs. git-cas integrates as a Git subcommand | — |
 | Programmatic API / library | ✅ Node.js (ESM) | — | ⚠️ Go internal | ⚠️ Haskell | ⚠️ Go internal | ✅ Go, Rust, JS, Java, Python | ✅ Python | Integrate CAS into applications | git-cas and Age are the strongest library stories | — |
 | Multi-runtime support | ✅ Node, Bun, Deno | — | ❌ Go only | ❌ Haskell only | ❌ Go only | ✅ Go, Rust, JS, Java, Python | ❌ Python only | Same library works across JS runtimes | Only git-cas and Age support multiple runtimes | — |
-| Progress events (structured) | ✅ EventEmitter (7 events) | — | ✅ Transfer protocol | ⚠️ Terminal bars | ✅ JSON Lines | ❌ | ⚠️ Terminal bars | Build progress bars, logging, monitoring | git-cas emits typed object payloads per chunk | — |
-| CLI progress feedback | ❌ Silent | 🗓 M9 Cockpit | ✅ | ✅ | ✅ | ❌ | ✅ | Users know operations are working | Events exist but CLI doesn't display them | Wire events to stderr counter. ~70 LoC, ~2h (Task 9.1) |
+| Progress events (structured) | ✅ ObservabilityPort (metric/log/span) | — | ✅ Transfer protocol | ⚠️ Terminal bars | ✅ JSON Lines | ❌ | ⚠️ Terminal bars | Build progress bars, logging, monitoring | git-cas emits typed metrics per chunk via ObservabilityPort (v4.0.0) | — |
+| CLI progress feedback | ✅ Animated (bijou) | — | ✅ | ✅ | ✅ | ❌ | ✅ | Users know operations are working | Implemented in v3.1.0 (M13 Bijou) | — |
 | Structured output (--json) | ❌ | 🗓 M9 Cockpit | ❌ | ❌ | ✅ `--json` | ❌ | ✅ `--json` | CI/CD pipeline integration | Restic is the gold standard here (JSON Lines for all output) | Global `--json` flag. ~50 LoC, ~1.5h (Task 9.3) |
 | CLI `verify` command | ❌ API only | 🗓 M9 Cockpit | ✅ Implicit on checkout | ✅ `annex fsck` | ✅ `restic check` | ❌ | ✅ `dvc check-ignore` | Audit integrity without restoring | API exists (`verifyIntegrity`); CLI just needs to expose it | 25 LoC, ~1h (Task 9.2) |
 | Actionable error messages | ❌ Generic `err.message` | 🗓 M9 Cockpit | ⚠️ | ⚠️ | ✅ | ❌ | ✅ | Users know what went wrong and what to do next | Error codes exist but CLI doesn't show hints | Error handler + hint map. ~45 LoC, ~1h (Task 9.4) |
@@ -1759,7 +1384,7 @@ Competitive landscape for content-addressed storage, encrypted binary assets, an
 |---|---|---|---|---|---|---|
 | **Core identity** | Git-native CAS with encryption | Git large file offloading | Distributed file management | Encrypted backup with dedup | File encryption primitive | ML data version control |
 | **Strongest at** | Git ODB integration, pluggable codecs, Merkle manifests, vault | Simplicity, file locking, ecosystem adoption | Backend diversity, location tracking, metadata views | CDC dedup, retention policies, FUSE mount | Multi-recipient, HSM, multi-language, simplicity | ML pipelines, experiment tracking, Python ecosystem |
-| **Weakest at** | No multi-backend, single-key encryption, gzip only | No encryption, no compression, requires server | Complexity, Haskell-only, no CDC | No Git integration, no library API | Not a storage system | No encryption, no chunking, no streaming |
+| **Weakest at** | No multi-backend, single-key encryption, gzip only, no CDC | No encryption, no compression, requires server | Complexity, Haskell-only, no CDC | No Git integration, no library API | Not a storage system | No encryption, no chunking, no streaming |
 | **Server required** | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | **Best use case** | Encrypted binary assets in Git repos | Large files in GitHub/GitLab repos | Distributed archive management | Encrypted backups of filesystems | Encrypting files for recipients | ML model/data versioning |
 
@@ -1775,14 +1400,15 @@ Competitive landscape for content-addressed storage, encrypted binary assets, an
 
 ### Where git-cas trails (and what closes the gap)
 
-1. **Multi-recipient encryption** → M11 Locksmith (v3.1.0). DEK/KEK envelope encryption. ~580 LoC, ~20h.
-2. **Content-defined chunking** → M10 Hydra (v3.0.0). Buzhash CDC engine + ChunkingPort. ~690 LoC, ~22h.
-3. **Key rotation** → M12 Carousel (v3.2.0). Re-wrap DEK without re-encrypting data. ~400 LoC, ~13h.
-4. **Streaming restore** → M8 Spit Shine (v2.1.0). restoreStream() returning AsyncIterable. ~140 LoC, ~4h.
-5. **CLI polish** → M9 Cockpit (v2.2.0). Progress, verify, --json, actionable errors. ~260 LoC, ~7h.
-6. **Multi-backend storage** → Not planned. Git remotes serve as the transport layer by design. Adding S3/SFTP backends would dilute the "Git-native" identity.
-7. **Compression algorithm selection** → Not on roadmap. CompressionPort + zstd adapter would cost ~120 LoC, ~6h. Medium priority.
-8. **FUSE mount / partial restore** → Not planned. Niche for a CAS library. Would require ~500 LoC + platform-specific bindings.
+1. **Multi-recipient encryption** → M11 Locksmith. DEK/KEK envelope encryption. ~580 LoC, ~20h.
+2. **Content-defined chunking** → M10 Hydra. Buzhash CDC engine + ChunkingPort. ~690 LoC, ~22h.
+3. **Key rotation** → M12 Carousel. Re-wrap DEK without re-encrypting data. ~400 LoC, ~13h.
+4. ~~**Streaming restore**~~ → ✅ Delivered in v4.0.0 (M14 Conduit). `restoreStream()` returning AsyncIterable.
+5. **CLI polish** → M9 Cockpit. Verify, --json, actionable errors. ~190 LoC, ~5h.
+6. ~~**CLI progress feedback**~~ → ✅ Delivered in v3.1.0 (M13 Bijou). Animated progress bars with throughput.
+7. **Multi-backend storage** → Not planned. Git remotes serve as the transport layer by design. Adding S3/SFTP backends would dilute the "Git-native" identity.
+8. **Compression algorithm selection** → Not on roadmap. CompressionPort + zstd adapter would cost ~120 LoC, ~6h. Medium priority.
+9. **FUSE mount / partial restore** → Not planned. Niche for a CAS library. Would require ~500 LoC + platform-specific bindings.
 
 ---
 
@@ -1978,329 +1604,9 @@ If that's what you want, nothing else does it. If it's not, the right tool proba
 
 ---
 
-# M13 — Bijou (v3.1.0) ✅
-**Theme:** Beautiful terminal UI powered by `@flyingrobots/bijou`. Replace silent CLI operations with animated progress, and add an interactive vault dashboard for exploring stored assets. Depends on M9 Cockpit for the `--quiet` flag and event wiring foundation.
+# M13 — Bijou (v3.1.0) ✅ CLOSED
 
----
-
-## Task 13.1: Animated store/restore progress
-
-**User Story**
-As a CLI user, I want a smooth animated progress bar with chunk counts and throughput when storing or restoring files, so I can see that the operation is working and estimate time remaining.
-
-**Requirements**
-- R1: Add `@flyingrobots/bijou` and `@flyingrobots/bijou-node` as dependencies.
-- R2: Wire `CasService` events (`chunk:stored`, `chunk:restored`) to a bijou `createAnimatedProgressBar()` with spring physics (preset: `gentle`).
-- R3: Display gradient progress bar (theme `CYAN_MAGENTA`) with chunk counter (`78/193 chunks`) and throughput (`19.2 MiB/s`).
-- R4: Show last-processed chunk digest and blob OID below the progress bar.
-- R5: Progress renders to stderr; stdout reserved for structured output.
-- R6: Graceful degradation: static counter in CI, plain text in pipe mode, no output with `--quiet`.
-
-**Acceptance Criteria**
-- AC1: `git cas store` shows animated progress bar in TTY mode.
-- AC2: `git cas restore` shows animated progress bar in TTY mode.
-- AC3: CI mode (`CI=true`) falls back to static line-by-line progress.
-- AC4: Pipe mode shows no progress output.
-- AC5: `--quiet` suppresses all progress.
-
-**Scope**
-- In scope: Progress bar for store and restore commands.
-- Out of scope: Full TUI app, interactive elements, vault commands.
-
-**Est. Complexity (LoC)**
-- Prod: ~80
-- Tests: ~30
-- Total: ~110
-
-**Est. Human Working Hours**
-- ~3h
-
-**Test Plan**
-- Golden path:
-  - Store 5-chunk file → progress bar advances 5 times, final state shows 100%.
-  - Restore 5-chunk file → same.
-- Edges:
-  - 0-chunk file (empty) → no progress bar shown.
-  - 1-chunk file → bar jumps to 100%.
-  - Non-TTY → static fallback or silent.
-
-**Definition of Done**
-- DoD1: Animated progress bar visible during store/restore in interactive terminals.
-- DoD2: Graceful degradation works across all four output modes.
-- DoD3: No visual artifacts or leftover ANSI codes in non-TTY environments.
-
-**Blocking**
-- Blocks: Task 13.2 (vault dashboard uses same bijou dependency)
-
-**Blocked By**
-- Blocked by: Task 9.1 (CLI progress feedback foundation, `--quiet` flag)
-
----
-
-## Task 13.2: Vault dashboard — interactive TUI app
-
-**User Story**
-As a developer managing multiple vault entries, I want an interactive terminal dashboard to browse entries, inspect manifests, and view encryption status without memorizing CLI flags.
-
-**Requirements**
-- R1: Add `@flyingrobots/bijou-tui` as a dependency.
-- R2: New subcommand: `git cas vault dashboard` (or `git cas vault ui`).
-- R3: Full-screen TEA app with flexbox layout: entry list (left pane) + detail view (right pane).
-- R4: Entry list shows slug, size (human-readable), chunk count, and badges for encryption/compression/merkle.
-- R5: Detail view shows manifest anatomy: metadata, encryption config, compression, sub-manifests, and paginated chunk list.
-- R6: Keyboard navigation: `j/k` or arrows to move, `enter` to expand, `/` to filter, `q` to quit.
-- R7: Vault-level header showing encryption status, asset count, and vault ref.
-- R8: Graceful degradation: static table output in CI/pipe mode (reuse Task 9.5 table formatting).
-
-**Acceptance Criteria**
-- AC1: `git cas vault dashboard` launches interactive TUI in TTY mode.
-- AC2: All vault entries listed with correct metadata.
-- AC3: Selecting an entry shows full manifest detail.
-- AC4: Filter narrows the list by slug substring.
-- AC5: `q` or `ctrl-c` exits cleanly (restores terminal state).
-- AC6: Non-TTY falls back to static vault list.
-
-**Scope**
-- In scope: Read-only dashboard for browsing vault state.
-- Out of scope: Mutating operations (store/restore/remove) from the dashboard.
-
-**Est. Complexity (LoC)**
-- Prod: ~200
-- Tests: ~60
-- Total: ~260
-
-**Est. Human Working Hours**
-- ~7h
-
-**Test Plan**
-- Golden path:
-  - Launch with 3 vault entries → all listed with correct badges.
-  - Select entry → detail pane populates with manifest data.
-  - Filter by substring → list narrows correctly.
-- Edges:
-  - Empty vault → shows "No entries" message.
-  - Entry with Merkle sub-manifests → sub-manifest section rendered.
-  - Very long slug names → truncated with ellipsis.
-- Failures:
-  - Vault ref doesn't exist → shows initialization prompt.
-
-**Definition of Done**
-- DoD1: Interactive dashboard launches and renders vault state.
-- DoD2: Navigation, selection, and filtering work.
-- DoD3: Clean exit restores terminal state.
-- DoD4: Static fallback works in non-TTY.
-
-**Blocking**
-- Blocks: Task 13.4, Task 13.5
-
-**Blocked By**
-- Blocked by: Task 13.1 (bijou dependency), Task 9.5 (vault table formatting)
-
----
-
-## Task 13.3: Vault history timeline view
-
-**User Story**
-As a developer, I want to see vault commit history as a visual timeline so I can understand how the vault has evolved over time.
-
-**Requirements**
-- R1: New subcommand: `git cas vault history --pretty` (or integrate into dashboard as a tab).
-- R2: Render vault commits using bijou `timeline()` component with status indicators.
-- R3: Color-code by operation: green for `add`, yellow for `update`, red for `remove`, blue for `init`.
-- R4: Show commit OID (short), operation, slug, and relative timestamp.
-- R5: Paginate with bijou `paginator()` for long histories.
-- R6: Static fallback: plain `git log --oneline` output (current behavior).
-
-**Acceptance Criteria**
-- AC1: `git cas vault history --pretty` renders color-coded timeline in TTY mode.
-- AC2: Operations correctly color-coded by parsing commit messages.
-- AC3: Pagination works for vaults with >20 commits.
-- AC4: Without `--pretty`, behavior unchanged (backward compatible).
-
-**Scope**
-- In scope: Timeline rendering of vault history.
-- Out of scope: Interactive revert, diff between history points.
-
-**Est. Complexity (LoC)**
-- Prod: ~60
-- Tests: ~25
-- Total: ~85
-
-**Est. Human Working Hours**
-- ~2h
-
-**Test Plan**
-- Golden path:
-  - Vault with 5 commits → 5 timeline entries, correctly colored.
-- Edges:
-  - Empty vault (no commits) → "No history" message.
-  - 100+ commits → paginated display.
-
-**Definition of Done**
-- DoD1: Timeline renders with color-coded operations.
-- DoD2: Pagination functional.
-- DoD3: `--pretty` flag documented in `--help`.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 13.1 (bijou dependency)
-
----
-
-## Task 13.4: Manifest anatomy view
-
-**User Story**
-As a developer debugging storage issues, I want a rich visual breakdown of a manifest showing its structure, encryption metadata, compression settings, and chunk layout.
-
-**Requirements**
-- R1: New subcommand: `git cas inspect --slug <slug>` (or `--oid <tree-oid>`).
-- R2: Render manifest using bijou `box()`, `accordion()`, and `tree()` components.
-- R3: Sections: metadata (slug, filename, size, version), encryption (algorithm, KDF params), compression, sub-manifests (if Merkle), and chunks.
-- R4: Chunks section uses `paginator()` — show 20 chunks per page with index, size, digest (truncated), and blob OID.
-- R5: Badges for encryption status, compression, Merkle, manifest version.
-- R6: Static fallback: JSON dump (current `readManifest` behavior).
-
-**Acceptance Criteria**
-- AC1: `git cas inspect --slug <slug>` renders structured manifest view.
-- AC2: Accordion sections expand/collapse.
-- AC3: Chunk pagination works.
-- AC4: Encrypted manifests show full KDF parameter breakdown.
-- AC5: Merkle manifests show sub-manifest tree.
-
-**Scope**
-- In scope: Read-only manifest inspection.
-- Out of scope: Editing manifests, verifying integrity (that's `git cas verify`).
-
-**Est. Complexity (LoC)**
-- Prod: ~70
-- Tests: ~30
-- Total: ~100
-
-**Est. Human Working Hours**
-- ~3h
-
-**Test Plan**
-- Golden path:
-  - Inspect unencrypted v1 manifest → metadata + chunks displayed.
-  - Inspect encrypted v2 Merkle manifest → all sections populated.
-- Edges:
-  - Empty manifest (0 chunks) → shows "No chunks" in chunks section.
-  - Very large manifest (1000+ chunks) → pagination handles cleanly.
-
-**Definition of Done**
-- DoD1: Manifest anatomy renders with all sections.
-- DoD2: Accordion expand/collapse works.
-- DoD3: Chunk pagination works.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 13.2 (shared component patterns)
-
----
-
-## Task 13.5: Chunk heatmap visualization
-
-**User Story**
-As a developer, I want a visual block map of chunks in a stored file so I can quickly see the storage layout, Merkle boundaries, and progress during operations.
-
-**Requirements**
-- R1: Render a grid of `█` / `░` blocks, one per chunk, sized to terminal width.
-- R2: Color via bijou `gradientText()` from start to end of file.
-- R3: Show Merkle sub-manifest boundaries with `│` separators in the grid.
-- R4: Legend showing chunk count, sub-manifest count, chunk size.
-- R5: Integrate into `git cas inspect` as an optional `--heatmap` flag.
-- R6: During store/restore (Task 13.1), optionally show filling heatmap instead of progress bar via `--heatmap` flag.
-
-**Acceptance Criteria**
-- AC1: `git cas inspect --slug <slug> --heatmap` renders chunk grid.
-- AC2: Gradient coloring spans the full grid.
-- AC3: Merkle boundaries visually distinct.
-- AC4: Grid reflows to terminal width.
-
-**Scope**
-- In scope: Static heatmap for stored files.
-- Out of scope: Live-updating heatmap during store/restore (stretch goal for R6).
-
-**Est. Complexity (LoC)**
-- Prod: ~40
-- Tests: ~15
-- Total: ~55
-
-**Est. Human Working Hours**
-- ~2h
-
-**Test Plan**
-- Golden path:
-  - 40-chunk file, 80-col terminal → 2 rows of 40 blocks.
-  - 2500-chunk Merkle file → blocks with boundary markers.
-- Edges:
-  - 1-chunk file → single block.
-  - Terminal narrower than chunk count → wraps correctly.
-
-**Definition of Done**
-- DoD1: Heatmap renders correctly for v1 and v2 manifests.
-- DoD2: Gradient coloring works.
-- DoD3: Terminal width adaptation works.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 13.2 (shared component patterns)
-
----
-
-## Task 13.6: Encryption info card
-
-**User Story**
-As a security-conscious user, I want a clear visual summary of my vault's encryption configuration so I can verify the crypto parameters at a glance.
-
-**Requirements**
-- R1: Render encryption details using bijou `box()` with labeled rows.
-- R2: Show cipher, KDF algorithm, KDF parameters (iterations/cost/blockSize/parallelization), salt (truncated), and key length.
-- R3: Status badge: `● locked` (red) when no key provided, `● unlocked` (green) when key resolved.
-- R4: Integrate into vault dashboard header and `git cas inspect` encryption accordion.
-- R5: Standalone via `git cas vault info --encryption`.
-
-**Acceptance Criteria**
-- AC1: Encryption card renders all KDF parameters.
-- AC2: Correct badge for locked/unlocked state.
-- AC3: Works for both pbkdf2 and scrypt vaults.
-- AC4: Non-encrypted vault → "No encryption configured" message.
-
-**Scope**
-- In scope: Display-only encryption summary.
-- Out of scope: Key verification, passphrase prompting.
-
-**Est. Complexity (LoC)**
-- Prod: ~30
-- Tests: ~10
-- Total: ~40
-
-**Est. Human Working Hours**
-- ~1h
-
-**Test Plan**
-- Golden path:
-  - PBKDF2 vault → shows iterations, salt, key length.
-  - Scrypt vault → shows cost, blockSize, parallelization.
-- Edges:
-  - Non-encrypted vault → "No encryption" message.
-
-**Definition of Done**
-- DoD1: Encryption card renders with correct parameters.
-- DoD2: Badge reflects locked/unlocked state.
-- DoD3: Both KDF algorithms handled.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 13.1 (bijou dependency)
+All tasks completed (13.1–13.6). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
 
 ---
 

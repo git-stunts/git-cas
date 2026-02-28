@@ -28,10 +28,10 @@ export default class WebCryptoAdapter extends CryptoPort {
 
   /** @override */
   async encryptBuffer(buffer, key) {
-    this.#validateKey(key);
+    this._validateKey(key);
     const nonce = this.randomBytes(12);
     const cryptoKey = await this.#importKey(key);
-    
+
     // AES-GCM in Web Crypto includes the tag at the end of the ciphertext
     const encrypted = await globalThis.crypto.subtle.encrypt(
       { name: 'AES-GCM', iv: nonce },
@@ -46,7 +46,7 @@ export default class WebCryptoAdapter extends CryptoPort {
 
     return {
       buf: Buffer.from(ciphertext),
-      meta: this.#buildMeta(nonce, tag),
+      meta: this._buildMeta(this.#toBase64(nonce), this.#toBase64(tag)),
     };
   }
 
@@ -75,13 +75,13 @@ export default class WebCryptoAdapter extends CryptoPort {
 
   /** @override */
   createEncryptionStream(key) {
-    this.#validateKey(key);
+    this._validateKey(key);
     const nonce = this.randomBytes(12);
     const cryptoKeyPromise = this.#importKey(key);
-    
+
     // Web Crypto doesn't have a native streaming AES-GCM API like Node
     // We have to buffer for the one-shot call because GCM tag is computed over the whole thing.
-    // NOTE: This limits the "stream" to memory capacity, matching the project's 
+    // NOTE: This limits the "stream" to memory capacity, matching the project's
     // current CasService.restore limitation.
     const chunks = [];
     let finalTag = null;
@@ -89,11 +89,11 @@ export default class WebCryptoAdapter extends CryptoPort {
     const encrypt = async function* (source) {
       for await (const chunk of source) {
         chunks.push(chunk);
-        // We can't yield partial encrypted chunks for GCM in Web Crypto 
-        // without complex chunk-chaining which would break compatibility 
+        // We can't yield partial encrypted chunks for GCM in Web Crypto
+        // without complex chunk-chaining which would break compatibility
         // with the Node adapter's single-stream GCM.
       }
-      
+
       const buffer = Buffer.concat(chunks);
       const cryptoKey = await cryptoKeyPromise;
       const encrypted = await globalThis.crypto.subtle.encrypt(
@@ -111,53 +111,33 @@ export default class WebCryptoAdapter extends CryptoPort {
     };
 
     const finalize = () => {
-      return this.#buildMeta(nonce, finalTag);
+      return this._buildMeta(this.#toBase64(nonce), this.#toBase64(finalTag));
     };
 
     return { encrypt, finalize };
   }
 
   /** @override */
-  async deriveKey({
-    passphrase,
-    salt,
-    algorithm = 'pbkdf2',
-    iterations = 100_000,
-    cost = 16384,
-    blockSize = 8,
-    parallelization = 1,
-    keyLength = 32,
-  }) {
-    const saltBuf = salt || this.randomBytes(32);
-    const params = { algorithm, salt: this.#toBase64(saltBuf), keyLength };
-
-    const opts = { passphrase, saltBuf, iterations, cost, blockSize, parallelization, keyLength, params };
-    let key;
+  async _doDeriveKey(passphrase, saltBuf, { algorithm, iterations, cost, blockSize, parallelization, keyLength }) {
     if (algorithm === 'pbkdf2') {
-      key = await this.#derivePbkdf2(opts);
-    } else if (algorithm === 'scrypt') {
-      key = await this.#deriveScrypt(opts);
-    } else {
-      throw new Error(`Unsupported KDF algorithm: ${algorithm}`);
+      return this.#derivePbkdf2(passphrase, saltBuf, { iterations, keyLength });
     }
-
-    return { key: Buffer.from(key), salt: Buffer.from(saltBuf), params };
+    return this.#deriveScrypt(passphrase, saltBuf, { cost, blockSize, parallelization, keyLength });
   }
 
-  async #derivePbkdf2({ passphrase, saltBuf, iterations, keyLength, params }) {
+  async #derivePbkdf2(passphrase, saltBuf, params) {
     const enc = new globalThis.TextEncoder();
     const baseKey = await globalThis.crypto.subtle.importKey(
       'raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveBits'],
     );
     const bits = await globalThis.crypto.subtle.deriveBits(
-      { name: 'PBKDF2', salt: saltBuf, iterations, hash: 'SHA-512' },
-      baseKey, keyLength * 8,
+      { name: 'PBKDF2', salt: saltBuf, iterations: params.iterations, hash: 'SHA-512' },
+      baseKey, params.keyLength * 8,
     );
-    params.iterations = iterations;
     return Buffer.from(bits);
   }
 
-  async #deriveScrypt({ passphrase, saltBuf, cost, blockSize, parallelization, keyLength, params }) {
+  async #deriveScrypt(passphrase, saltBuf, params) {
     let scryptCb;
     let promisifyFn;
     try {
@@ -166,13 +146,9 @@ export default class WebCryptoAdapter extends CryptoPort {
     } catch {
       throw new Error('scrypt KDF requires a Node.js-compatible runtime (node:crypto unavailable)');
     }
-    const key = await promisifyFn(scryptCb)(passphrase, saltBuf, keyLength, {
-      N: cost, r: blockSize, p: parallelization,
+    return promisifyFn(scryptCb)(passphrase, saltBuf, params.keyLength, {
+      N: params.cost, r: params.blockSize, p: params.parallelization,
     });
-    params.cost = cost;
-    params.blockSize = blockSize;
-    params.parallelization = parallelization;
-    return key;
   }
 
   /**
@@ -188,42 +164,6 @@ export default class WebCryptoAdapter extends CryptoPort {
       false,
       ['encrypt', 'decrypt']
     );
-  }
-
-  /**
-   * Validates that a key is a 32-byte Buffer or Uint8Array.
-   * @param {Buffer|Uint8Array} key
-   * @throws {CasError} INVALID_KEY_TYPE | INVALID_KEY_LENGTH
-   */
-  #validateKey(key) {
-    if (!globalThis.Buffer?.isBuffer(key) && !(key instanceof Uint8Array)) {
-      throw new CasError(
-        'Encryption key must be a Buffer or Uint8Array',
-        'INVALID_KEY_TYPE',
-      );
-    }
-    if (key.length !== 32) {
-      throw new CasError(
-        `Encryption key must be 32 bytes, got ${key.length}`,
-        'INVALID_KEY_LENGTH',
-        { expected: 32, actual: key.length },
-      );
-    }
-  }
-
-  /**
-   * Builds the encryption metadata object.
-   * @param {Uint8Array} nonce - 12-byte AES-GCM nonce.
-   * @param {Uint8Array} tag - 16-byte GCM authentication tag.
-   * @returns {{ algorithm: string, nonce: string, tag: string, encrypted: boolean }}
-   */
-  #buildMeta(nonce, tag) {
-    return {
-      algorithm: 'aes-256-gcm',
-      nonce: this.#toBase64(nonce),
-      tag: this.#toBase64(tag),
-      encrypted: true,
-    };
   }
 
   /**
