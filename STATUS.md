@@ -1,8 +1,8 @@
 # @git-stunts/cas — Project Status
 
-**Current version:** v4.0.1 (Spit Shine + Cockpit)
+**Current version:** v5.0.0 (Hydra)
 **Last release:** 2026-02-28
-**Test suite:** 618 tests (vitest)
+**Test suite:** 709 tests (vitest)
 **Runtimes:** Node.js 22.x, Bun, Deno
 
 ---
@@ -11,6 +11,7 @@
 
 | Version | Codename | Highlights |
 |---------|----------|------------|
+| v5.0.0 | Hydra | Content-defined chunking (CDC), `ChunkingPort`, buzhash engine, 98% dedup on edits |
 | v4.0.1 | Spit Shine + Cockpit | CryptoPort refactor, `verify` command, `--json` mode, `runAction`, vault list filtering |
 | v4.0.0 | Conduit | ObservabilityPort, `restoreStream()`, parallel chunk I/O, `concurrency` option |
 | v3.1.0 | Bijou | Interactive vault dashboard, animated progress bars, `git cas inspect`, chunk heatmap |
@@ -22,15 +23,7 @@
 
 ## What's next
 
-Three open milestones remain. M10–M12 are larger features.
-
-### M10 — Hydra (~22h)
-Content-defined chunking for dramatically better dedup on versioned files.
-
-- [ ] **10.1** Buzhash rolling hash + CDC chunking engine
-- [ ] **10.2** ChunkingPort abstraction (FixedChunker + CdcChunker adapters)
-- [ ] **10.3** CDC manifest metadata + backward compatibility
-- [ ] **10.4** CDC benchmarks + dedup efficiency comparison
+Two open milestones remain. M11–M12 are larger features.
 
 ### M11 — Locksmith (~20h)
 Multi-recipient encryption via DEK/KEK envelope model.
@@ -55,7 +48,7 @@ Key rotation without re-encrypting data.
 ```
 M8 Spit Shine ──────── ✅ v4.0.1
 M9 Cockpit ─────────── ✅ v4.0.1
-M10 Hydra ──────────── (independent)
+M10 Hydra ──────────── ✅ v5.0.0
 M11 Locksmith ──────── (independent)
   └──► M12 Carousel ── (needs M11)
 ```

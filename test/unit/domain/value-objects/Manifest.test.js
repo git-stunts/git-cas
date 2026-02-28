@@ -119,3 +119,100 @@ describe('Manifest – validation (size and chunks)', () => {
     expect(() => new Manifest(data)).toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Backward compatibility – chunking field
+// ---------------------------------------------------------------------------
+describe('Manifest – backward compatibility (chunking)', () => { // eslint-disable-line max-lines-per-function
+  it('v1 manifest without chunking field is valid', () => {
+    const data = { ...validManifestData(), version: 1 };
+    const m = new Manifest(data);
+    expect(m.version).toBe(1);
+    expect(m.chunking).toBeUndefined();
+  });
+
+  it('v2 manifest without chunking field is valid', () => {
+    const data = { ...validManifestData(), version: 2 };
+    const m = new Manifest(data);
+    expect(m.version).toBe(2);
+    expect(m.chunking).toBeUndefined();
+  });
+
+  it('v1 manifest WITH chunking field is valid', () => {
+    const data = {
+      ...validManifestData(),
+      version: 1,
+      chunking: { strategy: 'fixed', params: { chunkSize: 262144 } },
+    };
+    const m = new Manifest(data);
+    expect(m.chunking).toEqual(data.chunking);
+  });
+
+  it('v2 manifest with subManifests and chunking is valid', () => {
+    const data = {
+      ...validManifestData(),
+      version: 2,
+      chunking: { strategy: 'cdc', params: { target: 262144, min: 65536, max: 1048576 } },
+      subManifests: [{ oid: 'abc123', chunkCount: 5, startIndex: 0 }],
+    };
+    const m = new Manifest(data);
+    expect(m.chunking.strategy).toBe('cdc');
+    expect(m.subManifests).toHaveLength(1);
+  });
+
+  it('manifest with encryption + compression + chunking is valid', () => {
+    const data = {
+      ...validManifestData(),
+      encryption: {
+        algorithm: 'aes-256-gcm',
+        nonce: 'bm9uY2U=',
+        tag: 'dGFn',
+        encrypted: true,
+      },
+      compression: { algorithm: 'gzip' },
+      chunking: { strategy: 'fixed', params: { chunkSize: 131072 } },
+    };
+    const m = new Manifest(data);
+    expect(m.encryption.algorithm).toBe('aes-256-gcm');
+    expect(m.compression.algorithm).toBe('gzip');
+    expect(m.chunking.strategy).toBe('fixed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Chunking value object – access and freezing
+// ---------------------------------------------------------------------------
+describe('Manifest – chunking value object', () => {
+  it('manifest created with chunking exposes accessible and frozen chunking', () => {
+    const data = {
+      ...validManifestData(),
+      chunking: { strategy: 'fixed', params: { chunkSize: 262144 } },
+    };
+    const m = new Manifest(data);
+    expect(m.chunking).toBeDefined();
+    expect(m.chunking.strategy).toBe('fixed');
+    expect(m.chunking.params.chunkSize).toBe(262144);
+    expect(Object.isFrozen(m)).toBe(true);
+  });
+
+  it('manifest created without chunking has undefined chunking', () => {
+    const m = new Manifest(validManifestData());
+    expect(m.chunking).toBeUndefined();
+  });
+
+  it('toJSON includes chunking when present', () => {
+    const data = {
+      ...validManifestData(),
+      chunking: { strategy: 'cdc', params: { target: 262144, min: 65536, max: 1048576 } },
+    };
+    const m = new Manifest(data);
+    const json = m.toJSON();
+    expect(json.chunking).toEqual(data.chunking);
+  });
+
+  it('toJSON omits chunking when absent (undefined)', () => {
+    const m = new Manifest(validManifestData());
+    const json = m.toJSON();
+    expect(json.chunking).toBeUndefined();
+  });
+});

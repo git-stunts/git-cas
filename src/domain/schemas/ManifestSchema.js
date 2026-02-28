@@ -38,6 +38,30 @@ export const CompressionSchema = z.object({
   algorithm: z.enum(['gzip']),
 });
 
+/** Validates fixed-size chunking parameters. */
+export const FixedChunkingSchema = z.object({
+  strategy: z.literal('fixed'),
+  params: z.object({
+    chunkSize: z.number().int().positive(),
+  }),
+});
+
+/** Validates content-defined chunking (CDC) parameters. */
+export const CdcChunkingSchema = z.object({
+  strategy: z.literal('cdc'),
+  params: z.object({
+    target: z.number().int().positive(),
+    min: z.number().int().positive(),
+    max: z.number().int().positive(),
+  }),
+});
+
+/** Validates chunking metadata (fixed or CDC). */
+export const ChunkingSchema = z.discriminatedUnion('strategy', [
+  FixedChunkingSchema,
+  CdcChunkingSchema,
+]);
+
 /** Validates a sub-manifest reference in a v2 Merkle manifest. */
 export const SubManifestRefSchema = z.object({
   oid: z.string().min(1),
@@ -54,5 +78,6 @@ export const ManifestSchema = z.object({
   chunks: z.array(ChunkSchema),
   encryption: EncryptionSchema.optional(),
   compression: CompressionSchema.optional(),
+  chunking: ChunkingSchema.optional(),
   subManifests: z.array(SubManifestRefSchema).optional(),
 });

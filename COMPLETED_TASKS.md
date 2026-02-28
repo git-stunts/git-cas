@@ -4,6 +4,19 @@ Task cards moved here from ROADMAP.md after completion. Organized by milestone.
 
 ---
 
+# M10 — Hydra (v5.0.0) ✅ CLOSED
+
+**Theme:** Content-defined chunking for dramatically better dedup on versioned files.
+
+**Completed:** v5.0.0 (2026-02-28)
+
+- **Task 10.1:** Buzhash rolling hash + CDC chunking engine — standalone module (`src/infrastructure/chunkers/CdcChunker.js`) with 256-entry deterministic byte table, configurable min/max/target chunk sizes, streaming async generator. Benchmarked at 265 MB/s, 98.4% chunk reuse on small edits.
+- **Task 10.2:** `ChunkingPort` abstraction — new hexagonal port with `async *chunk(source)`, `strategy`, and `params`. `FixedChunker` and `CdcChunker` adapters. `CasService` refactored to delegate chunking to the port. Facade accepts `chunking` config and raw `chunker` option.
+- **Task 10.3:** CDC manifest metadata + backward compatibility — `ChunkingSchema` (Zod discriminated union), optional `chunking` field in `ManifestSchema`, `INVALID_CHUNKING_STRATEGY` error code. Old manifests remain valid.
+- **Task 10.4:** CDC benchmarks + dedup efficiency comparison (`test/benchmark/chunking.bench.js`) — throughput and dedup tables comparing CDC vs fixed chunking.
+
+---
+
 # M8 — Spit Shine (v4.0.1) ✅ CLOSED
 
 **Theme:** Polish and harden based on code review findings. Fix asymmetries, eliminate duplication, improve docs. No new features.

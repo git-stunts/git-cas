@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import Manifest from '../value-objects/Manifest.js';
 import CasError from '../errors/CasError.js';
 import Semaphore from './Semaphore.js';
+import FixedChunker from '../../infrastructure/chunkers/FixedChunker.js';
 
 const gunzipAsync = promisify(gunzip);
 
@@ -28,8 +29,9 @@ export default class CasService {
    * @param {number} [options.chunkSize=262144] - 256 KiB
    * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
+   * @param {import('../../ports/ChunkingPort.js').default} [options.chunker] - Chunking strategy (default FixedChunker).
    */
-  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1 }) {
+  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker }) {
     CasService._validateObservability(observability);
     if (chunkSize < 1024) {
       throw new Error('Chunk size must be at least 1024 bytes');
@@ -39,6 +41,8 @@ export default class CasService {
     this.crypto = crypto;
     this.observability = observability;
     this.chunkSize = chunkSize;
+    /** @type {import('../../ports/ChunkingPort.js').default} */
+    this.chunker = chunker || new FixedChunker({ chunkSize });
     if (!Number.isInteger(merkleThreshold) || merkleThreshold < 1) {
       throw new Error('Merkle threshold must be a positive integer');
     }
@@ -90,14 +94,14 @@ export default class CasService {
   }
 
   /**
-   * Reads an async iterable source, splits it into fixed-size chunks, and stores each in Git.
+   * Reads an async iterable source, splits it into chunks via the configured
+   * chunker, and stores each chunk in Git.
    * @private
    * @param {AsyncIterable<Buffer>} source - The data source to chunk.
    * @param {Object} manifestData - Mutable manifest accumulator.
    * @throws {CasError} STREAM_ERROR if the source stream fails.
    */
   async _chunkAndStore(source, manifestData) {
-    let buffer = Buffer.alloc(0);
     const sem = new Semaphore(this.concurrency);
     const pending = [];
     let nextIndex = 0;
@@ -114,12 +118,8 @@ export default class CasService {
     };
 
     try {
-      for await (const chunk of source) {
-        buffer = Buffer.concat([buffer, chunk]);
-        while (buffer.length >= this.chunkSize) {
-          launchWrite(buffer.slice(0, this.chunkSize), nextIndex++);
-          buffer = buffer.slice(this.chunkSize);
-        }
+      for await (const chunk of this.chunker.chunk(source)) {
+        launchWrite(chunk, nextIndex++);
       }
     } catch (err) {
       await Promise.allSettled(pending);
@@ -132,10 +132,6 @@ export default class CasService {
       await Promise.allSettled(pending);
       this.observability.metric('error', { code: casErr.code, message: casErr.message });
       throw casErr;
-    }
-
-    if (buffer.length > 0) {
-      launchWrite(buffer, nextIndex++);
     }
 
     const results = await Promise.all(pending);
@@ -221,6 +217,24 @@ export default class CasService {
   }
 
   /**
+   * Validates that a chunking strategy is recognized.
+   * @param {Object} [chunking] - Chunking options from a manifest.
+   * @throws {CasError} INVALID_CHUNKING_STRATEGY if the strategy is unrecognized.
+   * @private
+   */
+  _validateChunking(chunking) {
+    if (!chunking) { return; }
+    const validStrategies = ['fixed', 'cdc'];
+    if (!validStrategies.includes(chunking.strategy)) {
+      throw new CasError(
+        `Unsupported chunking strategy: ${chunking.strategy}`,
+        'INVALID_CHUNKING_STRATEGY',
+        { strategy: chunking.strategy },
+      );
+    }
+  }
+
+  /**
    * Chunks an async iterable source and stores it in Git.
    *
    * If `encryptionKey` is provided, the content (and manifest) will be encrypted
@@ -252,6 +266,14 @@ export default class CasService {
     }
 
     const manifestData = { slug, filename, size: 0, chunks: [] };
+
+    // Record chunking metadata for non-default strategies
+    if (this.chunker.strategy !== 'fixed') {
+      manifestData.chunking = {
+        strategy: this.chunker.strategy,
+        params: this.chunker.params,
+      };
+    }
 
     let processedSource = source;
     if (compression) {

@@ -20,6 +20,31 @@ import type {
 export { CasService, Manifest, Chunk };
 export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult };
 
+/** Abstract port for splitting a byte stream into chunks. */
+export declare class ChunkingPort {
+  get strategy(): string;
+  get params(): Record<string, unknown>;
+  chunk(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
+}
+
+/** Fixed-size chunking adapter. */
+export declare class FixedChunker extends ChunkingPort {
+  constructor(options?: { chunkSize?: number });
+  get strategy(): "fixed";
+  get params(): { chunkSize: number };
+}
+
+/** Content-defined chunking adapter using buzhash rolling hash. */
+export declare class CdcChunker extends ChunkingPort {
+  constructor(options?: {
+    minChunkSize?: number;
+    maxChunkSize?: number;
+    targetChunkSize?: number;
+  });
+  get strategy(): "cdc";
+  get params(): { target: number; min: number; max: number };
+}
+
 /** Abstract port for cryptographic operations. */
 export declare class CryptoPortBase {
   sha256(buf: Buffer): string | Promise<string>;
@@ -125,6 +150,15 @@ export declare class StatsCollector {
   };
 }
 
+/** Declarative chunking strategy configuration. */
+export interface ChunkingConfig {
+  strategy: "fixed" | "cdc";
+  chunkSize?: number;
+  targetChunkSize?: number;
+  minChunkSize?: number;
+  maxChunkSize?: number;
+}
+
 /** Constructor options for {@link ContentAddressableStore}. */
 export interface ContentAddressableStoreOptions {
   plumbing: unknown;
@@ -135,6 +169,8 @@ export interface ContentAddressableStoreOptions {
   policy?: unknown;
   merkleThreshold?: number;
   concurrency?: number;
+  chunking?: ChunkingConfig;
+  chunker?: ChunkingPort;
 }
 
 /** A single vault entry. */

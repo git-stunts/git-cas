@@ -29,6 +29,9 @@ export default class Manifest {
       this.chunks = data.chunks.map((c) => new Chunk(c));
       this.encryption = data.encryption ? { ...data.encryption } : undefined;
       this.compression = data.compression ? { ...data.compression } : undefined;
+      this.chunking = data.chunking
+        ? { strategy: data.chunking.strategy, params: { ...data.chunking.params } }
+        : undefined;
       this.subManifests = data.subManifests ? data.subManifests.map((s) => ({ ...s })) : undefined;
       Object.freeze(this);
     } catch (error) {
@@ -52,6 +55,7 @@ export default class Manifest {
       chunks: this.chunks,
       encryption: this.encryption,
       compression: this.compression,
+      chunking: this.chunking,
       subManifests: this.subManifests,
     };
   }

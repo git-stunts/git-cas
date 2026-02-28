@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] — Hydra (2026-02-28)
+
+### Breaking Changes
+- **`CasService` constructor accepts `chunker` port** — a new optional `ChunkingPort` parameter controls chunking strategy. Existing code that does not pass `chunker` is unaffected (defaults to `FixedChunker`).
+- **Major version bump** — new hexagonal port (`ChunkingPort`) and manifest schema extension warrant a semver-major release for downstream tooling awareness.
+
+### Added
+- **Content-defined chunking (CDC)** — Buzhash rolling-hash engine with configurable `minChunkSize` (64 KiB), `maxChunkSize` (1 MiB), and `targetChunkSize` (256 KiB). CDC limits the dedup blast radius to 1–2 chunks on incremental edits vs. total invalidation with fixed-size chunking. Benchmarked at 265 MB/s and 98.4% chunk reuse on small edits.
+- **`ChunkingPort`** — new hexagonal port (`src/ports/ChunkingPort.js`) with `async *chunk(source)`, `strategy`, and `params`. Abstracts chunking behind a pluggable interface.
+- **`FixedChunker`** — adapter wrapping existing fixed-size buffer slicing behind `ChunkingPort`.
+- **`CdcChunker`** — adapter wrapping the buzhash CDC engine behind `ChunkingPort`.
+- **`chunking` manifest field** — optional `{ strategy: 'fixed' | 'cdc', params: {...} }` metadata in manifests. Fixed-strategy manifests omit the field for full backward compatibility.
+- **`ChunkingSchema`** — Zod discriminated union (`FixedChunkingSchema` + `CdcChunkingSchema`) for manifest validation.
+- **`INVALID_CHUNKING_STRATEGY` error code** — thrown when an unrecognized chunking strategy is encountered in a manifest.
+- **Facade `chunking` config** — `ContentAddressableStore` constructor accepts `chunking: { strategy, ... }` declarative config or a raw `chunker` port instance.
+- **CDC benchmarks** (`test/benchmark/chunking.bench.js`) — throughput and dedup efficiency comparison.
+- 90 new unit tests (709 total).
+
+### Changed
+- `CasService._chunkAndStore()` refactored to delegate to `ChunkingPort` instead of inline buffer slicing.
+- `ChunkingPort`, `FixedChunker`, `CdcChunker` exported from the main entry point.
+
 ## [4.0.1] — M8 Spit Shine + M9 Cockpit (2026-02-28)
 
 ### Added

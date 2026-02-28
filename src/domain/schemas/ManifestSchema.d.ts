@@ -38,6 +38,30 @@ export declare const CompressionSchema: z.ZodObject<{
   algorithm: z.ZodEnum<["gzip"]>;
 }>;
 
+/** Validates fixed-size chunking parameters. */
+export declare const FixedChunkingSchema: z.ZodObject<{
+  strategy: z.ZodLiteral<"fixed">;
+  params: z.ZodObject<{
+    chunkSize: z.ZodNumber;
+  }>;
+}>;
+
+/** Validates content-defined chunking (CDC) parameters. */
+export declare const CdcChunkingSchema: z.ZodObject<{
+  strategy: z.ZodLiteral<"cdc">;
+  params: z.ZodObject<{
+    target: z.ZodNumber;
+    min: z.ZodNumber;
+    max: z.ZodNumber;
+  }>;
+}>;
+
+/** Validates chunking metadata (fixed or CDC). */
+export declare const ChunkingSchema: z.ZodDiscriminatedUnion<
+  "strategy",
+  [typeof FixedChunkingSchema, typeof CdcChunkingSchema]
+>;
+
 /** Validates a sub-manifest reference in a v2 Merkle manifest. */
 export declare const SubManifestRefSchema: z.ZodObject<{
   oid: z.ZodString;
@@ -54,5 +78,6 @@ export declare const ManifestSchema: z.ZodObject<{
   chunks: z.ZodArray<typeof ChunkSchema>;
   encryption: z.ZodOptional<typeof EncryptionSchema>;
   compression: z.ZodOptional<typeof CompressionSchema>;
+  chunking: z.ZodOptional<typeof ChunkingSchema>;
   subManifests: z.ZodOptional<z.ZodArray<typeof SubManifestRefSchema>>;
 }>;

@@ -189,7 +189,7 @@ Return and throw semantics for every public method (current and planned).
 | v4.0.1  | M8+M9     | Spit Shine + Cockpit | CryptoPort refactor, verify, --json, error handler, vault list | ✅ |
 | v4.0.0  | M14       | Conduit  | Streaming I/O, observability, parallel chunks | ✅ |
 | v3.1.0  | M13       | Bijou    | TUI dashboard & progress | ✅ |
-| v5.0.0  | M10       | Hydra    | Content-defined chunking | |
+| v5.0.0  | M10       | Hydra    | Content-defined chunking | ✅ |
 | v5.1.0  | M11       | Locksmith | Multi-recipient encryption | |
 | v5.2.0  | M12       | Carousel | Key rotation | |
 
@@ -203,7 +203,7 @@ M13 Bijou (v3.1.0) ✅
 M14 Conduit (v4.0.0) ✅
 M8 Spit Shine + M9 Cockpit (v4.0.1) ✅
 
-M10 Hydra ──────────── (independent)
+M10 Hydra ──────────── ✅ v5.0.0
 M11 Locksmith ──────── (independent)
   └──► M12 Carousel ── (needs M11)
 ```
@@ -246,239 +246,9 @@ All tasks completed (9.2–9.5). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
 
 ---
 
-# M10 — Hydra (v3.0.0)
-**Theme:** Content-defined chunking for dramatically better dedup on versioned files. Fixed-size chunking invalidates every chunk after an edit; CDC limits the blast radius to 1–2 chunks. Major version bump for new chunking port and manifest metadata.
+# M10 — Hydra (v5.0.0) ✅ CLOSED
 
----
-
-## Task 10.1: Buzhash rolling hash + CDC chunking engine
-
-**User Story**
-As a developer storing versioned files, I want content-defined chunk boundaries so incremental changes don't invalidate every chunk downstream of the edit point.
-
-**Requirements**
-- R1: Implement Buzhash rolling hash algorithm with a 256-entry random byte table (deterministic seed).
-- R2: Implement CDC chunker that uses rolling hash to find chunk boundaries.
-- R3: Configurable parameters: `minChunkSize` (default 64 KiB), `maxChunkSize` (default 1 MiB), `targetChunkSize` (default 256 KiB).
-- R4: Chunk boundary determined when `hash & mask === 0`, where mask is derived from `targetChunkSize` (e.g., `targetChunkSize - 1` for power-of-2 targets).
-- R5: Force boundary at `maxChunkSize` if no natural boundary found (prevent unbounded chunks).
-- R6: Force minimum chunk size: never split below `minChunkSize` (prevent tiny chunks).
-- R7: Deterministic: same input always produces same chunks regardless of runtime.
-- R8: Streaming: operates on `AsyncIterable<Buffer>` with O(1) memory.
-
-**Acceptance Criteria**
-- AC1: CDC chunker produces variable-size chunks bounded by min/max.
-- AC2: Identical input always produces identical chunks (deterministic).
-- AC3: Inserting 10 bytes in the middle of a 1MB file changes only 1–2 chunks (not all downstream chunks).
-- AC4: Average chunk size approximates `targetChunkSize`.
-- AC5: No chunk smaller than `minChunkSize` (except final chunk of file).
-- AC6: No chunk larger than `maxChunkSize`.
-
-**Scope**
-- In scope: Rolling hash + CDC chunker implementation + unit tests.
-- Out of scope: Integration with CasService (Task 10.2), Rabin fingerprinting (Buzhash is simpler and sufficient), gear-based CDC.
-
-**Est. Complexity (LoC)**
-- Prod: ~200 (Buzhash table + rolling hash + CDC logic)
-- Tests: ~150 (determinism, boundary detection, size bounds, dedup)
-- Total: ~350
-
-**Est. Human Working Hours**
-- ~12h
-
-**Test Plan**
-- Golden path:
-  - 1MB buffer → produces ~4 chunks (target 256KB).
-  - Same buffer → same chunks every time.
-  - Modify 10 bytes at offset 500KB → only 1–2 chunks differ vs. original.
-- Failures:
-  - minChunkSize > maxChunkSize → throws configuration error.
-  - targetChunkSize outside [min, max] → throws.
-- Edges:
-  - File smaller than minChunkSize → single chunk.
-  - File exactly maxChunkSize → single chunk.
-  - All-zero file (degenerate hash behavior) → chunks bounded by max.
-  - File = 1 byte → single chunk.
-- Fuzz/stress:
-  - 100 random buffers (1KB–10MB, seeded): verify all chunks satisfy min/max bounds.
-  - Determinism: chunk same buffer 100 times, assert identical output.
-  - Dedup test: insert/delete 1–100 bytes at random offsets, measure % of chunks unchanged (expect >80% for small edits).
-
-**Definition of Done**
-- DoD1: Buzhash + CDC chunker implemented as standalone module under `src/infrastructure/chunkers/`.
-- DoD2: All boundary and determinism tests pass.
-- DoD3: Performance: >100 MB/s throughput on chunking alone (no I/O).
-
-**Blocking**
-- Blocks: Task 10.2, Task 10.4
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 10.2: ChunkingPort abstraction
-
-**User Story**
-As an architect, I want chunking strategy behind a port so fixed-size and CDC can be swapped without modifying the domain service.
-
-**Requirements**
-- R1: Add `src/ports/ChunkingPort.js` with abstract method `chunk(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>`.
-- R2: Implement `FixedChunker` adapter wrapping existing `_chunkAndStore` buffer-slicing logic.
-- R3: Implement `CdcChunker` adapter wrapping Task 10.1's CDC engine.
-- R4: `CasService` constructor accepts optional `chunker` port. Defaults to `FixedChunker(chunkSize)`.
-- R5: Refactor `CasService._chunkAndStore()` to use the chunking port instead of inline buffer slicing.
-- R6: `ContentAddressableStore` constructor accepts optional `chunking` config: `{ strategy: 'fixed' | 'cdc', …params }`.
-
-**Acceptance Criteria**
-- AC1: `CasService({ chunker: new CdcChunker(…) })` uses CDC.
-- AC2: Default behavior (no chunker specified) is identical to current fixed-size chunking.
-- AC3: All existing store/restore tests pass without modification.
-- AC4: CDC chunker plugs in and produces valid manifests that restore correctly.
-
-**Scope**
-- In scope: Port + 2 adapters + CasService refactor + facade config.
-- Out of scope: Additional chunking strategies, auto-detection of optimal strategy.
-
-**Est. Complexity (LoC)**
-- Prod: ~80 (port + 2 adapters + service refactor + facade config)
-- Tests: ~40 (port contract tests, integration with both chunkers)
-- Total: ~120
-
-**Est. Human Working Hours**
-- ~4h
-
-**Test Plan**
-- Golden path:
-  - Store with FixedChunker → same behavior as before (byte-identical manifests).
-  - Store with CdcChunker → valid manifest, restore succeeds.
-- Failures:
-  - Chunker that yields empty buffers → handled gracefully (skip empty).
-- Edges:
-  - Switch chunker between store and restore → restore still works (chunking strategy doesn't affect restore — chunks are self-describing via manifest).
-- Fuzz/stress:
-  - 50 random files stored with both chunkers → all restore correctly.
-
-**Definition of Done**
-- DoD1: ChunkingPort, FixedChunker, CdcChunker implemented.
-- DoD2: CasService uses chunking port.
-- DoD3: All existing tests pass (no regression).
-
-**Blocking**
-- Blocks: Task 10.3
-
-**Blocked By**
-- Blocked by: Task 10.1
-
----
-
-## Task 10.3: CDC manifest metadata + backward compatibility
-
-**User Story**
-As a user, I want CDC manifests to record their chunking strategy so future tools can understand or reproduce the chunk boundaries.
-
-**Requirements**
-- R1: Add optional `chunking` field to ManifestSchema: `{ strategy: 'fixed' | 'cdc', params: { … } }`.
-- R2: Fixed-size manifests omit the field (backward compatible with all existing manifests).
-- R3: CDC manifests include `{ strategy: 'cdc', params: { target: N, min: N, max: N } }`.
-- R4: `readManifest()` handles manifests with or without `chunking` field.
-- R5: v1 and v2 manifests remain valid (no migration required).
-- R6: Add `INVALID_CHUNKING_STRATEGY` error code for unrecognized strategies.
-
-**Acceptance Criteria**
-- AC1: CDC store produces manifest with `chunking` field.
-- AC2: Fixed-size store produces manifests without `chunking` field (backward compatible).
-- AC3: Old manifests (no `chunking` field) read correctly on new code.
-- AC4: Unrecognized strategy in manifest throws `INVALID_CHUNKING_STRATEGY`.
-
-**Scope**
-- In scope: Schema extension, backward compat, error code.
-- Out of scope: Migration tooling for old manifests, manifest version bump (chunking field is additive).
-
-**Est. Complexity (LoC)**
-- Prod: ~40 (schema + Manifest value object + error code)
-- Tests: ~60 (round-trip, backward compat, unknown strategy)
-- Total: ~100
-
-**Est. Human Working Hours**
-- ~3h
-
-**Test Plan**
-- Golden path:
-  - CDC store → manifest includes `chunking.strategy === 'cdc'`.
-  - Fixed store → manifest has no `chunking` field.
-  - Read old manifest without `chunking` → works fine.
-- Failures:
-  - Manifest with `chunking.strategy === 'unknown'` → throws INVALID_CHUNKING_STRATEGY.
-- Edges:
-  - v1 manifest with compression + encryption + no chunking field → still valid.
-  - v2 merkle manifest with CDC → both `subManifests` and `chunking` fields present.
-- Fuzz/stress:
-  - Generate 100 manifests with random valid/invalid chunking fields → validate schema behavior.
-
-**Definition of Done**
-- DoD1: ManifestSchema extended with optional chunking field.
-- DoD2: Backward compatibility verified across v1/v2 manifests.
-- DoD3: Error code registered and tested.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 10.2
-
----
-
-## Task 10.4: CDC benchmarks + dedup efficiency comparison
-
-**User Story**
-As a maintainer, I want empirical data comparing CDC vs fixed chunking so I can document trade-offs and tune defaults.
-
-**Requirements**
-- R1: Add benchmark suite comparing fixed vs CDC chunking across file sizes (1MB, 10MB, 100MB).
-- R2: Measure chunking throughput (MB/s) for both strategies.
-- R3: Measure dedup efficiency: for a file modified by N random byte insertions, what % of chunks remain unchanged?
-- R4: Output results as a comparison table (console).
-
-**Acceptance Criteria**
-- AC1: Benchmark suite runs without errors.
-- AC2: CDC shows significantly better dedup for incrementally modified files (>80% chunk reuse for small edits vs. ~0% for fixed).
-- AC3: CDC throughput is within 2× of fixed chunking (rolling hash overhead is bounded).
-
-**Scope**
-- In scope: Synthetic benchmarks with in-memory data.
-- Out of scope: CI benchmark tracking, real-world file corpus, regression detection.
-
-**Est. Complexity (LoC)**
-- Prod: ~0
-- Tests/Bench: ~120
-- Total: ~120
-
-**Est. Human Working Hours**
-- ~3h
-
-**Test Plan**
-- Golden path:
-  - Bench suite completes and prints results table.
-- Failures:
-  - N/A (benchmarks are informational).
-- Edges:
-  - Include 0-byte and 1-byte files in benchmark.
-- Fuzz/stress:
-  - Run 3 times; verify <20% variance in throughput measurements.
-
-**Definition of Done**
-- DoD1: Benchmark suite added to `test/benchmark/`.
-- DoD2: Results documented in commit message or GUIDE.md addendum.
-- DoD3: Default CDC parameters tuned based on results if needed.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 10.1
-
----
+All tasks completed (10.1–10.4). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
 
 # M11 — Locksmith (v3.1.0)
 **Theme:** Multi-recipient encryption via envelope encryption (DEK/KEK model). Each file is encrypted with a random Data Encryption Key; the DEK is wrapped per-recipient. Adding or removing access never re-encrypts the data.
@@ -961,7 +731,7 @@ Competitive landscape for content-addressed storage, encrypted binary assets, an
 |---|---|---|---|---|---|---|---|---|---|---|
 | Content-addressed storage | ✅ SHA-256 | — | ✅ SHA-256 | ✅ SHA-256/512 | ✅ SHA-256 | ❌ | ✅ MD5 | Dedup, integrity, immutability | git-cas is Git-native; others use separate object stores | — |
 | Fixed-size chunking | ✅ 256 KiB default, configurable | — | ❌ | ⚠️ Special remotes only | ❌ | ❌ | ❌ | Break large files into stable blobs | Simple and deterministic; poor dedup on edits | — |
-| Content-defined chunking (CDC) | ❌ | 🗓 M10 Hydra | ❌ | ❌ | ✅ Rabin fingerprint, 512K–8M | ❌ | ❌ | Sub-file dedup on versioned data | Only Restic offers this today; dramatically better dedup | Buzhash engine + ChunkingPort. ~350 LoC, ~12h (Task 10.1) |
+| Content-defined chunking (CDC) | ✅ v5.0.0 Buzhash | — | ❌ | ❌ | ✅ Rabin fingerprint, 512K–8M | ❌ | ❌ | Sub-file dedup on versioned data | Buzhash CDC engine with 98% chunk reuse on small edits | — |
 | Sub-file deduplication | ✅ Via chunking | ✅ Via CDC | ❌ | ⚠️ Chunk-level only | ✅ Via CDC | ❌ | ❌ | Avoid storing redundant bytes | Fixed chunks dedup exact matches; CDC handles shifted content | CDC (M10) improves from exact-match to shift-tolerant |
 | File-level deduplication | ✅ Git ODB | — | ✅ | ✅ | ✅ | ❌ | ✅ | Identical files stored once | All CAS systems get this for free | — |
 | Git-native storage (ODB) | ✅ Blobs + trees | — | ❌ Separate LFS store | ⚠️ Pointers in ODB, content in annex | ❌ Custom format | ❌ | ❌ Cache dir | Inspectable via `git log`, replicable via `git push` | Unique to git-cas. Competitors use custom storage layers | — |
@@ -1005,7 +775,7 @@ Competitive landscape for content-addressed storage, encrypted binary assets, an
 | Codec pluggability | ✅ JsonCodec, CborCodec | — | ❌ | ❌ | ❌ | ❌ | ❌ | Choose manifest format per use case | Extensible via CodecPort. No other tool offers this | — |
 | Merkle tree manifests | ✅ v2 auto-split | — | ❌ | ❌ | ❌ | ❌ | ❌ | Scale manifests for millions of chunks | Auto-splits at threshold (default 1000). Transparent reconstitution | — |
 | Vault / ref-based indexing | ✅ refs/cas/vault | — | ❌ | ✅ git-annex branch | ❌ | ❌ | ❌ | GC-safe asset index that survives `git gc` | CAS semantics with retry. Unique among Git-native tools | — |
-| Manifest versioning | ✅ v1 flat, v2 Merkle | 🗓 M10 adds chunking field | Pointer v1 only | ❌ | ❌ | ❌ | ❌ | Evolve format without breaking old manifests | Full backward compat: v2 code reads v1 manifests | Additive schema fields for CDC metadata (Task 10.3) |
+| Manifest versioning | ✅ v1 flat, v2 Merkle + chunking | — | Pointer v1 only | ❌ | ❌ | ❌ | ❌ | Evolve format without breaking old manifests | Full backward compat: v2 code reads v1 manifests | — |
 
 ---
 

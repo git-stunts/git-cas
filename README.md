@@ -44,6 +44,21 @@ We use the object database.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 
+## What's new in v5.0.0
+
+**Content-defined chunking (CDC)** — Fixed-size chunking invalidates every chunk after an edit. CDC uses a buzhash rolling hash to find natural boundaries, limiting the blast radius to 1–2 chunks. Benchmarked at 98.4% chunk reuse on small edits vs 32% for fixed.
+
+```js
+const cas = new ContentAddressableStore({
+  plumbing,
+  chunking: { strategy: 'cdc', targetChunkSize: 262144, minChunkSize: 65536, maxChunkSize: 1048576 },
+});
+```
+
+**`ChunkingPort`** — new hexagonal port abstracts chunking strategy. `FixedChunker` and `CdcChunker` adapters ship out of the box. Bring your own chunker by extending `ChunkingPort`.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
+
 ## What's new in v4.0.1
 
 **`git cas verify`** — verify stored asset integrity from the CLI without restoring (`git cas verify --slug my-asset`).

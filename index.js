@@ -15,12 +15,15 @@ import NodeCryptoAdapter from './src/infrastructure/adapters/NodeCryptoAdapter.j
 import Manifest from './src/domain/value-objects/Manifest.js';
 import Chunk from './src/domain/value-objects/Chunk.js';
 import CryptoPort from './src/ports/CryptoPort.js';
+import ChunkingPort from './src/ports/ChunkingPort.js';
 import ObservabilityPort from './src/ports/ObservabilityPort.js';
 import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
 import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
 import EventEmitterObserver from './src/infrastructure/adapters/EventEmitterObserver.js';
 import StatsCollector from './src/infrastructure/adapters/StatsCollector.js';
+import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
+import CdcChunker from './src/infrastructure/chunkers/CdcChunker.js';
 
 export {
   CasService,
@@ -29,6 +32,7 @@ export {
   GitRefAdapter,
   NodeCryptoAdapter,
   CryptoPort,
+  ChunkingPort,
   ObservabilityPort,
   Manifest,
   Chunk,
@@ -37,6 +41,8 @@ export {
   SilentObserver,
   EventEmitterObserver,
   StatsCollector,
+  FixedChunker,
+  CdcChunker,
 };
 
 /**
@@ -72,8 +78,10 @@ export default class ContentAddressableStore {
    * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy for Git I/O.
    * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
+   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
+   * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance (advanced).
    */
-  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency }) {
+  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker }) {
     this.plumbing = plumbing;
     this.chunkSizeConfig = chunkSize;
     this.codecConfig = codec;
@@ -82,6 +90,8 @@ export default class ContentAddressableStore {
     this.observabilityConfig = observability;
     this.merkleThresholdConfig = merkleThreshold;
     this.concurrencyConfig = concurrency;
+    this.chunkingConfig = chunking;
+    this.chunkerConfig = chunker;
     this.service = null;
     this.#servicePromise = null;
   }
@@ -103,6 +113,34 @@ export default class ContentAddressableStore {
   }
 
   /**
+   * Resolves the chunker from config options.
+   * @private
+   * @returns {import('./src/ports/ChunkingPort.js').default|undefined}
+   */
+  #resolveChunker() {
+    // Direct ChunkingPort instance takes precedence
+    if (this.chunkerConfig) {
+      return this.chunkerConfig;
+    }
+    // Build from declarative chunking config
+    if (this.chunkingConfig) {
+      if (this.chunkingConfig.strategy === 'cdc') {
+        return new CdcChunker({
+          targetChunkSize: this.chunkingConfig.targetChunkSize,
+          minChunkSize: this.chunkingConfig.minChunkSize,
+          maxChunkSize: this.chunkingConfig.maxChunkSize,
+        });
+      }
+      // 'fixed' or unrecognized — fall through to default (FixedChunker via CasService)
+      if (this.chunkingConfig.strategy === 'fixed' && this.chunkingConfig.chunkSize) {
+        return new FixedChunker({ chunkSize: this.chunkingConfig.chunkSize });
+      }
+    }
+    // undefined → CasService will default to FixedChunker
+    return undefined;
+  }
+
+  /**
    * Constructs adapters, resolves crypto, and creates CasService + VaultService.
    * @private
    * @returns {Promise<CasService>}
@@ -113,6 +151,7 @@ export default class ContentAddressableStore {
       policy: this.policyConfig
     });
     const crypto = this.cryptoConfig || await getDefaultCryptoAdapter();
+    const chunker = this.#resolveChunker();
     this.service = new CasService({
       persistence,
       chunkSize: this.chunkSizeConfig,
@@ -121,6 +160,7 @@ export default class ContentAddressableStore {
       observability: this.observabilityConfig || new SilentObserver(),
       merkleThreshold: this.merkleThresholdConfig,
       concurrency: this.concurrencyConfig,
+      chunker,
     });
 
     const ref = new GitRefAdapter({
