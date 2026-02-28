@@ -16,8 +16,8 @@ export default class EventEmitterObserver {
    * Error metrics are only emitted when listeners are attached (matching
    * the previous CasService behavior that guarded `this.emit('error', ...)`).
    *
-   * @param {string} channel
-   * @param {Object} data - Must include `action` to form the event name.
+   * @param {string} channel - Metric channel.
+   * @param {Record<string, unknown> & { action: string }} data - Must include `action` to form the event name.
    */
   metric(channel, data) {
     if (channel === 'error') {
@@ -26,21 +26,33 @@ export default class EventEmitterObserver {
       }
       return;
     }
+    if (typeof data.action !== 'string') {
+      return;
+    }
     const eventName = `${channel}:${data.action}`;
     const payload = Object.fromEntries(Object.entries(data).filter(([k]) => k !== 'action'));
     this.#emitter.emit(eventName, payload);
   }
 
+  /**
+   * @param {'debug'|'info'|'warn'|'error'} _level - Log level.
+   * @param {string} _msg - Log message.
+   * @param {Record<string, unknown>} [_meta] - Optional metadata.
+   */
   log(_level, _msg, _meta) {}
 
+  /**
+   * @param {string} _name - Span name.
+   * @returns {{ end(meta?: Record<string, unknown>): void }}
+   */
   span(_name) {
     return { end() {} };
   }
 
   /**
    * Subscribe to an event.
-   * @param {string} event
-   * @param {Function} listener
+   * @param {string} event - Event name.
+   * @param {(...args: unknown[]) => void} listener - Event listener.
    * @returns {this}
    */
   on(event, listener) {
@@ -50,8 +62,8 @@ export default class EventEmitterObserver {
 
   /**
    * Remove a listener.
-   * @param {string} event
-   * @param {Function} listener
+   * @param {string} event - Event name.
+   * @param {(...args: unknown[]) => void} listener - Event listener.
    * @returns {this}
    */
   removeListener(event, listener) {
@@ -61,7 +73,7 @@ export default class EventEmitterObserver {
 
   /**
    * Return the number of listeners for an event.
-   * @param {string} event
+   * @param {string} event - Event name.
    * @returns {number}
    */
   listenerCount(event) {

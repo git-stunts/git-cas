@@ -9,7 +9,7 @@ import { getCliContext } from './context.js';
  * Render an encryption info card for the vault.
  *
  * @param {Object} options
- * @param {Object|null} options.metadata - Vault metadata (from getVaultMetadata()).
+ * @param {import('../../index.js').VaultMetadata | null} options.metadata - Vault metadata (from getVaultMetadata()).
  * @param {boolean} [options.unlocked] - Whether a key/passphrase was provided.
  * @returns {string}
  */
@@ -33,7 +33,7 @@ export function renderEncryptionCard({ metadata, unlocked = false }) {
   ];
 
   if (kdf.algorithm === 'pbkdf2') {
-    rows.push(`  iterations  ${kdf.iterations.toLocaleString()}`);
+    rows.push(`  iterations  ${/** @type {number} */ (kdf.iterations).toLocaleString()}`);
   } else if (kdf.algorithm === 'scrypt') {
     rows.push(`  cost        ${kdf.cost}`);
     rows.push(`  blockSize   ${kdf.blockSize}`);

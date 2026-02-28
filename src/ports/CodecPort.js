@@ -5,7 +5,7 @@
 export default class CodecPort {
   /**
    * Encodes data to a Buffer or string.
-   * @param {Object} data
+   * @param {Record<string, unknown>} _data - Data to encode.
    * @returns {Buffer|string}
    */
   encode(_data) {
@@ -14,8 +14,8 @@ export default class CodecPort {
 
   /**
    * Decodes data from a Buffer or string.
-   * @param {Buffer|string} buffer
-   * @returns {Object}
+   * @param {Buffer|string} _buffer - Encoded data to decode.
+   * @returns {Record<string, unknown>}
    */
   decode(_buffer) {
     throw new Error('Not implemented');

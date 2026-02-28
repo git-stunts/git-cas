@@ -30,7 +30,11 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     this.policy = policy ?? DEFAULT_POLICY;
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {Buffer|string} content - Data to store.
+   * @returns {Promise<string>} The Git OID of the stored blob.
+   */
   async writeBlob(content) {
     return this.policy.execute(() =>
       this.plumbing.execute({
@@ -40,7 +44,11 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     );
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {string[]} entries - Lines in `git mktree` format.
+   * @returns {Promise<string>} The Git OID of the created tree.
+   */
   async writeTree(entries) {
     return this.policy.execute(() =>
       this.plumbing.execute({
@@ -50,7 +58,11 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     );
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {string} oid - Git object ID.
+   * @returns {Promise<Buffer>} The blob content.
+   */
   async readBlob(oid) {
     return this.policy.execute(async () => {
       const stream = await this.plumbing.executeStream({
@@ -62,7 +74,11 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     });
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {string} treeOid - Git tree OID.
+   * @returns {Promise<Array<{ mode: string, type: string, oid: string, name: string }>>}
+   */
   async readTree(treeOid) {
     return this.policy.execute(async () => {
       const output = await this.plumbing.execute({
@@ -73,7 +89,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
         return [];
       }
 
-      return output.split('\0').filter(Boolean).map((entry) => {
+      return output.split('\0').filter(Boolean).map((/** @type {string} */ entry) => {
         // Format: <mode> <type> <oid>\t<name>
         const tabIndex = entry.indexOf('\t');
         if (tabIndex === -1) {

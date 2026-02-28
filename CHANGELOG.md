@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.2.2] — JSDoc total coverage (2026-02-28)
+
+### Added
+- `tsconfig.checkjs.json` — strict `checkJs` configuration; `tsc --noEmit` passes with zero errors.
+- `src/types/ambient.d.ts` — ambient type declarations for `@git-stunts/plumbing` and `bun` modules.
+- `@types/node` dev dependency for typecheck support.
+- JSDoc `@typedef` types: `EncryptionMeta`, `KdfParamSet`, `DeriveKeyParams` (CryptoPort); `VaultMetadata`, `VaultState`, `VaultEncryptionMeta` (VaultService).
+
+### Changed
+- Every exported and internal function, class method, and callback across all 32 source files now has complete JSDoc `@param`/`@returns` annotations.
+- CryptoPort return types widened to `string | Promise<string>` (sha256), `Buffer | Uint8Array` (randomBytes), sync-or-async for encrypt/decrypt — accurately reflecting adapter implementations.
+- Port `@param` names corrected to match underscore-prefixed abstract parameters (fixes TS8024).
+- Observer adapter methods (`SilentObserver`, `EventEmitterObserver`, `StatsCollector`) fully typed.
+- CLI files (`bin/`) comprehensively annotated with JSDoc types for all Commander callbacks and TUI render functions.
+
 ## [5.2.1] — Carousel polish (2026-02-28)
 
 ### Added

@@ -2,6 +2,9 @@
  * CLI error handler — wraps command actions with structured error output.
  */
 
+/** @typedef {{ code?: string, message?: string }} ErrorLike */
+
+/** @type {Readonly<Record<string, string>>} */
 const HINTS = {
   MISSING_KEY: 'Provide --key-file or --vault-passphrase',
   MANIFEST_NOT_FOUND: 'Verify the tree OID contains a manifest',
@@ -19,20 +22,21 @@ const HINTS = {
 /**
  * Format and write an error to stderr.
  *
- * @param {Error} err
+ * @param {ErrorLike} err
  * @param {boolean} json - Whether to output JSON.
  */
 function writeError(err, json) {
   const message = err?.message ?? String(err);
   const code = typeof err?.code === 'string' ? err.code : undefined;
   if (json) {
+    /** @type {{ error: string, code?: string }} */
     const obj = { error: message };
     if (code) { obj.code = code; }
     process.stderr.write(`${JSON.stringify(obj)}\n`);
   } else {
     const prefix = code ? `error [${code}]: ` : 'error: ';
     process.stderr.write(`${prefix}${message}\n`);
-    const hint = code ? HINTS[code] : undefined;
+    const hint = getHint(code);
     if (hint) {
       process.stderr.write(`hint: ${hint}\n`);
     }
@@ -40,17 +44,30 @@ function writeError(err, json) {
 }
 
 /**
+ * Look up a hint for the given error code, guarding against prototype keys.
+ *
+ * @param {string | undefined} code
+ * @returns {string | undefined}
+ */
+function getHint(code) {
+  if (code && Object.prototype.hasOwnProperty.call(HINTS, code)) {
+    return HINTS[code];
+  }
+  return undefined;
+}
+
+/**
  * Wrap a command action with structured error handling.
  *
- * @param {Function} fn - The async action function.
- * @param {Function} getJson - Lazy getter for --json flag value.
- * @returns {Function} Wrapped action.
+ * @param {(...args: any[]) => Promise<void>} fn - The async action function.
+ * @param {() => boolean} getJson - Lazy getter for --json flag value.
+ * @returns {(...args: any[]) => Promise<void>} Wrapped action.
  */
 export function runAction(fn, getJson) {
-  return async (...args) => {
+  return async (/** @type {any[]} */ ...args) => {
     try {
       await fn(...args);
-    } catch (err) {
+    } catch (/** @type {any} */ err) {
       writeError(err, getJson());
       process.exitCode = 1;
     }

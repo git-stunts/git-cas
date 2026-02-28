@@ -18,35 +18,54 @@ const getJson = () => program.opts().json;
 program
   .name('git-cas')
   .description('Content Addressable Storage backed by Git')
-  .version('5.2.1')
+  .version('5.2.2')
   .option('-q, --quiet', 'Suppress progress output')
   .option('--json', 'Output results as JSON');
 
 /**
  * Read a 32-byte raw encryption key from a file.
+ *
+ * @param {string} keyFilePath
+ * @returns {Buffer}
  */
 function readKeyFile(keyFilePath) {
-  return readFileSync(keyFilePath);
+  const buf = readFileSync(keyFilePath);
+  if (buf.length !== 32) {
+    throw new Error(`Invalid key length: expected 32 bytes, got ${buf.length} (${keyFilePath})`);
+  }
+  return buf;
 }
 
 /**
  * Create a CAS instance for the given working directory with an optional observability adapter.
+ *
+ * @param {string} cwd
+ * @param {{ observability?: import('../index.js').ObservabilityPort }} [opts]
+ * @returns {ContentAddressableStore}
  */
-function createCas(cwd, { observability } = {}) {
+function createCas(cwd, opts = {}) {
   const runner = ShellRunnerFactory.create();
   const plumbing = new GitPlumbing({ runner, cwd });
-  return new ContentAddressableStore({ plumbing, observability });
+  return new ContentAddressableStore({ plumbing, observability: opts.observability });
 }
 
 /**
  * Derive the encryption key from vault metadata + passphrase.
+ *
+ * @param {ContentAddressableStore} cas
+ * @param {import('../index.js').VaultMetadata} metadata
+ * @param {string} passphrase
+ * @returns {Promise<Buffer>}
  */
 async function deriveVaultKey(cas, metadata, passphrase) {
+  if (!metadata.encryption?.kdf) {
+    throw new Error('Missing or malformed encryption metadata');
+  }
   const { kdf } = metadata.encryption;
   const { key } = await cas.deriveKey({
     passphrase,
     salt: Buffer.from(kdf.salt, 'base64'),
-    algorithm: kdf.algorithm,
+    algorithm: /** @type {"pbkdf2" | "scrypt"} */ (kdf.algorithm),
     iterations: kdf.iterations,
     cost: kdf.cost,
     blockSize: kdf.blockSize,
@@ -57,6 +76,9 @@ async function deriveVaultKey(cas, metadata, passphrase) {
 
 /**
  * Resolve passphrase from --vault-passphrase flag or GIT_CAS_PASSPHRASE env var.
+ *
+ * @param {Record<string, any>} opts
+ * @returns {string | undefined}
  */
 function resolvePassphrase(opts) {
   return opts.vaultPassphrase ?? process.env.GIT_CAS_PASSPHRASE;
@@ -64,6 +86,10 @@ function resolvePassphrase(opts) {
 
 /**
  * Resolve encryption key from --key-file or --vault-passphrase / GIT_CAS_PASSPHRASE.
+ *
+ * @param {ContentAddressableStore} cas
+ * @param {Record<string, any>} opts
+ * @returns {Promise<Buffer | undefined>}
  */
 async function resolveEncryptionKey(cas, opts) {
   if (opts.keyFile) {
@@ -83,6 +109,8 @@ async function resolveEncryptionKey(cas, opts) {
 
 /**
  * Validate --slug / --oid flags (exactly one required).
+ *
+ * @param {Record<string, any>} opts
  */
 function validateRestoreFlags(opts) {
   if (opts.slug && opts.oid) {
@@ -96,10 +124,25 @@ function validateRestoreFlags(opts) {
 // ---------------------------------------------------------------------------
 // store
 // ---------------------------------------------------------------------------
+
+/**
+ * @typedef {Object} StoreFileOpts
+ * @property {string} filePath - Path to the file to store.
+ * @property {string} slug - Asset slug identifier.
+ * @property {Buffer} [encryptionKey] - 32-byte AES-256-GCM key.
+ * @property {Array<{ label: string, key: Buffer }>} [recipients] - Envelope recipients.
+ */
+
 /**
  * Build store options, resolving encryption key or recipients.
+ *
+ * @param {ContentAddressableStore} cas
+ * @param {string} file
+ * @param {Record<string, any>} opts
+ * @returns {Promise<StoreFileOpts>}
  */
 async function buildStoreOpts(cas, file, opts) {
+  /** @type {StoreFileOpts} */
   const storeOpts = { filePath: file, slug: opts.slug };
   if (opts.recipient) {
     storeOpts.recipients = opts.recipient;
@@ -113,6 +156,10 @@ async function buildStoreOpts(cas, file, opts) {
 /**
  * Parse a --recipient flag value into { label, key }.
  * Format: label:keyfile
+ *
+ * @param {string} value
+ * @param {Array<{ label: string, key: Buffer }>} [previous]
+ * @returns {Array<{ label: string, key: Buffer }>}
  */
 function parseRecipient(value, previous) {
   const sep = value.indexOf(':');
@@ -140,7 +187,7 @@ program
   .option('--force', 'Overwrite existing vault entry')
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for encryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (file, opts) => {
+  .action(runAction(async (/** @type {string} */ file, /** @type {Record<string, any>} */ opts) => {
     if (opts.recipient && (opts.keyFile || resolvePassphrase(opts))) {
       throw new Error('Provide --key-file/--vault-passphrase or --recipient, not both');
     }
@@ -176,7 +223,7 @@ program
   .description('Create a Git tree from a manifest')
   .requiredOption('--manifest <path>', 'Path to manifest JSON file')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (opts) => {
+  .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
     const raw = readFileSync(opts.manifest, 'utf8');
     const manifest = new Manifest(JSON.parse(raw));
@@ -199,7 +246,7 @@ program
   .option('--oid <tree-oid>', 'Direct tree OID')
   .option('--heatmap', 'Show chunk heatmap visualization')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (opts) => {
+  .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     validateRestoreFlags(opts);
     const cas = createCas(opts.cwd);
     const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
@@ -229,7 +276,7 @@ program
   .option('--key-file <path>', 'Path to 32-byte raw encryption key file')
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for decryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (opts) => {
+  .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     validateRestoreFlags(opts);
     const quiet = program.opts().quiet || program.opts().json;
     const observer = new EventEmitterObserver();
@@ -237,11 +284,7 @@ program
     const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
     const manifest = await cas.readManifest({ treeOid });
 
-    const restoreOpts = { manifest };
     const encryptionKey = await resolveEncryptionKey(cas, opts);
-    if (encryptionKey) {
-      restoreOpts.encryptionKey = encryptionKey;
-    }
 
     const progress = createRestoreProgress({
       totalChunks: manifest.chunks.length, quiet,
@@ -250,7 +293,8 @@ program
     let bytesWritten;
     try {
       ({ bytesWritten } = await cas.restoreFile({
-        ...restoreOpts,
+        manifest,
+        ...(encryptionKey ? { encryptionKey } : {}),
         outputPath: opts.out,
       }));
     } finally {
@@ -273,7 +317,7 @@ program
   .option('--slug <slug>', 'Resolve tree OID from vault slug')
   .option('--oid <tree-oid>', 'Direct tree OID')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (opts) => {
+  .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     validateRestoreFlags(opts);
     const cas = createCas(opts.cwd);
     const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
@@ -303,13 +347,14 @@ vault
   .option('--vault-passphrase <pass>', 'Passphrase for vault-level encryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--algorithm <alg>', 'KDF algorithm (pbkdf2 or scrypt)', 'pbkdf2')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (opts) => {
+  .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
+    /** @type {{ passphrase?: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
     const initOpts = {};
     const passphrase = resolvePassphrase(opts);
     if (passphrase) {
       initOpts.passphrase = passphrase;
-      initOpts.kdfOptions = { algorithm: opts.algorithm };
+      initOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };
     }
     const { commitOid } = await cas.initVault(initOpts);
     const json = program.opts().json;
@@ -328,7 +373,7 @@ vault
   .description('List vault entries')
   .option('--filter <pattern>', 'Filter entries by glob pattern')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (opts) => {
+  .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
     const all = await cas.listVault();
     const entries = filterEntries(all, opts.filter);
@@ -349,7 +394,7 @@ vault
   .command('remove <slug>')
   .description('Remove an entry from the vault')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (slug, opts) => {
+  .action(runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
     const { commitOid, removedTreeOid } = await cas.removeFromVault({ slug });
     const json = program.opts().json;
@@ -368,11 +413,12 @@ vault
   .description('Show info for a vault entry')
   .option('--encryption', 'Show vault encryption details')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (slug, opts) => {
+  .action(runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
     const treeOid = await cas.resolveVaultEntry({ slug });
     const json = program.opts().json;
     if (json) {
+      /** @type {Record<string, any>} */
       const result = { slug, treeOid };
       if (opts.encryption) {
         const metadata = await cas.getVaultMetadata();
@@ -400,7 +446,7 @@ vault
   .option('--cwd <dir>', 'Git working directory', '.')
   .option('-n, --max-count <n>', 'Limit number of commits')
   .option('--pretty', 'Render as color-coded timeline')
-  .action(runAction(async (opts) => {
+  .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const runner = ShellRunnerFactory.create();
     const plumbing = new GitPlumbing({ runner, cwd: opts.cwd || '.' });
     const args = ['log', '--oneline', ContentAddressableStore.VAULT_REF];
@@ -417,7 +463,7 @@ vault
       const history = output
         .split('\n')
         .filter(Boolean)
-        .map((line) => {
+        .map((/** @type {string} */ line) => {
           const [commitOid, ...messageParts] = line.trim().split(/\s+/);
           return { commitOid, message: messageParts.join(' ') };
         });
@@ -439,14 +485,15 @@ vault
   .requiredOption('--new-passphrase <pass>', 'New vault passphrase')
   .option('--algorithm <alg>', 'KDF algorithm (pbkdf2 or scrypt)')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (opts) => {
+  .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
+    /** @type {{ oldPassphrase: string, newPassphrase: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
     const rotateOpts = {
       oldPassphrase: opts.oldPassphrase,
       newPassphrase: opts.newPassphrase,
     };
     if (opts.algorithm) {
-      rotateOpts.kdfOptions = { algorithm: opts.algorithm };
+      rotateOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };
     }
     const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase(rotateOpts);
     const json = program.opts().json;
@@ -470,7 +517,7 @@ vault
   .command('dashboard')
   .description('Interactive vault explorer')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (opts) => {
+  .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
     const { launchDashboard } = await import('./ui/dashboard.js');
     await launchDashboard(cas);
@@ -488,7 +535,7 @@ program
   .requiredOption('--new-key-file <path>', 'Path to new 32-byte key file')
   .option('--label <label>', 'Rotate only the named recipient')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (opts) => {
+  .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     validateRestoreFlags(opts);
     const cas = createCas(opts.cwd);
     const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
@@ -497,6 +544,7 @@ program
     const oldKey = readKeyFile(opts.oldKeyFile);
     const newKey = readKeyFile(opts.newKeyFile);
 
+    /** @type {{ manifest: Manifest, oldKey: Buffer, newKey: Buffer, label?: string }} */
     const rotateOpts = { manifest, oldKey, newKey };
     if (opts.label) { rotateOpts.label = opts.label; }
 
@@ -507,7 +555,7 @@ program
       const newTreeOid = await cas.createTree({ manifest: updated });
       await cas.addToVault({ slug: opts.slug, treeOid: newTreeOid, force: true });
       if (json) {
-        process.stdout.write(`${JSON.stringify({ treeOid: newTreeOid, keyVersion: updated.encryption.keyVersion })}\n`);
+        process.stdout.write(`${JSON.stringify({ treeOid: newTreeOid, keyVersion: updated.encryption?.keyVersion })}\n`);
       } else {
         process.stdout.write(`${newTreeOid}\n`);
       }
@@ -532,7 +580,7 @@ recipient
   .requiredOption('--key-file <path>', 'Path to 32-byte key file for the new recipient')
   .requiredOption('--existing-key-file <path>', 'Path to key file of an existing recipient')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (slug, opts) => {
+  .action(runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
     const treeOid = await cas.resolveVaultEntry({ slug });
     const manifest = await cas.readManifest({ treeOid });
@@ -563,7 +611,7 @@ recipient
   .description('Remove a recipient from an envelope-encrypted asset')
   .requiredOption('--label <label>', 'Label of the recipient to remove')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (slug, opts) => {
+  .action(runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
     const treeOid = await cas.resolveVaultEntry({ slug });
     const manifest = await cas.readManifest({ treeOid });
@@ -585,7 +633,7 @@ recipient
   .command('list <slug>')
   .description('List recipients of an envelope-encrypted asset')
   .option('--cwd <dir>', 'Git working directory', '.')
-  .action(runAction(async (slug, opts) => {
+  .action(runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
     const treeOid = await cas.resolveVaultEntry({ slug });
     const manifest = await cas.readManifest({ treeOid });

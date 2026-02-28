@@ -6,7 +6,15 @@ import { box, badge, table, tree, headerBox } from '@flyingrobots/bijou';
 import { getCliContext } from './context.js';
 
 /**
+ * @typedef {import('../../src/domain/value-objects/Manifest.js').ManifestData} ManifestData
+ * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
+ */
+
+/**
  * Format bytes as human-readable string.
+ *
+ * @param {number} bytes
+ * @returns {string}
  */
 function formatBytes(bytes) {
   if (bytes < 1024) {
@@ -23,6 +31,10 @@ function formatBytes(bytes) {
 
 /**
  * Build the header badges line.
+ *
+ * @param {ManifestData} m
+ * @param {BijouContext} ctx
+ * @returns {string}
  */
 function renderBadges(m, ctx) {
   const badges = [badge(`v${m.version}`, { ctx })];
@@ -40,6 +52,10 @@ function renderBadges(m, ctx) {
 
 /**
  * Build the encryption section.
+ *
+ * @param {NonNullable<ManifestData['encryption']>} enc
+ * @param {BijouContext} ctx
+ * @returns {string}
  */
 function renderEncryptionSection(enc, ctx) {
   const rows = [`  algorithm  ${enc.algorithm}`];
@@ -63,14 +79,18 @@ function renderEncryptionSection(enc, ctx) {
 
 /**
  * Build the chunks section.
+ *
+ * @param {ManifestData['chunks']} chunks
+ * @param {BijouContext} ctx
+ * @returns {string}
  */
 function renderChunksSection(chunks, ctx) {
   const displayChunks = chunks.slice(0, 20);
-  const chunkRows = displayChunks.map(c => [
+  const chunkRows = displayChunks.map((/** @type {{ index: number, size: number, digest: string, blob?: string }} */ c) => [
     String(c.index),
     formatBytes(c.size),
-    `${c.digest.slice(0, 12)}...`,
-    `${c.blob.slice(0, 12)}...`,
+    typeof c.digest === 'string' ? `${c.digest.slice(0, 12)}...` : '-',
+    typeof c.blob === 'string' ? `${c.blob.slice(0, 12)}...` : '-',
   ]);
   const chunkTable = table({
     columns: [{ header: '#' }, { header: 'Size' }, { header: 'Digest' }, { header: 'Blob' }],
@@ -85,6 +105,10 @@ function renderChunksSection(chunks, ctx) {
 
 /**
  * Build the metadata section.
+ *
+ * @param {ManifestData} m
+ * @param {BijouContext} ctx
+ * @returns {string}
  */
 function renderMetadataSection(m, ctx) {
   const meta = [
@@ -98,24 +122,29 @@ function renderMetadataSection(m, ctx) {
 
 /**
  * Build the sub-manifests section.
+ *
+ * @param {ManifestData} m
+ * @param {BijouContext} ctx
+ * @returns {string}
  */
 function renderSubManifestsSection(m, ctx) {
-  const nodes = m.subManifests.map((sm, i) => ({
+  const subs = m.subManifests || [];
+  const nodes = subs.map((/** @type {import('../../src/domain/value-objects/Manifest.js').SubManifestRef} */ sm, /** @type {number} */ i) => ({
     label: `sub-${i}  ${sm.chunkCount} chunks  start: ${sm.startIndex}  oid: ${sm.oid.slice(0, 8)}...`,
   }));
-  return `${headerBox(`Sub-manifests (${m.subManifests.length})`, { ctx })}\n${tree(nodes, { ctx })}`;
+  return `${headerBox(`Sub-manifests (${subs.length})`, { ctx })}\n${tree(nodes, { ctx })}`;
 }
 
 /**
  * Render a full manifest anatomy view.
  *
  * @param {Object} options
- * @param {Object} options.manifest - The manifest (from readManifest).
- * @param {Object} [options.ctx] - Optional bijou context override.
+ * @param {ManifestData | { toJSON(): ManifestData }} options.manifest - The manifest (Manifest instance or plain ManifestData).
+ * @param {BijouContext} [options.ctx] - Optional bijou context override.
  * @returns {string}
  */
 export function renderManifestView({ manifest, ctx = getCliContext() }) {
-  const m = manifest.toJSON ? manifest.toJSON() : manifest;
+  const m = /** @type {ManifestData} */ ('toJSON' in manifest ? manifest.toJSON() : manifest);
   const sections = [renderBadges(m, ctx), renderMetadataSection(m, ctx)];
 
   if (m.encryption) {

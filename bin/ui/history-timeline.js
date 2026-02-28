@@ -34,6 +34,7 @@ function parseCommitLine(line) {
   return { oid, operation: match[1], slug: match[2] || null };
 }
 
+/** @type {Record<string, string>} */
 const STATUS_MAP = {
   init: 'info',
   add: 'success',
@@ -65,14 +66,15 @@ export function renderHistoryTimeline(gitLogOutput, options = {}) {
   const start = (page - 1) * perPage;
   const pageLines = lines.slice(start, start + perPage);
 
-  const events = pageLines
-    .map(parseCommitLine)
-    .filter(Boolean)
-    .map(({ oid, operation, slug }) => ({
+  const parsed = pageLines.map(parseCommitLine).filter(Boolean);
+  const events = parsed.map((entry) => {
+    const { oid, operation, slug } = /** @type {{ oid: string, operation: string, slug: string | null }} */ (entry);
+    return {
       label: slug ? `vault: ${operation} ${slug}` : `vault: ${operation}`,
       description: oid,
-      status: STATUS_MAP[operation] || 'pending',
-    }));
+      status: /** @type {import('@flyingrobots/bijou').BaseStatusKey} */ (STATUS_MAP[operation] || 'pending'),
+    };
+  });
 
   let output = timeline(events, { ctx });
 

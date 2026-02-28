@@ -30,7 +30,11 @@ export default class FixedChunker extends ChunkingPort {
     return { chunkSize: this.#chunkSize };
   }
 
-  /** @override */
+  /**
+   * @override
+   * @param {AsyncIterable<Buffer>} source - The input byte stream.
+   * @yields {Buffer}
+   */
   async *chunk(source) {
     let buffer = Buffer.alloc(0);
 
