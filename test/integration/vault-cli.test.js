@@ -248,6 +248,18 @@ describe('vault CLI — rotate', () => { // eslint-disable-line max-lines-per-fu
     expect(restored.equals(rotateOriginal)).toBe(true);
     rmSync(outDir, { recursive: true, force: true });
   });
+
+  it('restore with old key fails after rotation', () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-rotate-fail-'));
+    const outPath = path.join(outDir, 'restored.bin');
+    expect(() => {
+      cli(
+        `restore --slug rotate/asset --out ${outPath} --key-file ${oldKeyFile}`,
+        rotateRepoDir,
+      );
+    }).toThrow();
+    rmSync(outDir, { recursive: true, force: true });
+  });
 });
 
 // ---------------------------------------------------------------------------

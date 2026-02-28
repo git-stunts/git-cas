@@ -102,7 +102,7 @@ describe('ContentAddressableStore – rotateVaultPassphrase', () => { // eslint-
   it('mixed: 2 envelope + 1 non-envelope → 2 rotated, 1 skipped', async () => {
     const oldPass = 'old-pass';
     const newPass = 'new-pass';
-    await cas.initVault({ passphrase: oldPass });
+    await cas.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
 
     // 2 envelope entries
     await storeEnvelope({ cas, slug: 'env1', data: randomBytes(128), passphrase: oldPass });
@@ -135,7 +135,7 @@ describe('ContentAddressableStore – rotateVaultPassphrase', () => { // eslint-
 
   it('wrong old passphrase → error', async () => {
     const oldPass = 'old-pass';
-    await cas.initVault({ passphrase: oldPass });
+    await cas.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
     await storeEnvelope({ cas, slug: 'asset', data: randomBytes(128), passphrase: oldPass });
 
     await expect(
@@ -182,7 +182,7 @@ describe('ContentAddressableStore – rotateVaultPassphrase', () => { // eslint-
   it('metadata updated with new KDF salt', async () => {
     const oldPass = 'old-pass';
     const newPass = 'new-pass';
-    await cas.initVault({ passphrase: oldPass });
+    await cas.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
     await storeEnvelope({ cas, slug: 'asset', data: randomBytes(128), passphrase: oldPass });
 
     const oldMeta = await cas.getVaultMetadata();

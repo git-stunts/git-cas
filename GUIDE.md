@@ -20,6 +20,7 @@ along from first principles to full mastery.
 9. [Observability](#9-observability)
 10. [Compression](#10-compression)
 11. [Passphrase Encryption (KDF)](#11-passphrase-encryption-kdf)
+11b. [Multi-Recipient Encryption & Key Rotation](#11b-multi-recipient-encryption--key-rotation)
 12. [Merkle Manifests](#12-merkle-manifests)
 13. [Vault](#13-vault)
 14. [Architecture](#14-architecture)
