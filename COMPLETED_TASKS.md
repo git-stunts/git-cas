@@ -4,6 +4,19 @@ Task cards moved here from ROADMAP.md after completion. Organized by milestone.
 
 ---
 
+# M11 — Locksmith (v5.1.0) ✅ CLOSED
+
+**Theme:** Multi-recipient encryption via envelope encryption (DEK/KEK model). Each file is encrypted with a random Data Encryption Key; the DEK is wrapped per-recipient. Adding or removing access never re-encrypts the data.
+
+**Completed:** v5.1.0 (2026-02-28)
+
+- **Task 11.1:** Envelope encryption (DEK/KEK model) — random 32-byte DEK encrypts content via existing AES-256-GCM pipeline; DEK is wrapped per-recipient with AES-256-GCM key-wrapping. Manifest stores `encryption.recipients: [{ label, wrappedDek, nonce, tag }]`. Restore tries each recipient entry to unwrap DEK. Full backward compatibility with old-style manifests.
+- **Task 11.2:** Recipient management API — `addRecipient()` unwraps DEK with existing key, re-wraps for new recipient. `removeRecipient()` removes by label with last-recipient guard. `listRecipients()` returns labels. All return new immutable Manifest value objects. Defense-in-depth post-filter guard for corrupted manifests.
+- **Task 11.3:** Manifest schema for multi-recipient metadata — `RecipientSchema` (Zod), `EncryptionSchema` extended with `recipients: z.array(RecipientSchema).min(1).optional()`. Error codes: `NO_MATCHING_RECIPIENT`, `DEK_UNWRAP_FAILED`, `RECIPIENT_NOT_FOUND`, `RECIPIENT_ALREADY_EXISTS`, `CANNOT_REMOVE_LAST_RECIPIENT`. `RecipientEntry` type exported.
+- **Task 11.4:** CLI multi-recipient support — `--recipient <label:keyfile>` repeatable flag on `git cas store`, `git cas recipient add/remove/list` subcommands, mutual exclusivity guard (`--recipient` vs `--key-file`/`--vault-passphrase`), empty keyfile rejection.
+
+---
+
 # M10 — Hydra (v5.0.0) ✅ CLOSED
 
 **Theme:** Content-defined chunking for dramatically better dedup on versioned files.

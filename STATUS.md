@@ -1,8 +1,8 @@
 # @git-stunts/cas — Project Status
 
-**Current version:** v5.0.0 (Hydra)
+**Current version:** v5.1.0 (Locksmith)
 **Last release:** 2026-02-28
-**Test suite:** 709 tests (vitest)
+**Test suite:** 757 tests (vitest)
 **Runtimes:** Node.js 22.x, Bun, Deno
 
 ---
@@ -11,6 +11,7 @@
 
 | Version | Codename | Highlights |
 |---------|----------|------------|
+| v5.1.0 | Locksmith | Envelope encryption (DEK/KEK), multi-recipient APIs, `--recipient` CLI, recipient management |
 | v5.0.0 | Hydra | Content-defined chunking (CDC), `ChunkingPort`, buzhash engine, 98% dedup on edits |
 | v4.0.1 | Spit Shine + Cockpit | CryptoPort refactor, `verify` command, `--json` mode, `runAction`, vault list filtering |
 | v4.0.0 | Conduit | ObservabilityPort, `restoreStream()`, parallel chunk I/O, `concurrency` option |
@@ -23,18 +24,10 @@
 
 ## What's next
 
-Two open milestones remain. M11–M12 are larger features.
+One open milestone remains.
 
-### M11 — Locksmith (~20h)
-Multi-recipient encryption via DEK/KEK envelope model.
-
-- [ ] **11.1** Envelope encryption (DEK/KEK model)
-- [ ] **11.2** Recipient management API (addRecipient / removeRecipient)
-- [ ] **11.3** Manifest schema for multi-recipient metadata
-- [ ] **11.4** CLI multi-recipient support
-
-### M12 — Carousel (~13h) *(blocked by M11)*
-Key rotation without re-encrypting data.
+### M12 — Carousel (~13h)
+Key rotation without re-encrypting data. Now unblocked by M11 Locksmith.
 
 - [ ] **12.1** Key rotation workflow (`rotateKey()`)
 - [ ] **12.2** Key version tracking in manifest
@@ -49,8 +42,8 @@ Key rotation without re-encrypting data.
 M8 Spit Shine ──────── ✅ v4.0.1
 M9 Cockpit ─────────── ✅ v4.0.1
 M10 Hydra ──────────── ✅ v5.0.0
-M11 Locksmith ──────── (independent)
-  └──► M12 Carousel ── (needs M11)
+M11 Locksmith ──────── ✅ v5.1.0
+  └──► M12 Carousel ── (ready)
 ```
 
 ---
@@ -62,6 +55,9 @@ M11 Locksmith ──────── (independent)
 - Publish to working tree / branch
 - Duplicate detection on store
 - Repo scan / dedup advisor
+- Automate test count injection into CHANGELOG from CI output
+- Property-based fuzz tests for envelope encryption round-trips
+- Investigate HSM/Vault key management as a future `KeyManagementPort`
 
 ## Visions (researched, not committed)
 

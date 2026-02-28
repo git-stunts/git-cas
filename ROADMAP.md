@@ -190,7 +190,7 @@ Return and throw semantics for every public method (current and planned).
 | v4.0.0  | M14       | Conduit  | Streaming I/O, observability, parallel chunks | ✅ |
 | v3.1.0  | M13       | Bijou    | TUI dashboard & progress | ✅ |
 | v5.0.0  | M10       | Hydra    | Content-defined chunking | ✅ |
-| v5.1.0  | M11       | Locksmith | Multi-recipient encryption | |
+| v5.1.0  | M11       | Locksmith | Multi-recipient encryption | ✅ |
 | v5.2.0  | M12       | Carousel | Key rotation | |
 
 ---
@@ -204,8 +204,8 @@ M14 Conduit (v4.0.0) ✅
 M8 Spit Shine + M9 Cockpit (v4.0.1) ✅
 
 M10 Hydra ──────────── ✅ v5.0.0
-M11 Locksmith ──────── (independent)
-  └──► M12 Carousel ── (needs M11)
+M11 Locksmith ──────── ✅ v5.1.0
+  └──► M12 Carousel ── (ready)
 ```
 
 ---
@@ -220,8 +220,8 @@ M11 Locksmith ──────── (independent)
 | M13| Bijou         | TUI dashboard & progress   | v3.1.0  | 6     | ~650   | ~20h  | ✅ CLOSED |
 | M8 | Spit Shine    | Review fixups              | v4.0.1  | 2     | ~150   | ~3h   | ✅ CLOSED |
 | M9 | Cockpit       | CLI improvements           | v4.0.1  | 4     | ~190   | ~5h   | ✅ CLOSED |
-| M10| Hydra         | Content-defined chunking   | v5.0.0  | 4     | ~690   | ~22h  | open |
-| M11| Locksmith     | Multi-recipient encryption | v5.1.0  | 4     | ~580   | ~20h  | open |
+| M10| Hydra         | Content-defined chunking   | v5.0.0  | 4     | ~690   | ~22h  | ✅ CLOSED |
+| M11| Locksmith     | Multi-recipient encryption | v5.1.0  | 4     | ~580   | ~20h  | ✅ CLOSED |
 | M12| Carousel      | Key rotation               | v5.2.0  | 4     | ~400   | ~13h  | open |
 
 Completed task cards are in [COMPLETED_TASKS.md](./COMPLETED_TASKS.md). Superseded tasks are in [GRAVEYARD.md](./GRAVEYARD.md).
@@ -250,247 +250,13 @@ All tasks completed (9.2–9.5). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
 
 All tasks completed (10.1–10.4). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
 
-# M11 — Locksmith (v3.1.0)
-**Theme:** Multi-recipient encryption via envelope encryption (DEK/KEK model). Each file is encrypted with a random Data Encryption Key; the DEK is wrapped per-recipient. Adding or removing access never re-encrypts the data.
+# M11 — Locksmith (v5.1.0) ✅ CLOSED
+
+All tasks completed (11.1–11.4). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
 
 ---
 
-## Task 11.1: Envelope encryption (DEK/KEK model)
-
-**User Story**
-As a team member, I want each file encrypted with a random data key so that access control is managed by wrapping that key, not by re-encrypting the file.
-
-**Requirements**
-- R1: On encrypted store, generate a random 32-byte Data Encryption Key (DEK).
-- R2: Encrypt file content with the DEK using existing AES-256-GCM pipeline.
-- R3: Wrap (encrypt) the DEK with each recipient's Key Encryption Key (KEK) using AES-256-GCM key-wrapping.
-- R4: Store wrapped DEKs in manifest under `encryption.recipients: [{ label, wrappedDek, nonce, tag }]`.
-- R5: On restore, caller provides their KEK; system tries each recipient entry, unwraps DEK, then decrypts content.
-- R6: Single-recipient mode (existing behavior) remains a special case: 1 recipient, no label required.
-- R7: Backward compatible: old manifests (direct key encryption, no `recipients` field) still restore correctly using the existing code path.
-
-**Acceptance Criteria**
-- AC1: Multi-recipient store → restore with any recipient's KEK succeeds.
-- AC2: Restore with a non-recipient KEK throws `NO_MATCHING_RECIPIENT`.
-- AC3: Old-style manifests (no `recipients` field) restore as before.
-- AC4: DEK never appears in plaintext in the manifest.
-
-**Scope**
-- In scope: DEK/KEK model, wrap/unwrap, manifest schema changes, backward compat.
-- Out of scope: Asymmetric KEKs (X25519), key exchange protocols, KMS integration, HSM support.
-
-**Est. Complexity (LoC)**
-- Prod: ~120 (envelope encrypt/decrypt + CasService changes + schema)
-- Tests: ~100 (multi-recipient round-trip, wrong key, backward compat)
-- Total: ~220
-
-**Est. Human Working Hours**
-- ~8h
-
-**Test Plan**
-- Golden path:
-  - Store with 2 recipients → restore with recipient A → byte-compare original.
-  - Store with 2 recipients → restore with recipient B → byte-compare original.
-  - Single-recipient store → restore as before.
-- Failures:
-  - Restore with non-recipient key → NO_MATCHING_RECIPIENT.
-  - Tampered wrappedDek → DEK_UNWRAP_FAILED.
-- Edges:
-  - 1 recipient (degenerate multi-recipient = current behavior).
-  - 10 recipients → all can restore.
-  - Old manifest without recipients field → restore unchanged.
-- Fuzz/stress:
-  - 50 random plaintexts × 3 random KEKs → all round-trip correctly.
-  - Tamper each recipient entry independently → correct error for each.
-
-**Definition of Done**
-- DoD1: Envelope encryption implemented in CasService.
-- DoD2: Schema updated with recipients field.
-- DoD3: Backward compatibility tested with v1/v2 manifests.
-- DoD4: Security design documented in SECURITY.md addendum.
-
-**Blocking**
-- Blocks: Task 11.2, Task 11.4, Task 12.1
-
-**Blocked By**
-- Blocked by: None
-
----
-
-## Task 11.2: Recipient management API
-
-**User Story**
-As a developer, I want to add and remove recipients from an existing encrypted asset without re-encrypting the data.
-
-**Requirements**
-- R1: Add `CasService.addRecipient({ manifest, existingKey, newRecipientKey, label })`.
-  - Unwrap DEK with `existingKey`, re-wrap with `newRecipientKey`, append to recipients list.
-  - Return updated Manifest (new value object — manifests are immutable).
-- R2: Add `CasService.removeRecipient({ manifest, label })`.
-  - Remove recipient entry by label.
-  - Return updated Manifest.
-- R3: Removing last recipient throws `CasError('CANNOT_REMOVE_LAST_RECIPIENT')`.
-- R4: Adding duplicate label throws `CasError('RECIPIENT_ALREADY_EXISTS')`.
-- R5: Updated manifest must be re-persisted (`createTree` + vault update) by the caller.
-
-**Acceptance Criteria**
-- AC1: addRecipient → new manifest has additional recipient entry.
-- AC2: removeRecipient → manifest has one fewer recipient entry.
-- AC3: Data is never re-encrypted (only DEK is re-wrapped).
-- AC4: All existing recipients can still restore after addRecipient.
-
-**Scope**
-- In scope: Add/remove recipient methods + manifest mutation + validation.
-- Out of scope: Batch operations, per-recipient permissions, key escrow.
-
-**Est. Complexity (LoC)**
-- Prod: ~100 (add/remove methods + validation)
-- Tests: ~80 (add, remove, edge cases, round-trips)
-- Total: ~180
-
-**Est. Human Working Hours**
-- ~6h
-
-**Test Plan**
-- Golden path:
-  - Store with 1 recipient → addRecipient → both can restore.
-  - Store with 2 recipients → removeRecipient → remaining recipient restores.
-- Failures:
-  - addRecipient with wrong existingKey → DEK_UNWRAP_FAILED.
-  - Add duplicate label → RECIPIENT_ALREADY_EXISTS.
-  - Remove last recipient → CANNOT_REMOVE_LAST_RECIPIENT.
-  - Remove nonexistent label → RECIPIENT_NOT_FOUND.
-- Edges:
-  - Add 100 recipients → all can restore.
-  - Remove all but 1 → that 1 still works.
-- Fuzz/stress:
-  - Repeatedly add/remove recipients (100 cycles) → final recipient set is correct.
-
-**Definition of Done**
-- DoD1: addRecipient and removeRecipient implemented and exposed via facade.
-- DoD2: Edge cases tested.
-- DoD3: API documented in API.md.
-
-**Blocking**
-- Blocks: Task 11.4
-
-**Blocked By**
-- Blocked by: Task 11.1
-
----
-
-## Task 11.3: Manifest schema for multi-recipient metadata
-
-**User Story**
-As a maintainer, I want the multi-recipient manifest structure validated by Zod schema so malformed recipient entries are caught early.
-
-**Requirements**
-- R1: Add `RecipientSchema` to ManifestSchema.js: `{ label: string, wrappedDek: base64 string, nonce: base64 string, tag: base64 string, kekType?: string }`.
-- R2: Extend `EncryptionSchema` with optional `recipients: z.array(RecipientSchema)`.
-- R3: Existing encryption metadata (nonce, tag on the outer level) represents the DEK encryption of the file content.
-- R4: Validate: if `recipients` is present and non-empty, at least one entry must exist.
-- R5: Register error codes: `NO_MATCHING_RECIPIENT`, `DEK_UNWRAP_FAILED`, `RECIPIENT_NOT_FOUND`, `RECIPIENT_ALREADY_EXISTS`, `CANNOT_REMOVE_LAST_RECIPIENT`.
-
-**Acceptance Criteria**
-- AC1: Manifest with valid recipients passes schema validation.
-- AC2: Manifest with malformed recipient (missing label, bad wrappedDek) fails validation.
-- AC3: Manifest without recipients field passes (backward compat).
-
-**Scope**
-- In scope: Schema definitions + error code registration.
-- Out of scope: Runtime encryption logic (covered by Tasks 11.1 and 11.2).
-
-**Est. Complexity (LoC)**
-- Prod: ~40 (schema definitions)
-- Tests: ~50 (schema validation positive/negative)
-- Total: ~90
-
-**Est. Human Working Hours**
-- ~3h
-
-**Test Plan**
-- Golden path:
-  - Valid manifest with 2 recipients → schema passes.
-- Failures:
-  - Missing label → schema rejects.
-  - Missing wrappedDek → schema rejects.
-  - Non-string wrappedDek → schema rejects.
-- Edges:
-  - Empty recipients array → passes schema (runtime validates separately).
-  - Recipients with unknown extra fields → stripped by schema.
-- Fuzz/stress:
-  - 100 random malformed recipient objects → all correctly rejected.
-
-**Definition of Done**
-- DoD1: RecipientSchema and error codes added.
-- DoD2: Schema tests cover positive and negative paths.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: None (can be done in parallel with Task 11.1)
-
----
-
-## Task 11.4: CLI multi-recipient support
-
-**User Story**
-As a CLI user, I want to encrypt assets for multiple recipients and manage the recipient list from the terminal.
-
-**Requirements**
-- R1: Add `--recipient <label:keyfile>` repeatable flag to `git cas store`. Each occurrence adds a recipient KEK.
-- R2: Add `git cas recipient add <slug> --label <label> --key-file <path> --existing-key-file <path>`.
-- R3: Add `git cas recipient remove <slug> --label <label>`.
-- R4: Add `git cas recipient list <slug>` — shows recipient labels.
-- R5: `git cas restore --key-file <path>` automatically scans recipient list for a matching KEK.
-
-**Acceptance Criteria**
-- AC1: Store with 2 `--recipient` flags → manifest has 2 recipients.
-- AC2: `recipient add` → manifest updated in vault (new tree OID committed).
-- AC3: `recipient remove` → manifest updated in vault.
-- AC4: `recipient list` → shows labels.
-- AC5: Restore with any recipient's key file → succeeds.
-
-**Scope**
-- In scope: CLI commands for multi-recipient workflows.
-- Out of scope: Passphrase-based recipients (key-file only), interactive key generation.
-
-**Est. Complexity (LoC)**
-- Prod: ~60 (new subcommands + flag handling)
-- Tests: ~30
-- Total: ~90
-
-**Est. Human Working Hours**
-- ~3h
-
-**Test Plan**
-- Golden path:
-  - Store with 2 recipients → restore with each → success.
-  - Add recipient → restore with new key → success.
-  - Remove recipient → restore with removed key → fails.
-  - List → shows expected labels.
-- Failures:
-  - Add with wrong existing key → exit 1.
-  - Remove last recipient → exit 1 with CANNOT_REMOVE_LAST_RECIPIENT.
-- Edges:
-  - Single recipient via CLI → same as current behavior.
-- Fuzz/stress:
-  - None (thin CLI wrapper over tested API).
-
-**Definition of Done**
-- DoD1: Multi-recipient CLI commands implemented.
-- DoD2: Full CLI round-trip tested.
-
-**Blocking**
-- Blocks: None
-
-**Blocked By**
-- Blocked by: Task 11.2
-
----
-
-# M12 — Carousel (v3.2.0)
+# M12 — Carousel (v5.2.0)
 **Theme:** Key rotation without re-encrypting data. The DEK/KEK model from M11 makes this possible — rotating a key means re-wrapping the DEK, not re-encrypting blobs. Includes vault-level rotation for changing the master passphrase.
 
 ---
@@ -746,7 +512,7 @@ Competitive landscape for content-addressed storage, encrypted binary assets, an
 | Client-side encryption | ✅ AES-256-GCM | — | ❌ | ✅ GPG | ✅ AES-256-CTR + Poly1305 | ✅ ChaCha20-Poly1305 | ❌ | Protect data at rest in untrusted storage | git-cas is the only Git-native tool with integrated encryption | — |
 | Authenticated encryption (AEAD) | ✅ GCM auth tag | — | ❌ | ⚠️ GPG signature optional | ✅ Poly1305 | ✅ Poly1305 | ❌ | Tamper detection + confidentiality | GCM and Poly1305 both provide authentication. GPG can but doesn't by default | — |
 | Per-chunk encryption | ✅ Streaming | — | ❌ | ❌ Whole-file | ❌ Per-pack | ✅ 64 KiB chunks | ❌ | Encrypt without buffering full file | git-cas and Age both stream; Restic encrypts packed blobs | — |
-| Multi-recipient encryption | ❌ | 🗓 M11 Locksmith | ❌ | ✅ Multiple GPG keys | ✅ Multiple passwords | ✅ Multiple X25519 | ❌ | Team access without sharing a single key | Envelope encryption (DEK/KEK model). ~220 LoC, ~8h (Task 11.1) | DEK/KEK model + recipient management. ~580 LoC total, ~20h (M11) |
+| Multi-recipient encryption | ❌ | ✅ M11 Locksmith | ❌ | ✅ Multiple GPG keys | ✅ Multiple passwords | ✅ Multiple X25519 | ❌ | Team access without sharing a single key | Envelope encryption (DEK/KEK model). ~220 LoC, ~8h (Task 11.1) | DEK/KEK model + recipient management. ~580 LoC total, ~20h (M11) |
 | Key rotation (no re-encrypt) | ❌ | 🗓 M12 Carousel | N/A | ⚠️ Can add keys; revoke requires re-encrypt | ✅ Re-wrap master key | ❌ | N/A | Respond to key compromise without re-storing data | Requires DEK/KEK model. Re-wraps DEK, data blobs untouched | Depends on M11. rotateKey + vault rotation. ~400 LoC, ~13h (M12) |
 | KDF / passphrase keys | ✅ PBKDF2, scrypt | — | ❌ | ✅ GPG S2K | ✅ scrypt | ✅ scrypt | ❌ | Derive keys from passwords instead of managing raw bytes | git-cas supports both PBKDF2 (100k iterations) and scrypt | — |
 | Argon2 KDF | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | Memory-hard KDF resists GPU/ASIC attacks | No tool in this space supports Argon2 yet. Would require native/WASM addon | ~80 LoC + native dep. ~4h. Low priority — scrypt is adequate |

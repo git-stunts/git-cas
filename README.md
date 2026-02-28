@@ -19,8 +19,9 @@ We use the object database.
 ## What you get
 
 - **Dedupe for free** Git already hashes objects. We just lean into it.
-- **Chunked storage** big files become stable, reusable blobs.
+- **Chunked storage** big files become stable, reusable blobs. Fixed-size or content-defined chunking (CDC).
 - **Optional AES-256-GCM encryption** store secrets without leaking plaintext into the ODB.
+- **Multi-recipient encryption** envelope model (DEK/KEK) — add/remove access without re-encrypting data.
 - **Compression** gzip before encryption — smaller blobs, same round-trip.
 - **Passphrase encryption** derive keys from passphrases via PBKDF2 or scrypt — no raw key management.
 - **Merkle manifests** large files auto-split into sub-manifests for scalability.
@@ -29,18 +30,49 @@ We use the object database.
 - **Full round-trip** store, tree, and restore — get your bytes back, verified.
 - **Lifecycle management** `readManifest`, `deleteAsset`, `findOrphanedChunks` — inspect trees, plan deletions, audit storage.
 - **Vault** GC-safe ref-based storage. One ref (`refs/cas/vault`) indexes all assets by slug. No more silent data loss from `git gc`.
+- **Interactive dashboard** `git cas inspect` with chunk heatmap, animated progress bars, and rich manifest views.
+- **Verify & JSON output** `git cas verify` checks integrity; `--json` on all commands for CI/scripting.
 
 **Use it for:** binary assets, build artifacts, model weights, data packs, secret bundles, weird experiments, etc.
 
 <img src="./docs/demo.gif" alt="git-cas demo" />
 
-## What's new in v2.0.0
+## What's new in v5.1.0
 
-**Compression** — `compression: { algorithm: 'gzip' }` on `store()`. Compression runs before encryption. Decompression on `restore()` is automatic.
+**Multi-recipient envelope encryption** — Each file is encrypted with a random DEK; recipient KEKs wrap the DEK. Add or remove team members without re-encrypting data.
 
-**Passphrase-based encryption** — Pass `passphrase` instead of `encryptionKey`. Keys are derived via PBKDF2 (default) or scrypt. KDF parameters are stored in the manifest for deterministic re-derivation. Use `deriveKey()` directly for manual control.
+```js
+// API: store for multiple recipients
+const manifest = await cas.storeFile({
+  filePath: './secrets.tar.gz',
+  slug: 'prod-secrets',
+  recipients: [
+    { label: 'alice', key: aliceKey },
+    { label: 'bob', key: bobKey },
+  ],
+});
 
-**Merkle tree manifests** — When chunk count exceeds `merkleThreshold` (default: 1000), manifests are automatically split into sub-manifests stored as separate blobs. `readManifest()` transparently reconstitutes them. Full backward compatibility with v1 manifests.
+// Add a recipient later (no re-encryption)
+const updated = await cas.addRecipient({
+  manifest, existingKey: aliceKey, newRecipientKey: carolKey, label: 'carol',
+});
+
+// List / remove recipients
+const labels = await cas.listRecipients({ manifest });
+const trimmed = await cas.removeRecipient({ manifest, label: 'bob' });
+```
+
+```bash
+# CLI: store with multiple recipients
+git cas store ./secrets.tar.gz --slug prod-secrets \
+  --recipient alice:./keys/alice.key \
+  --recipient bob:./keys/bob.key --tree
+
+# Manage recipients
+git cas recipient list prod-secrets
+git cas recipient add prod-secrets --label carol --key-file ./keys/carol.key --existing-key-file ./keys/alice.key
+git cas recipient remove prod-secrets --label bob
+```
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 
@@ -80,6 +112,28 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 **Streaming restore** — `restoreStream()` returns an `AsyncIterable<Buffer>` with O(chunkSize) memory for unencrypted files. `restoreFile()` now writes via `createWriteStream` + `pipeline` instead of buffering.
 
 **Parallel chunk I/O** — new `concurrency` option gates store writes and restore reads through a counting semaphore. `concurrency: 4` can significantly speed up large-file operations.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
+
+## What's new in v3.1.0
+
+**Interactive vault dashboard** — `git cas inspect --slug my-asset` renders a rich TUI with chunk heatmap, encryption card, and history timeline. Animated progress bars for long store/restore operations.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
+
+## What's new in v3.0.0
+
+**Vault** — GC-safe ref-based storage under `refs/cas/vault`. Assets are indexed by slug and survive `git gc`. Full CLI: `git cas vault init`, `list`, `info`, `remove`, `history`. Store with `--tree` to vault automatically.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
+
+## What's new in v2.0.0
+
+**Compression** — `compression: { algorithm: 'gzip' }` on `store()`. Compression runs before encryption. Decompression on `restore()` is automatic.
+
+**Passphrase-based encryption** — Pass `passphrase` instead of `encryptionKey`. Keys are derived via PBKDF2 (default) or scrypt. KDF parameters are stored in the manifest for deterministic re-derivation. Use `deriveKey()` directly for manual control.
+
+**Merkle tree manifests** — When chunk count exceeds `merkleThreshold` (default: 1000), manifests are automatically split into sub-manifests stored as separate blobs. `readManifest()` transparently reconstitutes them. Full backward compatibility with v1 manifests.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 
@@ -148,18 +202,37 @@ git cas restore --slug my-image --out ./restored.png
 # Restore from a direct tree OID
 git cas restore --oid <tree-oid> --out ./restored.png
 
+# Verify integrity without restoring
+git cas verify --slug my-image
+
+# Inspect manifest (interactive dashboard)
+git cas inspect --slug my-image
+
 # Vault management
 git cas vault init
-git cas vault list
+git cas vault list                        # TTY table
+git cas vault list --json                 # structured JSON
+git cas vault list --filter "photos/*"    # glob filter
 git cas vault info my-image
 git cas vault remove my-image
 git cas vault history
+
+# Multi-recipient encryption
+git cas store ./secret.bin --slug shared \
+  --recipient alice:./keys/alice.key \
+  --recipient bob:./keys/bob.key --tree
+git cas recipient list shared
+git cas recipient add shared --label carol --key-file ./keys/carol.key --existing-key-file ./keys/alice.key
+git cas recipient remove shared --label bob
 
 # Encrypted vault round-trip (passphrase via env var or --vault-passphrase flag)
 export GIT_CAS_PASSPHRASE="secret"
 git cas vault init
 git cas store ./secret.bin --slug vault-entry --tree
 git cas restore --slug vault-entry --out ./decrypted.bin
+
+# JSON output on any command (for CI/scripting)
+git cas store ./data.bin --slug my-data --tree --json
 ```
 
 ## Documentation
@@ -181,7 +254,7 @@ That's git-cas. The orphan branch gives you none of:
 
 | | Orphan branch | git-cas |
 |---|---|---|
-| **Encryption** | None — plaintext forever in history | AES-256-GCM + passphrase KDF |
+| **Encryption** | None — plaintext forever in history | AES-256-GCM + passphrase KDF + multi-recipient |
 | **Large files** | Bloats `git clone` for everyone | Chunked, restored on demand |
 | **Dedup** | None | Chunk-level content addressing |
 | **Integrity** | Git SHA-1 | SHA-256 per chunk + GCM auth tag |
