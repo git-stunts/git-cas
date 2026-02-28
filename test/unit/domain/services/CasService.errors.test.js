@@ -5,6 +5,7 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 /** Deterministic SHA-256 hex digest for a given string. */
 const sha256 = (str) => createHash('sha256').update(str).digest('hex');
@@ -22,13 +23,13 @@ describe('CasService – constructor – chunkSize validation', () => {
 
   it('throws when chunkSize is 0', () => {
     expect(
-      () => new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new JsonCodec(), chunkSize: 0 }),
+      () => new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new JsonCodec(), chunkSize: 0, observability: new SilentObserver() }),
     ).toThrow('Chunk size must be at least 1024 bytes');
   });
 
   it('throws when chunkSize is 512', () => {
     expect(
-      () => new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new JsonCodec(), chunkSize: 512 }),
+      () => new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new JsonCodec(), chunkSize: 512, observability: new SilentObserver() }),
     ).toThrow('Chunk size must be at least 1024 bytes');
   });
 
@@ -38,6 +39,7 @@ describe('CasService – constructor – chunkSize validation', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
     expect(service.chunkSize).toBe(1024);
   });
@@ -56,6 +58,7 @@ describe('CasService – store – mutual exclusion and validation', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
   });
 
@@ -96,6 +99,7 @@ describe('CasService – restore – mutual exclusion', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
   });
 
@@ -140,6 +144,7 @@ describe('CasService – store', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
 
     await expect(
@@ -177,6 +182,7 @@ describe('CasService – verifyIntegrity', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
 
     const manifest = new Manifest({
@@ -215,6 +221,7 @@ describe('CasService – createTree', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
 
     // A plain object that lacks .toJSON() and .chunks
@@ -229,6 +236,7 @@ describe('CasService – createTree', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
 
     const badManifest = { toJSON: 'not-a-function', chunks: [] };

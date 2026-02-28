@@ -3,6 +3,7 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 /**
  * Creates an async iterable that yields `n` chunks of `chunkSize` bytes
@@ -39,6 +40,7 @@ function setup() {
     crypto: new NodeCryptoAdapter(),
     codec: new JsonCodec(),
     chunkSize: 1024,
+    observability: new SilentObserver(),
   });
   return { mockPersistence, service };
 }
@@ -70,7 +72,7 @@ describe('CasService stream error – STREAM_ERROR after 3 chunks', () => {
       });
     } catch (err) {
       expect(err.code).toBe('STREAM_ERROR');
-      expect(err.meta.chunksWritten).toBe(3);
+      expect(err.meta.chunksDispatched).toBe(3);
       expect(err.message).toContain('simulated stream failure');
     }
   });
@@ -86,7 +88,7 @@ describe('CasService stream error – STREAM_ERROR immediate failure', () => {
     ({ service } = setup());
   });
 
-  it('throws STREAM_ERROR with chunksWritten=0 when stream fails immediately', async () => {
+  it('throws STREAM_ERROR with chunksDispatched=0 when stream fails immediately', async () => {
     await expect(
       service.store({
         source: failingSource(0),
@@ -103,7 +105,7 @@ describe('CasService stream error – STREAM_ERROR immediate failure', () => {
       });
     } catch (err) {
       expect(err.code).toBe('STREAM_ERROR');
-      expect(err.meta.chunksWritten).toBe(0);
+      expect(err.meta.chunksDispatched).toBe(0);
     }
   });
 });
@@ -208,7 +210,7 @@ describe('CasService stream error – fuzz', () => {
   for (let i = 0; i < 20; i++) {
     const failAfter = i;
 
-    it(`STREAM_ERROR with chunksWritten=${failAfter} (iteration ${i})`, async () => {
+    it(`STREAM_ERROR with chunksDispatched=${failAfter} (iteration ${i})`, async () => {
       await expect(
         service.store({
           source: failingSource(failAfter),
@@ -225,7 +227,7 @@ describe('CasService stream error – fuzz', () => {
         });
       } catch (err) {
         expect(err.code).toBe('STREAM_ERROR');
-        expect(err.meta.chunksWritten).toBe(failAfter);
+        expect(err.meta.chunksDispatched).toBe(failAfter);
       }
     });
   }

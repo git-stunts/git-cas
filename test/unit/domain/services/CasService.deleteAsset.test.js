@@ -4,6 +4,7 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 /**
  * Helper to create deterministic 64-char SHA-256 digests for test data.
@@ -28,6 +29,7 @@ function setup() {
     crypto: new NodeCryptoAdapter(),
     codec: new JsonCodec(),
     chunkSize: 1024,
+    observability: new SilentObserver(),
   });
 
   return { mockPersistence, service };

@@ -4,6 +4,7 @@ import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCrypt
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from '../../../../src/infrastructure/codecs/CborCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 describe('CasService with Codecs', () => {
   let mockPersistence;
@@ -23,7 +24,7 @@ describe('CasService with Codecs', () => {
   });
 
   it('uses JsonCodec when injected', async () => {
-    const service = new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new JsonCodec() });
+    const service = new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new JsonCodec(), observability: new SilentObserver() });
     await service.createTree({ manifest: dummyManifest });
 
     expect(mockPersistence.writeBlob).toHaveBeenCalledWith(expect.stringContaining('{'));
@@ -33,7 +34,7 @@ describe('CasService with Codecs', () => {
   });
 
   it('uses CborCodec when injected', async () => {
-    const service = new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new CborCodec() });
+    const service = new CasService({ persistence: mockPersistence, crypto: new NodeCryptoAdapter(), codec: new CborCodec(), observability: new SilentObserver() });
     await service.createTree({ manifest: dummyManifest });
 
     // CBOR output is binary (Buffer), so we check for Buffer

@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import CasService from '../../../../src/domain/services/CasService.js';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 // ---------------------------------------------------------------------------
 // 1. Round-trip golden path
@@ -22,6 +23,7 @@ describe('CasService encryption – round-trip golden path', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
   });
 
@@ -74,6 +76,7 @@ describe('CasService encryption – wrong key and tampered ciphertext', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
   });
 
@@ -122,6 +125,7 @@ describe('CasService encryption – tampered auth tag', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
   });
 
@@ -159,6 +163,7 @@ describe('CasService encryption – tampered nonce', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
   });
 
@@ -196,6 +201,7 @@ describe('CasService encryption – passthrough', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
   });
 
@@ -230,6 +236,7 @@ describe('CasService encryption – fuzz round-trip', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
   });
 
@@ -269,6 +276,7 @@ describe('CasService encryption – fuzz tamper', () => {
       crypto: new NodeCryptoAdapter(),
       codec: new JsonCodec(),
       chunkSize: 1024,
+      observability: new SilentObserver(),
     });
   });
 

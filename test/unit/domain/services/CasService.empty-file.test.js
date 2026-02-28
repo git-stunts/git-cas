@@ -6,6 +6,7 @@ import os from 'node:os';
 import CasService from '../../../../src/domain/services/CasService.js';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 /**
  * Helper: writes a 0-byte file and returns its path.
@@ -30,6 +31,7 @@ function setup() {
     crypto: new NodeCryptoAdapter(),
     codec: new JsonCodec(),
     chunkSize: 1024,
+    observability: new SilentObserver(),
   });
   const tempDir = mkdtempSync(path.join(os.tmpdir(), 'cas-empty-'));
   return { mockPersistence, service, tempDir };

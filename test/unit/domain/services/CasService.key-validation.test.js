@@ -7,6 +7,7 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 function createService(mockPersistence) {
   return new CasService({
@@ -14,6 +15,7 @@ function createService(mockPersistence) {
     crypto: new NodeCryptoAdapter(),
     codec: new JsonCodec(),
     chunkSize: 1024,
+    observability: new SilentObserver(),
   });
 }
 

@@ -5,6 +5,7 @@ import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCrypt
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 // ---------------------------------------------------------------------------
 // Module-level helper: store content via async iterable, return manifest
@@ -47,6 +48,7 @@ function setup() {
     crypto,
     codec: new JsonCodec(),
     chunkSize: 1024,
+    observability: new SilentObserver(),
   });
 
   return { crypto, blobStore, mockPersistence, service };

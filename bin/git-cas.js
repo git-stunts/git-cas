@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { program } from 'commander';
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
-import ContentAddressableStore from '../index.js';
+import ContentAddressableStore, { EventEmitterObserver } from '../index.js';
 import Manifest from '../src/domain/value-objects/Manifest.js';
 import { createStoreProgress, createRestoreProgress } from './ui/progress.js';
 import { renderEncryptionCard } from './ui/encryption-card.js';
@@ -14,7 +14,7 @@ import { renderHeatmap } from './ui/heatmap.js';
 program
   .name('git-cas')
   .description('Content Addressable Storage backed by Git')
-  .version('3.1.0')
+  .version('4.0.0')
   .option('-q, --quiet', 'Suppress progress output');
 
 /**
@@ -25,12 +25,12 @@ function readKeyFile(keyFilePath) {
 }
 
 /**
- * Create a CAS instance for the given working directory.
+ * Create a CAS instance for the given working directory with an optional observability adapter.
  */
-function createCas(cwd) {
+function createCas(cwd, { observability } = {}) {
   const runner = ShellRunnerFactory.create();
   const plumbing = new GitPlumbing({ runner, cwd });
-  return new ContentAddressableStore({ plumbing });
+  return new ContentAddressableStore({ plumbing, observability });
 }
 
 /**
@@ -104,18 +104,18 @@ program
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(async (file, opts) => {
     try {
-      const cas = createCas(opts.cwd);
+      const observer = new EventEmitterObserver();
+      const cas = createCas(opts.cwd, { observability: observer });
       const encryptionKey = await resolveEncryptionKey(cas, opts);
       const storeOpts = { filePath: file, slug: opts.slug };
       if (encryptionKey) {
         storeOpts.encryptionKey = encryptionKey;
       }
 
-      const service = await cas.getService();
       const progress = createStoreProgress({
         filePath: file, chunkSize: cas.chunkSize, quiet: program.opts().quiet,
       });
-      progress.attach(service);
+      progress.attach(observer);
       let manifest;
       try {
         manifest = await cas.storeFile(storeOpts);
@@ -202,7 +202,8 @@ program
   .action(async (opts) => {
     try {
       validateRestoreFlags(opts);
-      const cas = createCas(opts.cwd);
+      const observer = new EventEmitterObserver();
+      const cas = createCas(opts.cwd, { observability: observer });
       const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
       const manifest = await cas.readManifest({ treeOid });
 
@@ -212,11 +213,10 @@ program
         restoreOpts.encryptionKey = encryptionKey;
       }
 
-      const service = await cas.getService();
       const progress = createRestoreProgress({
         totalChunks: manifest.chunks.length, quiet: program.opts().quiet,
       });
-      progress.attach(service);
+      progress.attach(observer);
       let bytesWritten;
       try {
         ({ bytesWritten } = await cas.restoreFile({

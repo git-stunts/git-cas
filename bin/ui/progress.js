@@ -30,7 +30,7 @@ function formatBytes(bytes) {
  * @param {string} options.filePath - Path to the file being stored.
  * @param {number} options.chunkSize - Chunk size in bytes.
  * @param {boolean} [options.quiet] - Suppress all progress output.
- * @returns {{ attach(service: EventEmitter): void, detach(): void }}
+ * @returns {{ attach(observer: { on(event: string, fn: Function): void, removeListener(event: string, fn: Function): void }): void, detach(): void }}
  */
 export function createStoreProgress({ filePath, chunkSize, quiet, fileSize: providedSize }) {
   if (quiet) {
@@ -58,7 +58,7 @@ export function createStoreProgress({ filePath, chunkSize, quiet, fileSize: prov
  * @param {Object} options
  * @param {number} options.totalChunks - Number of chunks to restore.
  * @param {boolean} [options.quiet] - Suppress all progress output.
- * @returns {{ attach(service: EventEmitter): void, detach(): void }}
+ * @returns {{ attach(observer: { on(event: string, fn: Function): void, removeListener(event: string, fn: Function): void }): void, detach(): void }}
  */
 export function createRestoreProgress({ totalChunks, quiet }) {
   if (quiet || totalChunks === 0) {

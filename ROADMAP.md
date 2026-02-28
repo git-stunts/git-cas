@@ -185,6 +185,7 @@ Return and throw semantics for every public method (current and planned).
 
 | Version | Milestone | Codename | Theme | Status |
 |--------:|-----------|----------|-------|--------|
+| v4.0.0  | M14       | Conduit  | Streaming I/O, observability, parallel chunks | |
 | v2.1.0  | M8        | Spit Shine | Review fixups | |
 | v2.2.0  | M9        | Cockpit  | CLI improvements | |
 | v3.0.0  | M10       | Hydra    | Content-defined chunking | |
@@ -201,15 +202,19 @@ M7 Horizon (v2.0.0) ✅ ──────────────────�
   │                                               │
   ├──────┬──────────┐                              │
   v      v          v                              v
-M8 Spit  M9 Cockpit  M10 Hydra (v3.0.0)   M11 Locksmith (v3.1.0)
+M8 Spit  M9 Cockpit  M10 Hydra        M11 Locksmith
 Shine    (v2.2.0)       │                          │
 (v2.1.0)   │            │                          v
-           │            v                  M12 Carousel (v3.2.0)
+           │            v                  M12 Carousel
            │     (CDC benchmarks)
            │
            v
     M13 Bijou (v3.1.0) ✅
     (TUI dashboard & progress)
+           │
+           v
+    M14 Conduit (v4.0.0) ◀── NEXT
+    (Streaming I/O + Observability + Parallel chunks)
 ```
 
 ---
@@ -220,13 +225,272 @@ Shine    (v2.2.0)       │                          │
 
 | #  | Codename      | Theme                      | Version | Tasks | ~LoC   | ~Hours |
 |---:|--------------|----------------------------|:-------:|------:|-------:|------:|
+| M14| Conduit       | Streaming I/O, observability, parallel chunks | v4.0.0 | 4 | ~600 | ~18h |
 | M8 | Spit Shine    | Review fixups              | v2.1.0  | 3     | ~290   | ~7h   |
 | M9 | Cockpit       | CLI improvements           | v2.2.0  | 5     | ~260   | ~7h   |
 | M10| Hydra         | Content-defined chunking   | v3.0.0  | 4     | ~690   | ~22h  |
 | M11| Locksmith     | Multi-recipient encryption | v3.1.0  | 4     | ~580   | ~20h  |
 | M12| Carousel      | Key rotation               | v3.2.0  | 4     | ~400   | ~13h  |
 | M13| Bijou         | TUI dashboard & progress   | v3.1.0  | 6     | ~650   | ~20h  |
-|    | **Total**     |                            |         | **26**| **~2,870** | **~89h** |
+|    | **Total**     |                            |         | **30**| **~3,470** | **~107h** |
+
+---
+
+# M14 — Conduit (v4.0.0)
+**Theme:** Replace `EventEmitter` inheritance with a proper `ObservabilityPort`, add streaming restore, and enable parallel chunk I/O. Major version bump: removes `extends EventEmitter` from `CasService`, adds `observability` as a required constructor port.
+
+---
+
+## Task 14.1: ObservabilityPort and adapters
+
+**User Story**
+As a library consumer, I want structured observability (metrics, logs, spans) from CAS operations so I can monitor throughput, track errors, and integrate with my own tooling — without the domain layer depending on Node's EventEmitter.
+
+**Requirements**
+- R1: Define `ObservabilityPort` interface with three methods:
+  - `metric(channel: string, data: object)` — emit a named metric (channels: `chunk`, `file`, `integrity`, `vault`).
+  - `log(level: string, message: string, meta?: object)` — structured log (`debug`, `info`, `warn`, `error`).
+  - `span(name: string) → { end(meta?: object): void }` — timed operation bracket.
+- R2: Remove `extends EventEmitter` from `CasService`. All `this.emit()` calls replaced with `this.observability.metric()` or `this.observability.log()`.
+- R3: `observability` becomes a required constructor parameter on `CasService` (like `persistence`, `codec`, `crypto`).
+- R4: Implement `SilentObserver` adapter (no-op — all methods are empty). This is the default when no observability is needed.
+- R5: Implement `EventEmitterObserver` adapter that translates `metric()` calls to `EventEmitter.emit()` calls for backward compatibility. Consumers who relied on `service.on('chunk:stored', ...)` can wrap with this adapter.
+- R6: Implement `StatsCollector` adapter that accumulates metrics and exposes a summary object: `{ chunksProcessed, bytesTotal, elapsed, throughput, errors }`.
+- R7: Facade (`ContentAddressableStore`) creates a default `SilentObserver` if no observability adapter is provided, and passes it to `CasService`.
+- R8: Update `.d.ts` declarations for new port and adapters.
+
+**Acceptance Criteria**
+- AC1: `CasService` no longer extends `EventEmitter`.
+- AC2: All existing event emission points emit metrics via `ObservabilityPort`.
+- AC3: `EventEmitterObserver` adapter produces identical events to the old `extends EventEmitter` behavior.
+- AC4: `StatsCollector` accumulates correct stats across a full store+restore cycle.
+- AC5: `SilentObserver` introduces zero overhead (no-op methods).
+- AC6: Span `end()` captures elapsed time in the metric.
+
+**Scope**
+- In scope: Port definition, 3 adapters, CasService refactor, facade wiring, TypeScript declarations.
+- Out of scope: TUI adapter (M13 already has its own bijou integration — it can wrap `EventEmitterObserver` or adopt `ObservabilityPort` in a follow-up). Log levels beyond the 4 basics. Persistent metrics storage.
+
+**Est. Complexity (LoC)**
+- Prod: ~180 (port ~30, 3 adapters ~90, CasService refactor ~40, facade ~20)
+- Tests: ~120
+- Total: ~300
+
+**Est. Human Working Hours**
+- ~8h
+
+**Test Plan**
+- Golden path:
+  - Store file with `StatsCollector` → verify `chunksProcessed`, `bytesTotal`, `throughput` are correct.
+  - Store + restore with `EventEmitterObserver` → assert same events as old EventEmitter behavior.
+  - `SilentObserver` → store + restore completes with no errors, no output.
+- Failures:
+  - Missing `observability` param → constructor throws with descriptive error.
+  - Corrupted chunk → `observability.log('error', ...)` called before throw.
+- Edges:
+  - 0-byte file → span starts and ends, no chunk metrics emitted.
+  - Span `end()` called twice → no error (idempotent).
+- Fuzz/stress:
+  - All existing CasService tests must pass with `SilentObserver` injected.
+
+**Definition of Done**
+- DoD1: `CasService` does not extend `EventEmitter`.
+- DoD2: `ObservabilityPort` defined with metric/log/span.
+- DoD3: 3 adapters implemented and tested.
+- DoD4: All existing tests updated and green.
+- DoD5: TypeScript declarations updated.
+
+**Blocking**
+- Blocks: Task 14.2, 14.3, 14.4
+
+**Blocked By**
+- Blocked by: None
+
+---
+
+## Task 14.2: Streaming restore
+
+**User Story**
+As a developer restoring large files, I want a streaming restore path so memory usage is O(chunkSize), not O(fileSize).
+
+**Requirements**
+- R1: Add `CasService.restoreStream({ manifest, encryptionKey, passphrase })` returning `AsyncIterable<Buffer>`.
+- R2: Each yielded buffer is one verified, decrypted, decompressed chunk — ready to write.
+- R3: Integrity verified per-chunk before yield (not after full reassembly).
+- R4: Decompression and decryption applied per-chunk in streaming fashion.
+- R5: `restoreFile()` in the facade uses `restoreStream()` internally with `createWriteStream()` instead of `writeFileSync()`.
+- R6: Existing `restore()` method reimplemented as: collect `restoreStream()` into buffer. Single code path, two interfaces.
+- R7: Emit `observability.metric('chunk', ...)` per chunk and `observability.span('restore')` for the full operation.
+
+**Acceptance Criteria**
+- AC1: `restoreStream()` yields chunks that, when concatenated, match the original file byte-for-byte.
+- AC2: Memory usage during streaming restore is O(chunkSize), not O(fileSize).
+- AC3: `restoreFile()` writes via `createWriteStream()` — no `writeFileSync()`.
+- AC4: Encrypted + compressed files round-trip correctly via streaming restore.
+- AC5: Existing `restore()` method returns identical results (backward compat).
+
+**Scope**
+- In scope: `restoreStream()` on CasService + facade, refactor `restoreFile()` and `restore()`.
+- Out of scope: Parallel chunk reads (Task 14.3), resume/partial restore.
+
+**Est. Complexity (LoC)**
+- Prod: ~80
+- Tests: ~100
+- Total: ~180
+
+**Est. Human Working Hours**
+- ~5h
+
+**Test Plan**
+- Golden path:
+  - Store 10KB → restoreStream → collect → byte-compare original.
+  - Store encrypted + compressed → restoreStream → collect → compare.
+  - restoreFile writes correct file via streaming (spy confirms no writeFileSync).
+- Failures:
+  - Corrupted chunk mid-stream → throws INTEGRITY_ERROR, iteration stops.
+  - Wrong key → throws INTEGRITY_ERROR on first encrypted chunk.
+- Edges:
+  - 0-byte manifest yields empty iterable.
+  - Single-chunk file yields exactly 1 buffer.
+  - Exact multiple of chunkSize yields expected count.
+- Fuzz/stress:
+  - 50 random file sizes (seeded) — streaming restore matches buffered restore byte-for-byte.
+
+**Definition of Done**
+- DoD1: `restoreStream()` implemented on CasService and exposed via facade.
+- DoD2: `restoreFile()` refactored to use streaming writes.
+- DoD3: `restore()` reimplemented on top of `restoreStream()`.
+- DoD4: All existing restore tests still pass.
+- DoD5: New streaming tests added and green.
+
+**Blocking**
+- Blocks: Task 14.3
+
+**Blocked By**
+- Blocked by: Task 14.1 (observability wiring)
+
+---
+
+## Task 14.3: Parallel chunk I/O
+
+**User Story**
+As a user storing or restoring files with many chunks, I want the system to read/write multiple chunks concurrently so operations complete faster.
+
+**Requirements**
+- R1: Add `concurrency` option to `CasService` constructor (positive integer, default: 1).
+- R2: Store path (`_chunkAndStore`): up to N chunks written to Git in parallel. Chunk ordering in the manifest is preserved regardless of write completion order.
+- R3: Restore path (`restoreStream`): up to N chunks read from Git in parallel. Yield order matches manifest chunk order (read ahead, buffer up to N, yield in sequence).
+- R4: Implement a simple `Semaphore` utility (internal, not exported) to gate concurrent persistence calls.
+- R5: `concurrency: 1` produces identical behavior to current sequential code (no functional change).
+- R6: Emit `observability.metric('chunk', ...)` per chunk regardless of parallelism. `observability.span('chunk:read')` / `observability.span('chunk:write')` wrap each individual I/O operation.
+- R7: Expose `concurrency` option on `ContentAddressableStore` constructor, forwarded to `CasService`.
+
+**Acceptance Criteria**
+- AC1: With `concurrency: 4`, a 20-chunk store completes measurably faster than sequential (benchmark, not unit test).
+- AC2: With `concurrency: 4`, restore produces byte-identical output to sequential.
+- AC3: With `concurrency: 1`, all existing tests pass unchanged.
+- AC4: Manifest chunk order is always preserved regardless of concurrency setting.
+- AC5: Semaphore correctly limits concurrent persistence calls.
+
+**Scope**
+- In scope: Semaphore, parallel store loop, parallel restore with ordered yield, concurrency config.
+- Out of scope: Adaptive concurrency (auto-tuning), per-operation concurrency overrides, connection pooling in GitPersistenceAdapter.
+
+**Est. Complexity (LoC)**
+- Prod: ~100 (Semaphore ~25, store refactor ~30, restore refactor ~30, config ~15)
+- Tests: ~80
+- Total: ~180
+
+**Est. Human Working Hours**
+- ~6h
+
+**Test Plan**
+- Golden path:
+  - Store + restore with concurrency: 4, verify byte-for-byte match.
+  - Store + restore with concurrency: 1, verify identical to current behavior.
+  - Encrypted + compressed + concurrency: 4 → correct round-trip.
+- Failures:
+  - concurrency: 0 → constructor throws.
+  - concurrency: -1 → constructor throws.
+  - One chunk write fails mid-batch → error propagated, partial writes are safe (unreachable blobs GC'd by Git).
+- Edges:
+  - File with 1 chunk + concurrency: 4 → works (no deadlock).
+  - File with 3 chunks + concurrency: 10 → only 3 in flight.
+  - 0-byte file + any concurrency → no-op.
+- Fuzz/stress:
+  - Benchmark: 100-chunk file, concurrency 1 vs 4 vs 8, measure wall-clock time.
+
+**Definition of Done**
+- DoD1: Semaphore utility implemented.
+- DoD2: Store and restore support configurable concurrency.
+- DoD3: All tests pass at concurrency: 1.
+- DoD4: Parallel tests added and green.
+- DoD5: Benchmark script demonstrates speedup.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: Task 14.2 (restoreStream)
+
+---
+
+## Task 14.4: Migrate CLI and TUI to ObservabilityPort
+
+**User Story**
+As a CLI user, I want progress bars and stats to work with the new observability system so the terminal experience is unchanged after the v4 migration.
+
+**Requirements**
+- R1: Refactor `bin/ui/progress.js` to subscribe to `ObservabilityPort` metrics instead of EventEmitter events.
+- R2: Progress trackers use `observability.metric('chunk', ...)` events for progress updates.
+- R3: CLI `store` and `restore` commands wire the observability adapter into CasService via the facade.
+- R4: Dashboard and other TUI components continue to function (adapt to new metric format if needed).
+- R5: `--quiet` flag still works (uses `SilentObserver`).
+- R6: Stats summary printed after store/restore when not in quiet mode (throughput, total bytes, elapsed time).
+
+**Acceptance Criteria**
+- AC1: `git cas store` shows progress bar identical to v3.1.0 behavior.
+- AC2: `git cas restore` shows progress bar identical to v3.1.0 behavior.
+- AC3: `--quiet` suppresses all output.
+- AC4: Stats summary displayed after operation completes.
+- AC5: Dashboard renders correctly with new observability wiring.
+
+**Scope**
+- In scope: CLI progress migration, stats summary, dashboard adaptation.
+- Out of scope: New TUI features, log file output, verbose debug mode.
+
+**Est. Complexity (LoC)**
+- Prod: ~60 (progress refactor ~30, CLI wiring ~20, stats display ~10)
+- Tests: ~20
+- Total: ~80
+
+**Est. Human Working Hours**
+- ~3h
+
+**Test Plan**
+- Golden path:
+  - Store with progress → verify metric events drive progress display.
+  - Restore with progress → same.
+  - Stats summary printed with correct values.
+- Failures:
+  - None expected (thin adapter layer).
+- Edges:
+  - Quiet mode → SilentObserver, no output.
+  - Pipe mode → no progress, no stats.
+- Fuzz/stress:
+  - None (display layer).
+
+**Definition of Done**
+- DoD1: Progress bars work with ObservabilityPort.
+- DoD2: Stats summary displays after operations.
+- DoD3: All CLI tests pass.
+- DoD4: Dashboard functional with new wiring.
+
+**Blocking**
+- Blocks: None
+
+**Blocked By**
+- Blocked by: Task 14.1 (ObservabilityPort)
 
 ---
 
@@ -235,7 +499,7 @@ Shine    (v2.2.0)       │                          │
 
 ---
 
-## Task 8.1: Streaming restore
+## Task 8.1: Streaming restore *(superseded by Task 14.2)*
 
 **User Story**
 As a developer restoring large files, I want a streaming restore path so I don't buffer the entire file in memory.
@@ -2064,3 +2328,520 @@ Multiple vaults instead of one. Refs move from `refs/cas/vault` to `refs/cas/vau
 ### Repo Intelligence
 - **Duplicate detection on store** — warn if a file being stored already exists as a tracked git blob (same content hash). "This file is already tracked by git — are you sure you want to store it in CAS too?"
 - **Repo scan / dedup advisor** — `git cas scan` walks the git object database and recommends files that could benefit from CAS (large blobs, binary files, duplicated content across branches). Reports dedup opportunities and potential storage savings.
+
+---
+
+# Ideas & Visions
+
+New feature concepts with fully fleshed out visions and mini battle plans. Not committed to any milestone — captured here for future consideration and discussion.
+
+---
+
+## Vision 1: Snapshot Trees — Directory-Level Store
+
+**The Pitch**
+
+Today, git-cas stores one file at a time. Storing a build output directory means N separate `storeFile()` calls, N separate vault entries, and the caller manually tracking which slugs belong together. There's no concept of "this set of files is one atomic artifact."
+
+Snapshot trees change that. `git cas store-tree ./dist --slug release/v4.0.0` stores an entire directory as a single CAS tree — one root manifest that references child manifests per file, one vault entry, one tree OID. Restore reconstitutes the full directory structure. This unlocks "store my build output" as a single atomic operation.
+
+**Why It Matters**
+
+- **CI/CD artifacts**: `npm run build && git cas store-tree ./dist --slug build/$CI_COMMIT_SHA --tree` — one command, one OID, committed in the release tag.
+- **Dataset versioning**: Store a directory of CSV/Parquet files as a single versioned snapshot, restore any version atomically.
+- **Config bundles**: Store an entire config directory (TLS certs, env files, deploy scripts) as one encrypted vault entry.
+- **Binary releases**: Store a multi-file release (binary + README + license + checksums) as one restorable unit.
+
+**Manifest Design**
+
+```json
+{
+  "version": 3,
+  "type": "tree",
+  "slug": "release/v4.0.0",
+  "entries": [
+    { "path": "index.js", "manifestOid": "abc123...", "size": 45200 },
+    { "path": "lib/utils.js", "manifestOid": "def456...", "size": 12800 },
+    { "path": "assets/logo.png", "manifestOid": "789abc...", "size": 204800 }
+  ],
+  "totalSize": 262800,
+  "totalChunks": 12,
+  "encryption": { ... },
+  "compression": { ... }
+}
+```
+
+Each `entries[].manifestOid` points to a standard file-level manifest blob (v1/v2). The root tree manifest is the index; child manifests are the per-file metadata. Encryption and compression applied per-file, configured at the tree level.
+
+**Mini Battle Plan**
+
+| Phase | Work | ~LoC | ~Hours |
+|-------|------|------|--------|
+| 1. Schema | Add `TreeManifestSchema` with `type: 'tree'`, `entries[]` array. Backward compat: existing manifests have no `type` field (treated as `type: 'file'`). | ~40 | ~2h |
+| 2. CasService | `storeTree({ source: string, slug, encryptionKey?, compression? })` — walks directory recursively, stores each file via existing `store()`, collects child manifests, builds root tree manifest. Parallel file stores via semaphore. | ~120 | ~6h |
+| 3. CasService | `restoreTree({ manifest, outputDir, encryptionKey? })` — reads root tree manifest, restores each child file to `outputDir/entry.path`. Creates intermediate directories. | ~80 | ~4h |
+| 4. Facade | Wire `storeDirectory()` and `restoreDirectory()` through `ContentAddressableStore`. | ~30 | ~1h |
+| 5. CLI | `git cas store-tree <dir> --slug <slug>` and `git cas restore --slug <slug> --out <dir>` (auto-detect tree vs file manifest). | ~40 | ~2h |
+| 6. Tests | Round-trip with nested dirs, empty dirs, symlinks (skip or follow?), encrypted+compressed trees, Merkle child manifests. | ~100 | ~4h |
+| **Total** | | **~410** | **~19h** |
+
+**Open Questions**
+- Symlinks: follow, skip, or store as metadata?
+- Empty directories: include in manifest or skip?
+- File permissions: record and restore, or ignore?
+- Maximum depth limit to prevent unbounded recursion?
+
+---
+
+## Vision 2: Portable Bundles — Air-Gap Transfer
+
+**The Pitch**
+
+`git cas bundle --slug my-asset --out asset.casb` creates a self-contained bundle file that includes the manifest, all chunk blobs, and enough metadata to import into any git-cas-enabled repo. `git cas import --bundle asset.casb` reconstitutes it. Like `git bundle` but for CAS assets.
+
+This enables offline transfer between air-gapped systems without needing `git push/pull` or shared remotes. Ship a USB stick, email an encrypted bundle, or distribute via any file transfer mechanism.
+
+**Bundle Format**
+
+```text
+┌─────────────────────────────┐
+│ Magic: "CASB\x01"   (5B)   │  ← Version 1 bundle
+│ Header length       (4B)    │
+│ Header (JSON):              │
+│   { slug, filename, size,   │
+│     chunkCount, encrypted,  │
+│     compressed, codec }     │
+│ Manifest blob       (var)   │
+│ Chunk 0 length      (4B)   │
+│ Chunk 0 data        (var)   │
+│ Chunk 1 length      (4B)   │
+│ Chunk 1 data        (var)   │
+│ ...                         │
+│ SHA-256 checksum     (32B)  │  ← Over everything above
+└─────────────────────────────┘
+```
+
+Simple, streamable, no external dependencies. The checksum at the end covers the entire bundle — tamper detection without needing encryption.
+
+**Mini Battle Plan**
+
+| Phase | Work | ~LoC | ~Hours |
+|-------|------|------|--------|
+| 1. Format spec | Define bundle wire format, version byte, header schema. Document in `docs/BUNDLE-FORMAT.md`. | ~0 prod, ~40 docs | ~1h |
+| 2. Bundle writer | `CasService.createBundle({ manifest, output: WritableStream })` — streams manifest + chunks into bundle format. Calculates trailing checksum. | ~80 | ~4h |
+| 3. Bundle reader | `CasService.importBundle({ input: ReadableStream })` — parses header, validates checksum, writes blobs to Git ODB, returns manifest. | ~100 | ~5h |
+| 4. Facade + CLI | `git cas bundle --slug <slug> --out <path>` and `git cas import --bundle <path> [--vault]`. | ~40 | ~2h |
+| 5. Tests | Round-trip, corrupted bundle (bad checksum), encrypted bundles, Merkle manifests, partial read (truncated file). | ~80 | ~3h |
+| **Total** | | **~340** | **~15h** |
+
+**Why Not Just `git bundle`?**
+
+`git bundle` exports entire ref histories. It requires the recipient to have a compatible Git repo structure. CAS bundles export a single asset with just the manifest and blobs — no ref history, no commit chain, no pack negotiation. They're smaller, simpler, and purpose-built for asset transfer.
+
+---
+
+## Vision 3: Manifest Diff Engine
+
+**The Pitch**
+
+`git cas diff --from photos/v1 --to photos/v2` compares two manifests and shows which chunks changed, were added, or removed. With CDC (M10), this becomes extremely powerful — you can see exactly which byte ranges of a binary file changed between versions.
+
+**API Design**
+
+```js
+const diff = await cas.diffManifests({ oldManifest, newManifest });
+// Returns:
+// {
+//   unchanged: [{ index, digest, size }],
+//   added:     [{ index, digest, size }],
+//   removed:   [{ index, digest, size }],
+//   modified:  [{ oldIndex, newIndex, oldDigest, newDigest }],
+//   summary: {
+//     unchangedBytes: 1048576,
+//     addedBytes: 262144,
+//     removedBytes: 0,
+//     reuseRatio: 0.8,  // 80% of chunks reused
+//   }
+// }
+```
+
+The diff is purely metadata-based — no blob reads required. Compare chunk digests between manifests. With fixed chunking, any insertion shifts all downstream chunks (low reuse). With CDC, insertions affect 1-2 chunks (high reuse). The `reuseRatio` metric quantifies dedup efficiency.
+
+**TUI Integration**
+
+```
+git cas diff --from photos/v1 --to photos/v2 --heatmap
+
+ v1:  ████████████████████████████████████████
+ v2:  ████████░░░░████████████████████████████
+                ^^^^
+         2 chunks changed (bytes 524288–786432)
+         38/40 chunks reused (95.0%)
+```
+
+**Mini Battle Plan**
+
+| Phase | Work | ~LoC | ~Hours |
+|-------|------|------|--------|
+| 1. Diff engine | `CasService.diffManifests({ oldManifest, newManifest })` — digest-set comparison, handles reordering. | ~60 | ~3h |
+| 2. CLI command | `git cas diff --from <slug/oid> --to <slug/oid>` with human-readable summary. | ~30 | ~1h |
+| 3. Heatmap view | Side-by-side chunk heatmap showing unchanged (green), changed (red), added (yellow) blocks. Reuses bijou gradient components from Task 13.5. | ~40 | ~2h |
+| 4. Tests | Identical manifests (0 diff), completely different, single-chunk change, CDC vs fixed dedup comparison. | ~50 | ~2h |
+| **Total** | | **~180** | **~8h** |
+
+**Synergy with M10 Hydra**: Diff becomes dramatically more useful with CDC. Fixed chunking: insert 1 byte → 100% of downstream chunks changed. CDC: insert 1 byte → 1-2 chunks changed. The diff engine quantifies this, making CDC's value proposition concrete and measurable.
+
+---
+
+## Vision 4: CompressionPort — zstd, brotli, lz4
+
+**The Pitch**
+
+Currently, compression is hardcoded to gzip. The `CompressionPort` abstraction mirrors the existing `CryptoPort` and `CodecPort` patterns — a port with pluggable adapters. The manifest already records `compression.algorithm`, so backward compat is built in.
+
+**Why This Matters**
+
+| Algorithm | Ratio (typical) | Compress speed | Decompress speed | Best for |
+|-----------|-----------------|----------------|------------------|----------|
+| gzip | Good | Slow (~50 MB/s) | Moderate (~300 MB/s) | Current default |
+| **zstd** | **Excellent** | **Fast (~500 MB/s)** | **Very fast (~1.5 GB/s)** | **General purpose, best all-rounder** |
+| brotli | Excellent | Very slow (~10 MB/s) | Fast (~500 MB/s) | Pre-compressed web assets |
+| lz4 | Moderate | Ultra-fast (~2 GB/s) | Ultra-fast (~4 GB/s) | Speed-critical, low-latency |
+
+Zstd alone would give 5-10x faster compression with equal or better ratio. For a tool that compresses before encrypting, compression speed directly impacts store throughput.
+
+**Mini Battle Plan**
+
+| Phase | Work | ~LoC | ~Hours |
+|-------|------|------|--------|
+| 1. Port definition | `src/ports/CompressionPort.js` — `compress(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>` and `decompress(buffer: Buffer): Promise<Buffer>`. Property: `algorithm: string`. | ~20 | ~1h |
+| 2. GzipAdapter | Wrap existing `createGzip()` / `gunzipAsync()` logic into adapter. Remove inline gzip from CasService. | ~30 | ~1h |
+| 3. ZstdAdapter | Use `@napi-rs/zstd` (native binding, 0-dep) or `fzstd` (pure JS fallback). Streaming compress via transform. | ~40 | ~2h |
+| 4. CasService refactor | Replace inline compression with `this.compression.compress(source)` and `this.compression.decompress(buffer)`. Facade accepts `compression: { algorithm: 'gzip' \| 'zstd' }` and selects adapter. | ~30 | ~2h |
+| 5. Tests + benchmarks | Round-trip with each algorithm. Benchmark: 10 MB file, gzip vs zstd compress speed and ratio. | ~60 | ~2h |
+| **Total** | | **~180** | **~8h** |
+
+**Backward Compatibility**: Old manifests with `compression.algorithm: 'gzip'` still work — the facade selects the gzip adapter. New manifests can specify `'zstd'`. Restoring always reads the algorithm from the manifest, so mixed-algorithm vaults work seamlessly.
+
+---
+
+## Vision 5: Watch Mode — Continuous Sync
+
+**The Pitch**
+
+`git cas watch ./data --slug live-data --interval 5s` monitors a file or directory for changes and incrementally re-stores modified content. Combined with CDC (M10), only changed chunks get written. The vault entry updates atomically on each sync cycle.
+
+**Use Cases**
+
+- **Development hot-reload**: Watch a model weights file during training; each checkpoint auto-stored with a versioned slug (`live-data@1`, `live-data@2`, ...).
+- **Config sync**: Watch a config directory; changes automatically vaulted.
+- **Continuous backup**: Low-overhead continuous protection for critical files.
+
+**Mini Battle Plan**
+
+| Phase | Work | ~LoC | ~Hours |
+|-------|------|------|--------|
+| 1. File watcher | Use `fs.watch()` (Node) / `Bun.file().watch()` with debounce (default 1s). Detect create/modify/delete. | ~50 | ~2h |
+| 2. Incremental store | On change: re-store the file, diff manifests (Vision 3), skip if unchanged (identical digest). Update vault entry with `--force`. | ~60 | ~3h |
+| 3. CLI command | `git cas watch <path> --slug <slug> [--interval <duration>] [--key-file <path>]`. Ctrl-C to stop. | ~30 | ~1h |
+| 4. Progress | Live status line showing: last sync time, files watched, total syncs, bytes stored. | ~20 | ~1h |
+| 5. Tests | Mock fs.watch, verify debounce, verify vault updates, verify no-op on unchanged files. | ~60 | ~3h |
+| **Total** | | **~220** | **~10h** |
+
+**Synergy with CDC (M10)**: Without CDC, every modification re-stores every chunk downstream of the edit point. With CDC, only 1-2 chunks change per modification. Watch mode + CDC together give efficient continuous incremental storage.
+
+---
+
+## Vision 6: Interactive Passphrase Prompt
+
+**The Pitch**
+
+Replace `--vault-passphrase "my secret"` (visible in shell history, `ps` output, and CI logs) with an interactive TTY prompt that reads the passphrase from stdin with echo disabled. Like `gpg`, `ssh-keygen`, and `sudo`.
+
+```shell
+$ git cas store ./secrets.tar.gz --slug prod-secrets --vault-passphrase
+Enter vault passphrase: ••••••••••
+Confirm passphrase: ••••••••••
+```
+
+Falls back to `GIT_CAS_PASSPHRASE` env var for non-interactive contexts (CI). The flag `--vault-passphrase` without a value triggers the prompt; with a value, uses it directly (backward compatible).
+
+**Mini Battle Plan**
+
+| Phase | Work | ~LoC | ~Hours |
+|-------|------|------|--------|
+| 1. TTY reader | `readPassphrase(prompt: string): Promise<string>` — opens `/dev/tty` (Unix) or `CON` (Windows), sets raw mode, reads until Enter, echoes `•` per character. | ~40 | ~2h |
+| 2. CLI integration | When `--vault-passphrase` is passed without a value and stdin is a TTY, call `readPassphrase()`. On store (first use), prompt twice for confirmation. | ~20 | ~1h |
+| 3. Tests | Mock TTY input, verify echo suppression, verify confirmation match/mismatch, verify env var fallback. | ~30 | ~1h |
+| **Total** | | **~90** | **~4h** |
+
+**This directly mitigates Concern 5 (shell history exposure) below.**
+
+---
+
+# Concerns & Mitigations
+
+Architectural and security concerns identified during code review, with proposed mitigations and defensive tests for each.
+
+---
+
+## Concern 1: Memory Amplification on Encrypted/Compressed Restore
+
+**The Problem**
+
+`_restoreBuffered()` concatenates ALL chunk blobs into a single buffer, decrypts, then decompresses. Despite `restoreStream()` exposing an `AsyncIterable` API (implying streaming), encrypted or compressed files buffer the entire plaintext in memory. A 10 GB encrypted file attempts a 10 GB allocation — and then potentially a second 10 GB buffer for decompression.
+
+The JSDoc note added in the M14 review documents this, but there's no runtime guard. A user calling `restoreStream()` expecting constant memory will OOM silently on large encrypted files.
+
+**Root Cause**: AES-256-GCM requires the entire ciphertext for authentication tag verification before any plaintext is released. You can't verify-then-stream with GCM — it's authenticate-everything-or-nothing. This is a fundamental limitation of the cipher mode, not a bug.
+
+**Mitigation Strategy**
+
+| # | Mitigation | Effort | Impact |
+|---|-----------|--------|--------|
+| M1 | **Memory guard**: Add `maxRestoreBufferSize` option (default 512 MB). `_restoreBuffered()` checks `manifest.size` against limit before allocating. Throws `CasError('RESTORE_TOO_LARGE')` with actionable message suggesting chunked storage without encryption, or increasing the limit. | ~20 LoC | Prevents surprise OOM |
+| M2 | **Per-chunk encryption** (long-term): Encrypt each chunk independently with a derived per-chunk nonce (`baseNonce + chunkIndex`). Each chunk gets its own GCM tag. Restore can verify and decrypt per-chunk in O(chunkSize) memory. **Breaking change** — new manifest encryption format. | ~200 LoC | True streaming encrypted restore |
+| M3 | **Documentation**: Add a "Memory Model" section to README explaining which code paths buffer and which stream. | ~0 LoC | Sets expectations |
+
+**Recommended**: M1 (immediate safety net) + M3 (documentation). M2 is a future milestone — it changes the encryption format and requires careful security analysis (per-chunk nonces must not collide, chunk reordering attacks need mitigation via a MAC over the chunk sequence).
+
+**Defensive Tests**
+
+```js
+describe('Concern 1: Memory guard on encrypted restore', () => {
+  it('throws RESTORE_TOO_LARGE when manifest.size exceeds maxRestoreBufferSize', ...);
+  it('succeeds when manifest.size is within maxRestoreBufferSize', ...);
+  it('does not apply guard to unencrypted uncompressed restoreStream', ...);
+  it('includes actionable hint in RESTORE_TOO_LARGE error message', ...);
+});
+```
+
+**New Error Code**: `RESTORE_TOO_LARGE` — "File too large for buffered restore. The encrypted/compressed restore path buffers the entire file in memory. Set `maxRestoreBufferSize` to increase the limit, or store without encryption for streaming restore."
+
+---
+
+## Concern 2: Orphaned Blob Accumulation After STREAM_ERROR
+
+**The Problem**
+
+When `_chunkAndStore()` throws `STREAM_ERROR`, chunks already written to Git via `persistence.writeBlob()` are orphaned — they exist in the Git ODB but no tree or ref references them. `git gc` will eventually reclaim them (default grace period: 2 weeks), but:
+
+1. No tracking of which blobs were orphaned — there's no cleanup manifest or error log.
+2. In high-failure environments (unreliable sources, network streams), orphaned blobs accumulate silently.
+3. `git count-objects` shows growing "loose objects" with no explanation.
+
+The `await Promise.allSettled(pending)` fix from C1 ensures in-flight writes complete (no floating promises), but their results are discarded — successful writes still create orphaned blobs.
+
+**Mitigation Strategy**
+
+| # | Mitigation | Effort | Impact |
+|---|-----------|--------|--------|
+| M1 | **Report orphaned blobs in error metadata**: After `Promise.allSettled(pending)`, collect the blob OIDs from fulfilled results and include them in the `STREAM_ERROR` meta: `{ chunksDispatched, orphanedBlobs: ['abc...', 'def...'], originalError }`. Callers can log or clean up. | ~15 LoC | Visibility |
+| M2 | **Observability metric**: Emit `observability.metric('error', { action: 'orphaned_blobs', count: N, blobs: [...] })` so monitoring systems can track accumulation. | ~5 LoC | Monitoring |
+| M3 | **CLI warning**: When `git cas store` fails with STREAM_ERROR, print: `"Warning: N chunk blobs were written before the error. They will be reclaimed by 'git gc'."` | ~5 LoC | User awareness |
+
+**Recommended**: M1 + M2 (cheap, high-value visibility). M3 for CLI polish.
+
+**Defensive Tests**
+
+```js
+describe('Concern 2: Orphaned blob tracking on STREAM_ERROR', () => {
+  it('includes orphanedBlobs array in STREAM_ERROR meta', ...);
+  it('orphanedBlobs contains blob OIDs from successful writes before failure', ...);
+  it('orphanedBlobs is empty when stream fails before any writes', ...);
+  it('emits orphaned_blobs metric via observability', ...);
+});
+```
+
+---
+
+## Concern 3: No Upper Bound on Chunk Size
+
+**The Problem**
+
+`CasService` enforces a minimum chunk size (`chunkSize < 1024` throws), but there's no maximum. A user can configure `chunkSize: 4 * 1024 * 1024 * 1024` (4 GB) — and `git hash-object -w` will attempt to read the entire 4 GB chunk into memory as a single buffer. The `_storeChunk()` method passes the chunk buffer to `persistence.writeBlob()`, which shells out to `git hash-object` via stdin — but the buffer itself is already in Node.js memory.
+
+Additionally, Git repositories have practical performance limits on individual blob sizes. While there's no hard cap, blobs >100 MB cause significant performance degradation in pack files, and >1 GB blobs can cause `git push` failures on many hosting platforms (GitHub's limit is 100 MB per blob via the API).
+
+**Mitigation Strategy**
+
+| # | Mitigation | Effort | Impact |
+|---|-----------|--------|--------|
+| M1 | **Enforce maximum chunk size**: Add `if (chunkSize > 100 * 1024 * 1024) throw new Error('Chunk size must not exceed 100 MiB')` in the constructor. 100 MiB is generous (default is 256 KiB) while staying within Git hosting limits. | ~3 LoC | Prevents footgun |
+| M2 | **Warn above 10 MiB**: Emit `observability.log('warn', 'Large chunk size may impact Git performance', { chunkSize })` when chunkSize > 10 MiB. | ~3 LoC | Soft guidance |
+
+**Recommended**: M1 (hard cap) + M2 (soft warning). The maximum can be made configurable via an `allowLargeChunks: true` escape hatch for advanced users.
+
+**Defensive Tests**
+
+```js
+describe('Concern 3: Chunk size upper bound', () => {
+  it('throws when chunkSize exceeds 100 MiB', ...);
+  it('accepts chunkSize of exactly 100 MiB', ...);
+  it('accepts default chunkSize (256 KiB)', ...);
+  it('accepts minimum chunkSize (1024 bytes)', ...);
+  it('logs warning when chunkSize exceeds 10 MiB', ...);
+});
+```
+
+---
+
+## Concern 4: Web Crypto Adapter Silent Memory Buffering
+
+**The Problem**
+
+`WebCryptoAdapter.createEncryptionStream()` returns an `encrypt()` async generator that appears to stream, but internally accumulates all chunks into a single buffer before calling `crypto.subtle.encrypt()` (which is one-shot for GCM). The Deno runtime uses this adapter. A user on Deno calling `store()` with a 5 GB source will OOM without any indication that streaming is not actually happening.
+
+The NodeCryptoAdapter and BunCryptoAdapter use `node:crypto` Cipher streams which truly stream — so this is a Deno-specific behavioral difference with no warning.
+
+**Mitigation Strategy**
+
+| # | Mitigation | Effort | Impact |
+|---|-----------|--------|--------|
+| M1 | **Size tracking in encrypt generator**: Track accumulated bytes in `encrypt()`. When total exceeds a configurable limit (default 512 MB), throw `CasError('ENCRYPTION_BUFFER_EXCEEDED')` with message: `"Web Crypto API requires buffering the entire file for GCM encryption. File exceeds buffer limit. Use Node.js or Bun for large encrypted files, or store without encryption."` | ~15 LoC | Prevents silent OOM |
+| M2 | **Runtime capability flag**: Add `CryptoPort.capabilities` property: `{ streamingEncryption: boolean }`. WebCryptoAdapter returns `false`. CasService can check this and warn or error when storing large encrypted files on non-streaming runtimes. | ~20 LoC | Architectural awareness |
+| M3 | **Adapter-level documentation**: JSDoc on WebCryptoAdapter noting the buffering limitation. | ~5 LoC | Developer awareness |
+
+**Recommended**: M1 (safety net) + M3 (documentation). M2 is a clean long-term solution.
+
+**Defensive Tests**
+
+```js
+describe('Concern 4: Web Crypto buffering guard', () => {
+  it('throws ENCRYPTION_BUFFER_EXCEEDED when accumulated bytes exceed limit', ...);
+  it('succeeds for files within buffer limit', ...);
+  it('NodeCryptoAdapter does NOT throw for large files (true streaming)', ...);
+  it('WebCryptoAdapter.capabilities.streamingEncryption is false', ...);
+});
+```
+
+**New Error Code**: `ENCRYPTION_BUFFER_EXCEEDED` — "File exceeds encryption buffer limit on this runtime. Web Crypto API (Deno) buffers the entire file for AES-GCM. Use Node.js or Bun for large encrypted files."
+
+---
+
+## Concern 5: Passphrase Exposure in Shell History and Process Listings
+
+**The Problem**
+
+The `--vault-passphrase <value>` CLI flag puts the passphrase in:
+1. **Shell history**: `~/.bash_history`, `~/.zsh_history` — survives terminal close, searchable.
+2. **Process listing**: `ps aux` shows full command line including the passphrase to all users on the system.
+3. **CI logs**: If used in a CI pipeline without masking, the passphrase appears in build logs.
+
+The `GIT_CAS_PASSPHRASE` env var is better (not in shell history) but still visible in `/proc/<pid>/environ` on Linux and in process listings on some systems.
+
+**Mitigation Strategy**
+
+| # | Mitigation | Effort | Impact |
+|---|-----------|--------|--------|
+| M1 | **Interactive prompt**: See Vision 6 above. `--vault-passphrase` without a value triggers TTY prompt with echo disabled. Confirmation on first use. | ~90 LoC | Eliminates history exposure |
+| M2 | **File-based passphrase**: `--vault-passphrase-file <path>` reads the passphrase from a file (like `docker secret`, `kubectl --token-file`). File can be tmpfs-backed, permissions-restricted, or injected by a secrets manager. | ~15 LoC | CI-friendly, no process exposure |
+| M3 | **Stdin passphrase**: `echo "secret" \| git cas store --vault-passphrase -` reads from stdin. Useful in pipes. | ~10 LoC | Scriptable |
+| M4 | **Documentation warning**: Add security note in README and `--help` output: "Avoid passing passphrases on the command line. Use `GIT_CAS_PASSPHRASE` env var, `--vault-passphrase-file`, or omit the value for interactive prompt." | ~0 LoC | Awareness |
+
+**Recommended**: M1 + M2 + M4. Interactive prompt for humans, file-based for CI, documentation for everyone.
+
+**Defensive Tests**
+
+```js
+describe('Concern 5: Passphrase input security', () => {
+  it('reads passphrase from file when --vault-passphrase-file is used', ...);
+  it('prompts interactively when --vault-passphrase is passed without value in TTY', ...);
+  it('falls back to GIT_CAS_PASSPHRASE env var in non-TTY', ...);
+  it('errors when no passphrase source is available in non-TTY mode', ...);
+  it('confirmation prompt rejects mismatched passphrases', ...);
+});
+```
+
+---
+
+## Concern 6: No KDF Brute-Force Rate Limiting
+
+**The Problem**
+
+`deriveKey()` and the restore path's `_resolveKeyFromPassphrase()` have no rate limiting, attempt counting, or lockout mechanism. An attacker with access to the API or CLI can brute-force passphrases at full CPU speed:
+
+- PBKDF2 (100k iterations, SHA-512): ~100-500 attempts/sec on modern hardware.
+- scrypt (N=16384, r=8, p=1): ~10-50 attempts/sec.
+
+For a strong passphrase (>80 bits of entropy), this is fine — but many users choose weak passphrases. There's no warning, no audit trail, and no way to detect an ongoing brute-force attack.
+
+**Mitigation Strategy**
+
+| # | Mitigation | Effort | Impact |
+|---|-----------|--------|--------|
+| M1 | **Observability metric on failed decryption**: Emit `observability.metric('error', { action: 'decryption_failed', slug, attempt })` on every `INTEGRITY_ERROR` during restore. Monitoring systems can alert on anomalous failure rates. | ~5 LoC | Detection |
+| M2 | **CLI rate limit**: In the CLI layer (not the library), add a 1-second delay after each failed passphrase attempt. Prevents rapid brute-force via the terminal without affecting the programmatic API. | ~5 LoC | CLI hardening |
+| M3 | **Stronger KDF defaults**: Increase PBKDF2 default iterations from 100k to 600k (OWASP 2023 recommendation for SHA-512). Increase scrypt default cost from 16384 to 65536. Document the change as a security improvement. **Note**: this affects store/restore performance — KDF runs once per operation, so the latency increase (100ms → 600ms for PBKDF2) is acceptable for interactive use but may impact batch workflows. | ~5 LoC | Resistance |
+| M4 | **Documentation**: Add KDF parameter guidance to SECURITY.md — recommended iterations/cost for different threat models (personal use, team, high-security). | ~0 LoC | Guidance |
+
+**Recommended**: M1 (detection) + M2 (CLI hardening) + M4 (guidance). M3 is a judgment call — the performance tradeoff is worth discussing.
+
+**Defensive Tests**
+
+```js
+describe('Concern 6: KDF brute-force awareness', () => {
+  it('emits decryption_failed metric on wrong passphrase', ...);
+  it('emits metric with slug context for audit trail', ...);
+  it('CLI applies delay after failed passphrase attempt', ...);
+  it('library API does NOT rate-limit (callers manage their own policy)', ...);
+});
+```
+
+---
+
+## Concern 7: GCM Nonce Collision Risk at Scale
+
+**The Problem**
+
+AES-256-GCM uses a 96-bit (12-byte) nonce, generated randomly per `encryptBuffer()` / `createEncryptionStream()` call. The birthday bound for 96-bit nonces is ~2^48 — after ~281 trillion encryptions with the same key, nonce collision probability exceeds 50%. In practice, NIST recommends limiting to 2^32 (~4.3 billion) invocations per key for a negligible collision probability.
+
+For a single user storing files with one key, this is not a practical concern — you'd need to store 4 billion files. But:
+1. There's no explicit tracking or warning of nonce count per key.
+2. The nonce is pure random, not a counter — so there's no guarantee of uniqueness even at low counts (just overwhelming probability).
+3. A nonce collision with GCM is catastrophic — it reveals the XOR of two plaintexts and allows auth tag forgery.
+
+**Mitigation Strategy**
+
+| # | Mitigation | Effort | Impact |
+|---|-----------|--------|--------|
+| M1 | **Document the bound**: Add to SECURITY.md: "AES-256-GCM with random nonces is safe for up to 2^32 encryptions per key. For higher volumes, rotate keys (M12) or use a counter-based nonce scheme." | ~0 LoC | Awareness |
+| M2 | **Nonce counter option** (long-term): Add optional `nonceStrategy: 'random' \| 'counter'` to encryption options. Counter-based nonces guarantee uniqueness but require persistent state (a counter stored in the vault metadata). Random remains the default for simplicity. | ~60 LoC | Eliminates collision risk |
+| M3 | **Key usage counter in vault**: Track `encryptionCount` in vault metadata. When it exceeds 2^31, emit a warning via observability: "Key has been used for N encryptions. Consider rotating." | ~20 LoC | Proactive warning |
+
+**Recommended**: M1 (immediate, zero-cost) + M3 (proactive warning). M2 is a significant design change that adds state management complexity — only needed for extremely high-volume use cases.
+
+**Defensive Tests**
+
+```js
+describe('Concern 7: Nonce uniqueness', () => {
+  it('generates unique nonces across 1000 consecutive encryptions', ...);
+  it('nonce is exactly 12 bytes (96 bits)', ...);
+  it('different encryptions of same plaintext with same key produce different ciphertexts', ...);
+  it('vault tracks encryptionCount and increments per store', ...);
+  it('warns via observability when encryptionCount exceeds threshold', ...);
+});
+```
+
+---
+
+## Summary Table
+
+| # | Type | Severity | Fix Cost | Recommended Action |
+|---|------|----------|----------|-------------------|
+| C1 | Memory amplification | High | ~20 LoC | Add `maxRestoreBufferSize` guard |
+| C2 | Orphaned blobs | Medium | ~20 LoC | Report orphaned blob OIDs in error meta |
+| C3 | No chunk size cap | Medium | ~6 LoC | Enforce 100 MiB maximum |
+| C4 | Web Crypto buffering | Medium | ~15 LoC | Add buffer size guard in WebCryptoAdapter |
+| C5 | Passphrase exposure | High | ~90 LoC | Interactive prompt + file-based input |
+| C6 | KDF no rate limit | Low | ~10 LoC | Observability metric + CLI delay |
+| C7 | GCM nonce collision | Low | ~20 LoC | Document bound + vault usage counter |
+
+| # | Type | Theme | Est. Cost |
+|---|------|-------|-----------|
+| V1 | Feature | Snapshot trees (directory store) | ~410 LoC, ~19h |
+| V2 | Feature | Portable bundles (air-gap transfer) | ~340 LoC, ~15h |
+| V3 | Feature | Manifest diff engine | ~180 LoC, ~8h |
+| V4 | Feature | CompressionPort + zstd/brotli/lz4 | ~180 LoC, ~8h |
+| V5 | Feature | Watch mode (continuous sync) | ~220 LoC, ~10h |
+| V6 | Feature | Interactive passphrase prompt | ~90 LoC, ~4h |

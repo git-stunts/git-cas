@@ -6,6 +6,7 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 import { digestOf } from '../../../helpers/crypto.js';
 
 /**
@@ -22,9 +23,34 @@ function setup() {
     crypto: new NodeCryptoAdapter(),
     codec: new JsonCodec(),
     chunkSize: 1024,
+    observability: new SilentObserver(),
   });
   return { mockPersistence, service };
 }
+
+// ---------------------------------------------------------------------------
+// observability validation
+// ---------------------------------------------------------------------------
+describe('CasService – observability validation', () => {
+  it('throws when observability is missing', () => {
+    expect(() => new CasService({
+      persistence: {},
+      crypto: new NodeCryptoAdapter(),
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+    })).toThrow('observability must implement ObservabilityPort');
+  });
+
+  it('throws when observability is missing metric()', () => {
+    expect(() => new CasService({
+      persistence: {},
+      crypto: new NodeCryptoAdapter(),
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+      observability: { log() {}, span() { return { end() {} }; } },
+    })).toThrow('observability must implement ObservabilityPort');
+  });
+});
 
 // ---------------------------------------------------------------------------
 // store
