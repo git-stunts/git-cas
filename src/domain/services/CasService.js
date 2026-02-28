@@ -395,7 +395,7 @@ export default class CasService {
    * @private
    */
   async _resolveRecipientsForStore(recipients) {
-    if (recipients.length === 0) {
+    if (!Array.isArray(recipients) || recipients.length === 0) {
       throw new CasError('At least one recipient is required', 'INVALID_OPTIONS');
     }
     const labels = recipients.map((r) => r.label);
