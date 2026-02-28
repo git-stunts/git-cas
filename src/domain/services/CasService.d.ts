@@ -112,6 +112,7 @@ export default class CasService {
     passphrase?: string;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
+    recipients?: Array<{ label: string; key: Buffer }>;
   }): Promise<Manifest>;
 
   createTree(options: { manifest: Manifest }): Promise<string>;

@@ -191,6 +191,103 @@ export default class CasService {
   }
 
   /**
+   * Wraps a DEK with a KEK using AES-256-GCM.
+   * @private
+   * @param {Buffer} dek - 32-byte data encryption key.
+   * @param {Buffer} kek - 32-byte key encryption key.
+   * @returns {{ wrappedDek: string, nonce: string, tag: string }}
+   */
+  _wrapDek(dek, kek) {
+    const { buf, meta } = this.crypto.encryptBuffer(dek, kek);
+    return {
+      wrappedDek: buf.toString('base64'),
+      nonce: meta.nonce,
+      tag: meta.tag,
+    };
+  }
+
+  /**
+   * Unwraps a DEK from a recipient entry using the given KEK.
+   * @private
+   * @param {{ wrappedDek: string, nonce: string, tag: string }} recipientEntry
+   * @param {Buffer} kek - 32-byte key encryption key.
+   * @returns {Buffer} The unwrapped DEK.
+   * @throws {CasError} DEK_UNWRAP_FAILED if decryption fails.
+   */
+  _unwrapDek(recipientEntry, kek) {
+    try {
+      const ciphertext = Buffer.from(recipientEntry.wrappedDek, 'base64');
+      const meta = {
+        algorithm: 'aes-256-gcm',
+        nonce: recipientEntry.nonce,
+        tag: recipientEntry.tag,
+        encrypted: true,
+      };
+      return this.crypto.decryptBuffer(ciphertext, kek, meta);
+    } catch (err) {
+      if (err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED') { throw err; }
+      throw new CasError(
+        'Failed to unwrap DEK: authentication failed',
+        'DEK_UNWRAP_FAILED',
+        { originalError: err },
+      );
+    }
+  }
+
+  /**
+   * Resolves the decryption key from a manifest, handling both legacy and
+   * envelope (multi-recipient) encrypted manifests.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} [encryptionKey]
+   * @param {string} [passphrase]
+   * @returns {Promise<Buffer|undefined>}
+   */
+  async _resolveDecryptionKey(manifest, encryptionKey, passphrase) {
+    this._validateKeySourceExclusive(encryptionKey, passphrase);
+
+    if (passphrase) {
+      if (manifest.encryption?.kdf) {
+        encryptionKey = await this._resolveKeyFromPassphrase(passphrase, manifest.encryption.kdf);
+      } else {
+        throw new CasError(
+          'Manifest was not stored with passphrase-based encryption; provide encryptionKey instead',
+          'MISSING_KEY',
+        );
+      }
+    }
+
+    if (!encryptionKey) {
+      if (manifest.encryption?.encrypted) {
+        throw new CasError('Encryption key required to restore encrypted content', 'MISSING_KEY');
+      }
+      return undefined;
+    }
+
+    this.crypto._validateKey(encryptionKey);
+
+    const recipients = manifest.encryption?.recipients;
+    if (!recipients || recipients.length === 0) {
+      // Legacy path — key is used directly
+      return encryptionKey;
+    }
+
+    // Envelope path — try each recipient entry
+    for (const entry of recipients) {
+      try {
+        return this._unwrapDek(entry, encryptionKey);
+      } catch {
+        // Not this recipient's KEK, try next
+      }
+    }
+
+    throw new CasError(
+      'No recipient entry could be unwrapped with the provided key',
+      'NO_MATCHING_RECIPIENT',
+    );
+  }
+
+  /**
    * Validates that passphrase and encryptionKey are not both provided.
    * @private
    */
@@ -250,19 +347,44 @@ export default class CasService {
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
-  async store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression }) {
+  async store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression, recipients }) {
+    // Mutual exclusivity: recipients vs encryptionKey/passphrase
+    if (recipients && (encryptionKey || passphrase)) {
+      throw new CasError(
+        'Provide recipients or encryptionKey/passphrase, not both',
+        'INVALID_OPTIONS',
+      );
+    }
+
     this._validateKeySourceExclusive(encryptionKey, passphrase);
     this._validateCompression(compression);
 
     let kdfParams;
-    if (passphrase) {
-      const derived = await this.deriveKey({ passphrase, ...kdfOptions });
-      encryptionKey = derived.key;
-      kdfParams = derived.params;
-    }
+    let recipientEntries;
+    let actualEncryptionKey;
 
-    if (encryptionKey) {
-      this.crypto._validateKey(encryptionKey);
+    if (recipients) {
+      // Envelope encryption: generate random DEK, wrap for each recipient
+      for (const r of recipients) {
+        this.crypto._validateKey(r.key);
+      }
+      const dek = this.crypto.randomBytes(32);
+      recipientEntries = recipients.map((r) => ({
+        label: r.label,
+        ...this._wrapDek(dek, r.key),
+      }));
+      actualEncryptionKey = dek;
+    } else {
+      if (passphrase) {
+        const derived = await this.deriveKey({ passphrase, ...kdfOptions });
+        encryptionKey = derived.key;
+        kdfParams = derived.params;
+      }
+
+      if (encryptionKey) {
+        this.crypto._validateKey(encryptionKey);
+      }
+      actualEncryptionKey = encryptionKey;
     }
 
     const manifestData = { slug, filename, size: 0, chunks: [] };
@@ -281,12 +403,15 @@ export default class CasService {
       manifestData.compression = { algorithm: 'gzip' };
     }
 
-    if (encryptionKey) {
-      const { encrypt, finalize } = this.crypto.createEncryptionStream(encryptionKey);
+    if (actualEncryptionKey) {
+      const { encrypt, finalize } = this.crypto.createEncryptionStream(actualEncryptionKey);
       await this._chunkAndStore(encrypt(processedSource), manifestData);
       const encMeta = finalize();
       if (kdfParams) {
         encMeta.kdf = kdfParams;
+      }
+      if (recipientEntries) {
+        encMeta.recipients = recipientEntries;
       }
       manifestData.encryption = encMeta;
     } else {
@@ -295,7 +420,7 @@ export default class CasService {
 
     const manifest = new Manifest(manifestData);
     this.observability.metric('file', {
-      action: 'stored', slug, size: manifest.size, chunkCount: manifest.chunks.length, encrypted: !!encryptionKey,
+      action: 'stored', slug, size: manifest.size, chunkCount: manifest.chunks.length, encrypted: !!actualEncryptionKey,
     });
     return manifest;
   }
@@ -495,7 +620,7 @@ export default class CasService {
    * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
    */
   async *restoreStream({ manifest, encryptionKey, passphrase }) {
-    const key = await this._resolveEncryptionKey(manifest, encryptionKey, passphrase);
+    const key = await this._resolveDecryptionKey(manifest, encryptionKey, passphrase);
 
     if (manifest.chunks.length === 0) {
       this.observability.metric('file', {

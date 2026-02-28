@@ -267,7 +267,7 @@ export default class ContentAddressableStore {
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
-  async storeFile({ filePath, slug, filename, encryptionKey, passphrase, kdfOptions, compression }) {
+  async storeFile({ filePath, slug, filename, encryptionKey, passphrase, kdfOptions, compression, recipients }) {
     const source = createReadStream(filePath);
     const service = await this.#getService();
     return await service.store({
@@ -278,6 +278,7 @@ export default class ContentAddressableStore {
       passphrase,
       kdfOptions,
       compression,
+      recipients,
     });
   }
 

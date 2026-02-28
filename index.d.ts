@@ -302,6 +302,7 @@ export default class ContentAddressableStore {
     passphrase?: string;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
+    recipients?: Array<{ label: string; key: Buffer }>;
   }): Promise<Manifest>;
 
   store(options: {
@@ -312,6 +313,7 @@ export default class ContentAddressableStore {
     passphrase?: string;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
+    recipients?: Array<{ label: string; key: Buffer }>;
   }): Promise<Manifest>;
 
   restoreFile(options: {
