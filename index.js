@@ -26,6 +26,7 @@ import EventEmitterObserver from './src/infrastructure/adapters/EventEmitterObse
 import StatsCollector from './src/infrastructure/adapters/StatsCollector.js';
 import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
 import CdcChunker from './src/infrastructure/chunkers/CdcChunker.js';
+import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
 import buildKdfMetadata from './src/domain/helpers/buildKdfMetadata.js';
 
 export {
@@ -100,34 +101,6 @@ export default class ContentAddressableStore {
   }
 
   /**
-   * Resolves the chunker from config options.
-   * @private
-   * @returns {import('./src/ports/ChunkingPort.js').default|undefined}
-   */
-  #resolveChunker() {
-    // Direct ChunkingPort instance takes precedence
-    if (this.chunkerConfig) {
-      return this.chunkerConfig;
-    }
-    // Build from declarative chunking config
-    if (this.chunkingConfig) {
-      if (this.chunkingConfig.strategy === 'cdc') {
-        return new CdcChunker({
-          targetChunkSize: this.chunkingConfig.targetChunkSize,
-          minChunkSize: this.chunkingConfig.minChunkSize,
-          maxChunkSize: this.chunkingConfig.maxChunkSize,
-        });
-      }
-      // 'fixed' or unrecognized — fall through to default (FixedChunker via CasService)
-      if (this.chunkingConfig.strategy === 'fixed' && this.chunkingConfig.chunkSize) {
-        return new FixedChunker({ chunkSize: this.chunkingConfig.chunkSize });
-      }
-    }
-    // undefined → CasService will default to FixedChunker
-    return undefined;
-  }
-
-  /**
    * Constructs adapters, resolves crypto, and creates CasService + VaultService.
    * @private
    * @returns {Promise<CasService>}
@@ -138,7 +111,7 @@ export default class ContentAddressableStore {
       policy: this.policyConfig
     });
     const crypto = this.cryptoConfig || await createCryptoAdapter();
-    const chunker = this.#resolveChunker();
+    const chunker = resolveChunker({ chunker: this.chunkerConfig, chunking: this.chunkingConfig });
     this.service = new CasService({
       persistence,
       chunkSize: this.chunkSizeConfig,
