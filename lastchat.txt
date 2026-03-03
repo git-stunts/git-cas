@@ -1,0 +1,933 @@
+
+╭─── Claude Code v2.1.56 ──────────────────────────────────────────────────────╮
+│                              │ Tips for getting started                      │
+│      Welcome back James!     │ ✔ Run /init to create a CLAUDE.md file with … │
+│                              │ ───────────────────────────────────────────── │
+│            ▐▛███▜▌           │ Recent activity                               │
+│           ▝▜█████▛▘          │ No recent activity                            │
+│             ▘▘ ▝▝            │                                               │
+│                              │                                               │
+│    Opus 4.6 · Claude Max     │                                               │
+│   ~/git/git-stunts/git-cas   │                                               │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ Plan to implement                                                            │
+│                                                                              │
+│ Plan: Audit fixes 1-3 (deterministic fuzz, DRY chunk verify, DRY KDF         │
+│ metadata)                                                                    │
+│                                                                              │
+│ Context                                                                      │
+│                                                                              │
+│ Architecture audit surfaced three low-risk, high-value fixes:                │
+│ 1. Non-deterministic Math.random() in envelope fuzz test                     │
+│ 2. Duplicated chunk read-and-verify logic in CasService (buffered vs         │
+│ streaming paths)                                                             │
+│ 3. Duplicated KDF metadata construction in VaultService + index.js           │
+│                                                                              │
+│ No public API changes. No new features. Pure hygiene.                        │
+│                                                                              │
+│ ---                                                                          │
+│ Fix 1: Deterministic fuzz test                                               │
+│                                                                              │
+│ File: test/unit/domain/services/CasService.envelope.test.js                  │
+│                                                                              │
+│ Problem: Lines 314 and 325 use Math.random() — non-deterministic across      │
+│ runs.                                                                        │
+│                                                                              │
+│ Plan:                                                                        │
+│ - Add a seededRandom helper function at the top of the file (same xorshift32 │
+│  pattern used in                                                             │
+│ test/unit/infrastructure/chunkers/CdcChunker.test.js:85-95). Not worth       │
+│ extracting to a shared module for 2 call sites.                              │
+│ - Create a stateful PRNG object so successive calls advance the state        │
+│ (needed because both size selection and recipient index selection happen in  │
+│ a loop).                                                                     │
+│ - Replace Math.floor(Math.random() * 4096) → deterministic size from seeded  │
+│ PRNG                                                                         │
+│ - Replace Math.floor(Math.random() * 3) → deterministic index from seeded    │
+│ PRNG                                                                         │
+│ - Keep randomBytes(32) for crypto keys — those are inherently random and     │
+│ that's correct (keys must be fresh random, not deterministic).               │
+│                                                                              │
+│ Implementation:                                                              │
+│ function createSeededRng(seed = 42) {                                        │
+│   let s = seed >>> 0 || 1;                                                   │
+│   return (max) => {                                                          │
+│     s ^= s << 13;                                                            │
+│     s ^= s >>> 17;                                                           │
+│     s ^= s << 5;                                                             │
+│     return (s >>> 0) % max;                                                  │
+│   };                                                                         │
+│ }                                                                            │
+│                                                                              │
+│ Then in the fuzz test:                                                       │
+│ const rng = createSeededRng(12345);                                          │
+│ // ...                                                                       │
+│ const size = rng(4096);                                                      │
+│ const idx = rng(3);                                                          │
+│                                                                              │
+│ ---                                                                          │
+│ Fix 2: Extract _readAndVerifyChunk (DRY chunk verification)                  │
+│                                                                              │
+│ File: src/domain/services/CasService.js                                      │
+│                                                                              │
+│ Problem: Chunk read+verify+error logic is duplicated:                        │
+│ - _readAndVerifyChunks() (line 529): loop body reads blob, hashes, compares, │
+│  throws                                                                      │
+│ - _restoreStreaming() (line 662): closure readAndVerify does the same thing  │
+│                                                                              │
+│ Plan: Extract a single private method _readAndVerifyChunk(chunk) (singular)  │
+│ that handles one chunk:                                                      │
+│                                                                              │
+│ async _readAndVerifyChunk(chunk) {                                           │
+│   const blob = await this.persistence.readBlob(chunk.blob);                  │
+│   const digest = await this._sha256(blob);                                   │
+│   if (digest !== chunk.digest) {                                             │
+│     const err = new CasError(                                                │
+│       `Chunk ${chunk.index} integrity check failed`,                         │
+│       'INTEGRITY_ERROR',                                                     │
+│       { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },   │
+│     );                                                                       │
+│     this.observability.metric('error', { code: err.code, message:            │
+│ err.message });                                                              │
+│     throw err;                                                               │
+│   }                                                                          │
+│   return blob;                                                               │
+│ }                                                                            │
+│                                                                              │
+│ Then refactor callers:                                                       │
+│ - _readAndVerifyChunks(chunks) → loop calling _readAndVerifyChunk(chunk),    │
+│ push to array, emit metric                                                   │
+│ - _restoreStreaming() → replace inline closure with                          │
+│ this._readAndVerifyChunk(chunk)                                              │
+│                                                                              │
+│ No test changes needed — tests exercise restore() and restoreStream() which  │
+│ call through these private methods. Existing tests cover both paths.         │
+│                                                                              │
+│ ---                                                                          │
+│ Fix 3: Extract buildKdfMetadata (DRY KDF construction)                       │
+│                                                                              │
+│ Files:                                                                       │
+│ - src/domain/services/VaultService.js (line 327: #buildEncryptionMeta)       │
+│ - index.js (line 625: #buildRotatedMetadata)                                 │
+│                                                                              │
+│ Problem: Both construct the identical KDF object:                            │
+│ {                                                                            │
+│   algorithm: params.algorithm,                                               │
+│   salt: salt.toString('base64'),                                             │
+│   ...('iterations' in params && { iterations: params.iterations }),          │
+│   ...('cost' in params && { cost: params.cost }),                            │
+│   ...('blockSize' in params && { blockSize: params.blockSize }),             │
+│   ...('parallelization' in params && { parallelization:                      │
+│ params.parallelization }),                                                   │
+│   keyLength: params.keyLength,                                               │
+│ }                                                                            │
+│                                                                              │
+│ Plan:                                                                        │
+│ - Create src/domain/helpers/buildKdfMetadata.js — a pure function that takes │
+│  (salt, params) and returns the KDF metadata object.                         │
+│ - VaultService #buildEncryptionMeta calls it and wraps with { cipher, kdf:   │
+│ buildKdfMetadata(...) }                                                      │
+│ - index.js #buildRotatedMetadata calls it and wraps with { ...metadata,      │
+│ encryption: { cipher, kdf: buildKdfMetadata(...) } }                         │
+│ - Add a small unit test: test/unit/domain/helpers/buildKdfMetadata.test.js   │
+│                                                                              │
+│ ---                                                                          │
+│ Execution order                                                              │
+│                                                                              │
+│ 1. Fix 1 (test file only — zero risk)                                        │
+│ 2. Fix 2 (CasService internal refactor — covered by existing tests)          │
+│ 3. Fix 3 (new helper + 2 callers + new test)                                 │
+│                                                                              │
+│ Verification                                                                 │
+│                                                                              │
+│ npm test                    # All 709+ unit tests pass                       │
+│ npx eslint .                # 0 errors                                       │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+⏺ I'll start by reading the files I need to modify.
+
+⏺ Read 4 files (ctrl+o to expand)
+
+⏺ Now I have all the context. Let me implement all three fixes.
+
+⏺ Read 1 file (ctrl+o to expand)
+
+⏺ Update(test/unit/domain/services/CasService.envelope.test.js)
+  ⎿  Added 13 lines
+       9  const testCrypto = await getTestCryptoAdapter();
+      10  
+      11  // ------------------------------------------------------------
+          ---------------
+      12 +// Deterministic PRNG (xorshift32) — keeps fuzz tests reproduci
+         +ble                                                            
+      13 +// ------------------------------------------------------------
+         +---------------                                                
+      14 +function createSeededRng(seed = 42) {                          
+      15 +  let s = seed >>> 0 || 1;                                     
+      16 +  return (max) => {                                            
+      17 +    s ^= s << 13;                                              
+      18 +    s ^= s >>> 17;                                             
+      19 +    s ^= s << 5;                                               
+      20 +    return (s >>> 0) % max;                                    
+      21 +  };                                                           
+      22 +}                                                              
+      23 +                                                               
+      24 +// ------------------------------------------------------------
+         +---------------                                                
+      25  // Helpers
+      26  // ------------------------------------------------------------
+          ---------------
+      27  function setup() {
+
+⏺ Update(test/unit/domain/services/CasService.envelope.test.js)
+  ⎿  Added 3 lines, removed 2 lines
+      323    beforeEach(() => { ({ service } = setup()); });
+      324  
+      325    it('50 random plaintexts × 3 random KEKs all round-trip', as
+           ync () => {
+      326 +    const rng = createSeededRng(12345);                       
+      327      for (let i = 0; i < 50; i++) {
+      327 -      const size = Math.floor(Math.random() * 4096);          
+      328 +      const size = rng(4096);                                 
+      329        const original = randomBytes(size);
+      330        const keys = [randomBytes(32), randomBytes(32), randomBy
+           tes(32)];
+      331  
+     ...
+      336          recipients: keys.map((key, j) => ({ label: `k${j}`, ke
+           y })),
+      337        });
+      338  
+      338 -      const idx = Math.floor(Math.random() * 3);              
+      339 +      const idx = rng(3);                                     
+      340        const { buffer } = await service.restore({ manifest, enc
+           ryptionKey: keys[idx] });
+      341        expect(buffer.equals(original)).toBe(true);
+      342      }
+
+⏺ Update(src/domain/services/CasService.js)
+  ⎿  Added 23 lines, removed 11 lines
+      520    }
+      521  
+      522    /**
+      523 +   * Reads a single chunk blob from Git and verifies its SHA-2
+          +56 digest.                                                    
+      524 +   * @private                                                 
+      525 +   * @param {{ index: number, size: number, digest: string, bl
+          +ob: string }} chunk - Chunk metadata.                         
+      526 +   * @returns {Promise<Buffer>} Verified chunk buffer.        
+      527 +   * @throws {CasError} INTEGRITY_ERROR if the chunk digest do
+          +es not match.                                                 
+      528 +   */                                                         
+      529 +  async _readAndVerifyChunk(chunk) {                          
+      530 +    const blob = await this.persistence.readBlob(chunk.blob); 
+      531 +    const digest = await this._sha256(blob);                  
+      532 +    if (digest !== chunk.digest) {                            
+      533 +      const err = new CasError(                               
+      534 +        `Chunk ${chunk.index} integrity check failed`,        
+      535 +        'INTEGRITY_ERROR',                                    
+      536 +        { chunkIndex: chunk.index, expected: chunk.digest, act
+          +ual: digest },                                                
+      537 +      );                                                      
+      538 +      this.observability.metric('error', { code: err.code, mes
+          +sage: err.message });                                         
+      539 +      throw err;                                              
+      540 +    }                                                         
+      541 +    return blob;                                              
+      542 +  }                                                           
+      543 +                                                              
+      544 +  /**                                                         
+      545     * Reads chunk blobs from Git and verifies their SHA-256 dig
+           ests.
+      546     * @private
+      547     * @param {import('../value-objects/Chunk.js').default[]} ch
+           unks - Chunk metadata from the manifest.
+     ...
+      551    async _readAndVerifyChunks(chunks) {
+      552      const buffers = [];
+      553      for (const chunk of chunks) {
+      532 -      const blob = await this.persistence.readBlob(chunk.blob)
+          -;                                                             
+      533 -      const digest = await this._sha256(blob);                
+      534 -      if (digest !== chunk.digest) {                          
+      535 -        const err = new CasError(                             
+      536 -          `Chunk ${chunk.index} integrity check failed`,      
+      537 -          'INTEGRITY_ERROR',                                  
+      538 -          { chunkIndex: chunk.index, expected: chunk.digest, a
+          -ctual: digest },                                              
+      539 -        );                                                    
+      540 -        this.observability.metric('error', { code: err.code, m
+          -essage: err.message });                                       
+      541 -        throw err;                                            
+      542 -      }                                                       
+      554 +      const blob = await this._readAndVerifyChunk(chunk);     
+      555        buffers.push(blob);
+      556        this.observability.metric('chunk', { action: 'restored',
+            index: chunk.index, size: blob.length, digest: chunk.digest }
+           );
+      557      }
+
+⏺ Update(src/domain/services/CasService.js)
+  ⎿  Added 1 line, removed 14 lines
+      671      const readAhead = this.concurrency;
+      672      let totalSize = 0;
+      673  
+      674 -    const readAndVerify = async (chunk) => {                  
+      675 -      const blob = await this.persistence.readBlob(chunk.blob)
+          -;                                                             
+      676 -      const digest = await this._sha256(blob);                
+      677 -      if (digest !== chunk.digest) {                          
+      678 -        const err = new CasError(                             
+      679 -          `Chunk ${chunk.index} integrity check failed`,      
+      680 -          'INTEGRITY_ERROR',                                  
+      681 -          { chunkIndex: chunk.index, expected: chunk.digest, a
+          -ctual: digest },                                              
+      682 -        );                                                    
+      683 -        this.observability.metric('error', { code: err.code, m
+          -essage: err.message });                                       
+      684 -        throw err;                                            
+      685 -      }                                                       
+      686 -      return blob;                                            
+      687 -    };                                                        
+      674 +    const readAndVerify = (chunk) => this._readAndVerifyChunk(
+          +chunk);                                                       
+      675  
+      676      const ahead = [];
+      677      for (let i = 0; i < Math.min(readAhead, chunks.length); i+
+           +) {
+
+⏺ Now Fix 3: create the helper and update callers.
+
+⏺ Bash(mkdir -p /Users/james/git/git-stunts/git-cas/src/domain/helpers)
+  ⎿  Done
+
+⏺ Write(src/domain/helpers/buildKdfMetadata.js)
+  ⎿  Wrote 18 lines to src/domain/helpers/buildKdfMetadata.js
+       1 /**
+       2  * Builds the KDF metadata object for vault/manifest encryption 
+         metadata.
+       3  *
+       4  * @param {Buffer} salt - KDF salt.
+       5  * @param {{ algorithm: string, keyLength: number, iterations?: 
+         number, cost?: number, blockSize?: number, parallelization?: num
+         ber }} params - KDF parameters.
+       6  * @returns {{ algorithm: string, salt: string, keyLength: numbe
+         r, iterations?: number, cost?: number, blockSize?: number, paral
+         lelization?: number }}
+       7  */
+       8 export default function buildKdfMetadata(salt, params) {
+       9   return {
+      10     algorithm: params.algorithm,
+     … +8 lines (ctrl+o to expand)
+
+⏺ Update(src/domain/services/VaultService.js)
+  ⎿  Added 1 line
+      2   * @fileoverview Domain service for vault (GC-safe ref-based ass
+         et index) operations.
+      3   */
+      4  import CasError from '../errors/CasError.js';
+      5 +import buildKdfMetadata from '../helpers/buildKdfMetadata.js';  
+      6  
+      7  const VAULT_REF = 'refs/cas/vault';
+      8  const MAX_CAS_RETRIES = 3;
+
+⏺ Update(src/domain/services/VaultService.js)
+  ⎿  Added 1 line, removed 9 lines
+      328    static #buildEncryptionMeta(salt, params) {
+      329      return {
+      330        cipher: 'aes-256-gcm',
+      331 -      kdf: {                                                  
+      332 -        algorithm: params.algorithm,                          
+      333 -        salt: salt.toString('base64'),                        
+      334 -        ...('iterations' in params && { iterations: params.ite
+          -rations }),                                                   
+      335 -        ...('cost' in params && { cost: params.cost }),       
+      336 -        ...('blockSize' in params && { blockSize: params.block
+          -Size }),                                                      
+      337 -        ...('parallelization' in params && { parallelization: 
+          -params.parallelization }),                                    
+      338 -        keyLength: params.keyLength,                          
+      339 -      },                                                      
+      331 +      kdf: buildKdfMetadata(salt, params),                    
+      332      };
+      333    }
+      334  
+
+⏺ Update(index.js)
+  ⎿  Added 1 line
+      25  import StatsCollector from './src/infrastructure/adapters/Stats
+          Collector.js';
+      26  import FixedChunker from './src/infrastructure/chunkers/FixedCh
+          unker.js';
+      27  import CdcChunker from './src/infrastructure/chunkers/CdcChunke
+          r.js';
+      28 +import buildKdfMetadata from './src/domain/helpers/buildKdfMeta
+         +data.js';                                                      
+      29  
+      30  export {
+      31    CasService,
+
+⏺ Update(index.js)
+  ⎿  Added 1 line, removed 9 lines
+      628        ...metadata,
+      629        encryption: {
+      630          cipher: metadata.encryption.cipher,
+      631 -        kdf: {                                                
+      632 -          algorithm: newParams.algorithm,                     
+      633 -          salt: newSalt.toString('base64'),                   
+      634 -          ...('iterations' in newParams && { iterations: newPa
+          -rams.iterations }),                                           
+      635 -          ...('cost' in newParams && { cost: newParams.cost })
+          -,                                                             
+      636 -          ...('blockSize' in newParams && { blockSize: newPara
+          -ms.blockSize }),                                              
+      637 -          ...('parallelization' in newParams && { parallelizat
+          -ion: newParams.parallelization }),                            
+      638 -          keyLength: newParams.keyLength,                     
+      639 -        },                                                    
+      631 +        kdf: buildKdfMetadata(newSalt, newParams),            
+      632        },
+      633      };
+      634    }
+
+⏺ Now write the unit test for buildKdfMetadata.
+
+⏺ Bash(mkdir -p /Users/james/git/git-stunts/git-cas/test/unit/domain/helpers)
+  ⎿  Done
+
+⏺ Write(test/unit/domain/helpers/buildKdfMetadata.test.js)
+  ⎿  Wrote 51 lines to test/unit/domain/helpers/buildKdfMetadata.test.js
+      1 import { describe, it, expect } from 'vitest';
+      2 import buildKdfMetadata from '../../../../src/domain/helpers/buil
+        dKdfMetadata.js';
+      3 
+      4 describe('buildKdfMetadata', () => {
+      5   it('builds PBKDF2 metadata with iterations', () => {
+      6     const salt = Buffer.from('test-salt');
+      7     const params = { algorithm: 'pbkdf2', iterations: 100000, key
+        Length: 32 };
+      8 
+      9     const result = buildKdfMetadata(salt, params);
+     … +41 lines (ctrl+o to expand)
+
+⏺ Now run lint and tests.
+
+⏺ Bash(npx eslint .)
+  ⎿  (No output)
+
+⏺ Bash(npm test 2>&1)
+  ⎿  > @git-stunts/git-cas@5.2.2 test
+     > vitest run test/unit
+     … +57 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+⏺ All 788 tests pass, 0 lint errors. All three fixes are complete:
+
+  1. Deterministic fuzz test — replaced Math.random() with a seeded xorshift32
+  PRNG in CasService.envelope.test.js
+  2. DRY chunk verification — extracted _readAndVerifyChunk(chunk) in
+  CasService.js, both _readAndVerifyChunks and _restoreStreaming now delegate to
+   it
+  3. DRY KDF metadata — extracted buildKdfMetadata(salt, params) to
+  src/domain/helpers/buildKdfMetadata.js, used by both VaultService and
+  index.js, with a unit test
+
+✻ Brewed for 1m 17s
+
+! git status 
+  ⎿  On branch main
+     Your branch is up to date with 'origin/main'.
+     … +16 lines (ctrl+o to expand)
+
+❯ git checkout -B chore/followups && update CHANGELOG update README docs    
+  etc. Git add -A git commit git push gh pr                                 
+
+⏺ Let me check the current CHANGELOG and README first.
+
+⏺ Read 3 files (ctrl+o to expand)
+
+⏺ Bash(git diff ROADMAP.md | head -80)
+  ⎿  diff --git a/ROADMAP.md b/ROADMAP.md
+     index cdf9173..93de6c1 100644
+     --- a/ROADMAP.md
+     … +39 lines (ctrl+o to expand)
+
+⏺ Update(CHANGELOG.md)
+  ⎿  Added 7 lines
+       5  The format is based on [Keep a Changelog](https://keepachangelo
+          g.com/en/1.1.0/),
+       6  and this project adheres to [Semantic Versioning](https://semve
+          r.org/spec/v2.0.0.html).
+       7  
+       8 +## [Unreleased]                                                
+       9 +                                                               
+      10 +### Changed                                                    
+      11 +- **Deterministic fuzz test** — envelope fuzz round-trip test n
+         +ow uses a seeded xorshift32 PRNG instead of `Math.random()`, ma
+         +king failures reproducible across runs.                        
+      12 +- **DRY chunk verification** — extracted `_readAndVerifyChunk()
+         +` in `CasService`; both the buffered and streaming restore path
+         +s now delegate to the same single-chunk verification method.   
+      13 +- **DRY KDF metadata** — extracted `buildKdfMetadata()` helper 
+         +(`src/domain/helpers/buildKdfMetadata.js`); `VaultService` and 
+         +`ContentAddressableStore` both call it instead of duplicating t
+         +he KDF object construction.                                    
+      14 +                                                               
+      15  ## [5.2.2] — JSDoc total coverage (2026-02-28)
+      16  
+      17  ### Added
+
+⏺ Bash(git checkout -B chore/followups)
+  ⎿  Switched to a new branch 'chore/followups'
+     M  CHANGELOG.md
+     M  ROADMAP.md
+     … +4 lines (ctrl+o to expand)
+
+⏺ Bash(git add CHANGELOG.md ROADMAP.md index.js
+      src/domain/services/CasService.js src/domain/services/VaultService.js
+      src/domain/helpers/buildKdfMetadata.js test/unit/…)
+  ⎿  (No output)
+
+⏺ Bash(git commit -m "$(cat <<'EOF'
+      chore: deterministic fuzz, DRY chunk verify, DRY KDF metadata…)
+  ⎿  [chore/followups 16b08ce] chore: deterministic fuzz, DRY chunk verify,
+      DRY KDF metadata
+      8 files changed, 165 insertions(+), 45 deletions(-)
+     … +2 lines (ctrl+o to expand)
+
+⏺ Bash(git push -u origin chore/followups)
+  ⎿  Running pre-push quality gates...
+     → Linting...
+     … +66 lines (ctrl+o to expand)
+
+⏺ Bash(gh pr create --title "chore: deterministic fuzz, DRY chunk verify, DRY
+      KDF metadata" --body "$(cat <<'EOF'
+      ## Summary…)
+  ⎿  https://github.com/git-stunts/git-cas/pull/15
+
+⏺ PR created: https://github.com/git-stunts/git-cas/pull/15
+
+✻ Cogitated for 56s
+
+! git status 
+  ⎿  On branch chore/followups
+     Your branch is up to date with 'origin/chore/followups'.
+
+     nothing to commit, working tree clean
+
+❯ # Pull Request Feedback Processor                                         
+                                                                            
+  You are an AI agent processing GitHub PR feedback on the current branch.  
+  Systematically address unresolved comments (P0 critical to P5 nits) while 
+   upholding code quality, docs, and standards. Use `gh` CLI for PR         
+  interactions: fetch comments, reply, request reviews, check/merge.        
+  ``                                                                        
+  Work step-by-step: inspect code, write tests, verify fixes. Stay          
+  thorough, polite, evidence-based. End each session with a retrospective   
+  report.                                                                   
+                                                                            
+  ## Setup (Once Per Session)                                               
+                                                                            
+  ```bash                                                                   
+  export GH_PAGER=cat                                                       
+  ```                                                                       
+                                                                            
+  > [!IMPORTANT]                                                            
+  > Prevents `gh` interactive hangs. If `gh` fails (e.g., auth), output:    
+  "Auth error—run `gh auth login` and retry."                               
+                                                                            
+  ## I. Process PR Issues                                                   
+                                                                            
+  ### Step 1: Fetch & Filter Issues                                         
+                                                                            
+  1. Fetch: `gh pr view --json comments --jq '.comments[] | .body'` (parse  
+  for readability; infer `<PR#>` from context).                             
+  2. Filter unresolved:                                                     
+     - Skip: Ends with `✅ Addressed in commits...` (or similar).           
+     - Process: New comments only. Categorize by severity                   
+  (critical/minor/nit) via wording/labels.                                  
+  3. Group logically (by file/theme).                                       
+                                                                            
+  If none, go to Step 4.                                                    
+                                                                            
+  ### Step 2: Fix Each Issue                                                
+                                                                            
+  Sequence per issue:                                                       
+  1. **Test**: Inspect code (`gh pr diff` or `cat <file>`). Add 1+ failing  
+  tests (project framework). Run: `<project test cmd, e.g., npm test>`      
+  (from `package.json`/etc.).                                               
+  2. **Fix**: Implement to pass tests; align with style (run                
+  linters/pre-commit).                                                      
+  3. **Commit**: `git add -A && git commit -m "Fix: <desc, e.g., 'Resolve   
+  nit on unused import in utils.js'>"`                                      
+                                                                            
+  **Commit Rules**:                                                         
+  - One per distinct fix (preferred).                                       
+  - Group tight relations (same file/root cause).                           
+  - No mixing code/docs/CHANGELOG.                                          
+                                                                            
+  **Pre-Commit Block?** Fix lint, re-stage (`git add -A`), new commit (no   
+  `--amend`). Re-test.                                                      
+                                                                            
+  ### Step 3: Post-Fix Cleanup                                              
+                                                                            
+  After all:                                                                
+  1. **Docs**: Update `CHANGELOG.md`: `## Unreleased\n### Fixed\n- <summary 
+   of feedback fixes>.` + other docs (README/API) as needed.                
+  2. **Version**: Semantic (patch=bugs, minor=features, major=breaking).    
+     - No extra bump if PR already breaking.                                
+     - Bump only for new breaking.                                          
+     - Patches stay same.                                                   
+     - Mixed: Default minor; note rationale in commit.                      
+     - Run: `npm version <patch/minor/major>` (adapt for project).          
+  3. **Push**: `git add -A && git commit -m "docs: Update CHANGELOG; bump   
+  to vX.Y.Z" && git push origin <branch>`                                   
+                                                                            
+  ### Handling False Positives                                              
+                                                                            
+  Verify code first—evidence only.                                          
+                                                                            
+  **Signs**:                                                                
+                                                                            
+  - >5 scripts misapplied.                                                  
+  - Wrong attribution (file A vs. B).                                       
+  - False inconsistency (matching patterns).                                
+  - Violates principles (e.g., breaks SoC).                                 
+                                                                            
+  **If Validated**:                                                         
+  1. Reply:                                                                 
+                                                                            
+  ```bash                                                                   
+  gh pr comment <PR#> --body "@<reviewer> Thanks! This seems like a         
+  mix-up—<explain>. See <file>:<LoC>: <snippet>. Aligns with <principle>.   
+  Open to chat! 🎯"                                                         
+  ```                                                                       
+                                                                            
+  2. Cite: Lines, snippets, walkthrough.                                    
+  3. Stay open; revisit if pushed.                                          
+  4. Alert: End-note `Handled X false positives: <summary>.`                
+                                                                            
+  ### Step 4: No New Feedback?                                              
+                                                                            
+  1. Check `@coderabbitai "Rate limit exceeded"`: Parse last edit + ``T``   
+  (e.g., 30m). `safe_ts = edit_ts + T` (`date` for now).                    
+  2. Ready? `gh pr comment <PR#> --body "@coderabbitai review please 🥕"`   
+  3. Cooldown? Output `COOLDOWN - <X> remaining...` End session.            
+                                                                            
+  ## Merge Check                                                            
+                                                                            
+  Post-feedback only. **No merge without user "YES"—prompt always.**        
+                                                                            
+  **Must Pass**:                                                            
+  - `gh pr checks <PR#>`: All green (no pending/fails).                     
+  - No Rabbit limits.                                                       
+  - ≥2 reviews, no majors (nits/approvals only). Override erroneous         
+  "changes requested."                                                      
+                                                                            
+  **Process**:                                                              
+  1. Prompt: "Checks passed, reviews done. Merge? Reply 'YES'."             
+  2. On yes: `gh pr merge <PR#> --merge --admin --body "Resolved {K}        
+  issues; v{version}."`                                                     
+                                                                            
+  ### If CI/CD Job(s) Failed                                                
+                                                                            
+  1. Retrieve the failure                                                   
+  2. Read and understand the root cause                                     
+  3. Fix the issue                                                          
+                                                                            
+  > [!IMPORTANT]                                                            
+  > Never auto-merge.                                                       
+                                                                            
+  ## II. Retrospective Report                                               
+                                                                            
+  End every session with this Markdown template (fill dynamically).         
+                                                                            
+  ```markdown                                                               
+  | Field             | Content                                   |         
+  |-------------------|-------------------------------------------|         
+  | **Status**        | {PROCESSING / COOLDOWN / READY TO MERGE}  |         
+  | **Reviews**       | {N} reviews, {M} total issues, {K} resolved |       
+  | **Confidence**    | {0-100}%                                  |         
+  | **Version**       | {e.g., v1.2.3}                            |         
+  | **False Positives** | {count} — {summary if any}                |       
+                                                                            
+  ## PR Summary                                                             
+  {1-2 paras: Progress, reviewers' input, resolutions; include merge prompt 
+   if ready.}                                                               
+                                                                            
+  ## Commentary                                                             
+  | Aspect               | Remark                                      |    
+  |----------------------|---------------------------------------------|    
+  | **Patterns**         | {e.g., "Recurring async linter hits—tweak        
+  ESLint?"} |                                                               
+  | **Sentiment**        | {Terrible/Bad/Indifferent/Good/Excellent} —      
+  {1-sentence why} |                                                        
+                                                                            
+  ## If This Were YOUR Project...                                           
+  {ACCEPT / REJECT} — {1-2 sentences rationale.}                            
+                                                                            
+  ## Good (3 Wins)                                                          
+  - {1}                                                                     
+  - {2}                                                                     
+  - {3}                                                                     
+                                                                            
+  ## Bad (3 Improvements)                                                   
+  - {1}                                                                     
+  - {2}                                                                     
+  - {3}                                                                     
+                                                                            
+  ## Ideas (3)                                                              
+  - {1}                                                                     
+  - {2}                                                                     
+  - {3}                                                                     
+                                                                            
+  ## Backlog Suggestions                                                    
+  - {0-3 tasks, e.g., "Add e2e for edge Z.\nRefactor utils module."}        
+  ```                                                                       
+                                                                            
+  ## Report Conclusion                                                      
+                                                                            
+  ### BACKLOG FUEL                                                          
+                                                                            
+  Add the following to the BACKLOG:                                         
+  - Your backlog suggestions                                                
+  - Your ideas                                                              
+  - Any issues from the "bad/improvements" list that are actionable         
+                                                                            
+  ### The Rabbit is Not Yet Satisfied                                       
+                                                                            
+  If we require more rounds of review, and Code Rabbit says we are          
+  rate-limited, then print the current timestamp with `date` IN THE LOCAL   
+  SYSTEM TIMEZONE and the calculated cooldown expire timestamp (if          
+  applicable):                                                              
+                                                                            
+  ```markdown                                                               
+  PR Feedback processed at <date>                                           
+  (Code Rabbit Cooldown expires at <expires>)                               
+  ```                                                                       
+                                                                            
+  ### PERSONAL RECOMMENDATION                                               
+                                                                            
+  You are the emperor. You stand to address the mob in the crowded          
+  bleachers of the Colosseum. You stand, arm out-stretched, fist closed,    
+  stoic countenance. The crowd is wild. You await their silence before      
+  announcing your judgement. Do you thumbs up (ACCEPT MERGE) or thumbs down 
+   (REQUEST ADDITIONAL ROUND)? Proclaim your decision to the mob, with      
+  Roman explanation.                                                        
+                                                                            
+  > [!important]                                                            
+  > Merge MUST be rejected if:                                              
+  >  - CI/CD jobs have failed or are pending                                
+  >  - ANY linter errors or tests are failing, even if "pre-existing"       
+  >  - There are any unresolved issues in the PR comments                   
+  >  - The Rabbit is not yet satisfied                                      
+  >                                                                         
+  >  **NOTE:** If any of the above conditions apply, then: `The Emperor     
+  remains seated.` (you may embellish this message as you wish)             
+                                                                            
+
+⏺ Bash(export GH_PAGER=cat && gh pr view 15 --json comments --jq '.comments[] |
+      "---\nauthor: \(.author.login)\nbody: \(.body)\n"')
+  ⎿  ---
+     author: coderabbitai
+     body: <!-- This is an auto-generated comment: summarize by coderabbit.
+     … +206 lines (ctrl+o to expand)
+
+⏺ Bash(export GH_PAGER=cat && gh pr view 15 --json reviews --jq '.reviews[] |
+      "---\nauthor: \(.author.login)\nstate: \(.state)\nbody: \(.body)\n"')
+  ⎿  ---
+     author: coderabbitai
+     state: COMMENTED
+     … +39 lines (ctrl+o to expand)
+
+⏺ Bash(export GH_PAGER=cat && gh api repos/git-stunts/git-cas/pulls/15/comments
+      --jq '.[] | "---\npath: \(.path)\nline: \(.line)\nauthor:
+      \(.user.login)\nbody: \(.body…)
+  ⎿  ---
+     path: ROADMAP.md
+     line: 608
+     … +91 lines (ctrl+o to expand)
+
+⏺ Bash(export GH_PAGER=cat && gh pr checks 15)
+  ⎿  CodeRabbit pass    0               Review completed
+     lint       pass    16s     https://github.com/git-stunts/git-cas/actions
+     /runs/22527
+     197508/job/65260956943
+     … +8 lines (ctrl+o to expand)
+
+⏺ Three CodeRabbit comments to triage. Let me verify each.
+
+⏺ Searched for 3 patterns (ctrl+o to expand)
+
+⏺ Three comments to address:
+
+  1. ROADMAP M14 collision — Valid. M14 is already Conduit. Fix to M15.
+  2. Buffer in test on Bun/Deno — False positive. CI passed all 3 runtimes.
+  Buffer is available on Bun and Deno.
+  3. randomBytes in fuzz test — False positive. The plan deliberately keeps
+  randomBytes for crypto keys (keys must be fresh random). Only size/index
+  selection was made deterministic.
+
+⏺ Update(ROADMAP.md)
+  ⎿  Added 1 line, removed 1 line
+      605  
+      606  ---
+      607  
+      608 -## M14 — Prism (code hygiene)                                 
+      608 +## M15 — Prism (code hygiene)                                 
+      609  
+      610  Consistency and DRY fixes surfaced by architecture audit. No n
+           ew features, no API changes.
+      611  
+
+⏺ Searched for 1 pattern (ctrl+o to expand)
+
+⏺ Task references use unnumbered headings — no further M14 references to fix.
+
+⏺ Bash(git add ROADMAP.md && git commit -m "$(cat <<'EOF'
+      fix: rename Prism milestone M14 → M15 to avoid Conduit ID collision…)
+  ⎿  [chore/followups 090f7a9] fix: rename Prism milestone M14 → M15 to avo
+     id Conduit ID collision
+      1 file changed, 1 insertion(+), 1 deletion(-)
+
+⏺ Now reply to the two false positives.
+
+⏺ Bash(export GH_PAGER=cat && gh api repos/git-stunts/git-cas/pulls/15/comments
+      --jq '.[] | "\(.id) \(.path):\(.line) \(.body[0:60])"')
+  ⎿  2867790870 ROADMAP.md:608 _⚠️ Potential issue_ | _🟡 Minor_
+
+     **Milestone ID collision:
+     … +9 lines (ctrl+o to expand)
+
+⏺ Bash(export GH_PAGER=cat && gh api
+      repos/git-stunts/git-cas/pulls/15/comments/2867790870/replies -X POST -f
+      body="$(cat <<'EOF'
+      ✅ Addressed in 090f7a9 — renamed to M…)
+  ⎿  {
+       "url": "https://api.github.com/repos/git-stunts/git-cas/pulls/commen
+     ts/2867793162",
+     … +37 lines (ctrl+o to expand)
+
+⏺ Bash(export GH_PAGER=cat && gh api
+      repos/git-stunts/git-cas/pulls/15/comments/2867790873/replies -X POST -f
+      body="$(cat <<'EOF'
+      False positive — CI already passed on…)
+  ⎿  {
+       "url": "https://api.github.com/repos/git-stunts/git-cas/pulls/commen
+     ts/2867793227",
+     … +63 lines (ctrl+o to expand)
+
+⏺ Bash(export GH_PAGER=cat && gh api
+      repos/git-stunts/git-cas/pulls/15/comments/2867790875/replies -X POST -f
+      body="$(cat <<'EOF'
+      Intentional design — `randomBytes(32)…)
+  ⎿  {
+       "url": "https://api.github.com/repos/git-stunts/git-cas/pulls/commen
+     ts/2867793309",
+     … +51 lines (ctrl+o to expand)
+
+⏺ Now push the fix and request re-review.
+
+⏺ Bash(git push origin chore/followups)
+  ⎿  Running pre-push quality gates...
+     → Linting...
+     … +61 lines (ctrl+o to expand)
+
+⏺ Bash(export GH_PAGER=cat && gh pr comment 15 --body "@coderabbitai review
+      please 🥕")
+  ⎿  https://github.com/git-stunts/git-cas/pull/15#issuecomment-3977619652
+
+⏺ Now wait for CI to finish on the new push before concluding. Let me check.
+
+⏺ Bash(export GH_PAGER=cat && gh pr checks 15)
+  ⎿  Error: Exit code 8
+     CodeRabbit pending 0               Review in progress
+     lint       pending 0       https://github.com/git-stunts/git-cas/actions/ru
+     job/65261268747
+     test-unit  pending 0       https://github.com/git-stunts/git-cas/actions/ru
+     1818/job/65261268740
+
+     CodeRabbit pending 0               Review in progress
+     lint       pending 0       https://github.com/git-stunts/git-cas/actions/ru
+     job/65261268747
+     test-unit  pending 0       https://github.com/git-stunts/git-cas/actions/ru
+     1818/job/65261268740
+
+⏺ CI is running. Let me wait a moment and check again.
+
+⏺ Bash(sleep 60 && export GH_PAGER=cat && gh pr checks 15)
+  ⎿  Error: Exit code 8
+     lint       pass    12s     https://github.com/git-stunts/git-cas/actions/ru
+     ob/65261268747
+     test-docker (bun)  pass    37s     https://github.com/git-stunts/git-cas/ac
+     22527321818/job/65261282831
+     test-docker (deno) pass    32s     https://github.com/git-stunts/git-cas/ac
+     /22527321818/job/65261282839
+     test-docker (node) pass    36s     https://github.com/git-stunts/git-cas/ac
+     /22527321818/job/65261282838
+     test-unit  pass    19s     https://github.com/git-stunts/git-cas/actions/ru
+     818/job/65261268740
+     CodeRabbit pending 0               Review in progress
+
+     lint       pass    12s     https://github.com/git-stunts/git-cas/actions/ru
+     ob/65261268747
+     test-docker (bun)  pass    37s     https://github.com/git-stunts/git-cas/ac
+     22527321818/job/65261282831
+     … +4 lines (ctrl+o to see all)
+
+⏺ All CI jobs pass. CodeRabbit is still reviewing. Let me wait for it.
+
+⏺ Bash(sleep 60 && export GH_PAGER=cat && gh pr checks 15)
+  ⎿  Error: Exit code 8
+     lint       pass    12s     https://github.com/git-stunts/git-cas/actions/ru
+     ob/65261268747
+     test-docker (bun)  pass    37s     https://github.com/git-stunts/git-cas/ac
+     22527321818/job/65261282831
+     test-docker (deno) pass    32s     https://github.com/git-stunts/git-cas/ac
+     /22527321818/job/65261282839
+     test-docker (node) pass    36s     https://github.com/git-stunts/git-cas/ac
+     /22527321818/job/65261282838
+     test-unit  pass    19s     https://github.com/git-stunts/git-cas/actions/ru
+     818/job/65261268740
+     CodeRabbit pending 0               Review in progress
+
+     lint       pass    12s     https://github.com/git-stunts/git-cas/actions/ru
+     ob/65261268747
+     test-docker (bun)  pass    37s     https://github.com/git-stunts/git-cas/ac
+     22527321818/job/65261282831
+     … +4 lines (ctrl+o to see all)
+
+⏺ Bash(sleep 60 && export GH_PAGER=cat && gh pr checks 15)
+  ⎿  CodeRabbit pass    0               Review completed
+     lint       pass    12s     https://github.com/git-stunts/git-cas/actions
+     /runs/22527
+     321818/job/65261268747
+     … +8 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+⏺ All checks pass. Let me verify the latest review has no new issues.
+
+⏺ Bash(export GH_PAGER=cat && gh pr view 15 --json reviews --jq '.reviews[] |
+      "state: \(.state) | author: \(.author.login) | body: \(.body[0:200])"')
+  ⎿  state: COMMENTED | author: coderabbitai | body: **Actionable comments
+     posted: 3**
+     … +25 lines (ctrl+o to expand)
+
+⏺ New review with 1 actionable comment. Let me check it.
+
+⏺ Bash(export GH_PAGER=cat && gh api repos/git-stunts/git-cas/pulls/15/comments
+      --jq '.[] | select(.in_reply_to_id == null) | "\(.id) | \(.path):\(.line)
+      | \(.created_…)
+  ⎿  2867790870 | ROADMAP.md:null | 2026-02-28T19:18:34Z | _⚠️ Potential is
+     sue_ | _🟡 Minor_
+     … +30 lines (ctrl+o to expand)
+
+⏺ New comment: task IDs 14.1 and 14.2 should be 15.1 and 15.2 under M15.
+
+⏺ Read 1 file (ctrl+o to expand)
+  ⎿  You've hit your limit · resets 1pm (America/Los_Angeles)
+     /extra-usage to finish what you’re working on.
+
+✻ Brewed for 5m 4s

@@ -13,6 +13,7 @@ import CasError from './src/domain/errors/CasError.js';
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';
 import GitRefAdapter from './src/infrastructure/adapters/GitRefAdapter.js';
 import NodeCryptoAdapter from './src/infrastructure/adapters/NodeCryptoAdapter.js';
+import createCryptoAdapter from './src/infrastructure/adapters/createCryptoAdapter.js';
 import Manifest from './src/domain/value-objects/Manifest.js';
 import Chunk from './src/domain/value-objects/Chunk.js';
 import CryptoPort from './src/ports/CryptoPort.js';
@@ -46,22 +47,6 @@ export {
   FixedChunker,
   CdcChunker,
 };
-
-/**
- * Detects the best crypto adapter for the current runtime.
- * @returns {Promise<import('./src/ports/CryptoPort.js').default>} A runtime-appropriate CryptoPort implementation.
- */
-async function getDefaultCryptoAdapter() {
-  if (globalThis.Bun) {
-    const { default: BunCryptoAdapter } = await import('./src/infrastructure/adapters/BunCryptoAdapter.js');
-    return new BunCryptoAdapter();
-  }
-  if (globalThis.Deno) {
-    const { default: WebCryptoAdapter } = await import('./src/infrastructure/adapters/WebCryptoAdapter.js');
-    return new WebCryptoAdapter();
-  }
-  return new NodeCryptoAdapter();
-}
 
 /**
  * High-level facade for the Content Addressable Store library.
@@ -152,7 +137,7 @@ export default class ContentAddressableStore {
       plumbing: this.plumbing,
       policy: this.policyConfig
     });
-    const crypto = this.cryptoConfig || await getDefaultCryptoAdapter();
+    const crypto = this.cryptoConfig || await createCryptoAdapter();
     const chunker = this.#resolveChunker();
     this.service = new CasService({
       persistence,
