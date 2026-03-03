@@ -3,47 +3,47 @@
  * @fileoverview Content Addressable Store - Managed blob storage in Git.
  */
 
+// ---------------------------------------------------------------------------
+// Imports used in the class body
+// ---------------------------------------------------------------------------
 import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
 import rotateVaultPassphrase from './src/domain/services/VaultPassphraseRotator.js';
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';
 import GitRefAdapter from './src/infrastructure/adapters/GitRefAdapter.js';
-import NodeCryptoAdapter from './src/infrastructure/adapters/NodeCryptoAdapter.js';
 import createCryptoAdapter from './src/infrastructure/adapters/createCryptoAdapter.js';
 import { storeFile, restoreFile } from './src/infrastructure/adapters/FileIOHelper.js';
-import Manifest from './src/domain/value-objects/Manifest.js';
-import Chunk from './src/domain/value-objects/Chunk.js';
-import CryptoPort from './src/ports/CryptoPort.js';
-import ChunkingPort from './src/ports/ChunkingPort.js';
-import ObservabilityPort from './src/ports/ObservabilityPort.js';
 import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
 import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
-import EventEmitterObserver from './src/infrastructure/adapters/EventEmitterObserver.js';
-import StatsCollector from './src/infrastructure/adapters/StatsCollector.js';
-import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
-import CdcChunker from './src/infrastructure/chunkers/CdcChunker.js';
 import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
 
+// ---------------------------------------------------------------------------
+// Re-exports — modules used in the class body
+// ---------------------------------------------------------------------------
 export {
   CasService,
   VaultService,
   GitPersistenceAdapter,
   GitRefAdapter,
-  NodeCryptoAdapter,
-  CryptoPort,
-  ChunkingPort,
-  ObservabilityPort,
-  Manifest,
-  Chunk,
   JsonCodec,
   CborCodec,
   SilentObserver,
-  EventEmitterObserver,
-  StatsCollector,
-  FixedChunker,
-  CdcChunker,
 };
+
+// ---------------------------------------------------------------------------
+// Re-exports — barrel-only (no local binding needed)
+// ---------------------------------------------------------------------------
+export { default as NodeCryptoAdapter } from './src/infrastructure/adapters/NodeCryptoAdapter.js';
+export { default as CryptoPort } from './src/ports/CryptoPort.js';
+export { default as ChunkingPort } from './src/ports/ChunkingPort.js';
+export { default as ObservabilityPort } from './src/ports/ObservabilityPort.js';
+export { default as Manifest } from './src/domain/value-objects/Manifest.js';
+export { default as Chunk } from './src/domain/value-objects/Chunk.js';
+export { default as EventEmitterObserver } from './src/infrastructure/adapters/EventEmitterObserver.js';
+export { default as StatsCollector } from './src/infrastructure/adapters/StatsCollector.js';
+export { default as FixedChunker } from './src/infrastructure/chunkers/FixedChunker.js';
+export { default as CdcChunker } from './src/infrastructure/chunkers/CdcChunker.js';
 
 /**
  * High-level facade for the Content Addressable Store library.
