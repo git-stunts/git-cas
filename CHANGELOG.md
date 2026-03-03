@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`CryptoPortBase.sha256()` type** — `index.d.ts` declaration corrected from `string | Promise<string>` to `Promise<string>`, matching the async implementation since v5.2.3.
+- **README wording** — "no public API changes" corrected to "no breaking API changes" in the v5.2.3 summary.
+- **Barrel re-export description** — README and CHANGELOG now show the correct `export { default as X } from '...'` syntax.
+- **Vestigial `lastchat.txt`** removed from `jsr.json` exclude list.
+
+### Changed
+- **`keyResolver` is now private** — `CasService.keyResolver` changed to `#keyResolver`, preventing external access to an internal implementation detail.
+- **`VaultPassphraseRotator.js` → `rotateVaultPassphrase.js`** — renamed to follow camelCase convention for files that export a function (PascalCase is reserved for classes).
+- **`@fileoverview` JSDoc** added to `FileIOHelper.js`, `createCryptoAdapter.js`, and `resolveChunker.js`.
+- **`KeyResolver` design note** — class JSDoc now documents the direct `CryptoPort.deriveKey()` call (bypasses `CasService.deriveKey()`).
+- **Long function signature wrapped** — `rotateVaultPassphrase()` export signature broken across multiple lines.
+- **Salt assertion** added to `KeyResolver.resolveForStore` passphrase test.
+
 ## [5.2.3] — Prism refactor (2026-03-03)
 
 ### Changed
@@ -15,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Extract `createCryptoAdapter`** — runtime crypto detection moved from `index.js` to `src/infrastructure/adapters/createCryptoAdapter.js`; test helper now delegates instead of duplicating.
 - **Extract `resolveChunker`** — chunker factory resolution moved from `index.js` private method to `src/infrastructure/chunkers/resolveChunker.js`.
 - **Extract file I/O helpers** — `storeFile()` and `restoreFile()` moved from `index.js` to `src/infrastructure/adapters/FileIOHelper.js`; all `node:*` imports removed from facade.
-- **Extract `VaultPassphraseRotator`** — passphrase rotation orchestration (~100 lines with retry/backoff) moved from `index.js` to `src/domain/services/VaultPassphraseRotator.js`; `CasError` and `buildKdfMetadata` imports removed from facade.
+- **Extract `rotateVaultPassphrase`** — passphrase rotation orchestration (~100 lines with retry/backoff) moved from `index.js` to `src/domain/services/rotateVaultPassphrase.js`; `CasError` and `buildKdfMetadata` imports removed from facade.
 - **Private `#config` field** — facade constructor stores options in a single private `#config` field instead of 10 public `this.fooConfig` properties.
 - **Barrel re-exports** — 10 re-export-only modules (`NodeCryptoAdapter`, `Manifest`, `Chunk`, ports, observers, chunkers) converted to `export { default as X } from '...'` form, eliminating unnecessary local bindings.
 - **Configurable retry** — `rotateVaultPassphrase()` now accepts optional `maxRetries` (default 3) and `retryBaseMs` (default 50) options for tuning optimistic-concurrency backoff.

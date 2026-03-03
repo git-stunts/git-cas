@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Runtime-adaptive crypto adapter factory.
+ */
 import NodeCryptoAdapter from './NodeCryptoAdapter.js';
 
 /**

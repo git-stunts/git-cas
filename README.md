@@ -40,12 +40,12 @@ We use the object database.
 
 ## What's new in v5.2.3
 
-**Internal refactoring — no public API changes.** The facade, CasService, and crypto adapters were restructured for better separation of concerns:
+**Internal refactoring — no breaking API changes.** The facade, CasService, and crypto adapters were restructured for better separation of concerns:
 
 - **Consistent async `sha256()`** — `NodeCryptoAdapter.sha256()` now returns `Promise<string>` like Bun and Web adapters, fixing a Liskov Substitution violation.
 - **`KeyResolver` extracted** — ~170 lines of key resolution logic (DEK wrap/unwrap, passphrase derivation, envelope recipients) moved from CasService (1085 → 909 lines) into a dedicated `KeyResolver` service.
-- **Facade decomposed** — `createCryptoAdapter`, `resolveChunker`, `FileIOHelper`, `VaultPassphraseRotator`, and `buildKdfMetadata` extracted from the monolithic `index.js` into focused modules.
-- **Barrel re-exports** — 10 re-export-only modules converted to `export { default } from` form.
+- **Facade decomposed** — `createCryptoAdapter`, `resolveChunker`, `FileIOHelper`, `rotateVaultPassphrase`, and `buildKdfMetadata` extracted from the monolithic `index.js` into focused modules.
+- **Barrel re-exports** — 10 re-export-only modules converted to `export { default as X } from '...'` form.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 

@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
-import rotateVaultPassphrase from './src/domain/services/VaultPassphraseRotator.js';
+import rotateVaultPassphrase from './src/domain/services/rotateVaultPassphrase.js';
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';
 import GitRefAdapter from './src/infrastructure/adapters/GitRefAdapter.js';
 import createCryptoAdapter from './src/infrastructure/adapters/createCryptoAdapter.js';

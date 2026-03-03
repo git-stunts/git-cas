@@ -135,6 +135,7 @@ describe('KeyResolver.resolveForStore', () => {
     expect(result.key).toHaveLength(32);
     expect(result.encExtra).toHaveProperty('kdf');
     expect(result.encExtra.kdf).toHaveProperty('algorithm', 'pbkdf2');
+    expect(result.encExtra.kdf).toHaveProperty('salt');
   });
 
   it('with neither → returns undefined key and empty encExtra', async () => {

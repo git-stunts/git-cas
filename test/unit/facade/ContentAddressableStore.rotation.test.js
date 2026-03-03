@@ -28,7 +28,7 @@ async function* bufferSource(buf) {
 }
 
 // ---------------------------------------------------------------------------
-// Wiring test — verifies facade delegates to VaultPassphraseRotator
+// Wiring test — verifies facade delegates to rotateVaultPassphrase
 // ---------------------------------------------------------------------------
 describe('ContentAddressableStore – rotateVaultPassphrase (wiring)', () => {
   let repoDir;

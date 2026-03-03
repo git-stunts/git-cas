@@ -1,3 +1,6 @@
+/**
+ * @fileoverview File I/O helpers for storing and restoring files via CasService.
+ */
 import { createReadStream, createWriteStream } from 'node:fs';
 import path from 'node:path';
 import { Readable, Transform } from 'node:stream';

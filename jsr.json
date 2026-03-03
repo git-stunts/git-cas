@@ -22,7 +22,6 @@
     "docker-compose.yml",
     "eslint.config.js",
     "pnpm-lock.yaml",
-    "schema.json",
-    "lastchat.txt"
+    "schema.json"
   ]
 }

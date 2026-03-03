@@ -47,7 +47,7 @@ export declare class CdcChunker extends ChunkingPort {
 
 /** Abstract port for cryptographic operations. */
 export declare class CryptoPortBase {
-  sha256(buf: Buffer): string | Promise<string>;
+  sha256(buf: Buffer): Promise<string>;
   randomBytes(n: number): Buffer;
   encryptBuffer(
     buffer: Buffer,

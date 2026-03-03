@@ -102,7 +102,10 @@ function buildRotatedMetadata(metadata, newSalt, newParams) {
  * @param {number} [options.retryBaseMs=50] - Base delay in ms for exponential backoff between retries.
  * @returns {Promise<{ commitOid: string, rotatedSlugs: string[], skippedSlugs: string[] }>}
  */
-export default async function rotateVaultPassphrase({ service, vault }, { oldPassphrase, newPassphrase, kdfOptions, maxRetries = DEFAULT_MAX_RETRIES, retryBaseMs = DEFAULT_RETRY_BASE_MS }) {
+export default async function rotateVaultPassphrase(
+  { service, vault },
+  { oldPassphrase, newPassphrase, kdfOptions, maxRetries = DEFAULT_MAX_RETRIES, retryBaseMs = DEFAULT_RETRY_BASE_MS },
+) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const state = await vault.readState();
     if (!state.metadata?.encryption) {

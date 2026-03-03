@@ -21,6 +21,9 @@ const gunzipAsync = promisify(gunzip);
  * arbitrary data in Git's object database.
  */
 export default class CasService {
+  /** @type {KeyResolver} */
+  #keyResolver;
+
   /**
    * @param {Object} options
    * @param {import('../../ports/GitPersistencePort.js').default} options.persistence
@@ -52,8 +55,7 @@ export default class CasService {
       throw new Error('Concurrency must be a positive integer');
     }
     this.concurrency = concurrency;
-    /** @type {KeyResolver} */
-    this.keyResolver = new KeyResolver(crypto);
+    this.#keyResolver = new KeyResolver(crypto);
   }
 
   /**
@@ -249,8 +251,8 @@ export default class CasService {
     this._validateCompression(compression);
 
     const keyInfo = recipients
-      ? await this.keyResolver.resolveRecipients(recipients)
-      : await this.keyResolver.resolveForStore(encryptionKey, passphrase, kdfOptions);
+      ? await this.#keyResolver.resolveRecipients(recipients)
+      : await this.#keyResolver.resolveForStore(encryptionKey, passphrase, kdfOptions);
 
     const manifestData = this._buildManifestData(slug, filename, compression);
     const processedSource = compression ? this._compressStream(source) : source;
@@ -446,7 +448,7 @@ export default class CasService {
    * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
    */
   async *restoreStream({ manifest, encryptionKey, passphrase }) {
-    const key = await this.keyResolver.resolveForDecryption(manifest, encryptionKey, passphrase);
+    const key = await this.#keyResolver.resolveForDecryption(manifest, encryptionKey, passphrase);
 
     if (manifest.chunks.length === 0) {
       this.observability.metric('file', {
@@ -720,7 +722,7 @@ export default class CasService {
     // Unwrap DEK using the existing key
     let dek;
     try {
-      dek = await this.keyResolver.resolveKeyForRecipients(manifest, existingKey);
+      dek = await this.#keyResolver.resolveKeyForRecipients(manifest, existingKey);
     } catch (err) {
       if (err instanceof CasError && err.code === 'NO_MATCHING_RECIPIENT') {
         throw new CasError('Failed to unwrap DEK: authentication failed', 'DEK_UNWRAP_FAILED', { originalError: err });
@@ -729,7 +731,7 @@ export default class CasService {
     }
 
     // Wrap DEK for the new recipient
-    const newEntry = { label, ...(await this.keyResolver.wrapDek(dek, newRecipientKey)) };
+    const newEntry = { label, ...(await this.#keyResolver.wrapDek(dek, newRecipientKey)) };
 
     const json = manifest.toJSON();
     const updatedEncryption = {
@@ -843,7 +845,7 @@ export default class CasService {
     if (matchIndex === -1) {
       throw new CasError(`Recipient "${label}" not found`, 'RECIPIENT_NOT_FOUND', { label });
     }
-    const dek = await this.keyResolver.unwrapDek(recipients[matchIndex], oldKey);
+    const dek = await this.#keyResolver.unwrapDek(recipients[matchIndex], oldKey);
     return { matchIndex, dek };
   }
 
@@ -853,7 +855,7 @@ export default class CasService {
   async #findRecipientByKey(recipients, oldKey) {
     for (let i = 0; i < recipients.length; i++) {
       try {
-        const dek = await this.keyResolver.unwrapDek(recipients[i], oldKey);
+        const dek = await this.#keyResolver.unwrapDek(recipients[i], oldKey);
         return { matchIndex: i, dek };
       } catch (err) {
         if (!(err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED')) { throw err; }
@@ -869,7 +871,7 @@ export default class CasService {
    * Builds a new Manifest with the rotated recipient entry and updated keyVersions.
    */
   async #buildRotatedManifest({ manifest, recipients, matchIndex, dek, newKey }) {
-    const newWrapped = await this.keyResolver.wrapDek(dek, newKey);
+    const newWrapped = await this.#keyResolver.wrapDek(dek, newKey);
     const manifestKeyVersion = (manifest.encryption.keyVersion || 0) + 1;
     const recipientKeyVersion = (recipients[matchIndex].keyVersion || 0) + 1;
 

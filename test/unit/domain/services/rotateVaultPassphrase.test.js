@@ -12,7 +12,7 @@ import GitRefAdapter from '../../../../src/infrastructure/adapters/GitRefAdapter
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
-import rotateVaultPassphrase from '../../../../src/domain/services/VaultPassphraseRotator.js';
+import rotateVaultPassphrase from '../../../../src/domain/services/rotateVaultPassphrase.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 
 // ---------------------------------------------------------------------------

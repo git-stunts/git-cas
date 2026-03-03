@@ -12,6 +12,11 @@ import CasError from '../errors/CasError.js';
  * Encapsulates the key resolution responsibility that was previously
  * spread across ~170 lines of CasService. Receives a CryptoPort via
  * constructor injection.
+ *
+ * **Design note:** KeyResolver calls `CryptoPort.deriveKey()` directly
+ * rather than going through `CasService.deriveKey()`. If CasService ever
+ * adds validation or observability around its `deriveKey()` wrapper,
+ * KeyResolver will need updating to route through the service instead.
  */
 export default class KeyResolver {
   /** @type {import('../../ports/CryptoPort.js').default} */

@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Chunker factory — resolves a ChunkingPort from facade config.
+ */
 import FixedChunker from './FixedChunker.js';
 import CdcChunker from './CdcChunker.js';
 
