@@ -66,20 +66,13 @@ export default class ContentAddressableStore {
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance (advanced).
    */
   constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker }) {
-    this.plumbing = plumbing;
-    this.chunkSizeConfig = chunkSize;
-    this.codecConfig = codec;
-    this.policyConfig = policy;
-    this.cryptoConfig = crypto;
-    this.observabilityConfig = observability;
-    this.merkleThresholdConfig = merkleThreshold;
-    this.concurrencyConfig = concurrency;
-    this.chunkingConfig = chunking;
-    this.chunkerConfig = chunker;
+    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker };
     this.service = null;
     this.#servicePromise = null;
   }
 
+  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: * }} */
+  #config;
   /** @type {VaultService|null} */
   #vault = null;
   #servicePromise = null;
@@ -102,26 +95,27 @@ export default class ContentAddressableStore {
    * @returns {Promise<CasService>}
    */
   async #initService() {
+    const cfg = this.#config;
     const persistence = new GitPersistenceAdapter({
-      plumbing: this.plumbing,
-      policy: this.policyConfig
+      plumbing: cfg.plumbing,
+      policy: cfg.policy,
     });
-    const crypto = this.cryptoConfig || await createCryptoAdapter();
-    const chunker = resolveChunker({ chunker: this.chunkerConfig, chunking: this.chunkingConfig });
+    const crypto = cfg.crypto || await createCryptoAdapter();
+    const chunker = resolveChunker({ chunker: cfg.chunker, chunking: cfg.chunking });
     this.service = new CasService({
       persistence,
-      chunkSize: this.chunkSizeConfig,
-      codec: this.codecConfig || new JsonCodec(),
+      chunkSize: cfg.chunkSize,
+      codec: cfg.codec || new JsonCodec(),
       crypto,
-      observability: this.observabilityConfig || new SilentObserver(),
-      merkleThreshold: this.merkleThresholdConfig,
-      concurrency: this.concurrencyConfig,
+      observability: cfg.observability || new SilentObserver(),
+      merkleThreshold: cfg.merkleThreshold,
+      concurrency: cfg.concurrency,
       chunker,
     });
 
     const ref = new GitRefAdapter({
-      plumbing: this.plumbing,
-      policy: this.policyConfig,
+      plumbing: cfg.plumbing,
+      policy: cfg.policy,
     });
     this.#vault = new VaultService({ persistence, ref, crypto });
 
@@ -183,7 +177,7 @@ export default class ContentAddressableStore {
    * @returns {number}
    */
   get chunkSize() {
-    return this.service?.chunkSize || this.chunkSizeConfig || 256 * 1024;
+    return this.service?.chunkSize || this.#config.chunkSize || 256 * 1024;
   }
 
   /**
