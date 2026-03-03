@@ -38,6 +38,17 @@ We use the object database.
 
 <img src="./docs/demo.gif" alt="git-cas demo" />
 
+## What's new in v5.2.3
+
+**Internal refactoring — no public API changes.** The facade, CasService, and crypto adapters were restructured for better separation of concerns:
+
+- **Consistent async `sha256()`** — `NodeCryptoAdapter.sha256()` now returns `Promise<string>` like Bun and Web adapters, fixing a Liskov Substitution violation.
+- **`KeyResolver` extracted** — ~170 lines of key resolution logic (DEK wrap/unwrap, passphrase derivation, envelope recipients) moved from CasService (1085 → 909 lines) into a dedicated `KeyResolver` service.
+- **Facade decomposed** — `createCryptoAdapter`, `resolveChunker`, `FileIOHelper`, `VaultPassphraseRotator`, and `buildKdfMetadata` extracted from the monolithic `index.js` into focused modules.
+- **Barrel re-exports** — 10 re-export-only modules converted to `export { default } from` form.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
+
 ## What's new in v5.2.1
 
 Bug fix: `rotateVaultPassphrase` now honours `kdfOptions.algorithm` — previously the `--algorithm` flag was silently ignored, always reusing the old KDF algorithm. CLI flag tables in `docs/API.md` are now split per command with `--cwd` documented.

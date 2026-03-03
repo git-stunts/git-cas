@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.2.3] — Prism refactor (2026-03-03)
+
 ### Changed
 - **Async `sha256()` across all adapters** — `NodeCryptoAdapter.sha256()` now returns `Promise<string>` (was sync `string`), matching Bun and Web adapters. Fixes Liskov Substitution violation; all callers already `await`. `CryptoPort` JSDoc and `CasService.d.ts` updated to `Promise<string>`.
-- **Extract `KeyResolver`** — ~170 lines of key resolution logic (`wrapDek`, `unwrapDek`, `resolveForDecryption`, `resolveForStore`, `resolveRecipients`, `resolveKeyForRecipients`, passphrase derivation, mutual-exclusion validation) extracted from `CasService` into `src/domain/services/KeyResolver.js`. CasService delegates via `this.keyResolver`. No public API changes.
+- **Extract `KeyResolver`** — ~170 lines of key resolution logic (`wrapDek`, `unwrapDek`, `resolveForDecryption`, `resolveForStore`, `resolveRecipients`, `resolveKeyForRecipients`, passphrase derivation, mutual-exclusion validation) extracted from `CasService` into `src/domain/services/KeyResolver.js`. CasService delegates via `this.keyResolver`. No public API changes. 24 new unit tests.
 - **Extract `createCryptoAdapter`** — runtime crypto detection moved from `index.js` to `src/infrastructure/adapters/createCryptoAdapter.js`; test helper now delegates instead of duplicating.
 - **Extract `resolveChunker`** — chunker factory resolution moved from `index.js` private method to `src/infrastructure/chunkers/resolveChunker.js`.
 - **Extract file I/O helpers** — `storeFile()` and `restoreFile()` moved from `index.js` to `src/infrastructure/adapters/FileIOHelper.js`; all `node:*` imports removed from facade.
