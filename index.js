@@ -5,7 +5,7 @@
 
 import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
-import CasError from './src/domain/errors/CasError.js';
+import rotateVaultPassphrase from './src/domain/services/VaultPassphraseRotator.js';
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';
 import GitRefAdapter from './src/infrastructure/adapters/GitRefAdapter.js';
 import NodeCryptoAdapter from './src/infrastructure/adapters/NodeCryptoAdapter.js';
@@ -24,7 +24,6 @@ import StatsCollector from './src/infrastructure/adapters/StatsCollector.js';
 import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
 import CdcChunker from './src/infrastructure/chunkers/CdcChunker.js';
 import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
-import buildKdfMetadata from './src/domain/helpers/buildKdfMetadata.js';
 
 export {
   CasService,
@@ -471,99 +470,9 @@ export default class ContentAddressableStore {
    * @param {Object} [options.kdfOptions] - KDF options for new passphrase.
    * @returns {Promise<{ commitOid: string, rotatedSlugs: string[], skippedSlugs: string[] }>}
    */
-  async rotateVaultPassphrase({ oldPassphrase, newPassphrase, kdfOptions }) {
+  async rotateVaultPassphrase(options) {
     const service = await this.#getService();
     const vault = await this.#getVault();
-
-    const MAX_RETRIES = 3;
-    const RETRY_BASE_MS = 50;
-
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const state = await vault.readState();
-      if (!state.metadata?.encryption) {
-        throw new CasError('Vault is not encrypted — nothing to rotate', 'VAULT_METADATA_INVALID');
-      }
-
-      const { kdf } = state.metadata.encryption;
-      const oldKek = await ContentAddressableStore.#deriveKekFromKdf(service, oldPassphrase, kdf);
-      const { key: newKek, salt: newSalt, params: newParams } = await service.deriveKey({
-        passphrase: newPassphrase, ...kdfOptions, algorithm: kdfOptions?.algorithm || kdf.algorithm,
-      });
-
-      const result = await ContentAddressableStore.#rotateEntries({ service, entries: state.entries, oldKek, newKek });
-      const newMetadata = ContentAddressableStore.#buildRotatedMetadata(state.metadata, newSalt, newParams);
-
-      try {
-        const { commitOid } = await vault.writeCommit({
-          entries: result.updatedEntries,
-          metadata: newMetadata,
-          parentCommitOid: state.parentCommitOid,
-          message: `vault: rotate passphrase (${result.rotatedSlugs.length} rotated, ${result.skippedSlugs.length} skipped)`,
-        });
-        return { commitOid, rotatedSlugs: result.rotatedSlugs, skippedSlugs: result.skippedSlugs };
-      } catch (err) {
-        if (err instanceof CasError && err.code === 'VAULT_CONFLICT' && attempt < MAX_RETRIES - 1) {
-          await new Promise((r) => setTimeout(r, RETRY_BASE_MS * (2 ** attempt)));
-          continue;
-        }
-        throw err;
-      }
-    }
-    /* c8 ignore next 2 */
-    throw new CasError('Vault CAS retries exhausted', 'VAULT_CONFLICT');
-  }
-
-  /**
-   * Derives a KEK from a passphrase using stored KDF params.
-   * @private
-   */
-  static async #deriveKekFromKdf(service, passphrase, kdf) {
-    const { key } = await service.deriveKey({
-      passphrase,
-      salt: Buffer.from(kdf.salt, 'base64'),
-      algorithm: kdf.algorithm,
-      iterations: kdf.iterations,
-      cost: kdf.cost,
-      blockSize: kdf.blockSize,
-      parallelization: kdf.parallelization,
-    });
-    return key;
-  }
-
-  /**
-   * Iterates vault entries, rotating envelope-encrypted ones and skipping others.
-   * @private
-   */
-  static async #rotateEntries({ service, entries, oldKek, newKek }) {
-    const rotatedSlugs = [];
-    const skippedSlugs = [];
-    const updatedEntries = new Map(entries);
-
-    for (const [slug, treeOid] of entries) {
-      const manifest = await service.readManifest({ treeOid });
-      if (!manifest.encryption?.recipients?.length) {
-        skippedSlugs.push(slug);
-        continue;
-      }
-      const rotated = await service.rotateKey({ manifest, oldKey: oldKek, newKey: newKek });
-      updatedEntries.set(slug, await service.createTree({ manifest: rotated }));
-      rotatedSlugs.push(slug);
-    }
-
-    return { updatedEntries, rotatedSlugs, skippedSlugs };
-  }
-
-  /**
-   * Builds updated vault metadata with new KDF params.
-   * @private
-   */
-  static #buildRotatedMetadata(metadata, newSalt, newParams) {
-    return {
-      ...metadata,
-      encryption: {
-        cipher: metadata.encryption.cipher,
-        kdf: buildKdfMetadata(newSalt, newParams),
-      },
-    };
+    return await rotateVaultPassphrase({ service, vault }, options);
   }
 }

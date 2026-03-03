@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Extract `createCryptoAdapter`** — runtime crypto detection moved from `index.js` to `src/infrastructure/adapters/createCryptoAdapter.js`; test helper now delegates instead of duplicating.
 - **Extract `resolveChunker`** — chunker factory resolution moved from `index.js` private method to `src/infrastructure/chunkers/resolveChunker.js`.
 - **Extract file I/O helpers** — `storeFile()` and `restoreFile()` moved from `index.js` to `src/infrastructure/adapters/FileIOHelper.js`; all `node:*` imports removed from facade.
+- **Extract `VaultPassphraseRotator`** — passphrase rotation orchestration (~100 lines with retry/backoff) moved from `index.js` to `src/domain/services/VaultPassphraseRotator.js`; `CasError` and `buildKdfMetadata` imports removed from facade.
 - **Deterministic fuzz test** — envelope fuzz round-trip test now uses a seeded xorshift32 PRNG instead of `Math.random()`, making failures reproducible across runs.
 - **DRY chunk verification** — extracted `_readAndVerifyChunk()` in `CasService`; both the buffered and streaming restore paths now delegate to the same single-chunk verification method.
 - **DRY KDF metadata** — extracted `buildKdfMetadata()` helper (`src/domain/helpers/buildKdfMetadata.js`); `VaultService` and `ContentAddressableStore` both call it instead of duplicating the KDF object construction.
