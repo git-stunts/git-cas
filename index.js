@@ -3,65 +3,47 @@
  * @fileoverview Content Addressable Store - Managed blob storage in Git.
  */
 
-import { createReadStream, createWriteStream } from 'node:fs';
-import path from 'node:path';
-import { Readable, Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
+// ---------------------------------------------------------------------------
+// Imports used in the class body
+// ---------------------------------------------------------------------------
 import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
-import CasError from './src/domain/errors/CasError.js';
+import rotateVaultPassphrase from './src/domain/services/rotateVaultPassphrase.js';
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';
 import GitRefAdapter from './src/infrastructure/adapters/GitRefAdapter.js';
-import NodeCryptoAdapter from './src/infrastructure/adapters/NodeCryptoAdapter.js';
-import Manifest from './src/domain/value-objects/Manifest.js';
-import Chunk from './src/domain/value-objects/Chunk.js';
-import CryptoPort from './src/ports/CryptoPort.js';
-import ChunkingPort from './src/ports/ChunkingPort.js';
-import ObservabilityPort from './src/ports/ObservabilityPort.js';
+import createCryptoAdapter from './src/infrastructure/adapters/createCryptoAdapter.js';
+import { storeFile, restoreFile } from './src/infrastructure/adapters/FileIOHelper.js';
 import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
 import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
-import EventEmitterObserver from './src/infrastructure/adapters/EventEmitterObserver.js';
-import StatsCollector from './src/infrastructure/adapters/StatsCollector.js';
-import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
-import CdcChunker from './src/infrastructure/chunkers/CdcChunker.js';
-import buildKdfMetadata from './src/domain/helpers/buildKdfMetadata.js';
+import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
 
+// ---------------------------------------------------------------------------
+// Re-exports — modules used in the class body
+// ---------------------------------------------------------------------------
 export {
   CasService,
   VaultService,
   GitPersistenceAdapter,
   GitRefAdapter,
-  NodeCryptoAdapter,
-  CryptoPort,
-  ChunkingPort,
-  ObservabilityPort,
-  Manifest,
-  Chunk,
   JsonCodec,
   CborCodec,
   SilentObserver,
-  EventEmitterObserver,
-  StatsCollector,
-  FixedChunker,
-  CdcChunker,
 };
 
-/**
- * Detects the best crypto adapter for the current runtime.
- * @returns {Promise<import('./src/ports/CryptoPort.js').default>} A runtime-appropriate CryptoPort implementation.
- */
-async function getDefaultCryptoAdapter() {
-  if (globalThis.Bun) {
-    const { default: BunCryptoAdapter } = await import('./src/infrastructure/adapters/BunCryptoAdapter.js');
-    return new BunCryptoAdapter();
-  }
-  if (globalThis.Deno) {
-    const { default: WebCryptoAdapter } = await import('./src/infrastructure/adapters/WebCryptoAdapter.js');
-    return new WebCryptoAdapter();
-  }
-  return new NodeCryptoAdapter();
-}
+// ---------------------------------------------------------------------------
+// Re-exports — barrel-only (no local binding needed)
+// ---------------------------------------------------------------------------
+export { default as NodeCryptoAdapter } from './src/infrastructure/adapters/NodeCryptoAdapter.js';
+export { default as CryptoPort } from './src/ports/CryptoPort.js';
+export { default as ChunkingPort } from './src/ports/ChunkingPort.js';
+export { default as ObservabilityPort } from './src/ports/ObservabilityPort.js';
+export { default as Manifest } from './src/domain/value-objects/Manifest.js';
+export { default as Chunk } from './src/domain/value-objects/Chunk.js';
+export { default as EventEmitterObserver } from './src/infrastructure/adapters/EventEmitterObserver.js';
+export { default as StatsCollector } from './src/infrastructure/adapters/StatsCollector.js';
+export { default as FixedChunker } from './src/infrastructure/chunkers/FixedChunker.js';
+export { default as CdcChunker } from './src/infrastructure/chunkers/CdcChunker.js';
 
 /**
  * High-level facade for the Content Addressable Store library.
@@ -84,20 +66,13 @@ export default class ContentAddressableStore {
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance (advanced).
    */
   constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker }) {
-    this.plumbing = plumbing;
-    this.chunkSizeConfig = chunkSize;
-    this.codecConfig = codec;
-    this.policyConfig = policy;
-    this.cryptoConfig = crypto;
-    this.observabilityConfig = observability;
-    this.merkleThresholdConfig = merkleThreshold;
-    this.concurrencyConfig = concurrency;
-    this.chunkingConfig = chunking;
-    this.chunkerConfig = chunker;
+    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker };
     this.service = null;
     this.#servicePromise = null;
   }
 
+  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: * }} */
+  #config;
   /** @type {VaultService|null} */
   #vault = null;
   #servicePromise = null;
@@ -115,59 +90,32 @@ export default class ContentAddressableStore {
   }
 
   /**
-   * Resolves the chunker from config options.
-   * @private
-   * @returns {import('./src/ports/ChunkingPort.js').default|undefined}
-   */
-  #resolveChunker() {
-    // Direct ChunkingPort instance takes precedence
-    if (this.chunkerConfig) {
-      return this.chunkerConfig;
-    }
-    // Build from declarative chunking config
-    if (this.chunkingConfig) {
-      if (this.chunkingConfig.strategy === 'cdc') {
-        return new CdcChunker({
-          targetChunkSize: this.chunkingConfig.targetChunkSize,
-          minChunkSize: this.chunkingConfig.minChunkSize,
-          maxChunkSize: this.chunkingConfig.maxChunkSize,
-        });
-      }
-      // 'fixed' or unrecognized — fall through to default (FixedChunker via CasService)
-      if (this.chunkingConfig.strategy === 'fixed' && this.chunkingConfig.chunkSize) {
-        return new FixedChunker({ chunkSize: this.chunkingConfig.chunkSize });
-      }
-    }
-    // undefined → CasService will default to FixedChunker
-    return undefined;
-  }
-
-  /**
    * Constructs adapters, resolves crypto, and creates CasService + VaultService.
    * @private
    * @returns {Promise<CasService>}
    */
   async #initService() {
+    const cfg = this.#config;
     const persistence = new GitPersistenceAdapter({
-      plumbing: this.plumbing,
-      policy: this.policyConfig
+      plumbing: cfg.plumbing,
+      policy: cfg.policy,
     });
-    const crypto = this.cryptoConfig || await getDefaultCryptoAdapter();
-    const chunker = this.#resolveChunker();
+    const crypto = cfg.crypto || await createCryptoAdapter();
+    const chunker = resolveChunker({ chunker: cfg.chunker, chunking: cfg.chunking });
     this.service = new CasService({
       persistence,
-      chunkSize: this.chunkSizeConfig,
-      codec: this.codecConfig || new JsonCodec(),
+      chunkSize: cfg.chunkSize,
+      codec: cfg.codec || new JsonCodec(),
       crypto,
-      observability: this.observabilityConfig || new SilentObserver(),
-      merkleThreshold: this.merkleThresholdConfig,
-      concurrency: this.concurrencyConfig,
+      observability: cfg.observability || new SilentObserver(),
+      merkleThreshold: cfg.merkleThreshold,
+      concurrency: cfg.concurrency,
       chunker,
     });
 
     const ref = new GitRefAdapter({
-      plumbing: this.plumbing,
-      policy: this.policyConfig,
+      plumbing: cfg.plumbing,
+      policy: cfg.policy,
     });
     this.#vault = new VaultService({ persistence, ref, crypto });
 
@@ -229,7 +177,7 @@ export default class ContentAddressableStore {
    * @returns {number}
    */
   get chunkSize() {
-    return this.service?.chunkSize || this.chunkSizeConfig || 256 * 1024;
+    return this.service?.chunkSize || this.#config.chunkSize || 256 * 1024;
   }
 
   /**
@@ -270,19 +218,9 @@ export default class ContentAddressableStore {
    * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
-  async storeFile({ filePath, slug, filename, encryptionKey, passphrase, kdfOptions, compression, recipients }) {
-    const source = createReadStream(filePath);
+  async storeFile(options) {
     const service = await this.#getService();
-    return await service.store({
-      source,
-      slug,
-      filename: filename || path.basename(filePath),
-      encryptionKey,
-      passphrase,
-      kdfOptions,
-      compression,
-      recipients,
-    });
+    return await storeFile(service, options);
   }
 
   /**
@@ -312,20 +250,9 @@ export default class ContentAddressableStore {
    * @param {string} options.outputPath - Destination file path.
    * @returns {Promise<{ bytesWritten: number }>}
    */
-  async restoreFile({ manifest, encryptionKey, passphrase, outputPath }) {
+  async restoreFile(options) {
     const service = await this.#getService();
-    const iterable = service.restoreStream({ manifest, encryptionKey, passphrase });
-    const readable = Readable.from(iterable);
-    const writable = createWriteStream(outputPath);
-    let bytesWritten = 0;
-    const counter = new Transform({
-      transform(chunk, _encoding, cb) {
-        bytesWritten += chunk.length;
-        cb(null, chunk);
-      },
-    });
-    await pipeline(readable, counter, writable);
-    return { bytesWritten };
+    return await restoreFile(service, options);
   }
 
   /**
@@ -535,101 +462,13 @@ export default class ContentAddressableStore {
    * @param {string} options.oldPassphrase - Current vault passphrase.
    * @param {string} options.newPassphrase - New vault passphrase.
    * @param {Object} [options.kdfOptions] - KDF options for new passphrase.
+   * @param {number} [options.maxRetries=3] - Maximum optimistic-concurrency retries on VAULT_CONFLICT.
+   * @param {number} [options.retryBaseMs=50] - Base delay in ms for exponential backoff between retries.
    * @returns {Promise<{ commitOid: string, rotatedSlugs: string[], skippedSlugs: string[] }>}
    */
-  async rotateVaultPassphrase({ oldPassphrase, newPassphrase, kdfOptions }) {
+  async rotateVaultPassphrase(options) {
     const service = await this.#getService();
     const vault = await this.#getVault();
-
-    const MAX_RETRIES = 3;
-    const RETRY_BASE_MS = 50;
-
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const state = await vault.readState();
-      if (!state.metadata?.encryption) {
-        throw new CasError('Vault is not encrypted — nothing to rotate', 'VAULT_METADATA_INVALID');
-      }
-
-      const { kdf } = state.metadata.encryption;
-      const oldKek = await ContentAddressableStore.#deriveKekFromKdf(service, oldPassphrase, kdf);
-      const { key: newKek, salt: newSalt, params: newParams } = await service.deriveKey({
-        passphrase: newPassphrase, ...kdfOptions, algorithm: kdfOptions?.algorithm || kdf.algorithm,
-      });
-
-      const result = await ContentAddressableStore.#rotateEntries({ service, entries: state.entries, oldKek, newKek });
-      const newMetadata = ContentAddressableStore.#buildRotatedMetadata(state.metadata, newSalt, newParams);
-
-      try {
-        const { commitOid } = await vault.writeCommit({
-          entries: result.updatedEntries,
-          metadata: newMetadata,
-          parentCommitOid: state.parentCommitOid,
-          message: `vault: rotate passphrase (${result.rotatedSlugs.length} rotated, ${result.skippedSlugs.length} skipped)`,
-        });
-        return { commitOid, rotatedSlugs: result.rotatedSlugs, skippedSlugs: result.skippedSlugs };
-      } catch (err) {
-        if (err instanceof CasError && err.code === 'VAULT_CONFLICT' && attempt < MAX_RETRIES - 1) {
-          await new Promise((r) => setTimeout(r, RETRY_BASE_MS * (2 ** attempt)));
-          continue;
-        }
-        throw err;
-      }
-    }
-    /* c8 ignore next 2 */
-    throw new CasError('Vault CAS retries exhausted', 'VAULT_CONFLICT');
-  }
-
-  /**
-   * Derives a KEK from a passphrase using stored KDF params.
-   * @private
-   */
-  static async #deriveKekFromKdf(service, passphrase, kdf) {
-    const { key } = await service.deriveKey({
-      passphrase,
-      salt: Buffer.from(kdf.salt, 'base64'),
-      algorithm: kdf.algorithm,
-      iterations: kdf.iterations,
-      cost: kdf.cost,
-      blockSize: kdf.blockSize,
-      parallelization: kdf.parallelization,
-    });
-    return key;
-  }
-
-  /**
-   * Iterates vault entries, rotating envelope-encrypted ones and skipping others.
-   * @private
-   */
-  static async #rotateEntries({ service, entries, oldKek, newKek }) {
-    const rotatedSlugs = [];
-    const skippedSlugs = [];
-    const updatedEntries = new Map(entries);
-
-    for (const [slug, treeOid] of entries) {
-      const manifest = await service.readManifest({ treeOid });
-      if (!manifest.encryption?.recipients?.length) {
-        skippedSlugs.push(slug);
-        continue;
-      }
-      const rotated = await service.rotateKey({ manifest, oldKey: oldKek, newKey: newKek });
-      updatedEntries.set(slug, await service.createTree({ manifest: rotated }));
-      rotatedSlugs.push(slug);
-    }
-
-    return { updatedEntries, rotatedSlugs, skippedSlugs };
-  }
-
-  /**
-   * Builds updated vault metadata with new KDF params.
-   * @private
-   */
-  static #buildRotatedMetadata(metadata, newSalt, newParams) {
-    return {
-      ...metadata,
-      encryption: {
-        cipher: metadata.encryption.cipher,
-        kdf: buildKdfMetadata(newSalt, newParams),
-      },
-    };
+    return await rotateVaultPassphrase({ service, vault }, options);
   }
 }

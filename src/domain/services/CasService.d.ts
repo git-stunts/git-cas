@@ -8,7 +8,7 @@ import type { EncryptionMeta, CompressionMeta, KdfParams } from "../value-object
 
 /** Port interface for cryptographic operations (hashing, encryption, random bytes). */
 export interface CryptoPort {
-  sha256(buf: Buffer): string | Promise<string>;
+  sha256(buf: Buffer): Promise<string>;
   randomBytes(n: number): Buffer;
   encryptBuffer(
     buffer: Buffer,

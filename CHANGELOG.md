@@ -7,7 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`CryptoPortBase.sha256()` type** — `index.d.ts` declaration corrected from `string | Promise<string>` to `Promise<string>`, matching the async implementation since v5.2.3.
+- **`keyLength` passthrough** — `KeyResolver.#resolveKeyFromPassphrase` and `deriveKekFromKdf` now forward `kdf.keyLength` to `deriveKey()`, fixing a latent bug for vaults configured with non-default key lengths.
+- **Deno test compatibility** — `createCryptoAdapter.test.js` no longer crashes on Deno by guarding immutable `globalThis.Deno` restoration with try/catch and skipping Node-only tests on non-Node runtimes.
+- **README wording** — "no public API changes" corrected to "no breaking API changes" in the v5.2.3 summary.
+- **Barrel re-export description** — README and CHANGELOG now show the correct `export { default as X } from '...'` syntax.
+- **Vestigial `lastchat.txt`** removed from `jsr.json` exclude list.
+
 ### Changed
+- **`keyResolver` is now private** — `CasService.keyResolver` changed to `#keyResolver`, preventing external access to an internal implementation detail.
+- **`VaultPassphraseRotator.js` → `rotateVaultPassphrase.js`** — renamed to follow camelCase convention for files that export a function (PascalCase is reserved for classes).
+- **`resolveChunker` validation** — `chunkSize` now validated as a finite positive number before constructing `FixedChunker`; invalid values fall through to CasService default.
+- **`@fileoverview` JSDoc** added to `FileIOHelper.js`, `createCryptoAdapter.js`, and `resolveChunker.js`.
+- **`KeyResolver` design note** — class JSDoc now documents the direct `CryptoPort.deriveKey()` call (bypasses `CasService.deriveKey()`).
+- **Long function signature wrapped** — `rotateVaultPassphrase()` export signature broken across multiple lines.
+- **Test hardening** — salt assertion in `KeyResolver.resolveForStore`, `keyLength` round-trip test, `resolveChunker` edge-case tests, guarded `rmSync` teardown in `FileIOHelper.test.js`.
+
+## [5.2.3] — Prism refactor (2026-03-03)
+
+### Changed
+- **Async `sha256()` across all adapters** — `NodeCryptoAdapter.sha256()` now returns `Promise<string>` (was sync `string`), matching Bun and Web adapters. Fixes Liskov Substitution violation; all callers already `await`. `CryptoPort` JSDoc and `CasService.d.ts` updated to `Promise<string>`.
+- **Extract `KeyResolver`** — ~170 lines of key resolution logic (`wrapDek`, `unwrapDek`, `resolveForDecryption`, `resolveForStore`, `resolveRecipients`, `resolveKeyForRecipients`, passphrase derivation, mutual-exclusion validation) extracted from `CasService` into `src/domain/services/KeyResolver.js`. CasService delegates via `this.keyResolver`. No public API changes. 24 new unit tests.
+- **Move `createCryptoAdapter`** — runtime crypto detection moved from `index.js` to `src/infrastructure/adapters/createCryptoAdapter.js`; test helper now delegates instead of duplicating.
+- **Factor out `resolveChunker`** — chunker factory resolution moved from `index.js` private method to `src/infrastructure/chunkers/resolveChunker.js`.
+- **Move file I/O helpers** — `storeFile()` and `restoreFile()` moved from `index.js` to `src/infrastructure/adapters/FileIOHelper.js`; all `node:*` imports removed from facade.
+- **Factor out `rotateVaultPassphrase`** — passphrase rotation orchestration (~100 lines with retry/backoff) moved from `index.js` to `src/domain/services/rotateVaultPassphrase.js`; `CasError` and `buildKdfMetadata` imports removed from facade.
+- **Private `#config` field** — facade constructor stores options in a single private `#config` field instead of 10 public `this.fooConfig` properties.
+- **Barrel re-exports** — 10 re-export-only modules (`NodeCryptoAdapter`, `Manifest`, `Chunk`, ports, observers, chunkers) converted to `export { default as X } from '...'` form, eliminating unnecessary local bindings.
+- **Configurable retry** — `rotateVaultPassphrase()` now accepts optional `maxRetries` (default 3) and `retryBaseMs` (default 50) options for tuning optimistic-concurrency backoff.
 - **Deterministic fuzz test** — envelope fuzz round-trip test now uses a seeded xorshift32 PRNG instead of `Math.random()`, making failures reproducible across runs.
 - **DRY chunk verification** — extracted `_readAndVerifyChunk()` in `CasService`; both the buffered and streaming restore paths now delegate to the same single-chunk verification method.
 - **DRY KDF metadata** — extracted `buildKdfMetadata()` helper (`src/domain/helpers/buildKdfMetadata.js`); `VaultService` and `ContentAddressableStore` both call it instead of duplicating the KDF object construction.
