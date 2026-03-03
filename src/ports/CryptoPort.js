@@ -40,7 +40,7 @@ export default class CryptoPort {
   /**
    * Returns the SHA-256 hex digest of a buffer.
    * @param {Buffer|Uint8Array} _buf - Data to hash.
-   * @returns {string|Promise<string>} 64-char hex digest.
+   * @returns {Promise<string>} 64-char hex digest.
    */
   sha256(_buf) {
     throw new Error('Not implemented');

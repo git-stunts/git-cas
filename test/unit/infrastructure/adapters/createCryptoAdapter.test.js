@@ -40,4 +40,10 @@ describe('createCryptoAdapter', () => {
     expect(adapter).toBeInstanceOf(CryptoPort);
     expect(adapter.constructor.name).toBe('WebCryptoAdapter');
   });
+
+  it('sha256 returns a Promise on all adapters', async () => {
+    const adapter = await createCryptoAdapter();
+    const buf = Buffer.from('hello');
+    expect(adapter.sha256(buf)).toBeInstanceOf(Promise);
+  });
 });

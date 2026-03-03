@@ -9,9 +9,9 @@ export default class NodeCryptoAdapter extends CryptoPort {
   /**
    * @override
    * @param {Buffer|Uint8Array} buf - Data to hash.
-   * @returns {string} 64-char hex digest.
+   * @returns {Promise<string>} 64-char hex digest.
    */
-  sha256(buf) {
+  async sha256(buf) {
     return createHash('sha256').update(buf).digest('hex');
   }
 
