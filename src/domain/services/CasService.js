@@ -520,6 +520,28 @@ export default class CasService {
   }
 
   /**
+   * Reads a single chunk blob from Git and verifies its SHA-256 digest.
+   * @private
+   * @param {{ index: number, size: number, digest: string, blob: string }} chunk - Chunk metadata.
+   * @returns {Promise<Buffer>} Verified chunk buffer.
+   * @throws {CasError} INTEGRITY_ERROR if the chunk digest does not match.
+   */
+  async _readAndVerifyChunk(chunk) {
+    const blob = await this.persistence.readBlob(chunk.blob);
+    const digest = await this._sha256(blob);
+    if (digest !== chunk.digest) {
+      const err = new CasError(
+        `Chunk ${chunk.index} integrity check failed`,
+        'INTEGRITY_ERROR',
+        { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
+      );
+      this.observability.metric('error', { code: err.code, message: err.message });
+      throw err;
+    }
+    return blob;
+  }
+
+  /**
    * Reads chunk blobs from Git and verifies their SHA-256 digests.
    * @private
    * @param {import('../value-objects/Chunk.js').default[]} chunks - Chunk metadata from the manifest.
@@ -529,17 +551,7 @@ export default class CasService {
   async _readAndVerifyChunks(chunks) {
     const buffers = [];
     for (const chunk of chunks) {
-      const blob = await this.persistence.readBlob(chunk.blob);
-      const digest = await this._sha256(blob);
-      if (digest !== chunk.digest) {
-        const err = new CasError(
-          `Chunk ${chunk.index} integrity check failed`,
-          'INTEGRITY_ERROR',
-          { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
-        );
-        this.observability.metric('error', { code: err.code, message: err.message });
-        throw err;
-      }
+      const blob = await this._readAndVerifyChunk(chunk);
       buffers.push(blob);
       this.observability.metric('chunk', { action: 'restored', index: chunk.index, size: blob.length, digest: chunk.digest });
     }
@@ -659,20 +671,7 @@ export default class CasService {
     const readAhead = this.concurrency;
     let totalSize = 0;
 
-    const readAndVerify = async (chunk) => {
-      const blob = await this.persistence.readBlob(chunk.blob);
-      const digest = await this._sha256(blob);
-      if (digest !== chunk.digest) {
-        const err = new CasError(
-          `Chunk ${chunk.index} integrity check failed`,
-          'INTEGRITY_ERROR',
-          { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
-        );
-        this.observability.metric('error', { code: err.code, message: err.message });
-        throw err;
-      }
-      return blob;
-    };
+    const readAndVerify = (chunk) => this._readAndVerifyChunk(chunk);
 
     const ahead = [];
     for (let i = 0; i < Math.min(readAhead, chunks.length); i++) {

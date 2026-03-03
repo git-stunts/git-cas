@@ -605,6 +605,51 @@ All tasks completed (13.1–13.6). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md
 
 ---
 
+## M15 — Prism (code hygiene)
+
+Consistency and DRY fixes surfaced by architecture audit. No new features, no API changes.
+
+### 14.1 — Consistent async `sha256()` across CryptoPort adapters
+
+**Problem:** `NodeCryptoAdapter.sha256()` returns `string` (sync), while `BunCryptoAdapter` and `WebCryptoAdapter` return `Promise<string>`. Callers must defensively `await` every call. This is a Liskov Substitution violation — adapters are not interchangeable without the caller knowing which one it got.
+
+**Fix:** Make `NodeCryptoAdapter.sha256()` return `Promise<string>` (wrap the sync result). All three adapters then have the same async signature. CasService already awaits every call via `_sha256()`, so no call-site changes are needed outside the adapter itself.
+
+**Files:**
+- `src/infrastructure/adapters/NodeCryptoAdapter.js` — wrap return in `Promise.resolve()`
+- `src/ports/CryptoPort.js` — update JSDoc to document `Promise<string>` as the contract
+
+**Risk:** None. All callers already `await`. Changing sync→async is backward compatible for awaiting code.
+
+**Tests:** Existing crypto adapter tests already assert on the resolved value. Add an explicit test: `expect(adapter.sha256(buf)).toBeInstanceOf(Promise)`.
+
+### 14.2 — Extract `KeyResolver` from CasService
+
+**Problem:** `CasService` is a ~1087-line god object. Key resolution logic (`_resolveDecryptionKey`, `_resolvePassphraseForDecryption`, `_resolveKeyForRecipients`, `_unwrapDek`, `_wrapDek`, `_validateKeySourceExclusive`) is ~70 lines of self-contained logic that has nothing to do with chunking, storage, or manifests. It's a distinct responsibility: "given a manifest and caller-provided credentials, produce the decryption key."
+
+**Fix:** Extract a `KeyResolver` class into `src/domain/services/KeyResolver.js`. It receives a `CryptoPort` via constructor injection. CasService delegates to it.
+
+**API:**
+```js
+class KeyResolver {
+  constructor(crypto) { this.crypto = crypto; }
+  async resolveForDecryption(manifest, encryptionKey, passphrase) { ... }
+  async resolveForStore(encryptionKey, passphrase, kdfOptions) { ... }
+  async resolveRecipients(recipients) { ... }
+  async wrapDek(dek, kek) { ... }
+  async unwrapDek(recipientEntry, kek) { ... }
+}
+```
+
+**Files:**
+- New: `src/domain/services/KeyResolver.js`
+- Modified: `src/domain/services/CasService.js` — delegate key resolution
+- New: `test/unit/domain/services/KeyResolver.test.js`
+
+**Risk:** Low — internal refactor, no public API change. CasService methods remain unchanged.
+
+---
+
 ## Backlog (unscheduled)
 
 Ideas for future milestones. Not committed, not prioritized — just captured.

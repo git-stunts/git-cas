@@ -25,6 +25,7 @@ import EventEmitterObserver from './src/infrastructure/adapters/EventEmitterObse
 import StatsCollector from './src/infrastructure/adapters/StatsCollector.js';
 import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
 import CdcChunker from './src/infrastructure/chunkers/CdcChunker.js';
+import buildKdfMetadata from './src/domain/helpers/buildKdfMetadata.js';
 
 export {
   CasService,
@@ -627,15 +628,7 @@ export default class ContentAddressableStore {
       ...metadata,
       encryption: {
         cipher: metadata.encryption.cipher,
-        kdf: {
-          algorithm: newParams.algorithm,
-          salt: newSalt.toString('base64'),
-          ...('iterations' in newParams && { iterations: newParams.iterations }),
-          ...('cost' in newParams && { cost: newParams.cost }),
-          ...('blockSize' in newParams && { blockSize: newParams.blockSize }),
-          ...('parallelization' in newParams && { parallelization: newParams.parallelization }),
-          keyLength: newParams.keyLength,
-        },
+        kdf: buildKdfMetadata(newSalt, newParams),
       },
     };
   }
