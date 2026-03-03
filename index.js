@@ -3,10 +3,6 @@
  * @fileoverview Content Addressable Store - Managed blob storage in Git.
  */
 
-import { createReadStream, createWriteStream } from 'node:fs';
-import path from 'node:path';
-import { Readable, Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
 import CasError from './src/domain/errors/CasError.js';
@@ -14,6 +10,7 @@ import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceA
 import GitRefAdapter from './src/infrastructure/adapters/GitRefAdapter.js';
 import NodeCryptoAdapter from './src/infrastructure/adapters/NodeCryptoAdapter.js';
 import createCryptoAdapter from './src/infrastructure/adapters/createCryptoAdapter.js';
+import { storeFile, restoreFile } from './src/infrastructure/adapters/FileIOHelper.js';
 import Manifest from './src/domain/value-objects/Manifest.js';
 import Chunk from './src/domain/value-objects/Chunk.js';
 import CryptoPort from './src/ports/CryptoPort.js';
@@ -228,19 +225,9 @@ export default class ContentAddressableStore {
    * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
-  async storeFile({ filePath, slug, filename, encryptionKey, passphrase, kdfOptions, compression, recipients }) {
-    const source = createReadStream(filePath);
+  async storeFile(options) {
     const service = await this.#getService();
-    return await service.store({
-      source,
-      slug,
-      filename: filename || path.basename(filePath),
-      encryptionKey,
-      passphrase,
-      kdfOptions,
-      compression,
-      recipients,
-    });
+    return await storeFile(service, options);
   }
 
   /**
@@ -270,20 +257,9 @@ export default class ContentAddressableStore {
    * @param {string} options.outputPath - Destination file path.
    * @returns {Promise<{ bytesWritten: number }>}
    */
-  async restoreFile({ manifest, encryptionKey, passphrase, outputPath }) {
+  async restoreFile(options) {
     const service = await this.#getService();
-    const iterable = service.restoreStream({ manifest, encryptionKey, passphrase });
-    const readable = Readable.from(iterable);
-    const writable = createWriteStream(outputPath);
-    let bytesWritten = 0;
-    const counter = new Transform({
-      transform(chunk, _encoding, cb) {
-        bytesWritten += chunk.length;
-        cb(null, chunk);
-      },
-    });
-    await pipeline(readable, counter, writable);
-    return { bytesWritten };
+    return await restoreFile(service, options);
   }
 
   /**
