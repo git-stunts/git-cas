@@ -609,7 +609,7 @@ All tasks completed (13.1–13.6). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md
 
 Consistency and DRY fixes surfaced by architecture audit. No new features, no API changes.
 
-### 14.1 — Consistent async `sha256()` across CryptoPort adapters
+### 15.1 — Consistent async `sha256()` across CryptoPort adapters
 
 **Problem:** `NodeCryptoAdapter.sha256()` returns `string` (sync), while `BunCryptoAdapter` and `WebCryptoAdapter` return `Promise<string>`. Callers must defensively `await` every call. This is a Liskov Substitution violation — adapters are not interchangeable without the caller knowing which one it got.
 
@@ -623,7 +623,7 @@ Consistency and DRY fixes surfaced by architecture audit. No new features, no AP
 
 **Tests:** Existing crypto adapter tests already assert on the resolved value. Add an explicit test: `expect(adapter.sha256(buf)).toBeInstanceOf(Promise)`.
 
-### 14.2 — Extract `KeyResolver` from CasService
+### 15.2 — Extract `KeyResolver` from CasService
 
 **Problem:** `CasService` is a ~1087-line god object. Key resolution logic (`_resolveDecryptionKey`, `_resolvePassphraseForDecryption`, `_resolveKeyForRecipients`, `_unwrapDek`, `_wrapDek`, `_validateKeySourceExclusive`) is ~70 lines of self-contained logic that has nothing to do with chunking, storage, or manifests. It's a distinct responsibility: "given a manifest and caller-provided credentials, produce the decryption key."
 
