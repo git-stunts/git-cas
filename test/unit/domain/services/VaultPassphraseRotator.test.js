@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
@@ -13,6 +13,7 @@ import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import rotateVaultPassphrase from '../../../../src/domain/services/VaultPassphraseRotator.js';
+import CasError from '../../../../src/domain/errors/CasError.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -236,5 +237,112 @@ describe('rotateVaultPassphrase – KDF options', () => {
     const newState = await vault.readState();
     expect(newState.metadata.encryption.kdf.salt).not.toBe(oldSalt);
     expect(newState.metadata.encryption.kdf.algorithm).toBe(oldState.metadata.encryption.kdf.algorithm);
+  });
+});
+
+describe('rotateVaultPassphrase – retry success', () => {
+  let repoDir;
+  let service;
+  let vault;
+
+  beforeEach(async () => {
+    repoDir = createRepo();
+    ({ service, vault } = await createDeps(repoDir));
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); }
+  });
+
+  it('retries on VAULT_CONFLICT and succeeds within maxRetries', async () => {
+    const oldPass = 'old-pass';
+    const newPass = 'new-pass';
+    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await storeEnvelope({ service, vault, slug: 'a', data: randomBytes(128), passphrase: oldPass });
+
+    let calls = 0;
+    const original = vault.writeCommit.bind(vault);
+    vi.spyOn(vault, 'writeCommit').mockImplementation(async (opts) => {
+      calls++;
+      if (calls === 1) { throw new CasError('conflict', 'VAULT_CONFLICT'); }
+      return original(opts);
+    });
+
+    const result = await rotateVaultPassphrase(
+      { service, vault },
+      { oldPassphrase: oldPass, newPassphrase: newPass, maxRetries: 2, retryBaseMs: 1 },
+    );
+    expect(result.commitOid).toMatch(/^[0-9a-f]{40}$/);
+    expect(calls).toBe(2);
+  });
+});
+
+describe('rotateVaultPassphrase – maxRetries exhausted', () => {
+  let repoDir;
+  let service;
+  let vault;
+
+  beforeEach(async () => {
+    repoDir = createRepo();
+    ({ service, vault } = await createDeps(repoDir));
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); }
+  });
+
+  it('fails after exactly maxRetries attempts', async () => {
+    const oldPass = 'old-pass';
+    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await storeEnvelope({ service, vault, slug: 'a', data: randomBytes(128), passphrase: oldPass });
+
+    let calls = 0;
+    vi.spyOn(vault, 'writeCommit').mockImplementation(async () => {
+      calls++;
+      throw new CasError('conflict', 'VAULT_CONFLICT');
+    });
+
+    await expect(
+      rotateVaultPassphrase(
+        { service, vault },
+        { oldPassphrase: oldPass, newPassphrase: 'new', maxRetries: 1, retryBaseMs: 1 },
+      ),
+    ).rejects.toMatchObject({ code: 'VAULT_CONFLICT' });
+    expect(calls).toBe(1);
+  });
+});
+
+describe('rotateVaultPassphrase – default retry count', () => {
+  let repoDir;
+  let service;
+  let vault;
+
+  beforeEach(async () => {
+    repoDir = createRepo();
+    ({ service, vault } = await createDeps(repoDir));
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); }
+  });
+
+  it('maxRetries defaults to 3 when not specified', async () => {
+    const oldPass = 'old-pass';
+    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await storeEnvelope({ service, vault, slug: 'a', data: randomBytes(128), passphrase: oldPass });
+
+    let calls = 0;
+    vi.spyOn(vault, 'writeCommit').mockImplementation(async () => {
+      calls++;
+      throw new CasError('conflict', 'VAULT_CONFLICT');
+    });
+
+    await expect(
+      rotateVaultPassphrase(
+        { service, vault },
+        { oldPassphrase: oldPass, newPassphrase: 'new', retryBaseMs: 1 },
+      ),
+    ).rejects.toMatchObject({ code: 'VAULT_CONFLICT' });
+    expect(calls).toBe(3);
   });
 });

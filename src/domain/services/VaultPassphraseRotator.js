@@ -1,8 +1,8 @@
 import CasError from '../errors/CasError.js';
 import buildKdfMetadata from '../helpers/buildKdfMetadata.js';
 
-const MAX_RETRIES = 3;
-const RETRY_BASE_MS = 50;
+const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_RETRY_BASE_MS = 50;
 
 /**
  * Derives a KEK from a passphrase using stored KDF params.
@@ -55,6 +55,18 @@ async function rotateEntries({ service, entries, oldKek, newKek }) {
 }
 
 /**
+ * Returns true if the error is a retryable VAULT_CONFLICT and there are attempts remaining.
+ *
+ * @param {Error} err - Caught error.
+ * @param {number} attempt - Zero-based current attempt index.
+ * @param {number} maxRetries - Maximum number of attempts.
+ * @returns {boolean}
+ */
+function isRetryableConflict(err, attempt, maxRetries) {
+  return err instanceof CasError && err.code === 'VAULT_CONFLICT' && attempt < maxRetries - 1;
+}
+
+/**
  * Builds updated vault metadata with new KDF params.
  *
  * @param {Object} metadata - Existing vault metadata.
@@ -86,10 +98,12 @@ function buildRotatedMetadata(metadata, newSalt, newParams) {
  * @param {string} options.oldPassphrase - Current vault passphrase.
  * @param {string} options.newPassphrase - New vault passphrase.
  * @param {Object} [options.kdfOptions] - KDF options for new passphrase.
+ * @param {number} [options.maxRetries=3] - Maximum optimistic-concurrency retries on VAULT_CONFLICT.
+ * @param {number} [options.retryBaseMs=50] - Base delay in ms for exponential backoff between retries.
  * @returns {Promise<{ commitOid: string, rotatedSlugs: string[], skippedSlugs: string[] }>}
  */
-export default async function rotateVaultPassphrase({ service, vault }, { oldPassphrase, newPassphrase, kdfOptions }) {
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+export default async function rotateVaultPassphrase({ service, vault }, { oldPassphrase, newPassphrase, kdfOptions, maxRetries = DEFAULT_MAX_RETRIES, retryBaseMs = DEFAULT_RETRY_BASE_MS }) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     const state = await vault.readState();
     if (!state.metadata?.encryption) {
       throw new CasError('Vault is not encrypted — nothing to rotate', 'VAULT_METADATA_INVALID');
@@ -113,8 +127,8 @@ export default async function rotateVaultPassphrase({ service, vault }, { oldPas
       });
       return { commitOid, rotatedSlugs: result.rotatedSlugs, skippedSlugs: result.skippedSlugs };
     } catch (err) {
-      if (err instanceof CasError && err.code === 'VAULT_CONFLICT' && attempt < MAX_RETRIES - 1) {
-        await new Promise((r) => setTimeout(r, RETRY_BASE_MS * (2 ** attempt)));
+      if (isRetryableConflict(err, attempt, maxRetries)) {
+        await new Promise((r) => setTimeout(r, retryBaseMs * (2 ** attempt)));
         continue;
       }
       throw err;

@@ -401,6 +401,10 @@ export default class ContentAddressableStore {
     oldPassphrase: string;
     newPassphrase: string;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
+    /** Maximum optimistic-concurrency retries on VAULT_CONFLICT. @default 3 */
+    maxRetries?: number;
+    /** Base delay in ms for exponential backoff between retries. @default 50 */
+    retryBaseMs?: number;
   }): Promise<{
     commitOid: string;
     rotatedSlugs: string[];

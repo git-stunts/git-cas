@@ -462,6 +462,8 @@ export default class ContentAddressableStore {
    * @param {string} options.oldPassphrase - Current vault passphrase.
    * @param {string} options.newPassphrase - New vault passphrase.
    * @param {Object} [options.kdfOptions] - KDF options for new passphrase.
+   * @param {number} [options.maxRetries=3] - Maximum optimistic-concurrency retries on VAULT_CONFLICT.
+   * @param {number} [options.retryBaseMs=50] - Base delay in ms for exponential backoff between retries.
    * @returns {Promise<{ commitOid: string, rotatedSlugs: string[], skippedSlugs: string[] }>}
    */
   async rotateVaultPassphrase(options) {
