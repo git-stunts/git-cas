@@ -21,6 +21,7 @@ async function deriveKekFromKdf(service, passphrase, kdf) {
     cost: kdf.cost,
     blockSize: kdf.blockSize,
     parallelization: kdf.parallelization,
+    keyLength: kdf.keyLength,
   });
   return key;
 }

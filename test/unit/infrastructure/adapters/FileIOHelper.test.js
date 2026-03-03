@@ -8,7 +8,7 @@ describe('FileIOHelper – storeFile', () => {
   let tmpDir;
 
   beforeEach(() => { tmpDir = mkdtempSync(path.join(os.tmpdir(), 'fio-store-')); });
-  afterEach(() => { rmSync(tmpDir, { recursive: true, force: true }); });
+  afterEach(() => { if (tmpDir) { rmSync(tmpDir, { recursive: true, force: true }); } });
 
   it('passes a readable stream and options to service.store()', async () => {
     const filePath = path.join(tmpDir, 'input.bin');
@@ -55,7 +55,7 @@ describe('FileIOHelper – restoreFile', () => {
   let tmpDir;
 
   beforeEach(() => { tmpDir = mkdtempSync(path.join(os.tmpdir(), 'fio-restore-')); });
-  afterEach(() => { rmSync(tmpDir, { recursive: true, force: true }); });
+  afterEach(() => { if (tmpDir) { rmSync(tmpDir, { recursive: true, force: true }); } });
 
   it('writes restored chunks to the output path and counts bytes', async () => {
     const outputPath = path.join(tmpDir, 'output.bin');

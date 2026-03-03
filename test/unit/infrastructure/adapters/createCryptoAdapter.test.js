@@ -8,9 +8,10 @@ describe('createCryptoAdapter', () => {
   const origDeno = globalThis.Deno;
 
   afterEach(() => {
-    // Restore globals
-    if (origBun === undefined) { delete globalThis.Bun; } else { globalThis.Bun = origBun; }
-    if (origDeno === undefined) { delete globalThis.Deno; } else { globalThis.Deno = origDeno; }
+    // Restore globals — wrapped in try/catch because Bun/Deno expose
+    // their namesake globals as read-only properties on globalThis.
+    try { if (origBun === undefined) { delete globalThis.Bun; } else { globalThis.Bun = origBun; } } catch { /* immutable on Bun */ }
+    try { if (origDeno === undefined) { delete globalThis.Deno; } else { globalThis.Deno = origDeno; } } catch { /* immutable on Deno */ }
   });
 
   it('returns a CryptoPort instance', async () => {
@@ -18,9 +19,7 @@ describe('createCryptoAdapter', () => {
     expect(adapter).toBeInstanceOf(CryptoPort);
   });
 
-  it('returns NodeCryptoAdapter when neither Bun nor Deno globals exist', async () => {
-    delete globalThis.Bun;
-    delete globalThis.Deno;
+  it('returns NodeCryptoAdapter when neither Bun nor Deno globals exist', { skip: !!(origBun || origDeno) }, async () => {
     const adapter = await createCryptoAdapter();
     expect(adapter).toBeInstanceOf(NodeCryptoAdapter);
   });

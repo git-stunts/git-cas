@@ -33,7 +33,10 @@ export default function resolveChunker({ chunker, chunking } = {}) {
       });
     }
     // 'fixed' or unrecognized — fall through to default (FixedChunker via CasService)
-    if (chunking.strategy === 'fixed' && chunking.chunkSize) {
+    if (chunking.strategy === 'fixed'
+      && typeof chunking.chunkSize === 'number'
+      && Number.isFinite(chunking.chunkSize)
+      && chunking.chunkSize > 0) {
       return new FixedChunker({ chunkSize: chunking.chunkSize });
     }
   }

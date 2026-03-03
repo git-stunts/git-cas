@@ -123,6 +123,19 @@ describe('KeyResolver.resolveForDecryption — envelope & passphrase', () => {
   });
 });
 
+describe('KeyResolver.resolveForDecryption — keyLength', () => {
+  it('forwards stored keyLength to deriveKey', async () => {
+    const passphrase = 'test-passphrase';
+    const derived = await crypto.deriveKey({ passphrase, iterations: 1000, keyLength: 32 });
+    expect(derived.params.keyLength).toBe(32);
+    const manifest = {
+      encryption: { encrypted: true, kdf: derived.params },
+    };
+    const result = await resolver.resolveForDecryption(manifest, undefined, passphrase);
+    expect(Buffer.from(result)).toEqual(derived.key);
+  });
+});
+
 describe('KeyResolver.resolveForStore', () => {
   it('with key → returns key and empty encExtra', async () => {
     const result = await resolver.resolveForStore(key, undefined, undefined);

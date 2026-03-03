@@ -57,6 +57,18 @@ describe('resolveChunker – fixed strategy', () => {
     expect(resolveChunker({ chunking: { strategy: 'fixed' } })).toBeUndefined();
   });
 
+  it('chunking: { strategy: "fixed", chunkSize: NaN } returns undefined', () => {
+    expect(resolveChunker({ chunking: { strategy: 'fixed', chunkSize: NaN } })).toBeUndefined();
+  });
+
+  it('chunking: { strategy: "fixed", chunkSize: -1 } returns undefined', () => {
+    expect(resolveChunker({ chunking: { strategy: 'fixed', chunkSize: -1 } })).toBeUndefined();
+  });
+
+  it('chunking: { strategy: "fixed", chunkSize: Infinity } returns undefined', () => {
+    expect(resolveChunker({ chunking: { strategy: 'fixed', chunkSize: Infinity } })).toBeUndefined();
+  });
+
   it('chunking: { strategy: "unknown" } returns undefined', () => {
     expect(resolveChunker({ chunking: { strategy: 'unknown' } })).toBeUndefined();
   });
