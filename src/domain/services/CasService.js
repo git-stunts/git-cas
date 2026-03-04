@@ -273,6 +273,13 @@ export default class CasService {
     const manifestData = this._buildManifestData(slug, filename, compression);
     const processedSource = compression ? this._compressStream(source) : source;
 
+    if (keyInfo.key && this.chunker.strategy === 'cdc') {
+      this.observability.log(
+        'warn',
+        'CDC deduplication is ineffective with encryption — ciphertext is pseudorandom',
+        { strategy: 'cdc' },
+      );
+    }
     if (keyInfo.key) {
       const { encrypt, finalize } = this.crypto.createEncryptionStream(keyInfo.key);
       await this._chunkAndStore(encrypt(processedSource), manifestData);
