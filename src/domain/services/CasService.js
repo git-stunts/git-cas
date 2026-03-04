@@ -525,6 +525,13 @@ export default class CasService {
 
     if (manifest.compression) {
       buffer = await this._decompress(buffer);
+      if (buffer.length > this.maxRestoreBufferSize) {
+        throw new CasError(
+          `Decompressed restore is ${buffer.length} bytes (limit: ${this.maxRestoreBufferSize})`,
+          'RESTORE_TOO_LARGE',
+          { size: buffer.length, limit: this.maxRestoreBufferSize },
+        );
+      }
     }
 
     this.observability.metric('file', {

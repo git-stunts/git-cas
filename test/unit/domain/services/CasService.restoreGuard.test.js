@@ -109,6 +109,32 @@ describe('CasService — RESTORE_TOO_LARGE defaults and meta', () => {
   });
 });
 
+describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
+  it('throws when decompressed size exceeds limit', async () => {
+    const { service, mockPersistence } = setup({ maxRestoreBufferSize: 4096 });
+    const key = Buffer.alloc(32, 0xab);
+
+    // Store a small encrypted+compressed manifest that fits pre-decompression
+    async function* source() { yield Buffer.alloc(2048, 0xaa); }
+    const manifest = await service.store({
+      source: source(), slug: 'bomb', filename: 'bomb.bin',
+      encryptionKey: key, compression: { algorithm: 'gzip' },
+    });
+
+    // Wire readBlob to return the stored blobs
+    const storedBlobs = mockPersistence.writeBlob.mock.calls.map((c) => c[0]);
+    let idx = 0;
+    mockPersistence.readBlob.mockImplementation(() => Promise.resolve(storedBlobs[idx++] || Buffer.alloc(0)));
+
+    // Mock _decompress to return a buffer larger than the limit
+    service._decompress = vi.fn().mockResolvedValue(Buffer.alloc(8192, 0xbb));
+
+    await expect(
+      service.restoreStream({ manifest, encryptionKey: key }).next(),
+    ).rejects.toMatchObject({ code: 'RESTORE_TOO_LARGE' });
+  });
+});
+
 describe('CasService — maxRestoreBufferSize validation', () => {
   it('throws for non-integer', () => {
     expect(() => setup({ maxRestoreBufferSize: 1.5 })).toThrow();
