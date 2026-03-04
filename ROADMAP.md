@@ -1680,3 +1680,5 @@ This is a fundamental architectural constraint of the encrypt-then-chunk design.
 | V4 | Feature | CompressionPort + zstd/brotli/lz4 | ~180 LoC, ~8h |
 | V5 | Feature | Watch mode (continuous sync) | ~220 LoC, ~10h |
 | V6 | Feature | Interactive passphrase prompt | ~90 LoC, ~4h — subsumed by **16.11** |
+| V7 | Feature | Prometheus/OpenTelemetry ObservabilityPort adapter — export metrics (chunk throughput, encryption counts, error rates) to Prometheus or OTLP. The `decryption_failed` and `encryptionCount` metrics from M16 are natural candidates for alerting dashboards. | ~150 LoC, ~6h |
+| V8 | Feature | `encryptionCount` auto-rotation — when count reaches a configurable threshold, automatically trigger `rotateVaultPassphrase` with a new passphrase derived from the old one, making nonce exhaustion impossible for long-lived vaults. | ~120 LoC, ~5h |
