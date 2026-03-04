@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import CasError from '../../../../src/domain/errors/CasError.js';
 
 describe('CasError', () => {
