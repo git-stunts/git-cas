@@ -34,11 +34,16 @@ function mockCrypto() {
   };
 }
 
+function mockObservability() {
+  return { metric: vi.fn(), log: vi.fn(), span: vi.fn().mockReturnValue({ end: vi.fn() }) };
+}
+
 function createVault(overrides = {}) {
   return new VaultService({
     persistence: overrides.persistence || mockPersistence(),
     ref: overrides.ref || mockRef(),
     crypto: overrides.crypto || mockCrypto(),
+    observability: overrides.observability || mockObservability(),
   });
 }
 
