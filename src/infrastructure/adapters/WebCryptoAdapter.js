@@ -73,6 +73,7 @@ export default class WebCryptoAdapter extends CryptoPort {
    * @returns {Promise<Buffer>}
    */
   async decryptBuffer(buffer, key, meta) {
+    this._validateKey(key);
     const nonce = this.#fromBase64(meta.nonce);
     const tag = this.#fromBase64(meta.tag);
     const cryptoKey = await this.#importKey(key);
