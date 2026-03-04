@@ -17,6 +17,9 @@ export default class FixedChunker extends ChunkingPort {
    */
   constructor({ chunkSize = 262144 } = {}) {
     super();
+    if (!Number.isInteger(chunkSize) || chunkSize < 1) {
+      throw new RangeError(`chunkSize must be a positive integer, got ${chunkSize}`);
+    }
     if (chunkSize > 100 * 1024 * 1024) {
       throw new RangeError(
         `Chunk size must not exceed 104857600 bytes (100 MiB), got ${chunkSize}`,

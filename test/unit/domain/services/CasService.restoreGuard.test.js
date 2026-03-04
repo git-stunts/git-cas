@@ -96,22 +96,41 @@ describe('CasService — RESTORE_TOO_LARGE defaults and meta', () => {
   });
 
   it('error meta includes size and limit', async () => {
-    const { service } = setup({ maxRestoreBufferSize: 100 });
-    const manifest = makeEncryptedManifest([50, 60]);
+    const { service } = setup({ maxRestoreBufferSize: 2048 });
+    const manifest = makeEncryptedManifest([1100, 1100]);
 
     try {
       await service.restoreStream({ manifest, encryptionKey: Buffer.alloc(32, 0xab) }).next();
     } catch (err) {
       expect(err.code).toBe('RESTORE_TOO_LARGE');
-      expect(err.meta).toHaveProperty('size', 110);
-      expect(err.meta).toHaveProperty('limit', 100);
+      expect(err.meta).toHaveProperty('size', 2200);
+      expect(err.meta).toHaveProperty('limit', 2048);
     }
+  });
+});
+
+describe('CasService — maxRestoreBufferSize validation', () => {
+  it('throws for non-integer', () => {
+    expect(() => setup({ maxRestoreBufferSize: 1.5 })).toThrow();
+  });
+
+  it('throws for value below 1024', () => {
+    expect(() => setup({ maxRestoreBufferSize: 512 })).toThrow();
+  });
+
+  it('throws for NaN', () => {
+    expect(() => setup({ maxRestoreBufferSize: NaN })).toThrow();
+  });
+
+  it('accepts 1024', () => {
+    const { service } = setup({ maxRestoreBufferSize: 1024 });
+    expect(service.maxRestoreBufferSize).toBe(1024);
   });
 });
 
 describe('CasService — RESTORE_TOO_LARGE does not affect streaming', () => {
   it('does not apply to unencrypted/uncompressed restoreStream', async () => {
-    const { service, mockPersistence } = setup({ maxRestoreBufferSize: 10 });
+    const { service, mockPersistence } = setup({ maxRestoreBufferSize: 1024 });
     const manifest = new Manifest({
       slug: 'plain',
       filename: 'plain.bin',

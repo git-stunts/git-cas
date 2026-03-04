@@ -37,7 +37,7 @@ export default class CasService {
    */
   constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024 }) {
     CasService._validateObservability(observability);
-    CasService.#validateConstructorArgs(chunkSize, merkleThreshold, concurrency);
+    CasService.#validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize });
     this.persistence = persistence;
     this.codec = codec;
     this.crypto = crypto;
@@ -58,7 +58,7 @@ export default class CasService {
    * Validates constructor numeric arguments.
    * @private
    */
-  static #validateConstructorArgs(chunkSize, merkleThreshold, concurrency) {
+  static #validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize }) {
     if (chunkSize < 1024) {
       throw new Error('Chunk size must be at least 1024 bytes');
     }
@@ -71,6 +71,9 @@ export default class CasService {
     }
     if (!Number.isInteger(concurrency) || concurrency < 1) {
       throw new Error('Concurrency must be a positive integer');
+    }
+    if (!Number.isInteger(maxRestoreBufferSize) || maxRestoreBufferSize < 1024) {
+      throw new Error('maxRestoreBufferSize must be a positive integer >= 1024');
     }
   }
 

@@ -53,6 +53,24 @@ describe('WebCryptoAdapter — ENCRYPTION_BUFFER_EXCEEDED', () => {
   });
 });
 
+describe('WebCryptoAdapter — maxEncryptionBufferSize validation', () => {
+  it('throws for NaN', () => {
+    expect(() => new WebCryptoAdapter({ maxEncryptionBufferSize: NaN })).toThrow(RangeError);
+  });
+
+  it('throws for 0', () => {
+    expect(() => new WebCryptoAdapter({ maxEncryptionBufferSize: 0 })).toThrow(RangeError);
+  });
+
+  it('throws for negative', () => {
+    expect(() => new WebCryptoAdapter({ maxEncryptionBufferSize: -1 })).toThrow(RangeError);
+  });
+
+  it('throws for Infinity', () => {
+    expect(() => new WebCryptoAdapter({ maxEncryptionBufferSize: Infinity })).toThrow(RangeError);
+  });
+});
+
 describe('NodeCryptoAdapter — no buffer guard for streaming', () => {
   it('does NOT throw for same-size stream (true streaming)', async () => {
     const adapter = new NodeCryptoAdapter();

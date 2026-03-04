@@ -18,6 +18,9 @@ export default class WebCryptoAdapter extends CryptoPort {
    */
   constructor({ maxEncryptionBufferSize = 512 * 1024 * 1024 } = {}) {
     super();
+    if (!Number.isFinite(maxEncryptionBufferSize) || maxEncryptionBufferSize <= 0) {
+      throw new RangeError('maxEncryptionBufferSize must be a finite positive number');
+    }
     this.#maxEncryptionBufferSize = maxEncryptionBufferSize;
   }
 

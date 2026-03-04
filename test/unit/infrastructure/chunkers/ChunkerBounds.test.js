@@ -15,6 +15,29 @@ describe('FixedChunker — chunk size upper bound', () => {
   });
 });
 
+describe('FixedChunker — chunk size lower bound', () => {
+  it('throws when chunkSize is 0', () => {
+    expect(() => new FixedChunker({ chunkSize: 0 })).toThrow(RangeError);
+  });
+
+  it('throws when chunkSize is negative', () => {
+    expect(() => new FixedChunker({ chunkSize: -1 })).toThrow(RangeError);
+  });
+
+  it('throws when chunkSize is NaN', () => {
+    expect(() => new FixedChunker({ chunkSize: NaN })).toThrow(RangeError);
+  });
+
+  it('throws when chunkSize is not an integer', () => {
+    expect(() => new FixedChunker({ chunkSize: 1.5 })).toThrow(RangeError);
+  });
+
+  it('accepts chunkSize of 1', () => {
+    const chunker = new FixedChunker({ chunkSize: 1 });
+    expect(chunker.params.chunkSize).toBe(1);
+  });
+});
+
 describe('CdcChunker — chunk size upper bound', () => {
   it('throws when maxChunkSize > 100 MiB', () => {
     expect(() => new CdcChunker({
