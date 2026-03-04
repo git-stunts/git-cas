@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CODE-EVAL.md** — Forensic architectural audit (zero-knowledge code extraction, critical assessment, roadmap reconciliation, prescriptive blueprint).
+- **M16 Capstone** — New milestone in ROADMAP.md addressing all 9 audit flaws and 10 concerns (C1–C10). 13 task cards, ~698 LoC, ~21h estimated.
+- **Concerns C8–C10** — Three new architectural concerns identified by the audit: crypto adapter LSP violation (C8), FixedChunker quadratic allocation (C9), encrypt-then-chunk dedup loss (C10).
+- **CasError codes** — `RESTORE_TOO_LARGE` and `ENCRYPTION_BUFFER_EXCEEDED` registered in canonical error code table.
+
 ## [5.2.4] — Prism polish (2026-03-03)
 
 ### Fixed
