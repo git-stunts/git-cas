@@ -109,6 +109,40 @@ describe('runAction', () => {
   });
 });
 
+describe('runAction — INTEGRITY_ERROR rate-limiting', () => {
+  let stderrSpy;
+  const originalExitCode = process.exitCode;
+
+  beforeEach(() => {
+    process.exitCode = undefined;
+    stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    process.exitCode = originalExitCode;
+    stderrSpy.mockRestore();
+  });
+
+  it('delays ~1s on INTEGRITY_ERROR before writing output', async () => {
+    const err = Object.assign(new Error('bad key'), { code: 'INTEGRITY_ERROR' });
+    const action = runAction(async () => { throw err; }, () => false);
+    const start = Date.now();
+    await action();
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeGreaterThanOrEqual(900);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('no delay for non-INTEGRITY_ERROR codes', async () => {
+    const err = Object.assign(new Error('gone'), { code: 'MISSING_KEY' });
+    const action = runAction(async () => { throw err; }, () => false);
+    const start = Date.now();
+    await action();
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(200);
+  });
+});
+
 describe('HINTS', () => {
   it('contains expected error codes', () => {
     expect(HINTS).toHaveProperty('MISSING_KEY');

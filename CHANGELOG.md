@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **16.10 — Orphaned blob tracking** — `STREAM_ERROR` now includes `meta.orphanedBlobs` — an array of OIDs for blobs successfully written before the stream failure. Error metric includes `orphanedBlobs` count for observability.
 - **16.4 — FixedChunker pre-allocated buffer** — Replaced `Buffer.concat()` loop with a pre-allocated `Buffer.allocUnsafe(chunkSize)` working buffer, eliminating O(n²) copies for many small input buffers. Matches the allocation strategy used by `CdcChunker`.
 - **16.7 — Lifecycle method naming** — Added `inspectAsset()` (replaces `deleteAsset()`) and `collectReferencedChunks()` (replaces `findOrphanedChunks()`) as canonical names on both `CasService` and the facade. Old names are preserved as deprecated aliases that emit observability warnings. Type definitions updated with `@deprecated` JSDoc.
+- **16.12 — KDF brute-force awareness** — `CasService` now emits `decryption_failed` metric with slug context when decryption fails with `INTEGRITY_ERROR` during encrypted restore. CLI adds a 1-second delay after `INTEGRITY_ERROR` to slow brute-force attempts. Library API imposes no delay — callers manage their own rate-limiting policy.
 
 ## [5.2.4] — Prism polish (2026-03-03)
 

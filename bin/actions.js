@@ -57,6 +57,15 @@ function getHint(code) {
 }
 
 /**
+ * Delay utility for rate-limiting after sensitive failures.
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+function delay(ms) {
+  return new Promise((resolve) => { setTimeout(resolve, ms); });
+}
+
+/**
  * Wrap a command action with structured error handling.
  *
  * @param {(...args: any[]) => Promise<void>} fn - The async action function.
@@ -68,6 +77,9 @@ export function runAction(fn, getJson) {
     try {
       await fn(...args);
     } catch (/** @type {any} */ err) {
+      if (err?.code === 'INTEGRITY_ERROR') {
+        await delay(1000);
+      }
       writeError(err, getJson());
       process.exitCode = 1;
     }

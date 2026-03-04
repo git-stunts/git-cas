@@ -510,7 +510,14 @@ export default class CasService {
     let buffer = Buffer.concat(await this._readAndVerifyChunks(manifest.chunks));
 
     if (manifest.encryption?.encrypted) {
-      buffer = await this.decrypt({ buffer, key, meta: manifest.encryption });
+      try {
+        buffer = await this.decrypt({ buffer, key, meta: manifest.encryption });
+      } catch (err) {
+        if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+          this.observability.metric('error', { action: 'decryption_failed', slug: manifest.slug });
+        }
+        throw err;
+      }
     }
 
     if (manifest.compression) {
