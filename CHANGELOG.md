@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **16.9 — Pre-commit hook + hooks directory** — `scripts/git-hooks/` renamed to `scripts/hooks/` per CLAUDE.md convention. New `pre-commit` hook runs lint gate. `install-hooks.sh` updated accordingly.
 - **16.1 — Crypto adapter behavioral normalization** — `NodeCryptoAdapter.encryptBuffer` now returns a Promise (was sync), matching Bun/Web. `decryptBuffer` validates key on all adapters. `NodeCryptoAdapter.createEncryptionStream` guards `finalize()` with `STREAM_NOT_CONSUMED`. New conformance test suite asserts identical contracts across all adapters.
 - **16.2 — Memory restore guard** — `CasService` accepts `maxRestoreBufferSize` (default 512 MiB). `_restoreBuffered` throws `RESTORE_TOO_LARGE` with `{ size, limit }` meta when encrypted/compressed restore would exceed the limit. Unencrypted streaming restore is unaffected.
+- **16.11 — Passphrase input security** — New `--vault-passphrase-file <path>` CLI option reads passphrase from file (use `-` for stdin). Interactive TTY prompt added as fallback when no other passphrase source is available. `resolvePassphrase` is now async with priority: file → flag → env → TTY → undefined.
 
 ## [5.2.4] — Prism polish (2026-03-03)
 

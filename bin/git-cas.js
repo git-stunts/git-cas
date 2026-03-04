@@ -12,6 +12,7 @@ import { renderManifestView } from './ui/manifest-view.js';
 import { renderHeatmap } from './ui/heatmap.js';
 import { runAction } from './actions.js';
 import { filterEntries, formatTable, formatTabSeparated } from './ui/vault-list.js';
+import { readPassphraseFile, promptPassphrase } from './ui/passphrase-prompt.js';
 
 const getJson = () => program.opts().json;
 
@@ -75,13 +76,30 @@ async function deriveVaultKey(cas, metadata, passphrase) {
 }
 
 /**
- * Resolve passphrase from --vault-passphrase flag or GIT_CAS_PASSPHRASE env var.
+ * Resolve passphrase from (in priority order):
+ * 1. --vault-passphrase-file <path>
+ * 2. --vault-passphrase <pass>
+ * 3. GIT_CAS_PASSPHRASE env var
+ * 4. Interactive TTY prompt (if stdin is a TTY)
  *
  * @param {Record<string, any>} opts
- * @returns {string | undefined}
+ * @param {{ confirm?: boolean }} [extra]
+ * @returns {Promise<string | undefined>}
  */
-function resolvePassphrase(opts) {
-  return opts.vaultPassphrase ?? process.env.GIT_CAS_PASSPHRASE;
+async function resolvePassphrase(opts, extra = {}) {
+  if (opts.vaultPassphraseFile) {
+    return await readPassphraseFile(opts.vaultPassphraseFile);
+  }
+  if (opts.vaultPassphrase) {
+    return opts.vaultPassphrase;
+  }
+  if (process.env.GIT_CAS_PASSPHRASE) {
+    return process.env.GIT_CAS_PASSPHRASE;
+  }
+  if (process.stdin.isTTY) {
+    return await promptPassphrase({ confirm: extra.confirm || false });
+  }
+  return undefined;
 }
 
 /**
@@ -95,7 +113,7 @@ async function resolveEncryptionKey(cas, opts) {
   if (opts.keyFile) {
     return readKeyFile(opts.keyFile);
   }
-  const passphrase = resolvePassphrase(opts);
+  const passphrase = await resolvePassphrase(opts);
   if (!passphrase) {
     return undefined;
   }
@@ -186,9 +204,10 @@ program
   .option('--tree', 'Also create a Git tree and print its OID')
   .option('--force', 'Overwrite existing vault entry')
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for encryption (prefer GIT_CAS_PASSPHRASE env var)')
+  .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {string} */ file, /** @type {Record<string, any>} */ opts) => {
-    if (opts.recipient && (opts.keyFile || resolvePassphrase(opts))) {
+    if (opts.recipient && (opts.keyFile || await resolvePassphrase(opts))) {
       throw new Error('Provide --key-file/--vault-passphrase or --recipient, not both');
     }
     if (opts.force && !opts.tree) {
@@ -275,6 +294,7 @@ program
   .option('--oid <tree-oid>', 'Direct tree OID')
   .option('--key-file <path>', 'Path to 32-byte raw encryption key file')
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for decryption (prefer GIT_CAS_PASSPHRASE env var)')
+  .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     validateRestoreFlags(opts);
@@ -345,13 +365,14 @@ vault
   .command('init')
   .description('Initialize the vault')
   .option('--vault-passphrase <pass>', 'Passphrase for vault-level encryption (prefer GIT_CAS_PASSPHRASE env var)')
+  .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
   .option('--algorithm <alg>', 'KDF algorithm (pbkdf2 or scrypt)', 'pbkdf2')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
     /** @type {{ passphrase?: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
     const initOpts = {};
-    const passphrase = resolvePassphrase(opts);
+    const passphrase = await resolvePassphrase(opts, { confirm: true });
     if (passphrase) {
       initOpts.passphrase = passphrase;
       initOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };
