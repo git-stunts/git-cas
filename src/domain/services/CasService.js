@@ -43,6 +43,9 @@ export default class CasService {
     this.crypto = crypto;
     this.observability = observability;
     this.chunkSize = chunkSize;
+    if (chunkSize > 10 * 1024 * 1024) {
+      observability.log('warn', `Chunk size ${chunkSize} exceeds 10 MiB — consider a smaller value`, { chunkSize });
+    }
     /** @type {import('../../ports/ChunkingPort.js').default} */
     this.chunker = chunker || new FixedChunker({ chunkSize });
     this.merkleThreshold = merkleThreshold;
@@ -58,6 +61,10 @@ export default class CasService {
   static #validateConstructorArgs(chunkSize, merkleThreshold, concurrency) {
     if (chunkSize < 1024) {
       throw new Error('Chunk size must be at least 1024 bytes');
+    }
+    const MAX_CHUNK_SIZE = 100 * 1024 * 1024;
+    if (chunkSize > MAX_CHUNK_SIZE) {
+      throw new Error(`Chunk size must not exceed ${MAX_CHUNK_SIZE} bytes (100 MiB)`);
     }
     if (!Number.isInteger(merkleThreshold) || merkleThreshold < 1) {
       throw new Error('Merkle threshold must be a positive integer');

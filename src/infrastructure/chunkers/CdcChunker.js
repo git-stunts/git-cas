@@ -277,6 +277,11 @@ export default class CdcChunker extends ChunkingPort {
         `targetChunkSize (${targetChunkSize}) must be in [${minChunkSize}, ${maxChunkSize}]`,
       );
     }
+    if (maxChunkSize > 100 * 1024 * 1024) {
+      throw new RangeError(
+        `maxChunkSize must not exceed 104857600 bytes (100 MiB), got ${maxChunkSize}`,
+      );
+    }
 
     this.#minChunkSize = minChunkSize;
     this.#maxChunkSize = maxChunkSize;
