@@ -38,6 +38,19 @@ We use the object database.
 
 <img src="./docs/demo.gif" alt="git-cas demo" />
 
+## What's new in v5.2.4
+
+**Code review polish — bug fixes, internal hardening, no breaking changes.**
+
+- **`keyLength` passthrough fixed** — KDF derivation now correctly forwards `kdf.keyLength`, fixing a latent bug for vaults configured with non-default key lengths.
+- **`sha256()` type declaration fixed** — `index.d.ts` corrected from `string | Promise<string>` to `Promise<string>`.
+- **Deno CI fixed** — `createCryptoAdapter` tests no longer crash on Deno due to immutable global restoration.
+- **`keyResolver` made private** — `CasService.#keyResolver` prevents external access to an internal detail.
+- **`resolveChunker` validation** — `chunkSize` now validated as a finite positive number before constructing `FixedChunker`.
+- **File rename** — `VaultPassphraseRotator.js` → `rotateVaultPassphrase.js` (camelCase for functions, PascalCase for classes).
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
+
 ## What's new in v5.2.3
 
 **Internal refactoring — no breaking API changes.** The facade, CasService, and crypto adapters were restructured for better separation of concerns:
