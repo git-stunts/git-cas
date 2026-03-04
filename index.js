@@ -118,7 +118,7 @@ export default class ContentAddressableStore {
       plumbing: cfg.plumbing,
       policy: cfg.policy,
     });
-    this.#vault = new VaultService({ persistence, ref, crypto });
+    this.#vault = new VaultService({ persistence, ref, crypto, observability: this.service.observability });
 
     return this.service;
   }

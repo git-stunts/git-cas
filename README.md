@@ -304,7 +304,7 @@ git cas store ./data.bin --slug my-data --tree --json
 - [Guide](./GUIDE.md) — progressive walkthrough
 - [API Reference](./docs/API.md) — full method documentation
 - [Architecture](./ARCHITECTURE.md) — hexagonal design overview
-- [Security](./docs/SECURITY.md) — crypto design and threat model
+- [Security](./SECURITY.md) — crypto design and threat model
 
 ## When to use git-cas (and when not to)
 

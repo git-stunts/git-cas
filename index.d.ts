@@ -184,6 +184,8 @@ export interface VaultEntry {
 /** Vault metadata stored in .vault.json. */
 export interface VaultMetadata {
   version: number;
+  /** Number of encrypted store operations performed with this vault key. */
+  encryptionCount?: number;
   encryption?: {
     cipher: string;
     kdf: {

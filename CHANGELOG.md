@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **16.4 — FixedChunker pre-allocated buffer** — Replaced `Buffer.concat()` loop with a pre-allocated `Buffer.allocUnsafe(chunkSize)` working buffer, eliminating O(n²) copies for many small input buffers. Matches the allocation strategy used by `CdcChunker`.
 - **16.7 — Lifecycle method naming** — Added `inspectAsset()` (replaces `deleteAsset()`) and `collectReferencedChunks()` (replaces `findOrphanedChunks()`) as canonical names on both `CasService` and the facade. Old names are preserved as deprecated aliases that emit observability warnings. Type definitions updated with `@deprecated` JSDoc.
 - **16.12 — KDF brute-force awareness** — `CasService` now emits `decryption_failed` metric with slug context when decryption fails with `INTEGRITY_ERROR` during encrypted restore. CLI adds a 1-second delay after `INTEGRITY_ERROR` to slow brute-force attempts. Library API imposes no delay — callers manage their own rate-limiting policy.
+- **16.13 — GCM nonce collision docs + encryption counter** — `SECURITY.md` moved to project root with new sections: GCM nonce bound (2^32 NIST limit), key rotation frequency, KDF parameter guidance, and passphrase entropy recommendations. Vault metadata now tracks `encryptionCount`, incremented per encrypted `addToVault()`. Observability warning emitted when count exceeds 2^31. `VaultService` accepts optional `observability` port.
 
 ## [5.2.4] — Prism polish (2026-03-03)
 
