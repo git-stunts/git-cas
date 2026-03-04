@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **16.5 — Encrypt-then-chunk dedup warning** — `CasService.store()` now logs a warning when encryption is combined with CDC chunking, since ciphertext is pseudorandom and content-defined boundaries provide no dedup benefit.
 - **16.10 — Orphaned blob tracking** — `STREAM_ERROR` now includes `meta.orphanedBlobs` — an array of OIDs for blobs successfully written before the stream failure. Error metric includes `orphanedBlobs` count for observability.
 - **16.4 — FixedChunker pre-allocated buffer** — Replaced `Buffer.concat()` loop with a pre-allocated `Buffer.allocUnsafe(chunkSize)` working buffer, eliminating O(n²) copies for many small input buffers. Matches the allocation strategy used by `CdcChunker`.
+- **16.7 — Lifecycle method naming** — Added `inspectAsset()` (replaces `deleteAsset()`) and `collectReferencedChunks()` (replaces `findOrphanedChunks()`) as canonical names on both `CasService` and the facade. Old names are preserved as deprecated aliases that emit observability warnings. Type definitions updated with `@deprecated` JSDoc.
 
 ## [5.2.4] — Prism polish (2026-03-03)
 

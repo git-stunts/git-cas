@@ -664,7 +664,7 @@ export default class CasService {
   }
 
   /**
-   * Returns deletion metadata for an asset stored in a Git tree.
+   * Reads a manifest from a Git tree and returns inspection metadata.
    * Does not perform any destructive Git operations.
    *
    * @param {Object} options
@@ -672,12 +672,23 @@ export default class CasService {
    * @returns {Promise<{ chunksOrphaned: number, slug: string }>}
    * @throws {CasError} MANIFEST_NOT_FOUND if the tree has no manifest
    */
-  async deleteAsset({ treeOid }) {
+  async inspectAsset({ treeOid }) {
     const manifest = await this.readManifest({ treeOid });
     return {
       slug: manifest.slug,
       chunksOrphaned: manifest.chunks.length,
     };
+  }
+
+  /**
+   * @deprecated Use {@link inspectAsset} instead.
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID of the asset
+   * @returns {Promise<{ chunksOrphaned: number, slug: string }>}
+   */
+  async deleteAsset(options) {
+    this.observability.log('warn', 'deleteAsset() is deprecated — use inspectAsset()');
+    return await this.inspectAsset(options);
   }
 
   /**
@@ -689,7 +700,7 @@ export default class CasService {
    * @returns {Promise<{ referenced: Set<string>, total: number }>}
    * @throws {CasError} MANIFEST_NOT_FOUND if any treeOid lacks a manifest
    */
-  async findOrphanedChunks({ treeOids }) {
+  async collectReferencedChunks({ treeOids }) {
     const referenced = new Set();
     let total = 0;
 
@@ -702,6 +713,17 @@ export default class CasService {
     }
 
     return { referenced, total };
+  }
+
+  /**
+   * @deprecated Use {@link collectReferencedChunks} instead.
+   * @param {Object} options
+   * @param {string[]} options.treeOids - Git tree OIDs to analyze
+   * @returns {Promise<{ referenced: Set<string>, total: number }>}
+   */
+  async findOrphanedChunks(options) {
+    this.observability.log('warn', 'findOrphanedChunks() is deprecated — use collectReferencedChunks()');
+    return await this.collectReferencedChunks(options);
   }
 
   /**

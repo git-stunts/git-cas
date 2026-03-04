@@ -343,10 +343,20 @@ export default class ContentAddressableStore {
 
   readManifest(options: { treeOid: string }): Promise<Manifest>;
 
+  inspectAsset(options: {
+    treeOid: string;
+  }): Promise<{ slug: string; chunksOrphaned: number }>;
+
+  /** @deprecated Use {@link inspectAsset} instead. */
   deleteAsset(options: {
     treeOid: string;
   }): Promise<{ slug: string; chunksOrphaned: number }>;
 
+  collectReferencedChunks(options: {
+    treeOids: string[];
+  }): Promise<{ referenced: Set<string>; total: number }>;
+
+  /** @deprecated Use {@link collectReferencedChunks} instead. */
   findOrphanedChunks(options: {
     treeOids: string[];
   }): Promise<{ referenced: Set<string>; total: number }>;
