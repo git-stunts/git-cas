@@ -55,6 +55,7 @@ describe('CasService — orphaned blob tracking in STREAM_ERROR', () => {
   it('STREAM_ERROR meta includes orphanedBlobs array', async () => {
     try {
       await service.store({ source: failingSource(3), slug: 'fail', filename: 'f.bin' });
+      expect.unreachable('should have thrown STREAM_ERROR');
     } catch (err) {
       expect(err.code).toBe('STREAM_ERROR');
       expect(Array.isArray(err.meta.orphanedBlobs)).toBe(true);
@@ -64,6 +65,7 @@ describe('CasService — orphaned blob tracking in STREAM_ERROR', () => {
   it('orphanedBlobs contain OIDs from successful writes', async () => {
     try {
       await service.store({ source: failingSource(3), slug: 'fail', filename: 'f.bin' });
+      expect.unreachable('should have thrown STREAM_ERROR');
     } catch (err) {
       expect(err.meta.orphanedBlobs.length).toBe(3);
       expect(err.meta.orphanedBlobs).toContain('blob-0');
@@ -75,6 +77,7 @@ describe('CasService — orphaned blob tracking in STREAM_ERROR', () => {
   it('empty array when stream fails before any writes', async () => {
     try {
       await service.store({ source: failingSource(0), slug: 'fail', filename: 'f.bin' });
+      expect.unreachable('should have thrown STREAM_ERROR');
     } catch (err) {
       expect(err.meta.orphanedBlobs).toEqual([]);
     }

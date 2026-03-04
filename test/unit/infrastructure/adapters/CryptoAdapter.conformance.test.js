@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import WebCryptoAdapter from '../../../../src/infrastructure/adapters/WebCryptoAdapter.js';
-import CasError from '../../../../src/domain/errors/CasError.js';
 
 /**
  * Conformance test suite that asserts identical behavioral contracts across
@@ -36,13 +35,7 @@ describe.each(adapters)('%s conformance', (_name, adapter) => {
     const { buf, meta } = await adapter.encryptBuffer(Buffer.from('test'), key);
     await expect(
       Promise.resolve().then(() => adapter.decryptBuffer(buf, 'not-a-buffer', meta)),
-    ).rejects.toThrow(CasError);
-
-    try {
-      await Promise.resolve().then(() => adapter.decryptBuffer(buf, 'not-a-buffer', meta));
-    } catch (err) {
-      expect(err.code).toBe('INVALID_KEY_TYPE');
-    }
+    ).rejects.toMatchObject({ code: 'INVALID_KEY_TYPE' });
   });
 
   it('decryptBuffer rejects INVALID_KEY_LENGTH for 16-byte key', async () => {
@@ -50,23 +43,13 @@ describe.each(adapters)('%s conformance', (_name, adapter) => {
     const { buf, meta } = await adapter.encryptBuffer(Buffer.from('test'), key);
     await expect(
       Promise.resolve().then(() => adapter.decryptBuffer(buf, shortKey, meta)),
-    ).rejects.toThrow(CasError);
-
-    try {
-      await Promise.resolve().then(() => adapter.decryptBuffer(buf, shortKey, meta));
-    } catch (err) {
-      expect(err.code).toBe('INVALID_KEY_LENGTH');
-    }
+    ).rejects.toMatchObject({ code: 'INVALID_KEY_LENGTH' });
   });
 
   it('createEncryptionStream.finalize() throws STREAM_NOT_CONSUMED before consumption', () => {
     const { finalize } = adapter.createEncryptionStream(key);
-    expect(() => finalize()).toThrow(CasError);
-
-    try {
-      finalize();
-    } catch (err) {
-      expect(err.code).toBe('STREAM_NOT_CONSUMED');
-    }
+    expect(() => finalize()).toThrow(
+      expect.objectContaining({ code: 'STREAM_NOT_CONSUMED' }),
+    );
   });
 });

@@ -92,12 +92,15 @@ describe('16.12: KDF brute-force — library rate-limiting', () => {
     const wrongKey = testCrypto.randomBytes(32);
 
     const start = Date.now();
+    let caught;
     try {
       await service.restore({ manifest, encryptionKey: wrongKey });
-    } catch {
-      // expected
+      expect.unreachable('should have thrown INTEGRITY_ERROR');
+    } catch (err) {
+      caught = err;
     }
     const elapsed = Date.now() - start;
+    expect(caught?.code).toBe('INTEGRITY_ERROR');
     expect(elapsed).toBeLessThan(500);
   });
 });

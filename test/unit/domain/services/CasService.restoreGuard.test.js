@@ -101,6 +101,7 @@ describe('CasService — RESTORE_TOO_LARGE defaults and meta', () => {
 
     try {
       await service.restoreStream({ manifest, encryptionKey: Buffer.alloc(32, 0xab) }).next();
+      expect.unreachable('should have thrown RESTORE_TOO_LARGE');
     } catch (err) {
       expect(err.code).toBe('RESTORE_TOO_LARGE');
       expect(err.meta).toHaveProperty('size', 2200);
