@@ -41,18 +41,26 @@ export default class FixedChunker extends ChunkingPort {
    * @yields {Buffer}
    */
   async *chunk(source) {
-    let buffer = Buffer.alloc(0);
+    const cs = this.#chunkSize;
+    const buf = Buffer.allocUnsafe(cs);
+    let offset = 0;
 
     for await (const data of source) {
-      buffer = Buffer.concat([buffer, data]);
-      while (buffer.length >= this.#chunkSize) {
-        yield buffer.slice(0, this.#chunkSize);
-        buffer = buffer.slice(this.#chunkSize);
+      let srcPos = 0;
+      while (srcPos < data.length) {
+        const n = Math.min(cs - offset, data.length - srcPos);
+        data.copy(buf, offset, srcPos, srcPos + n);
+        offset += n;
+        srcPos += n;
+        if (offset === cs) {
+          yield Buffer.from(buf);
+          offset = 0;
+        }
       }
     }
 
-    if (buffer.length > 0) {
-      yield buffer;
+    if (offset > 0) {
+      yield Buffer.from(buf.subarray(0, offset));
     }
   }
 }

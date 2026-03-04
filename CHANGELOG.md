@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **16.3 — Web Crypto encryption buffer guard** — `WebCryptoAdapter` accepts `maxEncryptionBufferSize` (default 512 MiB). Throws `ENCRYPTION_BUFFER_EXCEEDED` when streaming encryption exceeds the limit, since Web Crypto AES-GCM is a one-shot API. NodeCryptoAdapter uses true streaming and is unaffected.
 - **16.5 — Encrypt-then-chunk dedup warning** — `CasService.store()` now logs a warning when encryption is combined with CDC chunking, since ciphertext is pseudorandom and content-defined boundaries provide no dedup benefit.
 - **16.10 — Orphaned blob tracking** — `STREAM_ERROR` now includes `meta.orphanedBlobs` — an array of OIDs for blobs successfully written before the stream failure. Error metric includes `orphanedBlobs` count for observability.
+- **16.4 — FixedChunker pre-allocated buffer** — Replaced `Buffer.concat()` loop with a pre-allocated `Buffer.allocUnsafe(chunkSize)` working buffer, eliminating O(n²) copies for many small input buffers. Matches the allocation strategy used by `CdcChunker`.
 
 ## [5.2.4] — Prism polish (2026-03-03)
 
