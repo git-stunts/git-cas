@@ -35,11 +35,9 @@ export default class CasService {
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
    * @param {import('../../ports/ChunkingPort.js').default} [options.chunker] - Chunking strategy (default FixedChunker).
    */
-  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker }) {
+  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024 }) {
     CasService._validateObservability(observability);
-    if (chunkSize < 1024) {
-      throw new Error('Chunk size must be at least 1024 bytes');
-    }
+    CasService.#validateConstructorArgs(chunkSize, merkleThreshold, concurrency);
     this.persistence = persistence;
     this.codec = codec;
     this.crypto = crypto;
@@ -47,15 +45,26 @@ export default class CasService {
     this.chunkSize = chunkSize;
     /** @type {import('../../ports/ChunkingPort.js').default} */
     this.chunker = chunker || new FixedChunker({ chunkSize });
+    this.merkleThreshold = merkleThreshold;
+    this.concurrency = concurrency;
+    this.maxRestoreBufferSize = maxRestoreBufferSize;
+    this.#keyResolver = new KeyResolver(crypto);
+  }
+
+  /**
+   * Validates constructor numeric arguments.
+   * @private
+   */
+  static #validateConstructorArgs(chunkSize, merkleThreshold, concurrency) {
+    if (chunkSize < 1024) {
+      throw new Error('Chunk size must be at least 1024 bytes');
+    }
     if (!Number.isInteger(merkleThreshold) || merkleThreshold < 1) {
       throw new Error('Merkle threshold must be a positive integer');
     }
-    this.merkleThreshold = merkleThreshold;
     if (!Number.isInteger(concurrency) || concurrency < 1) {
       throw new Error('Concurrency must be a positive integer');
     }
-    this.concurrency = concurrency;
-    this.#keyResolver = new KeyResolver(crypto);
   }
 
   /**
@@ -469,6 +478,16 @@ export default class CasService {
    * @private
    */
   async *_restoreBuffered(manifest, key) {
+    const totalSize = manifest.chunks.reduce((acc, c) => acc + c.size, 0);
+    if (totalSize > this.maxRestoreBufferSize) {
+      throw new CasError(
+        `Encrypted/compressed restore would buffer ${totalSize} bytes ` +
+        `(limit: ${this.maxRestoreBufferSize}). Increase maxRestoreBufferSize ` +
+        'or store without encryption.',
+        'RESTORE_TOO_LARGE',
+        { size: totalSize, limit: this.maxRestoreBufferSize },
+      );
+    }
     let buffer = Buffer.concat(await this._readAndVerifyChunks(manifest.chunks));
 
     if (manifest.encryption?.encrypted) {

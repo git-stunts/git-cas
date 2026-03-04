@@ -65,8 +65,8 @@ export default class ContentAddressableStore {
    * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance (advanced).
    */
-  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker }) {
-    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker };
+  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize }) {
+    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize };
     this.service = null;
     this.#servicePromise = null;
   }
@@ -111,6 +111,7 @@ export default class ContentAddressableStore {
       merkleThreshold: cfg.merkleThreshold,
       concurrency: cfg.concurrency,
       chunker,
+      maxRestoreBufferSize: cfg.maxRestoreBufferSize,
     });
 
     const ref = new GitRefAdapter({

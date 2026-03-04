@@ -171,6 +171,8 @@ export interface ContentAddressableStoreOptions {
   concurrency?: number;
   chunking?: ChunkingConfig;
   chunker?: ChunkingPort;
+  /** Maximum bytes to buffer during encrypted/compressed restore. @default 536870912 (512 MiB) */
+  maxRestoreBufferSize?: number;
 }
 
 /** A single vault entry. */
