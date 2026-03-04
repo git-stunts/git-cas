@@ -143,15 +143,20 @@ export default class CasService {
         launchWrite(chunk, nextIndex++);
       }
     } catch (err) {
-      await Promise.allSettled(pending);
+      const settled = await Promise.allSettled(pending);
+      const orphanedBlobs = settled
+        .filter((r) => r.status === 'fulfilled')
+        .map((r) => r.value.blob);
       if (err instanceof CasError) { throw err; }
       const casErr = new CasError(
         `Stream error during store: ${err.message}`,
         'STREAM_ERROR',
-        { chunksDispatched: nextIndex, originalError: err },
+        { chunksDispatched: nextIndex, orphanedBlobs, originalError: err },
       );
-      await Promise.allSettled(pending);
-      this.observability.metric('error', { code: casErr.code, message: casErr.message });
+      this.observability.metric('error', {
+        code: casErr.code, message: casErr.message,
+        orphanedBlobs: orphanedBlobs.length,
+      });
       throw casErr;
     }
 
