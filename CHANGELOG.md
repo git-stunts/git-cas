@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **16.2 — Memory restore guard** — `CasService` accepts `maxRestoreBufferSize` (default 512 MiB). `_restoreBuffered` throws `RESTORE_TOO_LARGE` with `{ size, limit }` meta when encrypted/compressed restore would exceed the limit. Unencrypted streaming restore is unaffected.
 - **16.11 — Passphrase input security** — New `--vault-passphrase-file <path>` CLI option reads passphrase from file (use `-` for stdin). Interactive TTY prompt added as fallback when no other passphrase source is available. `resolvePassphrase` is now async with priority: file → flag → env → TTY → undefined.
 - **16.6 — Chunk size upper bound** — CasService, FixedChunker, and CdcChunker now reject chunk sizes exceeding 100 MiB. CasService logs a warning when chunk size exceeds 10 MiB.
+- **16.3 — Web Crypto encryption buffer guard** — `WebCryptoAdapter` accepts `maxEncryptionBufferSize` (default 512 MiB). Throws `ENCRYPTION_BUFFER_EXCEEDED` when streaming encryption exceeds the limit, since Web Crypto AES-GCM is a one-shot API. NodeCryptoAdapter uses true streaming and is unaffected.
 
 ## [5.2.4] — Prism polish (2026-03-03)
 

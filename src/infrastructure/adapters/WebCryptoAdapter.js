@@ -9,6 +9,18 @@ import CasError from '../../domain/errors/CasError.js';
  * AES-GCM is a one-shot API (the GCM tag is computed over the entire plaintext).
  */
 export default class WebCryptoAdapter extends CryptoPort {
+  /** @type {number} */
+  #maxEncryptionBufferSize;
+
+  /**
+   * @param {Object} [options]
+   * @param {number} [options.maxEncryptionBufferSize=536870912] - Max bytes to buffer during streaming encryption (default 512 MiB).
+   */
+  constructor({ maxEncryptionBufferSize = 512 * 1024 * 1024 } = {}) {
+    super();
+    this.#maxEncryptionBufferSize = maxEncryptionBufferSize;
+  }
+
   /**
    * @override
    * @param {Buffer|Uint8Array} buf - Data to hash.
@@ -105,49 +117,56 @@ export default class WebCryptoAdapter extends CryptoPort {
     this._validateKey(key);
     const nonce = this.randomBytes(12);
     const cryptoKeyPromise = this.#importKey(key);
+    const maxBuf = this.#maxEncryptionBufferSize;
+    const state = { /** @type {Uint8Array|null} */ tag: null, consumed: false };
 
-    // Web Crypto buffers all data for the one-shot AES-GCM call (GCM tag spans the whole plaintext).
-    /** @type {Buffer[]} */
-    const chunks = [];
-    /** @type {Uint8Array|null} */
-    let finalTag = null;
-    let streamConsumed = false;
+    const encrypt = WebCryptoAdapter.#makeEncryptGenerator({ cryptoKeyPromise, nonce, maxBuf, state });
 
-    /** @param {AsyncIterable<Buffer>} source */
-    const encrypt = async function* (source) {
+    const finalize = () => {
+      if (!state.consumed) {
+        throw new CasError('Cannot finalize before the encrypt stream is fully consumed', 'STREAM_NOT_CONSUMED');
+      }
+      return this._buildMeta(this.#toBase64(nonce), this.#toBase64(/** @type {Uint8Array} */ (state.tag)));
+    };
+
+    return { encrypt, finalize };
+  }
+
+  /**
+   * Builds the encrypt async generator for createEncryptionStream.
+   * @param {{ cryptoKeyPromise: Promise<CryptoKey>, nonce: Buffer|Uint8Array, maxBuf: number, state: { tag: Uint8Array|null, consumed: boolean } }} ctx
+   * @returns {(source: AsyncIterable<Buffer>) => AsyncGenerator<Buffer>}
+   */
+  static #makeEncryptGenerator({ cryptoKeyPromise, nonce, maxBuf, state }) {
+    return async function* (source) {
+      /** @type {Buffer[]} */
+      const chunks = [];
+      let accumulatedBytes = 0;
       for await (const chunk of source) {
+        accumulatedBytes += chunk.length;
+        if (accumulatedBytes > maxBuf) {
+          throw new CasError(
+            `Streaming encryption buffered ${accumulatedBytes} bytes (limit: ${maxBuf}). ` +
+            'Web Crypto AES-GCM buffers all data. Use Node.js/Bun or store without encryption for large files.',
+            'ENCRYPTION_BUFFER_EXCEEDED',
+            { accumulated: accumulatedBytes, limit: maxBuf },
+          );
+        }
         chunks.push(chunk);
       }
-
       const buffer = Buffer.concat(chunks);
       const cryptoKey = await cryptoKeyPromise;
       const encrypted = await globalThis.crypto.subtle.encrypt(
         // @ts-ignore -- Uint8Array satisfies BufferSource at runtime
         { name: 'AES-GCM', iv: /** @type {Uint8Array} */ (nonce) },
-        cryptoKey,
-        buffer
+        cryptoKey, buffer,
       );
-
       const fullBuffer = new Uint8Array(encrypted);
       const tagLength = 16;
-      const ciphertext = fullBuffer.slice(0, -tagLength);
-      finalTag = fullBuffer.slice(-tagLength);
-      streamConsumed = true;
-
-      yield Buffer.from(ciphertext);
+      state.tag = fullBuffer.slice(-tagLength);
+      state.consumed = true;
+      yield Buffer.from(fullBuffer.slice(0, -tagLength));
     };
-
-    const finalize = () => {
-      if (!streamConsumed) {
-        throw new CasError(
-          'Cannot finalize before the encrypt stream is fully consumed',
-          'STREAM_NOT_CONSUMED',
-        );
-      }
-      return this._buildMeta(this.#toBase64(nonce), this.#toBase64(/** @type {Uint8Array} */ (finalTag)));
-    };
-
-    return { encrypt, finalize };
   }
 
   /**
