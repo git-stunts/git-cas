@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CasError codes** — `RESTORE_TOO_LARGE` and `ENCRYPTION_BUFFER_EXCEEDED` registered in canonical error code table.
 
 ### Changed
-- **VaultService test observability wiring** — `VaultService.test.js` now passes a `mockObservability()` port to all 46 tests instead of relying on the silent no-op default. `rotateVaultPassphrase.test.js` now passes `SilentObserver` explicitly. If observability wiring breaks, the test suite will catch it.
+- **VaultService test observability wiring** — `VaultService.test.js` now passes a `mockObservability()` port to all tests instead of relying on the silent no-op default. `rotateVaultPassphrase.test.js` now passes `SilentObserver` explicitly. If observability wiring breaks, the test suite will catch it.
 
 ### Fixed
 - **16.8 — CasError portability guard** — `Error.captureStackTrace` now guarded with a runtime check. CasError constructs correctly on runtimes where `captureStackTrace` is unavailable (e.g. Firefox, older Deno).
