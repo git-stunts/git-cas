@@ -15,8 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **VaultService test observability wiring** — `VaultService.test.js` now passes a `mockObservability()` port to all tests instead of relying on the silent no-op default. `rotateVaultPassphrase.test.js` now passes `SilentObserver` explicitly. If observability wiring breaks, the test suite will catch it.
+- **`NodeCryptoAdapter.encryptBuffer` JSDoc** — `@returns` annotation corrected to `Promise<...>`, matching the async implementation.
+- **`maxRestoreBufferSize` documented** — constructor JSDoc and `#config` type in `ContentAddressableStore` now include the parameter.
+- **ROADMAP.md heading level** — added `## Task Cards` heading between `# M16` and `### 16.1` to satisfy MD001 heading-increment rule.
 
 ### Fixed
+- **Post-decompression size guard** — `_restoreBuffered` now enforces `maxRestoreBufferSize` after decompression, not just before. Compressed payloads that inflate beyond the configured limit now throw `RESTORE_TOO_LARGE` instead of silently allocating unbounded memory.
+- **CLI passphrase prompt deferral** — `resolveEncryptionKey` now checks vault metadata before calling `resolvePassphrase`, avoiding unnecessary TTY prompts for unencrypted vaults. Store action recipient-conflict check inspects flags/env without consuming stdin.
+- **CRLF passphrase normalization** — `readPassphraseFile` now strips trailing `\r\n` (Windows line endings) in addition to `\n`, preventing passphrase mismatches from Windows-edited files.
+- **Constructor validation** — `CasService.maxRestoreBufferSize` (integer >= 1024), `WebCryptoAdapter.maxEncryptionBufferSize` (finite, positive), and `FixedChunker.chunkSize` (positive integer) are now validated at construction time, preventing silent misconfiguration.
+- **Error-path test hardening** — `orphanedBlobs`, `restoreGuard`, `kdfBruteForce`, and `conformance` tests now fail explicitly when expected errors are not thrown (previously silent pass-through).
 - **16.8 — CasError portability guard** — `Error.captureStackTrace` now guarded with a runtime check. CasError constructs correctly on runtimes where `captureStackTrace` is unavailable (e.g. Firefox, older Deno).
 - **16.9 — Pre-commit hook + hooks directory** — `scripts/git-hooks/` renamed to `scripts/hooks/` per CLAUDE.md convention. New `pre-commit` hook runs lint gate. `install-hooks.sh` updated accordingly.
 - **16.1 — Crypto adapter behavioral normalization** — `NodeCryptoAdapter.encryptBuffer` now returns a Promise (was sync), matching Bun/Web. `decryptBuffer` validates key on all adapters. `NodeCryptoAdapter.createEncryptionStream` guards `finalize()` with `STREAM_NOT_CONSUMED`. New conformance test suite asserts identical contracts across all adapters.
