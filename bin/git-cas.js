@@ -86,6 +86,17 @@ async function deriveVaultKey(cas, metadata, passphrase) {
  * @param {{ confirm?: boolean }} [extra]
  * @returns {Promise<string | undefined>}
  */
+/**
+ * Returns true when a non-interactive passphrase source exists (flag or env).
+ * Does NOT trigger prompts or consume stdin.
+ *
+ * @param {Record<string, any>} opts
+ * @returns {boolean}
+ */
+function hasPassphraseSource(opts) {
+  return Boolean(opts.vaultPassphraseFile || opts.vaultPassphrase || process.env.GIT_CAS_PASSPHRASE);
+}
+
 async function resolvePassphrase(opts, extra = {}) {
   if (opts.vaultPassphraseFile) {
     return await readPassphraseFile(opts.vaultPassphraseFile);
@@ -113,16 +124,18 @@ async function resolveEncryptionKey(cas, opts) {
   if (opts.keyFile) {
     return readKeyFile(opts.keyFile);
   }
+  const metadata = await cas.getVaultMetadata();
+  if (!metadata?.encryption) {
+    if (hasPassphraseSource(opts)) {
+      process.stderr.write('warning: passphrase ignored (vault is not encrypted)\n');
+    }
+    return undefined;
+  }
   const passphrase = await resolvePassphrase(opts);
   if (!passphrase) {
     return undefined;
   }
-  const metadata = await cas.getVaultMetadata();
-  if (metadata?.encryption) {
-    return deriveVaultKey(cas, metadata, passphrase);
-  }
-  process.stderr.write('warning: passphrase ignored (vault is not encrypted)\n');
-  return undefined;
+  return deriveVaultKey(cas, metadata, passphrase);
 }
 
 /**
@@ -207,7 +220,7 @@ program
   .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {string} */ file, /** @type {Record<string, any>} */ opts) => {
-    if (opts.recipient && (opts.keyFile || await resolvePassphrase(opts))) {
+    if (opts.recipient && (opts.keyFile || hasPassphraseSource(opts))) {
       throw new Error('Provide --key-file/--vault-passphrase or --recipient, not both');
     }
     if (opts.force && !opts.tree) {

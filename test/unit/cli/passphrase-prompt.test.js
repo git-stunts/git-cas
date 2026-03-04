@@ -28,4 +28,10 @@ describe('readPassphraseFile', () => {
     const result = await readPassphraseFile(tmpPath);
     expect(result).toBe('line1\nline2');
   });
+
+  it('strips trailing CRLF (Windows line ending)', async () => {
+    await writeFile(tmpPath, 'win-secret\r\n', 'utf8');
+    const result = await readPassphraseFile(tmpPath);
+    expect(result).toBe('win-secret');
+  });
 });

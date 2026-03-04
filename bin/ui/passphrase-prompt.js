@@ -37,10 +37,10 @@ export async function readPassphraseFile(filePath) {
     for await (const chunk of process.stdin) {
       chunks.push(chunk);
     }
-    return Buffer.concat(chunks).toString('utf8').replace(/\n$/, '');
+    return Buffer.concat(chunks).toString('utf8').replace(/\r?\n$/, '');
   }
   const content = await readFile(filePath, 'utf8');
-  return content.replace(/\n$/, '');
+  return content.replace(/\r?\n$/, '');
 }
 
 /**
