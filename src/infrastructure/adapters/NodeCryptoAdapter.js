@@ -29,7 +29,7 @@ export default class NodeCryptoAdapter extends CryptoPort {
    * @override
    * @param {Buffer|Uint8Array} buffer - Plaintext to encrypt.
    * @param {Buffer|Uint8Array} key - 32-byte encryption key.
-   * @returns {{ buf: Buffer, meta: import('../../ports/CryptoPort.js').EncryptionMeta }}
+   * @returns {Promise<{ buf: Buffer, meta: import('../../ports/CryptoPort.js').EncryptionMeta }>}
    */
   async encryptBuffer(buffer, key) {
     this._validateKey(key);

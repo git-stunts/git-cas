@@ -278,6 +278,8 @@ Remediation milestone addressing all negative findings from the [CODE-EVAL.md](.
 
 ---
 
+## Task Cards
+
 ### 16.1 — Crypto Adapter Behavioral Normalization *(P0)* — C8
 
 **Problem**
