@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **16.7 — Lifecycle method naming** — Added `inspectAsset()` (replaces `deleteAsset()`) and `collectReferencedChunks()` (replaces `findOrphanedChunks()`) as canonical names on both `CasService` and the facade. Old names are preserved as deprecated aliases that emit observability warnings. Type definitions updated with `@deprecated` JSDoc.
 
 ### Changed
+- **`runAction` injectable delay** — `runAction()` now accepts an optional `{ delay }` dependency, replacing the hardcoded `setTimeout` call. Tests inject a spy instead of using `vi.useFakeTimers()`, making INTEGRITY_ERROR rate-limit tests deterministic across Node, Bun, and Deno.
+- **Test conventions** — Added `test/CONVENTIONS.md` documenting rules for deterministic, cross-runtime tests: inject time dependencies, use `chmod()` instead of `writeFile({ mode })`, avoid global state patching.
 - **VaultService test observability wiring** — `VaultService.test.js` now passes a `mockObservability()` port to all tests instead of relying on the silent no-op default. `rotateVaultPassphrase.test.js` now passes `SilentObserver` explicitly. If observability wiring breaks, the test suite will catch it.
 - **`NodeCryptoAdapter.encryptBuffer` JSDoc** — `@returns` annotation corrected to `Promise<...>`, matching the async implementation.
 - **`maxRestoreBufferSize` documented** — constructor JSDoc and `#config` type in `ContentAddressableStore` now include the parameter.

@@ -57,11 +57,11 @@ function getHint(code) {
 }
 
 /**
- * Delay utility for rate-limiting after sensitive failures.
+ * Default delay — real setTimeout for production use.
  * @param {number} ms
  * @returns {Promise<void>}
  */
-function delay(ms) {
+function defaultDelay(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
 
@@ -70,9 +70,10 @@ function delay(ms) {
  *
  * @param {(...args: any[]) => Promise<void>} fn - The async action function.
  * @param {() => boolean} getJson - Lazy getter for --json flag value.
+ * @param {{ delay?: (ms: number) => Promise<void> }} [options] - Injectable dependencies.
  * @returns {(...args: any[]) => Promise<void>} Wrapped action.
  */
-export function runAction(fn, getJson) {
+export function runAction(fn, getJson, { delay = defaultDelay } = {}) {
   return async (/** @type {any[]} */ ...args) => {
     try {
       await fn(...args);

@@ -116,29 +116,29 @@ describe('runAction — INTEGRITY_ERROR rate-limiting', () => {
   beforeEach(() => {
     process.exitCode = undefined;
     stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     process.exitCode = originalExitCode;
     stderrSpy.mockRestore();
   });
 
-  it('delays ~1s on INTEGRITY_ERROR before writing output', async () => {
+  it('calls delay(1000) on INTEGRITY_ERROR', async () => {
+    const delaySpy = vi.fn().mockResolvedValue(undefined);
     const err = Object.assign(new Error('bad key'), { code: 'INTEGRITY_ERROR' });
-    const action = runAction(async () => { throw err; }, () => false);
-    const promise = action();
-    await vi.advanceTimersByTimeAsync(1000);
-    await promise;
+    const action = runAction(async () => { throw err; }, () => false, { delay: delaySpy });
+    await action();
+    expect(delaySpy).toHaveBeenCalledWith(1000);
     expect(process.exitCode).toBe(1);
     expect(stderrSpy).toHaveBeenCalled();
   });
 
-  it('no delay for non-INTEGRITY_ERROR codes', async () => {
+  it('does not call delay for non-INTEGRITY_ERROR codes', async () => {
+    const delaySpy = vi.fn().mockResolvedValue(undefined);
     const err = Object.assign(new Error('gone'), { code: 'MISSING_KEY' });
-    const action = runAction(async () => { throw err; }, () => false);
+    const action = runAction(async () => { throw err; }, () => false, { delay: delaySpy });
     await action();
+    expect(delaySpy).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });
