@@ -137,6 +137,11 @@ export default class WebCryptoAdapter extends CryptoPort {
 
   /**
    * Builds the encrypt async generator for createEncryptionStream.
+   *
+   * A static method is used (rather than closures) because `async function*`
+   * cannot be an arrow function — `this` binding would be lost. The `state`
+   * object bridges mutable data between the generator and `finalize()`.
+   *
    * @param {{ cryptoKeyPromise: Promise<CryptoKey>, nonce: Buffer|Uint8Array, maxBuf: number, state: { tag: Uint8Array|null, consumed: boolean } }} ctx
    * @returns {(source: AsyncIterable<Buffer>) => AsyncGenerator<Buffer>}
    */

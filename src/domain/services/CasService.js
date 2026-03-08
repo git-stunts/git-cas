@@ -34,6 +34,7 @@ export default class CasService {
    * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
    * @param {import('../../ports/ChunkingPort.js').default} [options.chunker] - Chunking strategy (default FixedChunker).
+   * @param {number} [options.maxRestoreBufferSize=536870912] - Max bytes for buffered restore (default 512 MiB).
    */
   constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024 }) {
     CasService._validateObservability(observability);
@@ -59,8 +60,8 @@ export default class CasService {
    * @private
    */
   static #validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize }) {
-    if (chunkSize < 1024) {
-      throw new Error('Chunk size must be at least 1024 bytes');
+    if (!Number.isInteger(chunkSize) || chunkSize < 1024) {
+      throw new Error('Chunk size must be an integer >= 1024 bytes');
     }
     const MAX_CHUNK_SIZE = 100 * 1024 * 1024;
     if (chunkSize > MAX_CHUNK_SIZE) {
@@ -150,7 +151,10 @@ export default class CasService {
       const orphanedBlobs = settled
         .filter((r) => r.status === 'fulfilled')
         .map((r) => r.value.blob);
-      if (err instanceof CasError) { throw err; }
+      if (err instanceof CasError) {
+        err.meta = { ...err.meta, orphanedBlobs };
+        throw err;
+      }
       const casErr = new CasError(
         `Stream error during store: ${err.message}`,
         'STREAM_ERROR',

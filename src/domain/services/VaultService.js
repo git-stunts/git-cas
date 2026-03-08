@@ -94,7 +94,7 @@ export default class VaultService {
     this.persistence = persistence;
     this.ref = ref;
     this.crypto = crypto;
-    /** @type {{ metric: Function, log: Function, span: Function }} */
+    /** @type {import('../../ports/ObservabilityPort.js').default} */
     this.observability = observability || { metric() {}, log() {}, span: () => ({ end() {} }) };
   }
 
@@ -395,8 +395,11 @@ export default class VaultService {
       }
       const isUpdate = state.entries.has(slug);
       state.entries.set(slug, treeOid);
-      const metadata = state.metadata || { version: 1 };
+      // Shallow copy to avoid mutating readState()'s object on CAS retries.
+      const metadata = { ...(state.metadata || { version: 1 }) };
       if (metadata.encryption) {
+        // Tracks nonce-relevant operations: every addToVault on an encrypted
+        // vault implies an encryption occurred at the store layer.
         metadata.encryptionCount = (metadata.encryptionCount || 0) + 1;
         if (metadata.encryptionCount >= VaultService.ENCRYPTION_COUNT_WARN) {
           this.observability.log(

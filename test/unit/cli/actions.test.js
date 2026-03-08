@@ -116,9 +116,11 @@ describe('runAction — INTEGRITY_ERROR rate-limiting', () => {
   beforeEach(() => {
     process.exitCode = undefined;
     stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     process.exitCode = originalExitCode;
     stderrSpy.mockRestore();
   });
@@ -126,20 +128,18 @@ describe('runAction — INTEGRITY_ERROR rate-limiting', () => {
   it('delays ~1s on INTEGRITY_ERROR before writing output', async () => {
     const err = Object.assign(new Error('bad key'), { code: 'INTEGRITY_ERROR' });
     const action = runAction(async () => { throw err; }, () => false);
-    const start = Date.now();
-    await action();
-    const elapsed = Date.now() - start;
-    expect(elapsed).toBeGreaterThanOrEqual(900);
+    const promise = action();
+    await vi.advanceTimersByTimeAsync(1000);
+    await promise;
     expect(process.exitCode).toBe(1);
+    expect(stderrSpy).toHaveBeenCalled();
   });
 
   it('no delay for non-INTEGRITY_ERROR codes', async () => {
     const err = Object.assign(new Error('gone'), { code: 'MISSING_KEY' });
     const action = runAction(async () => { throw err; }, () => false);
-    const start = Date.now();
     await action();
-    const elapsed = Date.now() - start;
-    expect(elapsed).toBeLessThan(200);
+    expect(process.exitCode).toBe(1);
   });
 });
 

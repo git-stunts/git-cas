@@ -76,17 +76,6 @@ async function deriveVaultKey(cas, metadata, passphrase) {
 }
 
 /**
- * Resolve passphrase from (in priority order):
- * 1. --vault-passphrase-file <path>
- * 2. --vault-passphrase <pass>
- * 3. GIT_CAS_PASSPHRASE env var
- * 4. Interactive TTY prompt (if stdin is a TTY)
- *
- * @param {Record<string, any>} opts
- * @param {{ confirm?: boolean }} [extra]
- * @returns {Promise<string | undefined>}
- */
-/**
  * Returns true when a non-interactive passphrase source exists (flag or env).
  * Does NOT trigger prompts or consume stdin.
  *
@@ -97,6 +86,17 @@ function hasPassphraseSource(opts) {
   return Boolean(opts.vaultPassphraseFile || opts.vaultPassphrase || process.env.GIT_CAS_PASSPHRASE);
 }
 
+/**
+ * Resolve passphrase from (in priority order):
+ * 1. --vault-passphrase-file <path>
+ * 2. --vault-passphrase <pass>
+ * 3. GIT_CAS_PASSPHRASE env var
+ * 4. Interactive TTY prompt (if stdin is a TTY)
+ *
+ * @param {Record<string, any>} opts
+ * @param {{ confirm?: boolean }} [extra]
+ * @returns {Promise<string | undefined>}
+ */
 async function resolvePassphrase(opts, extra = {}) {
   if (opts.vaultPassphraseFile) {
     return await readPassphraseFile(opts.vaultPassphraseFile);

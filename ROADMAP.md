@@ -193,8 +193,8 @@ Return and throw semantics for every public method (current and planned).
 | v3.1.0  | M13       | Bijou    | TUI dashboard & progress | ✅ |
 | v5.0.0  | M10       | Hydra    | Content-defined chunking | ✅ |
 | v5.1.0  | M11       | Locksmith | Multi-recipient encryption | ✅ |
-| v5.3.0  | M16       | Capstone | Audit remediation — all CODE-EVAL.md findings | 🔲 |
 | v5.2.0  | M12       | Carousel | Key rotation | ✅ |
+| v5.3.0  | M16       | Capstone | Audit remediation — all CODE-EVAL.md findings | 🔲 |
 
 ---
 

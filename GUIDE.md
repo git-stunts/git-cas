@@ -1564,7 +1564,7 @@ file size. However, the restore operation currently concatenates all chunks
 into a single buffer, so restoring very large files requires enough memory
 to hold the entire file.
 
-### Q: I get "Chunk size must be at least 1024 bytes"
+### Q: I get "Chunk size must be an integer >= 1024 bytes"
 
 The minimum chunk size is 1 KiB. This prevents pathologically small chunks
 that would create excessive Git objects. Increase your `chunkSize` parameter.
