@@ -1098,6 +1098,9 @@ Consistency and DRY fixes surfaced by architecture audit. No new features, no AP
 
 Ideas for future milestones. Not committed, not prioritized — just captured.
 
+### CLI Parity *(recently shipped)*
+All library-level configuration is now accessible from the CLI: `--gzip`, `--strategy`, `--chunk-size`, `--concurrency`, `--codec`, `--merkle-threshold`, CDC parameters, `--max-restore-buffer`. Project config file (`.casrc`) provides repository-level defaults. See V9–V12 for remaining CLI gaps.
+
 ### Named Vaults
 Multiple vaults instead of one. Refs move from `refs/cas/vault` to `refs/cas/vaults/<name>`. Default vault is `default`. CLI gets `--vault <name>` flag.
 
@@ -1108,7 +1111,8 @@ Multiple vaults instead of one. Refs move from `refs/cas/vault` to `refs/cas/vau
 
 ### Vault Management
 - **Move into vault** — `git cas vault add --slug <slug> --oid <tree-oid>` to adopt an existing CAS tree into the vault (the API `addToVault()` already supports this; just needs a CLI command).
-- **Purge from CAS** — remove an entry from the vault and run `git gc` to reclaim storage. Tricky because git doesn't delete individual objects — you remove refs and let GC handle it.
+- **Vault status** — `git cas vault status` shows metadata, `encryptionCount`, entry count, nonce health. See V9.
+- **Purge from CAS** — remove an entry from the vault and run `git gc` to reclaim storage. See V10.
 
 ### Publish / Mount
 - **Publish to working tree** — `git cas publish --slug assets/hero --to docs/hero.gif` reconstitutes a vault entry into the repo's working tree so it's servable by GitHub (markdown images, Pages, etc.).
@@ -1342,30 +1346,96 @@ Zstd alone would give 5-10x faster compression with equal or better ratio. For a
 
 ---
 
-## Vision 6: Interactive Passphrase Prompt
+## Vision 6: Interactive Passphrase Prompt ✅ DONE
+
+**Status:** Implemented by Task 16.11. See `bin/ui/passphrase-prompt.js`.
+
+Passphrase resolution priority: `--vault-passphrase-file` → `--vault-passphrase` → `GIT_CAS_PASSPHRASE` → interactive TTY prompt. Confirmation prompt on first use (vault init). File permission warnings on group/world-readable passphrase files. CRLF normalization for Windows compatibility.
+
+---
+
+## Vision 9: Vault Status Command
 
 **The Pitch**
 
-Replace `--vault-passphrase "my secret"` (visible in shell history, `ps` output, and CI logs) with an interactive TTY prompt that reads the passphrase from stdin with echo disabled. Like `gpg`, `ssh-keygen`, and `sudo`.
+`git cas vault status` — a single command to show vault health: entry count, encryption state, `encryptionCount` (nonce usage), KDF parameters, and nonce health assessment. The `encryptionCount` and `decryption_failed` metrics from M16 are already tracked in vault metadata but have no CLI surface.
 
 ```shell
-$ git cas store ./secrets.tar.gz --slug prod-secrets --vault-passphrase
-Enter vault passphrase: ••••••••••
-Confirm passphrase: ••••••••••
+$ git cas vault status
+Entries:          42
+Encryption:       aes-256-gcm (pbkdf2, 600000 iterations)
+Encryption count: 1,247 / 2,147,483,648 (0.00%)
+Nonce health:     ✅ Safe (rotate key before 2^31)
 ```
-
-Falls back to `GIT_CAS_PASSPHRASE` env var for non-interactive contexts (CI). The flag `--vault-passphrase` without a value triggers the prompt; with a value, uses it directly (backward compatible).
-
-**Mini Battle Plan**
 
 | Phase | Work | ~LoC | ~Hours |
 |-------|------|------|--------|
-| 1. TTY reader | `readPassphrase(prompt: string): Promise<string>` — opens `/dev/tty` (Unix) or `CON` (Windows), sets raw mode, reads until Enter, echoes `•` per character. | ~40 | ~2h |
-| 2. CLI integration | When `--vault-passphrase` is passed without a value and stdin is a TTY, call `readPassphrase()`. On store (first use), prompt twice for confirmation. | ~20 | ~1h |
-| 3. Tests | Mock TTY input, verify echo suppression, verify confirmation match/mismatch, verify env var fallback. | ~30 | ~1h |
-| **Total** | | **~90** | **~4h** |
+| 1. Command + metadata display | Read vault metadata, format output (text + JSON) | ~40 | ~1h |
+| 2. Nonce health assessment | Compare `encryptionCount` against thresholds, emit warning levels | ~15 | ~0.5h |
+| 3. Tests | Mock vault state, verify output format | ~20 | ~0.5h |
+| **Total** | | **~60** | **~2h** |
 
-**This directly mitigates Concern 5 (shell history exposure) below.**
+---
+
+## Vision 10: GC Command
+
+**The Pitch**
+
+`git cas gc` — identify unreferenced chunks across vault entries and optionally trigger `git gc`. Wraps `collectReferencedChunks()` with a user-facing report.
+
+```shell
+$ git cas gc --dry-run
+Referenced chunks: 1,247
+Unreferenced blobs: 23 (estimated 4.2 MiB)
+Run without --dry-run to trigger git gc.
+```
+
+| Phase | Work | ~LoC | ~Hours |
+|-------|------|------|--------|
+| 1. Chunk analysis | Call `collectReferencedChunks` for all vault entries, compare against all CAS blobs | ~40 | ~2h |
+| 2. `git gc` integration | Optionally invoke `git gc` after analysis. `--dry-run` flag for preview. | ~20 | ~1h |
+| 3. Tests + safety | Confirm dry-run default, test output format | ~20 | ~1h |
+| **Total** | | **~80** | **~4h** |
+
+---
+
+## Vision 11: KDF Parameter Tuning via `.casrc`
+
+**The Pitch**
+
+Allow `.casrc` to specify KDF parameters for vault init and rotation: `kdf.algorithm`, `kdf.iterations` (PBKDF2), `kdf.cost`/`kdf.blockSize`/`kdf.parallelization` (scrypt). Reject insecure values below OWASP minimums (100,000 iterations for PBKDF2-SHA-512, N=8192 for scrypt).
+
+| Phase | Work | ~LoC | ~Hours |
+|-------|------|------|--------|
+| 1. Config schema + validation | Add `kdf` key to `.casrc` schema, validate against OWASP minimums | ~25 | ~1h |
+| 2. Wire into vault init/rotate | `loadConfig` merges KDF params into `kdfOptions` | ~10 | ~0.5h |
+| 3. Tests | Reject weak params, merge precedence | ~15 | ~0.5h |
+| **Total** | | **~40** | **~2h** |
+
+---
+
+## Vision 12: File-Level Passphrase CLI
+
+**The Pitch**
+
+`--passphrase` flag for standalone encrypted store without requiring vault encryption. The library already supports `passphrase` + `kdfOptions` on `store()`/`storeFile()` — this just wires it through the CLI.
+
+```shell
+# Store with a one-off passphrase (not vault-level)
+git cas store ./secrets.bin --slug one-off --passphrase "my secret"
+
+# Restore with the same passphrase
+git cas restore --slug one-off --out ./secrets.bin --passphrase "my secret"
+```
+
+Mutually exclusive with `--key-file`, `--recipient`, and `--vault-passphrase`. Supports the same resolution chain as vault passphrases: `--passphrase-file`, `--passphrase`, env var `GIT_CAS_FILE_PASSPHRASE`, TTY prompt.
+
+| Phase | Work | ~LoC | ~Hours |
+|-------|------|------|--------|
+| 1. CLI flag + store wiring | Add `--passphrase` to store/restore, wire into `storeFile`/`restoreFile` with `passphrase` + `kdfOptions` | ~20 | ~0.5h |
+| 2. Mutual exclusion validation | Reject conflicting encryption flags | ~5 | ~0.25h |
+| 3. Tests | Store/restore round-trip, conflict validation | ~15 | ~0.5h |
+| **Total** | | **~30** | **~1h** |
 
 ---
 
@@ -1375,7 +1445,9 @@ Architectural and security concerns identified during code review, with proposed
 
 ---
 
-## Concern 1: Memory Amplification on Encrypted/Compressed Restore
+## Concern 1: Memory Amplification on Encrypted/Compressed Restore ✅ MITIGATED
+
+**Status:** Task 16.2 implemented `maxRestoreBufferSize` guard (default 512 MiB). Post-decompression guard added. CLI exposes `--max-restore-buffer`.
 
 **The Problem**
 
@@ -1410,7 +1482,9 @@ describe('Concern 1: Memory guard on encrypted restore', () => {
 
 ---
 
-## Concern 2: Orphaned Blob Accumulation After STREAM_ERROR
+## Concern 2: Orphaned Blob Accumulation After STREAM_ERROR ✅ MITIGATED
+
+**Status:** Task 16.10 implemented. `STREAM_ERROR` meta includes `orphanedBlobs` array. Observability metric emitted.
 
 **The Problem**
 
@@ -1445,7 +1519,9 @@ describe('Concern 2: Orphaned blob tracking on STREAM_ERROR', () => {
 
 ---
 
-## Concern 3: No Upper Bound on Chunk Size
+## Concern 3: No Upper Bound on Chunk Size ✅ MITIGATED
+
+**Status:** Task 16.6 implemented. 100 MiB hard cap on CasService, FixedChunker, CdcChunker. Warning at 10 MiB.
 
 **The Problem**
 
@@ -1476,7 +1552,9 @@ describe('Concern 3: Chunk size upper bound', () => {
 
 ---
 
-## Concern 4: Web Crypto Adapter Silent Memory Buffering
+## Concern 4: Web Crypto Adapter Silent Memory Buffering ✅ MITIGATED
+
+**Status:** Task 16.3 implemented. `ENCRYPTION_BUFFER_EXCEEDED` thrown when accumulated bytes exceed `maxEncryptionBufferSize` (default 512 MiB).
 
 **The Problem**
 
@@ -1509,7 +1587,9 @@ describe('Concern 4: Web Crypto buffering guard', () => {
 
 ---
 
-## Concern 5: Passphrase Exposure in Shell History and Process Listings
+## Concern 5: Passphrase Exposure in Shell History and Process Listings ✅ MITIGATED
+
+**Status:** Task 16.11 implemented. `--vault-passphrase-file`, interactive TTY prompt, stdin pipe. See Vision 6.
 
 **The Problem**
 
@@ -1545,7 +1625,9 @@ describe('Concern 5: Passphrase input security', () => {
 
 ---
 
-## Concern 6: No KDF Brute-Force Rate Limiting
+## Concern 6: No KDF Brute-Force Rate Limiting ✅ MITIGATED
+
+**Status:** Task 16.12 implemented. `decryption_failed` observability metric. CLI 1s delay on `INTEGRITY_ERROR`.
 
 **The Problem**
 
@@ -1580,7 +1662,9 @@ describe('Concern 6: KDF brute-force awareness', () => {
 
 ---
 
-## Concern 7: GCM Nonce Collision Risk at Scale
+## Concern 7: GCM Nonce Collision Risk at Scale ✅ MITIGATED
+
+**Status:** Task 16.13 implemented. `SECURITY.md` documents GCM bound. Vault tracks `encryptionCount`. Warning at 2^31.
 
 **The Problem**
 
@@ -1615,9 +1699,11 @@ describe('Concern 7: Nonce uniqueness', () => {
 
 ---
 
-## Concern 8: Crypto Adapter Liskov Substitution Violation
+## Concern 8: Crypto Adapter Liskov Substitution Violation ✅ MITIGATED
 
 **Source:** CODE-EVAL.md, Flaw 1
+
+**Status:** Task 16.1 implemented. All adapters: async `encryptBuffer`, `_validateKey` in `decryptBuffer`, `STREAM_NOT_CONSUMED` guard. Conformance test suite.
 
 **The Problem**
 
@@ -1633,9 +1719,11 @@ M15 Prism fixed the `sha256()` async inconsistency but left these three discrepa
 
 ---
 
-## Concern 9: FixedChunker Quadratic Buffer Allocation
+## Concern 9: FixedChunker Quadratic Buffer Allocation ✅ MITIGATED
 
 **Source:** CODE-EVAL.md, Flaw 4
+
+**Status:** Task 16.4 implemented. Pre-allocated `Buffer.allocUnsafe(chunkSize)` working buffer.
 
 **The Problem**
 
@@ -1645,9 +1733,11 @@ M15 Prism fixed the `sha256()` async inconsistency but left these three discrepa
 
 ---
 
-## Concern 10: CDC Deduplication Defeated by Encrypt-Then-Chunk
+## Concern 10: CDC Deduplication Defeated by Encrypt-Then-Chunk ✅ MITIGATED
 
 **Source:** CODE-EVAL.md, Flaw 5
+
+**Status:** Task 16.5 implemented. Runtime warning when encryption + CDC combined.
 
 **The Problem**
 
@@ -1661,26 +1751,30 @@ This is a fundamental architectural constraint of the encrypt-then-chunk design.
 
 ## Summary Table
 
-| # | Type | Severity | Fix Cost | Recommended Action | Task |
-|---|------|----------|----------|--------------------|------|
-| C1 | Memory amplification | High | ~20 LoC | Add `maxRestoreBufferSize` guard | **16.2** |
-| C2 | Orphaned blobs | Medium | ~20 LoC | Report orphaned blob OIDs in error meta | **16.10** |
-| C3 | No chunk size cap | Medium | ~6 LoC | Enforce 100 MiB maximum | **16.6** |
-| C4 | Web Crypto buffering | Medium | ~15 LoC | Add buffer size guard in WebCryptoAdapter | **16.3** |
-| C5 | Passphrase exposure | High | ~90 LoC | Interactive prompt + file-based input | **16.11** |
-| C6 | KDF no rate limit | Low | ~10 LoC | Observability metric + CLI delay | **16.12** |
-| C7 | GCM nonce collision | Low | ~20 LoC | Document bound + vault usage counter | **16.13** |
-| C8 | Crypto adapter LSP violation | Medium | ~50 LoC | Normalize validation + finalize guards | **16.1** |
-| C9 | FixedChunker quadratic alloc | Low | ~20 LoC | Pre-allocated buffer | **16.4** |
-| C10 | Encrypt-then-chunk dedup loss | Medium | ~10 LoC | Runtime warning + documentation | **16.5** |
+| # | Type | Severity | Fix Cost | Recommended Action | Task | Status |
+|---|------|----------|----------|--------------------|------|--------|
+| C1 | Memory amplification | High | ~20 LoC | Add `maxRestoreBufferSize` guard | **16.2** | ✅ Done |
+| C2 | Orphaned blobs | Medium | ~20 LoC | Report orphaned blob OIDs in error meta | **16.10** | ✅ Done |
+| C3 | No chunk size cap | Medium | ~6 LoC | Enforce 100 MiB maximum | **16.6** | ✅ Done |
+| C4 | Web Crypto buffering | Medium | ~15 LoC | Add buffer size guard in WebCryptoAdapter | **16.3** | ✅ Done |
+| C5 | Passphrase exposure | High | ~90 LoC | Interactive prompt + file-based input | **16.11** | ✅ Done |
+| C6 | KDF no rate limit | Low | ~10 LoC | Observability metric + CLI delay | **16.12** | ✅ Done |
+| C7 | GCM nonce collision | Low | ~20 LoC | Document bound + vault usage counter | **16.13** | ✅ Done |
+| C8 | Crypto adapter LSP violation | Medium | ~50 LoC | Normalize validation + finalize guards | **16.1** | ✅ Done |
+| C9 | FixedChunker quadratic alloc | Low | ~20 LoC | Pre-allocated buffer | **16.4** | ✅ Done |
+| C10 | Encrypt-then-chunk dedup loss | Medium | ~10 LoC | Runtime warning + documentation | **16.5** | ✅ Done |
 
-| # | Type | Theme | Est. Cost |
-|---|------|-------|-----------|
-| V1 | Feature | Snapshot trees (directory store) | ~410 LoC, ~19h |
-| V2 | Feature | Portable bundles (air-gap transfer) | ~340 LoC, ~15h |
-| V3 | Feature | Manifest diff engine | ~180 LoC, ~8h |
-| V4 | Feature | CompressionPort + zstd/brotli/lz4 | ~180 LoC, ~8h |
-| V5 | Feature | Watch mode (continuous sync) | ~220 LoC, ~10h |
-| V6 | Feature | Interactive passphrase prompt | ~90 LoC, ~4h — subsumed by **16.11** |
-| V7 | Feature | Prometheus/OpenTelemetry ObservabilityPort adapter — export metrics (chunk throughput, encryption counts, error rates) to Prometheus or OTLP. The `decryption_failed` and `encryptionCount` metrics from M16 are natural candidates for alerting dashboards. | ~150 LoC, ~6h |
-| V8 | Feature | `encryptionCount` auto-rotation — when count reaches a configurable threshold, automatically trigger `rotateVaultPassphrase` with a new passphrase derived from the old one, making nonce exhaustion impossible for long-lived vaults. | ~120 LoC, ~5h |
+| # | Type | Theme | Est. Cost | Status |
+|---|------|-------|-----------|--------|
+| V1 | Feature | Snapshot trees (directory store) | ~410 LoC, ~19h | 🔲 Open |
+| V2 | Feature | Portable bundles (air-gap transfer) | ~340 LoC, ~15h | 🔲 Open |
+| V3 | Feature | Manifest diff engine | ~180 LoC, ~8h | 🔲 Open |
+| V4 | Feature | CompressionPort + zstd/brotli/lz4 | ~180 LoC, ~8h | 🔲 Open |
+| V5 | Feature | Watch mode (continuous sync) | ~220 LoC, ~10h | 🔲 Open |
+| V6 | Feature | Interactive passphrase prompt | ~90 LoC, ~4h | ✅ Done — subsumed by **16.11** |
+| V7 | Feature | Prometheus/OpenTelemetry ObservabilityPort adapter | ~150 LoC, ~6h | 🔲 Open |
+| V8 | Feature | `encryptionCount` auto-rotation | ~120 LoC, ~5h | 🔲 Open |
+| V9 | Feature | `vault status` command — show metadata, `encryptionCount`, entry count, nonce health | ~60 LoC, ~2h | 🔲 Open |
+| V10 | Feature | `gc` command — `collectReferencedChunks` + `git gc` for orphan cleanup | ~80 LoC, ~4h | 🔲 Open |
+| V11 | Feature | KDF parameter tuning via `.casrc` — `kdf.iterations`, `kdf.cost`, `kdf.blockSize`, `kdf.parallelization` with validation (reject insecure values below OWASP minimums) | ~40 LoC, ~2h | 🔲 Open |
+| V12 | Feature | File-level passphrase CLI — `--passphrase` flag for standalone encrypted store without vault encryption. Library already supports `passphrase` + `kdfOptions` on `store()`/`storeFile()`. | ~30 LoC, ~1h | 🔲 Open |
