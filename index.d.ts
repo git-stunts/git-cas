@@ -217,6 +217,7 @@ export declare class VaultService {
     persistence: GitPersistencePortBase;
     ref: GitRefPortBase;
     crypto: CryptoPortBase;
+    observability?: ObservabilityPort;
   });
 
   /** Validates a vault slug. Throws CasError with code INVALID_SLUG on failure. */
