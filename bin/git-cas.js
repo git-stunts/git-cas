@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { readFileSync } from 'node:fs';
-import { program } from 'commander';
+import { program, Option } from 'commander';
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
 import ContentAddressableStore, { EventEmitterObserver, CborCodec } from '../index.js';
 import Manifest from '../src/domain/value-objects/Manifest.js';
@@ -36,17 +36,6 @@ function readKeyFile(keyFilePath) {
     throw new Error(`Invalid key length: expected 32 bytes, got ${buf.length} (${keyFilePath})`);
   }
   return buf;
-}
-
-/**
- * Validate that a KDF algorithm string is a supported value.
- *
- * @param {string} alg
- */
-function validateKdfAlgorithm(alg) {
-  if (!['pbkdf2', 'scrypt'].includes(alg)) {
-    throw new Error(`Invalid KDF algorithm "${alg}": must be "pbkdf2" or "scrypt"`);
-  }
 }
 
 /**
@@ -246,10 +235,10 @@ program
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for encryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
   .option('--gzip', 'Enable gzip compression')
-  .option('--strategy <type>', 'Chunking strategy: fixed or cdc')
+  .addOption(new Option('--strategy <type>', 'Chunking strategy').choices(['fixed', 'cdc']))
   .option('--chunk-size <n>', 'Chunk size in bytes', parseIntFlag)
   .option('--concurrency <n>', 'Parallel chunk I/O operations', parseIntFlag)
-  .option('--codec <type>', 'Manifest codec: json or cbor')
+  .addOption(new Option('--codec <type>', 'Manifest codec').choices(['json', 'cbor']))
   .option('--target-chunk-size <n>', 'CDC target chunk size', parseIntFlag)
   .option('--min-chunk-size <n>', 'CDC minimum chunk size', parseIntFlag)
   .option('--max-chunk-size <n>', 'CDC maximum chunk size', parseIntFlag)
@@ -430,7 +419,7 @@ vault
   .description('Initialize the vault')
   .option('--vault-passphrase <pass>', 'Passphrase for vault-level encryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
-  .option('--algorithm <alg>', 'KDF algorithm (pbkdf2 or scrypt)', 'pbkdf2')
+  .addOption(new Option('--algorithm <alg>', 'KDF algorithm').choices(['pbkdf2', 'scrypt']).default('pbkdf2'))
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
@@ -438,7 +427,6 @@ vault
     const initOpts = {};
     const passphrase = await resolvePassphrase(opts, { confirm: true });
     if (passphrase) {
-      validateKdfAlgorithm(opts.algorithm);
       initOpts.passphrase = passphrase;
       initOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };
     }
@@ -592,7 +580,7 @@ vault
   .option('--new-passphrase <pass>', 'New vault passphrase')
   .option('--old-passphrase-file <path>', 'Read old passphrase from file (- for stdin)')
   .option('--new-passphrase-file <path>', 'Read new passphrase from file (- for stdin)')
-  .option('--algorithm <alg>', 'KDF algorithm (pbkdf2 or scrypt)')
+  .addOption(new Option('--algorithm <alg>', 'KDF algorithm').choices(['pbkdf2', 'scrypt']))
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const { oldPassphrase, newPassphrase } = await resolveRotatePassphrases(opts);
@@ -603,7 +591,6 @@ vault
       newPassphrase,
     };
     if (opts.algorithm) {
-      validateKdfAlgorithm(opts.algorithm);
       rotateOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };
     }
     const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase(rotateOpts);
