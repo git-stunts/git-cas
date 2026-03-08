@@ -575,6 +575,51 @@ git cas restore a1b2c3d4e5f67890... --out ./decrypted-vacation.jpg --key-file ./
 # Output: 524288
 ```
 
+### Compression, Chunking, and Codec Flags
+
+```bash
+# Enable gzip compression
+git cas store ./data.bin --slug my-data --tree --gzip
+
+# Use CDC (content-defined chunking) for sub-file deduplication
+git cas store ./data.bin --slug my-data --tree --strategy cdc
+
+# Customize chunk size and enable parallel I/O
+git cas store ./data.bin --slug my-data --tree --chunk-size 65536 --concurrency 4
+
+# Use CBOR codec for smaller manifests
+git cas store ./data.bin --slug my-data --tree --codec cbor
+
+# CDC with custom parameters
+git cas store ./data.bin --slug my-data --tree \
+  --strategy cdc --target-chunk-size 32768 \
+  --min-chunk-size 8192 --max-chunk-size 131072
+
+# Restore with parallel I/O
+git cas restore --slug my-data --out ./data.bin --concurrency 4
+```
+
+### Project Config File (`.casrc`)
+
+Place a `.casrc` JSON file at the repository root to set defaults. CLI flags
+always take precedence.
+
+```json
+{
+  "chunkSize": 65536,
+  "strategy": "cdc",
+  "concurrency": 4,
+  "codec": "json",
+  "compression": "gzip",
+  "merkleThreshold": 500,
+  "cdc": {
+    "minChunkSize": 8192,
+    "targetChunkSize": 32768,
+    "maxChunkSize": 131072
+  }
+}
+```
+
 ### Working Directory
 
 By default the CLI operates in the current directory. Use `--cwd` to point at

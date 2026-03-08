@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { program } from 'commander';
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
-import ContentAddressableStore, { EventEmitterObserver } from '../index.js';
+import ContentAddressableStore, { EventEmitterObserver, CborCodec } from '../index.js';
 import Manifest from '../src/domain/value-objects/Manifest.js';
 import { createStoreProgress, createRestoreProgress } from './ui/progress.js';
 import { renderEncryptionCard } from './ui/encryption-card.js';
@@ -13,6 +13,7 @@ import { renderHeatmap } from './ui/heatmap.js';
 import { runAction } from './actions.js';
 import { filterEntries, formatTable, formatTabSeparated } from './ui/vault-list.js';
 import { readPassphraseFile, promptPassphrase } from './ui/passphrase-prompt.js';
+import { loadConfig, mergeConfig } from './config.js';
 
 const getJson = () => program.opts().json;
 
@@ -38,16 +39,21 @@ function readKeyFile(keyFilePath) {
 }
 
 /**
- * Create a CAS instance for the given working directory with an optional observability adapter.
+ * Create a CAS instance for the given working directory.
  *
  * @param {string} cwd
- * @param {{ observability?: import('../index.js').ObservabilityPort }} [opts]
+ * @param {Record<string, any>} [opts]
  * @returns {ContentAddressableStore}
  */
 function createCas(cwd, opts = {}) {
   const runner = ShellRunnerFactory.create();
   const plumbing = new GitPlumbing({ runner, cwd });
-  return new ContentAddressableStore({ plumbing, observability: opts.observability });
+  /** @type {Record<string, any>} */
+  const casOpts = { plumbing, ...opts };
+  if (casOpts.codec === 'cbor') {
+    casOpts.codec = new CborCodec();
+  }
+  return new ContentAddressableStore(casOpts);
 }
 
 /**
@@ -208,6 +214,13 @@ function parseRecipient(value, previous) {
   return list;
 }
 
+/** @param {string} v */
+const parseIntFlag = (v) => {
+  const n = parseInt(v, 10);
+  if (Number.isNaN(n)) { throw new Error(`Expected an integer, got "${v}"`); }
+  return n;
+};
+
 program
   .command('store <file>')
   .description('Store a file into Git CAS')
@@ -218,6 +231,15 @@ program
   .option('--force', 'Overwrite existing vault entry')
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for encryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
+  .option('--gzip', 'Enable gzip compression')
+  .option('--strategy <type>', 'Chunking strategy: fixed or cdc')
+  .option('--chunk-size <n>', 'Chunk size in bytes', parseIntFlag)
+  .option('--concurrency <n>', 'Parallel chunk I/O operations', parseIntFlag)
+  .option('--codec <type>', 'Manifest codec: json or cbor')
+  .option('--target-chunk-size <n>', 'CDC target chunk size', parseIntFlag)
+  .option('--min-chunk-size <n>', 'CDC minimum chunk size', parseIntFlag)
+  .option('--max-chunk-size <n>', 'CDC maximum chunk size', parseIntFlag)
+  .option('--merkle-threshold <n>', 'Chunk count threshold for Merkle sub-manifests', parseIntFlag)
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {string} */ file, /** @type {Record<string, any>} */ opts) => {
     if (opts.recipient && (opts.keyFile || hasPassphraseSource(opts))) {
@@ -229,9 +251,13 @@ program
     const json = program.opts().json;
     const quiet = program.opts().quiet || json;
     const observer = new EventEmitterObserver();
-    const cas = createCas(opts.cwd, { observability: observer });
+
+    const config = loadConfig(opts.cwd);
+    const { casConfig, storeExtras } = mergeConfig(opts, config);
+    const cas = createCas(opts.cwd, { observability: observer, ...casConfig });
 
     const storeOpts = await buildStoreOpts(cas, file, opts);
+    Object.assign(storeOpts, storeExtras);
     const progress = createStoreProgress({ filePath: file, chunkSize: cas.chunkSize, quiet });
     progress.attach(observer);
     let manifest;
@@ -308,12 +334,23 @@ program
   .option('--key-file <path>', 'Path to 32-byte raw encryption key file')
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for decryption (prefer GIT_CAS_PASSPHRASE env var)')
   .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
+  .option('--concurrency <n>', 'Parallel chunk I/O operations', parseIntFlag)
+  .option('--max-restore-buffer <n>', 'Max bytes for buffered encrypted/compressed restore', parseIntFlag)
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     validateRestoreFlags(opts);
     const quiet = program.opts().quiet || program.opts().json;
     const observer = new EventEmitterObserver();
-    const cas = createCas(opts.cwd, { observability: observer });
+
+    const config = loadConfig(opts.cwd);
+    /** @type {Record<string, any>} */
+    const casConfig = {};
+    const concurrency = opts.concurrency ?? config.concurrency;
+    const maxRestoreBufferSize = opts.maxRestoreBuffer ?? config.maxRestoreBufferSize;
+    if (concurrency !== undefined) { casConfig.concurrency = concurrency; }
+    if (maxRestoreBufferSize !== undefined) { casConfig.maxRestoreBufferSize = maxRestoreBufferSize; }
+
+    const cas = createCas(opts.cwd, { observability: observer, ...casConfig });
     const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
     const manifest = await cas.readManifest({ treeOid });
 

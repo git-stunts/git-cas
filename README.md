@@ -295,8 +295,39 @@ git cas vault init
 git cas store ./secret.bin --slug vault-entry --tree
 git cas restore --slug vault-entry --out ./decrypted.bin
 
+# Compression, chunking, codec, concurrency
+git cas store ./data.bin --slug my-data --tree --gzip
+git cas store ./data.bin --slug my-data --tree --strategy cdc
+git cas store ./data.bin --slug my-data --tree --chunk-size 65536 --concurrency 4
+git cas store ./data.bin --slug my-data --tree --codec cbor
+
+# Restore with concurrency
+git cas restore --slug my-data --out ./data.bin --concurrency 4
+
 # JSON output on any command (for CI/scripting)
 git cas store ./data.bin --slug my-data --tree --json
+```
+
+### `.casrc` — Project Config File
+
+Place a `.casrc` JSON file at the repository root to set defaults for CLI flags.
+CLI flags always take precedence over `.casrc` values.
+
+```json
+{
+  "chunkSize": 65536,
+  "strategy": "cdc",
+  "concurrency": 4,
+  "codec": "json",
+  "compression": "gzip",
+  "merkleThreshold": 500,
+  "maxRestoreBufferSize": 1073741824,
+  "cdc": {
+    "minChunkSize": 8192,
+    "targetChunkSize": 32768,
+    "maxChunkSize": 131072
+  }
+}
 ```
 
 ## Documentation

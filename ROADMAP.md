@@ -228,7 +228,7 @@ M15 Prism ─────────────── ✅
 | M10| Hydra         | Content-defined chunking   | v5.0.0  | 4     | ~690   | ~22h  | ✅ CLOSED |
 | M11| Locksmith     | Multi-recipient encryption | v5.1.0  | 4     | ~580   | ~20h  | ✅ CLOSED |
 | M12| Carousel      | Key rotation               | v5.2.0  | 4     | ~400   | ~13h  | ✅ CLOSED |
-| M16| Capstone      | Audit remediation          | v5.3.0  | 13    | ~430   | ~28h  | 🔲 OPEN  |
+| M16| Capstone      | Audit remediation          | v5.3.0  | 13    | ~698   | ~21h  | 🔲 OPEN  |
 
 Completed task cards are in [COMPLETED_TASKS.md](./COMPLETED_TASKS.md). Superseded tasks are in [GRAVEYARD.md](./GRAVEYARD.md).
 
