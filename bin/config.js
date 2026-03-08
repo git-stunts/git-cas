@@ -99,7 +99,7 @@ function resolveChunking({ strategy, chunkSize, cliOpts, config }) {
  * @returns {{ casConfig: Record<string, any>, storeExtras: Record<string, any> }}
  */
 export function mergeConfig(cliOpts, config) {
-  const strategy = cliOpts.strategy || config.strategy;
+  const strategy = cliOpts.strategy ?? config.strategy;
   const chunkSize = cliOpts.chunkSize ?? config.chunkSize;
 
   /** @type {Record<string, any>} */
@@ -110,7 +110,7 @@ export function mergeConfig(cliOpts, config) {
   setIfDefined(casConfig, 'maxRestoreBufferSize', cliOpts.maxRestoreBufferSize ?? config.maxRestoreBufferSize);
   setIfDefined(casConfig, 'chunking', resolveChunking({ strategy, chunkSize, cliOpts, config }));
 
-  const codec = cliOpts.codec || config.codec;
+  const codec = cliOpts.codec ?? config.codec;
   if (codec === 'cbor') { casConfig.codec = 'cbor'; }
 
   /** @type {Record<string, any>} */

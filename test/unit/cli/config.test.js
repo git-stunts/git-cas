@@ -100,6 +100,18 @@ describe('mergeConfig — compression', () => {
   });
 });
 
+describe('mergeConfig — nullish coalescing', () => {
+  it('empty-string CLI strategy does not fall through to config', () => {
+    const { casConfig } = mergeConfig({ strategy: '' }, { strategy: 'cdc' });
+    expect(casConfig.chunking).toBeUndefined();
+  });
+
+  it('empty-string CLI codec does not fall through to config', () => {
+    const { casConfig } = mergeConfig({ codec: '' }, { codec: 'cbor' });
+    expect(casConfig.codec).toBeUndefined();
+  });
+});
+
 describe('mergeConfig — codec and thresholds', () => {
   it('cbor codec from CLI', () => {
     const { casConfig } = mergeConfig({ codec: 'cbor' }, {});
