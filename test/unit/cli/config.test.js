@@ -49,7 +49,7 @@ describe('loadConfig', () => {
   });
 });
 
-describe('loadConfig — validation', () => {
+describe('loadConfig — chunkSize validation', () => {
   afterEach(teardown);
 
   it('rejects non-integer chunkSize', () => {
@@ -63,6 +63,16 @@ describe('loadConfig — validation', () => {
     writeFileSync(join(tmpDir, '.casrc'), JSON.stringify({ chunkSize: 512 }));
     expect(() => loadConfig(tmpDir)).toThrow(/chunkSize must be an integer >= 1024/);
   });
+
+  it('rejects chunkSize above 100 MiB', () => {
+    setup();
+    writeFileSync(join(tmpDir, '.casrc'), JSON.stringify({ chunkSize: 200 * 1024 * 1024 }));
+    expect(() => loadConfig(tmpDir)).toThrow(/chunkSize must not exceed/);
+  });
+});
+
+describe('loadConfig — field validation', () => {
+  afterEach(teardown);
 
   it('rejects invalid strategy', () => {
     setup();

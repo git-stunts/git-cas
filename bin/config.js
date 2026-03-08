@@ -21,6 +21,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const FILENAME = '.casrc';
+const MAX_CHUNK_SIZE = 100 * 1024 * 1024;
 
 /**
  * @typedef {Object} CasConfig
@@ -37,12 +38,15 @@ const FILENAME = '.casrc';
 /**
  * @param {any} value
  * @param {string} name
- * @param {number} min
+ * @param {{ min: number, max?: number }} range
  */
-function assertInt(value, name, min) {
+function assertInt(value, name, { min, max }) {
   if (value === undefined) { return; }
   if (!Number.isInteger(value) || value < min) {
     throw new Error(`${FILENAME}: ${name} must be an integer >= ${min}`);
+  }
+  if (max !== undefined && value > max) {
+    throw new Error(`${FILENAME}: ${name} must not exceed ${max}`);
   }
 }
 
@@ -67,7 +71,7 @@ function validateCdc(config) {
     throw new Error(`${FILENAME}: cdc must be an object`);
   }
   for (const key of ['minChunkSize', 'targetChunkSize', 'maxChunkSize']) {
-    assertInt(config.cdc[key], `cdc.${key}`, 1);
+    assertInt(config.cdc[key], `cdc.${key}`, { min: 1, max: MAX_CHUNK_SIZE });
   }
 }
 
@@ -77,15 +81,15 @@ function validateCdc(config) {
  * @param {Record<string, any>} config
  */
 function validateConfig(config) {
-  assertInt(config.chunkSize, 'chunkSize', 1024);
+  assertInt(config.chunkSize, 'chunkSize', { min: 1024, max: MAX_CHUNK_SIZE });
   assertEnum(config.strategy, 'strategy', ['fixed', 'cdc']);
-  assertInt(config.concurrency, 'concurrency', 1);
+  assertInt(config.concurrency, 'concurrency', { min: 1 });
   assertEnum(config.codec, 'codec', ['json', 'cbor']);
   if (config.compression !== undefined && config.compression !== false) {
     assertEnum(config.compression, 'compression', ['gzip']);
   }
-  assertInt(config.merkleThreshold, 'merkleThreshold', 1);
-  assertInt(config.maxRestoreBufferSize, 'maxRestoreBufferSize', 1024);
+  assertInt(config.merkleThreshold, 'merkleThreshold', { min: 1 });
+  assertInt(config.maxRestoreBufferSize, 'maxRestoreBufferSize', { min: 1024 });
   validateCdc(config);
 }
 

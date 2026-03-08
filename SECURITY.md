@@ -682,7 +682,7 @@ throw new CasError(
 **Recommended action**:
 - Increase `maxEncryptionBufferSize` in the `WebCryptoAdapter` constructor.
 - Switch to `NodeCryptoAdapter` if streaming encryption is needed.
-- Reduce chunk size to keep individual encryption operations within the limit.
+- Split the asset before storing, or store without encryption on the Web Crypto path for very large files.
 
 ---
 

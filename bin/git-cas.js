@@ -229,8 +229,9 @@ function parseRecipient(value, previous) {
 
 /** @param {string} v */
 const parseIntFlag = (v) => {
-  const n = parseInt(v, 10);
-  if (Number.isNaN(n)) { throw new Error(`Expected an integer, got "${v}"`); }
+  if (!/^-?\d+$/.test(v)) { throw new Error(`Expected an integer, got "${v}"`); }
+  const n = Number(v);
+  if (!Number.isSafeInteger(n)) { throw new Error(`Expected a safe integer, got "${v}"`); }
   return n;
 };
 
@@ -256,7 +257,7 @@ program
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {string} */ file, /** @type {Record<string, any>} */ opts) => {
     if (opts.recipient && (opts.keyFile || hasPassphraseSource(opts))) {
-      throw new Error('Provide --key-file/--vault-passphrase or --recipient, not both');
+      throw new Error('Provide --key-file or a vault passphrase source (--vault-passphrase, --vault-passphrase-file, GIT_CAS_PASSPHRASE), or --recipient — not both');
     }
     if (opts.force && !opts.tree) {
       throw new Error('--force requires --tree');
