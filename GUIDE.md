@@ -666,14 +666,14 @@ The `verifyIntegrity` method reads each chunk blob from Git, recomputes its
 SHA-256 digest, and compares it against the manifest. It emits either
 `integrity:pass` or `integrity:fail` events (see Section 9).
 
-### Deleting an Asset
+### Inspecting an Asset
 
-`deleteAsset` returns logical deletion metadata for an asset without
+`inspectAsset` returns logical deletion metadata for an asset without
 performing any destructive Git operations. The caller is responsible for
 removing refs and running `git gc --prune` to reclaim space:
 
 ```js
-const { slug, chunksOrphaned } = await cas.deleteAsset({ treeOid });
+const { slug, chunksOrphaned } = await cas.inspectAsset({ treeOid });
 console.log(`Asset "${slug}" has ${chunksOrphaned} chunks to clean up`);
 
 // Remove the ref pointing to the tree, then:
@@ -683,23 +683,29 @@ console.log(`Asset "${slug}" has ${chunksOrphaned} chunks to clean up`);
 This is intentionally non-destructive: CAS never modifies or deletes Git
 objects. It only tells you what would become unreachable.
 
-### Finding Orphaned Chunks
+> **Deprecation note:** `deleteAsset()` is a deprecated alias for
+> `inspectAsset()`. It will be removed in a future major version.
+
+### Collecting Referenced Chunks
 
 When you store the same file multiple times with different chunk sizes, or
 store overlapping files, some chunk blobs may no longer be referenced by any
-manifest. `findOrphanedChunks` aggregates all referenced chunk blob OIDs
+manifest. `collectReferencedChunks` aggregates all referenced chunk blob OIDs
 across multiple assets:
 
 ```js
-const { referenced, total } = await cas.findOrphanedChunks({
+const { referenced, total } = await cas.collectReferencedChunks({
   treeOids: [treeOid1, treeOid2, treeOid3]
 });
 console.log(`${referenced.size} unique blobs across ${total} total chunk references`);
 ```
 
 If any `treeOid` lacks a manifest, the call throws
-`CasError('MANIFEST_NOT_FOUND')` (fail closed). This is analysis only -- no
+`CasError('MANIFEST_NOT_FOUND')` (fail closed). This is analysis only — no
 objects are deleted or modified.
+
+> **Deprecation note:** `findOrphanedChunks()` is a deprecated alias for
+> `collectReferencedChunks()`. It will be removed in a future major version.
 
 ### Working with Multiple Assets
 

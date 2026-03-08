@@ -29,7 +29,7 @@ We use the object database.
 - **Manifests** a tiny explicit index of chunks + metadata (JSON/CBOR).
 - **Tree output** generates standard Git trees so assets snap into commits cleanly.
 - **Full round-trip** store, tree, and restore — get your bytes back, verified.
-- **Lifecycle management** `readManifest`, `deleteAsset`, `findOrphanedChunks` — inspect trees, plan deletions, audit storage.
+- **Lifecycle management** `readManifest`, `inspectAsset`, `collectReferencedChunks` — inspect trees, plan deletions, audit storage.
 - **Vault** GC-safe ref-based storage. One ref (`refs/cas/vault`) indexes all assets by slug. No more silent data loss from `git gc`.
 - **Interactive dashboard** `git cas inspect` with chunk heatmap, animated progress bars, and rich manifest views.
 - **Verify & JSON output** `git cas verify` checks integrity; `--json` on all commands for CI/scripting.
@@ -229,9 +229,9 @@ await cas.restoreFile({ manifest, outputPath: './restored.png' });
 // Read the manifest back from a tree OID
 const m = await cas.readManifest({ treeOid });
 
-// Lifecycle: inspect deletion impact, find orphaned chunks
-const { slug, chunksOrphaned } = await cas.deleteAsset({ treeOid });
-const { referenced, total } = await cas.findOrphanedChunks({ treeOids: [treeOid] });
+// Lifecycle: inspect deletion impact, collect referenced chunks
+const { slug, chunksOrphaned } = await cas.inspectAsset({ treeOid });
+const { referenced, total } = await cas.collectReferencedChunks({ treeOids: [treeOid] });
 
 // v2.0.0: Compressed + passphrase-encrypted store
 const manifest2 = await cas.storeFile({

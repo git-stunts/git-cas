@@ -635,6 +635,55 @@ throw new CasError(
 - Verify the encryption key is available and passed to `restore()`.
 - If the key is lost, the content is permanently inaccessible.
 
+### `RESTORE_TOO_LARGE`
+
+**Thrown when**:
+- An encrypted or compressed restore would exceed the configured `maxRestoreBufferSize` limit.
+- The post-decompression size exceeds the limit (checked after gunzip).
+
+**Example**:
+```javascript
+throw new CasError(
+  'Restore buffer exceeds limit',
+  'RESTORE_TOO_LARGE',
+  { size: 1073741824, limit: 536870912 },
+);
+```
+
+**Possible causes**:
+- The asset is larger than the configured buffer limit (default 512 MiB).
+- A compressed asset inflates beyond the limit after decompression.
+
+**Recommended action**:
+- Increase `maxRestoreBufferSize` in the `CasService` constructor or `.casrc`.
+- For very large assets, consider storing without encryption to enable streaming restore.
+
+---
+
+### `ENCRYPTION_BUFFER_EXCEEDED`
+
+**Thrown when**:
+- Web Crypto AES-GCM encryption is attempted on data exceeding the configured `maxEncryptionBufferSize`.
+- Web Crypto is a one-shot API — it cannot stream, so the entire plaintext must fit in memory.
+
+**Example**:
+```javascript
+throw new CasError(
+  'Encryption buffer exceeds limit',
+  'ENCRYPTION_BUFFER_EXCEEDED',
+  { size: 1073741824, limit: 536870912 },
+);
+```
+
+**Possible causes**:
+- Large chunks combined with `WebCryptoAdapter` (used in Bun/Deno).
+- `NodeCryptoAdapter` uses true streaming and is not affected by this limit.
+
+**Recommended action**:
+- Increase `maxEncryptionBufferSize` in the `WebCryptoAdapter` constructor.
+- Switch to `NodeCryptoAdapter` if streaming encryption is needed.
+- Reduce chunk size to keep individual encryption operations within the limit.
+
 ---
 
 ## Conclusion

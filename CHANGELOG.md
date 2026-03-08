@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vault rotate passphrase-file support** — `vault rotate` now accepts `--old-passphrase-file` and `--new-passphrase-file` flags, bringing it to parity with the store/restore passphrase-file support.
+
+### Fixed (PR #17 review findings)
+- **VaultService constructor type** — Added missing `observability?: ObservabilityPort` parameter to `index.d.ts` declaration.
+- **Nullish coalescing for config merging** — `strategy` and `codec` in `mergeConfig()` now use `??` instead of `||`, so empty-string CLI values don't fall through to `.casrc` defaults.
+- **Empty passphrase rejection** — `readPassphraseFile` rejects files that yield an empty string after newline stripping. `resolvePassphrase` validates `--vault-passphrase` flag and `GIT_CAS_PASSPHRASE` env var.
+- **KDF algorithm validation** — `vault init` and `vault rotate` now validate `--algorithm` against the supported set (`pbkdf2`, `scrypt`) before passing to the KDF.
+- **`.casrc` config validation** — `loadConfig()` now validates all config values (types, ranges, enum membership) after JSON parsing.
+- **Deprecated method names in docs** — Updated `deleteAsset` → `inspectAsset` and `findOrphanedChunks` → `collectReferencedChunks` in README and GUIDE.
+- **Missing error codes in SECURITY.md** — Added `RESTORE_TOO_LARGE` and `ENCRYPTION_BUFFER_EXCEEDED` sections.
+
+### Added
 - **CLI store flags** — `--gzip`, `--strategy <fixed|cdc>`, `--chunk-size <n>`, `--concurrency <n>`, `--codec <json|cbor>`, `--merkle-threshold <n>`, `--target-chunk-size <n>`, `--min-chunk-size <n>`, `--max-chunk-size <n>`. All library-level chunking, compression, codec, and concurrency options are now accessible from the CLI.
 - **CLI restore flags** — `--concurrency <n>`, `--max-restore-buffer <n>`. Parallel I/O and restore buffer limit now configurable from CLI.
 - **`.casrc` config file** — JSON config file at the repository root provides default values for CLI flags. CLI flags always take precedence. Supports: `chunkSize`, `strategy`, `concurrency`, `codec`, `compression`, `merkleThreshold`, `maxRestoreBufferSize`, and `cdc.*` sub-keys.
