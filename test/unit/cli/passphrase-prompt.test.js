@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { writeFile, unlink } from 'node:fs/promises';
+import { writeFile, unlink, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readPassphraseFile } from '../../../bin/ui/passphrase-prompt.js';
@@ -59,7 +59,8 @@ describe('readPassphraseFile — permission warnings', () => {
     const origWrite = process.stderr.write;
     process.stderr.write = (/** @type {any} */ chunk) => { writeSpy.push(String(chunk)); return true; };
     try {
-      await writeFile(tmpPath, 'secret\n', { mode: 0o644 });
+      await writeFile(tmpPath, 'secret\n');
+      await chmod(tmpPath, 0o644);
       await readPassphraseFile(tmpPath);
       expect(writeSpy.some((s) => s.includes('permissions'))).toBe(true);
     } finally {
@@ -72,7 +73,8 @@ describe('readPassphraseFile — permission warnings', () => {
     const origWrite = process.stderr.write;
     process.stderr.write = (/** @type {any} */ chunk) => { writeSpy.push(String(chunk)); return true; };
     try {
-      await writeFile(tmpPath, 'secret\n', { mode: 0o600 });
+      await writeFile(tmpPath, 'secret\n');
+      await chmod(tmpPath, 0o600);
       await readPassphraseFile(tmpPath);
       expect(writeSpy.some((s) => s.includes('permissions'))).toBe(false);
     } finally {

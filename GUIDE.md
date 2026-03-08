@@ -1620,6 +1620,10 @@ to hold the entire file.
 The minimum chunk size is 1 KiB. This prevents pathologically small chunks
 that would create excessive Git objects. Increase your `chunkSize` parameter.
 
+There is also a hard cap at 100 MiB — values above this are rejected outright.
+Setting `chunkSize` above 10 MiB will trigger a warning, since very large
+chunks reduce deduplication benefit and increase memory pressure.
+
 ### Q: I get "Encryption key must be 32 bytes, got N"
 
 AES-256 requires exactly a 256-bit (32-byte) key. Ensure your key file
