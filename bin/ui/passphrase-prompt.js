@@ -58,11 +58,15 @@ export async function readPassphraseFile(filePath) {
     for await (const chunk of process.stdin) {
       chunks.push(chunk);
     }
-    return Buffer.concat(chunks).toString('utf8').replace(/\r?\n$/, '');
+    const stdinResult = Buffer.concat(chunks).toString('utf8').replace(/\r?\n$/, '');
+    if (!stdinResult) { throw new Error('Passphrase must not be empty'); }
+    return stdinResult;
   }
   await warnInsecurePermissions(filePath);
   const content = await readFile(filePath, 'utf8');
-  return content.replace(/\r?\n$/, '');
+  const trimmed = content.replace(/\r?\n$/, '');
+  if (!trimmed) { throw new Error('Passphrase must not be empty'); }
+  return trimmed;
 }
 
 /**

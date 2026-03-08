@@ -36,6 +36,18 @@ describe('readPassphraseFile', () => {
   });
 });
 
+describe('readPassphraseFile — empty passphrase rejection', () => {
+  it('rejects file containing only LF', async () => {
+    await writeFile(tmpPath, '\n', 'utf8');
+    await expect(readPassphraseFile(tmpPath)).rejects.toThrow('Passphrase must not be empty');
+  });
+
+  it('rejects file containing only CRLF', async () => {
+    await writeFile(tmpPath, '\r\n', 'utf8');
+    await expect(readPassphraseFile(tmpPath)).rejects.toThrow('Passphrase must not be empty');
+  });
+});
+
 describe('readPassphraseFile — permission warnings', () => {
   it('warns on group/world-readable file permissions', async () => {
     const writeSpy = [];

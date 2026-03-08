@@ -108,9 +108,11 @@ async function resolvePassphrase(opts, extra = {}) {
     return await readPassphraseFile(opts.vaultPassphraseFile);
   }
   if (opts.vaultPassphrase) {
+    if (!opts.vaultPassphrase.trim()) { throw new Error('Passphrase must not be empty'); }
     return opts.vaultPassphrase;
   }
   if (process.env.GIT_CAS_PASSPHRASE) {
+    if (!process.env.GIT_CAS_PASSPHRASE.trim()) { throw new Error('Passphrase must not be empty'); }
     return process.env.GIT_CAS_PASSPHRASE;
   }
   if (process.stdin.isTTY) {
