@@ -34,7 +34,7 @@ async function createDeps(repoDir) {
   const service = new CasService({
     persistence, codec: new JsonCodec(), crypto, observability: new SilentObserver(), chunkSize: 1024,
   });
-  const vault = new VaultService({ persistence, ref, crypto });
+  const vault = new VaultService({ persistence, ref, crypto, observability: new SilentObserver() });
   return { service, vault };
 }
 

@@ -171,6 +171,8 @@ export interface ContentAddressableStoreOptions {
   concurrency?: number;
   chunking?: ChunkingConfig;
   chunker?: ChunkingPort;
+  /** Maximum bytes to buffer during encrypted/compressed restore. @default 536870912 (512 MiB) */
+  maxRestoreBufferSize?: number;
 }
 
 /** A single vault entry. */
@@ -182,6 +184,8 @@ export interface VaultEntry {
 /** Vault metadata stored in .vault.json. */
 export interface VaultMetadata {
   version: number;
+  /** Number of encrypted store operations performed with this vault key. */
+  encryptionCount?: number;
   encryption?: {
     cipher: string;
     kdf: {
@@ -213,6 +217,7 @@ export declare class VaultService {
     persistence: GitPersistencePortBase;
     ref: GitRefPortBase;
     crypto: CryptoPortBase;
+    observability?: ObservabilityPort;
   });
 
   /** Validates a vault slug. Throws CasError with code INVALID_SLUG on failure. */
@@ -341,10 +346,20 @@ export default class ContentAddressableStore {
 
   readManifest(options: { treeOid: string }): Promise<Manifest>;
 
+  inspectAsset(options: {
+    treeOid: string;
+  }): Promise<{ slug: string; chunksOrphaned: number }>;
+
+  /** @deprecated Use {@link inspectAsset} instead. */
   deleteAsset(options: {
     treeOid: string;
   }): Promise<{ slug: string; chunksOrphaned: number }>;
 
+  collectReferencedChunks(options: {
+    treeOids: string[];
+  }): Promise<{ referenced: Set<string>; total: number }>;
+
+  /** @deprecated Use {@link collectReferencedChunks} instead. */
   findOrphanedChunks(options: {
     treeOids: string[];
   }): Promise<{ referenced: Set<string>; total: number }>;

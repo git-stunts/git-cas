@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Vault rotate passphrase-file support** — `vault rotate` now accepts `--old-passphrase-file` and `--new-passphrase-file` flags, bringing it to parity with the store/restore passphrase-file support.
+- **CLI store flags** — `--gzip`, `--strategy <fixed|cdc>`, `--chunk-size <n>`, `--concurrency <n>`, `--codec <json|cbor>`, `--merkle-threshold <n>`, `--target-chunk-size <n>`, `--min-chunk-size <n>`, `--max-chunk-size <n>`. All library-level chunking, compression, codec, and concurrency options are now accessible from the CLI.
+- **CLI restore flags** — `--concurrency <n>`, `--max-restore-buffer <n>`. Parallel I/O and restore buffer limit now configurable from CLI.
+- **`.casrc` config file** — JSON config file at the repository root provides default values for CLI flags. CLI flags always take precedence. Supports: `chunkSize`, `strategy`, `concurrency`, `codec`, `compression`, `merkleThreshold`, `maxRestoreBufferSize`, and `cdc.*` sub-keys.
+- **CODE-EVAL.md** — Forensic architectural audit (zero-knowledge code extraction, critical assessment, roadmap reconciliation, prescriptive blueprint).
+- **M16 Capstone** — New milestone in ROADMAP.md addressing all 9 audit flaws and 10 concerns (C1–C10). 13 task cards, ~698 LoC, ~21h estimated.
+- **Concerns C8–C10** — Three architectural concerns from the CODE-EVAL.md audit now documented: crypto adapter LSP violation (C8), FixedChunker quadratic allocation (C9), encrypt-then-chunk dedup loss (C10).
+- **CasError codes** — `RESTORE_TOO_LARGE` and `ENCRYPTION_BUFFER_EXCEEDED` registered in canonical error code table.
+- **16.2 — Memory restore guard** — `CasService` accepts `maxRestoreBufferSize` (default 512 MiB). `_restoreBuffered` throws `RESTORE_TOO_LARGE` with `{ size, limit }` meta when encrypted/compressed restore would exceed the limit. Unencrypted streaming restore is unaffected.
+- **16.3 — Web Crypto encryption buffer guard** — `WebCryptoAdapter` accepts `maxEncryptionBufferSize` (default 512 MiB). Throws `ENCRYPTION_BUFFER_EXCEEDED` when streaming encryption exceeds the limit, since Web Crypto AES-GCM is a one-shot API. NodeCryptoAdapter uses true streaming and is unaffected.
+- **16.5 — Encrypt-then-chunk dedup warning** — `CasService.store()` now logs a warning when encryption is combined with CDC chunking, since ciphertext is pseudorandom and content-defined boundaries provide no dedup benefit.
+- **16.10 — Orphaned blob tracking** — `STREAM_ERROR` now includes `meta.orphanedBlobs` — an array of OIDs for blobs successfully written before the stream failure. Error metric includes `orphanedBlobs` count for observability.
+- **16.11 — Passphrase input security** — New `--vault-passphrase-file <path>` CLI option reads passphrase from file (use `-` for stdin). Interactive TTY prompt added as fallback when no other passphrase source is available. `resolvePassphrase` is now async with priority: file → flag → env → TTY → undefined. Empty passphrases rejected. File permission warning on group/world-readable files.
+- **16.12 — KDF brute-force awareness** — `CasService` now emits `decryption_failed` metric with slug context when decryption fails with `INTEGRITY_ERROR` during encrypted restore. CLI adds a 1-second delay after `INTEGRITY_ERROR` to slow brute-force attempts. Library API imposes no delay — callers manage their own rate-limiting policy.
+- **16.13 — GCM nonce collision docs + encryption counter** — `SECURITY.md` moved to project root with new sections: GCM nonce bound (2^32 NIST limit), key rotation frequency, KDF parameter guidance, and passphrase entropy recommendations. Vault metadata now tracks `encryptionCount`, incremented per encrypted `addToVault()`. Observability warning emitted when count exceeds 2^31. `VaultService` accepts optional `observability` port.
+- **16.7 — Lifecycle method naming** — Added `inspectAsset()` (replaces `deleteAsset()`) and `collectReferencedChunks()` (replaces `findOrphanedChunks()`) as canonical names on both `CasService` and the facade. Old names are preserved as deprecated aliases that emit observability warnings. Type definitions updated with `@deprecated` JSDoc.
+
+### Changed
+- **`runAction` injectable delay** — `runAction()` now accepts an optional `{ delay }` dependency, replacing the hardcoded `setTimeout` call. Tests inject a spy instead of using `vi.useFakeTimers()`, making INTEGRITY_ERROR rate-limit tests deterministic across Node, Bun, and Deno.
+- **Test conventions** — Added `test/CONVENTIONS.md` documenting rules for deterministic, cross-runtime tests: inject time dependencies, use `chmod()` instead of `writeFile({ mode })`, avoid global state patching.
+- **VaultService test observability wiring** — `VaultService.test.js` now passes a `mockObservability()` port to all tests instead of relying on the silent no-op default. `rotateVaultPassphrase.test.js` now passes `SilentObserver` explicitly. If observability wiring breaks, the test suite will catch it.
+- **`NodeCryptoAdapter.encryptBuffer` JSDoc** — `@returns` annotation corrected to `Promise<...>`, matching the async implementation.
+- **`maxRestoreBufferSize` documented** — constructor JSDoc and `#config` type in `ContentAddressableStore` now include the parameter.
+- **ROADMAP.md heading level** — added `## Task Cards` heading between `# M16` and `### 16.1` to satisfy MD001 heading-increment rule.
+- **16.1 — Crypto adapter behavioral normalization** — `NodeCryptoAdapter.encryptBuffer` now returns a Promise (was sync), matching Bun/Web. `decryptBuffer` validates key on all adapters. `NodeCryptoAdapter.createEncryptionStream` guards `finalize()` with `STREAM_NOT_CONSUMED`. New conformance test suite asserts identical contracts across all adapters.
+- **16.4 — FixedChunker pre-allocated buffer** — Replaced `Buffer.concat()` loop with a pre-allocated `Buffer.allocUnsafe(chunkSize)` working buffer, eliminating O(n²) copies for many small input buffers. Matches the allocation strategy used by `CdcChunker`.
+
+### Fixed
+- **Post-decompression size guard** — `_restoreBuffered` now enforces `maxRestoreBufferSize` after decompression, not just before. Compressed payloads that inflate beyond the configured limit now throw `RESTORE_TOO_LARGE` instead of silently allocating unbounded memory.
+- **CLI passphrase prompt deferral** — `resolveEncryptionKey` now checks vault metadata before calling `resolvePassphrase`, avoiding unnecessary TTY prompts for unencrypted vaults. Store action recipient-conflict check inspects flags/env without consuming stdin.
+- **CRLF passphrase normalization** — `readPassphraseFile` now strips trailing `\r\n` (Windows line endings) in addition to `\n`, preventing passphrase mismatches from Windows-edited files.
+- **Constructor validation** — `CasService.maxRestoreBufferSize` (integer >= 1024), `CasService.chunkSize` (integer >= 1024), `WebCryptoAdapter.maxEncryptionBufferSize` (finite, positive), and `FixedChunker.chunkSize` (positive integer) are now validated at construction time, preventing silent misconfiguration.
+- **Error-path test hardening** — `orphanedBlobs`, `restoreGuard`, `kdfBruteForce`, and `conformance` tests now fail explicitly when expected errors are not thrown (previously silent pass-through).
+- **Orphaned blob enrichment on CasError re-throw** — `_chunkAndStore` now attaches `orphanedBlobs` metadata to existing `CasError` instances before re-throwing, instead of discarding the information.
+- **VaultService metadata mutation on retry** — `addToVault` now shallow-copies `state.metadata` before mutation, preventing `encryptionCount` from being incremented multiple times across CAS retries.
+- **16.8 — CasError portability guard** — `Error.captureStackTrace` now guarded with a runtime check. CasError constructs correctly on runtimes where `captureStackTrace` is unavailable (e.g. Firefox, older Deno).
+- **16.9 — Pre-commit hook + hooks directory** — `scripts/git-hooks/` renamed to `scripts/hooks/` per CLAUDE.md convention. New `pre-commit` hook runs lint gate. `install-hooks.sh` updated accordingly.
+- **16.6 — Chunk size upper bound** — CasService, FixedChunker, and CdcChunker now reject chunk sizes exceeding 100 MiB. CasService logs a warning when chunk size exceeds 10 MiB.
+- **ROADMAP.md M16 summary** — Corrected LoC/hours from `~430/~28h` to `~698/~21h` to match the detailed task breakdown.
+- **VaultService constructor type** — Added missing `observability?: ObservabilityPort` parameter to `index.d.ts` declaration.
+- **Nullish coalescing for config merging** — `strategy` and `codec` in `mergeConfig()` now use `??` instead of `||`, so empty-string CLI values don't fall through to `.casrc` defaults.
+- **Empty passphrase rejection** — `readPassphraseFile` rejects files that yield an empty string after newline stripping. `resolvePassphrase` validates `--vault-passphrase` flag and `GIT_CAS_PASSPHRASE` env var.
+- **KDF algorithm validation** — `vault init` and `vault rotate` now validate `--algorithm` against the supported set (`pbkdf2`, `scrypt`) before passing to the KDF.
+- **`.casrc` config validation** — `loadConfig()` now validates all config values (types, ranges, enum membership) after JSON parsing.
+- **Deprecated method names in docs** — Updated `deleteAsset` → `inspectAsset` and `findOrphanedChunks` → `collectReferencedChunks` in README and GUIDE.
+- **Missing error codes in SECURITY.md** — Added `RESTORE_TOO_LARGE` and `ENCRYPTION_BUFFER_EXCEEDED` sections.
+
 ## [5.2.4] — Prism polish (2026-03-03)
 
 ### Fixed

@@ -64,14 +64,15 @@ export default class ContentAddressableStore {
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
    * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance (advanced).
+   * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes for encrypted/compressed restores (default 512 MiB).
    */
-  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker }) {
-    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker };
+  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize }) {
+    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize };
     this.service = null;
     this.#servicePromise = null;
   }
 
-  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: * }} */
+  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number }} */
   #config;
   /** @type {VaultService|null} */
   #vault = null;
@@ -111,13 +112,14 @@ export default class ContentAddressableStore {
       merkleThreshold: cfg.merkleThreshold,
       concurrency: cfg.concurrency,
       chunker,
+      maxRestoreBufferSize: cfg.maxRestoreBufferSize,
     });
 
     const ref = new GitRefAdapter({
       plumbing: cfg.plumbing,
       policy: cfg.policy,
     });
-    this.#vault = new VaultService({ persistence, ref, crypto });
+    this.#vault = new VaultService({ persistence, ref, crypto, observability: this.service.observability });
 
     return this.service;
   }
@@ -314,7 +316,18 @@ export default class ContentAddressableStore {
   }
 
   /**
-   * Returns deletion metadata for an asset stored in a Git tree.
+   * Reads a manifest from a Git tree and returns inspection metadata.
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID of the asset.
+   * @returns {Promise<{ slug: string, chunksOrphaned: number }>}
+   */
+  async inspectAsset(options) {
+    const service = await this.#getService();
+    return await service.inspectAsset(options);
+  }
+
+  /**
+   * @deprecated Use {@link inspectAsset} instead.
    * @param {Object} options
    * @param {string} options.treeOid - Git tree OID of the asset.
    * @returns {Promise<{ slug: string, chunksOrphaned: number }>}
@@ -326,6 +339,17 @@ export default class ContentAddressableStore {
 
   /**
    * Aggregates referenced chunk blob OIDs across multiple stored assets.
+   * @param {Object} options
+   * @param {string[]} options.treeOids - Git tree OIDs to analyze.
+   * @returns {Promise<{ referenced: Set<string>, total: number }>}
+   */
+  async collectReferencedChunks(options) {
+    const service = await this.#getService();
+    return await service.collectReferencedChunks(options);
+  }
+
+  /**
+   * @deprecated Use {@link collectReferencedChunks} instead.
    * @param {Object} options
    * @param {string[]} options.treeOids - Git tree OIDs to analyze.
    * @returns {Promise<{ referenced: Set<string>, total: number }>}

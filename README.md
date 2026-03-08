@@ -29,7 +29,7 @@ We use the object database.
 - **Manifests** a tiny explicit index of chunks + metadata (JSON/CBOR).
 - **Tree output** generates standard Git trees so assets snap into commits cleanly.
 - **Full round-trip** store, tree, and restore — get your bytes back, verified.
-- **Lifecycle management** `readManifest`, `deleteAsset`, `findOrphanedChunks` — inspect trees, plan deletions, audit storage.
+- **Lifecycle management** `readManifest`, `inspectAsset`, `collectReferencedChunks` — inspect trees, plan deletions, audit storage.
 - **Vault** GC-safe ref-based storage. One ref (`refs/cas/vault`) indexes all assets by slug. No more silent data loss from `git gc`.
 - **Interactive dashboard** `git cas inspect` with chunk heatmap, animated progress bars, and rich manifest views.
 - **Verify & JSON output** `git cas verify` checks integrity; `--json` on all commands for CI/scripting.
@@ -229,9 +229,9 @@ await cas.restoreFile({ manifest, outputPath: './restored.png' });
 // Read the manifest back from a tree OID
 const m = await cas.readManifest({ treeOid });
 
-// Lifecycle: inspect deletion impact, find orphaned chunks
-const { slug, chunksOrphaned } = await cas.deleteAsset({ treeOid });
-const { referenced, total } = await cas.findOrphanedChunks({ treeOids: [treeOid] });
+// Lifecycle: inspect deletion impact, collect referenced chunks
+const { slug, chunksOrphaned } = await cas.inspectAsset({ treeOid });
+const { referenced, total } = await cas.collectReferencedChunks({ treeOids: [treeOid] });
 
 // v2.0.0: Compressed + passphrase-encrypted store
 const manifest2 = await cas.storeFile({
@@ -295,8 +295,39 @@ git cas vault init
 git cas store ./secret.bin --slug vault-entry --tree
 git cas restore --slug vault-entry --out ./decrypted.bin
 
+# Compression, chunking, codec, concurrency
+git cas store ./data.bin --slug my-data --tree --gzip
+git cas store ./data.bin --slug my-data --tree --strategy cdc
+git cas store ./data.bin --slug my-data --tree --chunk-size 65536 --concurrency 4
+git cas store ./data.bin --slug my-data --tree --codec cbor
+
+# Restore with concurrency
+git cas restore --slug my-data --out ./data.bin --concurrency 4
+
 # JSON output on any command (for CI/scripting)
 git cas store ./data.bin --slug my-data --tree --json
+```
+
+### `.casrc` — Project Config File
+
+Place a `.casrc` JSON file at the repository root to set defaults for CLI flags.
+CLI flags always take precedence over `.casrc` values.
+
+```json
+{
+  "chunkSize": 65536,
+  "strategy": "cdc",
+  "concurrency": 4,
+  "codec": "json",
+  "compression": "gzip",
+  "merkleThreshold": 500,
+  "maxRestoreBufferSize": 1073741824,
+  "cdc": {
+    "minChunkSize": 8192,
+    "targetChunkSize": 32768,
+    "maxChunkSize": 131072
+  }
+}
 ```
 
 ## Documentation
@@ -304,7 +335,7 @@ git cas store ./data.bin --slug my-data --tree --json
 - [Guide](./GUIDE.md) — progressive walkthrough
 - [API Reference](./docs/API.md) — full method documentation
 - [Architecture](./ARCHITECTURE.md) — hexagonal design overview
-- [Security](./docs/SECURITY.md) — crypto design and threat model
+- [Security](./SECURITY.md) — crypto design and threat model
 
 ## When to use git-cas (and when not to)
 

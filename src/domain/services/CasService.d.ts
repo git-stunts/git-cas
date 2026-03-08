@@ -46,6 +46,13 @@ export interface ObservabilityPort {
   span(name: string): { end(meta?: Record<string, unknown>): void };
 }
 
+/** Port interface for chunking strategies (fixed, CDC, etc.). */
+export interface ChunkingPort {
+  chunk(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
+  readonly strategy: string;
+  readonly params: Record<string, unknown>;
+}
+
 /** Constructor options for {@link CasService}. */
 export interface CasServiceOptions {
   persistence: GitPersistencePort;
@@ -55,6 +62,8 @@ export interface CasServiceOptions {
   chunkSize?: number;
   merkleThreshold?: number;
   concurrency?: number;
+  chunker?: ChunkingPort;
+  maxRestoreBufferSize?: number;
 }
 
 /** Options for key derivation. */
@@ -90,6 +99,7 @@ export default class CasService {
   readonly chunkSize: number;
   readonly merkleThreshold: number;
   readonly concurrency: number;
+  readonly maxRestoreBufferSize: number;
 
   constructor(options: CasServiceOptions);
 
@@ -131,10 +141,20 @@ export default class CasService {
 
   readManifest(options: { treeOid: string }): Promise<Manifest>;
 
+  inspectAsset(options: {
+    treeOid: string;
+  }): Promise<{ slug: string; chunksOrphaned: number }>;
+
+  /** @deprecated Use {@link inspectAsset} instead. */
   deleteAsset(options: {
     treeOid: string;
   }): Promise<{ slug: string; chunksOrphaned: number }>;
 
+  collectReferencedChunks(options: {
+    treeOids: string[];
+  }): Promise<{ referenced: Set<string>; total: number }>;
+
+  /** @deprecated Use {@link collectReferencedChunks} instead. */
   findOrphanedChunks(options: {
     treeOids: string[];
   }): Promise<{ referenced: Set<string>; total: number }>;

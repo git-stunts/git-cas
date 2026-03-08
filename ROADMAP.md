@@ -9,7 +9,7 @@ This roadmap is structured as:
 3. **Contracts** — Return/throw semantics for all public methods
 4. **Version Plan** — Table mapping versions to milestones
 5. **Milestone Dependency Graph** — ASCII diagram
-6. **Milestones & Task Cards** — 7 milestones (4 closed, 3 open), remaining task cards
+6. **Milestones & Task Cards** — 8 milestones (7 closed, 1 open), remaining task cards
 7. **Feature Matrix** — Competitive landscape vs. Git LFS, git-annex, Restic, Age, DVC
 8. **Competitive Analysis** — When to use git-cas and when not to, with concrete scenarios
 
@@ -56,6 +56,8 @@ Single registry of all error codes used across the codebase. Each code is a stri
 | `CANNOT_REMOVE_LAST_RECIPIENT` | Cannot remove the last recipient — at least one must remain. | Task 11.2 |
 | `ROTATION_NOT_SUPPORTED` | Key rotation requires envelope encryption (DEK/KEK model). Legacy manifests must be re-stored. | Task 12.1 |
 | `STREAM_NOT_CONSUMED` | `finalize()` called on encryption stream before the generator was fully consumed. | v4.0.1 |
+| `RESTORE_TOO_LARGE` | Encrypted/compressed file exceeds `maxRestoreBufferSize`. Buffered restore would OOM. Suggest increasing limit or storing without encryption. | M16 |
+| `ENCRYPTION_BUFFER_EXCEEDED` | Web Crypto adapter accumulated buffer exceeds limit during streaming encryption (Deno-specific). Suggest Node.js/Bun or unencrypted store. | M16 |
 
 ---
 
@@ -192,6 +194,7 @@ Return and throw semantics for every public method (current and planned).
 | v5.0.0  | M10       | Hydra    | Content-defined chunking | ✅ |
 | v5.1.0  | M11       | Locksmith | Multi-recipient encryption | ✅ |
 | v5.2.0  | M12       | Carousel | Key rotation | ✅ |
+| v5.3.0  | M16       | Capstone | Audit remediation — all CODE-EVAL.md findings | 🔲 |
 
 ---
 
@@ -206,6 +209,8 @@ M8 Spit Shine + M9 Cockpit (v4.0.1) ✅
 M10 Hydra ──────────── ✅ v5.0.0
 M11 Locksmith ──────── ✅ v5.1.0
   └──► M12 Carousel ── ✅ v5.2.0
+M15 Prism ─────────────── ✅
+  └──► M16 Capstone ────── 🔲 v5.3.0
 ```
 
 ---
@@ -223,6 +228,7 @@ M11 Locksmith ──────── ✅ v5.1.0
 | M10| Hydra         | Content-defined chunking   | v5.0.0  | 4     | ~690   | ~22h  | ✅ CLOSED |
 | M11| Locksmith     | Multi-recipient encryption | v5.1.0  | 4     | ~580   | ~20h  | ✅ CLOSED |
 | M12| Carousel      | Key rotation               | v5.2.0  | 4     | ~400   | ~13h  | ✅ CLOSED |
+| M16| Capstone      | Audit remediation          | v5.3.0  | 13    | ~698   | ~21h  | 🔲 OPEN  |
 
 Completed task cards are in [COMPLETED_TASKS.md](./COMPLETED_TASKS.md). Superseded tasks are in [GRAVEYARD.md](./GRAVEYARD.md).
 
@@ -259,6 +265,445 @@ All tasks completed (11.1–11.4). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md
 # M12 — Carousel (v5.2.0) ✅ CLOSED
 
 All tasks completed (12.1–12.4). See [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
+
+---
+
+# M16 — Capstone (v5.3.0) 🔲 OPEN
+
+Remediation milestone addressing all negative findings from the [CODE-EVAL.md](./CODE-EVAL.md) forensic architectural audit. Covers 9 code flaws (Phase 2), 7 pre-existing concerns (C1–C7), and 3 newly identified concerns (C8–C10). No new features — strictly hardening, correctness, and hygiene.
+
+**Source:** `CODE-EVAL.md` at commit `0f7f8e6`
+
+**Priority key:** P0 = critical (high severity), P1 = important (medium), P2 = housekeeping (low/negligible).
+
+---
+
+## Task Cards
+
+### 16.1 — Crypto Adapter Behavioral Normalization *(P0)* — C8
+
+**Problem**
+
+The three CryptoPort adapters (Node, Bun, Web) have inconsistent validation and error-handling behavior — a Liskov Substitution violation. Specifically:
+
+1. `NodeCryptoAdapter.encryptBuffer()` is synchronous; Bun and Web are async.
+2. `BunCryptoAdapter.decryptBuffer()` calls `_validateKey(key)`; Node and Web do not.
+3. `NodeCryptoAdapter.createEncryptionStream()` has no premature-finalize guard; Bun and Web throw `CasError('STREAM_NOT_CONSUMED')`.
+
+Code that works on Bun (early key validation) may produce a cryptic `node:crypto` error on Node. A bug in stream consumption produces undefined behavior on Node but a clear error on Bun/Deno.
+
+**Fix**
+
+1. Add `_validateKey(key)` call to `NodeCryptoAdapter.decryptBuffer()` and `WebCryptoAdapter.decryptBuffer()`.
+2. Add `streamFinalized` guard + `CasError('STREAM_NOT_CONSUMED')` to `NodeCryptoAdapter.createEncryptionStream()`.
+3. Make `NodeCryptoAdapter.encryptBuffer()` explicitly `async` (return `Promise`).
+4. Add a cross-adapter behavioral conformance test suite asserting identical behavior for all three adapters given the same inputs.
+
+**Files:**
+- `src/infrastructure/adapters/NodeCryptoAdapter.js`
+- `src/infrastructure/adapters/WebCryptoAdapter.js`
+- New: `test/unit/infrastructure/adapters/CryptoAdapter.conformance.test.js`
+
+**Tests:**
+```js
+describe('16.1: CryptoPort LSP conformance', () => {
+  // Run the same assertions against all three adapters
+  for (const [name, adapter] of adapters) {
+    it(`${name}.encryptBuffer returns a Promise`, ...);
+    it(`${name}.decryptBuffer rejects invalid key type before crypto error`, ...);
+    it(`${name}.decryptBuffer rejects wrong-length key before crypto error`, ...);
+    it(`${name}.createEncryptionStream.finalize() throws STREAM_NOT_CONSUMED if not consumed`, ...);
+  }
+});
+```
+
+| Estimate | ~50 LoC changes, ~100 LoC tests, ~4h |
+|----------|---------------------------------------|
+
+---
+
+### 16.2 — Memory Restore Guard *(P0)* — C1
+
+**Problem**
+
+`_restoreBuffered()` concatenates ALL chunk blobs into a single buffer before decryption. A 1 GB encrypted file requires ~2 GB of heap. No guard, no warning, no configurable limit.
+
+**Fix**
+
+Add `maxRestoreBufferSize` option to CasService constructor (default 512 MiB). Before `Buffer.concat()` in `_restoreBuffered()`, check `manifest.size` against the limit. Throw `CasError('RESTORE_TOO_LARGE')` with an actionable message.
+
+**Files:**
+- `src/domain/services/CasService.js`
+- `index.js` (facade wiring)
+- `index.d.ts` (type update)
+
+**Tests:**
+```js
+describe('16.2: Memory guard on encrypted restore', () => {
+  it('throws RESTORE_TOO_LARGE when manifest.size exceeds maxRestoreBufferSize', ...);
+  it('succeeds when manifest.size is within maxRestoreBufferSize', ...);
+  it('does not apply guard to unencrypted uncompressed restoreStream', ...);
+  it('includes actionable hint in error message', ...);
+  it('default maxRestoreBufferSize is 512 MiB', ...);
+});
+```
+
+| Estimate | ~25 LoC changes, ~40 LoC tests, ~2h |
+|----------|--------------------------------------|
+
+---
+
+### 16.3 — Web Crypto Encryption Buffer Guard *(P1)* — C4
+
+**Problem**
+
+`WebCryptoAdapter.createEncryptionStream()` silently buffers the entire stream because Web Crypto AES-GCM is a one-shot API. On Deno, a user calling `store()` with a large encrypted source OOMs without warning.
+
+**Fix**
+
+Track accumulated bytes in the `encrypt()` generator. When total exceeds a configurable limit (default 512 MiB), throw `CasError('ENCRYPTION_BUFFER_EXCEEDED')` with an actionable message.
+
+**Files:**
+- `src/infrastructure/adapters/WebCryptoAdapter.js`
+
+**Tests:**
+```js
+describe('16.3: Web Crypto buffering guard', () => {
+  it('throws ENCRYPTION_BUFFER_EXCEEDED when accumulated bytes exceed limit', ...);
+  it('succeeds for data within buffer limit', ...);
+  it('NodeCryptoAdapter does NOT throw for large streams (true streaming)', ...);
+});
+```
+
+| Estimate | ~15 LoC changes, ~30 LoC tests, ~1h |
+|----------|--------------------------------------|
+
+---
+
+### 16.4 — FixedChunker Pre-Allocated Buffer *(P2)* — C9
+
+**Problem**
+
+`FixedChunker.chunk()` uses `Buffer.concat([buffer, data])` in a loop. Each call copies the entire accumulated buffer — O(n^2 / chunkSize) total copies for many small input buffers. The CDC chunker uses a pre-allocated working buffer with zero intermediate copies.
+
+**Fix**
+
+Replace the concat loop with a pre-allocated `Buffer.allocUnsafe(chunkSize)` working buffer using a copy+offset pattern, matching CdcChunker's approach.
+
+**Files:**
+- `src/infrastructure/chunkers/FixedChunker.js`
+
+**Tests:**
+
+Existing tests cover byte-exact correctness. Add:
+```js
+describe('16.4: FixedChunker buffer efficiency', () => {
+  it('produces identical output to previous implementation (regression)', ...);
+  it('handles many small input buffers without excessive allocation', ...);
+});
+```
+
+| Estimate | ~20 LoC changes, ~15 LoC tests, ~1h |
+|----------|--------------------------------------|
+
+---
+
+### 16.5 — Encrypt-Then-Chunk Dedup Warning *(P1)* — C10
+
+**Problem**
+
+Encryption is applied before chunking, destroying content-addressable deduplication. AES-GCM ciphertext is pseudorandom — identical plaintext produces different ciphertext. Users who enable both encryption and CDC chunking get CDC's overhead without its dedup benefit.
+
+This is an inherent architectural constraint (not fixable without per-chunk encryption). The correct action is documentation + a runtime warning.
+
+**Fix**
+
+1. When `store()` is called with both an encryption key/passphrase/recipients AND `chunker.strategy === 'cdc'`, emit `observability.log('warn', 'CDC deduplication is ineffective with encryption — ciphertext is pseudorandom', { strategy: 'cdc' })`.
+2. Add a "Known Limitations" section to the README documenting this trade-off.
+
+**Files:**
+- `src/domain/services/CasService.js` (warning in `store()`)
+
+**Tests:**
+```js
+describe('16.5: Encrypt-then-chunk dedup warning', () => {
+  it('emits warning when encryption + CDC chunking are combined', ...);
+  it('does not warn for encryption + fixed chunking', ...);
+  it('does not warn for CDC chunking without encryption', ...);
+});
+```
+
+| Estimate | ~10 LoC changes, ~20 LoC tests, ~1h |
+|----------|--------------------------------------|
+
+---
+
+### 16.6 — Chunk Size Upper Bound *(P1)* — C3
+
+**Problem**
+
+`CasService` enforces a minimum chunk size (1024 bytes) but no maximum. A user can configure a 4 GB chunk size. Additionally, `FixedChunker` and `CdcChunker` accept arbitrarily large values without validation.
+
+**Fix**
+
+1. Add `if (chunkSize > MAX_CHUNK_SIZE)` guard in `CasService` constructor. 100 MiB is the cap — generous while staying within Git hosting limits.
+2. Emit `observability.log('warn', ...)` when chunkSize exceeds 10 MiB.
+3. Add matching validation in `FixedChunker` constructor: `if (chunkSize > 100 * 1024 * 1024) throw new RangeError(...)`.
+4. Add matching validation in `CdcChunker` constructor for `maxChunkSize`.
+
+**Files:**
+- `src/domain/services/CasService.js`
+- `src/infrastructure/chunkers/FixedChunker.js`
+- `src/infrastructure/chunkers/CdcChunker.js`
+
+**Tests:**
+```js
+describe('16.6: Chunk size upper bound', () => {
+  it('CasService throws when chunkSize exceeds 100 MiB', ...);
+  it('CasService accepts chunkSize of exactly 100 MiB', ...);
+  it('FixedChunker throws when chunkSize exceeds 100 MiB', ...);
+  it('CdcChunker throws when maxChunkSize exceeds 100 MiB', ...);
+  it('logs warning when chunkSize exceeds 10 MiB', ...);
+});
+```
+
+| Estimate | ~15 LoC changes, ~30 LoC tests, ~1h |
+|----------|--------------------------------------|
+
+---
+
+### 16.7 — Lifecycle Method Naming *(P2)*
+
+**Problem**
+
+`deleteAsset()` does not delete anything — it reads a manifest and returns metadata about what would be orphaned. `findOrphanedChunks()` doesn't find orphans — it collects referenced chunk OIDs. Both names are misleading.
+
+**Fix**
+
+1. Add `inspectAsset({ treeOid })` as the canonical name. `deleteAsset` becomes a deprecated alias that delegates to `inspectAsset`.
+2. Add `collectReferencedChunks({ treeOids })` as the canonical name. `findOrphanedChunks` becomes a deprecated alias.
+3. Emit `observability.log('warn', 'deleteAsset() is deprecated — use inspectAsset()')` on deprecated path.
+4. Update `index.d.ts` with `@deprecated` JSDoc on old methods.
+
+This is a **non-breaking** deprecation. Removal is deferred to a future major version.
+
+**Files:**
+- `src/domain/services/CasService.js`
+- `index.js` (facade)
+- `index.d.ts`
+
+**Tests:**
+```js
+describe('16.7: Lifecycle method naming', () => {
+  it('inspectAsset returns { slug, chunksOrphaned }', ...);
+  it('deleteAsset delegates to inspectAsset (deprecated alias)', ...);
+  it('collectReferencedChunks returns { referenced, total }', ...);
+  it('findOrphanedChunks delegates to collectReferencedChunks (deprecated alias)', ...);
+});
+```
+
+| Estimate | ~30 LoC changes, ~25 LoC tests, ~1h |
+|----------|--------------------------------------|
+
+---
+
+### 16.8 — CasError Portability Guard *(P2)*
+
+**Problem**
+
+`CasError` calls `Error.captureStackTrace(this, this.constructor)` unconditionally. This is V8-specific — it's a no-op on Bun's JavaScriptCore engine. While it doesn't crash (JSC silently ignores it), it indicates incomplete multi-runtime awareness.
+
+**Fix**
+
+Guard the call: `if (Error.captureStackTrace) Error.captureStackTrace(this, this.constructor);`
+
+**Files:**
+- `src/domain/errors/CasError.js`
+
+**Tests:**
+```js
+describe('16.8: CasError multi-runtime portability', () => {
+  it('creates CasError with code and meta', ...);
+  it('does not throw when Error.captureStackTrace is unavailable', ...);
+});
+```
+
+| Estimate | ~3 LoC changes, ~10 LoC tests, ~0.5h |
+|----------|---------------------------------------|
+
+---
+
+### 16.9 — Pre-Commit Hook + Hooks Directory *(P2)*
+
+**Problem**
+
+The project has a `pre-push` hook but no `pre-commit` hook. Lint failures are not caught until push time. Additionally, the hooks directory is `scripts/git-hooks/` rather than `scripts/hooks/` per the CLAUDE.md convention.
+
+**Fix**
+
+1. Rename `scripts/git-hooks/` to `scripts/hooks/`.
+2. Update `scripts/install-hooks.sh` to reference the new path.
+3. Add `scripts/hooks/pre-commit` that runs `pnpm run lint`.
+4. Update `.git/config` hooksPath if already set.
+
+**Files:**
+- `scripts/git-hooks/pre-push` → `scripts/hooks/pre-push`
+- New: `scripts/hooks/pre-commit`
+- `scripts/install-hooks.sh`
+
+| Estimate | ~15 LoC, ~0.5h |
+|----------|-----------------|
+
+---
+
+### 16.10 — Orphaned Blob Tracking *(P1)* — C2
+
+**Problem**
+
+When `_chunkAndStore()` throws `STREAM_ERROR`, chunks already written to Git are orphaned. The error meta reports `chunksDispatched` but not the blob OIDs of successful writes. There's no visibility into what was orphaned.
+
+**Fix**
+
+1. After `Promise.allSettled(pending)`, collect blob OIDs from fulfilled results.
+2. Include `orphanedBlobs: string[]` in the `STREAM_ERROR` meta.
+3. Emit `observability.metric('error', { action: 'orphaned_blobs', count, blobs })`.
+
+**Files:**
+- `src/domain/services/CasService.js`
+
+**Tests:**
+```js
+describe('16.10: Orphaned blob tracking on STREAM_ERROR', () => {
+  it('includes orphanedBlobs array in STREAM_ERROR meta', ...);
+  it('orphanedBlobs contains blob OIDs from successful writes before failure', ...);
+  it('orphanedBlobs is empty when stream fails before any writes', ...);
+  it('emits orphaned_blobs metric via observability', ...);
+});
+```
+
+| Estimate | ~20 LoC changes, ~30 LoC tests, ~2h |
+|----------|--------------------------------------|
+
+---
+
+### 16.11 — Passphrase Input Security *(P0)* — C5 + V6
+
+**Problem**
+
+`--vault-passphrase <value>` puts the passphrase in shell history and process listings. The `GIT_CAS_PASSPHRASE` env var is better but still visible in `/proc/<pid>/environ`.
+
+**Fix**
+
+1. **Interactive prompt**: When `--vault-passphrase` is passed without a value and stdin is a TTY, prompt with echo disabled. Confirmation on first use (store/init).
+2. **File-based input**: Add `--vault-passphrase-file <path>` flag that reads from a file.
+3. **Stdin pipe**: `--vault-passphrase -` reads from stdin.
+4. **Documentation**: Security warning in `--help` and README.
+
+**Files:**
+- `bin/git-cas.js`
+- New: `bin/ui/passphrase-prompt.js`
+
+**Tests:**
+```js
+describe('16.11: Passphrase input security', () => {
+  it('reads passphrase from file when --vault-passphrase-file is used', ...);
+  it('errors when no passphrase source is available in non-TTY mode', ...);
+  it('--vault-passphrase-file trims trailing newline', ...);
+});
+```
+
+| Estimate | ~90 LoC, ~30 LoC tests, ~4h |
+|----------|------------------------------|
+
+---
+
+### 16.12 — KDF Brute-Force Awareness *(P2)* — C6
+
+**Problem**
+
+`deriveKey()` and the restore path have no rate limiting or audit trail. An attacker can brute-force passphrases at full CPU speed.
+
+**Fix**
+
+1. Emit `observability.metric('error', { action: 'decryption_failed', slug })` on every `INTEGRITY_ERROR` during passphrase-based restore.
+2. In the CLI layer, add a 1-second delay after each failed passphrase attempt.
+
+**Files:**
+- `src/domain/services/CasService.js` (observability metric)
+- `bin/git-cas.js` (CLI delay)
+
+**Tests:**
+```js
+describe('16.12: KDF brute-force awareness', () => {
+  it('emits decryption_failed metric on wrong passphrase', ...);
+  it('emits metric with slug context for audit trail', ...);
+  it('library API does NOT rate-limit (callers manage their own policy)', ...);
+});
+```
+
+| Estimate | ~10 LoC changes, ~20 LoC tests, ~1h |
+|----------|--------------------------------------|
+
+---
+
+### 16.13 — GCM Nonce Collision Documentation *(P2)* — C7
+
+**Problem**
+
+AES-256-GCM uses a 96-bit random nonce. Birthday bound is ~2^48; NIST recommends limiting to 2^32 invocations per key. There's no tracking, no warning, and no documentation of the bound.
+
+**Fix**
+
+1. Add `SECURITY.md` at project root documenting: GCM nonce bound, recommended key rotation frequency, KDF parameter guidance, passphrase entropy recommendations.
+2. Add `encryptionCount` field to vault metadata. Increment per `store()` with encryption. Emit observability warning when count exceeds 2^31.
+
+**Files:**
+- New: `SECURITY.md`
+- `src/domain/services/VaultService.js` (counter increment)
+
+**Tests:**
+```js
+describe('16.13: Nonce usage tracking', () => {
+  it('vault metadata includes encryptionCount after encrypted store', ...);
+  it('encryptionCount increments per encrypted store', ...);
+  it('warns via observability when encryptionCount exceeds threshold', ...);
+});
+```
+
+| Estimate | ~25 LoC changes, ~20 LoC tests, ~2h |
+|----------|--------------------------------------|
+
+---
+
+### M16 Summary
+
+| Task | Theme | Priority | Severity | Audit Ref | Concern Ref | ~LoC | ~Hours |
+|------|-------|----------|----------|-----------|-------------|------|--------|
+| 16.1 | Crypto adapter normalization | P0 | High | Flaw 1 | C8 | ~150 | ~4h |
+| 16.2 | Memory restore guard | P0 | High | Flaw 2 | C1 | ~65 | ~2h |
+| 16.3 | Web Crypto buffer guard | P1 | Medium | Flaw 3 | C4 | ~45 | ~1h |
+| 16.4 | FixedChunker buffer optimization | P2 | Low | Flaw 4 | C9 | ~35 | ~1h |
+| 16.5 | Encrypt-then-chunk dedup warning | P1 | Medium | Flaw 5 | C10 | ~30 | ~1h |
+| 16.6 | Chunk size upper bound | P1 | Medium | Flaw 6 | C3 | ~45 | ~1h |
+| 16.7 | Lifecycle method naming | P2 | Low | Flaw 7 | — | ~55 | ~1h |
+| 16.8 | CasError portability guard | P2 | Negligible | Flaw 8 | — | ~13 | ~0.5h |
+| 16.9 | Pre-commit hook + hooks dir | P2 | Low | Flaw 9 | — | ~15 | ~0.5h |
+| 16.10 | Orphaned blob tracking | P1 | Medium | — | C2 | ~50 | ~2h |
+| 16.11 | Passphrase input security | P0 | High | — | C5+V6 | ~120 | ~4h |
+| 16.12 | KDF brute-force awareness | P2 | Low | — | C6 | ~30 | ~1h |
+| 16.13 | GCM nonce collision docs + counter | P2 | Low | — | C7 | ~45 | ~2h |
+| **Total** | | | | | | **~698** | **~21h** |
+
+### Recommended Execution Order
+
+**Phase 1 — Safety nets (P0):**
+16.8, 16.9, 16.1, 16.2, 16.11
+
+**Phase 2 — Correctness (P1):**
+16.6, 16.3, 16.5, 16.10
+
+**Phase 3 — Polish (P2):**
+16.4, 16.7, 16.12, 16.13
 
 ---
 
@@ -653,6 +1098,9 @@ Consistency and DRY fixes surfaced by architecture audit. No new features, no AP
 
 Ideas for future milestones. Not committed, not prioritized — just captured.
 
+### CLI Parity *(recently shipped)*
+All library-level configuration is now accessible from the CLI: `--gzip`, `--strategy`, `--chunk-size`, `--concurrency`, `--codec`, `--merkle-threshold`, CDC parameters, `--max-restore-buffer`. Project config file (`.casrc`) provides repository-level defaults. See V9–V12 for remaining CLI gaps.
+
 ### Named Vaults
 Multiple vaults instead of one. Refs move from `refs/cas/vault` to `refs/cas/vaults/<name>`. Default vault is `default`. CLI gets `--vault <name>` flag.
 
@@ -663,7 +1111,8 @@ Multiple vaults instead of one. Refs move from `refs/cas/vault` to `refs/cas/vau
 
 ### Vault Management
 - **Move into vault** — `git cas vault add --slug <slug> --oid <tree-oid>` to adopt an existing CAS tree into the vault (the API `addToVault()` already supports this; just needs a CLI command).
-- **Purge from CAS** — remove an entry from the vault and run `git gc` to reclaim storage. Tricky because git doesn't delete individual objects — you remove refs and let GC handle it.
+- **Vault status** — `git cas vault status` shows metadata, `encryptionCount`, entry count, nonce health. See V9.
+- **Purge from CAS** — remove an entry from the vault and run `git gc` to reclaim storage. See V10.
 
 ### Publish / Mount
 - **Publish to working tree** — `git cas publish --slug assets/hero --to docs/hero.gif` reconstitutes a vault entry into the repo's working tree so it's servable by GitHub (markdown images, Pages, etc.).
@@ -897,30 +1346,96 @@ Zstd alone would give 5-10x faster compression with equal or better ratio. For a
 
 ---
 
-## Vision 6: Interactive Passphrase Prompt
+## Vision 6: Interactive Passphrase Prompt ✅ DONE
+
+**Status:** Implemented by Task 16.11. See `bin/ui/passphrase-prompt.js`.
+
+Passphrase resolution priority: `--vault-passphrase-file` → `--vault-passphrase` → `GIT_CAS_PASSPHRASE` → interactive TTY prompt. Confirmation prompt on first use (vault init). File permission warnings on group/world-readable passphrase files. CRLF normalization for Windows compatibility.
+
+---
+
+## Vision 9: Vault Status Command
 
 **The Pitch**
 
-Replace `--vault-passphrase "my secret"` (visible in shell history, `ps` output, and CI logs) with an interactive TTY prompt that reads the passphrase from stdin with echo disabled. Like `gpg`, `ssh-keygen`, and `sudo`.
+`git cas vault status` — a single command to show vault health: entry count, encryption state, `encryptionCount` (nonce usage), KDF parameters, and nonce health assessment. The `encryptionCount` and `decryption_failed` metrics from M16 are already tracked in vault metadata but have no CLI surface.
 
 ```shell
-$ git cas store ./secrets.tar.gz --slug prod-secrets --vault-passphrase
-Enter vault passphrase: ••••••••••
-Confirm passphrase: ••••••••••
+$ git cas vault status
+Entries:          42
+Encryption:       aes-256-gcm (pbkdf2, 600000 iterations)
+Encryption count: 1,247 / 2,147,483,648 (0.00%)
+Nonce health:     ✅ Safe (rotate key before 2^31)
 ```
-
-Falls back to `GIT_CAS_PASSPHRASE` env var for non-interactive contexts (CI). The flag `--vault-passphrase` without a value triggers the prompt; with a value, uses it directly (backward compatible).
-
-**Mini Battle Plan**
 
 | Phase | Work | ~LoC | ~Hours |
 |-------|------|------|--------|
-| 1. TTY reader | `readPassphrase(prompt: string): Promise<string>` — opens `/dev/tty` (Unix) or `CON` (Windows), sets raw mode, reads until Enter, echoes `•` per character. | ~40 | ~2h |
-| 2. CLI integration | When `--vault-passphrase` is passed without a value and stdin is a TTY, call `readPassphrase()`. On store (first use), prompt twice for confirmation. | ~20 | ~1h |
-| 3. Tests | Mock TTY input, verify echo suppression, verify confirmation match/mismatch, verify env var fallback. | ~30 | ~1h |
-| **Total** | | **~90** | **~4h** |
+| 1. Command + metadata display | Read vault metadata, format output (text + JSON) | ~40 | ~1h |
+| 2. Nonce health assessment | Compare `encryptionCount` against thresholds, emit warning levels | ~15 | ~0.5h |
+| 3. Tests | Mock vault state, verify output format | ~20 | ~0.5h |
+| **Total** | | **~60** | **~2h** |
 
-**This directly mitigates Concern 5 (shell history exposure) below.**
+---
+
+## Vision 10: GC Command
+
+**The Pitch**
+
+`git cas gc` — identify unreferenced chunks across vault entries and optionally trigger `git gc`. Wraps `collectReferencedChunks()` with a user-facing report.
+
+```shell
+$ git cas gc --dry-run
+Referenced chunks: 1,247
+Unreferenced blobs: 23 (estimated 4.2 MiB)
+Run without --dry-run to trigger git gc.
+```
+
+| Phase | Work | ~LoC | ~Hours |
+|-------|------|------|--------|
+| 1. Chunk analysis | Call `collectReferencedChunks` for all vault entries, compare against all CAS blobs | ~40 | ~2h |
+| 2. `git gc` integration | Optionally invoke `git gc` after analysis. `--dry-run` flag for preview. | ~20 | ~1h |
+| 3. Tests + safety | Confirm dry-run default, test output format | ~20 | ~1h |
+| **Total** | | **~80** | **~4h** |
+
+---
+
+## Vision 11: KDF Parameter Tuning via `.casrc`
+
+**The Pitch**
+
+Allow `.casrc` to specify KDF parameters for vault init and rotation: `kdf.algorithm`, `kdf.iterations` (PBKDF2), `kdf.cost`/`kdf.blockSize`/`kdf.parallelization` (scrypt). Reject insecure values below OWASP minimums (100,000 iterations for PBKDF2-SHA-512, N=8192 for scrypt).
+
+| Phase | Work | ~LoC | ~Hours |
+|-------|------|------|--------|
+| 1. Config schema + validation | Add `kdf` key to `.casrc` schema, validate against OWASP minimums | ~25 | ~1h |
+| 2. Wire into vault init/rotate | `loadConfig` merges KDF params into `kdfOptions` | ~10 | ~0.5h |
+| 3. Tests | Reject weak params, merge precedence | ~15 | ~0.5h |
+| **Total** | | **~40** | **~2h** |
+
+---
+
+## Vision 12: File-Level Passphrase CLI
+
+**The Pitch**
+
+`--passphrase` flag for standalone encrypted store without requiring vault encryption. The library already supports `passphrase` + `kdfOptions` on `store()`/`storeFile()` — this just wires it through the CLI.
+
+```shell
+# Store with a one-off passphrase (not vault-level)
+git cas store ./secrets.bin --slug one-off --passphrase "my secret"
+
+# Restore with the same passphrase
+git cas restore --slug one-off --out ./secrets.bin --passphrase "my secret"
+```
+
+Mutually exclusive with `--key-file`, `--recipient`, and `--vault-passphrase`. Supports the same resolution chain as vault passphrases: `--passphrase-file`, `--passphrase`, env var `GIT_CAS_FILE_PASSPHRASE`, TTY prompt.
+
+| Phase | Work | ~LoC | ~Hours |
+|-------|------|------|--------|
+| 1. CLI flag + store wiring | Add `--passphrase` to store/restore, wire into `storeFile`/`restoreFile` with `passphrase` + `kdfOptions` | ~20 | ~0.5h |
+| 2. Mutual exclusion validation | Reject conflicting encryption flags | ~5 | ~0.25h |
+| 3. Tests | Store/restore round-trip, conflict validation | ~15 | ~0.5h |
+| **Total** | | **~30** | **~1h** |
 
 ---
 
@@ -930,7 +1445,9 @@ Architectural and security concerns identified during code review, with proposed
 
 ---
 
-## Concern 1: Memory Amplification on Encrypted/Compressed Restore
+## Concern 1: Memory Amplification on Encrypted/Compressed Restore ✅ MITIGATED
+
+**Status:** Task 16.2 implemented `maxRestoreBufferSize` guard (default 512 MiB). Post-decompression guard added. CLI exposes `--max-restore-buffer`.
 
 **The Problem**
 
@@ -965,7 +1482,9 @@ describe('Concern 1: Memory guard on encrypted restore', () => {
 
 ---
 
-## Concern 2: Orphaned Blob Accumulation After STREAM_ERROR
+## Concern 2: Orphaned Blob Accumulation After STREAM_ERROR ✅ MITIGATED
+
+**Status:** Task 16.10 implemented. `STREAM_ERROR` meta includes `orphanedBlobs` array. Observability metric emitted.
 
 **The Problem**
 
@@ -1000,7 +1519,9 @@ describe('Concern 2: Orphaned blob tracking on STREAM_ERROR', () => {
 
 ---
 
-## Concern 3: No Upper Bound on Chunk Size
+## Concern 3: No Upper Bound on Chunk Size ✅ MITIGATED
+
+**Status:** Task 16.6 implemented. 100 MiB hard cap on CasService, FixedChunker, CdcChunker. Warning at 10 MiB.
 
 **The Problem**
 
@@ -1031,7 +1552,9 @@ describe('Concern 3: Chunk size upper bound', () => {
 
 ---
 
-## Concern 4: Web Crypto Adapter Silent Memory Buffering
+## Concern 4: Web Crypto Adapter Silent Memory Buffering ✅ MITIGATED
+
+**Status:** Task 16.3 implemented. `ENCRYPTION_BUFFER_EXCEEDED` thrown when accumulated bytes exceed `maxEncryptionBufferSize` (default 512 MiB).
 
 **The Problem**
 
@@ -1064,7 +1587,9 @@ describe('Concern 4: Web Crypto buffering guard', () => {
 
 ---
 
-## Concern 5: Passphrase Exposure in Shell History and Process Listings
+## Concern 5: Passphrase Exposure in Shell History and Process Listings ✅ MITIGATED
+
+**Status:** Task 16.11 implemented. `--vault-passphrase-file`, interactive TTY prompt, stdin pipe. See Vision 6.
 
 **The Problem**
 
@@ -1100,7 +1625,9 @@ describe('Concern 5: Passphrase input security', () => {
 
 ---
 
-## Concern 6: No KDF Brute-Force Rate Limiting
+## Concern 6: No KDF Brute-Force Rate Limiting ✅ MITIGATED
+
+**Status:** Task 16.12 implemented. `decryption_failed` observability metric. CLI 1s delay on `INTEGRITY_ERROR`.
 
 **The Problem**
 
@@ -1135,7 +1662,9 @@ describe('Concern 6: KDF brute-force awareness', () => {
 
 ---
 
-## Concern 7: GCM Nonce Collision Risk at Scale
+## Concern 7: GCM Nonce Collision Risk at Scale ✅ MITIGATED
+
+**Status:** Task 16.13 implemented. `SECURITY.md` documents GCM bound. Vault tracks `encryptionCount`. Warning at 2^31.
 
 **The Problem**
 
@@ -1170,23 +1699,82 @@ describe('Concern 7: Nonce uniqueness', () => {
 
 ---
 
+## Concern 8: Crypto Adapter Liskov Substitution Violation ✅ MITIGATED
+
+**Source:** CODE-EVAL.md, Flaw 1
+
+**Status:** Task 16.1 implemented. All adapters: async `encryptBuffer`, `_validateKey` in `decryptBuffer`, `STREAM_NOT_CONSUMED` guard. Conformance test suite.
+
+**The Problem**
+
+The three `CryptoPort` implementations (Node, Bun, Web) differ in observable behavior:
+
+1. `NodeCryptoAdapter.encryptBuffer()` is synchronous (returns plain object), while Bun and Web return `Promise`.
+2. `BunCryptoAdapter.decryptBuffer()` calls `_validateKey(key)` before decryption; Node and Web do not — the invalid key hits `node:crypto` directly, producing a less informative error.
+3. `NodeCryptoAdapter.createEncryptionStream()` has no premature-finalize guard. Calling `finalize()` before consuming the stream returns garbage metadata on Node, but throws a clear `CasError('STREAM_NOT_CONSUMED')` on Bun and Deno.
+
+M15 Prism fixed the `sha256()` async inconsistency but left these three discrepancies untouched.
+
+**Mitigation:** Task 16.1.
+
+---
+
+## Concern 9: FixedChunker Quadratic Buffer Allocation ✅ MITIGATED
+
+**Source:** CODE-EVAL.md, Flaw 4
+
+**Status:** Task 16.4 implemented. Pre-allocated `Buffer.allocUnsafe(chunkSize)` working buffer.
+
+**The Problem**
+
+`FixedChunker.chunk()` uses `Buffer.concat([buffer, data])` inside its async loop. Each call allocates a new buffer and copies the accumulated bytes. For a source yielding many small buffers (e.g., 4 KiB network reads into a 256 KiB chunk), this is O(n^2 / chunkSize) total byte copies. The CdcChunker, by contrast, uses a pre-allocated `Buffer.allocUnsafe(maxChunkSize)` with zero intermediate copies.
+
+**Mitigation:** Task 16.4.
+
+---
+
+## Concern 10: CDC Deduplication Defeated by Encrypt-Then-Chunk ✅ MITIGATED
+
+**Source:** CODE-EVAL.md, Flaw 5
+
+**Status:** Task 16.5 implemented. Runtime warning when encryption + CDC combined.
+
+**The Problem**
+
+Encryption is applied to the source stream *before* chunking. AES-GCM ciphertext is pseudorandom — identical plaintext produces different ciphertext (different random nonce each time). This means content-defined chunking (CDC) provides **zero deduplication benefit** for encrypted files. Users who combine `recipients` (or `encryptionKey`) with `chunking: { strategy: 'cdc' }` get CDC's computational overhead without its primary value proposition.
+
+This is a fundamental architectural constraint of the encrypt-then-chunk design. The alternative (chunk-then-encrypt) would require per-chunk nonces and auth tags, significantly complicating the manifest schema. This is documented as a known limitation, not a fixable bug.
+
+**Mitigation:** Task 16.5 (runtime warning + documentation).
+
+---
+
 ## Summary Table
 
-| # | Type | Severity | Fix Cost | Recommended Action |
-|---|------|----------|----------|-------------------|
-| C1 | Memory amplification | High | ~20 LoC | Add `maxRestoreBufferSize` guard |
-| C2 | Orphaned blobs | Medium | ~20 LoC | Report orphaned blob OIDs in error meta |
-| C3 | No chunk size cap | Medium | ~6 LoC | Enforce 100 MiB maximum |
-| C4 | Web Crypto buffering | Medium | ~15 LoC | Add buffer size guard in WebCryptoAdapter |
-| C5 | Passphrase exposure | High | ~90 LoC | Interactive prompt + file-based input |
-| C6 | KDF no rate limit | Low | ~10 LoC | Observability metric + CLI delay |
-| C7 | GCM nonce collision | Low | ~20 LoC | Document bound + vault usage counter |
+| # | Type | Severity | Fix Cost | Recommended Action | Task | Status |
+|---|------|----------|----------|--------------------|------|--------|
+| C1 | Memory amplification | High | ~20 LoC | Add `maxRestoreBufferSize` guard | **16.2** | ✅ Done |
+| C2 | Orphaned blobs | Medium | ~20 LoC | Report orphaned blob OIDs in error meta | **16.10** | ✅ Done |
+| C3 | No chunk size cap | Medium | ~6 LoC | Enforce 100 MiB maximum | **16.6** | ✅ Done |
+| C4 | Web Crypto buffering | Medium | ~15 LoC | Add buffer size guard in WebCryptoAdapter | **16.3** | ✅ Done |
+| C5 | Passphrase exposure | High | ~90 LoC | Interactive prompt + file-based input | **16.11** | ✅ Done |
+| C6 | KDF no rate limit | Low | ~10 LoC | Observability metric + CLI delay | **16.12** | ✅ Done |
+| C7 | GCM nonce collision | Low | ~20 LoC | Document bound + vault usage counter | **16.13** | ✅ Done |
+| C8 | Crypto adapter LSP violation | Medium | ~50 LoC | Normalize validation + finalize guards | **16.1** | ✅ Done |
+| C9 | FixedChunker quadratic alloc | Low | ~20 LoC | Pre-allocated buffer | **16.4** | ✅ Done |
+| C10 | Encrypt-then-chunk dedup loss | Medium | ~10 LoC | Runtime warning + documentation | **16.5** | ✅ Done |
 
-| # | Type | Theme | Est. Cost |
-|---|------|-------|-----------|
-| V1 | Feature | Snapshot trees (directory store) | ~410 LoC, ~19h |
-| V2 | Feature | Portable bundles (air-gap transfer) | ~340 LoC, ~15h |
-| V3 | Feature | Manifest diff engine | ~180 LoC, ~8h |
-| V4 | Feature | CompressionPort + zstd/brotli/lz4 | ~180 LoC, ~8h |
-| V5 | Feature | Watch mode (continuous sync) | ~220 LoC, ~10h |
-| V6 | Feature | Interactive passphrase prompt | ~90 LoC, ~4h |
+| # | Type | Theme | Est. Cost | Status |
+|---|------|-------|-----------|--------|
+| V1 | Feature | Snapshot trees (directory store) | ~410 LoC, ~19h | 🔲 Open |
+| V2 | Feature | Portable bundles (air-gap transfer) | ~340 LoC, ~15h | 🔲 Open |
+| V3 | Feature | Manifest diff engine | ~180 LoC, ~8h | 🔲 Open |
+| V4 | Feature | CompressionPort + zstd/brotli/lz4 | ~180 LoC, ~8h | 🔲 Open |
+| V5 | Feature | Watch mode (continuous sync) | ~220 LoC, ~10h | 🔲 Open |
+| V6 | Feature | Interactive passphrase prompt | ~90 LoC, ~4h | ✅ Done — subsumed by **16.11** |
+| V7 | Feature | Prometheus/OpenTelemetry ObservabilityPort adapter | ~150 LoC, ~6h | 🔲 Open |
+| V8 | Feature | `encryptionCount` auto-rotation | ~120 LoC, ~5h | 🔲 Open |
+| V9 | Feature | `vault status` command — show metadata, `encryptionCount`, entry count, nonce health | ~60 LoC, ~2h | 🔲 Open |
+| V10 | Feature | `gc` command — `collectReferencedChunks` + `git gc` for orphan cleanup | ~80 LoC, ~4h | 🔲 Open |
+| V11 | Feature | KDF parameter tuning via `.casrc` — `kdf.iterations`, `kdf.cost`, `kdf.blockSize`, `kdf.parallelization` with validation (reject insecure values below OWASP minimums) | ~40 LoC, ~2h | 🔲 Open |
+| V12 | Feature | File-level passphrase CLI — `--passphrase` flag for standalone encrypted store without vault encryption. Library already supports `passphrase` + `kdfOptions` on `store()`/`storeFile()`. | ~30 LoC, ~1h | 🔲 Open |

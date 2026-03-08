@@ -6,7 +6,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOOKS_DIR="${SCRIPT_DIR}/git-hooks"
+HOOKS_DIR="${SCRIPT_DIR}/hooks"
 
 # Make all hooks executable
 chmod +x "${HOOKS_DIR}"/*

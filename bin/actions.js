@@ -57,17 +57,30 @@ function getHint(code) {
 }
 
 /**
+ * Default delay — real setTimeout for production use.
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+function defaultDelay(ms) {
+  return new Promise((resolve) => { setTimeout(resolve, ms); });
+}
+
+/**
  * Wrap a command action with structured error handling.
  *
  * @param {(...args: any[]) => Promise<void>} fn - The async action function.
  * @param {() => boolean} getJson - Lazy getter for --json flag value.
+ * @param {{ delay?: (ms: number) => Promise<void> }} [options] - Injectable dependencies.
  * @returns {(...args: any[]) => Promise<void>} Wrapped action.
  */
-export function runAction(fn, getJson) {
+export function runAction(fn, getJson, { delay = defaultDelay } = {}) {
   return async (/** @type {any[]} */ ...args) => {
     try {
       await fn(...args);
     } catch (/** @type {any} */ err) {
+      if (err?.code === 'INTEGRITY_ERROR') {
+        await delay(1000);
+      }
       writeError(err, getJson());
       process.exitCode = 1;
     }

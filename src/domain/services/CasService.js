@@ -34,28 +34,48 @@ export default class CasService {
    * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
    * @param {import('../../ports/ChunkingPort.js').default} [options.chunker] - Chunking strategy (default FixedChunker).
+   * @param {number} [options.maxRestoreBufferSize=536870912] - Max bytes for buffered restore (default 512 MiB).
    */
-  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker }) {
+  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024 }) {
     CasService._validateObservability(observability);
-    if (chunkSize < 1024) {
-      throw new Error('Chunk size must be at least 1024 bytes');
-    }
+    CasService.#validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize });
     this.persistence = persistence;
     this.codec = codec;
     this.crypto = crypto;
     this.observability = observability;
     this.chunkSize = chunkSize;
+    if (chunkSize > 10 * 1024 * 1024) {
+      observability.log('warn', `Chunk size ${chunkSize} exceeds 10 MiB — consider a smaller value`, { chunkSize });
+    }
     /** @type {import('../../ports/ChunkingPort.js').default} */
     this.chunker = chunker || new FixedChunker({ chunkSize });
+    this.merkleThreshold = merkleThreshold;
+    this.concurrency = concurrency;
+    this.maxRestoreBufferSize = maxRestoreBufferSize;
+    this.#keyResolver = new KeyResolver(crypto);
+  }
+
+  /**
+   * Validates constructor numeric arguments.
+   * @private
+   */
+  static #validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize }) {
+    if (!Number.isInteger(chunkSize) || chunkSize < 1024) {
+      throw new Error('Chunk size must be an integer >= 1024 bytes');
+    }
+    const MAX_CHUNK_SIZE = 100 * 1024 * 1024;
+    if (chunkSize > MAX_CHUNK_SIZE) {
+      throw new Error(`Chunk size must not exceed ${MAX_CHUNK_SIZE} bytes (100 MiB)`);
+    }
     if (!Number.isInteger(merkleThreshold) || merkleThreshold < 1) {
       throw new Error('Merkle threshold must be a positive integer');
     }
-    this.merkleThreshold = merkleThreshold;
     if (!Number.isInteger(concurrency) || concurrency < 1) {
       throw new Error('Concurrency must be a positive integer');
     }
-    this.concurrency = concurrency;
-    this.#keyResolver = new KeyResolver(crypto);
+    if (!Number.isInteger(maxRestoreBufferSize) || maxRestoreBufferSize < 1024) {
+      throw new Error('maxRestoreBufferSize must be a positive integer >= 1024');
+    }
   }
 
   /**
@@ -127,15 +147,23 @@ export default class CasService {
         launchWrite(chunk, nextIndex++);
       }
     } catch (err) {
-      await Promise.allSettled(pending);
-      if (err instanceof CasError) { throw err; }
+      const settled = await Promise.allSettled(pending);
+      const orphanedBlobs = settled
+        .filter((r) => r.status === 'fulfilled')
+        .map((r) => r.value.blob);
+      if (err instanceof CasError) {
+        err.meta = { ...err.meta, orphanedBlobs };
+        throw err;
+      }
       const casErr = new CasError(
         `Stream error during store: ${err.message}`,
         'STREAM_ERROR',
-        { chunksDispatched: nextIndex, originalError: err },
+        { chunksDispatched: nextIndex, orphanedBlobs, originalError: err },
       );
-      await Promise.allSettled(pending);
-      this.observability.metric('error', { code: casErr.code, message: casErr.message });
+      this.observability.metric('error', {
+        code: casErr.code, message: casErr.message,
+        orphanedBlobs: orphanedBlobs.length,
+      });
       throw casErr;
     }
 
@@ -257,6 +285,13 @@ export default class CasService {
     const manifestData = this._buildManifestData(slug, filename, compression);
     const processedSource = compression ? this._compressStream(source) : source;
 
+    if (keyInfo.key && this.chunker.strategy === 'cdc') {
+      this.observability.log(
+        'warn',
+        'CDC deduplication is ineffective with encryption — ciphertext is pseudorandom',
+        { strategy: 'cdc' },
+      );
+    }
     if (keyInfo.key) {
       const { encrypt, finalize } = this.crypto.createEncryptionStream(keyInfo.key);
       await this._chunkAndStore(encrypt(processedSource), manifestData);
@@ -469,14 +504,38 @@ export default class CasService {
    * @private
    */
   async *_restoreBuffered(manifest, key) {
+    const totalSize = manifest.chunks.reduce((acc, c) => acc + c.size, 0);
+    if (totalSize > this.maxRestoreBufferSize) {
+      throw new CasError(
+        `Encrypted/compressed restore would buffer ${totalSize} bytes ` +
+        `(limit: ${this.maxRestoreBufferSize}). Increase maxRestoreBufferSize ` +
+        'or store without encryption.',
+        'RESTORE_TOO_LARGE',
+        { size: totalSize, limit: this.maxRestoreBufferSize },
+      );
+    }
     let buffer = Buffer.concat(await this._readAndVerifyChunks(manifest.chunks));
 
     if (manifest.encryption?.encrypted) {
-      buffer = await this.decrypt({ buffer, key, meta: manifest.encryption });
+      try {
+        buffer = await this.decrypt({ buffer, key, meta: manifest.encryption });
+      } catch (err) {
+        if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+          this.observability.metric('error', { action: 'decryption_failed', slug: manifest.slug });
+        }
+        throw err;
+      }
     }
 
     if (manifest.compression) {
       buffer = await this._decompress(buffer);
+      if (buffer.length > this.maxRestoreBufferSize) {
+        throw new CasError(
+          `Decompressed restore is ${buffer.length} bytes (limit: ${this.maxRestoreBufferSize})`,
+          'RESTORE_TOO_LARGE',
+          { size: buffer.length, limit: this.maxRestoreBufferSize },
+        );
+      }
     }
 
     this.observability.metric('file', {
@@ -626,7 +685,7 @@ export default class CasService {
   }
 
   /**
-   * Returns deletion metadata for an asset stored in a Git tree.
+   * Reads a manifest from a Git tree and returns inspection metadata.
    * Does not perform any destructive Git operations.
    *
    * @param {Object} options
@@ -634,12 +693,23 @@ export default class CasService {
    * @returns {Promise<{ chunksOrphaned: number, slug: string }>}
    * @throws {CasError} MANIFEST_NOT_FOUND if the tree has no manifest
    */
-  async deleteAsset({ treeOid }) {
+  async inspectAsset({ treeOid }) {
     const manifest = await this.readManifest({ treeOid });
     return {
       slug: manifest.slug,
       chunksOrphaned: manifest.chunks.length,
     };
+  }
+
+  /**
+   * @deprecated Use {@link inspectAsset} instead.
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID of the asset
+   * @returns {Promise<{ chunksOrphaned: number, slug: string }>}
+   */
+  async deleteAsset(options) {
+    this.observability.log('warn', 'deleteAsset() is deprecated — use inspectAsset()');
+    return await this.inspectAsset(options);
   }
 
   /**
@@ -651,7 +721,7 @@ export default class CasService {
    * @returns {Promise<{ referenced: Set<string>, total: number }>}
    * @throws {CasError} MANIFEST_NOT_FOUND if any treeOid lacks a manifest
    */
-  async findOrphanedChunks({ treeOids }) {
+  async collectReferencedChunks({ treeOids }) {
     const referenced = new Set();
     let total = 0;
 
@@ -664,6 +734,17 @@ export default class CasService {
     }
 
     return { referenced, total };
+  }
+
+  /**
+   * @deprecated Use {@link collectReferencedChunks} instead.
+   * @param {Object} options
+   * @param {string[]} options.treeOids - Git tree OIDs to analyze
+   * @returns {Promise<{ referenced: Set<string>, total: number }>}
+   */
+  async findOrphanedChunks(options) {
+    this.observability.log('warn', 'findOrphanedChunks() is deprecated — use collectReferencedChunks()');
+    return await this.collectReferencedChunks(options);
   }
 
   /**

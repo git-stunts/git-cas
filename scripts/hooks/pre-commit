@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+# pre-commit git hook
+# Lint must pass cleanly. Zero errors, zero warnings.
+
+set -e
+
+echo "Running pre-commit lint gate..."
+
+echo "→ Linting..."
+pnpm run lint
+
+echo "✅ Lint passed."

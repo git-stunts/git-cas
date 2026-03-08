@@ -1,6 +1,7 @@
 import { createHash, createCipheriv, createDecipheriv, randomBytes, pbkdf2, scrypt } from 'node:crypto';
 import { promisify } from 'node:util';
 import CryptoPort from '../../ports/CryptoPort.js';
+import CasError from '../../domain/errors/CasError.js';
 
 /**
  * Node.js implementation of CryptoPort using node:crypto.
@@ -28,9 +29,9 @@ export default class NodeCryptoAdapter extends CryptoPort {
    * @override
    * @param {Buffer|Uint8Array} buffer - Plaintext to encrypt.
    * @param {Buffer|Uint8Array} key - 32-byte encryption key.
-   * @returns {{ buf: Buffer, meta: import('../../ports/CryptoPort.js').EncryptionMeta }}
+   * @returns {Promise<{ buf: Buffer, meta: import('../../ports/CryptoPort.js').EncryptionMeta }>}
    */
-  encryptBuffer(buffer, key) {
+  async encryptBuffer(buffer, key) {
     this._validateKey(key);
     const nonce = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, nonce);
@@ -50,6 +51,7 @@ export default class NodeCryptoAdapter extends CryptoPort {
    * @returns {Buffer}
    */
   decryptBuffer(buffer, key, meta) {
+    this._validateKey(key);
     const nonce = Buffer.from(meta.nonce, 'base64');
     const tag = Buffer.from(meta.tag, 'base64');
     const decipher = createDecipheriv('aes-256-gcm', key, nonce);
@@ -66,6 +68,7 @@ export default class NodeCryptoAdapter extends CryptoPort {
     this._validateKey(key);
     const nonce = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, nonce);
+    let streamFinalized = false;
 
     /** @param {AsyncIterable<Buffer>} source */
     const encrypt = async function* (source) {
@@ -79,9 +82,16 @@ export default class NodeCryptoAdapter extends CryptoPort {
       if (final.length > 0) {
         yield final;
       }
+      streamFinalized = true;
     };
 
     const finalize = () => {
+      if (!streamFinalized) {
+        throw new CasError(
+          'Cannot finalize before the encrypt stream is fully consumed',
+          'STREAM_NOT_CONSUMED',
+        );
+      }
       const tag = cipher.getAuthTag();
       return this._buildMeta(nonce.toString('base64'), tag.toString('base64'));
     };

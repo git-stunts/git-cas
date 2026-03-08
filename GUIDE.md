@@ -575,6 +575,51 @@ git cas restore a1b2c3d4e5f67890... --out ./decrypted-vacation.jpg --key-file ./
 # Output: 524288
 ```
 
+### Compression, Chunking, and Codec Flags
+
+```bash
+# Enable gzip compression
+git cas store ./data.bin --slug my-data --tree --gzip
+
+# Use CDC (content-defined chunking) for sub-file deduplication
+git cas store ./data.bin --slug my-data --tree --strategy cdc
+
+# Customize chunk size and enable parallel I/O
+git cas store ./data.bin --slug my-data --tree --chunk-size 65536 --concurrency 4
+
+# Use CBOR codec for smaller manifests
+git cas store ./data.bin --slug my-data --tree --codec cbor
+
+# CDC with custom parameters
+git cas store ./data.bin --slug my-data --tree \
+  --strategy cdc --target-chunk-size 32768 \
+  --min-chunk-size 8192 --max-chunk-size 131072
+
+# Restore with parallel I/O
+git cas restore --slug my-data --out ./data.bin --concurrency 4
+```
+
+### Project Config File (`.casrc`)
+
+Place a `.casrc` JSON file at the repository root to set defaults. CLI flags
+always take precedence.
+
+```json
+{
+  "chunkSize": 65536,
+  "strategy": "cdc",
+  "concurrency": 4,
+  "codec": "json",
+  "compression": "gzip",
+  "merkleThreshold": 500,
+  "cdc": {
+    "minChunkSize": 8192,
+    "targetChunkSize": 32768,
+    "maxChunkSize": 131072
+  }
+}
+```
+
 ### Working Directory
 
 By default the CLI operates in the current directory. Use `--cwd` to point at
@@ -621,14 +666,14 @@ The `verifyIntegrity` method reads each chunk blob from Git, recomputes its
 SHA-256 digest, and compares it against the manifest. It emits either
 `integrity:pass` or `integrity:fail` events (see Section 9).
 
-### Deleting an Asset
+### Inspecting an Asset
 
-`deleteAsset` returns logical deletion metadata for an asset without
+`inspectAsset` returns logical deletion metadata for an asset without
 performing any destructive Git operations. The caller is responsible for
 removing refs and running `git gc --prune` to reclaim space:
 
 ```js
-const { slug, chunksOrphaned } = await cas.deleteAsset({ treeOid });
+const { slug, chunksOrphaned } = await cas.inspectAsset({ treeOid });
 console.log(`Asset "${slug}" has ${chunksOrphaned} chunks to clean up`);
 
 // Remove the ref pointing to the tree, then:
@@ -638,23 +683,29 @@ console.log(`Asset "${slug}" has ${chunksOrphaned} chunks to clean up`);
 This is intentionally non-destructive: CAS never modifies or deletes Git
 objects. It only tells you what would become unreachable.
 
-### Finding Orphaned Chunks
+> **Deprecation note:** `deleteAsset()` is a deprecated alias for
+> `inspectAsset()`. It will be removed in a future major version.
+
+### Collecting Referenced Chunks
 
 When you store the same file multiple times with different chunk sizes, or
 store overlapping files, some chunk blobs may no longer be referenced by any
-manifest. `findOrphanedChunks` aggregates all referenced chunk blob OIDs
+manifest. `collectReferencedChunks` aggregates all referenced chunk blob OIDs
 across multiple assets:
 
 ```js
-const { referenced, total } = await cas.findOrphanedChunks({
+const { referenced, total } = await cas.collectReferencedChunks({
   treeOids: [treeOid1, treeOid2, treeOid3]
 });
 console.log(`${referenced.size} unique blobs across ${total} total chunk references`);
 ```
 
 If any `treeOid` lacks a manifest, the call throws
-`CasError('MANIFEST_NOT_FOUND')` (fail closed). This is analysis only -- no
+`CasError('MANIFEST_NOT_FOUND')` (fail closed). This is analysis only — no
 objects are deleted or modified.
+
+> **Deprecation note:** `findOrphanedChunks()` is a deprecated alias for
+> `collectReferencedChunks()`. It will be removed in a future major version.
 
 ### Working with Multiple Assets
 
@@ -1564,10 +1615,14 @@ file size. However, the restore operation currently concatenates all chunks
 into a single buffer, so restoring very large files requires enough memory
 to hold the entire file.
 
-### Q: I get "Chunk size must be at least 1024 bytes"
+### Q: I get "Chunk size must be an integer >= 1024 bytes"
 
 The minimum chunk size is 1 KiB. This prevents pathologically small chunks
 that would create excessive Git objects. Increase your `chunkSize` parameter.
+
+There is also a hard cap at 100 MiB — values above this are rejected outright.
+Setting `chunkSize` above 10 MiB will trigger a warning, since very large
+chunks reduce deduplication benefit and increase memory pressure.
 
 ### Q: I get "Encryption key must be 32 bytes, got N"
 

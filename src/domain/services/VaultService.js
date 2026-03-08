@@ -80,16 +80,22 @@ function hasControlChars(str) {
 export default class VaultService {
   static VAULT_REF = VAULT_REF;
 
+  /** @type {number} Nonce usage warning threshold (2^31). */
+  static ENCRYPTION_COUNT_WARN = 2 ** 31;
+
   /**
    * @param {Object} options
    * @param {import('../../ports/GitPersistencePort.js').default} options.persistence
    * @param {import('../../ports/GitRefPort.js').default} options.ref
    * @param {import('../../ports/CryptoPort.js').default} options.crypto
+   * @param {import('../../ports/ObservabilityPort.js').default} [options.observability]
    */
-  constructor({ persistence, ref, crypto }) {
+  constructor({ persistence, ref, crypto, observability }) {
     this.persistence = persistence;
     this.ref = ref;
     this.crypto = crypto;
+    /** @type {import('../../ports/ObservabilityPort.js').default} */
+    this.observability = observability || { metric() {}, log() {}, span: () => ({ end() {} }) };
   }
 
   // ---------------------------------------------------------------------------
@@ -389,9 +395,24 @@ export default class VaultService {
       }
       const isUpdate = state.entries.has(slug);
       state.entries.set(slug, treeOid);
+      // Shallow copy to avoid mutating readState()'s object on CAS retries.
+      const metadata = { ...(state.metadata || { version: 1 }) };
+      if (metadata.encryption) {
+        // Tracks nonce-relevant operations: every addToVault on an encrypted
+        // vault implies an encryption occurred at the store layer.
+        metadata.encryptionCount = (metadata.encryptionCount || 0) + 1;
+        if (metadata.encryptionCount >= VaultService.ENCRYPTION_COUNT_WARN) {
+          this.observability.log(
+            'warn',
+            `Vault encryption count (${metadata.encryptionCount}) exceeds ` +
+            `${VaultService.ENCRYPTION_COUNT_WARN} — rotate your key`,
+            { encryptionCount: metadata.encryptionCount },
+          );
+        }
+      }
       return {
         entries: state.entries,
-        metadata: state.metadata || { version: 1 },
+        metadata,
         message: isUpdate ? `vault: update ${slug}` : `vault: add ${slug}`,
       };
     });

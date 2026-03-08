@@ -4,15 +4,50 @@ This document describes the security architecture, cryptographic design, and lim
 
 ## Table of Contents
 
-1. [Threat Model](#threat-model)
-2. [Cryptographic Design](#cryptographic-design)
-3. [Key Handling](#key-handling)
-4. [Encryption Flow](#encryption-flow)
-5. [Decryption Flow](#decryption-flow)
-6. [Chunk Digest Verification](#chunk-digest-verification)
-7. [Limitations](#limitations)
-8. [Git Object Immutability](#git-object-immutability)
-9. [Error Codes for Security Operations](#error-codes-for-security-operations)
+1. [Operational Limits](#operational-limits)
+2. [Threat Model](#threat-model)
+3. [Cryptographic Design](#cryptographic-design)
+4. [Key Handling](#key-handling)
+5. [Encryption Flow](#encryption-flow)
+6. [Decryption Flow](#decryption-flow)
+7. [Chunk Digest Verification](#chunk-digest-verification)
+8. [Limitations](#limitations)
+9. [Git Object Immutability](#git-object-immutability)
+10. [Error Codes for Security Operations](#error-codes-for-security-operations)
+
+---
+
+## Operational Limits
+
+### GCM Nonce Bound
+
+AES-256-GCM uses a 96-bit random nonce per encryption. NIST SP 800-38D recommends limiting to **2^32 invocations per key** to keep the nonce collision probability below an acceptable threshold. The birthday bound is approximately 2^48 for random 96-bit nonces, but the conservative NIST guidance of 2^32 accounts for the catastrophic consequences of a collision (full plaintext and authentication key recovery).
+
+git-cas tracks encryption operations via `encryptionCount` in vault metadata. When the count exceeds **2^31** (2,147,483,648), an observability warning is emitted, providing a safety margin before the 2^32 NIST limit.
+
+**Recommended key rotation frequency**: Rotate the vault passphrase (or encryption key) before `encryptionCount` reaches 2^31, or every 90 days, whichever comes first.
+
+### KDF Parameter Guidance
+
+When using passphrase-based encryption, git-cas derives keys using PBKDF2 or scrypt.
+
+| Algorithm | Recommended Parameters | Notes |
+|-----------|----------------------|-------|
+| PBKDF2 | iterations ≥ 600,000 (SHA-256) | OWASP 2024 recommendation |
+| scrypt | N=2^17, r=8, p=1 | ~128 MiB memory |
+
+Higher iteration counts / cost parameters increase resistance to brute-force attacks but also increase the time to derive a key. Choose parameters based on your threat model and latency tolerance.
+
+### Passphrase Entropy Recommendations
+
+| Entropy (bits) | Example | Brute-Force Resistance |
+|---------------|---------|----------------------|
+| < 40 | `password123` | Trivially crackable |
+| 40–60 | 4–5 random dictionary words | Weak against GPU attacks |
+| 60–80 | 6+ random dictionary words or 12+ mixed characters | Moderate |
+| > 80 | 8+ random dictionary words or 16+ mixed characters | Strong |
+
+**Minimum recommendation**: 80+ bits of entropy for vault passphrases. Use a random passphrase generator (e.g., Diceware) rather than human-chosen passwords.
 
 ---
 
@@ -599,6 +634,55 @@ throw new CasError(
 **Recommended action**:
 - Verify the encryption key is available and passed to `restore()`.
 - If the key is lost, the content is permanently inaccessible.
+
+### `RESTORE_TOO_LARGE`
+
+**Thrown when**:
+- An encrypted or compressed restore would exceed the configured `maxRestoreBufferSize` limit.
+- The post-decompression size exceeds the limit (checked after gunzip).
+
+**Example**:
+```javascript
+throw new CasError(
+  'Restore buffer exceeds limit',
+  'RESTORE_TOO_LARGE',
+  { size: 1073741824, limit: 536870912 },
+);
+```
+
+**Possible causes**:
+- The asset is larger than the configured buffer limit (default 512 MiB).
+- A compressed asset inflates beyond the limit after decompression.
+
+**Recommended action**:
+- Increase `maxRestoreBufferSize` in the `CasService` constructor or `.casrc`.
+- For very large assets, consider storing without encryption to enable streaming restore.
+
+---
+
+### `ENCRYPTION_BUFFER_EXCEEDED`
+
+**Thrown when**:
+- Web Crypto AES-GCM encryption is attempted on data exceeding the configured `maxEncryptionBufferSize`.
+- Web Crypto is a one-shot API — it cannot stream, so the entire plaintext must fit in memory.
+
+**Example**:
+```javascript
+throw new CasError(
+  'Streaming encryption buffered 1073741824 bytes (limit: 536870912)...',
+  'ENCRYPTION_BUFFER_EXCEEDED',
+  { accumulated: 1073741824, limit: 536870912 },
+);
+```
+
+**Possible causes**:
+- Large chunks combined with `WebCryptoAdapter` (used in Bun/Deno).
+- `NodeCryptoAdapter` uses true streaming and is not affected by this limit.
+
+**Recommended action**:
+- Increase `maxEncryptionBufferSize` in the `WebCryptoAdapter` constructor.
+- Switch to `NodeCryptoAdapter` if streaming encryption is needed.
+- Split the asset before storing, or store without encryption on the Web Crypto path for very large files.
 
 ---
 

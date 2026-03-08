@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import { readFileSync } from 'node:fs';
-import { program } from 'commander';
+import { program, Option } from 'commander';
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
-import ContentAddressableStore, { EventEmitterObserver } from '../index.js';
+import ContentAddressableStore, { EventEmitterObserver, CborCodec } from '../index.js';
 import Manifest from '../src/domain/value-objects/Manifest.js';
 import { createStoreProgress, createRestoreProgress } from './ui/progress.js';
 import { renderEncryptionCard } from './ui/encryption-card.js';
@@ -12,6 +12,8 @@ import { renderManifestView } from './ui/manifest-view.js';
 import { renderHeatmap } from './ui/heatmap.js';
 import { runAction } from './actions.js';
 import { filterEntries, formatTable, formatTabSeparated } from './ui/vault-list.js';
+import { readPassphraseFile, promptPassphrase } from './ui/passphrase-prompt.js';
+import { loadConfig, mergeConfig } from './config.js';
 
 const getJson = () => program.opts().json;
 
@@ -37,16 +39,21 @@ function readKeyFile(keyFilePath) {
 }
 
 /**
- * Create a CAS instance for the given working directory with an optional observability adapter.
+ * Create a CAS instance for the given working directory.
  *
  * @param {string} cwd
- * @param {{ observability?: import('../index.js').ObservabilityPort }} [opts]
+ * @param {Record<string, any>} [opts]
  * @returns {ContentAddressableStore}
  */
 function createCas(cwd, opts = {}) {
   const runner = ShellRunnerFactory.create();
   const plumbing = new GitPlumbing({ runner, cwd });
-  return new ContentAddressableStore({ plumbing, observability: opts.observability });
+  /** @type {Record<string, any>} */
+  const casOpts = { plumbing, ...opts };
+  if (casOpts.codec === 'cbor') {
+    casOpts.codec = new CborCodec();
+  }
+  return new ContentAddressableStore(casOpts);
 }
 
 /**
@@ -75,13 +82,43 @@ async function deriveVaultKey(cas, metadata, passphrase) {
 }
 
 /**
- * Resolve passphrase from --vault-passphrase flag or GIT_CAS_PASSPHRASE env var.
+ * Returns true when a non-interactive passphrase source exists (flag or env).
+ * Does NOT trigger prompts or consume stdin.
  *
  * @param {Record<string, any>} opts
- * @returns {string | undefined}
+ * @returns {boolean}
  */
-function resolvePassphrase(opts) {
-  return opts.vaultPassphrase ?? process.env.GIT_CAS_PASSPHRASE;
+function hasPassphraseSource(opts) {
+  return Boolean(opts.vaultPassphraseFile || opts.vaultPassphrase || process.env.GIT_CAS_PASSPHRASE);
+}
+
+/**
+ * Resolve passphrase from (in priority order):
+ * 1. --vault-passphrase-file <path>
+ * 2. --vault-passphrase <pass>
+ * 3. GIT_CAS_PASSPHRASE env var
+ * 4. Interactive TTY prompt (if stdin is a TTY)
+ *
+ * @param {Record<string, any>} opts
+ * @param {{ confirm?: boolean }} [extra]
+ * @returns {Promise<string | undefined>}
+ */
+async function resolvePassphrase(opts, extra = {}) {
+  if (opts.vaultPassphraseFile) {
+    return await readPassphraseFile(opts.vaultPassphraseFile);
+  }
+  if (opts.vaultPassphrase) {
+    if (!opts.vaultPassphrase.trim()) { throw new Error('Passphrase must not be empty'); }
+    return opts.vaultPassphrase;
+  }
+  if (process.env.GIT_CAS_PASSPHRASE) {
+    if (!process.env.GIT_CAS_PASSPHRASE.trim()) { throw new Error('Passphrase must not be empty'); }
+    return process.env.GIT_CAS_PASSPHRASE;
+  }
+  if (process.stdin.isTTY) {
+    return await promptPassphrase({ confirm: extra.confirm || false });
+  }
+  return undefined;
 }
 
 /**
@@ -95,16 +132,18 @@ async function resolveEncryptionKey(cas, opts) {
   if (opts.keyFile) {
     return readKeyFile(opts.keyFile);
   }
-  const passphrase = resolvePassphrase(opts);
+  const metadata = await cas.getVaultMetadata();
+  if (!metadata?.encryption) {
+    if (hasPassphraseSource(opts)) {
+      process.stderr.write('warning: passphrase ignored (vault is not encrypted)\n');
+    }
+    return undefined;
+  }
+  const passphrase = await resolvePassphrase(opts);
   if (!passphrase) {
     return undefined;
   }
-  const metadata = await cas.getVaultMetadata();
-  if (metadata?.encryption) {
-    return deriveVaultKey(cas, metadata, passphrase);
-  }
-  process.stderr.write('warning: passphrase ignored (vault is not encrypted)\n');
-  return undefined;
+  return deriveVaultKey(cas, metadata, passphrase);
 }
 
 /**
@@ -177,6 +216,14 @@ function parseRecipient(value, previous) {
   return list;
 }
 
+/** @param {string} v */
+const parseIntFlag = (v) => {
+  if (!/^-?\d+$/.test(v)) { throw new Error(`Expected an integer, got "${v}"`); }
+  const n = Number(v);
+  if (!Number.isSafeInteger(n)) { throw new Error(`Expected a safe integer, got "${v}"`); }
+  return n;
+};
+
 program
   .command('store <file>')
   .description('Store a file into Git CAS')
@@ -186,10 +233,20 @@ program
   .option('--tree', 'Also create a Git tree and print its OID')
   .option('--force', 'Overwrite existing vault entry')
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for encryption (prefer GIT_CAS_PASSPHRASE env var)')
+  .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
+  .option('--gzip', 'Enable gzip compression')
+  .addOption(new Option('--strategy <type>', 'Chunking strategy').choices(['fixed', 'cdc']))
+  .option('--chunk-size <n>', 'Chunk size in bytes', parseIntFlag)
+  .option('--concurrency <n>', 'Parallel chunk I/O operations', parseIntFlag)
+  .addOption(new Option('--codec <type>', 'Manifest codec').choices(['json', 'cbor']))
+  .option('--target-chunk-size <n>', 'CDC target chunk size', parseIntFlag)
+  .option('--min-chunk-size <n>', 'CDC minimum chunk size', parseIntFlag)
+  .option('--max-chunk-size <n>', 'CDC maximum chunk size', parseIntFlag)
+  .option('--merkle-threshold <n>', 'Chunk count threshold for Merkle sub-manifests', parseIntFlag)
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {string} */ file, /** @type {Record<string, any>} */ opts) => {
-    if (opts.recipient && (opts.keyFile || resolvePassphrase(opts))) {
-      throw new Error('Provide --key-file/--vault-passphrase or --recipient, not both');
+    if (opts.recipient && (opts.keyFile || hasPassphraseSource(opts))) {
+      throw new Error('Provide --key-file or a vault passphrase source (--vault-passphrase, --vault-passphrase-file, GIT_CAS_PASSPHRASE), or --recipient — not both');
     }
     if (opts.force && !opts.tree) {
       throw new Error('--force requires --tree');
@@ -197,9 +254,13 @@ program
     const json = program.opts().json;
     const quiet = program.opts().quiet || json;
     const observer = new EventEmitterObserver();
-    const cas = createCas(opts.cwd, { observability: observer });
+
+    const config = loadConfig(opts.cwd);
+    const { casConfig, storeExtras } = mergeConfig(opts, config);
+    const cas = createCas(opts.cwd, { observability: observer, ...casConfig });
 
     const storeOpts = await buildStoreOpts(cas, file, opts);
+    Object.assign(storeOpts, storeExtras);
     const progress = createStoreProgress({ filePath: file, chunkSize: cas.chunkSize, quiet });
     progress.attach(observer);
     let manifest;
@@ -275,12 +336,24 @@ program
   .option('--oid <tree-oid>', 'Direct tree OID')
   .option('--key-file <path>', 'Path to 32-byte raw encryption key file')
   .option('--vault-passphrase <pass>', 'Vault-level passphrase for decryption (prefer GIT_CAS_PASSPHRASE env var)')
+  .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
+  .option('--concurrency <n>', 'Parallel chunk I/O operations', parseIntFlag)
+  .option('--max-restore-buffer <n>', 'Max bytes for buffered encrypted/compressed restore', parseIntFlag)
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     validateRestoreFlags(opts);
     const quiet = program.opts().quiet || program.opts().json;
     const observer = new EventEmitterObserver();
-    const cas = createCas(opts.cwd, { observability: observer });
+
+    const config = loadConfig(opts.cwd);
+    /** @type {Record<string, any>} */
+    const casConfig = {};
+    const concurrency = opts.concurrency ?? config.concurrency;
+    const maxRestoreBufferSize = opts.maxRestoreBuffer ?? config.maxRestoreBufferSize;
+    if (concurrency !== undefined) { casConfig.concurrency = concurrency; }
+    if (maxRestoreBufferSize !== undefined) { casConfig.maxRestoreBufferSize = maxRestoreBufferSize; }
+
+    const cas = createCas(opts.cwd, { observability: observer, ...casConfig });
     const treeOid = opts.oid || await cas.resolveVaultEntry({ slug: opts.slug });
     const manifest = await cas.readManifest({ treeOid });
 
@@ -345,13 +418,14 @@ vault
   .command('init')
   .description('Initialize the vault')
   .option('--vault-passphrase <pass>', 'Passphrase for vault-level encryption (prefer GIT_CAS_PASSPHRASE env var)')
-  .option('--algorithm <alg>', 'KDF algorithm (pbkdf2 or scrypt)', 'pbkdf2')
+  .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
+  .addOption(new Option('--algorithm <alg>', 'KDF algorithm').choices(['pbkdf2', 'scrypt']).default('pbkdf2'))
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
     /** @type {{ passphrase?: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
     const initOpts = {};
-    const passphrase = resolvePassphrase(opts);
+    const passphrase = await resolvePassphrase(opts, { confirm: true });
     if (passphrase) {
       initOpts.passphrase = passphrase;
       initOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };
@@ -478,19 +552,43 @@ vault
 // ---------------------------------------------------------------------------
 // vault rotate
 // ---------------------------------------------------------------------------
+/**
+ * Resolve old and new passphrases for vault rotate from flags/files.
+ *
+ * @param {Record<string, any>} opts
+ * @returns {Promise<{ oldPassphrase: string, newPassphrase: string }>}
+ */
+async function resolveRotatePassphrases(opts) {
+  if (opts.oldPassphraseFile === '-' && opts.newPassphraseFile === '-') {
+    throw new Error('Cannot read both old and new passphrase from stdin');
+  }
+  const oldPassphrase = opts.oldPassphraseFile
+    ? await readPassphraseFile(opts.oldPassphraseFile)
+    : opts.oldPassphrase;
+  const newPassphrase = opts.newPassphraseFile
+    ? await readPassphraseFile(opts.newPassphraseFile)
+    : opts.newPassphrase;
+  if (!oldPassphrase) { throw new Error('Old passphrase required (--old-passphrase or --old-passphrase-file)'); }
+  if (!newPassphrase) { throw new Error('New passphrase required (--new-passphrase or --new-passphrase-file)'); }
+  return { oldPassphrase, newPassphrase };
+}
+
 vault
   .command('rotate')
   .description('Rotate vault-level encryption passphrase')
-  .requiredOption('--old-passphrase <pass>', 'Current vault passphrase')
-  .requiredOption('--new-passphrase <pass>', 'New vault passphrase')
-  .option('--algorithm <alg>', 'KDF algorithm (pbkdf2 or scrypt)')
+  .option('--old-passphrase <pass>', 'Current vault passphrase')
+  .option('--new-passphrase <pass>', 'New vault passphrase')
+  .option('--old-passphrase-file <path>', 'Read old passphrase from file (- for stdin)')
+  .option('--new-passphrase-file <path>', 'Read new passphrase from file (- for stdin)')
+  .addOption(new Option('--algorithm <alg>', 'KDF algorithm').choices(['pbkdf2', 'scrypt']))
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
+    const { oldPassphrase, newPassphrase } = await resolveRotatePassphrases(opts);
     const cas = createCas(opts.cwd);
     /** @type {{ oldPassphrase: string, newPassphrase: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
     const rotateOpts = {
-      oldPassphrase: opts.oldPassphrase,
-      newPassphrase: opts.newPassphrase,
+      oldPassphrase,
+      newPassphrase,
     };
     if (opts.algorithm) {
       rotateOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };

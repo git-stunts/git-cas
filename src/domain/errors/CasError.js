@@ -15,6 +15,8 @@ export default class CasError extends Error {
     this.name = this.constructor.name;
     this.code = code;
     this.meta = meta;
-    Error.captureStackTrace(this, this.constructor);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor);
+    }
   }
 }
