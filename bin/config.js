@@ -65,6 +65,25 @@ function assertEnum(value, name, allowed) {
 /**
  * @param {Record<string, any>} config
  */
+/**
+ * @param {{ minChunkSize?: number, targetChunkSize?: number, maxChunkSize?: number }} cdc
+ */
+function assertCdcOrdering(cdc) {
+  const { minChunkSize, targetChunkSize, maxChunkSize } = cdc;
+  if (minChunkSize !== undefined && maxChunkSize !== undefined && minChunkSize > maxChunkSize) {
+    throw new Error(`${FILENAME}: cdc.minChunkSize must not exceed cdc.maxChunkSize`);
+  }
+  if (targetChunkSize !== undefined && minChunkSize !== undefined && targetChunkSize < minChunkSize) {
+    throw new Error(`${FILENAME}: cdc.targetChunkSize must be >= cdc.minChunkSize`);
+  }
+  if (targetChunkSize !== undefined && maxChunkSize !== undefined && targetChunkSize > maxChunkSize) {
+    throw new Error(`${FILENAME}: cdc.targetChunkSize must be <= cdc.maxChunkSize`);
+  }
+}
+
+/**
+ * @param {Record<string, any>} config
+ */
 function validateCdc(config) {
   if (config.cdc === undefined) { return; }
   if (typeof config.cdc !== 'object' || config.cdc === null || Array.isArray(config.cdc)) {
@@ -73,6 +92,7 @@ function validateCdc(config) {
   for (const key of ['minChunkSize', 'targetChunkSize', 'maxChunkSize']) {
     assertInt(config.cdc[key], `cdc.${key}`, { min: 1, max: MAX_CHUNK_SIZE });
   }
+  assertCdcOrdering(config.cdc);
 }
 
 /**

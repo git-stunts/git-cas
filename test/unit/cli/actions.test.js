@@ -123,14 +123,22 @@ describe('runAction — INTEGRITY_ERROR rate-limiting', () => {
     stderrSpy.mockRestore();
   });
 
-  it('calls delay(1000) on INTEGRITY_ERROR', async () => {
-    const delaySpy = vi.fn().mockResolvedValue(undefined);
+  it('awaits delay(1000) before writing INTEGRITY_ERROR output', async () => {
+    let releaseDelay = () => {};
+    const delaySpy = vi.fn().mockImplementation(() => new Promise((resolve) => {
+      releaseDelay = resolve;
+    }));
     const err = Object.assign(new Error('bad key'), { code: 'INTEGRITY_ERROR' });
-    const action = runAction(async () => { throw err; }, () => false, { delay: delaySpy });
-    await action();
+    const actionPromise = runAction(() => { throw err; }, () => false, { delay: delaySpy })();
+
     expect(delaySpy).toHaveBeenCalledWith(1000);
-    expect(process.exitCode).toBe(1);
+    expect(stderrSpy).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
+
+    releaseDelay();
+    await actionPromise;
     expect(stderrSpy).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 
   it('does not call delay for non-INTEGRITY_ERROR codes', async () => {

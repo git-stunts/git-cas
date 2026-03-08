@@ -110,6 +110,34 @@ describe('loadConfig — field validation', () => {
   });
 });
 
+describe('loadConfig — CDC inter-field ordering', () => {
+  afterEach(teardown);
+
+  it('rejects cdc.minChunkSize > cdc.maxChunkSize', () => {
+    setup();
+    writeFileSync(join(tmpDir, '.casrc'), JSON.stringify({
+      cdc: { minChunkSize: 16384, targetChunkSize: 8192, maxChunkSize: 4096 },
+    }));
+    expect(() => loadConfig(tmpDir)).toThrow(/cdc\.minChunkSize must not exceed cdc\.maxChunkSize/);
+  });
+
+  it('rejects cdc.targetChunkSize < cdc.minChunkSize', () => {
+    setup();
+    writeFileSync(join(tmpDir, '.casrc'), JSON.stringify({
+      cdc: { minChunkSize: 8192, targetChunkSize: 4096, maxChunkSize: 16384 },
+    }));
+    expect(() => loadConfig(tmpDir)).toThrow(/cdc\.targetChunkSize must be >= cdc\.minChunkSize/);
+  });
+
+  it('rejects cdc.targetChunkSize > cdc.maxChunkSize', () => {
+    setup();
+    writeFileSync(join(tmpDir, '.casrc'), JSON.stringify({
+      cdc: { minChunkSize: 2048, targetChunkSize: 32768, maxChunkSize: 16384 },
+    }));
+    expect(() => loadConfig(tmpDir)).toThrow(/cdc\.targetChunkSize must be <= cdc\.maxChunkSize/);
+  });
+});
+
 describe('mergeConfig — CLI overrides', () => {
   it('CLI flags override config', () => {
     const { casConfig } = mergeConfig({ chunkSize: 4096, strategy: 'fixed' }, { chunkSize: 65536 });

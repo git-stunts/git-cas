@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`.casrc` config file** — JSON config file at the repository root provides default values for CLI flags. CLI flags always take precedence. Supports: `chunkSize`, `strategy`, `concurrency`, `codec`, `compression`, `merkleThreshold`, `maxRestoreBufferSize`, and `cdc.*` sub-keys.
 - **CODE-EVAL.md** — Forensic architectural audit (zero-knowledge code extraction, critical assessment, roadmap reconciliation, prescriptive blueprint).
 - **M16 Capstone** — New milestone in ROADMAP.md addressing all 9 audit flaws and 10 concerns (C1–C10). 13 task cards, ~698 LoC, ~21h estimated.
-- **Concerns C8–C10** — Three new architectural concerns identified by the audit: crypto adapter LSP violation (C8), FixedChunker quadratic allocation (C9), encrypt-then-chunk dedup loss (C10).
+- **Concerns C8–C10** — Three architectural concerns from the CODE-EVAL.md audit now documented: crypto adapter LSP violation (C8), FixedChunker quadratic allocation (C9), encrypt-then-chunk dedup loss (C10).
 - **CasError codes** — `RESTORE_TOO_LARGE` and `ENCRYPTION_BUFFER_EXCEEDED` registered in canonical error code table.
 - **16.2 — Memory restore guard** — `CasService` accepts `maxRestoreBufferSize` (default 512 MiB). `_restoreBuffered` throws `RESTORE_TOO_LARGE` with `{ size, limit }` meta when encrypted/compressed restore would exceed the limit. Unencrypted streaming restore is unaffected.
 - **16.3 — Web Crypto encryption buffer guard** — `WebCryptoAdapter` accepts `maxEncryptionBufferSize` (default 512 MiB). Throws `ENCRYPTION_BUFFER_EXCEEDED` when streaming encryption exceeds the limit, since Web Crypto AES-GCM is a one-shot API. NodeCryptoAdapter uses true streaming and is unaffected.
