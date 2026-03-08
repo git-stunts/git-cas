@@ -554,16 +554,26 @@ vault
 vault
   .command('rotate')
   .description('Rotate vault-level encryption passphrase')
-  .requiredOption('--old-passphrase <pass>', 'Current vault passphrase')
-  .requiredOption('--new-passphrase <pass>', 'New vault passphrase')
+  .option('--old-passphrase <pass>', 'Current vault passphrase')
+  .option('--new-passphrase <pass>', 'New vault passphrase')
+  .option('--old-passphrase-file <path>', 'Read old passphrase from file (- for stdin)')
+  .option('--new-passphrase-file <path>', 'Read new passphrase from file (- for stdin)')
   .option('--algorithm <alg>', 'KDF algorithm (pbkdf2 or scrypt)')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
+    const oldPassphrase = opts.oldPassphraseFile
+      ? await readPassphraseFile(opts.oldPassphraseFile)
+      : opts.oldPassphrase;
+    const newPassphrase = opts.newPassphraseFile
+      ? await readPassphraseFile(opts.newPassphraseFile)
+      : opts.newPassphrase;
+    if (!oldPassphrase) { throw new Error('Old passphrase required (--old-passphrase or --old-passphrase-file)'); }
+    if (!newPassphrase) { throw new Error('New passphrase required (--new-passphrase or --new-passphrase-file)'); }
     const cas = createCas(opts.cwd);
     /** @type {{ oldPassphrase: string, newPassphrase: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
     const rotateOpts = {
-      oldPassphrase: opts.oldPassphrase,
-      newPassphrase: opts.newPassphrase,
+      oldPassphrase,
+      newPassphrase,
     };
     if (opts.algorithm) {
       rotateOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };
