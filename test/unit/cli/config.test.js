@@ -49,6 +49,57 @@ describe('loadConfig', () => {
   });
 });
 
+describe('loadConfig — validation', () => {
+  afterEach(teardown);
+
+  it('rejects non-integer chunkSize', () => {
+    setup();
+    writeFileSync(join(tmpDir, '.casrc'), JSON.stringify({ chunkSize: 'big' }));
+    expect(() => loadConfig(tmpDir)).toThrow(/chunkSize must be an integer >= 1024/);
+  });
+
+  it('rejects chunkSize below 1024', () => {
+    setup();
+    writeFileSync(join(tmpDir, '.casrc'), JSON.stringify({ chunkSize: 512 }));
+    expect(() => loadConfig(tmpDir)).toThrow(/chunkSize must be an integer >= 1024/);
+  });
+
+  it('rejects invalid strategy', () => {
+    setup();
+    writeFileSync(join(tmpDir, '.casrc'), JSON.stringify({ strategy: 'random' }));
+    expect(() => loadConfig(tmpDir)).toThrow(/strategy must be "fixed" or "cdc"/);
+  });
+
+  it('rejects non-positive concurrency', () => {
+    setup();
+    writeFileSync(join(tmpDir, '.casrc'), JSON.stringify({ concurrency: 0 }));
+    expect(() => loadConfig(tmpDir)).toThrow(/concurrency must be an integer >= 1/);
+  });
+
+  it('rejects invalid codec', () => {
+    setup();
+    writeFileSync(join(tmpDir, '.casrc'), JSON.stringify({ codec: 'xml' }));
+    expect(() => loadConfig(tmpDir)).toThrow(/codec must be "json" or "cbor"/);
+  });
+
+  it('accepts a fully valid config', () => {
+    setup();
+    writeFileSync(join(tmpDir, '.casrc'), JSON.stringify({
+      chunkSize: 65536,
+      strategy: 'cdc',
+      concurrency: 4,
+      codec: 'cbor',
+      compression: 'gzip',
+      merkleThreshold: 500,
+      maxRestoreBufferSize: 1048576,
+      cdc: { minChunkSize: 2048, targetChunkSize: 8192, maxChunkSize: 16384 },
+    }));
+    const config = loadConfig(tmpDir);
+    expect(config.chunkSize).toBe(65536);
+    expect(config.cdc.targetChunkSize).toBe(8192);
+  });
+});
+
 describe('mergeConfig — CLI overrides', () => {
   it('CLI flags override config', () => {
     const { casConfig } = mergeConfig({ chunkSize: 4096, strategy: 'fixed' }, { chunkSize: 65536 });

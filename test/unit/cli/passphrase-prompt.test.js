@@ -12,25 +12,25 @@ afterEach(async () => {
 
 describe('readPassphraseFile', () => {
   it('reads from file and trims trailing newline', async () => {
-    await writeFile(tmpPath, 'my-secret\n', 'utf8');
+    await writeFile(tmpPath, 'my-secret\n', { mode: 0o600 });
     const result = await readPassphraseFile(tmpPath);
     expect(result).toBe('my-secret');
   });
 
   it('preserves content without trailing newline', async () => {
-    await writeFile(tmpPath, 'no-newline', 'utf8');
+    await writeFile(tmpPath, 'no-newline', { mode: 0o600 });
     const result = await readPassphraseFile(tmpPath);
     expect(result).toBe('no-newline');
   });
 
   it('preserves internal newlines', async () => {
-    await writeFile(tmpPath, 'line1\nline2\n', 'utf8');
+    await writeFile(tmpPath, 'line1\nline2\n', { mode: 0o600 });
     const result = await readPassphraseFile(tmpPath);
     expect(result).toBe('line1\nline2');
   });
 
   it('strips trailing CRLF (Windows line ending)', async () => {
-    await writeFile(tmpPath, 'win-secret\r\n', 'utf8');
+    await writeFile(tmpPath, 'win-secret\r\n', { mode: 0o600 });
     const result = await readPassphraseFile(tmpPath);
     expect(result).toBe('win-secret');
   });
@@ -38,12 +38,12 @@ describe('readPassphraseFile', () => {
 
 describe('readPassphraseFile — empty passphrase rejection', () => {
   it('rejects file containing only LF', async () => {
-    await writeFile(tmpPath, '\n', 'utf8');
+    await writeFile(tmpPath, '\n', { mode: 0o600 });
     await expect(readPassphraseFile(tmpPath)).rejects.toThrow('Passphrase must not be empty');
   });
 
   it('rejects file containing only CRLF', async () => {
-    await writeFile(tmpPath, '\r\n', 'utf8');
+    await writeFile(tmpPath, '\r\n', { mode: 0o600 });
     await expect(readPassphraseFile(tmpPath)).rejects.toThrow('Passphrase must not be empty');
   });
 });

@@ -39,6 +39,17 @@ function readKeyFile(keyFilePath) {
 }
 
 /**
+ * Validate that a KDF algorithm string is a supported value.
+ *
+ * @param {string} alg
+ */
+function validateKdfAlgorithm(alg) {
+  if (!['pbkdf2', 'scrypt'].includes(alg)) {
+    throw new Error(`Invalid KDF algorithm "${alg}": must be "pbkdf2" or "scrypt"`);
+  }
+}
+
+/**
  * Create a CAS instance for the given working directory.
  *
  * @param {string} cwd
@@ -426,6 +437,7 @@ vault
     const initOpts = {};
     const passphrase = await resolvePassphrase(opts, { confirm: true });
     if (passphrase) {
+      validateKdfAlgorithm(opts.algorithm);
       initOpts.passphrase = passphrase;
       initOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };
     }
@@ -576,6 +588,7 @@ vault
       newPassphrase,
     };
     if (opts.algorithm) {
+      validateKdfAlgorithm(opts.algorithm);
       rotateOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };
     }
     const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase(rotateOpts);

@@ -35,6 +35,61 @@ const FILENAME = '.casrc';
  */
 
 /**
+ * @param {any} value
+ * @param {string} name
+ * @param {number} min
+ */
+function assertInt(value, name, min) {
+  if (value === undefined) { return; }
+  if (!Number.isInteger(value) || value < min) {
+    throw new Error(`${FILENAME}: ${name} must be an integer >= ${min}`);
+  }
+}
+
+/**
+ * @param {any} value
+ * @param {string} name
+ * @param {string[]} allowed
+ */
+function assertEnum(value, name, allowed) {
+  if (value === undefined) { return; }
+  if (!allowed.includes(value)) {
+    throw new Error(`${FILENAME}: ${name} must be ${allowed.map((v) => `"${v}"`).join(' or ')}`);
+  }
+}
+
+/**
+ * @param {Record<string, any>} config
+ */
+function validateCdc(config) {
+  if (config.cdc === undefined) { return; }
+  if (typeof config.cdc !== 'object' || config.cdc === null || Array.isArray(config.cdc)) {
+    throw new Error(`${FILENAME}: cdc must be an object`);
+  }
+  for (const key of ['minChunkSize', 'targetChunkSize', 'maxChunkSize']) {
+    assertInt(config.cdc[key], `cdc.${key}`, 1);
+  }
+}
+
+/**
+ * Validates `.casrc` config values after parsing.
+ *
+ * @param {Record<string, any>} config
+ */
+function validateConfig(config) {
+  assertInt(config.chunkSize, 'chunkSize', 1024);
+  assertEnum(config.strategy, 'strategy', ['fixed', 'cdc']);
+  assertInt(config.concurrency, 'concurrency', 1);
+  assertEnum(config.codec, 'codec', ['json', 'cbor']);
+  if (config.compression !== undefined && config.compression !== false) {
+    assertEnum(config.compression, 'compression', ['gzip']);
+  }
+  assertInt(config.merkleThreshold, 'merkleThreshold', 1);
+  assertInt(config.maxRestoreBufferSize, 'maxRestoreBufferSize', 1024);
+  validateCdc(config);
+}
+
+/**
  * Loads `.casrc` from the given directory, returning an empty object if not found.
  *
  * @param {string} cwd - Directory to search for `.casrc`.
@@ -48,6 +103,7 @@ export function loadConfig(cwd) {
     if (typeof config !== 'object' || config === null || Array.isArray(config)) {
       throw new Error(`${FILENAME}: expected a JSON object`);
     }
+    validateConfig(config);
     return config;
   } catch (err) {
     if (err.code === 'ENOENT') {
