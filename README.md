@@ -38,16 +38,23 @@ We use the object database.
 
 <img src="./docs/demo.gif" alt="git-cas demo" />
 
-## What's new in v5.2.4
+## What's new in v5.3.0
 
-**Code review polish — bug fixes, internal hardening, no breaking changes.**
+**M16 Capstone — audit remediation, CLI configuration, and security hardening.**
 
-- **`keyLength` passthrough fixed** — KDF derivation now correctly forwards `kdf.keyLength`, fixing a latent bug for vaults configured with non-default key lengths.
-- **`sha256()` type declaration fixed** — `index.d.ts` corrected from `string | Promise<string>` to `Promise<string>`.
-- **Deno CI fixed** — `createCryptoAdapter` tests no longer crash on Deno due to immutable global restoration.
-- **`keyResolver` made private** — `CasService.#keyResolver` prevents external access to an internal detail.
-- **`resolveChunker` validation** — `chunkSize` now validated as a finite positive number before constructing `FixedChunker`.
-- **File rename** — `VaultPassphraseRotator.js` → `rotateVaultPassphrase.js` (camelCase for functions, PascalCase for classes).
+- **`.casrc` config file** — JSON config at repo root sets defaults for all CLI flags (chunk size, strategy, concurrency, codec, compression, CDC params).
+- **CLI store/restore flags** — all library-level options now accessible from the command line: `--gzip`, `--strategy`, `--chunk-size`, `--concurrency`, `--codec`, `--merkle-threshold`, and CDC-specific flags.
+- **Passphrase-file support** — `--vault-passphrase-file <path>` on store, restore, and vault rotate (use `-` for stdin).
+- **Memory restore guard** — `maxRestoreBufferSize` (default 512 MiB) prevents unbounded memory allocation on encrypted/compressed restore.
+- **Web Crypto encryption buffer guard** — `maxEncryptionBufferSize` (default 512 MiB) for the one-shot AES-GCM API.
+- **Orphaned blob tracking** — `STREAM_ERROR` now includes `meta.orphanedBlobs` for cleanup after partial store failures.
+- **KDF brute-force awareness** — `decryption_failed` metric + CLI rate-limiting delay on `INTEGRITY_ERROR`.
+- **Encryption counter** — vault metadata tracks `encryptionCount` with observability warning near GCM nonce bound.
+- **Lifecycle method rename** — `inspectAsset()` / `collectReferencedChunks()` replace `deleteAsset()` / `findOrphanedChunks()` (old names preserved as deprecated aliases).
+- **FixedChunker O(n²) fix** — pre-allocated buffer replaces `Buffer.concat()` loop.
+- **Chunk size upper bound** — 100 MiB max enforced across all chunkers.
+- **Constructor validation** — `chunkSize`, `maxRestoreBufferSize`, `maxEncryptionBufferSize` validated at construction time.
+- **Cross-runtime portability** — `Error.captureStackTrace` guarded, crypto adapter contracts normalized.
 
 See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 
