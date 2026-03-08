@@ -669,9 +669,9 @@ throw new CasError(
 **Example**:
 ```javascript
 throw new CasError(
-  'Encryption buffer exceeds limit',
+  'Streaming encryption buffered 1073741824 bytes (limit: 536870912)...',
   'ENCRYPTION_BUFFER_EXCEEDED',
-  { size: 1073741824, limit: 536870912 },
+  { accumulated: 1073741824, limit: 536870912 },
 );
 ```
 

@@ -563,6 +563,27 @@ vault
 // ---------------------------------------------------------------------------
 // vault rotate
 // ---------------------------------------------------------------------------
+/**
+ * Resolve old and new passphrases for vault rotate from flags/files.
+ *
+ * @param {Record<string, any>} opts
+ * @returns {Promise<{ oldPassphrase: string, newPassphrase: string }>}
+ */
+async function resolveRotatePassphrases(opts) {
+  if (opts.oldPassphraseFile === '-' && opts.newPassphraseFile === '-') {
+    throw new Error('Cannot read both old and new passphrase from stdin');
+  }
+  const oldPassphrase = opts.oldPassphraseFile
+    ? await readPassphraseFile(opts.oldPassphraseFile)
+    : opts.oldPassphrase;
+  const newPassphrase = opts.newPassphraseFile
+    ? await readPassphraseFile(opts.newPassphraseFile)
+    : opts.newPassphrase;
+  if (!oldPassphrase) { throw new Error('Old passphrase required (--old-passphrase or --old-passphrase-file)'); }
+  if (!newPassphrase) { throw new Error('New passphrase required (--new-passphrase or --new-passphrase-file)'); }
+  return { oldPassphrase, newPassphrase };
+}
+
 vault
   .command('rotate')
   .description('Rotate vault-level encryption passphrase')
@@ -573,14 +594,7 @@ vault
   .option('--algorithm <alg>', 'KDF algorithm (pbkdf2 or scrypt)')
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
-    const oldPassphrase = opts.oldPassphraseFile
-      ? await readPassphraseFile(opts.oldPassphraseFile)
-      : opts.oldPassphrase;
-    const newPassphrase = opts.newPassphraseFile
-      ? await readPassphraseFile(opts.newPassphraseFile)
-      : opts.newPassphrase;
-    if (!oldPassphrase) { throw new Error('Old passphrase required (--old-passphrase or --old-passphrase-file)'); }
-    if (!newPassphrase) { throw new Error('New passphrase required (--new-passphrase or --new-passphrase-file)'); }
+    const { oldPassphrase, newPassphrase } = await resolveRotatePassphrases(opts);
     const cas = createCas(opts.cwd);
     /** @type {{ oldPassphrase: string, newPassphrase: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
     const rotateOpts = {

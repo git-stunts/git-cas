@@ -37,6 +37,11 @@ describe('readPassphraseFile', () => {
 });
 
 describe('readPassphraseFile — empty passphrase rejection', () => {
+  it('rejects empty (0-byte) file', async () => {
+    await writeFile(tmpPath, '', { mode: 0o600 });
+    await expect(readPassphraseFile(tmpPath)).rejects.toThrow('Passphrase must not be empty');
+  });
+
   it('rejects file containing only LF', async () => {
     await writeFile(tmpPath, '\n', { mode: 0o600 });
     await expect(readPassphraseFile(tmpPath)).rejects.toThrow('Passphrase must not be empty');
