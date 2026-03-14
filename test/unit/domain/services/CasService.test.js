@@ -120,6 +120,41 @@ describe('CasService – createTree', () => {
   });
 });
 
+describe('CasService – createTree dedupe', () => {
+  let service;
+  let mockPersistence;
+
+  beforeEach(() => {
+    ({ service, mockPersistence } = setup());
+  });
+
+  it('deduplicates repeated chunk digests while preserving first-seen order', async () => {
+    const duplicateDigest = digestOf('chunk-a');
+    const uniqueDigest = digestOf('chunk-b');
+    const manifest = new Manifest({
+      slug: 'repeat',
+      filename: 'repeat.txt',
+      size: 120,
+      chunks: [
+        { index: 0, size: 40, blob: 'b1', digest: duplicateDigest },
+        { index: 1, size: 40, blob: 'b1', digest: duplicateDigest },
+        { index: 2, size: 40, blob: 'b2', digest: uniqueDigest }
+      ]
+    });
+
+    await service.createTree({ manifest });
+
+    const treeEntries = mockPersistence.writeTree.mock.calls[0][0];
+    const chunkEntries = treeEntries.filter((entry) => !entry.includes('manifest.json'));
+
+    expect(chunkEntries).toEqual([
+      `100644 blob b1\t${duplicateDigest}`,
+      `100644 blob b2\t${uniqueDigest}`
+    ]);
+    expect(new Set(chunkEntries.map((entry) => entry.split('\t')[1])).size).toBe(chunkEntries.length);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // verifyIntegrity
 // ---------------------------------------------------------------------------

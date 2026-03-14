@@ -321,10 +321,36 @@ export default class CasService {
   }
 
   /**
+   * Builds unique chunk blob tree entries in first-seen order.
+   *
+   * Tree entries keep chunk blobs reachable in Git. The manifest remains the
+   * authoritative ordered list of chunk occurrences, so repeated digests only
+   * need one tree entry.
+   *
+   * @private
+   * @param {import('../value-objects/Chunk.js').default[]} chunks
+   * @returns {string[]}
+   */
+  _createChunkTreeEntries(chunks) {
+    const treeEntries = [];
+    const seenDigests = new Set();
+
+    for (const chunk of chunks) {
+      if (seenDigests.has(chunk.digest)) {
+        continue;
+      }
+      seenDigests.add(chunk.digest);
+      treeEntries.push(`100644 blob ${chunk.blob}\t${chunk.digest}`);
+    }
+
+    return treeEntries;
+  }
+
+  /**
    * Creates a Git tree object from a manifest.
    *
-   * The tree contains the serialized manifest file and one blob entry per chunk,
-   * keyed by its SHA-256 digest.
+   * The tree contains the serialized manifest file and one blob entry per
+   * unique chunk digest, preserving first-seen order.
    *
    * @param {Object} options
    * @param {import('../value-objects/Manifest.js').default} options.manifest - The file manifest.
@@ -342,7 +368,7 @@ export default class CasService {
 
     const treeEntries = [
       `100644 blob ${manifestOid}\tmanifest.${this.codec.extension}`,
-      ...chunks.map((c) => `100644 blob ${c.blob}\t${c.digest}`),
+      ...this._createChunkTreeEntries(chunks),
     ];
 
     return await this.persistence.writeTree(treeEntries);
@@ -358,7 +384,6 @@ export default class CasService {
   async _createMerkleTree({ manifest }) {
     const chunks = [...manifest.chunks];
     const subManifestRefs = [];
-    const chunkBlobEntries = [];
 
     for (let i = 0; i < chunks.length; i += this.merkleThreshold) {
       const group = chunks.slice(i, i + this.merkleThreshold);
@@ -371,10 +396,6 @@ export default class CasService {
         chunkCount: group.length,
         startIndex: i,
       });
-
-      for (const c of group) {
-        chunkBlobEntries.push(`100644 blob ${c.blob}\t${c.digest}`);
-      }
     }
 
     const rootManifestData = {
@@ -394,7 +415,7 @@ export default class CasService {
     const treeEntries = [
       `100644 blob ${rootOid}\tmanifest.${this.codec.extension}`,
       ...subManifestEntries,
-      ...chunkBlobEntries,
+      ...this._createChunkTreeEntries(chunks),
     ];
 
     return await this.persistence.writeTree(treeEntries);
