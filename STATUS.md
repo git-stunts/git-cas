@@ -1,88 +1,80 @@
 # @git-stunts/cas — Project Status
 
-**Current version:** v5.1.0 (Locksmith)
-**Last release:** 2026-02-28
-**Test suite:** 757 tests (vitest)
+**Current version:** `v5.3.1`
+**Last release:** `2026-03-15`
+**Current line:** M16 Capstone shipped in `v5.3.0`; `v5.3.1` is the maintenance follow-up that fixed repeated-chunk tree emission.
 **Runtimes:** Node.js 22.x, Bun, Deno
 
 ---
 
-## What's shipped
+## Interface Strategy
 
-| Version | Codename | Highlights |
-|---------|----------|------------|
-| v5.1.0 | Locksmith | Envelope encryption (DEK/KEK), multi-recipient APIs, `--recipient` CLI, recipient management |
-| v5.0.0 | Hydra | Content-defined chunking (CDC), `ChunkingPort`, buzhash engine, 98% dedup on edits |
-| v4.0.1 | Spit Shine + Cockpit | CryptoPort refactor, `verify` command, `--json` mode, `runAction`, vault list filtering |
-| v4.0.0 | Conduit | ObservabilityPort, `restoreStream()`, parallel chunk I/O, `concurrency` option |
-| v3.1.0 | Bijou | Interactive vault dashboard, animated progress bars, `git cas inspect`, chunk heatmap |
-| v3.0.0 | Vault | GC-safe ref-based storage (`refs/cas/vault`), slug-based addressing, vault CLI |
-| v2.0.0 | Horizon | Compression (gzip), KDF (pbkdf2/scrypt), Merkle manifests |
-| v1.x | — | Core CAS, AES-256-GCM encryption, fixed chunking, Git ODB persistence |
+- **Human CLI/TUI:** the current public operator surface. Existing `git cas ...` commands, Bijou formatting, prompts, dashboards, and `--json` convenience output stay here.
+- **Agent CLI:** planned next as `git cas agent`. It will be JSONL-first, non-interactive by default, and independent from Bijou rendering or TTY-only behavior.
 
 ---
 
-## What's next
+## Recently Shipped
 
-One open milestone remains.
-
-### M12 — Carousel (~13h)
-Key rotation without re-encrypting data. Now unblocked by M11 Locksmith.
-
-- [ ] **12.1** Key rotation workflow (`rotateKey()`)
-- [ ] **12.2** Key version tracking in manifest
-- [ ] **12.3** CLI key rotation commands
-- [ ] **12.4** Vault-level key rotation
-
----
-
-## Dependency graph
-
-```
-M8 Spit Shine ──────── ✅ v4.0.1
-M9 Cockpit ─────────── ✅ v4.0.1
-M10 Hydra ──────────── ✅ v5.0.0
-M11 Locksmith ──────── ✅ v5.1.0
-  └──► M12 Carousel ── (ready)
-```
+| Version | Milestone | Highlights |
+|---------|-----------|------------|
+| `v5.3.1` | Maintenance | Repeated-chunk tree integrity fix; unique chunk tree entries; `git fsck` regression coverage |
+| `v5.3.0` | M16 Capstone | Audit remediation, `.casrc`, passphrase-file support, restore guards, `encryptionCount`, lifecycle rename |
+| `v5.2.0` | M12 Carousel | Key rotation without re-encrypting data |
+| `v5.1.0` | M11 Locksmith | Envelope encryption and recipient management |
+| `v5.0.0` | M10 Hydra | Content-defined chunking |
+| `v4.0.1` | M8 + M9 | Review hardening, `verify`, `--json`, CLI polish |
+| `v4.0.0` | M14 Conduit | Streaming restore, observability, parallel chunk I/O |
+| `v3.1.0` | M13 Bijou | Interactive dashboard and animated progress |
 
 ---
 
-## Backlog (unscheduled ideas)
+## Next Up
 
-- Named vaults (`refs/cas/vaults/<name>`)
-- Export vault to archive
-- Publish to working tree / branch
-- Duplicate detection on store
-- Repo scan / dedup advisor
-- Add `CODEOWNERS` or reviewer auto-assignment for PRs
-- Document Git tree filename ordering semantics in test conventions
-- Define release-prep workflow for CHANGELOG/version bump timing
-- Automate test count injection into CHANGELOG from CI output
-- Property-based fuzz tests for envelope encryption round-trips
-- Investigate HSM/Vault key management as a future `KeyManagementPort`
+### M17 — Ledger (`v5.3.2`)
 
-## Visions (researched, not committed)
+Planning and ops reset:
 
-- **V1** Snapshot trees — directory-level store (~410 LoC, ~19h)
-- **V2** Portable bundles — air-gap transfer (~340 LoC, ~15h)
-- **V3** Manifest diff engine (~180 LoC, ~8h)
-- **V4** CompressionPort — zstd, brotli, lz4 (~180 LoC, ~8h)
-- **V5** Watch mode — continuous sync (~220 LoC, ~10h)
-- **V6** Interactive passphrase prompt (~90 LoC, ~4h)
+- Reconcile `ROADMAP.md`, `STATUS.md`, and release messaging
+- Add review automation (`CODEOWNERS` or equivalent)
+- Document Git tree ordering test conventions
+- Define release-prep workflow for changelog/version timing
+- Add property-based fuzz coverage for envelope encryption
 
-## Known concerns
+### M18 — Relay (`v5.4.0`)
 
-| # | Issue | Severity | Summary |
-|---|-------|----------|---------|
-| C1 | Memory amplification | High | Encrypted/compressed restore buffers entire file |
-| C2 | Orphaned blobs | Medium | STREAM_ERROR leaves unreferenced blobs in ODB |
-| C3 | No chunk size cap | Medium | No upper bound on configured chunk size |
-| C4 | Web Crypto buffering | Medium | Deno adapter silently buffers entire file |
-| C5 | Passphrase exposure | High | `--vault-passphrase` visible in shell history |
-| C6 | KDF no rate limit | Low | No brute-force detection on failed decryption |
-| C7 | GCM nonce collision | Low | 96-bit random nonce, safe to ~2^32 encryptions |
+LLM-native CLI foundation:
+
+- Introduce `git cas agent`
+- Define the JSONL protocol envelope and exit codes
+- Add machine-facing parity for the current operational command set
+- Enforce strict non-interactive input handling
+
+### M19 — Nouveau (`v5.5.0`)
+
+Human UX refresh:
+
+- Upgrade Bijou packages to `3.0.0`
+- Move the inspector shell to the v3 `ViewOutput` model
+- Split the dashboard into sub-apps
+- Add better styling, motion, layout persistence, and richer heatmap/detail rendering
 
 ---
 
-*Full task cards: [ROADMAP.md](./ROADMAP.md) | Completed: [COMPLETED_TASKS.md](./COMPLETED_TASKS.md) | Superseded: [GRAVEYARD.md](./GRAVEYARD.md)*
+## Sequenced Roadmap
+
+| Version | Milestone | Theme |
+|---------|-----------|-------|
+| `v5.3.2` | M17 Ledger | Planning and ops reset |
+| `v5.4.0` | M18 Relay | LLM-native CLI foundation |
+| `v5.5.0` | M19 Nouveau | Bijou v3 human UX refresh |
+| `v5.6.0` | M20 Sentinel | Vault health and safety |
+| `v5.7.0` | M21 Atelier | Vault ergonomics and publishing |
+| `v5.8.0` | M22 Cartographer | Repo intelligence and change analysis |
+| `v5.9.0` | M23 Courier | Artifact sets and transfer |
+| `v5.10.0` | M24 Spectrum | Storage and observability extensibility |
+| `v5.11.0` | M25 Bastion | Enterprise key-management research |
+
+---
+
+*Future details: [ROADMAP.md](./ROADMAP.md) | Shipped detail: [COMPLETED_TASKS.md](./COMPLETED_TASKS.md) | Superseded: [GRAVEYARD.md](./GRAVEYARD.md)*

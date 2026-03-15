@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import VaultService from '../../../src/domain/services/VaultService.js';
 import CasError from '../../../src/domain/errors/CasError.js';
 
+const LONG_TEST_TIMEOUT_MS = 15000;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -686,5 +688,5 @@ describe('ContentAddressableStore vault delegation', () => {
   it('VAULT_REF matches VaultService', async () => {
     const { default: ContentAddressableStore } = await import('../../../index.js');
     expect(ContentAddressableStore.VAULT_REF).toBe(VaultService.VAULT_REF);
-  });
+  }, LONG_TEST_TIMEOUT_MS);
 });

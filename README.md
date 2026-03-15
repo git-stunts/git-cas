@@ -32,7 +32,7 @@ We use the object database.
 - **Lifecycle management** `readManifest`, `inspectAsset`, `collectReferencedChunks` — inspect trees, plan deletions, audit storage.
 - **Vault** GC-safe ref-based storage. One ref (`refs/cas/vault`) indexes all assets by slug. No more silent data loss from `git gc`.
 - **Interactive dashboard** `git cas inspect` with chunk heatmap, animated progress bars, and rich manifest views.
-- **Verify & JSON output** `git cas verify` checks integrity; `--json` on all commands for CI/scripting.
+- **Verify & JSON output** `git cas verify` checks integrity; `--json` on all current human-facing commands provides convenience structured output for CI/scripting.
 
 **Use it for:** binary assets, build artifacts, model weights, data packs, secret bundles, weird experiments, etc.
 
