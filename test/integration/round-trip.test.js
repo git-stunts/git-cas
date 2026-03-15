@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import GitPlumbing from '@git-stunts/plumbing';
@@ -52,6 +52,52 @@ function tempFile(content) {
   const fp = path.join(dir, 'input.bin');
   writeFileSync(fp, content);
   return { filePath: fp, dir };
+}
+
+/**
+ * Returns chunk entry names from a Git tree listing.
+ */
+function chunkEntryNames(entries) {
+  return entries
+    .map((entry) => entry.name)
+    .filter((name) => /^[a-f0-9]{64}$/u.test(name));
+}
+
+/**
+ * Returns the unique chunk digests recorded by the manifest.
+ */
+function uniqueChunkDigests(manifest) {
+  return [...new Set(manifest.chunks.map((chunk) => chunk.digest))];
+}
+
+/**
+ * Runs git fsck and returns combined stdout/stderr for assertions.
+ */
+function runGitFsck() {
+  const result = spawnSync('git', ['fsck', '--full', '--no-dangling'], {
+    cwd: repoDir,
+    encoding: 'utf8',
+  });
+
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  if (result.error) {
+    return {
+      status: 1,
+      output: `${output}${output ? '\n' : ''}spawn error: ${result.error.message}`,
+    };
+  }
+
+  if (result.status === null) {
+    return {
+      status: 1,
+      output: `${output}${output ? '\n' : ''}terminated by signal: ${result.signal ?? 'unknown'}`,
+    };
+  }
+
+  return {
+    status: result.status,
+    output,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +297,100 @@ describe('restoreFile (write to disk)', () => {
 
     rmSync(dir, { recursive: true, force: true });
     rmSync(outDir, { recursive: true, force: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Repeated chunks — tree emission dedupe + fsck regression
+// ---------------------------------------------------------------------------
+describe('repeated chunks — v1 tree emission dedupe + fsck regression', () => {
+  it('deduplicates repeated chunk entries in a v1 tree and still restores correctly', async () => {
+    const repeatedChunk = Buffer.alloc(1024, 0x41);
+    const uniqueChunk = Buffer.alloc(1024, 0x42);
+    const original = Buffer.concat([repeatedChunk, uniqueChunk, repeatedChunk, repeatedChunk]);
+    const { filePath, dir } = tempFile(original);
+    const repeatedCas = new ContentAddressableStore({
+      plumbing: GitPlumbing.createDefault({ cwd: repoDir }),
+      chunkSize: 1024,
+      merkleThreshold: 10,
+    });
+
+    try {
+      const manifest = await repeatedCas.storeFile({ filePath, slug: 'repeat-v1' });
+      expect(manifest.chunks.map((chunk) => chunk.digest)).toEqual([
+        manifest.chunks[0].digest,
+        manifest.chunks[1].digest,
+        manifest.chunks[0].digest,
+        manifest.chunks[0].digest,
+      ]);
+
+      const treeOid = await repeatedCas.createTree({ manifest });
+      const service = await repeatedCas.getService();
+      const entries = await service.persistence.readTree(treeOid);
+
+      const emittedChunkNames = chunkEntryNames(entries);
+      // Git stores tree entries in filename-sorted order, so this integration
+      // check verifies uniqueness/membership while unit tests cover emit order.
+      expect([...emittedChunkNames].sort()).toEqual([...uniqueChunkDigests(manifest)].sort());
+      expect(new Set(emittedChunkNames).size).toBe(emittedChunkNames.length);
+
+      const restoredManifest = await service.readManifest({ treeOid });
+      const { buffer } = await repeatedCas.restore({ manifest: restoredManifest });
+      expect(buffer.equals(original)).toBe(true);
+
+      const fsck = runGitFsck();
+      expect(fsck.status).toBe(0);
+      expect(fsck.output).not.toContain('duplicateEntries');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('repeated chunks — Merkle tree emission dedupe + fsck regression', () => {
+  it('deduplicates repeated chunk entries in a Merkle tree and still restores correctly', async () => {
+    const chunkA = Buffer.alloc(1024, 0x61);
+    const chunkB = Buffer.alloc(1024, 0x62);
+    const chunkC = Buffer.alloc(1024, 0x63);
+    const original = Buffer.concat([chunkA, chunkB, chunkA, chunkC, chunkA]);
+    const { filePath, dir } = tempFile(original);
+    const repeatedCas = new ContentAddressableStore({
+      plumbing: GitPlumbing.createDefault({ cwd: repoDir }),
+      chunkSize: 1024,
+      merkleThreshold: 2,
+    });
+
+    try {
+      const manifest = await repeatedCas.storeFile({ filePath, slug: 'repeat-v2' });
+      expect(manifest.chunks.map((chunk) => chunk.digest)).toEqual([
+        manifest.chunks[0].digest,
+        manifest.chunks[1].digest,
+        manifest.chunks[0].digest,
+        manifest.chunks[3].digest,
+        manifest.chunks[0].digest,
+      ]);
+
+      const treeOid = await repeatedCas.createTree({ manifest });
+      const service = await repeatedCas.getService();
+      const entries = await service.persistence.readTree(treeOid);
+      const emittedChunkNames = chunkEntryNames(entries);
+
+      expect(entries.some((entry) => entry.name.startsWith('sub-manifest-'))).toBe(true);
+      // Git stores tree entries in filename-sorted order, so this integration
+      // check verifies uniqueness/membership while unit tests cover emit order.
+      expect([...emittedChunkNames].sort()).toEqual([...uniqueChunkDigests(manifest)].sort());
+      expect(new Set(emittedChunkNames).size).toBe(emittedChunkNames.length);
+
+      const restoredManifest = await service.readManifest({ treeOid });
+      const { buffer } = await repeatedCas.restore({ manifest: restoredManifest });
+      expect(buffer.equals(original)).toBe(true);
+
+      const fsck = runGitFsck();
+      expect(fsck.status).toBe(0);
+      expect(fsck.output).not.toContain('duplicateEntries');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

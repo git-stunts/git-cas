@@ -328,6 +328,37 @@ describe('CasService Merkle – sub-manifest blobs are included as tree entries'
   });
 });
 
+describe('CasService Merkle – repeated chunk tree entry dedupe', () => {
+  it('deduplicates repeated chunk entries across sub-manifest groups', async () => {
+    const { service, trees } = setup(2);
+    const chunkA = Buffer.alloc(1024, 0x41);
+    const chunkB = Buffer.alloc(1024, 0x42);
+    const chunkC = Buffer.alloc(1024, 0x43);
+    const original = Buffer.concat([chunkA, chunkB, chunkA, chunkC, chunkA]);
+
+    const manifest = await service.store({
+      source: bufferSource(original),
+      slug: 'repeated-merkle',
+      filename: 'repeated-merkle.bin',
+    });
+
+    expect(manifest.chunks).toHaveLength(5);
+
+    const treeOid = await service.createTree({ manifest });
+    const treeEntries = trees.get(treeOid);
+    const chunkEntryNames = treeEntries
+      .map((entry) => entry.split('\t')[1])
+      .filter((name) => /^[a-f0-9]{64}$/u.test(name));
+
+    expect(chunkEntryNames).toEqual([
+      manifest.chunks[0].digest,
+      manifest.chunks[1].digest,
+      manifest.chunks[3].digest,
+    ]);
+    expect(new Set(chunkEntryNames).size).toBe(chunkEntryNames.length);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 8. Exactly at threshold boundary uses v1
 // ---------------------------------------------------------------------------
