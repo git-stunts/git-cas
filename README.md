@@ -38,6 +38,17 @@ We use the object database.
 
 <img src="./docs/demo.gif" alt="git-cas demo" />
 
+## What's new in v5.3.1
+
+**Patch release — repeated chunk tree fix.**
+
+- **Unique chunk tree entries** — `createTree()` and `_createMerkleTree()` now emit one tree entry per unique chunk digest instead of repeating the same filename for repeated chunk occurrences.
+- **Manifest remains authoritative** — chunk order and multiplicity still come entirely from the manifest; restore behavior is unchanged.
+- **Clean `git fsck` on repetitive files** — repetitive content no longer yields duplicate tree filenames or `duplicateEntries` errors.
+- **New regressions** — unit and integration coverage now exercises repeated-chunk files and validates real Git tree integrity with `git fsck --full`.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
+
 ## What's new in v5.3.0
 
 **M16 Capstone — audit remediation, CLI configuration, and security hardening.**
@@ -55,8 +66,6 @@ We use the object database.
 - **Chunk size upper bound** — 100 MiB max enforced across all chunkers.
 - **Constructor validation** — `chunkSize`, `maxRestoreBufferSize`, `maxEncryptionBufferSize` validated at construction time.
 - **Cross-runtime portability** — `Error.captureStackTrace` guarded, crypto adapter contracts normalized.
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 
 ## What's new in v5.2.3
 
