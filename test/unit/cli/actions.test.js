@@ -69,28 +69,31 @@ describe('writeError — JSON mode', () => {
 
 describe('runAction', () => {
   let stderrSpy;
-  const originalExitCode = process.exitCode;
+  let exitCode;
+  let setExitCode;
 
   beforeEach(() => {
-    process.exitCode = undefined;
+    exitCode = undefined;
+    setExitCode = vi.fn((code) => {
+      exitCode = code;
+    });
     stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
   });
 
   afterEach(() => {
-    process.exitCode = originalExitCode;
     stderrSpy.mockRestore();
   });
 
   it('does not set exitCode on success', async () => {
-    const action = runAction(async () => {}, () => false);
+    const action = runAction(async () => {}, () => false, { setExitCode });
     await action();
-    expect(process.exitCode).toBeUndefined();
+    expect(exitCode).toBeUndefined();
   });
 
   it('sets process.exitCode = 1 on error', async () => {
-    const action = runAction(async () => { throw new Error('fail'); }, () => false);
+    const action = runAction(async () => { throw new Error('fail'); }, () => false, { setExitCode });
     await action();
-    expect(process.exitCode).toBe(1);
+    expect(exitCode).toBe(1);
   });
 
   it('passes arguments through to the wrapped function', async () => {
@@ -102,7 +105,7 @@ describe('runAction', () => {
 
   it('uses JSON mode from getJson getter', async () => {
     const err = Object.assign(new Error('oops'), { code: 'MISSING_KEY' });
-    const action = runAction(async () => { throw err; }, () => true);
+    const action = runAction(async () => { throw err; }, () => true, { setExitCode });
     await action();
     const output = JSON.parse(stderrSpy.mock.calls[0][0]);
     expect(output).toEqual({ error: 'oops', code: 'MISSING_KEY' });
@@ -111,15 +114,18 @@ describe('runAction', () => {
 
 describe('runAction — INTEGRITY_ERROR rate-limiting', () => {
   let stderrSpy;
-  const originalExitCode = process.exitCode;
+  let exitCode;
+  let setExitCode;
 
   beforeEach(() => {
-    process.exitCode = undefined;
+    exitCode = undefined;
+    setExitCode = vi.fn((code) => {
+      exitCode = code;
+    });
     stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
   });
 
   afterEach(() => {
-    process.exitCode = originalExitCode;
     stderrSpy.mockRestore();
   });
 
@@ -129,25 +135,27 @@ describe('runAction — INTEGRITY_ERROR rate-limiting', () => {
       releaseDelay = resolve;
     }));
     const err = Object.assign(new Error('bad key'), { code: 'INTEGRITY_ERROR' });
-    const actionPromise = runAction(() => { throw err; }, () => false, { delay: delaySpy })();
+    const actionPromise = runAction(() => { throw err; }, () => false, { delay: delaySpy, setExitCode })();
 
-    expect(delaySpy).toHaveBeenCalledWith(1000);
+    await vi.waitFor(() => {
+      expect(delaySpy).toHaveBeenCalledWith(1000);
+    });
     expect(stderrSpy).not.toHaveBeenCalled();
-    expect(process.exitCode).toBeUndefined();
+    expect(exitCode).toBeUndefined();
 
     releaseDelay();
     await actionPromise;
     expect(stderrSpy).toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
+    expect(exitCode).toBe(1);
   });
 
   it('does not call delay for non-INTEGRITY_ERROR codes', async () => {
     const delaySpy = vi.fn().mockResolvedValue(undefined);
     const err = Object.assign(new Error('gone'), { code: 'MISSING_KEY' });
-    const action = runAction(async () => { throw err; }, () => false, { delay: delaySpy });
+    const action = runAction(async () => { throw err; }, () => false, { delay: delaySpy, setExitCode });
     await action();
     expect(delaySpy).not.toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
+    expect(exitCode).toBe(1);
   });
 });
 

@@ -11,11 +11,13 @@ import { renderHistoryTimeline } from './ui/history-timeline.js';
 import { renderManifestView } from './ui/manifest-view.js';
 import { renderHeatmap } from './ui/heatmap.js';
 import { runAction } from './actions.js';
+import { flushStdioAndExit, installBrokenPipeHandlers } from './io.js';
 import { filterEntries, formatTable, formatTabSeparated } from './ui/vault-list.js';
 import { readPassphraseFile, promptPassphrase } from './ui/passphrase-prompt.js';
 import { loadConfig, mergeConfig } from './config.js';
 
 const getJson = () => program.opts().json;
+installBrokenPipeHandlers();
 
 program
   .name('git-cas')
@@ -751,5 +753,4 @@ await program.parseAsync();
 
 // Flush stdout/stderr before exiting — spawned git child processes leave
 // libuv handles that prevent natural exit in containerized environments.
-const code = process.exitCode || 0;
-process.stdout.write('', () => process.stderr.write('', () => process.exit(code)));
+await flushStdioAndExit();
