@@ -79,9 +79,24 @@ function runGitFsck() {
     encoding: 'utf8',
   });
 
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  if (result.error) {
+    return {
+      status: 1,
+      output: `${output}${output ? '\n' : ''}spawn error: ${result.error.message}`,
+    };
+  }
+
+  if (result.status === null) {
+    return {
+      status: 1,
+      output: `${output}${output ? '\n' : ''}terminated by signal: ${result.signal ?? 'unknown'}`,
+    };
+  }
+
   return {
-    status: result.status ?? 0,
-    output: `${result.stdout}${result.stderr}`,
+    status: result.status,
+    output,
   };
 }
 
@@ -314,6 +329,8 @@ describe('repeated chunks — v1 tree emission dedupe + fsck regression', () => 
       const entries = await service.persistence.readTree(treeOid);
 
       const emittedChunkNames = chunkEntryNames(entries);
+      // Git stores tree entries in filename-sorted order, so this integration
+      // check verifies uniqueness/membership while unit tests cover emit order.
       expect([...emittedChunkNames].sort()).toEqual([...uniqueChunkDigests(manifest)].sort());
       expect(new Set(emittedChunkNames).size).toBe(emittedChunkNames.length);
 
@@ -359,6 +376,8 @@ describe('repeated chunks — Merkle tree emission dedupe + fsck regression', ()
       const emittedChunkNames = chunkEntryNames(entries);
 
       expect(entries.some((entry) => entry.name.startsWith('sub-manifest-'))).toBe(true);
+      // Git stores tree entries in filename-sorted order, so this integration
+      // check verifies uniqueness/membership while unit tests cover emit order.
       expect([...emittedChunkNames].sort()).toEqual([...uniqueChunkDigests(manifest)].sort());
       expect(new Set(emittedChunkNames).size).toBe(emittedChunkNames.length);
 
