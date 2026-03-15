@@ -55,6 +55,9 @@ M11 Locksmith ──────── ✅ v5.1.0
 - Publish to working tree / branch
 - Duplicate detection on store
 - Repo scan / dedup advisor
+- Add `CODEOWNERS` or reviewer auto-assignment for PRs
+- Document Git tree filename ordering semantics in test conventions
+- Define release-prep workflow for CHANGELOG/version bump timing
 - Automate test count injection into CHANGELOG from CI output
 - Property-based fuzz tests for envelope encryption round-trips
 - Investigate HSM/Vault key management as a future `KeyManagementPort`
