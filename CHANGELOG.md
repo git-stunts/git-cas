@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **GitHub Actions runtime maintenance** — CI and release workflows now run on `actions/checkout@v6` and `actions/setup-node@v6`, clearing the Node 20 deprecation warnings from GitHub-hosted runners.
+- **Ubuntu-based Docker test stages** — the local/CI Node, Bun, and Deno test images now build on `ubuntu:24.04`, copying runtime binaries from the official upstream images instead of inheriting Debian-based runtime images directly.
 - **Test conventions expanded** — `test/CONVENTIONS.md` now documents Git tree filename ordering, Docker-only integration policy, pinned integration `fileParallelism: false`, and direct-argv subprocess helpers.
 
 ### Fixed
