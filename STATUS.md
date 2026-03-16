@@ -1,8 +1,9 @@
 # @git-stunts/cas — Project Status
 
-**Current version:** `v5.3.1`
+**Current release:** `v5.3.1`
+**Current branch version:** `v5.3.2`
 **Last release:** `2026-03-15`
-**Current line:** M16 Capstone shipped in `v5.3.0`; `v5.3.1` is the maintenance follow-up that fixed repeated-chunk tree emission.
+**Current line:** M16 Capstone shipped in `v5.3.0`; `v5.3.1` fixed repeated-chunk tree emission; `v5.3.2` is the next maintenance/doc/test follow-up in flight.
 **Runtimes:** Node.js 22.x, Bun, Deno
 
 ---
@@ -39,6 +40,7 @@ Planning and ops reset:
 - Add review automation (`CODEOWNERS` or equivalent)
 - Document Git tree ordering test conventions
 - Define release-prep workflow for changelog/version timing
+- Automate test-count injection into release notes or changelog prep
 - Add property-based fuzz coverage for envelope encryption
 
 ### M18 — Relay (`v5.4.0`)

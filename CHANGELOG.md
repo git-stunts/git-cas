@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.2] — Unreleased
+
+### Changed
+- **Vitest workspace split** — unit, integration, and benchmark suites now live in explicit workspace projects so the integration suite always runs with `fileParallelism: false`, regardless of the exact CLI invocation shape.
+- **Status semantics** — `STATUS.md` now distinguishes the last released version (`v5.3.1`) from the current branch version (`v5.3.2`).
+
+### Fixed
+- **CLI version drift** — `bin/git-cas.js` now reads the package version instead of carrying a stale hardcoded literal, so `git-cas --version` tracks the in-repo release line correctly.
+
 ## [5.3.1] — 2026-03-15
 
 ### Fixed
