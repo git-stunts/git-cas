@@ -28,6 +28,8 @@
 | `v4.0.0` | M14 Conduit | Streaming restore, observability, parallel chunk I/O |
 | `v3.1.0` | M13 Bijou | Interactive dashboard and animated progress |
 
+Milestone labels are thematic and non-sequential; the versions above are listed in release order.
+
 ---
 
 ## Next Up
