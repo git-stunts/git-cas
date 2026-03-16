@@ -13,10 +13,10 @@ import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
-import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '../../index.js';
 import VaultService from '../../src/domain/services/VaultService.js';
 import CasError from '../../src/domain/errors/CasError.js';
+import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 
 // Hard gate: refuse to run outside Docker
 if (process.env.GIT_STUNTS_DOCKER !== '1') {
@@ -43,7 +43,7 @@ beforeAll(() => {
   repoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-vault-integ-'));
   initBareRepo(repoDir);
 
-  const plumbing = GitPlumbing.createDefault({ cwd: repoDir });
+  const plumbing = createGitPlumbing({ cwd: repoDir });
   cas = new ContentAddressableStore({ plumbing });
 });
 
@@ -198,7 +198,7 @@ describe('encrypted vault', () => {
   beforeAll(() => {
     encRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-vault-enc-integ-'));
     initBareRepo(encRepoDir);
-    const plumbing = GitPlumbing.createDefault({ cwd: encRepoDir });
+    const plumbing = createGitPlumbing({ cwd: encRepoDir });
     encCas = new ContentAddressableStore({ plumbing });
   });
 

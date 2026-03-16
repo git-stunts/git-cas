@@ -13,11 +13,11 @@ import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
-import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '../../index.js';
 import CborCodec from '../../src/infrastructure/codecs/CborCodec.js';
 import Manifest from '../../src/domain/value-objects/Manifest.js';
 import CasError from '../../src/domain/errors/CasError.js';
+import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 
 // Hard gate: refuse to run outside Docker
 if (process.env.GIT_STUNTS_DOCKER !== '1') {
@@ -45,7 +45,7 @@ beforeAll(() => {
   repoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-integ-'));
   initBareRepo(repoDir);
 
-  const plumbing = GitPlumbing.createDefault({ cwd: repoDir });
+  const plumbing = createGitPlumbing({ cwd: repoDir });
   cas = new ContentAddressableStore({ plumbing });
   casCbor = new ContentAddressableStore({ plumbing, codec: new CborCodec() });
 });
@@ -320,7 +320,7 @@ describe('repeated chunks — v1 tree emission dedupe + fsck regression', () => 
     const original = Buffer.concat([repeatedChunk, uniqueChunk, repeatedChunk, repeatedChunk]);
     const { filePath, dir } = tempFile(original);
     const repeatedCas = new ContentAddressableStore({
-      plumbing: GitPlumbing.createDefault({ cwd: repoDir }),
+      plumbing: createGitPlumbing({ cwd: repoDir }),
       chunkSize: 1024,
       merkleThreshold: 10,
     });
@@ -365,7 +365,7 @@ describe('repeated chunks — Merkle tree emission dedupe + fsck regression', ()
     const original = Buffer.concat([chunkA, chunkB, chunkA, chunkC, chunkA]);
     const { filePath, dir } = tempFile(original);
     const repeatedCas = new ContentAddressableStore({
-      plumbing: GitPlumbing.createDefault({ cwd: repoDir }),
+      plumbing: createGitPlumbing({ cwd: repoDir }),
       chunkSize: 1024,
       merkleThreshold: 2,
     });

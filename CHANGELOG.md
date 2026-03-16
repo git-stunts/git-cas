@@ -5,7 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.3.2] — Unreleased
+## [5.3.3] — Unreleased
+
+### Added
+- **Review automation baseline** — added `.github/CODEOWNERS` with repo-wide ownership for `@git-stunts`.
+- **Release runbook** — added `docs/RELEASE.md` and linked it from `CONTRIBUTING.md` as the canonical patch-release workflow.
+- **`pnpm release:verify`** — new maintainer-facing release helper runs the full release checklist, captures observed test counts, and prints a Markdown summary that can be pasted into release notes or changelog prep.
+- **Deterministic property-based envelope coverage** — added a `fast-check`-backed property suite for envelope-encrypted store/restore round-trips and tamper rejection across empty, boundary-adjacent, and multi-chunk payload sizes.
+
+### Changed
+- **GitHub Actions runtime maintenance** — CI and release workflows now run on `actions/checkout@v6` and `actions/setup-node@v6`, clearing the Node 20 deprecation warnings from GitHub-hosted runners.
+- **Test conventions expanded** — `test/CONVENTIONS.md` now documents Git tree filename ordering, Docker-only integration policy, pinned integration `fileParallelism: false`, and direct-argv subprocess helpers.
+
+### Fixed
+- **Bun blob writes in Git persistence** — `GitPersistenceAdapter.writeBlob()` now hashes temp files instead of piping large buffers through `git hash-object --stdin` under Bun, avoiding unhandled `EPIPE` failures during real Git-backed stores.
+
+## [5.3.2] — 2026-03-15
 
 ### Changed
 - **Vitest workspace split** — unit, integration, and benchmark suites now live in explicit workspace projects so the integration suite always runs with `fileParallelism: false`, regardless of the exact CLI invocation shape.

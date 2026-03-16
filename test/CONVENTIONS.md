@@ -55,3 +55,40 @@ bits are a Unix concept — `chmod` is a no-op on Windows.
 - **No global state patching when injection is available.** If you control
   the code under test, add a parameter. Only patch globals for third-party
   code you cannot modify.
+
+## Git Tree Assertions
+
+**Git tree reads are filename-sorted.** Git returns tree entries in name
+order, not in the original write order. Integration tests that round-trip
+through `readTree()` must therefore assert membership, uniqueness, and Git's
+sorted output semantics instead of assuming first-seen insertion order.
+
+If insertion order matters, assert it at the lower-level boundary that builds
+the tree entries before they are handed to Git.
+
+## Integration Runtime Policy
+
+**Integration suites are Docker-only.** The integration tests intentionally
+refuse to run on the host and require `GIT_STUNTS_DOCKER=1` so Git, Bun, and
+Deno run in a consistent environment.
+
+**Integration files run with `fileParallelism: false`.** These tests spawn real
+Git and CLI subprocesses, so the integration workspace is intentionally kept to
+single-file execution. Do not re-enable file-level parallelism unless the
+subprocess model changes and Bun/Deno are re-validated.
+
+## Subprocess Helpers
+
+**Use direct argv execution, never shell-wrapped commands.** CLI and Git
+integration helpers must call `spawnSync()` / `spawn()` with an explicit binary
+and argv array. Avoid `/bin/sh -c`, command-string helpers, or concatenated
+shell fragments because they introduce quoting drift and runtime-specific I/O
+differences.
+
+```js
+// preferred
+spawnSync('git', ['init', '--bare'], { cwd, encoding: 'utf8' });
+
+// avoid
+spawnSync('/bin/sh', ['-c', 'git init --bare'], { cwd, encoding: 'utf8' });
+```

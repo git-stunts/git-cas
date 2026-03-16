@@ -38,6 +38,16 @@ We use the object database.
 
 <img src="./docs/demo.gif" alt="git-cas demo" />
 
+## What's new in v5.3.2
+
+**Patch release — runtime/test stabilization.**
+
+- **Explicit Vitest workspace projects** — unit, integration, and benchmark suites now run as named workspace projects, with the integration suite always pinned to `fileParallelism: false`.
+- **Deterministic cross-runtime integration behavior** — Bun and Deno no longer depend on Vitest CLI argv shape to avoid subprocess `EPIPE` races.
+- **CLI version sync** — `git-cas --version` now reads package metadata instead of a stale literal, so the binary reports the correct in-repo release line.
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
+
 ## What's new in v5.3.1
 
 **Patch release — repeated chunk tree fix.**

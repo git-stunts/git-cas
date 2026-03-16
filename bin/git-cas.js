@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { program, Option } from 'commander';
-import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
 import ContentAddressableStore, { EventEmitterObserver, CborCodec } from '../index.js';
 import Manifest from '../src/domain/value-objects/Manifest.js';
+import { createGitPlumbing } from '../src/infrastructure/createGitPlumbing.js';
 import { createStoreProgress, createRestoreProgress } from './ui/progress.js';
 import { renderEncryptionCard } from './ui/encryption-card.js';
 import { renderHistoryTimeline } from './ui/history-timeline.js';
@@ -55,8 +55,7 @@ function readKeyFile(keyFilePath) {
  * @returns {ContentAddressableStore}
  */
 function createCas(cwd, opts = {}) {
-  const runner = ShellRunnerFactory.create();
-  const plumbing = new GitPlumbing({ runner, cwd });
+  const plumbing = createGitPlumbing({ cwd });
   /** @type {Record<string, any>} */
   const casOpts = { plumbing, ...opts };
   if (casOpts.codec === 'cbor') {
@@ -530,8 +529,7 @@ vault
   .option('-n, --max-count <n>', 'Limit number of commits')
   .option('--pretty', 'Render as color-coded timeline')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
-    const runner = ShellRunnerFactory.create();
-    const plumbing = new GitPlumbing({ runner, cwd: opts.cwd || '.' });
+    const plumbing = createGitPlumbing({ cwd: opts.cwd || '.' });
     const args = ['log', '--oneline', ContentAddressableStore.VAULT_REF];
     if (opts.maxCount) {
       const n = parseInt(opts.maxCount, 10);

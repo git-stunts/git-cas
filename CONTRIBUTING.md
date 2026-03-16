@@ -10,12 +10,18 @@
 2. **Install Git Hooks**: Run `bash scripts/install-hooks.sh` to set up local quality gates. This will ensure that linting and unit tests pass before every push.
 3. **Run Tests Locally**:
    - `pnpm test` for unit tests.
-   - `pnpm run test:integration` for integration tests (requires Docker).
+   - `pnpm run test:integration:node` for Node integration tests (requires Docker).
+   - `pnpm run test:integration:bun` for Bun integration tests.
+   - `pnpm run test:integration:deno` for Deno integration tests.
+4. **Prepare Releases**:
+   - `pnpm release:verify` for the full release checklist and release-note summary output.
+   - Follow [docs/RELEASE.md](./docs/RELEASE.md) for the canonical patch-release flow.
 
 ## Quality Gates
 We enforce high standards for code quality:
 - **Linting**: Must pass `pnpm run lint`.
 - **Unit Tests**: All unit tests must pass.
 - **Integration Tests**: Must pass across Node, Bun, and Deno runtimes.
+- **Release Prep**: `pnpm release:verify` must pass before a tag is created.
 
 These gates are enforced both locally via git hooks and in CI/CD.
