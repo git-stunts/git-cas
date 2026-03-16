@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -36,19 +36,58 @@ const BIN = path.resolve(__dirname, '../../bin/git-cas.js');
  * - Node → node <script>
  */
 const RUNTIME_CMD = globalThis.Bun
-  ? `bun run ${BIN}`
+  ? ['bun', 'run', BIN]
   : globalThis.Deno
-    ? `deno run -A ${BIN}`
-    : `node ${BIN}`;
+    ? ['deno', 'run', '-A', BIN]
+    : ['node', BIN];
+
+/**
+ * Run a CLI command and capture stdout/stderr without routing through /bin/sh.
+ */
+function runCli(args, cwd) {
+  return spawnSync(RUNTIME_CMD[0], [...RUNTIME_CMD.slice(1), ...args, '--cwd', cwd], {
+    encoding: 'utf8',
+    timeout: 30_000,
+  });
+}
 
 /**
  * Run a CLI command, returning trimmed stdout.
  */
 function cli(args, cwd) {
-  return execSync(`${RUNTIME_CMD} ${args} --cwd ${cwd}`, {
-    encoding: 'utf8',
-    timeout: 30_000,
-  }).trim();
+  const result = runCli(args, cwd);
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.signal) {
+    throw new Error(`CLI terminated by signal: ${result.signal}`);
+  }
+
+  if (result.status !== 0) {
+    const stderr = `${result.stderr ?? ''}`.trim();
+    const error = new Error(stderr || `CLI exited with status ${result.status}`);
+    Object.assign(error, { result });
+    throw error;
+  }
+
+  return `${result.stdout ?? ''}`.trim();
+}
+
+/**
+ * Initialize a real bare Git repo without going through a shell.
+ *
+ * @param {string} cwd
+ */
+function initBareRepo(cwd) {
+  const result = spawnSync('git', ['init', '--bare'], { cwd, encoding: 'utf8' });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`${result.stderr ?? result.stdout ?? 'git init --bare failed'}`.trim());
+  }
 }
 
 /**
@@ -70,7 +109,7 @@ let storeOid;
 
 beforeAll(() => {
   repoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-integ-'));
-  execSync('git init --bare', { cwd: repoDir, stdio: 'ignore' });
+  initBareRepo(repoDir);
   ({ filePath: inputFile, dir: inputDir } = tempFile(original));
 });
 
@@ -84,29 +123,29 @@ afterAll(() => {
 // ---------------------------------------------------------------------------
 describe('vault CLI — init, store, query', () => {
   it('vault init prints commit OID', () => {
-    const out = cli('vault init', repoDir);
+    const out = cli(['vault', 'init'], repoDir);
     expect(out).toMatch(/^[0-9a-f]{40}$/);
   });
 
   it('store --tree --slug demo/hello prints tree OID', () => {
-    storeOid = cli(`store ${inputFile} --tree --slug demo/hello`, repoDir);
+    storeOid = cli(['store', inputFile, '--tree', '--slug', 'demo/hello'], repoDir);
     expect(storeOid).toMatch(/^[0-9a-f]{40}$/);
   });
 
   it('vault list contains demo/hello', () => {
-    const out = cli('vault list', repoDir);
+    const out = cli(['vault', 'list'], repoDir);
     expect(out).toContain('demo/hello');
     expect(out).toContain(storeOid);
   });
 
   it('vault info demo/hello shows slug and tree', () => {
-    const out = cli('vault info demo/hello', repoDir);
+    const out = cli(['vault', 'info', 'demo/hello'], repoDir);
     expect(out).toContain(`slug\tdemo/hello`);
     expect(out).toContain(`tree\t${storeOid}`);
   });
 
   it('vault history contains init and add commits', () => {
-    const out = cli('vault history', repoDir);
+    const out = cli(['vault', 'history'], repoDir);
     expect(out).toContain('vault: init');
     expect(out).toContain('vault: add');
   });
@@ -119,24 +158,24 @@ describe('vault CLI — restore, remove, re-add', () => {
   it('restore --slug demo/hello matches original', () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-out-'));
     const outPath = path.join(outDir, 'restored.bin');
-    cli(`restore --slug demo/hello --out ${outPath}`, repoDir);
+    cli(['restore', '--slug', 'demo/hello', '--out', outPath], repoDir);
     const restored = readFileSync(outPath);
     expect(restored.equals(original)).toBe(true);
     rmSync(outDir, { recursive: true, force: true });
   });
 
   it('vault remove demo/hello prints removed tree OID', () => {
-    const out = cli('vault remove demo/hello', repoDir);
+    const out = cli(['vault', 'remove', 'demo/hello'], repoDir);
     expect(out).toMatch(/^[0-9a-f]{40}$/);
   });
 
   it('vault list is empty after remove', () => {
-    const out = cli('vault list', repoDir);
+    const out = cli(['vault', 'list'], repoDir);
     expect(out).toBe('');
   });
 
   it('store --tree --slug demo/hello works after remove (re-add)', () => {
-    const oid = cli(`store ${inputFile} --tree --slug demo/hello`, repoDir);
+    const oid = cli(['store', inputFile, '--tree', '--slug', 'demo/hello'], repoDir);
     expect(oid).toMatch(/^[0-9a-f]{40}$/);
   });
 });
@@ -153,7 +192,7 @@ describe('vault CLI — encrypted workflow', () => {
 
   beforeAll(() => {
     encRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-enc-integ-'));
-    execSync('git init --bare', { cwd: encRepoDir, stdio: 'ignore' });
+    initBareRepo(encRepoDir);
     ({ filePath: encInputFile, dir: encInputDir } = tempFile(encOriginal));
   });
 
@@ -163,13 +202,13 @@ describe('vault CLI — encrypted workflow', () => {
   });
 
   it('vault init --vault-passphrase prints commit OID', () => {
-    const out = cli(`vault init --vault-passphrase ${passphrase}`, encRepoDir);
+    const out = cli(['vault', 'init', '--vault-passphrase', passphrase], encRepoDir);
     expect(out).toMatch(/^[0-9a-f]{40}$/);
   });
 
   it('encrypted store --tree --vault-passphrase prints tree OID', () => {
     const out = cli(
-      `store ${encInputFile} --tree --slug enc/asset --vault-passphrase ${passphrase}`,
+      ['store', encInputFile, '--tree', '--slug', 'enc/asset', '--vault-passphrase', passphrase],
       encRepoDir,
     );
     expect(out).toMatch(/^[0-9a-f]{40}$/);
@@ -179,7 +218,7 @@ describe('vault CLI — encrypted workflow', () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-enc-out-'));
     const outPath = path.join(outDir, 'restored.bin');
     cli(
-      `restore --slug enc/asset --out ${outPath} --vault-passphrase ${passphrase}`,
+      ['restore', '--slug', 'enc/asset', '--out', outPath, '--vault-passphrase', passphrase],
       encRepoDir,
     );
     const restored = readFileSync(outPath);
@@ -202,7 +241,7 @@ describe('vault CLI — rotate', () => { // eslint-disable-line max-lines-per-fu
 
   beforeAll(() => {
     rotateRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-rotate-integ-'));
-    execSync('git init --bare', { cwd: rotateRepoDir, stdio: 'ignore' });
+    initBareRepo(rotateRepoDir);
     ({ filePath: rotateInputFile, dir: rotateInputDir } = tempFile(rotateOriginal));
 
     keyDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-keys-'));
@@ -221,9 +260,9 @@ describe('vault CLI — rotate', () => { // eslint-disable-line max-lines-per-fu
   });
 
   it('vault init + store with recipient', () => {
-    cli('vault init', rotateRepoDir);
+    cli(['vault', 'init'], rotateRepoDir);
     const oid = cli(
-      `store ${rotateInputFile} --tree --slug rotate/asset --recipient alice:${oldKeyFile}`,
+      ['store', rotateInputFile, '--tree', '--slug', 'rotate/asset', '--recipient', `alice:${oldKeyFile}`],
       rotateRepoDir,
     );
     expect(oid).toMatch(/^[0-9a-f]{40}$/);
@@ -231,7 +270,7 @@ describe('vault CLI — rotate', () => { // eslint-disable-line max-lines-per-fu
 
   it('rotate --slug rotates key and updates vault', () => {
     const oid = cli(
-      `rotate --slug rotate/asset --old-key-file ${oldKeyFile} --new-key-file ${newKeyFile}`,
+      ['rotate', '--slug', 'rotate/asset', '--old-key-file', oldKeyFile, '--new-key-file', newKeyFile],
       rotateRepoDir,
     );
     expect(oid).toMatch(/^[0-9a-f]{40}$/);
@@ -241,7 +280,7 @@ describe('vault CLI — rotate', () => { // eslint-disable-line max-lines-per-fu
     const outDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-rotate-out-'));
     const outPath = path.join(outDir, 'restored.bin');
     cli(
-      `restore --slug rotate/asset --out ${outPath} --key-file ${newKeyFile}`,
+      ['restore', '--slug', 'rotate/asset', '--out', outPath, '--key-file', newKeyFile],
       rotateRepoDir,
     );
     const restored = readFileSync(outPath);
@@ -252,12 +291,12 @@ describe('vault CLI — rotate', () => { // eslint-disable-line max-lines-per-fu
   it('restore with old key fails after rotation', () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-rotate-fail-'));
     const outPath = path.join(outDir, 'restored.bin');
-    expect(() => {
-      cli(
-        `restore --slug rotate/asset --out ${outPath} --key-file ${oldKeyFile}`,
-        rotateRepoDir,
-      );
-    }).toThrow();
+    const result = runCli(
+      ['restore', '--slug', 'rotate/asset', '--out', outPath, '--key-file', oldKeyFile],
+      rotateRepoDir,
+    );
+    expect(result.status).toBe(1);
+    expect(`${result.stderr ?? ''}`).toContain('NO_MATCHING_RECIPIENT');
     rmSync(outDir, { recursive: true, force: true });
   });
 });
@@ -278,7 +317,7 @@ describe('vault CLI — restore --oid with Merkle manifest', () => {
     }
 
     merkleRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-merkle-integ-'));
-    execSync('git init --bare', { cwd: merkleRepoDir, stdio: 'ignore' });
+    initBareRepo(merkleRepoDir);
     ({ filePath: merkleInputFile, dir: merkleInputDir } = tempFile(merkleOriginal));
 
     const plumbing = GitPlumbing.createDefault({ cwd: merkleRepoDir });
@@ -303,7 +342,7 @@ describe('vault CLI — restore --oid with Merkle manifest', () => {
   it('restores full content via --oid for v2 manifests', () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-merkle-out-'));
     const outPath = path.join(outDir, 'restored.bin');
-    const bytesWritten = cli(`restore --oid ${merkleTreeOid} --out ${outPath}`, merkleRepoDir);
+    const bytesWritten = cli(['restore', '--oid', merkleTreeOid, '--out', outPath], merkleRepoDir);
 
     expect(bytesWritten).toBe(String(merkleOriginal.length));
 

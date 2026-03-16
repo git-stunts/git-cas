@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { program, Option } from 'commander';
 import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
 import ContentAddressableStore, { EventEmitterObserver, CborCodec } from '../index.js';
@@ -11,16 +13,23 @@ import { renderHistoryTimeline } from './ui/history-timeline.js';
 import { renderManifestView } from './ui/manifest-view.js';
 import { renderHeatmap } from './ui/heatmap.js';
 import { runAction } from './actions.js';
+import { flushStdioAndExit, installBrokenPipeHandlers } from './io.js';
 import { filterEntries, formatTable, formatTabSeparated } from './ui/vault-list.js';
 import { readPassphraseFile, promptPassphrase } from './ui/passphrase-prompt.js';
 import { loadConfig, mergeConfig } from './config.js';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const { version: CLI_VERSION } = JSON.parse(
+  readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'),
+);
+
 const getJson = () => program.opts().json;
+installBrokenPipeHandlers();
 
 program
   .name('git-cas')
   .description('Content Addressable Storage backed by Git')
-  .version('5.2.2')
+  .version(CLI_VERSION)
   .option('-q, --quiet', 'Suppress progress output')
   .option('--json', 'Output results as JSON');
 
@@ -751,5 +760,4 @@ await program.parseAsync();
 
 // Flush stdout/stderr before exiting — spawned git child processes leave
 // libuv handles that prevent natural exit in containerized environments.
-const code = process.exitCode || 0;
-process.stdout.write('', () => process.stderr.write('', () => process.exit(code)));
+await flushStdioAndExit();

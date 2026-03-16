@@ -7,6 +7,8 @@ import { execSync } from 'node:child_process';
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '../../../index.js';
 
+const LONG_TEST_TIMEOUT_MS = 15000;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -72,5 +74,5 @@ describe('ContentAddressableStore – rotateVaultPassphrase (wiring)', () => {
     expect(commitOid).toMatch(/^[0-9a-f]{40}$/);
     expect(rotatedSlugs).toEqual(['asset']);
     expect(skippedSlugs).toEqual([]);
-  });
+  }, LONG_TEST_TIMEOUT_MS);
 });

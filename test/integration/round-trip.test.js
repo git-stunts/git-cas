@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { execSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import GitPlumbing from '@git-stunts/plumbing';
@@ -31,9 +31,19 @@ let repoDir;
 let cas;
 let casCbor;
 
+function initBareRepo(cwd) {
+  const result = spawnSync('git', ['init', '--bare'], { cwd, encoding: 'utf8' });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`${result.stderr ?? result.stdout ?? 'git init --bare failed'}`.trim());
+  }
+}
+
 beforeAll(() => {
   repoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-integ-'));
-  execSync('git init --bare', { cwd: repoDir, stdio: 'ignore' });
+  initBareRepo(repoDir);
 
   const plumbing = GitPlumbing.createDefault({ cwd: repoDir });
   cas = new ContentAddressableStore({ plumbing });

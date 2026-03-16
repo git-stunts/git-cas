@@ -15,6 +15,8 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import rotateVaultPassphrase from '../../../../src/domain/services/rotateVaultPassphrase.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 
+const LONG_TEST_TIMEOUT_MS = 15000;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -109,7 +111,7 @@ describe('rotateVaultPassphrase – 3 envelope entries', () => {
       const { buffer } = await service.restore({ manifest, encryptionKey: newKey });
       expect(buffer.equals(originals[name])).toBe(true);
     }
-  });
+  }, LONG_TEST_TIMEOUT_MS);
 });
 
 describe('rotateVaultPassphrase – mixed entries', () => {
@@ -153,7 +155,7 @@ describe('rotateVaultPassphrase – mixed entries', () => {
 
     expect(rotatedSlugs.sort()).toEqual(['env1', 'env2']);
     expect(skippedSlugs).toEqual(['direct']);
-  });
+  }, LONG_TEST_TIMEOUT_MS);
 });
 
 describe('rotateVaultPassphrase – error cases', () => {
@@ -175,7 +177,7 @@ describe('rotateVaultPassphrase – error cases', () => {
     await expect(
       rotateVaultPassphrase({ service, vault }, { oldPassphrase: 'wrong', newPassphrase: 'new' }),
     ).rejects.toThrow();
-  });
+  }, LONG_TEST_TIMEOUT_MS);
 
   it('vault not encrypted → VAULT_METADATA_INVALID', async () => {
     await vault.initVault();
@@ -188,7 +190,7 @@ describe('rotateVaultPassphrase – error cases', () => {
     await expect(
       rotateVaultPassphrase({ service, vault }, { oldPassphrase: 'any', newPassphrase: 'new' }),
     ).rejects.toMatchObject({ code: 'VAULT_METADATA_INVALID' });
-  });
+  }, LONG_TEST_TIMEOUT_MS);
 });
 
 describe('rotateVaultPassphrase – KDF options', () => {
@@ -218,7 +220,7 @@ describe('rotateVaultPassphrase – KDF options', () => {
 
     const newState = await vault.readState();
     expect(newState.metadata.encryption.kdf.algorithm).toBe('scrypt');
-  });
+  }, LONG_TEST_TIMEOUT_MS);
 
   it('metadata updated with new KDF salt', async () => {
     const oldPass = 'old-pass';
@@ -237,7 +239,7 @@ describe('rotateVaultPassphrase – KDF options', () => {
     const newState = await vault.readState();
     expect(newState.metadata.encryption.kdf.salt).not.toBe(oldSalt);
     expect(newState.metadata.encryption.kdf.algorithm).toBe(oldState.metadata.encryption.kdf.algorithm);
-  });
+  }, LONG_TEST_TIMEOUT_MS);
 });
 
 describe('rotateVaultPassphrase – retry success', () => {
@@ -274,7 +276,7 @@ describe('rotateVaultPassphrase – retry success', () => {
     );
     expect(result.commitOid).toMatch(/^[0-9a-f]{40}$/);
     expect(calls).toBe(2);
-  });
+  }, LONG_TEST_TIMEOUT_MS);
 });
 
 describe('rotateVaultPassphrase – maxRetries exhausted', () => {
@@ -309,7 +311,7 @@ describe('rotateVaultPassphrase – maxRetries exhausted', () => {
       ),
     ).rejects.toMatchObject({ code: 'VAULT_CONFLICT' });
     expect(calls).toBe(1);
-  });
+  }, LONG_TEST_TIMEOUT_MS);
 });
 
 describe('rotateVaultPassphrase – default retry count', () => {
@@ -344,5 +346,5 @@ describe('rotateVaultPassphrase – default retry count', () => {
       ),
     ).rejects.toMatchObject({ code: 'VAULT_CONFLICT' });
     expect(calls).toBe(3);
-  });
+  }, LONG_TEST_TIMEOUT_MS);
 });

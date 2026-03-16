@@ -70,10 +70,13 @@ function defaultDelay(ms) {
  *
  * @param {(...args: any[]) => Promise<void>} fn - The async action function.
  * @param {() => boolean} getJson - Lazy getter for --json flag value.
- * @param {{ delay?: (ms: number) => Promise<void> }} [options] - Injectable dependencies.
+ * @param {{ delay?: (ms: number) => Promise<void>, setExitCode?: (code: number) => void }} [options] - Injectable dependencies.
  * @returns {(...args: any[]) => Promise<void>} Wrapped action.
  */
-export function runAction(fn, getJson, { delay = defaultDelay } = {}) {
+export function runAction(fn, getJson, {
+  delay = defaultDelay,
+  setExitCode = (code) => { process.exitCode = code; },
+} = {}) {
   return async (/** @type {any[]} */ ...args) => {
     try {
       await fn(...args);
@@ -81,8 +84,8 @@ export function runAction(fn, getJson, { delay = defaultDelay } = {}) {
       if (err?.code === 'INTEGRITY_ERROR') {
         await delay(1000);
       }
+      setExitCode(1);
       writeError(err, getJson());
-      process.exitCode = 1;
     }
   };
 }
