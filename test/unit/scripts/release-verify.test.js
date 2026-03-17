@@ -72,6 +72,19 @@ function makeThrowingRunner(failId) {
   });
 }
 
+/**
+ * Create a runner that omits signal values from successful outcomes.
+ *
+ * @returns {ReturnType<typeof vi.fn>}
+ */
+function makeUndefinedSignalRunner() {
+  return vi.fn(async (step) => ({
+    code: 0,
+    stdout: step.testCount ? 'Tests  5 passed (5)' : '',
+    stderr: '',
+  }));
+}
+
 describe('release verify helpers', () => {
   it('parses Vitest test counts from ANSI-colored output', () => {
     const output = '\u001b[32mTests\u001b[39m  147 passed (147)';
@@ -104,6 +117,15 @@ describe('release verify execution', () => {
     expect(runner).toHaveBeenCalledTimes(RELEASE_STEPS.length);
     expect(report.totalTests).toBe(30);
     expect(report.results.every((result) => result.passed)).toBe(true);
+  });
+
+  it('treats missing signal values as a successful exit', async () => {
+    const runner = makeUndefinedSignalRunner();
+
+    const report = await runReleaseVerify({ runner, logger: QUIET_LOGGER });
+
+    expect(report.results.every((result) => result.passed)).toBe(true);
+    expect(report.results.every((result) => result.signal === null)).toBe(true);
   });
 
   it('stops on the first failure and exposes a partial summary', async () => {

@@ -148,11 +148,12 @@ function totalObservedTests(results) {
  */
 function buildStepResult(step, outcome) {
   const combinedOutput = `${outcome.stdout ?? ''}${outcome.stderr ?? ''}`;
+  const signal = outcome.signal ?? null;
   return {
     ...step,
     code: outcome.code,
-    signal: outcome.signal ?? null,
-    passed: outcome.code === 0 && outcome.signal === null,
+    signal,
+    passed: outcome.code === 0 && signal === null,
     tests: step.testCount ? extractVitestTestCount(combinedOutput) : null,
     errorMessage: outcome.errorMessage ?? null,
   };
