@@ -2,6 +2,8 @@ FROM ubuntu:24.04 AS ubuntu-base
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates git \
+ && groupadd --system gitstunts \
+ && useradd --system --gid gitstunts --create-home --shell /usr/sbin/nologin gitstunts \
  && rm -rf /var/lib/apt/lists/*
 
 FROM node:22 AS node-runtime
@@ -16,7 +18,10 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
+RUN chown -R gitstunts:gitstunts /app
 ENV GIT_STUNTS_DOCKER=1
+ENV HOME=/home/gitstunts
+USER gitstunts
 CMD ["pnpm", "vitest", "run", "test/unit"]
 
 # --- Bun ---
@@ -27,16 +32,23 @@ WORKDIR /app
 COPY package.json ./
 RUN bun install
 COPY . .
+RUN chown -R gitstunts:gitstunts /app
 ENV GIT_STUNTS_DOCKER=1
+ENV HOME=/home/gitstunts
+USER gitstunts
 CMD ["bunx", "vitest", "run", "test/unit"]
 
 # --- Deno ---
 FROM ubuntu-base AS deno
 COPY --from=deno-runtime /usr/bin/deno /usr/local/bin/deno
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
 WORKDIR /app
 COPY package.json ./
 RUN deno install --allow-scripts || true
 COPY . .
 RUN deno install --allow-scripts
+RUN chown -R gitstunts:gitstunts /app
 ENV GIT_STUNTS_DOCKER=1
+ENV HOME=/home/gitstunts
+USER gitstunts
 CMD ["deno", "run", "-A", "npm:vitest", "run", "test/unit"]

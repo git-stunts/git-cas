@@ -15,11 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **GitHub Actions runtime maintenance** — CI and release workflows now run on `actions/checkout@v6` and `actions/setup-node@v6`, clearing the Node 20 deprecation warnings from GitHub-hosted runners.
-- **Ubuntu-based Docker test stages** — the local/CI Node, Bun, and Deno test images now build on `ubuntu:24.04`, copying runtime binaries from the official upstream images instead of inheriting Debian-based runtime images directly.
+- **Ubuntu-based Docker test stages** — the local/CI Node, Bun, and Deno test images now build on `ubuntu:24.04`, copying runtime binaries from the official upstream images instead of inheriting Debian-based runtime images directly, and the final test commands now run as an unprivileged `gitstunts` user.
 - **Test conventions expanded** — `test/CONVENTIONS.md` now documents Git tree filename ordering, Docker-only integration policy, pinned integration `fileParallelism: false`, and direct-argv subprocess helpers.
 
 ### Fixed
 - **Bun blob writes in Git persistence** — `GitPersistenceAdapter.writeBlob()` now hashes temp files instead of piping large buffers through `git hash-object --stdin` under Bun, avoiding unhandled `EPIPE` failures during real Git-backed stores.
+- **Release verification runner failures** — `runReleaseVerify()` now converts thrown step-runner errors into structured step failures with a `ReleaseVerifyError` summary instead of letting raw exceptions escape.
 
 ## [5.3.2] — 2026-03-15
 

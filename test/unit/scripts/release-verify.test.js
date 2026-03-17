@@ -9,6 +9,12 @@ import {
 
 const QUIET_LOGGER = { line() {} };
 
+/**
+ * Create a successful release-step runner.
+ *
+ * @param {number} [testCount]
+ * @returns {ReturnType<typeof vi.fn>}
+ */
 function makeSuccessRunner(testCount = 5) {
   return vi.fn(async (step) => ({
     code: 0,
@@ -18,6 +24,13 @@ function makeSuccessRunner(testCount = 5) {
   }));
 }
 
+/**
+ * Create a runner that returns a non-zero outcome for a specific step.
+ *
+ * @param {string} failId
+ * @param {number} [testCount]
+ * @returns {ReturnType<typeof vi.fn>}
+ */
 function makeFailingRunner(failId, testCount = 5) {
   return vi.fn(async (step) => {
     if (step.id === failId) {
@@ -38,7 +51,28 @@ function makeFailingRunner(failId, testCount = 5) {
   });
 }
 
-describe('release verify', () => {
+/**
+ * Create a runner that throws for a specific step.
+ *
+ * @param {string} failId
+ * @returns {ReturnType<typeof vi.fn>}
+ */
+function makeThrowingRunner(failId) {
+  return vi.fn(async (step) => {
+    if (step.id === failId) {
+      throw new Error('runner exploded');
+    }
+
+    return {
+      code: 0,
+      signal: null,
+      stdout: step.testCount ? 'Tests  5 passed (5)' : '',
+      stderr: '',
+    };
+  });
+}
+
+describe('release verify helpers', () => {
   it('parses Vitest test counts from ANSI-colored output', () => {
     const output = '\u001b[32mTests\u001b[39m  147 passed (147)';
     expect(extractVitestTestCount(output)).toBe(147);
@@ -59,7 +93,9 @@ describe('release verify', () => {
     expect(summary).toContain('- Total tests observed: 12');
     expect(summary).toContain('| Unit Tests (Node) | PASS | 12 |');
   });
+});
 
+describe('release verify execution', () => {
   it('runs the release steps in order and aggregates test counts', async () => {
     const runner = makeSuccessRunner();
 
@@ -72,15 +108,27 @@ describe('release verify', () => {
 
   it('stops on the first failure and exposes a partial summary', async () => {
     const runner = makeFailingRunner('unit-bun');
-
-    await expect(runReleaseVerify({ runner, logger: QUIET_LOGGER })).rejects.toMatchObject({
-      name: 'ReleaseVerifyError',
-      step: expect.objectContaining({ id: 'unit-bun', passed: false }),
-    });
-
     const failure = await runReleaseVerify({ runner, logger: QUIET_LOGGER }).catch((error) => error);
+
     expect(failure).toBeInstanceOf(ReleaseVerifyError);
+    expect(failure.name).toBe('ReleaseVerifyError');
+    expect(failure.step).toMatchObject({ id: 'unit-bun', passed: false });
     expect(failure.summary).toContain('| Unit Tests (Bun) | FAIL | 5 |');
-    expect(runner).toHaveBeenCalledTimes(6);
+    expect(runner).toHaveBeenCalledTimes(3);
+  });
+
+  it('converts thrown runner errors into structured release failures', async () => {
+    const runner = makeThrowingRunner('unit-bun');
+    const failure = await runReleaseVerify({ runner, logger: QUIET_LOGGER }).catch((error) => error);
+
+    expect(failure).toBeInstanceOf(ReleaseVerifyError);
+    expect(failure.step).toMatchObject({
+      id: 'unit-bun',
+      passed: false,
+      code: 1,
+      errorMessage: 'runner exploded',
+    });
+    expect(failure.summary).toContain('| Unit Tests (Bun) | FAIL |');
+    expect(runner).toHaveBeenCalledTimes(3);
   });
 });
