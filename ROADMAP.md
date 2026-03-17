@@ -6,8 +6,8 @@ lives in [GRAVEYARD.md](./GRAVEYARD.md).
 
 ## Current Reality
 
-- **Current release:** `v5.3.2` (2026-03-15)
-- **Current line:** M16 Capstone shipped in `v5.3.0`; `v5.3.1` fixed repeated-chunk tree emission for repetitive content; `v5.3.2` stabilized test/runtime tooling; `v5.3.3` is the remaining M17 Ledger closeout in flight.
+- **Current release:** `v5.3.3` (2026-03-17)
+- **Current line:** M17 Ledger shipped in `v5.3.3`; the next planned line is M18 Relay targeting `v5.4.0`.
 - **Supported runtimes:** Node.js 22.x (primary), Bun, Deno
 - **Current operator experience:** the human-facing CLI/TUI is shipped now; the machine-facing agent CLI is planned next.
 
@@ -45,40 +45,38 @@ The agent CLI is a first-class workflow, not an extension of the human `--json` 
 
 ## Shipped Summary
 
-| Version | Milestone | Codename | Theme | Status |
-|---------|-----------|----------|-------|--------|
-| v3.1.0 | M13 | Bijou | TUI dashboard and animated progress | ✅ Shipped |
-| v4.0.0 | M14 | Conduit | Streaming restore, observability, parallel chunk I/O | ✅ Shipped |
-| v4.0.1 | M8 + M9 | Spit Shine + Cockpit | Review hardening, `verify`, `--json`, CLI polish | ✅ Shipped |
-| v5.0.0 | M10 | Hydra | Content-defined chunking | ✅ Shipped |
-| v5.1.0 | M11 | Locksmith | Envelope encryption and recipient management | ✅ Shipped |
-| v5.2.0 | M12 | Carousel | Key rotation without re-encrypting data | ✅ Shipped |
-| v5.3.0 | M16 | Capstone | Audit remediation and security hardening | ✅ Shipped |
-| v5.3.1 | — | Maintenance | Repeated-chunk tree integrity fix | ✅ Shipped |
-| v5.3.2 | — | Maintenance | Vitest workspace split, CLI version sync, and runtime/tooling stabilization | ✅ Shipped |
+| Version | Milestone | Codename             | Theme                                                                                                             | Status     |
+| ------- | --------- | -------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------- |
+| v3.1.0  | M13       | Bijou                | TUI dashboard and animated progress                                                                               | ✅ Shipped |
+| v4.0.0  | M14       | Conduit              | Streaming restore, observability, parallel chunk I/O                                                              | ✅ Shipped |
+| v4.0.1  | M8 + M9   | Spit Shine + Cockpit | Review hardening, `verify`, `--json`, CLI polish                                                                  | ✅ Shipped |
+| v5.0.0  | M10       | Hydra                | Content-defined chunking                                                                                          | ✅ Shipped |
+| v5.1.0  | M11       | Locksmith            | Envelope encryption and recipient management                                                                      | ✅ Shipped |
+| v5.2.0  | M12       | Carousel             | Key rotation without re-encrypting data                                                                           | ✅ Shipped |
+| v5.3.0  | M16       | Capstone             | Audit remediation and security hardening                                                                          | ✅ Shipped |
+| v5.3.1  | —         | Maintenance          | Repeated-chunk tree integrity fix                                                                                 | ✅ Shipped |
+| v5.3.2  | —         | Maintenance          | Vitest workspace split, CLI version sync, and runtime/tooling stabilization                                       | ✅ Shipped |
+| v5.3.3  | M17       | Ledger               | Release verification, review automation baseline, property tests, and hardened Ubuntu/non-root Docker test stages | ✅ Shipped |
 
 Older history remains in [CHANGELOG.md](./CHANGELOG.md).
 
 ## Planned Release Sequence
 
-| Version | Milestone | Codename | Theme | Status |
-|---------|-----------|----------|-------|--------|
-| v5.3.3 | M17 | Ledger | Planning and ops reset | 📝 Planned |
-| v5.4.0 | M18 | Relay | LLM-native CLI foundation | 📝 Planned |
-| v5.5.0 | M19 | Nouveau | Bijou v3 human UX refresh | 📝 Planned |
-| v5.6.0 | M20 | Sentinel | Vault health and safety | 📝 Planned |
-| v5.7.0 | M21 | Atelier | Vault ergonomics and publishing | 📝 Planned |
-| v5.8.0 | M22 | Cartographer | Repo intelligence and change analysis | 📝 Planned |
-| v5.9.0 | M23 | Courier | Artifact sets and transfer | 📝 Planned |
-| v5.10.0 | M24 | Spectrum | Storage and observability extensibility | 📝 Planned |
-| v5.11.0 | M25 | Bastion | Enterprise key management research | 📝 Planned |
+| Version | Milestone | Codename     | Theme                                   | Status     |
+| ------- | --------- | ------------ | --------------------------------------- | ---------- |
+| v5.4.0  | M18       | Relay        | LLM-native CLI foundation               | 📝 Planned |
+| v5.5.0  | M19       | Nouveau      | Bijou v3 human UX refresh               | 📝 Planned |
+| v5.6.0  | M20       | Sentinel     | Vault health and safety                 | 📝 Planned |
+| v5.7.0  | M21       | Atelier      | Vault ergonomics and publishing         | 📝 Planned |
+| v5.8.0  | M22       | Cartographer | Repo intelligence and change analysis   | 📝 Planned |
+| v5.9.0  | M23       | Courier      | Artifact sets and transfer              | 📝 Planned |
+| v5.10.0 | M24       | Spectrum     | Storage and observability extensibility | 📝 Planned |
+| v5.11.0 | M25       | Bastion      | Enterprise key management research      | 📝 Planned |
 
 ## Dependency Sequence
 
 ```text
-M16 Capstone + v5.3.1/v5.3.2 maintenance ✅
-                |
-            M17 Ledger
+M17 Ledger + v5.3.1/v5.3.2/v5.3.3 maintenance ✅
                 |
             M18 Relay
                 |
@@ -97,23 +95,11 @@ M16 Capstone + v5.3.1/v5.3.2 maintenance ✅
            M25 Bastion
 ```
 
-This sequence is intentionally linear. It forces the docs/ops reset first, then the machine
-interface split, then the human TUI refresh, and only then the broader feature expansion.
+This sequence is intentionally linear. It keeps the docs/ops reset behind us, then moves into
+the machine interface split, then the human TUI refresh, and only then the broader feature
+expansion.
 
 ## Open Milestones
-
-### M17 — Ledger (`v5.3.3`)
-
-**Theme:** planning and operational reset after Capstone.
-
-Deliverables:
-
-- Close M16 in docs and reconcile [ROADMAP.md](./ROADMAP.md), [STATUS.md](./STATUS.md), and the shipped version history.
-- Add `CODEOWNERS` or equivalent review-assignment automation.
-- Document Git tree filename ordering semantics in test conventions to prevent future false positives.
-- Define a release-prep workflow for `CHANGELOG` updates and version bump timing.
-- Automate test-count injection into release notes or changelog prep.
-- Add property-based fuzz coverage for envelope-encryption round-trips.
 
 ### M18 — Relay (`v5.4.0`)
 
@@ -122,6 +108,11 @@ Deliverables:
 Deliverables:
 
 - Introduce `git cas agent` as a separate machine-facing namespace.
+- Add `actionlint` to CI and local checks.
+- Automate GitHub Actions dependency updates so workflow runtime maintenance becomes proactive instead of reactive.
+- Add regression coverage that Docker test images stay unprivileged and that the Deno image retains the Node binary needed for npm package install scripts.
+- Define repository policy for JSDoc/review-bot coverage expectations so automated review warnings stay actionable.
+- Document maintainer PR-thread resolution workflow for bot-driven review cycles.
 - Add a dedicated machine command runner instead of extending the current human `runAction()` path.
 - Define and implement the JSONL envelope contract:
   `protocol`, `command`, `type`, `seq`, `ts`, `data`.
