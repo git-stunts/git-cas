@@ -4,8 +4,8 @@ import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
-import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '../../../index.js';
+import { createGitPlumbing } from '../../../src/infrastructure/createGitPlumbing.js';
 
 const LONG_TEST_TIMEOUT_MS = 15000;
 
@@ -21,7 +21,7 @@ function createRepo() {
 }
 
 function createCas(repoDir) {
-  const plumbing = GitPlumbing.createDefault({ cwd: repoDir });
+  const plumbing = createGitPlumbing({ cwd: repoDir });
   return new ContentAddressableStore({ plumbing, chunkSize: 1024 });
 }
 

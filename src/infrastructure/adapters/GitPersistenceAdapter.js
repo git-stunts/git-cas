@@ -1,4 +1,7 @@
 import { Policy } from '@git-stunts/alfred';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import CasError from '../../domain/errors/CasError.js';
 
@@ -36,12 +39,14 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
    * @returns {Promise<string>} The Git OID of the stored blob.
    */
   async writeBlob(content) {
-    return this.policy.execute(() =>
-      this.plumbing.execute({
-        args: ['hash-object', '-w', '--stdin'],
-        input: content,
-      }),
-    );
+    return this.policy.execute(() => (
+      typeof globalThis.Bun !== 'undefined'
+        ? this.#writeBlobFromTempFile(content)
+        : this.plumbing.execute({
+          args: ['hash-object', '-w', '--stdin'],
+          input: content,
+        })
+    ));
   }
 
   /**
@@ -115,5 +120,27 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
         };
       });
     });
+  }
+
+  /**
+   * Bun can surface unhandled EPIPE writes when large buffers are fed through
+   * `git hash-object --stdin`. Write the blob to a temp file and hash the file
+   * directly instead. `--no-filters` preserves raw bytes.
+   *
+   * @param {Buffer|string} content
+   * @returns {Promise<string>}
+   */
+  async #writeBlobFromTempFile(content) {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'git-cas-blob-'));
+    const tempPath = path.join(tempDir, 'blob.bin');
+
+    try {
+      await writeFile(tempPath, content);
+      return await this.plumbing.execute({
+        args: ['hash-object', '-w', '--no-filters', tempPath],
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   }
 }

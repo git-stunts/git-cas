@@ -4,13 +4,13 @@ import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
-import GitPlumbing from '@git-stunts/plumbing';
 import CasService from '../../../../src/domain/services/CasService.js';
 import VaultService from '../../../../src/domain/services/VaultService.js';
 import GitPersistenceAdapter from '../../../../src/infrastructure/adapters/GitPersistenceAdapter.js';
 import GitRefAdapter from '../../../../src/infrastructure/adapters/GitRefAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import { createGitPlumbing } from '../../../../src/infrastructure/createGitPlumbing.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import rotateVaultPassphrase from '../../../../src/domain/services/rotateVaultPassphrase.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
@@ -29,7 +29,7 @@ function createRepo() {
 }
 
 async function createDeps(repoDir) {
-  const plumbing = GitPlumbing.createDefault({ cwd: repoDir });
+  const plumbing = createGitPlumbing({ cwd: repoDir });
   const crypto = await getTestCryptoAdapter();
   const persistence = new GitPersistenceAdapter({ plumbing });
   const ref = new GitRefAdapter({ plumbing });

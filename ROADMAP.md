@@ -6,8 +6,8 @@ lives in [GRAVEYARD.md](./GRAVEYARD.md).
 
 ## Current Reality
 
-- **Current release:** `v5.3.1` (2026-03-15)
-- **Current line:** M16 Capstone shipped in `v5.3.0`; `v5.3.1` is the maintenance follow-up that fixed repeated-chunk tree emission for repetitive content.
+- **Current release:** `v5.3.2` (2026-03-15)
+- **Current line:** M16 Capstone shipped in `v5.3.0`; `v5.3.1` fixed repeated-chunk tree emission for repetitive content; `v5.3.2` stabilized test/runtime tooling; `v5.3.3` is the remaining M17 Ledger closeout in flight.
 - **Supported runtimes:** Node.js 22.x (primary), Bun, Deno
 - **Current operator experience:** the human-facing CLI/TUI is shipped now; the machine-facing agent CLI is planned next.
 
@@ -55,6 +55,7 @@ The agent CLI is a first-class workflow, not an extension of the human `--json` 
 | v5.2.0 | M12 | Carousel | Key rotation without re-encrypting data | ✅ Shipped |
 | v5.3.0 | M16 | Capstone | Audit remediation and security hardening | ✅ Shipped |
 | v5.3.1 | — | Maintenance | Repeated-chunk tree integrity fix | ✅ Shipped |
+| v5.3.2 | — | Maintenance | Vitest workspace split, CLI version sync, and runtime/tooling stabilization | ✅ Shipped |
 
 Older history remains in [CHANGELOG.md](./CHANGELOG.md).
 
@@ -62,7 +63,7 @@ Older history remains in [CHANGELOG.md](./CHANGELOG.md).
 
 | Version | Milestone | Codename | Theme | Status |
 |---------|-----------|----------|-------|--------|
-| v5.3.2 | M17 | Ledger | Planning and ops reset | 📝 Planned |
+| v5.3.3 | M17 | Ledger | Planning and ops reset | 📝 Planned |
 | v5.4.0 | M18 | Relay | LLM-native CLI foundation | 📝 Planned |
 | v5.5.0 | M19 | Nouveau | Bijou v3 human UX refresh | 📝 Planned |
 | v5.6.0 | M20 | Sentinel | Vault health and safety | 📝 Planned |
@@ -75,7 +76,7 @@ Older history remains in [CHANGELOG.md](./CHANGELOG.md).
 ## Dependency Sequence
 
 ```text
-M16 Capstone + v5.3.1 maintenance ✅
+M16 Capstone + v5.3.1/v5.3.2 maintenance ✅
                 |
             M17 Ledger
                 |
@@ -101,7 +102,7 @@ interface split, then the human TUI refresh, and only then the broader feature e
 
 ## Open Milestones
 
-### M17 — Ledger (`v5.3.2`)
+### M17 — Ledger (`v5.3.3`)
 
 **Theme:** planning and operational reset after Capstone.
 

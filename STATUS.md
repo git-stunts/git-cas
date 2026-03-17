@@ -1,9 +1,9 @@
 # @git-stunts/cas — Project Status
 
-**Current release:** `v5.3.1`
-**Current branch version:** `v5.3.2`
+**Current release:** `v5.3.2`
+**Current branch version:** `v5.3.3`
 **Last release:** `2026-03-15`
-**Current line:** M16 Capstone shipped in `v5.3.0`; `v5.3.1` fixed repeated-chunk tree emission; `v5.3.2` is the next maintenance/doc/test follow-up in flight.
+**Current line:** M16 Capstone shipped in `v5.3.0`; `v5.3.1` fixed repeated-chunk tree emission; `v5.3.2` stabilized test/runtime tooling; `v5.3.3` is the remaining M17 closeout in flight.
 **Runtimes:** Node.js 22.x, Bun, Deno
 
 ---
@@ -19,6 +19,7 @@
 
 | Version | Milestone | Highlights |
 |---------|-----------|------------|
+| `v5.3.2` | Maintenance | Vitest workspace split for deterministic integration runs; CLI version sync; test/runtime tooling stabilization |
 | `v5.3.1` | Maintenance | Repeated-chunk tree integrity fix; unique chunk tree entries; `git fsck` regression coverage |
 | `v5.3.0` | M16 Capstone | Audit remediation, `.casrc`, passphrase-file support, restore guards, `encryptionCount`, lifecycle rename |
 | `v5.2.0` | M12 Carousel | Key rotation without re-encrypting data |
@@ -34,7 +35,7 @@ Milestone labels are thematic and non-sequential; the versions above are listed 
 
 ## Next Up
 
-### M17 — Ledger (`v5.3.2`)
+### M17 — Ledger (`v5.3.3`)
 
 Planning and ops reset:
 
@@ -69,7 +70,7 @@ Human UX refresh:
 
 | Version | Milestone | Theme |
 |---------|-----------|-------|
-| `v5.3.2` | M17 Ledger | Planning and ops reset |
+| `v5.3.3` | M17 Ledger | Planning and ops reset |
 | `v5.4.0` | M18 Relay | LLM-native CLI foundation |
 | `v5.5.0` | M19 Nouveau | Bijou v3 human UX refresh |
 | `v5.6.0` | M20 Sentinel | Vault health and safety |

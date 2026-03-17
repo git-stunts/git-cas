@@ -15,8 +15,8 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '../../index.js';
+import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 
 // Hard gate: refuse to run outside Docker
 if (process.env.GIT_STUNTS_DOCKER !== '1') {
@@ -320,7 +320,7 @@ describe('vault CLI — restore --oid with Merkle manifest', () => {
     initBareRepo(merkleRepoDir);
     ({ filePath: merkleInputFile, dir: merkleInputDir } = tempFile(merkleOriginal));
 
-    const plumbing = GitPlumbing.createDefault({ cwd: merkleRepoDir });
+    const plumbing = createGitPlumbing({ cwd: merkleRepoDir });
     const cas = new ContentAddressableStore({
       plumbing,
       chunkSize: 1024,
