@@ -3,6 +3,7 @@ import { makeCtx } from './_testContext.js';
 
 vi.mock('../../../bin/ui/context.js', () => ({
   getCliContext: () => makeCtx(),
+  createCliTuiContext: () => makeCtx(),
 }));
 
 const { createDashboardApp, createKeyBindings } = await import('../../../bin/ui/dashboard.js');

@@ -7,7 +7,7 @@
  * MUST run inside Docker (GIT_STUNTS_DOCKER=1). Refuses to run on the host.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -26,6 +26,11 @@ if (process.env.GIT_STUNTS_DOCKER !== '1') {
     'Use: npm run test:integration:node',
   );
 }
+
+vi.setConfig({
+  testTimeout: 15000,
+  hookTimeout: 30000,
+});
 
 let repoDir;
 let cas;

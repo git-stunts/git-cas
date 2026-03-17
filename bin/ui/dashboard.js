@@ -3,8 +3,8 @@
  */
 
 import { run, quit, createKeyMap } from '@flyingrobots/bijou-tui';
-import { createNodeContext } from '@flyingrobots/bijou-node';
 import { loadEntriesCmd, loadManifestCmd } from './dashboard-cmds.js';
+import { createCliTuiContext } from './context.js';
 import { renderDashboard } from './dashboard-view.js';
 
 /**
@@ -282,11 +282,16 @@ export function createDashboardApp(deps) {
  * Print static list for non-TTY environments.
  *
  * @param {ContentAddressableStore} cas
+ * @param {{
+ *   ctx?: BijouContext,
+ *   runApp?: typeof run,
+ *   output?: Pick<NodeJS.WriteStream, 'write'>,
+ * }} [options]
  */
-async function printStaticList(cas) {
+async function printStaticList(cas, output = process.stdout) {
   const entries = await cas.listVault();
   for (const { slug, treeOid } of entries) {
-    process.stdout.write(`${slug}\t${treeOid}\n`);
+    output.write(`${slug}\t${treeOid}\n`);
   }
 }
 
@@ -294,13 +299,19 @@ async function printStaticList(cas) {
  * Launch the interactive vault dashboard.
  *
  * @param {ContentAddressableStore} cas
+ * @param {{
+ *   ctx?: BijouContext,
+ *   runApp?: typeof run,
+ *   output?: Pick<NodeJS.WriteStream, 'write'>,
+ * }} [options]
  */
-export async function launchDashboard(cas) {
-  if (!process.stdout.isTTY) {
-    return printStaticList(cas);
+export async function launchDashboard(cas, options = {}) {
+  const ctx = options.ctx || createCliTuiContext();
+  if (ctx.mode !== 'interactive') {
+    return printStaticList(cas, options.output);
   }
-  const ctx = createNodeContext();
   const keyMap = createKeyBindings();
   const deps = { keyMap, cas, ctx };
-  return run(createDashboardApp(deps), { ctx });
+  const runApp = options.runApp || run;
+  return runApp(createDashboardApp(deps), { ctx });
 }

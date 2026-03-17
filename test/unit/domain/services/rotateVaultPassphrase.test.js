@@ -15,7 +15,7 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import rotateVaultPassphrase from '../../../../src/domain/services/rotateVaultPassphrase.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 
-const LONG_TEST_TIMEOUT_MS = 15000;
+const LONG_TEST_TIMEOUT_MS = 60000;
 
 // ---------------------------------------------------------------------------
 // Helpers

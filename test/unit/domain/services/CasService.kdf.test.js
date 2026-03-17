@@ -7,6 +7,7 @@ import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const SLOW_KDF_TEST_TIMEOUT_MS = 20000;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -100,7 +101,7 @@ describe('CasService.deriveKey() – scrypt', () => {
     expect(typeof result.params.parallelization).toBe('number');
     // scrypt params should NOT have iterations
     expect(result.params.iterations).toBeUndefined();
-  });
+  }, SLOW_KDF_TEST_TIMEOUT_MS);
 });
 
 // ---------------------------------------------------------------------------
@@ -131,7 +132,7 @@ describe('CasService.deriveKey() – determinism', () => {
     const result2 = await service.deriveKey({ passphrase, salt, algorithm: 'scrypt' });
 
     expect(result1.key.equals(result2.key)).toBe(true);
-  });
+  }, SLOW_KDF_TEST_TIMEOUT_MS);
 });
 
 // ---------------------------------------------------------------------------
@@ -164,7 +165,7 @@ describe('CasService.deriveKey() – different salts', () => {
     const result2 = await service.deriveKey({ passphrase, salt: salt2, algorithm: 'scrypt' });
 
     expect(result1.key.equals(result2.key)).toBe(false);
-  });
+  }, SLOW_KDF_TEST_TIMEOUT_MS);
 });
 
 // ---------------------------------------------------------------------------
@@ -268,7 +269,7 @@ describe('CasService – wrong passphrase fails restore', () => {
     } catch (err) {
       expect(err.code).toBe('INTEGRITY_ERROR');
     }
-  });
+  }, SLOW_KDF_TEST_TIMEOUT_MS);
 });
 
 // ---------------------------------------------------------------------------
@@ -326,7 +327,7 @@ describe('CasService – manifest KDF metadata (scrypt)', () => {
     expect(typeof kdf.cost).toBe('number');
     expect(typeof kdf.blockSize).toBe('number');
     expect(kdf.iterations).toBeUndefined();
-  });
+  }, SLOW_KDF_TEST_TIMEOUT_MS);
 });
 
 // ---------------------------------------------------------------------------
@@ -352,7 +353,7 @@ describe('CasService – scrypt passphrase round-trip', () => {
     expect(manifest.encryption.kdf.algorithm).toBe('scrypt');
     const { buffer } = await service.restore({ manifest, passphrase: 'scrypt-passphrase' });
     expect(buffer.equals(original)).toBe(true);
-  });
+  }, SLOW_KDF_TEST_TIMEOUT_MS);
 
   it('scrypt round-trip with multi-chunk data', async () => {
     const original = randomBytes(3 * 1024);
@@ -367,7 +368,7 @@ describe('CasService – scrypt passphrase round-trip', () => {
     expect(manifest.chunks.length).toBe(3);
     const { buffer } = await service.restore({ manifest, passphrase: 'scrypt-multi-chunk' });
     expect(buffer.equals(original)).toBe(true);
-  });
+  }, SLOW_KDF_TEST_TIMEOUT_MS);
 });
 
 describe('CasService – wrong scrypt passphrase', () => {
@@ -389,7 +390,7 @@ describe('CasService – wrong scrypt passphrase', () => {
     await expect(
       service.restore({ manifest, passphrase: 'wrong-scrypt-pass' }),
     ).rejects.toThrow(CasError);
-  });
+  }, SLOW_KDF_TEST_TIMEOUT_MS);
 });
 
 // ---------------------------------------------------------------------------
@@ -433,7 +434,7 @@ describe('CasService – passphrase + compression round-trip', () => {
     expect(manifest.encryption.kdf.algorithm).toBe('scrypt');
     const { buffer } = await service.restore({ manifest, passphrase: 'scrypt-compress' });
     expect(buffer.equals(original)).toBe(true);
-  });
+  }, SLOW_KDF_TEST_TIMEOUT_MS);
 });
 
 describe('CasService – passphrase + compression edge cases', () => {

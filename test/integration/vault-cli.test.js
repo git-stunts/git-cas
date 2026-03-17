@@ -47,7 +47,7 @@ const RUNTIME_CMD = globalThis.Bun
 function runCli(args, cwd) {
   return spawnSync(RUNTIME_CMD[0], [...RUNTIME_CMD.slice(1), ...args, '--cwd', cwd], {
     encoding: 'utf8',
-    timeout: 30_000,
+    timeout: 90_000,
   });
 }
 

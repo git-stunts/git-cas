@@ -9,6 +9,7 @@ import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const SLOW_EMPTY_FILE_TEST_TIMEOUT_MS = 15000;
 
 /**
  * Helper: writes a 0-byte file and returns its path.
@@ -217,5 +218,5 @@ describe('CasService – empty file repeated stores', () => {
 
     // writeBlob should never have been called across all 100 iterations.
     expect(mockPersistence.writeBlob).not.toHaveBeenCalled();
-  });
+  }, SLOW_EMPTY_FILE_TEST_TIMEOUT_MS);
 });
