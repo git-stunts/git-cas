@@ -281,12 +281,8 @@ export function createDashboardApp(deps) {
 /**
  * Print static list for non-TTY environments.
  *
- * @param {ContentAddressableStore} cas
- * @param {{
- *   ctx?: BijouContext,
- *   runApp?: typeof run,
- *   output?: Pick<NodeJS.WriteStream, 'write'>,
- * }} [options]
+ * @param {ContentAddressableStore} cas Content-addressable store read by printStaticList.
+ * @param {Pick<NodeJS.WriteStream, 'write'> | NodeJS.WriteStream} [output=process.stdout] Output stream used by printStaticList to write each entry.
  */
 async function printStaticList(cas, output = process.stdout) {
   const entries = await cas.listVault();
