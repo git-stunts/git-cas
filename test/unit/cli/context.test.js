@@ -13,6 +13,22 @@ function makeRuntime(overrides = {}) {
 }
 
 describe('detectCliTuiMode', () => {
+  it('uses accessible mode when BIJOU_ACCESSIBLE=1', () => {
+    const mode = detectCliTuiMode(makeRuntime({
+      env: { BIJOU_ACCESSIBLE: '1', TERM: 'xterm-256color' },
+    }));
+
+    expect(mode).toBe('accessible');
+  });
+
+  it('falls back to pipe when TERM is dumb', () => {
+    const mode = detectCliTuiMode(makeRuntime({
+      env: { TERM: 'dumb' },
+    }));
+
+    expect(mode).toBe('pipe');
+  });
+
   it('stays interactive on a TTY when NO_COLOR is set', () => {
     const mode = detectCliTuiMode(makeRuntime({
       env: { NO_COLOR: '1', TERM: 'xterm-256color' },

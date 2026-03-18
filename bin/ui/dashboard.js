@@ -4,11 +4,13 @@
 
 import { run, quit, createKeyMap } from '@flyingrobots/bijou-tui';
 import { loadEntriesCmd, loadManifestCmd } from './dashboard-cmds.js';
-import { createCliTuiContext } from './context.js';
+import { createCliTuiContext, detectCliTuiMode } from './context.js';
 import { renderDashboard } from './dashboard-view.js';
 
 /**
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
+ * @typedef {'accessible' | 'pipe' | 'static' | 'interactive'} CliTuiMode
+ * @typedef {BijouContext & { mode?: CliTuiMode }} DashContext
  * @typedef {import('@flyingrobots/bijou-tui').KeyMsg} KeyMsg
  * @typedef {import('@flyingrobots/bijou-tui').ResizeMsg} ResizeMsg
  * @typedef {import('@flyingrobots/bijou-tui').Cmd<DashMsg>} DashCmd
@@ -55,7 +57,7 @@ import { renderDashboard } from './dashboard-view.js';
  * @typedef {Object} DashDeps
  * @property {DashKeyMap} keyMap
  * @property {ContentAddressableStore} cas
- * @property {BijouContext} ctx
+ * @property {DashContext} ctx
  */
 
 /**
@@ -296,13 +298,18 @@ async function printStaticList(cas, output = process.stdout) {
  *
  * @param {ContentAddressableStore} cas
  * @param {{
- *   ctx?: BijouContext,
+ *   ctx?: DashContext,
  *   runApp?: typeof run,
  *   output?: Pick<NodeJS.WriteStream, 'write'>,
  * }} [options]
  */
 export async function launchDashboard(cas, options = {}) {
-  const ctx = options.ctx || createCliTuiContext();
+  const ctx = options.ctx
+    ? {
+        ...options.ctx,
+        mode: options.ctx.mode ?? detectCliTuiMode(options.ctx.runtime),
+      }
+    : createCliTuiContext();
   if (ctx.mode !== 'interactive') {
     return printStaticList(cas, options.output);
   }

@@ -23,6 +23,17 @@ beforeEach(() => {
 });
 
 describe('launchDashboard', () => {
+  it('treats an injected context without mode as interactive', async () => {
+    const cas = mockCas();
+    const ctx = { ...makeCtx('interactive') };
+    delete ctx.mode;
+
+    await launchDashboard(cas, { ctx, runApp: runMock });
+
+    expect(runMock).toHaveBeenCalledTimes(1);
+    expect(cas.listVault).not.toHaveBeenCalled();
+  });
+
   it('uses the interactive runtime when the context is interactive', async () => {
     const cas = mockCas();
     const ctx = makeCtx('interactive');
