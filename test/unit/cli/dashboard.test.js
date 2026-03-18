@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { surfaceToString } from '@flyingrobots/bijou';
 import { makeCtx } from './_testContext.js';
 
 vi.mock('../../../bin/ui/context.js', () => ({
@@ -18,6 +19,10 @@ function mockCas() {
 
 function makeDeps() {
   return { keyMap: createKeyBindings(), cas: mockCas(), ctx: makeCtx() };
+}
+
+function renderView(output, ctx) {
+  return typeof output === 'string' ? output : surfaceToString(output, ctx.style);
 }
 
 function makeModel(overrides = {}) {
@@ -185,42 +190,67 @@ describe('dashboard edge cases', () => {
 });
 
 describe('dashboard view rendering', () => {
-  it('renders without errors on empty model', () => {
-    const app = createDashboardApp(makeDeps());
+  it('renders a surface-native explorer layout on empty model', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
     const model = makeModel();
     const output = app.view(model);
-    expect(typeof output).toBe('string');
-    expect(output).toContain('0 entries');
+    expect(typeof output).toBe('object');
+    expect(output.width).toBe(model.columns);
+    const rendered = renderView(output, deps.ctx);
+    expect(rendered).toContain('git-cas vault explorer');
+    expect(rendered).toContain('Entries');
+    expect(rendered).toContain('Inspector');
   });
 
   it('renders entry list when entries exist', () => {
-    const app = createDashboardApp(makeDeps());
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
     const model = makeModel({ entries, filtered: entries });
-    const output = app.view(model);
-    expect(output).toContain('alpha');
-    expect(output).toContain('bravo');
+    const rendered = renderView(app.view(model), deps.ctx);
+    expect(rendered).toContain('alpha');
+    expect(rendered).toContain('bravo');
   });
 
   it('renders encrypted header badge text without object coercion', () => {
-    const app = createDashboardApp(makeDeps());
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
     const model = makeModel({ metadata: { encryption: { cipher: 'aes-256-gcm' } } });
-    const output = app.view(model);
-    expect(output).toContain('encrypted');
-    expect(output).not.toContain('[object Object]');
+    const rendered = renderView(app.view(model), deps.ctx);
+    expect(rendered).toContain('encrypted');
+    expect(rendered).not.toContain('[object Object]');
   });
 
   it('renders error message on error status', () => {
-    const app = createDashboardApp(makeDeps());
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
     const model = makeModel({ status: 'error', error: 'connection failed' });
-    const output = app.view(model);
-    expect(output).toContain('Error: connection failed');
+    const rendered = renderView(app.view(model), deps.ctx);
+    expect(rendered).toContain('Error: connection failed');
+  });
+});
+
+describe('dashboard explorer details', () => {
+  it('renders footer keybinding hints', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const model = makeModel();
+    const rendered = renderView(app.view(model), deps.ctx);
+    expect(rendered).toContain('inspect');
+    expect(rendered).toContain('quit');
   });
 
-  it('renders footer keybinding hints', () => {
-    const app = createDashboardApp(makeDeps());
-    const model = makeModel();
-    const output = app.view(model);
-    expect(output).toContain('Navigate');
-    expect(output).toContain('Quit');
+  it('renders selected asset summary in the inspector pane', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const manifest = { slug: 'alpha', size: 1536, chunks: [{ index: 0, size: 1536, digest: 'abcd1234efgh5678' }] };
+    const model = makeModel({
+      entries,
+      filtered: entries,
+      manifestCache: new Map([['alpha', manifest]]),
+    });
+    const rendered = renderView(app.view(model), deps.ctx);
+    expect(rendered).toContain('asset alpha');
+    expect(rendered).toContain('Chunks (1)');
   });
 });
