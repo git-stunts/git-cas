@@ -6,8 +6,9 @@ import {
   run, quit, createKeyMap,
   createNavigableTableState, navTableFocusNext, navTableFocusPrev, navTablePageDown, navTablePageUp,
   createSplitPaneState, splitPaneFocusNext, splitPaneResizeBy,
+  createCommandPaletteState, cpFilter, cpFocusNext, cpFocusPrev, cpPageDown, cpPageUp, cpSelectedItem, commandPaletteKeyMap,
 } from '@flyingrobots/bijou-tui';
-import { loadEntriesCmd, loadManifestCmd } from './dashboard-cmds.js';
+import { loadEntriesCmd, loadManifestCmd, loadStatsCmd, loadDoctorCmd } from './dashboard-cmds.js';
 import { createCliTuiContext, detectCliTuiMode } from './context.js';
 import { renderDashboard } from './dashboard-view.js';
 
@@ -19,9 +20,11 @@ import { renderDashboard } from './dashboard-view.js';
  * @typedef {import('@flyingrobots/bijou-tui').KeyMap<DashAction>} DashKeyMap
  * @typedef {import('@flyingrobots/bijou-tui').NavigableTableState} NavigableTableState
  * @typedef {import('@flyingrobots/bijou-tui').SplitPaneState} SplitPaneState
+ * @typedef {import('@flyingrobots/bijou-tui').CommandPaletteState} CommandPaletteState
  * @typedef {import('../../index.js').default} ContentAddressableStore
  * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
  * @typedef {{ slug: string, treeOid: string }} VaultEntry
+ * @typedef {'idle' | 'loading' | 'ready' | 'error'} LoadState
  */
 
 /**
@@ -33,12 +36,28 @@ import { renderDashboard } from './dashboard-view.js';
  *   | { type: 'scroll-detail', delta: number }
  *   | { type: 'split-focus' }
  *   | { type: 'split-resize', delta: number }
+ *   | { type: 'open-palette' }
+ *   | { type: 'open-stats' }
+ *   | { type: 'open-doctor' }
+ *   | { type: 'overlay-close' }
  * } DashAction
+ */
+
+/**
+ * @typedef {{ type: 'focus-next' }
+ *   | { type: 'focus-prev' }
+ *   | { type: 'page-down' }
+ *   | { type: 'page-up' }
+ *   | { type: 'select' }
+ *   | { type: 'close' }
+ * } PaletteAction
  */
 
 /**
  * @typedef {{ type: 'loaded-entries', entries: VaultEntry[], metadata: any }
  *   | { type: 'loaded-manifest', slug: string, manifest: Manifest }
+ *   | { type: 'loaded-stats', stats: any }
+ *   | { type: 'loaded-doctor', report: any }
  *   | { type: 'load-error', source: string, slug?: string, error: string }
  * } DashMsg
  */
@@ -59,6 +78,14 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {string | null} error
  * @property {NavigableTableState} table
  * @property {SplitPaneState} splitPane
+ * @property {CommandPaletteState | null} palette
+ * @property {'stats' | 'doctor' | null} activeDrawer
+ * @property {LoadState} statsStatus
+ * @property {any | null} statsReport
+ * @property {string | null} statsError
+ * @property {LoadState} doctorStatus
+ * @property {any | null} doctorReport
+ * @property {string | null} doctorError
  */
 
 /**
@@ -89,6 +116,11 @@ export function createKeyBindings() {
     .bind('tab', 'Focus pane', { type: 'split-focus' })
     .bind('shift+h', 'Narrow pane', { type: 'split-resize', delta: -4 })
     .bind('shift+l', 'Widen pane', { type: 'split-resize', delta: 4 })
+    .bind('ctrl+p', 'Palette', { type: 'open-palette' })
+    .bind(':', 'Palette', { type: 'open-palette' })
+    .bind('s', 'Stats', { type: 'open-stats' })
+    .bind('g', 'Doctor', { type: 'open-doctor' })
+    .bind('escape', 'Close overlay', { type: 'overlay-close' })
     .bind('shift+j', 'Scroll down', { type: 'scroll-detail', delta: 3 })
     .bind('shift+k', 'Scroll up', { type: 'scroll-detail', delta: -3 });
 }
@@ -103,12 +135,58 @@ const TABLE_COLUMNS = [
 ];
 
 const DASH_HEADER_ROWS = 3;
-const DASH_FOOTER_ROWS = 3;
+const DASH_FOOTER_ROWS = 4;
 const PANE_BORDER_ROWS = 2;
 const LIST_META_ROWS = 2;
 const SPLIT_MIN_LIST_WIDTH = 28;
 const SPLIT_MIN_DETAIL_WIDTH = 32;
 const SPLIT_DIVIDER_SIZE = 1;
+
+const PALETTE_ITEMS = [
+  {
+    id: 'stats',
+    label: 'Open Vault Stats',
+    description: 'Logical size, dedup ratio, encryption coverage',
+    category: 'View',
+    shortcut: 's',
+  },
+  {
+    id: 'doctor',
+    label: 'Open Doctor Report',
+    description: 'Health summary and vault issues',
+    category: 'View',
+    shortcut: 'g',
+  },
+  {
+    id: 'focus-entries',
+    label: 'Focus Entries Pane',
+    description: 'Move focus back to the explorer table',
+    category: 'Pane',
+    shortcut: 'tab',
+  },
+  {
+    id: 'focus-inspector',
+    label: 'Focus Inspector Pane',
+    description: 'Move focus to the manifest inspector',
+    category: 'Pane',
+  },
+  {
+    id: 'close-drawer',
+    label: 'Close Active Drawer',
+    description: 'Dismiss the stats or doctor overlay',
+    category: 'View',
+    shortcut: 'esc',
+  },
+];
+
+const paletteKeyMap = commandPaletteKeyMap({
+  focusNext: { type: 'focus-next' },
+  focusPrev: { type: 'focus-prev' },
+  pageDown: { type: 'page-down' },
+  pageUp: { type: 'page-up' },
+  select: { type: 'select' },
+  close: { type: 'close' },
+});
 
 /**
  * Format manifest bytes as a compact human-readable string for the explorer table.
@@ -210,6 +288,37 @@ function syncTable(table, updates = {}) {
 }
 
 /**
+ * Palette viewport height based on terminal rows.
+ *
+ * @param {number} rows
+ * @returns {number}
+ */
+function paletteHeight(rows) {
+  return Math.max(5, Math.min(10, rows - 10));
+}
+
+/**
+ * Create a fresh command palette state for the dashboard.
+ *
+ * @param {number} rows
+ * @returns {CommandPaletteState}
+ */
+function createPalette(rows) {
+  return createCommandPaletteState(PALETTE_ITEMS, paletteHeight(rows));
+}
+
+/**
+ * Replace the palette state on the model.
+ *
+ * @param {DashModel} model
+ * @param {CommandPaletteState | null} palette
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function setPalette(model, palette) {
+  return [{ ...model, palette }, []];
+}
+
+/**
  * Create the initial model.
  *
  * @param {BijouContext} ctx
@@ -236,6 +345,14 @@ function createInitModel(ctx) {
     error: null,
     table,
     splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
+    palette: null,
+    activeDrawer: null,
+    statsStatus: 'idle',
+    statsReport: null,
+    statsError: null,
+    doctorStatus: 'idle',
+    doctorReport: null,
+    doctorError: null,
   };
 }
 
@@ -387,6 +504,275 @@ function handleSelect(model, deps) {
 }
 
 /**
+ * Open the stats drawer and trigger a load when needed.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function openStatsDrawer(model, deps) {
+  if (model.statsStatus === 'ready' || model.statsStatus === 'loading') {
+    return [{
+      ...model,
+      activeDrawer: 'stats',
+      palette: null,
+    }, []];
+  }
+  return [{
+    ...model,
+    activeDrawer: 'stats',
+    palette: null,
+    statsStatus: 'loading',
+    statsError: null,
+  }, [/** @type {DashCmd} */ (loadStatsCmd(deps.cas))]];
+}
+
+/**
+ * Open the doctor drawer and trigger a load when needed.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function openDoctorDrawer(model, deps) {
+  if (model.doctorStatus === 'ready' || model.doctorStatus === 'loading') {
+    return [{
+      ...model,
+      activeDrawer: 'doctor',
+      palette: null,
+    }, []];
+  }
+  return [{
+    ...model,
+    activeDrawer: 'doctor',
+    palette: null,
+    doctorStatus: 'loading',
+    doctorError: null,
+  }, [/** @type {DashCmd} */ (loadDoctorCmd(deps.cas))]];
+}
+
+/**
+ * Close the command palette or active drawer, whichever is visible.
+ *
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function closeOverlay(model) {
+  if (model.palette) {
+    return [{ ...model, palette: null }, []];
+  }
+  if (model.activeDrawer) {
+    return [{ ...model, activeDrawer: null }, []];
+  }
+  return [model, []];
+}
+
+/**
+ * Apply the focused command palette item.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handlePaletteSelect(model, deps) {
+  const item = model.palette ? cpSelectedItem(model.palette) : undefined;
+  if (!item) {
+    return [{ ...model, palette: null }, []];
+  }
+  if (item.id === 'stats') {
+    return openStatsDrawer(model, deps);
+  }
+  if (item.id === 'doctor') {
+    return openDoctorDrawer(model, deps);
+  }
+  if (item.id === 'focus-entries') {
+    return [{
+      ...model,
+      palette: null,
+      splitPane: { ...model.splitPane, focused: 'a' },
+    }, []];
+  }
+  if (item.id === 'focus-inspector') {
+    return [{
+      ...model,
+      palette: null,
+      splitPane: { ...model.splitPane, focused: 'b' },
+    }, []];
+  }
+  if (item.id === 'close-drawer') {
+    return [{
+      ...model,
+      palette: null,
+      activeDrawer: null,
+    }, []];
+  }
+  return [{ ...model, palette: null }, []];
+}
+
+/**
+ * Apply palette navigation actions emitted by the palette keymap.
+ *
+ * @param {PaletteAction} action
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handlePaletteAction(action, model, deps) {
+  if (!model.palette) {
+    return [model, []];
+  }
+  switch (action.type) {
+    case 'focus-next':
+      return setPalette(model, cpFocusNext(model.palette));
+    case 'focus-prev':
+      return setPalette(model, cpFocusPrev(model.palette));
+    case 'page-down':
+      return setPalette(model, cpPageDown(model.palette));
+    case 'page-up':
+      return setPalette(model, cpPageUp(model.palette));
+    case 'select':
+      return handlePaletteSelect(model, deps);
+    case 'close':
+      return setPalette(model, null);
+    default:
+      return [model, []];
+  }
+}
+
+/**
+ * Update the palette query while keeping focus/scroll logic inside Bijou.
+ *
+ * @param {DashModel} model
+ * @param {string} query
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function filterPalette(model, query) {
+  if (!model.palette) {
+    return [model, []];
+  }
+  return setPalette(model, cpFilter(model.palette, query));
+}
+
+/**
+ * Return true when the key should append to the palette query.
+ *
+ * @param {KeyMsg} msg
+ * @returns {boolean}
+ */
+function isPaletteQueryKey(msg) {
+  return msg.key.length === 1 && !msg.ctrl && !msg.alt;
+}
+
+/**
+ * Route key input while the command palette is open.
+ *
+ * @param {KeyMsg} msg
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handlePaletteKey(msg, model, deps) {
+  if (!model.palette) {
+    return [model, []];
+  }
+  const action = /** @type {PaletteAction | undefined} */ (paletteKeyMap.handle(msg));
+  if (action) {
+    return handlePaletteAction(action, model, deps);
+  }
+  if (msg.key === 'backspace') {
+    return filterPalette(model, model.palette.query.slice(0, -1));
+  }
+  if (isPaletteQueryKey(msg)) {
+    return filterPalette(model, model.palette.query + msg.key);
+  }
+  return [model, []];
+}
+
+/**
+ * Start filter mode with the full entry set visible.
+ *
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function startFilter(model) {
+  const filtered = model.entries;
+  const table = syncTable(model.table, {
+    entries: filtered,
+    manifestCache: model.manifestCache,
+    rows: model.rows,
+    focusRow: 0,
+    scrollY: 0,
+  });
+  return [{ ...model, filtering: true, filterText: '', filtered, table }, []];
+}
+
+/**
+ * Resize the currently focused split pane.
+ *
+ * @param {DashModel} model
+ * @param {number} delta
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function resizeSplitPane(model, delta) {
+  const signedDelta = model.splitPane.focused === 'a' ? delta : -delta;
+  const splitPane = splitPaneResizeBy(model.splitPane, signedDelta, {
+    total: model.columns,
+    minA: SPLIT_MIN_LIST_WIDTH,
+    minB: SPLIT_MIN_DETAIL_WIDTH,
+    dividerSize: SPLIT_DIVIDER_SIZE,
+  });
+  return [{ ...model, splitPane }, []];
+}
+
+/**
+ * Handle overlay-related actions.
+ *
+ * @param {DashAction} action
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]] | null}
+ */
+function handleOverlayAction(action, model, deps) {
+  if (action.type === 'open-palette') {
+    return setPalette(model, createPalette(model.rows));
+  }
+  if (action.type === 'open-stats') {
+    return openStatsDrawer(model, deps);
+  }
+  if (action.type === 'open-doctor') {
+    return openDoctorDrawer(model, deps);
+  }
+  if (action.type === 'overlay-close') {
+    return closeOverlay(model);
+  }
+  return null;
+}
+
+/**
+ * Handle non-overlay layout and navigation actions.
+ *
+ * @param {DashAction} action
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]] | null}
+ */
+function handleLayoutAction(action, model) {
+  if (action.type === 'filter-start') {
+    return startFilter(model);
+  }
+  if (action.type === 'scroll-detail') {
+    const scroll = Math.max(0, model.detailScroll + action.delta);
+    return [{ ...model, detailScroll: scroll }, []];
+  }
+  if (action.type === 'split-focus') {
+    return [{ ...model, splitPane: splitPaneFocusNext(model.splitPane) }, []];
+  }
+  if (action.type === 'split-resize') {
+    return resizeSplitPane(model, action.delta);
+  }
+  return null;
+}
+
+/**
  * Handle keymap actions.
  *
  * @param {DashAction} action
@@ -398,35 +784,11 @@ function handleAction(action, model, deps) {
   if (action.type === 'quit') { return [model, [quit()]]; }
   if (action.type === 'move') { return handleMove(action, model); }
   if (action.type === 'page') { return handlePage(action, model); }
-  if (action.type === 'filter-start') {
-    const filtered = model.entries;
-    const table = syncTable(model.table, {
-      entries: filtered,
-      manifestCache: model.manifestCache,
-      rows: model.rows,
-      focusRow: 0,
-      scrollY: 0,
-    });
-    return [{ ...model, filtering: true, filterText: '', filtered, table }, []];
-  }
-  if (action.type === 'scroll-detail') {
-    const scroll = Math.max(0, model.detailScroll + action.delta);
-    return [{ ...model, detailScroll: scroll }, []];
-  }
-  if (action.type === 'split-focus') {
-    return [{ ...model, splitPane: splitPaneFocusNext(model.splitPane) }, []];
-  }
-  if (action.type === 'split-resize') {
-    const delta = model.splitPane.focused === 'a' ? action.delta : -action.delta;
-    const splitPane = splitPaneResizeBy(model.splitPane, delta, {
-      total: model.columns,
-      minA: SPLIT_MIN_LIST_WIDTH,
-      minB: SPLIT_MIN_DETAIL_WIDTH,
-      dividerSize: SPLIT_DIVIDER_SIZE,
-    });
-    return [{ ...model, splitPane }, []];
-  }
   if (action.type === 'select') { return handleSelect(model, deps); }
+  const overlayResult = handleOverlayAction(action, model, deps);
+  if (overlayResult) { return overlayResult; }
+  const layoutResult = handleLayoutAction(action, model);
+  if (layoutResult) { return layoutResult; }
   return [model, []];
 }
 
@@ -441,9 +803,39 @@ function handleAction(action, model, deps) {
 function handleAppMsg(msg, model, cas) {
   if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, cas); }
   if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model); }
+  if (msg.type === 'loaded-stats') {
+    return [{
+      ...model,
+      statsStatus: 'ready',
+      statsReport: msg.stats,
+      statsError: null,
+    }, []];
+  }
+  if (msg.type === 'loaded-doctor') {
+    return [{
+      ...model,
+      doctorStatus: 'ready',
+      doctorReport: msg.report,
+      doctorError: null,
+    }, []];
+  }
   if (msg.type === 'load-error') {
     if (msg.source === 'manifest') {
       return [{ ...model, loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug }, []];
+    }
+    if (msg.source === 'stats') {
+      return [{
+        ...model,
+        statsStatus: 'error',
+        statsError: msg.error,
+      }, []];
+    }
+    if (msg.source === 'doctor') {
+      return [{
+        ...model,
+        doctorStatus: 'error',
+        doctorError: msg.error,
+      }, []];
     }
     return [{ ...model, status: 'error', error: msg.error }, []];
   }
@@ -459,6 +851,9 @@ function handleAppMsg(msg, model, cas) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function handleUpdate(msg, model, deps) {
+  if (msg.type === 'key' && model.palette) {
+    return handlePaletteKey(msg, model, deps);
+  }
   if (msg.type === 'key' && model.filtering) {
     return handleFilterKey(msg, model);
   }
@@ -473,7 +868,13 @@ function handleUpdate(msg, model, deps) {
       manifestCache: model.manifestCache,
       rows: msg.rows,
     });
-    return [{ ...model, columns: msg.columns, rows: msg.rows, table }, []];
+    const palette = model.palette
+      ? {
+        ...model.palette,
+        height: paletteHeight(msg.rows),
+      }
+      : null;
+    return [{ ...model, columns: msg.columns, rows: msg.rows, table, palette }, []];
   }
   return handleAppMsg(/** @type {DashMsg} */ (msg), model, deps.cas);
 }

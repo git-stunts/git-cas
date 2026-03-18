@@ -76,6 +76,14 @@ function makeModel(overrides = {}) {
     error: null,
     table: makeTable(filtered, { rows, manifestCache }),
     splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
+    palette: null,
+    activeDrawer: null,
+    statsStatus: 'idle',
+    statsReport: null,
+    statsError: null,
+    doctorStatus: 'idle',
+    doctorReport: null,
+    doctorError: null,
     ...overrides,
   };
 }
@@ -88,6 +96,37 @@ const entries = [
   { slug: 'alpha', treeOid: 'aaa111' },
   { slug: 'bravo', treeOid: 'bbb222' },
 ];
+
+function makeStatsReport() {
+  return {
+    entries: 2,
+    totalLogicalSize: 4096,
+    totalChunkRefs: 3,
+    uniqueChunks: 2,
+    duplicateChunkRefs: 1,
+    dedupRatio: 1.5,
+    encryptedEntries: 1,
+    envelopeEntries: 0,
+    compressedEntries: 1,
+    chunkingStrategies: { fixed: 2 },
+    largestEntry: { slug: 'alpha', size: 2048 },
+  };
+}
+
+function makeDoctorReport() {
+  return {
+    status: 'warn',
+    hasVault: true,
+    commitOid: 'abc123',
+    entryCount: 2,
+    checkedEntries: 2,
+    validEntries: 1,
+    invalidEntries: 1,
+    metadataEncrypted: false,
+    stats: makeStatsReport(),
+    issues: [{ scope: 'vault', code: 'BROKEN', message: 'bad chunk' }],
+  };
+}
 
 describe('dashboard initialization', () => {
   it('init returns loading model with one cmd', () => {
@@ -141,7 +180,7 @@ describe('dashboard pane controls', () => {
     const [next] = app.update({ type: 'resize', columns: 120, rows: 40 }, makeModel());
     expect(next.columns).toBe(120);
     expect(next.rows).toBe(40);
-    expect(next.table.height).toBe(30);
+    expect(next.table.height).toBe(29);
   });
 
   it('tab toggles the focused pane', () => {
@@ -154,6 +193,42 @@ describe('dashboard pane controls', () => {
     const app = createDashboardApp(makeDeps());
     const [next] = app.update(keyMsg('l', { shift: true }), makeModel());
     expect(next.splitPane.ratio).toBeGreaterThan(0.37);
+  });
+});
+
+describe('dashboard overlays', () => {
+  it('ctrl+p opens the command palette', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const [next] = app.update(keyMsg('p', { ctrl: true }), makeModel());
+    expect(next.palette).not.toBeNull();
+    const rendered = renderView(app.view(next), deps.ctx);
+    expect(rendered).toContain('Command Palette');
+    expect(rendered).toContain('Open Vault Stats');
+  });
+
+  it('palette selection opens the stats drawer and queues a load', () => {
+    const app = createDashboardApp(makeDeps());
+    const [withPalette] = app.update(keyMsg('p', { ctrl: true }), makeModel());
+    const [next, cmds] = app.update(keyMsg('enter'), withPalette);
+    expect(next.palette).toBeNull();
+    expect(next.activeDrawer).toBe('stats');
+    expect(next.statsStatus).toBe('loading');
+    expect(cmds).toHaveLength(1);
+  });
+
+  it('doctor key opens the doctor drawer and queues a load', () => {
+    const app = createDashboardApp(makeDeps());
+    const [next, cmds] = app.update(keyMsg('g'), makeModel());
+    expect(next.activeDrawer).toBe('doctor');
+    expect(next.doctorStatus).toBe('loading');
+    expect(cmds).toHaveLength(1);
+  });
+
+  it('escape closes the active overlay', () => {
+    const app = createDashboardApp(makeDeps());
+    const [next] = app.update(keyMsg('escape'), makeModel({ activeDrawer: 'stats', statsStatus: 'ready' }));
+    expect(next.activeDrawer).toBeNull();
   });
 });
 
@@ -174,7 +249,29 @@ describe('dashboard data loading', () => {
     const [next] = app.update({ type: 'loaded-manifest', slug: 'alpha', manifest }, makeModel());
     expect(next.manifestCache.get('alpha')).toBe(manifest);
   });
+});
 
+describe('dashboard report loading', () => {
+  it('loaded-stats stores the stats report', () => {
+    const app = createDashboardApp(makeDeps());
+    const stats = makeStatsReport();
+    const [next] = app.update({ type: 'loaded-stats', stats }, makeModel({ activeDrawer: 'stats', statsStatus: 'loading' }));
+    expect(next.statsStatus).toBe('ready');
+    expect(next.statsReport).toEqual(stats);
+    expect(next.statsError).toBeNull();
+  });
+
+  it('loaded-doctor stores the doctor report', () => {
+    const app = createDashboardApp(makeDeps());
+    const report = makeDoctorReport();
+    const [next] = app.update({ type: 'loaded-doctor', report }, makeModel({ activeDrawer: 'doctor', doctorStatus: 'loading' }));
+    expect(next.doctorStatus).toBe('ready');
+    expect(next.doctorReport).toEqual(report);
+    expect(next.doctorError).toBeNull();
+  });
+});
+
+describe('dashboard filter mode', () => {
   it('filter mode captures characters and filters entries', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({ filtering: true, entries, filtered: entries });
@@ -302,7 +399,7 @@ describe('dashboard view rendering', () => {
   });
 });
 
-describe('dashboard explorer details', () => {
+describe('dashboard footer and inspector rendering', () => {
   it('renders footer keybinding hints', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
@@ -311,6 +408,10 @@ describe('dashboard explorer details', () => {
     expect(rendered).toContain('inspect');
     expect(rendered).toContain('resize');
     expect(rendered).toContain('pane');
+    expect(rendered).toContain('palette');
+    expect(rendered).toContain('stats');
+    expect(rendered).toContain('doctor');
+    expect(rendered).toContain('close');
     expect(rendered).toContain('quit');
   });
 
@@ -334,5 +435,38 @@ describe('dashboard explorer details', () => {
     const model = makeModel({ splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }) });
     const rendered = renderView(app.view(model), deps.ctx);
     expect(rendered).toContain('Inspector *');
+  });
+});
+
+describe('dashboard overlay rendering', () => {
+  it('renders the stats drawer overlay', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const model = makeModel({
+      activeDrawer: 'stats',
+      statsStatus: 'ready',
+      statsReport: makeStatsReport(),
+    });
+    const rendered = renderView(app.view(model), deps.ctx);
+    expect(rendered).toContain('Vault Stats');
+    expect(rendered).toContain('dedup-ratio');
+  });
+
+  it('renders the doctor drawer loading state', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const rendered = renderView(app.view(makeModel({ activeDrawer: 'doctor', doctorStatus: 'loading' })), deps.ctx);
+    expect(rendered).toContain('Doctor Report');
+    expect(rendered).toContain('Loading doctor report');
+  });
+
+  it('renders the palette badge when the command palette is open', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const [withPalette] = app.update(keyMsg('p', { ctrl: true }), makeModel());
+    const rendered = renderView(app.view(withPalette), deps.ctx);
+    expect(rendered).toContain('palette');
+    expect(rendered).toContain('Command Palette');
+    expect(rendered).toContain('Open Vault Stats');
   });
 });

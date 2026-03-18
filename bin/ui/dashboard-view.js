@@ -3,7 +3,8 @@
  */
 
 import { badge, boxV3, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
-import { navigableTable, splitPaneLayout } from '@flyingrobots/bijou-tui';
+import { commandPalette, navigableTable, splitPaneLayout } from '@flyingrobots/bijou-tui';
+import { renderDoctorReport, renderVaultStats } from './vault-report.js';
 import { renderManifestView } from './manifest-view.js';
 
 /**
@@ -63,16 +64,13 @@ function blitInline(target, options) {
 }
 
 /**
- * Render the header surface.
+ * Build header badges that summarize current explorer state.
  *
  * @param {DashModel} model
  * @param {BijouContext} ctx
- * @returns {Surface}
+ * @returns {(Surface | string)[]}
  */
-function renderHeaderSurface(model, ctx) {
-  const surface = createSurface(Math.max(1, model.columns), 3);
-  surface.blit(textSurface('git-cas vault explorer', surface.width, 1), 0, 0);
-
+function headerParts(model, ctx) {
   const parts = [
     badge(`${model.filtered.length}/${model.entries.length || model.filtered.length} visible`, { variant: 'info', ctx }),
   ];
@@ -83,18 +81,175 @@ function renderHeaderSurface(model, ctx) {
     parts.push(badge(model.filtering ? 'filtering' : `filter ${model.filterText}`, { variant: 'accent', ctx }));
   }
   parts.push(badge(`pane ${model.splitPane.focused === 'a' ? 'entries' : 'inspector'}`, { variant: 'primary', ctx }));
+  appendSelectionBadges(parts, model, ctx);
+  return ['refs/cas/vault', ...parts];
+}
+
+/**
+ * Append badges related to selection and overlays.
+ *
+ * @param {(Surface | string)[]} parts
+ * @param {DashModel} model
+ * @param {BijouContext} ctx
+ */
+function appendSelectionBadges(parts, model, ctx) {
   const selected = model.filtered[model.table.focusRow];
   if (selected) {
     parts.push(badge(`selected ${selected.slug}`, { variant: 'accent', ctx }));
   }
+  if (model.activeDrawer) {
+    parts.push(badge(`${model.activeDrawer} drawer`, { variant: 'info', ctx }));
+  }
+  if (model.palette) {
+    parts.push(badge('palette', { variant: 'warning', ctx }));
+  }
+}
+
+/**
+ * Render the header surface.
+ *
+ * @param {DashModel} model
+ * @param {BijouContext} ctx
+ * @returns {Surface}
+ */
+function renderHeaderSurface(model, ctx) {
+  const surface = createSurface(Math.max(1, model.columns), 3);
+  surface.blit(textSurface('git-cas vault explorer', surface.width, 1), 0, 0);
   blitInline(surface, {
     x: 0,
     y: 1,
-    parts: ['refs/cas/vault', ...parts],
+    parts: headerParts(model, ctx),
     maxWidth: surface.width,
   });
   surface.blit(textSurface('─'.repeat(surface.width), surface.width, 1), 0, 2);
   return surface;
+}
+
+/**
+ * Render a fixed-width overlay panel surface.
+ *
+ * @param {{ title: string, body: string, width: number, height: number, ctx: BijouContext }} options
+ * @returns {Surface}
+ */
+function renderOverlayPanel(options) {
+  const innerWidth = Math.max(1, options.width - 2);
+  const innerHeight = Math.max(1, options.height - 2);
+  return boxV3(textSurface(options.body, innerWidth, innerHeight), {
+    ctx: options.ctx,
+    title: options.title,
+    width: options.width,
+  });
+}
+
+/**
+ * Build drawer copy for the stats overlay.
+ *
+ * @param {DashModel} model
+ * @returns {string}
+ */
+function statsDrawerBody(model) {
+  if (model.statsStatus === 'loading') {
+    return 'Loading vault stats...';
+  }
+  if (model.statsStatus === 'error') {
+    return `Failed to load stats\n\n${model.statsError ?? 'unknown error'}`;
+  }
+  return model.statsReport
+    ? renderVaultStats(model.statsReport)
+    : 'Stats have not been loaded yet.';
+}
+
+/**
+ * Build drawer copy for the doctor overlay.
+ *
+ * @param {DashModel} model
+ * @returns {string}
+ */
+function doctorDrawerBody(model) {
+  if (model.doctorStatus === 'loading') {
+    return 'Loading doctor report...';
+  }
+  if (model.doctorStatus === 'error') {
+    return `Failed to load doctor report\n\n${model.doctorError ?? 'unknown error'}`;
+  }
+  return model.doctorReport
+    ? renderDoctorReport(model.doctorReport)
+    : 'Doctor report has not been loaded yet.';
+}
+
+/**
+ * Render the stats drawer.
+ *
+ * @param {DashModel} model
+ * @param {{ width: number, height: number, ctx: BijouContext }} opts
+ * @returns {Surface}
+ */
+function renderStatsDrawer(model, opts) {
+  return renderOverlayPanel({
+    title: 'Vault Stats',
+    body: statsDrawerBody(model),
+    width: Math.max(32, Math.min(56, opts.width - 2)),
+    height: Math.max(8, opts.height),
+    ctx: opts.ctx,
+  });
+}
+
+/**
+ * Render the doctor drawer.
+ *
+ * @param {DashModel} model
+ * @param {{ width: number, height: number, ctx: BijouContext }} opts
+ * @returns {Surface}
+ */
+function renderDoctorDrawer(model, opts) {
+  return renderOverlayPanel({
+    title: 'Doctor Report',
+    body: doctorDrawerBody(model),
+    width: Math.max(32, Math.min(56, opts.width - 2)),
+    height: Math.max(8, opts.height),
+    ctx: opts.ctx,
+  });
+}
+
+/**
+ * Render the operator drawer surface when active.
+ *
+ * @param {DashModel} model
+ * @param {{ width: number, height: number, ctx: BijouContext }} opts
+ * @returns {Surface | null}
+ */
+function renderDrawerSurface(model, opts) {
+  if (!model.activeDrawer) {
+    return null;
+  }
+  return model.activeDrawer === 'stats'
+    ? renderStatsDrawer(model, opts)
+    : renderDoctorDrawer(model, opts);
+}
+
+/**
+ * Render the command palette overlay.
+ *
+ * @param {DashModel} model
+ * @param {{ width: number, height: number, ctx: BijouContext }} opts
+ * @returns {Surface | null}
+ */
+function renderPaletteSurface(model, opts) {
+  if (!model.palette) {
+    return null;
+  }
+  const width = Math.max(32, Math.min(72, opts.width - 8));
+  const body = commandPalette(model.palette, {
+    width: Math.max(16, width - 2),
+    ctx: opts.ctx,
+  });
+  return renderOverlayPanel({
+    title: 'Command Palette',
+    body,
+    width,
+    height: Math.min(opts.height, model.palette.height + 3),
+    ctx: opts.ctx,
+  });
 }
 
 /**
@@ -279,9 +434,10 @@ function renderFooterSurface(ctx, width) {
   const lines = [
     '─'.repeat(Math.max(1, width)),
     `${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
-    `${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('q', { ctx })} quit`,
+    `${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
+    `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
   ];
-  return textSurface(lines.join('\n'), width, 3);
+  return textSurface(lines.join('\n'), width, 4);
 }
 
 /**
@@ -308,6 +464,36 @@ function renderBody(model, deps, options) {
 }
 
 /**
+ * Render any active operator overlays over the dashboard body.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ top: number, height: number, screen: Surface }} options
+ * @returns {void}
+ */
+function renderOverlays(model, deps, options) {
+  const drawer = renderDrawerSurface(model, {
+    width: options.screen.width,
+    height: options.height,
+    ctx: deps.ctx,
+  });
+  if (drawer) {
+    options.screen.blit(drawer, Math.max(0, options.screen.width - drawer.width), options.top);
+  }
+
+  const palette = renderPaletteSurface(model, {
+    width: options.screen.width,
+    height: options.height,
+    ctx: deps.ctx,
+  });
+  if (palette) {
+    const x = Math.max(0, Math.floor((options.screen.width - palette.width) / 2));
+    const y = options.top + Math.max(0, Math.floor((options.height - palette.height) / 3));
+    options.screen.blit(palette, x, y);
+  }
+}
+
+/**
  * Render the full dashboard explorer layout.
  *
  * @param {DashModel} model
@@ -325,6 +511,7 @@ export function renderDashboard(model, deps) {
 
   screen.blit(header, 0, 0);
   renderBody(model, deps, { top: bodyTop, height: bodyHeight, screen });
+  renderOverlays(model, deps, { top: bodyTop, height: bodyHeight, screen });
   screen.blit(footer, 0, Math.max(0, height - footer.height));
 
   return screen;
