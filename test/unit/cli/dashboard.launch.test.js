@@ -23,6 +23,18 @@ beforeEach(() => {
 });
 
 describe('launchDashboard', () => {
+  it('uses injected runtime dimensions for the first frame', async () => {
+    const cas = mockCas();
+    const ctx = makeCtx('interactive', { columns: 123, rows: 55 });
+
+    await launchDashboard(cas, { ctx, runApp: runMock });
+
+    const [app] = runMock.mock.calls[0];
+    const [model] = app.init();
+    expect(model.columns).toBe(123);
+    expect(model.rows).toBe(55);
+  });
+
   it('treats an injected context without mode as interactive', async () => {
     const cas = mockCas();
     const ctx = { ...makeCtx('interactive') };

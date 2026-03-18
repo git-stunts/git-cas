@@ -12,7 +12,7 @@ function makeRuntime(overrides = {}) {
   };
 }
 
-describe('detectCliTuiMode', () => {
+describe('detectCliTuiMode interactive modes', () => {
   it('uses accessible mode when BIJOU_ACCESSIBLE=1', () => {
     const mode = detectCliTuiMode(makeRuntime({
       env: { BIJOU_ACCESSIBLE: '1', TERM: 'xterm-256color' },
@@ -36,11 +36,22 @@ describe('detectCliTuiMode', () => {
 
     expect(mode).toBe('interactive');
   });
+});
 
+describe('detectCliTuiMode non-interactive fallbacks', () => {
   it('falls back to pipe when stdout is not a TTY', () => {
     const mode = detectCliTuiMode(makeRuntime({
       env: { TERM: 'xterm-256color' },
       stdoutIsTTY: false,
+    }));
+
+    expect(mode).toBe('pipe');
+  });
+
+  it('falls back to pipe when stdin is not a TTY', () => {
+    const mode = detectCliTuiMode(makeRuntime({
+      env: { TERM: 'xterm-256color' },
+      stdinIsTTY: false,
     }));
 
     expect(mode).toBe('pipe');

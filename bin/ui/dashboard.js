@@ -9,8 +9,6 @@ import { renderDashboard } from './dashboard-view.js';
 
 /**
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
- * @typedef {'accessible' | 'pipe' | 'static' | 'interactive'} CliTuiMode
- * @typedef {BijouContext & { mode?: CliTuiMode }} DashContext
  * @typedef {import('@flyingrobots/bijou-tui').KeyMsg} KeyMsg
  * @typedef {import('@flyingrobots/bijou-tui').ResizeMsg} ResizeMsg
  * @typedef {import('@flyingrobots/bijou-tui').Cmd<DashMsg>} DashCmd
@@ -57,7 +55,7 @@ import { renderDashboard } from './dashboard-view.js';
  * @typedef {Object} DashDeps
  * @property {DashKeyMap} keyMap
  * @property {ContentAddressableStore} cas
- * @property {DashContext} ctx
+ * @property {BijouContext} ctx
  */
 
 /**
@@ -81,13 +79,14 @@ export function createKeyBindings() {
 /**
  * Create the initial model.
  *
+ * @param {BijouContext} ctx
  * @returns {DashModel}
  */
-function createInitModel() {
+function createInitModel(ctx) {
   return {
     status: 'loading',
-    columns: process.stdout.columns ?? 80,
-    rows: process.stdout.rows ?? 24,
+    columns: ctx.runtime.columns ?? 80,
+    rows: ctx.runtime.rows ?? 24,
     entries: [],
     filtered: [],
     cursor: 0,
@@ -274,7 +273,7 @@ function handleUpdate(msg, model, deps) {
  */
 export function createDashboardApp(deps) {
   return {
-    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(), [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas))]]),
+    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(deps.ctx), [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas))]]),
     update: (/** @type {KeyMsg | ResizeMsg | DashMsg} */ msg, /** @type {DashModel} */ model) => handleUpdate(msg, model, deps),
     view: (/** @type {DashModel} */ model) => renderDashboard(model, deps),
   };
@@ -294,22 +293,34 @@ async function printStaticList(cas, output = process.stdout) {
 }
 
 /**
+ * Ensure launchDashboard has a mode before branching on interactive behavior.
+ *
+ * @param {BijouContext} ctx
+ * @returns {BijouContext}
+ */
+function normalizeLaunchContext(ctx) {
+  const candidate = /** @type {BijouContext & { mode?: import('@flyingrobots/bijou').OutputMode }} */ (ctx);
+  if (candidate.mode) {
+    return candidate;
+  }
+  return {
+    ...candidate,
+    mode: detectCliTuiMode(candidate.runtime),
+  };
+}
+
+/**
  * Launch the interactive vault dashboard.
  *
  * @param {ContentAddressableStore} cas
  * @param {{
- *   ctx?: DashContext,
+ *   ctx?: BijouContext,
  *   runApp?: typeof run,
  *   output?: Pick<NodeJS.WriteStream, 'write'>,
  * }} [options]
  */
 export async function launchDashboard(cas, options = {}) {
-  const ctx = options.ctx
-    ? {
-        ...options.ctx,
-        mode: options.ctx.mode ?? detectCliTuiMode(options.ctx.runtime),
-      }
-    : createCliTuiContext();
+  const ctx = options.ctx ? normalizeLaunchContext(options.ctx) : createCliTuiContext();
   if (ctx.mode !== 'interactive') {
     return printStaticList(cas, options.output);
   }
