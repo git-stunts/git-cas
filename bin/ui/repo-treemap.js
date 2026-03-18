@@ -1,5 +1,5 @@
 /**
- * Render a semantic repository treemap for the dashboard drawer.
+ * Render a semantic repository treemap for the dashboard.
  */
 
 /**
@@ -25,6 +25,15 @@ const TILE_FILL = {
   vault: '■',
   cas: '▦',
   meta: '░',
+};
+
+const TILE_LABEL = {
+  worktree: 'worktree',
+  git: 'git',
+  ref: 'refs',
+  vault: 'vault',
+  cas: 'source',
+  meta: 'other',
 };
 
 /**
@@ -94,6 +103,54 @@ function tailClip(text, width) {
     return clip(text, width);
   }
   return `...${text.slice(text.length - (width - 3))}`;
+}
+
+/**
+ * Wrap plain text into fixed-width chunks.
+ *
+ * @param {string} text
+ * @param {number} width
+ * @returns {string[]}
+ */
+function wrapText(text, width) {
+  if (width <= 0) {
+    return [''];
+  }
+  const chunkPattern = new RegExp(`.{1,${Math.max(1, width)}}`, 'g');
+  return text
+    .split('\n')
+    .flatMap((line) => line.length === 0 ? [''] : (line.match(chunkPattern) ?? ['']));
+}
+
+/**
+ * Clamp wrapped lines to a display budget.
+ *
+ * @param {string[]} lines
+ * @param {number} width
+ * @param {number} maxLines
+ * @returns {string[]}
+ */
+function limitLines(lines, width, maxLines) {
+  if (lines.length <= maxLines) {
+    return lines;
+  }
+  const capped = lines.slice(0, maxLines);
+  capped[maxLines - 1] = `${clip(capped[maxLines - 1], Math.max(1, width - 1))}…`;
+  return capped;
+}
+
+/**
+ * Format a percentage for a tile relative to the whole report.
+ *
+ * @param {number} value
+ * @param {number} total
+ * @returns {string}
+ */
+function formatPercent(value, total) {
+  if (total <= 0) {
+    return '0.0%';
+  }
+  return `${((value / total) * 100).toFixed(1)}%`;
 }
 
 /**
@@ -170,16 +227,61 @@ function createGrid(width, height) {
 }
 
 /**
+ * Write one cell when it falls inside the current grid.
+ *
+ * @param {ReturnType<typeof createGrid>} grid
+ * @param {{ row: number, col: number, ch: string, kind: RepoTreemapTile['kind'] }} cell
+ */
+function putCell(grid, cell) {
+  if (grid[cell.row]?.[cell.col]) {
+    grid[cell.row][cell.col] = { ch: cell.ch, kind: cell.kind };
+  }
+}
+
+/**
+ * Paint a visible outline around a tile rectangle.
+ *
+ * Using box-drawing characters keeps same-kind regions readable in the map,
+ * which matters most for repository scope where multiple worktree tiles can
+ * otherwise blend into one solid field.
+ *
+ * @param {ReturnType<typeof createGrid>} grid
+ * @param {{ tile: RepoTreemapTile, x: number, y: number, width: number, height: number }} rect
+ */
+function outlineRect(grid, rect) {
+  if (rect.width < 2 || rect.height < 2) {
+    return;
+  }
+  const top = rect.y;
+  const bottom = rect.y + rect.height - 1;
+  const left = rect.x;
+  const right = rect.x + rect.width - 1;
+
+  for (let col = left + 1; col < right; col++) {
+    putCell(grid, { row: top, col, ch: '─', kind: rect.tile.kind });
+    putCell(grid, { row: bottom, col, ch: '─', kind: rect.tile.kind });
+  }
+  for (let row = top + 1; row < bottom; row++) {
+    putCell(grid, { row, col: left, ch: '│', kind: rect.tile.kind });
+    putCell(grid, { row, col: right, ch: '│', kind: rect.tile.kind });
+  }
+  putCell(grid, { row: top, col: left, ch: '┌', kind: rect.tile.kind });
+  putCell(grid, { row: top, col: right, ch: '┐', kind: rect.tile.kind });
+  putCell(grid, { row: bottom, col: left, ch: '└', kind: rect.tile.kind });
+  putCell(grid, { row: bottom, col: right, ch: '┘', kind: rect.tile.kind });
+}
+
+/**
  * Overlay a centered tile label on a painted rectangle.
  *
  * @param {ReturnType<typeof createGrid>} grid
  * @param {{ tile: RepoTreemapTile, x: number, y: number, width: number, height: number }} rect
  */
 function paintLabel(grid, rect) {
-  if (rect.width < 4 || rect.height < 2) {
+  if (rect.width < 6 || rect.height < 2) {
     return;
   }
-  const label = clip(rect.tile.label, rect.width - 1);
+  const label = clip(rect.tile.label, rect.width - 2);
   const labelRow = rect.y + Math.floor((rect.height - 1) / 2);
   const startCol = rect.x + Math.max(0, Math.floor((rect.width - label.length) / 2));
   for (let index = 0; index < label.length; index++) {
@@ -206,6 +308,7 @@ function paintRect(grid, rect) {
       }
     }
   }
+  outlineRect(grid, rect);
   paintLabel(grid, rect);
 }
 
@@ -233,33 +336,103 @@ function renderGrid(grid, ctx) {
  * @param {number} width
  * @returns {string}
  */
-function renderLegend(ctx, width) {
-  const parts = [
-    ['worktree', 'worktree'],
-    ['git', 'git'],
-    ['ref', 'refs'],
-    ['vault', 'vault'],
-    ['cas', 'source'],
-  ].map(([kind, label]) => {
-    const fill = TILE_FILL[/** @type {keyof typeof TILE_FILL} */ (kind)];
-    const color = TILE_COLOR[/** @type {keyof typeof TILE_COLOR} */ (kind)];
-    return `${ctx.style.rgb(color[0], color[1], color[2], fill)} ${label}`;
-  });
-  return clip(`legend ${parts.join('  ')}`, width);
+function renderLegendLines(ctx, width) {
+  return /** @type {Array<keyof typeof TILE_FILL>} */ (['worktree', 'git', 'ref', 'vault', 'cas', 'meta'])
+    .map((kind) => {
+      const fill = TILE_FILL[kind];
+      const color = TILE_COLOR[kind];
+      return clip(`${ctx.style.rgb(color[0], color[1], color[2], fill)} ${TILE_LABEL[kind]}`, width);
+    });
 }
 
 /**
- * Render the most important tile details below the treemap.
+ * Render the most important tile details.
  *
  * @param {RepoTreemapTile[]} tiles
+ * @param {{ totalValue: number, width: number, lines: number }} options
+ * @returns {string[]}
+ */
+function renderDetails(tiles, options) {
+  return tiles
+    .slice(0, Math.max(0, options.lines))
+    .map((tile, index) => clip(
+      `${index + 1}. ${tile.label} [${TILE_LABEL[tile.kind]}] ${formatPercent(tile.value, options.totalValue)} · ${tile.detail}`,
+      options.width,
+    ));
+}
+
+/**
+ * Render repo/source overview lines for the sidebar.
+ *
+ * @param {RepoTreemapReport} report
+ * @param {number} width
+ * @returns {string[]}
+ */
+function renderOverview(report, width) {
+  const worktreeLabel = report.scope === 'repository'
+    ? `${report.worktreeMode} paths ${report.summary.worktreePaths}`
+    : 'logical source weighting';
+  return [
+    clip(`scope ${report.scope}`, width),
+    clip(`source ${sourceLabel(report.source)}`, width),
+    clip(`root ${tailClip(report.cwd, Math.max(1, width - 5))}`, width),
+    clip(`total ${formatBytes(report.totalValue)}`, width),
+    clip(worktreeLabel, width),
+    clip(`worktree regions ${report.summary.worktreeItems}`, width),
+    clip(`refs ${report.summary.refCount} in ${report.summary.refNamespaces} namespaces`, width),
+    clip(`vault ${report.summary.vaultEntries}  source ${report.summary.sourceEntries}`, width),
+  ];
+}
+
+/**
+ * Render wrapped note lines for the sidebar.
+ *
+ * @param {RepoTreemapReport} report
  * @param {number} width
  * @param {number} lines
  * @returns {string[]}
  */
-function renderDetails(tiles, width, lines) {
-  return tiles
-    .slice(0, Math.max(0, lines))
-    .map((tile) => clip(`${tile.label}  ${tile.detail}`, width));
+function renderNotes(report, width, lines) {
+  return limitLines(report.notes.flatMap((note) => wrapText(note, width)), width, lines);
+}
+
+/**
+ * Render only the treemap grid.
+ *
+ * @param {RepoTreemapReport} report
+ * @param {{ ctx: BijouContext, width: number, height: number }} options
+ * @returns {string}
+ */
+export function renderRepoTreemapMap(report, options) {
+  const width = Math.max(12, options.width);
+  const height = Math.max(4, options.height);
+  const grid = createGrid(width, height);
+  const layout = layoutTreemap(report.tiles, { x: 0, y: 0, width, height });
+  for (const rect of layout) {
+    paintRect(grid, rect);
+  }
+  return renderGrid(grid, options.ctx).join('\n');
+}
+
+/**
+ * Build text sections for the treemap sidebar.
+ *
+ * @param {RepoTreemapReport} report
+ * @param {{ ctx: BijouContext, width: number, height: number }} options
+ * @returns {{ overview: string, legend: string, regions: string, notes: string }}
+ */
+export function renderRepoTreemapSidebar(report, options) {
+  const width = Math.max(16, options.width);
+  return {
+    overview: renderOverview(report, width).join('\n'),
+    legend: renderLegendLines(options.ctx, width).join('\n'),
+    regions: renderDetails(report.tiles, {
+      totalValue: report.totalValue,
+      width,
+      lines: Math.max(3, Math.min(10, options.height - 20)),
+    }).join('\n'),
+    notes: renderNotes(report, width, Math.max(2, Math.min(8, options.height - 24))).join('\n'),
+  };
 }
 
 /**
@@ -272,33 +445,16 @@ function renderDetails(tiles, width, lines) {
 export function renderRepoTreemap(report, options) {
   const width = Math.max(24, options.width);
   const height = Math.max(10, options.height);
-  const scopeLine = report.scope === 'repository'
-    ? `scope ${report.scope}  files ${report.worktreeMode}  source ${sourceLabel(report.source)}`
-    : `scope ${report.scope}  source ${sourceLabel(report.source)}`;
-  const totalsLine = report.scope === 'repository'
-    ? `total ${formatBytes(report.totalValue)}  ${report.worktreeMode} ${report.summary.worktreePaths} paths  refs ${report.summary.refCount}  source ${report.summary.sourceEntries}`
-    : `total ${formatBytes(report.totalValue)}  refs ${report.summary.refCount}  source ${report.summary.sourceEntries}`;
-  const summaryLines = [
-    clip(scopeLine, width),
-    clip(`root ${tailClip(report.cwd, Math.max(1, width - 5))}`, width),
-    clip(totalsLine, width),
-  ];
-
-  const legendLine = renderLegend(options.ctx, width);
-  const noteLines = report.notes.map((note) => clip(note, width));
-  const detailRows = Math.min(4, Math.max(1, height - 8));
-  const gridHeight = Math.max(4, height - summaryLines.length - detailRows - noteLines.length - 2);
-  const grid = createGrid(width, gridHeight);
-  const layout = layoutTreemap(report.tiles, { x: 0, y: 0, width, height: gridHeight });
-  for (const rect of layout) {
-    paintRect(grid, rect);
-  }
-
+  const summaryLines = renderOverview(report, width);
+  const legendLines = renderLegendLines(options.ctx, width);
+  const detailRows = Math.min(4, Math.max(1, height - 10));
+  const noteLines = renderNotes(report, width, Math.max(1, height - summaryLines.length - legendLines.length - detailRows - 3));
+  const gridHeight = Math.max(4, height - summaryLines.length - legendLines.length - detailRows - noteLines.length - 3);
   return [
     ...summaryLines,
-    ...renderGrid(grid, options.ctx),
-    legendLine,
-    ...renderDetails(report.tiles, width, detailRows),
+    ...renderRepoTreemapMap(report, { ...options, width, height: gridHeight }).split('\n'),
+    ...legendLines,
+    ...renderDetails(report.tiles, { totalValue: report.totalValue, width, lines: detailRows }),
     ...noteLines,
   ].slice(0, height).join('\n');
 }

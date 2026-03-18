@@ -172,6 +172,33 @@ function makeTreemapReport(overrides = {}) {
   };
 }
 
+function renderDashboardWithModel(modelOverrides = {}, depsOverrides = {}) {
+  const deps = makeDeps(depsOverrides);
+  const app = createDashboardApp(deps);
+  return {
+    deps,
+    app,
+    rendered: renderView(app.view(makeModel(modelOverrides)), deps.ctx),
+  };
+}
+
+function makeFullScreenTreemapModel() {
+  return {
+    activeDrawer: 'treemap',
+    treemapScope: 'repository',
+    treemapStatus: 'ready',
+    treemapReport: makeTreemapReport({
+      tiles: [
+        { label: 'src', kind: 'worktree', value: 4096, detail: '2 tracked paths · 4.0K on disk' },
+        { label: '.git/objects', kind: 'git', value: 2048, detail: '2.0K on disk' },
+        { label: 'other', kind: 'meta', value: 1024, detail: '2 smaller regions' },
+      ],
+    }),
+    columns: 120,
+    rows: 36,
+  };
+}
+
 describe('dashboard initialization', () => {
   it('init returns loading model with one cmd', () => {
     const app = createDashboardApp(makeDeps());
@@ -298,7 +325,7 @@ describe('dashboard toast dismissal', () => {
 });
 
 describe('dashboard treemap shortcuts', () => {
-  it('t opens the treemap drawer and queues a load', () => {
+  it('t opens the treemap view and queues a load', () => {
     const app = createDashboardApp(makeDeps());
     const [next, cmds] = app.update(keyMsg('t'), makeModel());
     expect(next.activeDrawer).toBe('treemap');
@@ -557,7 +584,7 @@ describe('dashboard view rendering', () => {
   });
 });
 
-describe('dashboard footer and inspector rendering', () => {
+describe('dashboard footer rendering', () => {
   it('renders footer keybinding hints', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
@@ -576,6 +603,18 @@ describe('dashboard footer and inspector rendering', () => {
     expect(rendered).toContain('quit');
   });
 
+  it('renders treemap-specific footer hints in treemap mode', () => {
+    const { rendered } = renderDashboardWithModel({
+      activeDrawer: 'treemap',
+      treemapStatus: 'ready',
+      treemapReport: makeTreemapReport(),
+      columns: 120,
+    });
+    expect(rendered).toContain('back');
+  });
+});
+
+describe('dashboard inspector rendering', () => {
   it('renders selected asset summary in the inspector pane', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
@@ -623,22 +662,19 @@ describe('dashboard report overlay rendering', () => {
 });
 
 describe('dashboard treemap and palette rendering', () => {
-  it('renders the treemap drawer overlay', () => {
-    const deps = makeDeps();
-    const app = createDashboardApp(deps);
-    const model = makeModel({
-      activeDrawer: 'treemap',
-      treemapScope: 'repository',
-      treemapStatus: 'ready',
-      treemapReport: makeTreemapReport(),
-    });
-    const rendered = renderView(app.view(model), deps.ctx);
-    expect(rendered).toContain('Repo Treemap');
+  it('renders the treemap as a full-screen view with a details sidebar', () => {
+    const { rendered } = renderDashboardWithModel(makeFullScreenTreemapModel());
+    expect(rendered).toContain('treemap view');
+    expect(rendered).toContain('Repository Map');
+    expect(rendered).toContain('Treemap Details');
+    expect(rendered).toContain('Overview');
+    expect(rendered).toContain('Legend');
+    expect(rendered).toContain('Largest Regions');
     expect(rendered).toContain('scope repository');
     expect(rendered).toContain('files tracked');
-    expect(rendered).toContain('legend');
-    expect(rendered).toContain('tracked 2 paths');
-    expect(rendered).toContain('Repository view mixes Git-reported worktree paths');
+    expect(rendered).toContain('other');
+    expect(rendered).toContain('tracked paths 2');
+    expect(rendered).toContain('Repository view mixes Git-reported');
   });
 
   it('renders the palette badge when the command palette is open', () => {

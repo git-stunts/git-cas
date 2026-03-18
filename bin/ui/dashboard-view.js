@@ -4,7 +4,7 @@
 
 import { badge, boxV3, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
 import { commandPalette, navigableTable, splitPaneLayout } from '@flyingrobots/bijou-tui';
-import { renderRepoTreemap } from './repo-treemap.js';
+import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
 import { renderDoctorReport, renderVaultStats } from './vault-report.js';
 import { renderManifestView } from './manifest-view.js';
 
@@ -108,7 +108,11 @@ function headerParts(model, ctx) {
   if (model.filtering || model.filterText) {
     parts.push(badge(model.filtering ? 'filtering' : `filter ${model.filterText}`, { variant: 'accent', ctx }));
   }
-  parts.push(badge(`pane ${model.splitPane.focused === 'a' ? 'entries' : 'inspector'}`, { variant: 'primary', ctx }));
+  if (model.activeDrawer === 'treemap') {
+    parts.push(badge('treemap view', { variant: 'primary', ctx }));
+  } else {
+    parts.push(badge(`pane ${model.splitPane.focused === 'a' ? 'entries' : 'inspector'}`, { variant: 'primary', ctx }));
+  }
   appendSelectionBadges(parts, model, ctx);
   return parts;
 }
@@ -122,7 +126,7 @@ function headerParts(model, ctx) {
  */
 function appendSelectionBadges(parts, model, ctx) {
   const selected = model.filtered[model.table.focusRow];
-  if (selected) {
+  if (selected && model.activeDrawer !== 'treemap') {
     parts.push(badge(`selected ${selected.slug}`, { variant: 'accent', ctx }));
   }
   if (model.toasts.length > 0) {
@@ -134,7 +138,7 @@ function appendSelectionBadges(parts, model, ctx) {
       parts.push(badge(`files ${model.treemapWorktreeMode}`, { variant: 'accent', ctx }));
     }
   }
-  if (model.activeDrawer) {
+  if (model.activeDrawer && model.activeDrawer !== 'treemap') {
     parts.push(badge(`${model.activeDrawer} drawer`, { variant: 'info', ctx }));
   }
   if (model.palette) {
@@ -356,33 +360,16 @@ function renderDoctorDrawer(model, opts) {
 }
 
 /**
- * Render the repository treemap drawer.
+ * Render a boxed panel surface.
  *
- * @param {DashModel} model
- * @param {{ width: number, height: number, ctx: BijouContext }} opts
+ * @param {{ title: string, body: string, width: number, height: number, ctx: BijouContext }} options
  * @returns {Surface}
  */
-function renderTreemapDrawer(model, opts) {
-  const width = Math.max(42, Math.min(78, opts.width - 2));
-  const height = Math.max(10, Math.min(22, opts.height));
-  let body = 'Treemap has not been loaded yet.';
-  if (model.treemapStatus === 'loading') {
-    body = `Loading ${model.treemapScope} treemap...`;
-  } else if (model.treemapStatus === 'error') {
-    body = `Failed to load treemap\n\n${model.treemapError ?? 'unknown error'}`;
-  } else if (model.treemapReport) {
-    body = renderRepoTreemap(model.treemapReport, {
-      ctx: opts.ctx,
-      width: Math.max(16, width - 2),
-      height: Math.max(6, height - 2),
-    });
-  }
-  return renderOverlayPanel({
-    title: 'Repo Treemap',
-    body,
-    width,
-    height,
-    ctx: opts.ctx,
+function renderPanel(options) {
+  return boxV3(textSurface(options.body, Math.max(1, options.width - 2), Math.max(1, options.height - 2)), {
+    ctx: options.ctx,
+    title: options.title,
+    width: options.width,
   });
 }
 
@@ -394,11 +381,8 @@ function renderTreemapDrawer(model, opts) {
  * @returns {Surface | null}
  */
 function renderDrawerSurface(model, opts) {
-  if (!model.activeDrawer) {
+  if (!model.activeDrawer || model.activeDrawer === 'treemap') {
     return null;
-  }
-  if (model.activeDrawer === 'treemap') {
-    return renderTreemapDrawer(model, opts);
   }
   return model.activeDrawer === 'stats'
     ? renderStatsDrawer(model, opts)
@@ -625,19 +609,115 @@ function renderDetailPane(model, opts) {
 }
 
 /**
+ * Compose sidebar copy for the full-screen treemap view.
+ *
+ * @param {{ model: DashModel, deps: DashDeps, width: number, height: number }} options
+ * @returns {string}
+ */
+function renderTreemapSidebarText(options) {
+  if (options.model.treemapStatus === 'loading') {
+    return `Overview\nLoading ${options.model.treemapScope} treemap...`;
+  }
+  if (options.model.treemapStatus === 'error') {
+    return `Overview\nFailed to load treemap\n\n${options.model.treemapError ?? 'unknown error'}`;
+  }
+  if (!options.model.treemapReport) {
+    return 'Overview\nTreemap has not been loaded yet.';
+  }
+  const sections = renderRepoTreemapSidebar(options.model.treemapReport, {
+    ctx: options.deps.ctx,
+    width: Math.max(16, options.width),
+    height: options.height,
+  });
+  return [
+    'Overview',
+    sections.overview,
+    '',
+    'Legend',
+    sections.legend,
+    '',
+    'Largest Regions',
+    sections.regions || 'No regions to display.',
+    '',
+    'Notes',
+    sections.notes || 'No notes.',
+  ].join('\n');
+}
+
+/**
+ * Render the full-screen treemap view.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ top: number, height: number, screen: Surface }} options
+ */
+function renderTreemapView(model, deps, options) {
+  const maxSidebarWidth = Math.max(18, options.screen.width - 17);
+  const sidebarWidth = Math.min(maxSidebarWidth, Math.max(24, Math.min(42, Math.floor(options.screen.width * 0.32))));
+  const mapWidth = Math.max(16, options.screen.width - sidebarWidth - 1);
+  const mapHeight = options.height;
+  const sidebarHeight = options.height;
+
+  const mapBody = model.treemapStatus === 'loading'
+    ? `Loading ${model.treemapScope} treemap...`
+    : model.treemapStatus === 'error'
+      ? `Failed to load treemap\n\n${model.treemapError ?? 'unknown error'}`
+      : model.treemapReport
+        ? renderRepoTreemapMap(model.treemapReport, {
+          ctx: deps.ctx,
+          width: Math.max(8, mapWidth - 2),
+          height: Math.max(4, mapHeight - 2),
+        })
+        : 'Treemap has not been loaded yet.';
+
+  const mapTitle = model.treemapScope === 'repository' ? 'Repository Map' : 'Source Map';
+  const mapPanel = renderPanel({
+    title: mapTitle,
+    body: mapBody,
+    width: mapWidth,
+    height: mapHeight,
+    ctx: deps.ctx,
+  });
+  const sidebarPanel = renderPanel({
+    title: 'Treemap Details',
+    body: renderTreemapSidebarText({
+      model,
+      deps,
+      width: Math.max(8, sidebarWidth - 2),
+      height: Math.max(4, sidebarHeight - 2),
+    }),
+    width: sidebarWidth,
+    height: sidebarHeight,
+    ctx: deps.ctx,
+  });
+
+  options.screen.blit(mapPanel, 0, options.top);
+  options.screen.blit(renderDividerSurface(options.height), mapWidth, options.top);
+  options.screen.blit(sidebarPanel, mapWidth + 1, options.top);
+}
+
+/**
  * Render the footer help surface.
  *
+ * @param {DashModel} model
  * @param {BijouContext} ctx
  * @param {number} width
  * @returns {Surface}
  */
-function renderFooterSurface(ctx, width) {
-  const lines = [
-    '─'.repeat(Math.max(1, width)),
-    `${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
-    `${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
-    `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
-  ];
+function renderFooterSurface(model, ctx, width) {
+  const lines = model.activeDrawer === 'treemap'
+    ? [
+      '─'.repeat(Math.max(1, width)),
+      `${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('ctrl+p', { ctx })} palette`,
+      `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
+      '',
+    ]
+    : [
+      '─'.repeat(Math.max(1, width)),
+      `${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
+      `${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
+      `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
+    ];
   return textSurface(lines.join('\n'), width, 4);
 }
 
@@ -649,6 +729,10 @@ function renderFooterSurface(ctx, width) {
  * @param {{ top: number, height: number, screen: Surface }} options
  */
 function renderBody(model, deps, options) {
+  if (model.activeDrawer === 'treemap') {
+    renderTreemapView(model, deps, options);
+    return;
+  }
   const layout = splitPaneLayout(model.splitPane, {
     direction: 'row',
     width: model.columns,
@@ -708,7 +792,7 @@ export function renderDashboard(model, deps) {
   const height = Math.max(1, model.rows);
   const screen = createSurface(width, height);
   const header = renderHeaderSurface(model, deps);
-  const footer = renderFooterSurface(deps.ctx, width);
+  const footer = renderFooterSurface(model, deps.ctx, width);
   const bodyTop = header.height;
   const bodyHeight = Math.max(1, height - header.height - footer.height);
 

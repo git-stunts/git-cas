@@ -170,7 +170,7 @@ const PALETTE_ITEMS = [
   {
     id: 'treemap',
     label: 'Open Repo Treemap',
-    description: 'Semantic atlas of the repo, refs, vault, and active source',
+    description: 'Full-screen semantic atlas of the repo, refs, vault, and active source',
     category: 'View',
     shortcut: 't',
   },
@@ -217,8 +217,8 @@ const PALETTE_ITEMS = [
   },
   {
     id: 'close-drawer',
-    label: 'Close Active Drawer',
-    description: 'Dismiss the stats or doctor overlay',
+    label: 'Close Active View',
+    description: 'Leave treemap view or dismiss the stats or doctor overlay',
     category: 'View',
     shortcut: 'esc',
   },
@@ -695,7 +695,7 @@ function openDoctorDrawer(model, deps) {
 }
 
 /**
- * Open the repo treemap drawer and trigger a load when needed.
+ * Open the repo treemap view and trigger a load when needed.
  *
  * @param {DashModel} model
  * @param {DashDeps} deps
@@ -766,7 +766,7 @@ function toggleTreemapScope(model, deps) {
  * Toggle repository treemap file visibility between tracked and ignored paths.
  *
  * This control is repository-specific, so switching visibility also returns the
- * drawer to repository scope when needed.
+ * view to repository scope when needed.
  *
  * @param {DashModel} model
  * @param {DashDeps} deps
@@ -800,7 +800,7 @@ function toggleTreemapWorktreeMode(model, deps) {
 }
 
 /**
- * Close the command palette or active drawer, whichever is visible.
+ * Close the command palette or active view, whichever is visible.
  *
  * @param {DashModel} model
  * @returns {[DashModel, DashCmd[]]}
@@ -834,7 +834,7 @@ function focusPane(model, pane) {
 }
 
 /**
- * Close the active drawer from the command palette.
+ * Close the active view from the command palette.
  *
  * @param {DashModel} model
  * @returns {[DashModel, DashCmd[]]}
@@ -1048,6 +1048,46 @@ function handleLayoutAction(action, model) {
 }
 
 /**
+ * Return true when explorer-only actions should be ignored in treemap view.
+ *
+ * @param {DashAction} action
+ * @returns {boolean}
+ */
+function isBlockedByTreemapView(action) {
+  return action.type === 'move'
+    || action.type === 'page'
+    || action.type === 'select'
+    || action.type === 'filter-start'
+    || action.type === 'scroll-detail'
+    || action.type === 'split-focus'
+    || action.type === 'split-resize';
+}
+
+/**
+ * Handle the primary keymap actions that do not require further routing.
+ *
+ * @param {DashAction} action
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]] | null}
+ */
+function handlePrimaryAction(action, model, deps) {
+  if (action.type === 'quit') {
+    return [model, [quit()]];
+  }
+  if (action.type === 'move') {
+    return handleMove(action, model);
+  }
+  if (action.type === 'page') {
+    return handlePage(action, model);
+  }
+  if (action.type === 'select') {
+    return handleSelect(model, deps);
+  }
+  return null;
+}
+
+/**
  * Handle keymap actions.
  *
  * @param {DashAction} action
@@ -1056,10 +1096,13 @@ function handleLayoutAction(action, model) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function handleAction(action, model, deps) {
-  if (action.type === 'quit') { return [model, [quit()]]; }
-  if (action.type === 'move') { return handleMove(action, model); }
-  if (action.type === 'page') { return handlePage(action, model); }
-  if (action.type === 'select') { return handleSelect(model, deps); }
+  if (model.activeDrawer === 'treemap' && isBlockedByTreemapView(action)) {
+    return [model, []];
+  }
+  const primaryResult = handlePrimaryAction(action, model, deps);
+  if (primaryResult) {
+    return primaryResult;
+  }
   const overlayResult = handleOverlayAction(action, model, deps);
   if (overlayResult) { return overlayResult; }
   const layoutResult = handleLayoutAction(action, model);
@@ -1177,7 +1220,7 @@ function handleUpdate(msg, model, deps) {
 }
 
 /**
- * Return true when a treemap report matches the current drawer state.
+ * Return true when a treemap report matches the current view state.
  *
  * @param {{ treemapScope: TreemapScope, treemapWorktreeMode: TreemapWorktreeMode }} model
  * @param {{ scope?: TreemapScope, worktreeMode?: TreemapWorktreeMode } | null | undefined} report
