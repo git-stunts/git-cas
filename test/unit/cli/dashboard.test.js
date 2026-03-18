@@ -92,6 +92,7 @@ function makeModel(overrides = {}) {
     doctorReport: null,
     doctorError: null,
     treemapScope: 'repository',
+    treemapWorktreeMode: 'tracked',
     treemapStatus: 'idle',
     treemapReport: null,
     treemapError: null,
@@ -144,19 +145,24 @@ function makeDoctorReport() {
 function makeTreemapReport(overrides = {}) {
   return {
     scope: 'repository',
+    worktreeMode: 'tracked',
     cwd: '/tmp/git-cas-fixture',
     source: { type: 'vault' },
     totalValue: 8192,
     tiles: [
-      { label: 'src', kind: 'worktree', value: 4096, detail: '4.0K on disk' },
+      { label: 'src', kind: 'worktree', value: 4096, detail: '2 tracked paths · 4.0K on disk' },
       { label: '.git/objects', kind: 'git', value: 2048, detail: '2.0K on disk' },
       { label: 'vault', kind: 'vault', value: 2048, detail: '2 entries · 2.0K logical' },
     ],
-    notes: ['Repository view mixes worktree/.git bytes with logical CAS region sizes.'],
+    notes: [
+      'Repository view mixes Git-reported worktree paths, .git on-disk bytes, and logical CAS region sizes.',
+      'Worktree mode tracked via git ls-files.',
+    ],
     summary: {
       bare: false,
       gitDir: '/tmp/git-cas-fixture/.git',
       worktreeItems: 1,
+      worktreePaths: 2,
       refNamespaces: 1,
       refCount: 3,
       vaultEntries: 2,
@@ -250,7 +256,8 @@ describe('dashboard palette and overlay commands', () => {
     const app = createDashboardApp(makeDeps());
     const [withPalette] = app.update(keyMsg('p', { ctrl: true }), makeModel());
     const [onTreemap] = app.update(keyMsg('down'), withPalette);
-    const [onStats] = app.update(keyMsg('down'), onTreemap);
+    const [onTreemapScope] = app.update(keyMsg('down'), onTreemap);
+    const [onStats] = app.update(keyMsg('down'), onTreemapScope);
     const [next, cmds] = app.update(keyMsg('enter'), onStats);
     expect(next.palette).toBeNull();
     expect(next.activeDrawer).toBe('stats');
@@ -275,7 +282,7 @@ describe('dashboard drawer shortcuts', () => {
   });
 });
 
-describe('dashboard treemap shortcuts and toast dismissal', () => {
+describe('dashboard toast dismissal', () => {
   it('escape dismisses the latest toast when no overlay is open', () => {
     const app = createDashboardApp(makeDeps());
     const [next] = app.update(keyMsg('escape'), makeModel({
@@ -288,7 +295,9 @@ describe('dashboard treemap shortcuts and toast dismissal', () => {
       { id: 1, level: 'error', title: 'Failed to load repo treemap', message: 'boom' },
     ]);
   });
+});
 
+describe('dashboard treemap shortcuts', () => {
   it('t opens the treemap drawer and queues a load', () => {
     const app = createDashboardApp(makeDeps());
     const [next, cmds] = app.update(keyMsg('t'), makeModel());
@@ -309,6 +318,23 @@ describe('dashboard treemap shortcuts and toast dismissal', () => {
     expect(next.treemapScope).toBe('source');
     expect(next.activeDrawer).toBe('treemap');
     expect(next.treemapStatus).toBe('loading');
+    expect(cmds).toHaveLength(1);
+  });
+
+  it('i toggles repository treemap files between tracked and ignored', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({
+      activeDrawer: 'treemap',
+      treemapScope: 'repository',
+      treemapWorktreeMode: 'tracked',
+      treemapStatus: 'ready',
+      treemapReport: makeTreemapReport(),
+    });
+    const [next, cmds] = app.update(keyMsg('i'), model);
+    expect(next.treemapScope).toBe('repository');
+    expect(next.treemapWorktreeMode).toBe('ignored');
+    expect(next.treemapStatus).toBe('loading');
+    expect(next.activeDrawer).toBe('treemap');
     expect(cmds).toHaveLength(1);
   });
 });
@@ -357,6 +383,7 @@ describe('dashboard treemap report and toast messages', () => {
     const app = createDashboardApp(makeDeps());
     const report = {
       scope: 'repository',
+      worktreeMode: 'tracked',
       cwd: '/tmp/git-cas-fixture',
       source: { type: 'vault' },
       totalValue: 2048,
@@ -366,6 +393,7 @@ describe('dashboard treemap report and toast messages', () => {
         bare: false,
         gitDir: '/tmp/git-cas-fixture/.git',
         worktreeItems: 1,
+        worktreePaths: 1,
         refNamespaces: 1,
         refCount: 2,
         vaultEntries: 1,
@@ -533,7 +561,7 @@ describe('dashboard footer and inspector rendering', () => {
   it('renders footer keybinding hints', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
-    const model = makeModel();
+    const model = makeModel({ columns: 120 });
     const rendered = renderView(app.view(model), deps.ctx);
     expect(rendered).toContain('inspect');
     expect(rendered).toContain('resize');
@@ -543,7 +571,8 @@ describe('dashboard footer and inspector rendering', () => {
     expect(rendered).toContain('doctor');
     expect(rendered).toContain('treemap');
     expect(rendered).toContain('scope');
-    expect(rendered).toContain('close');
+    expect(rendered).toContain('files');
+    expect(rendered).toContain('clos');
     expect(rendered).toContain('quit');
   });
 
@@ -606,8 +635,10 @@ describe('dashboard treemap and palette rendering', () => {
     const rendered = renderView(app.view(model), deps.ctx);
     expect(rendered).toContain('Repo Treemap');
     expect(rendered).toContain('scope repository');
+    expect(rendered).toContain('files tracked');
     expect(rendered).toContain('legend');
-    expect(rendered).toContain('Repository view mixes worktree/.git bytes with logical CAS region sizes.');
+    expect(rendered).toContain('tracked 2 paths');
+    expect(rendered).toContain('Repository view mixes Git-reported worktree paths');
   });
 
   it('renders the palette badge when the command palette is open', () => {

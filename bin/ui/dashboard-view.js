@@ -130,6 +130,9 @@ function appendSelectionBadges(parts, model, ctx) {
   }
   if (model.activeDrawer === 'treemap') {
     parts.push(badge(`scope ${model.treemapScope}`, { variant: 'primary', ctx }));
+    if (model.treemapScope === 'repository') {
+      parts.push(badge(`files ${model.treemapWorktreeMode}`, { variant: 'accent', ctx }));
+    }
   }
   if (model.activeDrawer) {
     parts.push(badge(`${model.activeDrawer} drawer`, { variant: 'info', ctx }));
@@ -633,7 +636,7 @@ function renderFooterSurface(ctx, width) {
     '─'.repeat(Math.max(1, width)),
     `${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
     `${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
-    `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
+    `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
   ];
   return textSurface(lines.join('\n'), width, 4);
 }

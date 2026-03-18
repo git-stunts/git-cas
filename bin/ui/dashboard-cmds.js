@@ -10,10 +10,12 @@ import { buildVaultStats, inspectVaultHealth } from './vault-report.js';
 /** @typedef {{ type: 'vault' } | { type: 'ref', ref: string } | { type: 'oid', treeOid: string }} DashSource */
 /** @typedef {{ slug: string, treeOid: string }} ExplorerEntry */
 /** @typedef {'repository' | 'source'} TreemapScope */
+/** @typedef {'tracked' | 'ignored'} TreemapWorktreeMode */
 /** @typedef {'worktree' | 'git' | 'ref' | 'vault' | 'cas' | 'meta'} RepoTreemapKind */
 /** @typedef {{ label: string, kind: RepoTreemapKind, value: number, detail: string }} RepoTreemapTile */
 /** @typedef {{
  *   scope: TreemapScope,
+ *   worktreeMode: TreemapWorktreeMode,
  *   cwd: string,
  *   source: DashSource,
  *   totalValue: number,
@@ -23,6 +25,7 @@ import { buildVaultStats, inspectVaultHealth } from './vault-report.js';
  *     bare: boolean,
  *     gitDir: string,
  *     worktreeItems: number,
+ *     worktreePaths: number,
  *     refNamespaces: number,
  *     refCount: number,
  *     vaultEntries: number,
@@ -149,6 +152,114 @@ async function measurePathBytes(targetPath) {
   const entries = await readdir(targetPath, { withFileTypes: true });
   const childSizes = await Promise.all(entries.map((entry) => measurePathBytes(path.join(targetPath, entry.name))));
   return childSizes.reduce((sum, size) => sum + size, 0);
+}
+
+/**
+ * Measure a single filesystem path selected by Git.
+ *
+ * Ignored-mode listings may collapse whole ignored directories, so that path
+ * needs a recursive byte count. Tracked listings should stay file-level.
+ *
+ * @param {string} targetPath
+ * @param {{ recurseDirectory?: boolean }} [options]
+ * @returns {Promise<number>}
+ */
+async function measureListedPathBytes(targetPath, options = {}) {
+  let stat;
+  try {
+    stat = await lstat(targetPath);
+  } catch {
+    return 0;
+  }
+  if (stat.isDirectory() && !stat.isSymbolicLink() && options.recurseDirectory) {
+    return measurePathBytes(targetPath);
+  }
+  return stat.size;
+}
+
+/**
+ * Parse null-delimited Git output into raw repo-relative paths.
+ *
+ * @param {string} output
+ * @returns {string[]}
+ */
+function parseNullPaths(output) {
+  return output.split('\0').filter(Boolean);
+}
+
+/**
+ * Normalize a repo-relative path and return its top-level label.
+ *
+ * @param {string} repoPath
+ * @returns {string}
+ */
+function topLevelLabel(repoPath) {
+  const normalized = repoPath.replace(/\\/g, '/').replace(/\/+$/, '');
+  if (!normalized) {
+    return '';
+  }
+  return normalized.split('/')[0] ?? normalized;
+}
+
+/**
+ * Aggregate top-level worktree tiles from Git-reported paths.
+ *
+ * @param {{
+ *   plumbing: { execute: ({ args }: { args: string[] }) => Promise<string> },
+ *   repo: { cwd: string, bare: boolean },
+ *   worktreeMode: TreemapWorktreeMode,
+ * }} options
+ * @returns {Promise<{ tiles: RepoTreemapTile[], pathCount: number }>}
+ */
+async function readWorktreeTiles({ plumbing, repo, worktreeMode }) {
+  if (repo.bare) {
+    return { tiles: [], pathCount: 0 };
+  }
+
+  const args = worktreeMode === 'ignored'
+    ? ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '--no-empty-directory', '-z']
+    : ['ls-files', '-z'];
+
+  let output = '';
+  try {
+    output = await plumbing.execute({ args });
+  } catch {
+    return { tiles: [], pathCount: 0 };
+  }
+
+  const repoPaths = parseNullPaths(output);
+  const buckets = new Map();
+
+  await Promise.all(repoPaths.map(async (repoPath) => {
+    const normalizedPath = repoPath.replace(/\/+$/, '');
+    const label = topLevelLabel(normalizedPath);
+    if (!label || label === '.git') {
+      return;
+    }
+
+    const fullPath = path.join(repo.cwd, normalizedPath);
+    const value = await measureListedPathBytes(fullPath, {
+      recurseDirectory: worktreeMode === 'ignored' && repoPath.endsWith('/'),
+    });
+    const bucket = buckets.get(label) ?? { value: 0, count: 0 };
+    bucket.value += value;
+    bucket.count += 1;
+    buckets.set(label, bucket);
+  }));
+
+  const tiles = Array.from(buckets.entries())
+    .map(([label, bucket]) => ({
+      label,
+      kind: /** @type {const} */ ('worktree'),
+      value: Math.max(1, bucket.value),
+      detail: `${bucket.count} ${worktreeMode} path${bucket.count === 1 ? '' : 's'} · ${formatBytes(bucket.value)} on disk`,
+    }))
+    .sort((left, right) => right.value - left.value || left.label.localeCompare(right.label));
+
+  return {
+    tiles,
+    pathCount: repoPaths.length,
+  };
 }
 
 /**
@@ -322,6 +433,7 @@ function buildSourceScopeReport({ repo, source, sourceResult, sourceRecords }) {
   const totalValue = sourceTiles.reduce((sum, tile) => sum + tile.value, 0);
   return {
     scope: 'source',
+    worktreeMode: 'tracked',
     cwd: repo.cwd,
     source,
     totalValue,
@@ -338,6 +450,7 @@ function buildSourceScopeReport({ repo, source, sourceResult, sourceRecords }) {
       bare: repo.bare,
       gitDir: repo.gitDir,
       worktreeItems: 0,
+      worktreePaths: 0,
       refNamespaces: 0,
       refCount: 0,
       vaultEntries: source.type === 'vault' ? sourceResult.entries.length : 0,
@@ -356,13 +469,12 @@ function buildSourceScopeReport({ repo, source, sourceResult, sourceRecords }) {
  *   plumbing: { execute: ({ args }: { args: string[] }) => Promise<string> },
  *   sourceResult: { entries: ExplorerEntry[] },
  *   sourceRecords: Array<ExplorerEntry & { manifest: any, size: number }>,
+ *   worktreeMode: TreemapWorktreeMode,
  * }} options
  * @returns {Promise<RepoTreemapReport>}
  */
-async function buildRepositoryScopeReport({ cas, source, repo, plumbing, sourceResult, sourceRecords }) {
-  const worktreeTiles = repo.bare
-    ? []
-    : await scanDirectoryTiles(repo.cwd, 'worktree', (name) => name).then((tiles) => tiles.filter((tile) => tile.label !== path.basename(repo.gitDir)));
+async function buildRepositoryScopeReport({ cas, source, repo, plumbing, sourceResult, sourceRecords, worktreeMode }) {
+  const { tiles: worktreeTiles, pathCount: worktreePaths } = await readWorktreeTiles({ plumbing, repo, worktreeMode });
   const gitTiles = await scanDirectoryTiles(repo.gitDir, 'git', (name) => repo.bare ? name : `.git/${name}`);
   const { tiles: refTiles, totalRefs } = await readRefNamespaceTiles(plumbing);
   const vaultResult = source.type === 'vault' ? sourceResult : await readSourceEntries(cas, { type: 'vault' });
@@ -382,6 +494,7 @@ async function buildRepositoryScopeReport({ cas, source, repo, plumbing, sourceR
 
   return {
     scope: 'repository',
+    worktreeMode,
     cwd: repo.cwd,
     source,
     totalValue,
@@ -392,13 +505,17 @@ async function buildRepositoryScopeReport({ cas, source, repo, plumbing, sourceR
       detail: 'No worktree, ref, or CAS regions were detected',
     }],
     notes: [
-      'Repository view mixes worktree/.git bytes with logical CAS region sizes.',
-      repo.bare ? 'Bare repository: worktree regions are omitted.' : `Git dir ${repo.gitDir}`,
+      'Repository view mixes Git-reported worktree paths, .git on-disk bytes, and logical CAS region sizes.',
+      repo.bare
+        ? 'Bare repository: worktree regions are omitted.'
+        : `Worktree mode ${worktreeMode} via ${worktreeMode === 'tracked' ? 'git ls-files' : 'git ls-files --others --ignored --exclude-standard'}.`,
+      `Git dir ${repo.gitDir}`,
     ],
     summary: {
       bare: repo.bare,
       gitDir: repo.gitDir,
       worktreeItems: worktreeTiles.length,
+      worktreePaths,
       refNamespaces: refTiles.length,
       refCount: totalRefs,
       vaultEntries: vaultResult.entries.length,
@@ -615,11 +732,19 @@ export async function readSourceEntries(cas, source = { type: 'vault' }) {
  * Build the semantic repo/source treemap report for the dashboard.
  *
  * @param {ContentAddressableStore} cas
- * @param {DashSource} [source]
- * @param {TreemapScope} [scope]
+ * @param {{
+ *   source?: DashSource,
+ *   scope?: TreemapScope,
+ *   worktreeMode?: TreemapWorktreeMode,
+ * }} [options]
  * @returns {Promise<RepoTreemapReport>}
  */
-export async function buildRepoTreemapReport(cas, source = { type: 'vault' }, scope = 'repository') {
+export async function buildRepoTreemapReport(cas, options = {}) {
+  const {
+    source = { type: 'vault' },
+    scope = 'repository',
+    worktreeMode = 'tracked',
+  } = options;
   const service = await cas.getService();
   const repo = await resolveRepoInfo(service.persistence.plumbing);
   const sourceResult = await readSourceEntries(cas, source);
@@ -635,6 +760,7 @@ export async function buildRepoTreemapReport(cas, source = { type: 'vault' }, sc
     plumbing: service.persistence.plumbing,
     sourceResult,
     sourceRecords,
+    worktreeMode,
   });
 }
 
@@ -723,16 +849,30 @@ export function loadDoctorCmd(cas, source = { type: 'vault' }, entries = []) {
  * Load the repository/source treemap report for the dashboard drawer.
  *
  * @param {ContentAddressableStore} cas
- * @param {DashSource} [source]
- * @param {TreemapScope} [scope]
+ * @param {{
+ *   source?: DashSource,
+ *   scope?: TreemapScope,
+ *   worktreeMode?: TreemapWorktreeMode,
+ * }} [options]
  */
-export function loadTreemapCmd(cas, source = { type: 'vault' }, scope = 'repository') {
+export function loadTreemapCmd(cas, options = {}) {
+  const {
+    source = { type: 'vault' },
+    scope = 'repository',
+    worktreeMode = 'tracked',
+  } = options;
   return async () => {
     try {
-      const report = await buildRepoTreemapReport(cas, source, scope);
+      const report = await buildRepoTreemapReport(cas, { source, scope, worktreeMode });
       return /** @type {const} */ ({ type: 'loaded-treemap', report });
     } catch (/** @type {any} */ err) {
-      return /** @type {const} */ ({ type: 'load-error', source: 'treemap', scopeId: scope, error: /** @type {Error} */ (err).message });
+      return /** @type {const} */ ({
+        type: 'load-error',
+        source: 'treemap',
+        scopeId: scope,
+        worktreeMode,
+        error: /** @type {Error} */ (err).message,
+      });
     }
   };
 }

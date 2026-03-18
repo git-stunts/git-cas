@@ -272,10 +272,16 @@ function renderDetails(tiles, width, lines) {
 export function renderRepoTreemap(report, options) {
   const width = Math.max(24, options.width);
   const height = Math.max(10, options.height);
+  const scopeLine = report.scope === 'repository'
+    ? `scope ${report.scope}  files ${report.worktreeMode}  source ${sourceLabel(report.source)}`
+    : `scope ${report.scope}  source ${sourceLabel(report.source)}`;
+  const totalsLine = report.scope === 'repository'
+    ? `total ${formatBytes(report.totalValue)}  ${report.worktreeMode} ${report.summary.worktreePaths} paths  refs ${report.summary.refCount}  source ${report.summary.sourceEntries}`
+    : `total ${formatBytes(report.totalValue)}  refs ${report.summary.refCount}  source ${report.summary.sourceEntries}`;
   const summaryLines = [
-    clip(`scope ${report.scope}  source ${sourceLabel(report.source)}`, width),
+    clip(scopeLine, width),
     clip(`root ${tailClip(report.cwd, Math.max(1, width - 5))}`, width),
-    clip(`total ${formatBytes(report.totalValue)}  worktree ${report.summary.worktreeItems}  refs ${report.summary.refCount}  source ${report.summary.sourceEntries}`, width),
+    clip(totalsLine, width),
   ];
 
   const legendLine = renderLegend(options.ctx, width);

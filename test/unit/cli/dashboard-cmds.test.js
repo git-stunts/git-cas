@@ -36,21 +36,47 @@ async function withTempRepo(run) {
   }
 }
 
-function makeRepoExec(repoDir, showRefOutput = '') {
+function revParseResult(repoDir, args) {
+  if (args[0] !== 'rev-parse') {
+    return null;
+  }
+  if (args[1] === '--git-dir') {
+    throw new Error('Prohibited git flag detected: --git-dir');
+  }
+  if (args[1] === '--is-bare-repository') {
+    return 'false';
+  }
+  if (args[1] === '--show-toplevel') {
+    return repoDir;
+  }
+  return null;
+}
+
+function repoExecResult(repoDir, options, args) {
+  const {
+    showRefOutput = '',
+    trackedPaths = [],
+    ignoredPaths = [],
+  } = options;
+  const revParse = revParseResult(repoDir, args);
+  if (revParse !== null) {
+    return revParse;
+  }
+  if (args[0] === 'show-ref') {
+    return showRefOutput;
+  }
+  if (args[0] === 'ls-files' && args.includes('--others') && args.includes('--ignored')) {
+    return ignoredPaths.join('\0');
+  }
+  if (args[0] === 'ls-files') {
+    return trackedPaths.join('\0');
+  }
+  throw new Error(`unexpected git command: ${args.join(' ')}`);
+}
+
+function makeRepoExec(repoDir, options = {}) {
   return async ({ args }) => {
-    if (args[0] === 'rev-parse' && args[1] === '--git-dir') {
-      throw new Error('Prohibited git flag detected: --git-dir');
-    }
-    if (args[0] === 'rev-parse' && args[1] === '--is-bare-repository') {
-      return 'false';
-    }
-    if (args[0] === 'rev-parse' && args[1] === '--show-toplevel') {
-      return repoDir;
-    }
-    if (args[0] === 'show-ref') {
-      return showRefOutput;
-    }
-    throw new Error(`unexpected git command: ${args.join(' ')}`);
+    return repoExecResult(repoDir, options, args);
   };
 }
 
@@ -58,8 +84,12 @@ async function seedRepoLayout(repoDir) {
   await mkdir(path.join(repoDir, '.git', 'objects'), { recursive: true });
   await mkdir(path.join(repoDir, '.git', 'refs', 'heads'), { recursive: true });
   await mkdir(path.join(repoDir, 'src'), { recursive: true });
+  await mkdir(path.join(repoDir, 'node_modules', 'leftpad'), { recursive: true });
+  await mkdir(path.join(repoDir, 'coverage'), { recursive: true });
   await writeFile(path.join(repoDir, 'README.md'), 'hello world');
   await writeFile(path.join(repoDir, 'src', 'app.js'), 'export const app = true;\n');
+  await writeFile(path.join(repoDir, 'node_modules', 'leftpad', 'index.js'), 'module.exports = () => 42;\n');
+  await writeFile(path.join(repoDir, 'coverage', 'summary.txt'), 'ignored coverage\n');
   await writeFile(path.join(repoDir, '.git', 'objects', 'pack-1'), 'packdata');
   await writeFile(path.join(repoDir, '.git', 'refs', 'heads', 'main'), 'deadbeef');
 }
@@ -91,6 +121,34 @@ function makeSourceTreemapCas(plumbing) {
     readManifest: vi.fn().mockImplementation(async ({ treeOid }) => readTreemapManifest(treeOid)),
     getService: vi.fn().mockResolvedValue({ persistence: { plumbing } }),
   };
+}
+
+async function buildRepositoryReport({ source = { type: 'oid', treeOid: 'source-tree' }, worktreeMode = 'tracked' } = {}) {
+  return withTempRepo(async (repoDir) => {
+    await seedRepoLayout(repoDir);
+    const plumbing = makePlumbing(repoDir, makeRepoExec(repoDir, {
+      showRefOutput: [
+        '1111111111111111111111111111111111111111 refs/heads/main',
+        '2222222222222222222222222222222222222222 refs/warp/demo/seek-cache',
+      ].join('\n'),
+      trackedPaths: ['README.md', 'src/app.js'],
+      ignoredPaths: ['node_modules/', 'coverage/'],
+    }));
+    const cas = makeRepositoryTreemapCas(plumbing);
+    const report = await buildRepoTreemapReport(cas, { source, scope: 'repository', worktreeMode });
+    return { report, repoDir };
+  });
+}
+
+async function buildSourceReport() {
+  return withTempRepo(async (repoDir) => {
+    const plumbing = makePlumbing(repoDir, makeRepoExec(repoDir));
+    const cas = makeSourceTreemapCas(plumbing);
+    return buildRepoTreemapReport(cas, {
+      source: { type: 'oid', treeOid: 'feedfacecafebeef' },
+      scope: 'source',
+    });
+  });
 }
 
 describe('readSourceEntries vault and oid modes', () => {
@@ -200,53 +258,60 @@ describe('readSourceEntries commit message hints', () => {
 });
 
 describe('buildRepoTreemapReport repository scope', () => {
-  it('builds a repository-scope atlas with worktree, git, ref, vault, and source regions', async () => {
-    await withTempRepo(async (repoDir) => {
-      await seedRepoLayout(repoDir);
-      const plumbing = makePlumbing(repoDir, makeRepoExec(repoDir, [
-        '1111111111111111111111111111111111111111 refs/heads/main',
-        '2222222222222222222222222222222222222222 refs/warp/demo/seek-cache',
-      ].join('\n')));
-      const cas = makeRepositoryTreemapCas(plumbing);
-      const report = await buildRepoTreemapReport(cas, { type: 'oid', treeOid: 'source-tree' }, 'repository');
-      expect(report.scope).toBe('repository');
-      expect(report.cwd).toBe(repoDir);
-      expect(report.summary.worktreeItems).toBeGreaterThan(0);
-      expect(report.summary.refCount).toBe(2);
-      expect(report.summary.vaultEntries).toBe(1);
-      expect(report.summary.sourceEntries).toBe(1);
-      const labels = [];
-      for (const tile of report.tiles) {
-        labels.push(tile.label);
-      }
-      expect(labels).toEqual(expect.arrayContaining([
-        'README.md',
-        'src',
-        '.git/objects',
-        'refs/heads',
-        'refs/warp',
-        'vault',
-        'active source',
-      ]));
+  it('builds a repository-scope atlas from git ls-files instead of raw disk children', async () => {
+    const { report, repoDir } = await buildRepositoryReport();
+    expect(report.scope).toBe('repository');
+    expect(report.worktreeMode).toBe('tracked');
+    expect(report.cwd).toBe(repoDir);
+    expect(report.summary.worktreeItems).toBeGreaterThan(0);
+    expect(report.summary.worktreePaths).toBe(2);
+    expect(report.summary.refCount).toBe(2);
+    expect(report.summary.vaultEntries).toBe(1);
+    expect(report.summary.sourceEntries).toBe(1);
+    const labels = report.tiles.map((tile) => tile.label);
+    expect(labels).toEqual(expect.arrayContaining([
+      'README.md',
+      'src',
+      '.git/objects',
+      'refs/heads',
+      'refs/warp',
+      'vault',
+      'active source',
+    ]));
+    expect(labels).not.toContain('node_modules');
+    expect(report.notes).toEqual(expect.arrayContaining([
+      expect.stringContaining('git ls-files'),
+    ]));
+  });
+
+  it('can switch repository scope to ignored worktree paths', async () => {
+    const { report } = await buildRepositoryReport({
+      source: { type: 'vault' },
+      worktreeMode: 'ignored',
     });
+    const labels = report.tiles.map((tile) => tile.label);
+    expect(report.worktreeMode).toBe('ignored');
+    expect(report.summary.worktreePaths).toBe(2);
+    expect(labels).toEqual(expect.arrayContaining(['node_modules', 'coverage']));
+    expect(labels).not.toContain('README.md');
+    expect(report.notes).toEqual(expect.arrayContaining([
+      expect.stringContaining('--others --ignored --exclude-standard'),
+    ]));
   });
 });
 
 describe('buildRepoTreemapReport source scope', () => {
   it('builds a source-scope treemap from logical source entries', async () => {
-    await withTempRepo(async (repoDir) => {
-      const plumbing = makePlumbing(repoDir, makeRepoExec(repoDir));
-      const cas = makeSourceTreemapCas(plumbing);
-      const report = await buildRepoTreemapReport(cas, { type: 'oid', treeOid: 'feedfacecafebeef' }, 'source');
-      expect(report.scope).toBe('source');
-      expect(report.summary.sourceEntries).toBe(1);
-      expect(report.tiles).toEqual([
-        expect.objectContaining({
-          label: 'oid:feedfacecafe',
-          kind: 'cas',
-        }),
-      ]);
-      expect(report.notes[0]).toContain('logical manifest size');
-    });
+    const report = await buildSourceReport();
+    expect(report.scope).toBe('source');
+    expect(report.worktreeMode).toBe('tracked');
+    expect(report.summary.sourceEntries).toBe(1);
+    expect(report.tiles).toEqual([
+      expect.objectContaining({
+        label: 'oid:feedfacecafe',
+        kind: 'cas',
+      }),
+    ]);
+    expect(report.notes[0]).toContain('logical manifest size');
   });
 });
