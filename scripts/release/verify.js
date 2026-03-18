@@ -91,12 +91,14 @@ export const RELEASE_STEPS = [
 ];
 
 export class ReleaseVerifyError extends Error {
-  constructor(message, { step, results, summary } = {}) {
+  constructor(message, { step, results, summary, version, totalTests } = {}) {
     super(message);
     this.name = 'ReleaseVerifyError';
     this.step = step;
     this.results = results ?? [];
     this.summary = summary ?? '';
+    this.version = version ?? '';
+    this.totalTests = totalTests ?? 0;
   }
 }
 
@@ -127,6 +129,23 @@ export function renderMarkdownSummary({ version, results, totalTests }) {
   }
 
   return `${lines.join('\n')}\n`;
+}
+
+/**
+ * Render the report as machine-readable JSON.
+ *
+ * @param {{ version: string, results: Array<Record<string, any>>, totalTests: number, step?: Record<string, any> }} report
+ * @returns {string}
+ */
+export function renderJsonReport({ version, results, totalTests, step }) {
+  return `${JSON.stringify({
+    version,
+    stepsPassed: results.filter((result) => result.passed).length,
+    totalSteps: results.length,
+    totalTests,
+    failedStep: step ? { id: step.id, label: step.label } : null,
+    results,
+  }, null, 2)}\n`;
 }
 
 /**
@@ -263,6 +282,8 @@ export async function runReleaseVerify({
         step: result,
         results,
         summary,
+        version,
+        totalTests,
       });
     }
   }
@@ -277,17 +298,36 @@ export async function runReleaseVerify({
 }
 
 /**
+ * Resolve the CLI output format from argv.
+ *
+ * @param {string[]} [argv]
+ * @returns {'markdown' | 'json'}
+ */
+export function resolveOutputFormat(argv = process.argv.slice(2)) {
+  return argv.includes('--json') ? 'json' : 'markdown';
+}
+
+/**
  * CLI entry point for `pnpm release:verify`.
  *
  * @returns {Promise<void>}
  */
 async function main() {
+  const format = resolveOutputFormat();
   try {
     const report = await runReleaseVerify();
-    process.stdout.write(`\n${report.summary}`);
+    if (format === 'json') {
+      process.stdout.write(renderJsonReport(report));
+    } else {
+      process.stdout.write(`\n${report.summary}`);
+    }
   } catch (error) {
     if (error instanceof ReleaseVerifyError) {
-      process.stderr.write(`\n${error.summary}`);
+      if (format === 'json') {
+        process.stderr.write(renderJsonReport(error));
+      } else {
+        process.stderr.write(`\n${error.summary}`);
+      }
     }
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
