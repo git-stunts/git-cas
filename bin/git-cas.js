@@ -670,12 +670,22 @@ vault
 // ---------------------------------------------------------------------------
 vault
   .command('dashboard')
-  .description('Interactive vault explorer')
+  .description('Interactive CAS explorer')
   .option('--cwd <dir>', 'Git working directory', '.')
+  .option('--ref <gitRef>', 'Inspect a git ref that points to a CAS tree, CAS index blob, or commit with a manifest hint')
+  .option('--oid <treeOid>', 'Inspect a direct CAS tree OID')
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
+    if (opts.ref && opts.oid) {
+      throw new Error('Choose either --ref or --oid, not both');
+    }
     const cas = createCas(opts.cwd);
     const { launchDashboard } = await import('./ui/dashboard.js');
-    await launchDashboard(cas, { cwd: path.resolve(opts.cwd) });
+    const source = opts.ref
+      ? { type: 'ref', ref: opts.ref }
+      : opts.oid
+        ? { type: 'oid', treeOid: opts.oid }
+        : { type: 'vault' };
+    await launchDashboard(cas, { cwd: path.resolve(opts.cwd), source });
   }, getJson));
 
 // ---------------------------------------------------------------------------

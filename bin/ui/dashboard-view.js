@@ -10,6 +10,7 @@ import { renderManifestView } from './manifest-view.js';
 /**
  * @typedef {import('./dashboard.js').DashModel} DashModel
  * @typedef {import('./dashboard.js').DashDeps} DashDeps
+ * @typedef {import('./dashboard.js').DashSource} DashSource
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
  * @typedef {import('@flyingrobots/bijou').Surface} Surface
  */
@@ -102,7 +103,7 @@ function headerParts(model, ctx) {
   }
   parts.push(badge(`pane ${model.splitPane.focused === 'a' ? 'entries' : 'inspector'}`, { variant: 'primary', ctx }));
   appendSelectionBadges(parts, model, ctx);
-  return ['refs/cas/vault', ...parts];
+  return parts;
 }
 
 /**
@@ -126,6 +127,22 @@ function appendSelectionBadges(parts, model, ctx) {
 }
 
 /**
+ * Human-readable label for the active dashboard source.
+ *
+ * @param {DashSource} source
+ * @returns {string}
+ */
+function sourceLabel(source) {
+  if (source.type === 'vault') {
+    return 'source vault refs/cas/vault';
+  }
+  if (source.type === 'ref') {
+    return `source ref ${source.ref}`;
+  }
+  return `source oid ${source.treeOid}`;
+}
+
+/**
  * Render the header surface.
  *
  * @param {DashModel} model
@@ -134,12 +151,12 @@ function appendSelectionBadges(parts, model, ctx) {
  */
 function renderHeaderSurface(model, deps) {
   const surface = createSurface(Math.max(1, model.columns), 4);
-  surface.blit(textSurface('git-cas vault explorer', surface.width, 1), 0, 0);
+  surface.blit(textSurface('git-cas repository explorer', surface.width, 1), 0, 0);
   surface.blit(textSurface(tailClip(`cwd ${deps.cwdLabel ?? '-'}`, surface.width), surface.width, 1), 0, 1);
   blitInline(surface, {
     x: 0,
     y: 2,
-    parts: headerParts(model, deps.ctx),
+    parts: [sourceLabel(deps.source), ...headerParts(model, deps.ctx)],
     maxWidth: surface.width,
   });
   surface.blit(textSurface('─'.repeat(surface.width), surface.width, 1), 0, 3);
@@ -193,7 +210,9 @@ function doctorDrawerBody(model) {
   if (model.doctorStatus === 'error') {
     return `Failed to load doctor report\n\n${model.doctorError ?? 'unknown error'}`;
   }
-  return model.doctorReport
+  return typeof model.doctorReport === 'string'
+    ? model.doctorReport
+    : model.doctorReport
     ? renderDoctorReport(model.doctorReport)
     : 'Doctor report has not been loaded yet.';
 }
@@ -207,7 +226,7 @@ function doctorDrawerBody(model) {
  */
 function renderStatsDrawer(model, opts) {
   return renderOverlayPanel({
-    title: 'Vault Stats',
+    title: 'Source Stats',
     body: statsDrawerBody(model),
     width: Math.max(32, Math.min(56, opts.width - 2)),
     height: Math.max(8, opts.height),

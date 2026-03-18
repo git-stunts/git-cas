@@ -84,4 +84,21 @@ describe('launchDashboard mode branching', () => {
     expect(cas.listVault).toHaveBeenCalledTimes(1);
     expect(output.write).toHaveBeenCalledWith('alpha\tdeadbeef\n');
   });
+
+  it('prints a direct oid source when the context is non-interactive', async () => {
+    const cas = mockCas();
+    const ctx = makeCtx('pipe');
+    const output = { write: vi.fn() };
+
+    await launchDashboard(cas, {
+      ctx,
+      runApp: runMock,
+      output,
+      source: { type: 'oid', treeOid: '0123456789abcdef' },
+    });
+
+    expect(runMock).not.toHaveBeenCalled();
+    expect(cas.listVault).not.toHaveBeenCalled();
+    expect(output.write).toHaveBeenCalledWith('oid:0123456789ab\t0123456789abcdef\n');
+  });
 });

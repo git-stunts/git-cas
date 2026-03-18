@@ -8,7 +8,7 @@ import {
   createSplitPaneState, splitPaneFocusNext, splitPaneResizeBy,
   createCommandPaletteState, cpFilter, cpFocusNext, cpFocusPrev, cpPageDown, cpPageUp, cpSelectedItem, commandPaletteKeyMap,
 } from '@flyingrobots/bijou-tui';
-import { loadEntriesCmd, loadManifestCmd, loadStatsCmd, loadDoctorCmd } from './dashboard-cmds.js';
+import { loadEntriesCmd, loadManifestCmd, loadStatsCmd, loadDoctorCmd, readSourceEntries } from './dashboard-cmds.js';
 import { createCliTuiContext, detectCliTuiMode } from './context.js';
 import { renderDashboard } from './dashboard-view.js';
 
@@ -24,6 +24,7 @@ import { renderDashboard } from './dashboard-view.js';
  * @typedef {import('../../index.js').default} ContentAddressableStore
  * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
  * @typedef {{ slug: string, treeOid: string }} VaultEntry
+ * @typedef {{ type: 'vault' } | { type: 'ref', ref: string } | { type: 'oid', treeOid: string }} DashSource
  * @typedef {'idle' | 'loading' | 'ready' | 'error'} LoadState
  */
 
@@ -94,6 +95,7 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {ContentAddressableStore} cas
  * @property {BijouContext} ctx
  * @property {string | undefined} [cwdLabel]
+ * @property {DashSource} source
  */
 
 /**
@@ -146,8 +148,8 @@ const SPLIT_DIVIDER_SIZE = 1;
 const PALETTE_ITEMS = [
   {
     id: 'stats',
-    label: 'Open Vault Stats',
-    description: 'Logical size, dedup ratio, encryption coverage',
+    label: 'Open Source Stats',
+    description: 'Logical size, dedup ratio, and format coverage',
     category: 'View',
     shortcut: 's',
   },
@@ -525,7 +527,7 @@ function openStatsDrawer(model, deps) {
     palette: null,
     statsStatus: 'loading',
     statsError: null,
-  }, [/** @type {DashCmd} */ (loadStatsCmd(deps.cas))]];
+  }, [/** @type {DashCmd} */ (loadStatsCmd(deps.cas, model.entries))]];
 }
 
 /**
@@ -549,7 +551,7 @@ function openDoctorDrawer(model, deps) {
     palette: null,
     doctorStatus: 'loading',
     doctorError: null,
-  }, [/** @type {DashCmd} */ (loadDoctorCmd(deps.cas))]];
+  }, [/** @type {DashCmd} */ (loadDoctorCmd(deps.cas, deps.source, model.entries))]];
 }
 
 /**
@@ -888,7 +890,7 @@ function handleUpdate(msg, model, deps) {
  */
 export function createDashboardApp(deps) {
   return {
-    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(deps.ctx), [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas))]]),
+    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(deps.ctx), [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas, deps.source))]]),
     update: (/** @type {KeyMsg | ResizeMsg | DashMsg} */ msg, /** @type {DashModel} */ model) => handleUpdate(msg, model, deps),
     view: (/** @type {DashModel} */ model) => renderDashboard(model, deps),
   };
@@ -898,10 +900,11 @@ export function createDashboardApp(deps) {
  * Print static list for non-TTY environments.
  *
  * @param {ContentAddressableStore} cas Content-addressable store read by printStaticList.
+ * @param {DashSource} source Dashboard source used by printStaticList to choose entries.
  * @param {Pick<NodeJS.WriteStream, 'write'> | NodeJS.WriteStream} [output=process.stdout] Output stream used by printStaticList to write each entry.
  */
-async function printStaticList(cas, output = process.stdout) {
-  const entries = await cas.listVault();
+async function printStaticList(cas, source, output = process.stdout) {
+  const { entries } = await readSourceEntries(cas, source);
   for (const { slug, treeOid } of entries) {
     output.write(`${slug}\t${treeOid}\n`);
   }
@@ -934,17 +937,19 @@ function normalizeLaunchContext(ctx) {
  * @param {{
  *   ctx?: BijouContext,
  *   runApp?: typeof run,
- *   cwd?: string,
+  *   cwd?: string,
+ *   source?: DashSource,
  *   output?: Pick<NodeJS.WriteStream, 'write'>,
  * }} [options]
  */
 export async function launchDashboard(cas, options = {}) {
   const ctx = options.ctx ? normalizeLaunchContext(options.ctx) : createCliTuiContext();
+  const source = options.source ?? { type: 'vault' };
   if (ctx.mode !== 'interactive') {
-    return printStaticList(cas, options.output);
+    return printStaticList(cas, source, options.output);
   }
   const keyMap = createKeyBindings();
-  const deps = { keyMap, cas, ctx, cwdLabel: options.cwd };
+  const deps = { keyMap, cas, ctx, cwdLabel: options.cwd, source };
   const runApp = options.runApp || run;
   return runApp(createDashboardApp(deps), { ctx });
 }

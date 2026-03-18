@@ -24,6 +24,7 @@ function makeDeps(overrides = {}) {
     cas: mockCas(),
     ctx: makeCtx(),
     cwdLabel: '/tmp/git-cas-fixture',
+    source: { type: 'vault' },
     ...overrides,
   };
 }
@@ -210,7 +211,7 @@ describe('dashboard overlays', () => {
     expect(next.palette).not.toBeNull();
     const rendered = renderView(app.view(next), deps.ctx);
     expect(rendered).toContain('Command Palette');
-    expect(rendered).toContain('Open Vault Stats');
+    expect(rendered).toContain('Open Source Stats');
   });
 
   it('palette selection opens the stats drawer and queues a load', () => {
@@ -372,8 +373,9 @@ describe('dashboard view rendering', () => {
     expect(typeof output).toBe('object');
     expect(output.width).toBe(model.columns);
     const rendered = renderView(output, deps.ctx);
-    expect(rendered).toContain('git-cas vault explorer');
+    expect(rendered).toContain('git-cas repository explorer');
     expect(rendered).toContain('cwd /tmp/git-cas-fixture');
+    expect(rendered).toContain('source vault refs/cas/vault');
     expect(rendered).toContain('Entries');
     expect(rendered).toContain('Inspector');
   });
@@ -455,7 +457,7 @@ describe('dashboard overlay rendering', () => {
       statsReport: makeStatsReport(),
     });
     const rendered = renderView(app.view(model), deps.ctx);
-    expect(rendered).toContain('Vault Stats');
+    expect(rendered).toContain('Source Stats');
     expect(rendered).toContain('dedup-ratio');
   });
 
@@ -474,6 +476,6 @@ describe('dashboard overlay rendering', () => {
     const rendered = renderView(app.view(withPalette), deps.ctx);
     expect(rendered).toContain('palette');
     expect(rendered).toContain('Command Palette');
-    expect(rendered).toContain('Open Vault Stats');
+    expect(rendered).toContain('Open Source Stats');
   });
 });
