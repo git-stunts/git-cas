@@ -22,7 +22,7 @@ beforeEach(() => {
   runMock.mockClear();
 });
 
-describe('launchDashboard', () => {
+describe('launchDashboard runtime wiring', () => {
   it('uses injected runtime dimensions for the first frame', async () => {
     const cas = mockCas();
     const ctx = makeCtx('interactive', { columns: 123, rows: 55 });
@@ -37,7 +37,13 @@ describe('launchDashboard', () => {
 
   it('treats an injected context without mode as interactive', async () => {
     const cas = mockCas();
-    const ctx = { ...makeCtx('interactive') };
+    const ctx = {
+      ...makeCtx('interactive', {
+        env: { TERM: 'xterm-256color' },
+        stdoutIsTTY: true,
+        stdinIsTTY: true,
+      }),
+    };
     delete ctx.mode;
 
     await launchDashboard(cas, { ctx, runApp: runMock });
@@ -45,7 +51,22 @@ describe('launchDashboard', () => {
     expect(runMock).toHaveBeenCalledTimes(1);
     expect(cas.listVault).not.toHaveBeenCalled();
   });
+});
 
+describe('launchDashboard context normalization', () => {
+  it('throws a clear error when mode-less context is missing runtime', async () => {
+    const cas = mockCas();
+    const ctx = { ...makeCtx('interactive') };
+    delete ctx.mode;
+    delete ctx.runtime;
+
+    await expect(
+      launchDashboard(cas, { ctx, runApp: runMock }),
+    ).rejects.toThrow('launchDashboard requires ctx.runtime when ctx.mode is absent');
+  });
+});
+
+describe('launchDashboard mode branching', () => {
   it('uses the interactive runtime when the context is interactive', async () => {
     const cas = mockCas();
     const ctx = makeCtx('interactive');

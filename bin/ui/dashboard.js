@@ -303,6 +303,9 @@ function normalizeLaunchContext(ctx) {
   if (candidate.mode) {
     return candidate;
   }
+  if (!candidate.runtime) {
+    throw new TypeError('launchDashboard requires ctx.runtime when ctx.mode is absent');
+  }
   return {
     ...candidate,
     mode: detectCliTuiMode(candidate.runtime),
