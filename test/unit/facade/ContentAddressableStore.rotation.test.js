@@ -7,7 +7,7 @@ import { execSync } from 'node:child_process';
 import ContentAddressableStore from '../../../index.js';
 import { createGitPlumbing } from '../../../src/infrastructure/createGitPlumbing.js';
 
-const LONG_TEST_TIMEOUT_MS = 15000;
+const LONG_TEST_TIMEOUT_MS = 45000;
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -31,8 +31,9 @@ We use the object database.
 - **Full round-trip** store, tree, and restore — get your bytes back, verified.
 - **Lifecycle management** `readManifest`, `inspectAsset`, `collectReferencedChunks` — inspect trees, plan deletions, audit storage.
 - **Vault** GC-safe ref-based storage. One ref (`refs/cas/vault`) indexes all assets by slug. No more silent data loss from `git gc`.
+- **Vault diagnostics** `git cas vault stats` summarizes size/dedupe/encryption coverage, and `git cas doctor` scans the vault for broken manifests before they surprise you.
 - **Interactive dashboard** `git cas inspect` with chunk heatmap, animated progress bars, and rich manifest views.
-- **Verify & JSON output** `git cas verify` checks integrity; `--json` on all current human-facing commands provides convenient structured output for CI/scripting.
+- **Verify & JSON output** `git cas verify` checks integrity; `--json` on all current human-facing commands provides convenient structured output for CI/scripting, including `pnpm release:verify --json` for release automation.
 
 **Use it for:** binary assets, build artifacts, model weights, data packs, secret bundles, weird experiments, etc.
 
@@ -180,6 +181,8 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 
 **`--json` everywhere** — all commands now support `--json` for structured output. Pipe `git cas vault list --json | jq` in CI.
 
+**Vault diagnostics** — `git cas vault stats` surfaces logical size, dedupe, chunking, and encryption coverage; `git cas doctor` scans the current vault and exits non-zero when it finds trouble.
+
 **CryptoPort base class** — shared key validation, metadata building, and KDF normalization. All three adapters (Node/Bun/Web) inherit from a single source of truth.
 
 **Centralized error handling** — `runAction` wrapper with CasError codes and actionable hints (e.g., "Provide --key-file or --vault-passphrase").
@@ -296,9 +299,12 @@ git cas vault init
 git cas vault list                        # TTY table
 git cas vault list --json                 # structured JSON
 git cas vault list --filter "photos/*"    # glob filter
+git cas vault stats                       # size / dedupe / coverage summary
 git cas vault info my-image
 git cas vault remove my-image
 git cas vault history
+git cas doctor                            # vault health scan
+pnpm release:verify --json                # machine-readable release report
 
 # Multi-recipient encryption
 git cas store ./secret.bin --slug shared \

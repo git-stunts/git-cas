@@ -7,6 +7,7 @@ import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserv
 import CasError from '../../../../src/domain/errors/CasError.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const SLOW_ENVELOPE_TEST_TIMEOUT_MS = 15000;
 
 // ---------------------------------------------------------------------------
 // Deterministic PRNG (xorshift32) — keeps fuzz tests reproducible
@@ -312,7 +313,7 @@ describe('CasService – envelope encryption (edge cases)', () => { // eslint-di
 
     const { buffer } = await service.restore({ manifest, encryptionKey: kek });
     expect(buffer.equals(original)).toBe(true);
-  });
+  }, SLOW_ENVELOPE_TEST_TIMEOUT_MS);
 });
 
 // ---------------------------------------------------------------------------

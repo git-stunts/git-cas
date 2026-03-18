@@ -22,7 +22,9 @@ This document defines the canonical patch-release flow for `git-cas`.
 
 `pnpm release:verify` is the maintainer-facing verification entrypoint for
 release prep. It runs the repository release gates in order and prints a
-Markdown summary that can be pasted into release notes or changelog prep.
+Markdown summary that can be pasted into release notes or changelog prep. Pass
+`--json` when you need the same report in machine-readable form for CI or
+release automation.
 
 Current release verification includes:
 

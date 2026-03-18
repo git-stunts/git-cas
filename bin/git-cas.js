@@ -12,6 +12,7 @@ import { renderEncryptionCard } from './ui/encryption-card.js';
 import { renderHistoryTimeline } from './ui/history-timeline.js';
 import { renderManifestView } from './ui/manifest-view.js';
 import { renderHeatmap } from './ui/heatmap.js';
+import { buildVaultStats, inspectVaultHealth, renderDoctorReport, renderVaultStats } from './ui/vault-report.js';
 import { runAction } from './actions.js';
 import { flushStdioAndExit, installBrokenPipeHandlers } from './io.js';
 import { filterEntries, formatTable, formatTabSeparated } from './ui/vault-list.js';
@@ -416,6 +417,29 @@ program
   }, getJson));
 
 // ---------------------------------------------------------------------------
+// doctor
+// ---------------------------------------------------------------------------
+program
+  .command('doctor')
+  .description('Inspect vault health and surface integrity issues')
+  .option('--cwd <dir>', 'Git working directory', '.')
+  .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
+    const cas = createCas(opts.cwd);
+    const report = await inspectVaultHealth(cas);
+    const json = program.opts().json;
+
+    if (json) {
+      process.stdout.write(`${JSON.stringify(report)}\n`);
+    } else {
+      process.stdout.write(renderDoctorReport(report));
+    }
+
+    if (report.status !== 'ok') {
+      process.exitCode = 1;
+    }
+  }, getJson));
+
+// ---------------------------------------------------------------------------
 // vault init
 // ---------------------------------------------------------------------------
 const vault = program
@@ -466,6 +490,32 @@ vault
       process.stdout.write(formatTable(entries));
     } else {
       process.stdout.write(formatTabSeparated(entries));
+    }
+  }, getJson));
+
+// ---------------------------------------------------------------------------
+// vault stats
+// ---------------------------------------------------------------------------
+vault
+  .command('stats')
+  .description('Summarize vault size, dedupe, and encryption coverage')
+  .option('--filter <pattern>', 'Filter entries by glob pattern')
+  .option('--cwd <dir>', 'Git working directory', '.')
+  .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
+    const cas = createCas(opts.cwd);
+    const all = await cas.listVault();
+    const entries = filterEntries(all, opts.filter);
+    const records = [];
+    for (const entry of entries) {
+      const manifest = await cas.readManifest({ treeOid: entry.treeOid });
+      records.push({ ...entry, manifest });
+    }
+    const stats = buildVaultStats(records);
+    const json = program.opts().json;
+    if (json) {
+      process.stdout.write(`${JSON.stringify(stats)}\n`);
+    } else {
+      process.stdout.write(renderVaultStats(stats));
     }
   }, getJson));
 

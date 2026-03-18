@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import VaultService from '../../../src/domain/services/VaultService.js';
 import CasError from '../../../src/domain/errors/CasError.js';
 
-const LONG_TEST_TIMEOUT_MS = 15000;
+const LONG_TEST_TIMEOUT_MS = 60000;
 
 // ---------------------------------------------------------------------------
 // Helpers

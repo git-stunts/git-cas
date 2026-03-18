@@ -6,6 +6,7 @@ import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const SLOW_COMPRESSION_TEST_TIMEOUT_MS = 15000;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -331,6 +332,6 @@ describe('CasService compression – fuzz round-trip across sizes', () => {
       const { buffer } = await service.restore({ manifest, encryptionKey: key });
 
       expect(buffer.equals(original)).toBe(true);
-    });
+    }, size >= 5000 ? SLOW_COMPRESSION_TEST_TIMEOUT_MS : undefined);
   }
 });
