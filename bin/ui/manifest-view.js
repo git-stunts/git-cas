@@ -2,7 +2,7 @@
  * Manifest anatomy view — rich visual breakdown of a manifest.
  */
 
-import { box, badge, table, tree, headerBox } from '@flyingrobots/bijou';
+import { box, badge, table, tree, headerBox, surfaceToString } from '@flyingrobots/bijou';
 import { getCliContext } from './context.js';
 
 /**
@@ -37,15 +37,16 @@ function formatBytes(bytes) {
  * @returns {string}
  */
 function renderBadges(m, ctx) {
-  const badges = [badge(`v${m.version}`, { ctx })];
+  const renderBadge = (label, options = {}) => surfaceToString(badge(label, { ...options, ctx }), ctx.style);
+  const badges = [renderBadge(`v${m.version}`)];
   if (m.encryption) {
-    badges.push(badge('encrypted', { variant: 'warning', ctx }));
+    badges.push(renderBadge('encrypted', { variant: 'warning' }));
   }
   if (m.compression) {
-    badges.push(badge(m.compression.algorithm, { variant: 'info', ctx }));
+    badges.push(renderBadge(m.compression.algorithm, { variant: 'info' }));
   }
   if (m.subManifests?.length) {
-    badges.push(badge('merkle', { variant: 'info', ctx }));
+    badges.push(renderBadge('merkle', { variant: 'info' }));
   }
   return badges.join(' ');
 }

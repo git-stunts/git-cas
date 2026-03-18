@@ -2,7 +2,7 @@
  * Pure render functions for the vault dashboard.
  */
 
-import { badge } from '@flyingrobots/bijou';
+import { badge, surfaceToString } from '@flyingrobots/bijou';
 import { flex, viewport } from '@flyingrobots/bijou-tui';
 import { renderManifestView } from './manifest-view.js';
 
@@ -76,7 +76,7 @@ function visibleRange(cursor, total, height) {
 function renderHeader(model, ctx) {
   const parts = [];
   if (model.metadata?.encryption) {
-    parts.push(badge('encrypted', { variant: 'warning', ctx }));
+    parts.push(surfaceToString(badge('encrypted', { variant: 'warning', ctx }), ctx.style));
   }
   parts.push(`${model.entries.length} entries`);
   parts.push('refs/cas/vault');

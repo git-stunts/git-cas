@@ -28,6 +28,7 @@ describe('renderManifestView', () => {
     expect(output).toContain('test-asset');
     expect(output).toContain('photo.jpg');
     expect(output).toContain('Metadata');
+    expect(output).toContain('v1');
   });
 
   it('renders chunk table', () => {
@@ -41,17 +42,20 @@ describe('renderManifestView', () => {
     const output = renderManifestView({ manifest: makeManifest({ encryption: enc }) });
     expect(output).toContain('Encryption');
     expect(output).toContain('aes-256-gcm');
+    expect(output).toContain('encrypted');
   });
 
   it('renders compression section', () => {
     const output = renderManifestView({ manifest: makeManifest({ compression: { algorithm: 'gzip' } }) });
     expect(output).toContain('Compression');
+    expect(output).toContain('gzip');
   });
 
   it('renders sub-manifests', () => {
     const subs = [{ oid: 'aaaa1111bbbb2222', chunkCount: 1000, startIndex: 0 }, { oid: 'cccc3333dddd4444', chunkCount: 500, startIndex: 1000 }];
     const output = renderManifestView({ manifest: makeManifest({ version: 2, subManifests: subs }) });
     expect(output).toContain('Sub-manifests (2)');
+    expect(output).toContain('merkle');
   });
 
   it('truncates chunks beyond 20', () => {

@@ -201,6 +201,14 @@ describe('dashboard view rendering', () => {
     expect(output).toContain('bravo');
   });
 
+  it('renders encrypted header badge text without object coercion', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({ metadata: { encryption: { cipher: 'aes-256-gcm' } } });
+    const output = app.view(model);
+    expect(output).toContain('encrypted');
+    expect(output).not.toContain('[object Object]');
+  });
+
   it('renders error message on error status', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({ status: 'error', error: 'connection failed' });
