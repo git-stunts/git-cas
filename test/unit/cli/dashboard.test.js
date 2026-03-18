@@ -95,6 +95,8 @@ function makeModel(overrides = {}) {
     treemapStatus: 'idle',
     treemapReport: null,
     treemapError: null,
+    toasts: [],
+    nextToastId: 1,
     ...overrides,
   };
 }
@@ -271,6 +273,21 @@ describe('dashboard drawer shortcuts', () => {
     const [next] = app.update(keyMsg('escape'), makeModel({ activeDrawer: 'stats', statsStatus: 'ready' }));
     expect(next.activeDrawer).toBeNull();
   });
+});
+
+describe('dashboard treemap shortcuts and toast dismissal', () => {
+  it('escape dismisses the latest toast when no overlay is open', () => {
+    const app = createDashboardApp(makeDeps());
+    const [next] = app.update(keyMsg('escape'), makeModel({
+      toasts: [
+        { id: 2, level: 'warning', title: 'Heads up', message: 'yellow alert' },
+        { id: 1, level: 'error', title: 'Failed to load repo treemap', message: 'boom' },
+      ],
+    }));
+    expect(next.toasts).toEqual([
+      { id: 1, level: 'error', title: 'Failed to load repo treemap', message: 'boom' },
+    ]);
+  });
 
   it('t opens the treemap drawer and queues a load', () => {
     const app = createDashboardApp(makeDeps());
@@ -333,7 +350,9 @@ describe('dashboard report loading', () => {
     expect(next.doctorReport).toEqual(report);
     expect(next.doctorError).toBeNull();
   });
+});
 
+describe('dashboard treemap report and toast messages', () => {
   it('loaded-treemap stores the report for the active scope', () => {
     const app = createDashboardApp(makeDeps());
     const report = {
@@ -357,6 +376,20 @@ describe('dashboard report loading', () => {
     expect(next.treemapStatus).toBe('ready');
     expect(next.treemapReport).toEqual(report);
     expect(next.treemapError).toBeNull();
+  });
+
+  it('dismiss-toast removes the matching toast', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({
+      toasts: [
+        { id: 1, level: 'error', title: 'Failed to load entries', message: 'boom' },
+        { id: 2, level: 'warning', title: 'Heads up', message: 'careful' },
+      ],
+    });
+    const [next] = app.update({ type: 'dismiss-toast', id: 1 }, model);
+    expect(next.toasts).toEqual([
+      { id: 2, level: 'warning', title: 'Heads up', message: 'careful' },
+    ]);
   });
 });
 
@@ -400,9 +433,12 @@ describe('dashboard filter edge cases', () => {
 
   it('load-error from entries sets error and status on model', () => {
     const app = createDashboardApp(makeDeps());
-    const [next] = app.update({ type: 'load-error', source: 'entries', error: 'boom' }, makeModel());
+    const [next, cmds] = app.update({ type: 'load-error', source: 'entries', error: 'boom' }, makeModel());
     expect(next.error).toBe('boom');
     expect(next.status).toBe('error');
+    expect(next.toasts).toHaveLength(1);
+    expect(next.toasts[0].title).toBe('Failed to load entries');
+    expect(cmds).toHaveLength(1);
   });
 });
 
@@ -410,9 +446,12 @@ describe('dashboard loading edge cases', () => {
   it('load-error from manifest does not set global error', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({ status: 'ready', entries, filtered: entries });
-    const [next] = app.update({ type: 'load-error', source: 'manifest', slug: 'alpha', error: 'oops' }, model);
+    const [next, cmds] = app.update({ type: 'load-error', source: 'manifest', slug: 'alpha', error: 'oops' }, model);
     expect(next.status).toBe('ready');
     expect(next.error).toBeNull();
+    expect(next.toasts).toHaveLength(1);
+    expect(next.toasts[0].title).toBe('Failed to load alpha');
+    expect(cmds).toHaveLength(1);
   });
 
   it('loaded-entries clamps table focus to filtered bounds', () => {
@@ -580,5 +619,19 @@ describe('dashboard treemap and palette rendering', () => {
     expect(rendered).toContain('Command Palette');
     expect(rendered).toContain('Open Repo Treemap');
     expect(rendered).toContain('Open Source Stats');
+  });
+
+  it('renders stacked toast notifications', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const rendered = renderView(app.view(makeModel({
+      toasts: [
+        { id: 2, level: 'warning', title: 'Heads up', message: 'yellow alert' },
+        { id: 1, level: 'error', title: 'Failed to load repo treemap', message: 'boom' },
+      ],
+    })), deps.ctx);
+    expect(rendered).toContain('alerts 2');
+    expect(rendered).toContain('Error: Failed to load repo treemap');
+    expect(rendered).toContain('Warning: Heads up');
   });
 });

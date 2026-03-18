@@ -39,7 +39,7 @@ async function withTempRepo(run) {
 function makeRepoExec(repoDir, showRefOutput = '') {
   return async ({ args }) => {
     if (args[0] === 'rev-parse' && args[1] === '--git-dir') {
-      return '.git';
+      throw new Error('Prohibited git flag detected: --git-dir');
     }
     if (args[0] === 'rev-parse' && args[1] === '--is-bare-repository') {
       return 'false';

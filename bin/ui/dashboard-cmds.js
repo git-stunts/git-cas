@@ -2,7 +2,7 @@
  * Async command factories for the vault dashboard.
  */
 
-import { lstat, readdir } from 'node:fs/promises';
+import { lstat, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { buildVaultStats, inspectVaultHealth } from './vault-report.js';
 
@@ -79,6 +79,33 @@ function manifestData(manifest) {
 }
 
 /**
+ * Resolve the true git-dir path for a non-bare working tree.
+ *
+ * Supports both regular repositories where `.git` is a directory and worktrees
+ * where `.git` is a pointer file containing `gitdir: <path>`.
+ *
+ * @param {string} repoRoot
+ * @returns {Promise<string>}
+ */
+async function resolveWorktreeGitDir(repoRoot) {
+  const dotGitPath = path.join(repoRoot, '.git');
+  try {
+    const stat = await lstat(dotGitPath);
+    if (stat.isDirectory()) {
+      return dotGitPath;
+    }
+    if (!stat.isFile()) {
+      return dotGitPath;
+    }
+    const raw = await readFile(dotGitPath, 'utf8');
+    const match = raw.match(/^\s*gitdir:\s*(.+)\s*$/i);
+    return match ? path.resolve(repoRoot, match[1]) : dotGitPath;
+  } catch {
+    return dotGitPath;
+  }
+}
+
+/**
  * Read the Git repo root and git-dir paths for the current CAS plumbing.
  *
  * @param {{ cwd?: string, execute: ({ args }: { args: string[] }) => Promise<string> }} plumbing
@@ -86,10 +113,7 @@ function manifestData(manifest) {
  */
 async function resolveRepoInfo(plumbing) {
   const cwd = plumbing.cwd ?? process.cwd();
-  const [gitDirRaw, bareRaw] = await Promise.all([
-    plumbing.execute({ args: ['rev-parse', '--git-dir'] }),
-    plumbing.execute({ args: ['rev-parse', '--is-bare-repository'] }),
-  ]);
+  const bareRaw = await plumbing.execute({ args: ['rev-parse', '--is-bare-repository'] });
   const bare = bareRaw.trim() === 'true';
   let repoRoot = cwd;
   if (!bare) {
@@ -101,7 +125,7 @@ async function resolveRepoInfo(plumbing) {
   }
   return {
     cwd: repoRoot,
-    gitDir: path.resolve(cwd, gitDirRaw.trim()),
+    gitDir: bare ? repoRoot : await resolveWorktreeGitDir(repoRoot),
     bare,
   };
 }

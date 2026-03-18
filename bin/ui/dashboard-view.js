@@ -19,6 +19,12 @@ import { renderManifestView } from './manifest-view.js';
 const SPLIT_MIN_LIST_WIDTH = 28;
 const SPLIT_MIN_DETAIL_WIDTH = 32;
 const SPLIT_DIVIDER_SIZE = 1;
+const TOAST_THEME = {
+  error: { label: 'Error', bg: [185, 28, 28], fg: [255, 255, 255] },
+  warning: { label: 'Warning', bg: [202, 138, 4], fg: [17, 24, 39] },
+  info: { label: 'Info', bg: [37, 99, 235], fg: [255, 255, 255] },
+  success: { label: 'Success', bg: [22, 163, 74], fg: [255, 255, 255] },
+};
 
 /**
  * Safely clip text to a pane width.
@@ -119,6 +125,9 @@ function appendSelectionBadges(parts, model, ctx) {
   if (selected) {
     parts.push(badge(`selected ${selected.slug}`, { variant: 'accent', ctx }));
   }
+  if (model.toasts.length > 0) {
+    parts.push(badge(`alerts ${model.toasts.length}`, { variant: 'warning', ctx }));
+  }
   if (model.activeDrawer === 'treemap') {
     parts.push(badge(`scope ${model.treemapScope}`, { variant: 'primary', ctx }));
   }
@@ -180,6 +189,94 @@ function renderOverlayPanel(options) {
     ctx: options.ctx,
     title: options.title,
     width: options.width,
+  });
+}
+
+/**
+ * Pad or clip text to a fixed width.
+ *
+ * @param {string} text
+ * @param {number} width
+ * @returns {string}
+ */
+function padToWidth(text, width) {
+  return text.length >= width ? text.slice(0, width) : `${text}${' '.repeat(width - text.length)}`;
+}
+
+/**
+ * Wrap text to the requested width and line budget.
+ *
+ * @param {string[]} lines
+ * @param {number} width
+ * @param {number} maxLines
+ * @returns {string[]}
+ */
+function limitWrappedLines(lines, width, maxLines) {
+  if (lines.length <= maxLines) {
+    return lines;
+  }
+  const capped = lines.slice(0, maxLines);
+  capped[maxLines - 1] = `${clip(capped[maxLines - 1], Math.max(1, width - 1))}…`;
+  return capped;
+}
+
+/**
+ * Wrap toast copy with simple fixed-width chunks.
+ *
+ * @param {string} text
+ * @param {number} width
+ * @param {number} maxLines
+ * @returns {string[]}
+ */
+function wrapToastText(text, width, maxLines) {
+  const chunkPattern = new RegExp(`.{1,${Math.max(1, width)}}`, 'g');
+  const lines = text
+    .split('\n')
+    .flatMap((part) => part.length === 0 ? [''] : (part.match(chunkPattern) ?? ['']));
+  return limitWrappedLines(lines, width, maxLines);
+}
+
+/**
+ * Style a single toast content line.
+ *
+ * @param {{ text: string, theme: { bg: [number, number, number], fg: [number, number, number] }, ctx: BijouContext, width: number }} options
+ * @returns {string}
+ */
+function styleToastLine(options) {
+  return options.ctx.style.bgRgb(
+    options.theme.bg[0],
+    options.theme.bg[1],
+    options.theme.bg[2],
+    options.ctx.style.rgb(
+      options.theme.fg[0],
+      options.theme.fg[1],
+      options.theme.fg[2],
+      padToWidth(options.text, options.width),
+    ),
+  );
+}
+
+/**
+ * Render one toast box surface.
+ *
+ * @param {{ id: number, level: 'error' | 'warning' | 'info' | 'success', title: string, message: string }} toast
+ * @param {{ width: number, ctx: BijouContext }} opts
+ * @returns {Surface}
+ */
+function renderToastSurface(toast, opts) {
+  const theme = TOAST_THEME[toast.level] ?? TOAST_THEME.info;
+  const width = Math.max(28, Math.min(46, opts.width));
+  const innerWidth = Math.max(1, width - 2);
+  const bodyLines = wrapToastText(toast.message, innerWidth, 3).map((line) => styleToastLine({
+    text: line,
+    theme,
+    ctx: opts.ctx,
+    width: innerWidth,
+  }));
+  return boxV3(textSurface(bodyLines.join('\n'), innerWidth, bodyLines.length), {
+    ctx: opts.ctx,
+    title: `${theme.label}: ${toast.title}`,
+    width,
   });
 }
 
@@ -303,6 +400,29 @@ function renderDrawerSurface(model, opts) {
   return model.activeDrawer === 'stats'
     ? renderStatsDrawer(model, opts)
     : renderDoctorDrawer(model, opts);
+}
+
+/**
+ * Render stacked toast notifications in the lower-right corner.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ top: number, height: number, screen: Surface }} options
+ */
+function renderToastStack(model, deps, options) {
+  let cursorY = options.top + options.height;
+  for (const toast of model.toasts) {
+    const surface = renderToastSurface(toast, {
+      width: Math.min(54, Math.max(34, Math.floor(options.screen.width * 0.55))),
+      ctx: deps.ctx,
+    });
+    cursorY -= surface.height;
+    if (cursorY < options.top) {
+      break;
+    }
+    options.screen.blit(surface, Math.max(0, options.screen.width - surface.width), cursorY);
+    cursorY -= 1;
+  }
 }
 
 /**
@@ -569,6 +689,8 @@ function renderOverlays(model, deps, options) {
     const y = options.top + Math.max(0, Math.floor((options.height - palette.height) / 3));
     options.screen.blit(palette, x, y);
   }
+
+  renderToastStack(model, deps, options);
 }
 
 /**

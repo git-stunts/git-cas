@@ -3,7 +3,7 @@
  */
 
 import {
-  run, quit, createKeyMap,
+  run, quit, tick, createKeyMap,
   createNavigableTableState, navTableFocusNext, navTableFocusPrev, navTablePageDown, navTablePageUp,
   createSplitPaneState, splitPaneFocusNext, splitPaneResizeBy,
   createCommandPaletteState, cpFilter, cpFocusNext, cpFocusPrev, cpPageDown, cpPageUp, cpSelectedItem, commandPaletteKeyMap,
@@ -25,6 +25,8 @@ import { renderDashboard } from './dashboard-view.js';
  * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
  * @typedef {import('./dashboard-cmds.js').TreemapScope} TreemapScope
  * @typedef {{ slug: string, treeOid: string }} VaultEntry
+ * @typedef {'error' | 'warning' | 'info' | 'success'} ToastLevel
+ * @typedef {{ id: number, level: ToastLevel, title: string, message: string }} ToastRecord
  * @typedef {{ type: 'vault' } | { type: 'ref', ref: string } | { type: 'oid', treeOid: string }} DashSource
  * @typedef {'idle' | 'loading' | 'ready' | 'error'} LoadState
  */
@@ -63,6 +65,7 @@ import { renderDashboard } from './dashboard-view.js';
  *   | { type: 'loaded-stats', stats: any }
  *   | { type: 'loaded-doctor', report: any }
  *   | { type: 'loaded-treemap', report: any }
+ *   | { type: 'dismiss-toast', id: number }
  *   | { type: 'load-error', source: string, slug?: string, scopeId?: TreemapScope, error: string }
  * } DashMsg
  */
@@ -95,6 +98,8 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {LoadState} treemapStatus
  * @property {any | null} treemapReport
  * @property {string | null} treemapError
+ * @property {ToastRecord[]} toasts
+ * @property {number} nextToastId
  */
 
 /**
@@ -154,6 +159,8 @@ const LIST_META_ROWS = 2;
 const SPLIT_MIN_LIST_WIDTH = 28;
 const SPLIT_MIN_DETAIL_WIDTH = 32;
 const SPLIT_DIVIDER_SIZE = 1;
+const TOAST_LIMIT = 4;
+const TOAST_TTL_MS = 6000;
 
 const PALETTE_ITEMS = [
   {
@@ -346,6 +353,85 @@ function setPalette(model, palette) {
 }
 
 /**
+ * Add a toast notification and schedule its dismissal.
+ *
+ * @param {DashModel} model
+ * @param {{ level: ToastLevel, title: string, message: string }} toastSpec
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function addToast(model, toastSpec) {
+  const id = model.nextToastId;
+  const toast = { id, ...toastSpec };
+  return [{
+    ...model,
+    nextToastId: id + 1,
+    toasts: [toast, ...model.toasts].slice(0, TOAST_LIMIT),
+  }, [/** @type {DashCmd} */ (tick(TOAST_TTL_MS, { type: 'dismiss-toast', id }))]];
+}
+
+/**
+ * Dismiss a toast by id.
+ *
+ * @param {DashModel} model
+ * @param {number} id
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function dismissToast(model, id) {
+  return [{
+    ...model,
+    toasts: model.toasts.filter((toast) => toast.id !== id),
+  }, []];
+}
+
+/**
+ * Apply state changes caused by an async load error.
+ *
+ * @param {DashMsg & { type: 'load-error' }} msg
+ * @param {DashModel} model
+ * @returns {DashModel}
+ */
+function applyLoadErrorState(msg, model) {
+  if (msg.source === 'manifest') {
+    return { ...model, loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug };
+  }
+  if (msg.source === 'stats') {
+    return { ...model, statsStatus: 'error', statsError: msg.error };
+  }
+  if (msg.source === 'doctor') {
+    return { ...model, doctorStatus: 'error', doctorError: msg.error };
+  }
+  if (msg.source === 'treemap') {
+    if (msg.scopeId && msg.scopeId !== model.treemapScope) {
+      return model;
+    }
+    return { ...model, treemapStatus: 'error', treemapError: msg.error };
+  }
+  return { ...model, status: 'error', error: msg.error };
+}
+
+/**
+ * Human-readable toast title for async load errors.
+ *
+ * @param {DashMsg & { type: 'load-error' }} msg
+ * @returns {string}
+ */
+function loadErrorTitle(msg) {
+  if (msg.source === 'manifest') {
+    return msg.slug ? `Failed to load ${msg.slug}` : 'Failed to load manifest';
+  }
+  if (msg.source === 'stats') {
+    return 'Failed to load source stats';
+  }
+  if (msg.source === 'doctor') {
+    return 'Failed to load doctor report';
+  }
+  if (msg.source === 'treemap') {
+    return 'Failed to load repo treemap';
+  }
+  return 'Failed to load entries';
+}
+
+/**
  * Create the initial model.
  *
  * @param {BijouContext} ctx
@@ -384,6 +470,8 @@ function createInitModel(ctx) {
     treemapStatus: 'idle',
     treemapReport: null,
     treemapError: null,
+    toasts: [],
+    nextToastId: 1,
   };
 }
 
@@ -654,6 +742,9 @@ function closeOverlay(model) {
   }
   if (model.activeDrawer) {
     return [{ ...model, activeDrawer: null }, []];
+  }
+  if (model.toasts.length > 0) {
+    return dismissToast(model, model.toasts[0].id);
   }
   return [model, []];
 }
@@ -941,37 +1032,14 @@ function handleLoadedReport(msg, model) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function handleLoadError(msg, model) {
-  if (msg.type === 'load-error') {
-    if (msg.source === 'manifest') {
-      return [{ ...model, loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug }, []];
-    }
-    if (msg.source === 'stats') {
-      return [{
-        ...model,
-        statsStatus: 'error',
-        statsError: msg.error,
-      }, []];
-    }
-    if (msg.source === 'doctor') {
-      return [{
-        ...model,
-        doctorStatus: 'error',
-        doctorError: msg.error,
-      }, []];
-    }
-    if (msg.source === 'treemap') {
-      if (msg.scopeId && msg.scopeId !== model.treemapScope) {
-        return [model, []];
-      }
-      return [{
-        ...model,
-        treemapStatus: 'error',
-        treemapError: msg.error,
-      }, []];
-    }
-    return [{ ...model, status: 'error', error: msg.error }, []];
+  if (msg.scopeId && msg.scopeId !== model.treemapScope) {
+    return [model, []];
   }
-  return [model, []];
+  return addToast(applyLoadErrorState(msg, model), {
+    level: 'error',
+    title: loadErrorTitle(msg),
+    message: msg.error,
+  });
 }
 
 /**
@@ -985,6 +1053,7 @@ function handleLoadError(msg, model) {
 function handleAppMsg(msg, model, cas) {
   if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, cas); }
   if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model); }
+  if (msg.type === 'dismiss-toast') { return dismissToast(model, msg.id); }
   if (msg.type === 'load-error') { return handleLoadError(msg, model); }
   return handleLoadedReport(msg, model);
 }
