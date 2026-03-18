@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { readSourceEntries } from '../../../bin/ui/dashboard-cmds.js';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { buildRepoTreemapReport, readSourceEntries } from '../../../bin/ui/dashboard-cmds.js';
 
 function makePersistence(overrides = {}) {
   return {
@@ -14,6 +17,79 @@ function makeRefPort(overrides = {}) {
     resolveRef: vi.fn(),
     resolveTree: vi.fn(),
     ...overrides,
+  };
+}
+
+function makePlumbing(cwd, execute) {
+  return {
+    cwd,
+    execute: vi.fn(execute),
+  };
+}
+
+async function withTempRepo(run) {
+  const repoDir = await mkdtemp(path.join(os.tmpdir(), 'git-cas-dashboard-'));
+  try {
+    return await run(repoDir);
+  } finally {
+    await rm(repoDir, { recursive: true, force: true });
+  }
+}
+
+function makeRepoExec(repoDir, showRefOutput = '') {
+  return async ({ args }) => {
+    if (args[0] === 'rev-parse' && args[1] === '--git-dir') {
+      return '.git';
+    }
+    if (args[0] === 'rev-parse' && args[1] === '--is-bare-repository') {
+      return 'false';
+    }
+    if (args[0] === 'rev-parse' && args[1] === '--show-toplevel') {
+      return repoDir;
+    }
+    if (args[0] === 'show-ref') {
+      return showRefOutput;
+    }
+    throw new Error(`unexpected git command: ${args.join(' ')}`);
+  };
+}
+
+async function seedRepoLayout(repoDir) {
+  await mkdir(path.join(repoDir, '.git', 'objects'), { recursive: true });
+  await mkdir(path.join(repoDir, '.git', 'refs', 'heads'), { recursive: true });
+  await mkdir(path.join(repoDir, 'src'), { recursive: true });
+  await writeFile(path.join(repoDir, 'README.md'), 'hello world');
+  await writeFile(path.join(repoDir, 'src', 'app.js'), 'export const app = true;\n');
+  await writeFile(path.join(repoDir, '.git', 'objects', 'pack-1'), 'packdata');
+  await writeFile(path.join(repoDir, '.git', 'refs', 'heads', 'main'), 'deadbeef');
+}
+
+function readTreemapManifest(treeOid) {
+  if (treeOid === 'source-tree') {
+    return { toJSON: () => ({ size: 4096, chunks: [{ size: 2048 }, { size: 2048 }] }) };
+  }
+  if (treeOid === 'vault-tree') {
+    return { toJSON: () => ({ size: 2048, chunks: [{ size: 2048 }], encryption: { algorithm: 'aes-256-gcm' } }) };
+  }
+  if (treeOid === 'feedfacecafebeef') {
+    return { toJSON: () => ({ size: 3072, chunks: [{ size: 1024 }, { size: 2048 }] }) };
+  }
+  throw new Error(`unknown tree ${treeOid}`);
+}
+
+function makeRepositoryTreemapCas(plumbing) {
+  return {
+    listVault: vi.fn().mockResolvedValue([{ slug: 'vault:alpha', treeOid: 'vault-tree' }]),
+    getVaultMetadata: vi.fn().mockResolvedValue(null),
+    readManifest: vi.fn().mockImplementation(async ({ treeOid }) => readTreemapManifest(treeOid)),
+    getService: vi.fn().mockResolvedValue({ persistence: { plumbing } }),
+  };
+}
+
+function makeSourceTreemapCas(plumbing) {
+  return {
+    readManifest: vi.fn().mockImplementation(async ({ treeOid }) => readTreemapManifest(treeOid)),
+    getService: vi.fn().mockResolvedValue({ persistence: { plumbing } }),
   };
 }
 
@@ -119,6 +195,58 @@ describe('readSourceEntries commit message hints', () => {
     ).resolves.toEqual({
       entries: [{ slug: 'refs/git-cms/chunks/logo@current', treeOid: 'feedfacecafebeef' }],
       metadata: null,
+    });
+  });
+});
+
+describe('buildRepoTreemapReport repository scope', () => {
+  it('builds a repository-scope atlas with worktree, git, ref, vault, and source regions', async () => {
+    await withTempRepo(async (repoDir) => {
+      await seedRepoLayout(repoDir);
+      const plumbing = makePlumbing(repoDir, makeRepoExec(repoDir, [
+        '1111111111111111111111111111111111111111 refs/heads/main',
+        '2222222222222222222222222222222222222222 refs/warp/demo/seek-cache',
+      ].join('\n')));
+      const cas = makeRepositoryTreemapCas(plumbing);
+      const report = await buildRepoTreemapReport(cas, { type: 'oid', treeOid: 'source-tree' }, 'repository');
+      expect(report.scope).toBe('repository');
+      expect(report.cwd).toBe(repoDir);
+      expect(report.summary.worktreeItems).toBeGreaterThan(0);
+      expect(report.summary.refCount).toBe(2);
+      expect(report.summary.vaultEntries).toBe(1);
+      expect(report.summary.sourceEntries).toBe(1);
+      const labels = [];
+      for (const tile of report.tiles) {
+        labels.push(tile.label);
+      }
+      expect(labels).toEqual(expect.arrayContaining([
+        'README.md',
+        'src',
+        '.git/objects',
+        'refs/heads',
+        'refs/warp',
+        'vault',
+        'active source',
+      ]));
+    });
+  });
+});
+
+describe('buildRepoTreemapReport source scope', () => {
+  it('builds a source-scope treemap from logical source entries', async () => {
+    await withTempRepo(async (repoDir) => {
+      const plumbing = makePlumbing(repoDir, makeRepoExec(repoDir));
+      const cas = makeSourceTreemapCas(plumbing);
+      const report = await buildRepoTreemapReport(cas, { type: 'oid', treeOid: 'feedfacecafebeef' }, 'source');
+      expect(report.scope).toBe('source');
+      expect(report.summary.sourceEntries).toBe(1);
+      expect(report.tiles).toEqual([
+        expect.objectContaining({
+          label: 'oid:feedfacecafe',
+          kind: 'cas',
+        }),
+      ]);
+      expect(report.notes[0]).toContain('logical manifest size');
     });
   });
 });

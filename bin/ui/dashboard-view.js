@@ -4,6 +4,7 @@
 
 import { badge, boxV3, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
 import { commandPalette, navigableTable, splitPaneLayout } from '@flyingrobots/bijou-tui';
+import { renderRepoTreemap } from './repo-treemap.js';
 import { renderDoctorReport, renderVaultStats } from './vault-report.js';
 import { renderManifestView } from './manifest-view.js';
 
@@ -118,6 +119,9 @@ function appendSelectionBadges(parts, model, ctx) {
   if (selected) {
     parts.push(badge(`selected ${selected.slug}`, { variant: 'accent', ctx }));
   }
+  if (model.activeDrawer === 'treemap') {
+    parts.push(badge(`scope ${model.treemapScope}`, { variant: 'primary', ctx }));
+  }
   if (model.activeDrawer) {
     parts.push(badge(`${model.activeDrawer} drawer`, { variant: 'info', ctx }));
   }
@@ -187,7 +191,7 @@ function renderOverlayPanel(options) {
  */
 function statsDrawerBody(model) {
   if (model.statsStatus === 'loading') {
-    return 'Loading vault stats...';
+    return 'Loading source stats...';
   }
   if (model.statsStatus === 'error') {
     return `Failed to load stats\n\n${model.statsError ?? 'unknown error'}`;
@@ -252,6 +256,37 @@ function renderDoctorDrawer(model, opts) {
 }
 
 /**
+ * Render the repository treemap drawer.
+ *
+ * @param {DashModel} model
+ * @param {{ width: number, height: number, ctx: BijouContext }} opts
+ * @returns {Surface}
+ */
+function renderTreemapDrawer(model, opts) {
+  const width = Math.max(42, Math.min(78, opts.width - 2));
+  const height = Math.max(10, Math.min(22, opts.height));
+  let body = 'Treemap has not been loaded yet.';
+  if (model.treemapStatus === 'loading') {
+    body = `Loading ${model.treemapScope} treemap...`;
+  } else if (model.treemapStatus === 'error') {
+    body = `Failed to load treemap\n\n${model.treemapError ?? 'unknown error'}`;
+  } else if (model.treemapReport) {
+    body = renderRepoTreemap(model.treemapReport, {
+      ctx: opts.ctx,
+      width: Math.max(16, width - 2),
+      height: Math.max(6, height - 2),
+    });
+  }
+  return renderOverlayPanel({
+    title: 'Repo Treemap',
+    body,
+    width,
+    height,
+    ctx: opts.ctx,
+  });
+}
+
+/**
  * Render the operator drawer surface when active.
  *
  * @param {DashModel} model
@@ -261,6 +296,9 @@ function renderDoctorDrawer(model, opts) {
 function renderDrawerSurface(model, opts) {
   if (!model.activeDrawer) {
     return null;
+  }
+  if (model.activeDrawer === 'treemap') {
+    return renderTreemapDrawer(model, opts);
   }
   return model.activeDrawer === 'stats'
     ? renderStatsDrawer(model, opts)
@@ -475,7 +513,7 @@ function renderFooterSurface(ctx, width) {
     '─'.repeat(Math.max(1, width)),
     `${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
     `${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
-    `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
+    `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
   ];
   return textSurface(lines.join('\n'), width, 4);
 }

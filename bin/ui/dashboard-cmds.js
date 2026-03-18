@@ -2,11 +2,34 @@
  * Async command factories for the vault dashboard.
  */
 
+import { lstat, readdir } from 'node:fs/promises';
+import path from 'node:path';
 import { buildVaultStats, inspectVaultHealth } from './vault-report.js';
 
 /** @typedef {import('../../index.js').default} ContentAddressableStore */
 /** @typedef {{ type: 'vault' } | { type: 'ref', ref: string } | { type: 'oid', treeOid: string }} DashSource */
 /** @typedef {{ slug: string, treeOid: string }} ExplorerEntry */
+/** @typedef {'repository' | 'source'} TreemapScope */
+/** @typedef {'worktree' | 'git' | 'ref' | 'vault' | 'cas' | 'meta'} RepoTreemapKind */
+/** @typedef {{ label: string, kind: RepoTreemapKind, value: number, detail: string }} RepoTreemapTile */
+/** @typedef {{
+ *   scope: TreemapScope,
+ *   cwd: string,
+ *   source: DashSource,
+ *   totalValue: number,
+ *   tiles: RepoTreemapTile[],
+ *   notes: string[],
+ *   summary: {
+ *     bare: boolean,
+ *     gitDir: string,
+ *     worktreeItems: number,
+ *     refNamespaces: number,
+ *     refCount: number,
+ *     vaultEntries: number,
+ *     sourceEntries: number,
+ *   }
+ * }} RepoTreemapReport
+ */
 
 /**
  * Compact OID label for human-facing rows.
@@ -29,6 +52,334 @@ function singleEntrySource(slug, treeOid) {
   return {
     entries: [{ slug, treeOid }],
     metadata: null,
+  };
+}
+
+/**
+ * Format bytes as a compact human-readable string.
+ *
+ * @param {number} bytes
+ * @returns {string}
+ */
+function formatBytes(bytes) {
+  if (bytes < 1024) { return `${bytes}B`; }
+  if (bytes < 1024 * 1024) { return `${(bytes / 1024).toFixed(1)}K`; }
+  if (bytes < 1024 * 1024 * 1024) { return `${(bytes / (1024 * 1024)).toFixed(1)}M`; }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}G`;
+}
+
+/**
+ * Normalize a manifest into plain data.
+ *
+ * @param {any} manifest
+ * @returns {any}
+ */
+function manifestData(manifest) {
+  return manifest?.toJSON ? manifest.toJSON() : manifest;
+}
+
+/**
+ * Read the Git repo root and git-dir paths for the current CAS plumbing.
+ *
+ * @param {{ cwd?: string, execute: ({ args }: { args: string[] }) => Promise<string> }} plumbing
+ * @returns {Promise<{ cwd: string, gitDir: string, bare: boolean }>}
+ */
+async function resolveRepoInfo(plumbing) {
+  const cwd = plumbing.cwd ?? process.cwd();
+  const [gitDirRaw, bareRaw] = await Promise.all([
+    plumbing.execute({ args: ['rev-parse', '--git-dir'] }),
+    plumbing.execute({ args: ['rev-parse', '--is-bare-repository'] }),
+  ]);
+  const bare = bareRaw.trim() === 'true';
+  let repoRoot = cwd;
+  if (!bare) {
+    try {
+      repoRoot = (await plumbing.execute({ args: ['rev-parse', '--show-toplevel'] })).trim();
+    } catch {
+      repoRoot = cwd;
+    }
+  }
+  return {
+    cwd: repoRoot,
+    gitDir: path.resolve(cwd, gitDirRaw.trim()),
+    bare,
+  };
+}
+
+/**
+ * Measure a filesystem path recursively without following symlinks.
+ *
+ * @param {string} targetPath
+ * @returns {Promise<number>}
+ */
+async function measurePathBytes(targetPath) {
+  let stat;
+  try {
+    stat = await lstat(targetPath);
+  } catch {
+    return 0;
+  }
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    return stat.size;
+  }
+  const entries = await readdir(targetPath, { withFileTypes: true });
+  const childSizes = await Promise.all(entries.map((entry) => measurePathBytes(path.join(targetPath, entry.name))));
+  return childSizes.reduce((sum, size) => sum + size, 0);
+}
+
+/**
+ * Build semantic tiles from the direct children of a directory.
+ *
+ * @param {string} directory
+ * @param {RepoTreemapKind} kind
+ * @param {(name: string) => string} labelFor
+ * @returns {Promise<RepoTreemapTile[]>}
+ */
+async function scanDirectoryTiles(directory, kind, labelFor) {
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const tiles = await Promise.all(entries.map(async (entry) => {
+    const entryPath = path.join(directory, entry.name);
+    const value = await measurePathBytes(entryPath);
+    return {
+      label: labelFor(entry.name),
+      kind,
+      value: Math.max(1, value),
+      detail: `${formatBytes(value)} on disk`,
+    };
+  }));
+
+  return tiles
+    .filter((tile) => tile.value > 0)
+    .sort((left, right) => right.value - left.value || left.label.localeCompare(right.label));
+}
+
+/**
+ * Group refs by their top-level namespace.
+ *
+ * @param {{ execute: ({ args }: { args: string[] }) => Promise<string> }} plumbing
+ * @returns {Promise<{ tiles: RepoTreemapTile[], totalRefs: number }>}
+ */
+async function readRefNamespaceTiles(plumbing) {
+  let output = '';
+  try {
+    output = await plumbing.execute({ args: ['show-ref'] });
+  } catch {
+    return { tiles: [], totalRefs: 0 };
+  }
+
+  const namespaces = new Map();
+  for (const line of output.split('\n').map((row) => row.trim()).filter(Boolean)) {
+    const [, ref = ''] = line.split(' ');
+    const parts = ref.split('/');
+    const label = parts[0] === 'refs' && parts[1] ? `refs/${parts[1]}` : ref;
+    namespaces.set(label, (namespaces.get(label) ?? 0) + 1);
+  }
+
+  const tiles = Array.from(namespaces.entries())
+    .map(([label, count]) => ({
+      label,
+      kind: /** @type {const} */ ('ref'),
+      value: Math.max(1, count * 4096),
+      detail: `${count} refs`,
+    }))
+    .sort((left, right) => right.value - left.value || left.label.localeCompare(right.label));
+
+  return {
+    tiles,
+    totalRefs: Array.from(namespaces.values()).reduce((sum, count) => sum + count, 0),
+  };
+}
+
+/**
+ * Load manifests for explorer entries so logical sizes can be summarized.
+ *
+ * @param {ContentAddressableStore} cas
+ * @param {ExplorerEntry[]} entries
+ * @returns {Promise<Array<ExplorerEntry & { manifest: any, size: number }>>}
+ */
+async function loadEntryRecords(cas, entries) {
+  return Promise.all(entries.map(async (entry) => {
+    const manifest = await cas.readManifest({ treeOid: entry.treeOid });
+    const data = manifestData(manifest);
+    return {
+      ...entry,
+      manifest,
+      size: data.size ?? 0,
+    };
+  }));
+}
+
+/**
+ * Convert logical CAS records into treemap tiles.
+ *
+ * @param {Array<ExplorerEntry & { manifest: any, size: number }>} records
+ * @param {RepoTreemapKind} kind
+ * @returns {RepoTreemapTile[]}
+ */
+function buildLogicalTiles(records, kind) {
+  return records
+    .map((record) => {
+      const data = manifestData(record.manifest);
+      const format = data.compression?.algorithm ?? 'raw';
+      const crypto = data.encryption ? 'enc' : 'plain';
+      return {
+        label: record.slug,
+        kind,
+        value: Math.max(1, record.size),
+        detail: `${formatBytes(record.size)} logical · ${data.chunks?.length ?? 0} chunks · ${crypto}/${format}`,
+      };
+    })
+    .sort((left, right) => right.value - left.value || left.label.localeCompare(right.label));
+}
+
+/**
+ * Collapse low-value tiles into a single "other" bucket so the treemap stays legible.
+ *
+ * @param {RepoTreemapTile[]} tiles
+ * @param {number} limit
+ * @returns {RepoTreemapTile[]}
+ */
+function compactTiles(tiles, limit = 14) {
+  if (tiles.length <= limit) {
+    return tiles;
+  }
+  const kept = tiles.slice(0, limit - 1);
+  const remainder = tiles.slice(limit - 1);
+  const otherValue = remainder.reduce((sum, tile) => sum + tile.value, 0);
+  kept.push({
+    label: 'other',
+    kind: 'meta',
+    value: Math.max(1, otherValue),
+    detail: `${remainder.length} smaller regions`,
+  });
+  return kept;
+}
+
+/**
+ * Build a one-line aggregate tile for a source collection.
+ *
+ * @param {string} label
+ * @param {RepoTreemapKind} kind
+ * @param {Array<ExplorerEntry & { manifest: any, size: number }>} records
+ * @returns {RepoTreemapTile | null}
+ */
+function aggregateLogicalTile(label, kind, records) {
+  if (records.length === 0) {
+    return null;
+  }
+  const total = records.reduce((sum, record) => sum + record.size, 0);
+  return {
+    label,
+    kind,
+    value: Math.max(1, total),
+    detail: `${records.length} entries · ${formatBytes(total)} logical`,
+  };
+}
+
+/**
+ * Build the source-focused treemap report.
+ *
+ * @param {{
+ *   repo: { cwd: string, gitDir: string, bare: boolean },
+ *   source: DashSource,
+ *   sourceResult: { entries: ExplorerEntry[] },
+ *   sourceRecords: Array<ExplorerEntry & { manifest: any, size: number }>,
+ * }} options
+ * @returns {RepoTreemapReport}
+ */
+function buildSourceScopeReport({ repo, source, sourceResult, sourceRecords }) {
+  const sourceTiles = compactTiles(buildLogicalTiles(sourceRecords, source.type === 'vault' ? 'vault' : 'cas'));
+  const totalValue = sourceTiles.reduce((sum, tile) => sum + tile.value, 0);
+  return {
+    scope: 'source',
+    cwd: repo.cwd,
+    source,
+    totalValue,
+    tiles: sourceTiles.length > 0 ? sourceTiles : [{
+      label: 'empty source',
+      kind: 'meta',
+      value: 1,
+      detail: 'No CAS entries resolved for this source',
+    }],
+    notes: [
+      'Source view weights tiles by logical manifest size.',
+    ],
+    summary: {
+      bare: repo.bare,
+      gitDir: repo.gitDir,
+      worktreeItems: 0,
+      refNamespaces: 0,
+      refCount: 0,
+      vaultEntries: source.type === 'vault' ? sourceResult.entries.length : 0,
+      sourceEntries: sourceResult.entries.length,
+    },
+  };
+}
+
+/**
+ * Build repository-scope physical and logical tiles.
+ *
+ * @param {{
+ *   cas: ContentAddressableStore,
+ *   source: DashSource,
+ *   repo: { cwd: string, gitDir: string, bare: boolean },
+ *   plumbing: { execute: ({ args }: { args: string[] }) => Promise<string> },
+ *   sourceResult: { entries: ExplorerEntry[] },
+ *   sourceRecords: Array<ExplorerEntry & { manifest: any, size: number }>,
+ * }} options
+ * @returns {Promise<RepoTreemapReport>}
+ */
+async function buildRepositoryScopeReport({ cas, source, repo, plumbing, sourceResult, sourceRecords }) {
+  const worktreeTiles = repo.bare
+    ? []
+    : await scanDirectoryTiles(repo.cwd, 'worktree', (name) => name).then((tiles) => tiles.filter((tile) => tile.label !== path.basename(repo.gitDir)));
+  const gitTiles = await scanDirectoryTiles(repo.gitDir, 'git', (name) => repo.bare ? name : `.git/${name}`);
+  const { tiles: refTiles, totalRefs } = await readRefNamespaceTiles(plumbing);
+  const vaultResult = source.type === 'vault' ? sourceResult : await readSourceEntries(cas, { type: 'vault' });
+  const vaultRecords = source.type === 'vault' ? sourceRecords : await loadEntryRecords(cas, vaultResult.entries);
+  const vaultTile = aggregateLogicalTile('vault', 'vault', vaultRecords);
+  const activeSourceTile = source.type !== 'vault'
+    ? aggregateLogicalTile('active source', 'cas', sourceRecords)
+    : null;
+  const tiles = compactTiles([
+    ...worktreeTiles,
+    ...gitTiles,
+    ...refTiles,
+    ...(vaultTile ? [vaultTile] : []),
+    ...(activeSourceTile ? [activeSourceTile] : []),
+  ]);
+  const totalValue = tiles.reduce((sum, tile) => sum + tile.value, 0);
+
+  return {
+    scope: 'repository',
+    cwd: repo.cwd,
+    source,
+    totalValue,
+    tiles: tiles.length > 0 ? tiles : [{
+      label: 'empty repo',
+      kind: 'meta',
+      value: 1,
+      detail: 'No worktree, ref, or CAS regions were detected',
+    }],
+    notes: [
+      'Repository view mixes worktree/.git bytes with logical CAS region sizes.',
+      repo.bare ? 'Bare repository: worktree regions are omitted.' : `Git dir ${repo.gitDir}`,
+    ],
+    summary: {
+      bare: repo.bare,
+      gitDir: repo.gitDir,
+      worktreeItems: worktreeTiles.length,
+      refNamespaces: refTiles.length,
+      refCount: totalRefs,
+      vaultEntries: vaultResult.entries.length,
+      sourceEntries: sourceResult.entries.length,
+    },
   };
 }
 
@@ -237,6 +588,33 @@ export async function readSourceEntries(cas, source = { type: 'vault' }) {
 }
 
 /**
+ * Build the semantic repo/source treemap report for the dashboard.
+ *
+ * @param {ContentAddressableStore} cas
+ * @param {DashSource} [source]
+ * @param {TreemapScope} [scope]
+ * @returns {Promise<RepoTreemapReport>}
+ */
+export async function buildRepoTreemapReport(cas, source = { type: 'vault' }, scope = 'repository') {
+  const service = await cas.getService();
+  const repo = await resolveRepoInfo(service.persistence.plumbing);
+  const sourceResult = await readSourceEntries(cas, source);
+  const sourceRecords = await loadEntryRecords(cas, sourceResult.entries);
+
+  if (scope === 'source') {
+    return buildSourceScopeReport({ repo, source, sourceResult, sourceRecords });
+  }
+  return buildRepositoryScopeReport({
+    cas,
+    source,
+    repo,
+    plumbing: service.persistence.plumbing,
+    sourceResult,
+    sourceRecords,
+  });
+}
+
+/**
  * Load vault entries and metadata in parallel.
  *
  * @param {ContentAddressableStore} cas
@@ -313,6 +691,24 @@ export function loadDoctorCmd(cas, source = { type: 'vault' }, entries = []) {
       return /** @type {const} */ ({ type: 'loaded-doctor', report });
     } catch (/** @type {any} */ err) {
       return /** @type {const} */ ({ type: 'load-error', source: 'doctor', error: /** @type {Error} */ (err).message });
+    }
+  };
+}
+
+/**
+ * Load the repository/source treemap report for the dashboard drawer.
+ *
+ * @param {ContentAddressableStore} cas
+ * @param {DashSource} [source]
+ * @param {TreemapScope} [scope]
+ */
+export function loadTreemapCmd(cas, source = { type: 'vault' }, scope = 'repository') {
+  return async () => {
+    try {
+      const report = await buildRepoTreemapReport(cas, source, scope);
+      return /** @type {const} */ ({ type: 'loaded-treemap', report });
+    } catch (/** @type {any} */ err) {
+      return /** @type {const} */ ({ type: 'load-error', source: 'treemap', scopeId: scope, error: /** @type {Error} */ (err).message });
     }
   };
 }

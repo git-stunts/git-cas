@@ -91,6 +91,10 @@ function makeModel(overrides = {}) {
     doctorStatus: 'idle',
     doctorReport: null,
     doctorError: null,
+    treemapScope: 'repository',
+    treemapStatus: 'idle',
+    treemapReport: null,
+    treemapError: null,
     ...overrides,
   };
 }
@@ -132,6 +136,31 @@ function makeDoctorReport() {
     metadataEncrypted: false,
     stats: makeStatsReport(),
     issues: [{ scope: 'vault', code: 'BROKEN', message: 'bad chunk' }],
+  };
+}
+
+function makeTreemapReport(overrides = {}) {
+  return {
+    scope: 'repository',
+    cwd: '/tmp/git-cas-fixture',
+    source: { type: 'vault' },
+    totalValue: 8192,
+    tiles: [
+      { label: 'src', kind: 'worktree', value: 4096, detail: '4.0K on disk' },
+      { label: '.git/objects', kind: 'git', value: 2048, detail: '2.0K on disk' },
+      { label: 'vault', kind: 'vault', value: 2048, detail: '2 entries · 2.0K logical' },
+    ],
+    notes: ['Repository view mixes worktree/.git bytes with logical CAS region sizes.'],
+    summary: {
+      bare: false,
+      gitDir: '/tmp/git-cas-fixture/.git',
+      worktreeItems: 1,
+      refNamespaces: 1,
+      refCount: 3,
+      vaultEntries: 2,
+      sourceEntries: 2,
+    },
+    ...overrides,
   };
 }
 
@@ -203,7 +232,7 @@ describe('dashboard pane controls', () => {
   });
 });
 
-describe('dashboard overlays', () => {
+describe('dashboard palette and overlay commands', () => {
   it('ctrl+p opens the command palette', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
@@ -211,19 +240,24 @@ describe('dashboard overlays', () => {
     expect(next.palette).not.toBeNull();
     const rendered = renderView(app.view(next), deps.ctx);
     expect(rendered).toContain('Command Palette');
+    expect(rendered).toContain('Open Repo Treemap');
     expect(rendered).toContain('Open Source Stats');
   });
 
   it('palette selection opens the stats drawer and queues a load', () => {
     const app = createDashboardApp(makeDeps());
     const [withPalette] = app.update(keyMsg('p', { ctrl: true }), makeModel());
-    const [next, cmds] = app.update(keyMsg('enter'), withPalette);
+    const [onTreemap] = app.update(keyMsg('down'), withPalette);
+    const [onStats] = app.update(keyMsg('down'), onTreemap);
+    const [next, cmds] = app.update(keyMsg('enter'), onStats);
     expect(next.palette).toBeNull();
     expect(next.activeDrawer).toBe('stats');
     expect(next.statsStatus).toBe('loading');
     expect(cmds).toHaveLength(1);
   });
+});
 
+describe('dashboard drawer shortcuts', () => {
   it('doctor key opens the doctor drawer and queues a load', () => {
     const app = createDashboardApp(makeDeps());
     const [next, cmds] = app.update(keyMsg('g'), makeModel());
@@ -236,6 +270,29 @@ describe('dashboard overlays', () => {
     const app = createDashboardApp(makeDeps());
     const [next] = app.update(keyMsg('escape'), makeModel({ activeDrawer: 'stats', statsStatus: 'ready' }));
     expect(next.activeDrawer).toBeNull();
+  });
+
+  it('t opens the treemap drawer and queues a load', () => {
+    const app = createDashboardApp(makeDeps());
+    const [next, cmds] = app.update(keyMsg('t'), makeModel());
+    expect(next.activeDrawer).toBe('treemap');
+    expect(next.treemapStatus).toBe('loading');
+    expect(cmds).toHaveLength(1);
+  });
+
+  it('shift+t toggles the treemap scope and triggers a load', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({
+      activeDrawer: 'treemap',
+      treemapScope: 'repository',
+      treemapStatus: 'ready',
+      treemapReport: { scope: 'repository' },
+    });
+    const [next, cmds] = app.update(keyMsg('t', { shift: true }), model);
+    expect(next.treemapScope).toBe('source');
+    expect(next.activeDrawer).toBe('treemap');
+    expect(next.treemapStatus).toBe('loading');
+    expect(cmds).toHaveLength(1);
   });
 });
 
@@ -275,6 +332,31 @@ describe('dashboard report loading', () => {
     expect(next.doctorStatus).toBe('ready');
     expect(next.doctorReport).toEqual(report);
     expect(next.doctorError).toBeNull();
+  });
+
+  it('loaded-treemap stores the report for the active scope', () => {
+    const app = createDashboardApp(makeDeps());
+    const report = {
+      scope: 'repository',
+      cwd: '/tmp/git-cas-fixture',
+      source: { type: 'vault' },
+      totalValue: 2048,
+      tiles: [{ label: 'src', kind: 'worktree', value: 2048, detail: '2.0K on disk' }],
+      notes: [],
+      summary: {
+        bare: false,
+        gitDir: '/tmp/git-cas-fixture/.git',
+        worktreeItems: 1,
+        refNamespaces: 1,
+        refCount: 2,
+        vaultEntries: 1,
+        sourceEntries: 1,
+      },
+    };
+    const [next] = app.update({ type: 'loaded-treemap', report }, makeModel({ activeDrawer: 'treemap', treemapStatus: 'loading' }));
+    expect(next.treemapStatus).toBe('ready');
+    expect(next.treemapReport).toEqual(report);
+    expect(next.treemapError).toBeNull();
   });
 });
 
@@ -420,6 +502,8 @@ describe('dashboard footer and inspector rendering', () => {
     expect(rendered).toContain('palette');
     expect(rendered).toContain('stats');
     expect(rendered).toContain('doctor');
+    expect(rendered).toContain('treemap');
+    expect(rendered).toContain('scope');
     expect(rendered).toContain('close');
     expect(rendered).toContain('quit');
   });
@@ -447,7 +531,7 @@ describe('dashboard footer and inspector rendering', () => {
   });
 });
 
-describe('dashboard overlay rendering', () => {
+describe('dashboard report overlay rendering', () => {
   it('renders the stats drawer overlay', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
@@ -468,6 +552,24 @@ describe('dashboard overlay rendering', () => {
     expect(rendered).toContain('Doctor Report');
     expect(rendered).toContain('Loading doctor report');
   });
+});
+
+describe('dashboard treemap and palette rendering', () => {
+  it('renders the treemap drawer overlay', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const model = makeModel({
+      activeDrawer: 'treemap',
+      treemapScope: 'repository',
+      treemapStatus: 'ready',
+      treemapReport: makeTreemapReport(),
+    });
+    const rendered = renderView(app.view(model), deps.ctx);
+    expect(rendered).toContain('Repo Treemap');
+    expect(rendered).toContain('scope repository');
+    expect(rendered).toContain('legend');
+    expect(rendered).toContain('Repository view mixes worktree/.git bytes with logical CAS region sizes.');
+  });
 
   it('renders the palette badge when the command palette is open', () => {
     const deps = makeDeps();
@@ -476,6 +578,7 @@ describe('dashboard overlay rendering', () => {
     const rendered = renderView(app.view(withPalette), deps.ctx);
     expect(rendered).toContain('palette');
     expect(rendered).toContain('Command Palette');
+    expect(rendered).toContain('Open Repo Treemap');
     expect(rendered).toContain('Open Source Stats');
   });
 });

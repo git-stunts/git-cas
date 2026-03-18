@@ -8,7 +8,7 @@ import {
   createSplitPaneState, splitPaneFocusNext, splitPaneResizeBy,
   createCommandPaletteState, cpFilter, cpFocusNext, cpFocusPrev, cpPageDown, cpPageUp, cpSelectedItem, commandPaletteKeyMap,
 } from '@flyingrobots/bijou-tui';
-import { loadEntriesCmd, loadManifestCmd, loadStatsCmd, loadDoctorCmd, readSourceEntries } from './dashboard-cmds.js';
+import { loadEntriesCmd, loadManifestCmd, loadStatsCmd, loadDoctorCmd, loadTreemapCmd, readSourceEntries } from './dashboard-cmds.js';
 import { createCliTuiContext, detectCliTuiMode } from './context.js';
 import { renderDashboard } from './dashboard-view.js';
 
@@ -23,6 +23,7 @@ import { renderDashboard } from './dashboard-view.js';
  * @typedef {import('@flyingrobots/bijou-tui').CommandPaletteState} CommandPaletteState
  * @typedef {import('../../index.js').default} ContentAddressableStore
  * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
+ * @typedef {import('./dashboard-cmds.js').TreemapScope} TreemapScope
  * @typedef {{ slug: string, treeOid: string }} VaultEntry
  * @typedef {{ type: 'vault' } | { type: 'ref', ref: string } | { type: 'oid', treeOid: string }} DashSource
  * @typedef {'idle' | 'loading' | 'ready' | 'error'} LoadState
@@ -40,6 +41,8 @@ import { renderDashboard } from './dashboard-view.js';
  *   | { type: 'open-palette' }
  *   | { type: 'open-stats' }
  *   | { type: 'open-doctor' }
+ *   | { type: 'open-treemap' }
+ *   | { type: 'toggle-treemap-scope' }
  *   | { type: 'overlay-close' }
  * } DashAction
  */
@@ -59,7 +62,8 @@ import { renderDashboard } from './dashboard-view.js';
  *   | { type: 'loaded-manifest', slug: string, manifest: Manifest }
  *   | { type: 'loaded-stats', stats: any }
  *   | { type: 'loaded-doctor', report: any }
- *   | { type: 'load-error', source: string, slug?: string, error: string }
+ *   | { type: 'loaded-treemap', report: any }
+ *   | { type: 'load-error', source: string, slug?: string, scopeId?: TreemapScope, error: string }
  * } DashMsg
  */
 
@@ -80,13 +84,17 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {NavigableTableState} table
  * @property {SplitPaneState} splitPane
  * @property {CommandPaletteState | null} palette
- * @property {'stats' | 'doctor' | null} activeDrawer
+ * @property {'stats' | 'doctor' | 'treemap' | null} activeDrawer
  * @property {LoadState} statsStatus
  * @property {any | null} statsReport
  * @property {string | null} statsError
  * @property {LoadState} doctorStatus
  * @property {any | null} doctorReport
  * @property {string | null} doctorError
+ * @property {TreemapScope} treemapScope
+ * @property {LoadState} treemapStatus
+ * @property {any | null} treemapReport
+ * @property {string | null} treemapError
  */
 
 /**
@@ -123,6 +131,8 @@ export function createKeyBindings() {
     .bind(':', 'Palette', { type: 'open-palette' })
     .bind('s', 'Stats', { type: 'open-stats' })
     .bind('g', 'Doctor', { type: 'open-doctor' })
+    .bind('t', 'Treemap', { type: 'open-treemap' })
+    .bind('shift+t', 'Treemap scope', { type: 'toggle-treemap-scope' })
     .bind('escape', 'Close overlay', { type: 'overlay-close' })
     .bind('shift+j', 'Scroll down', { type: 'scroll-detail', delta: 3 })
     .bind('shift+k', 'Scroll up', { type: 'scroll-detail', delta: -3 });
@@ -146,6 +156,20 @@ const SPLIT_MIN_DETAIL_WIDTH = 32;
 const SPLIT_DIVIDER_SIZE = 1;
 
 const PALETTE_ITEMS = [
+  {
+    id: 'treemap',
+    label: 'Open Repo Treemap',
+    description: 'Semantic atlas of the repo, refs, vault, and active source',
+    category: 'View',
+    shortcut: 't',
+  },
+  {
+    id: 'treemap-scope',
+    label: 'Toggle Treemap Scope',
+    description: 'Switch the treemap between repository and source views',
+    category: 'View',
+    shortcut: 'T',
+  },
   {
     id: 'stats',
     label: 'Open Source Stats',
@@ -356,6 +380,10 @@ function createInitModel(ctx) {
     doctorStatus: 'idle',
     doctorReport: null,
     doctorError: null,
+    treemapScope: 'repository',
+    treemapStatus: 'idle',
+    treemapReport: null,
+    treemapError: null,
   };
 }
 
@@ -555,6 +583,66 @@ function openDoctorDrawer(model, deps) {
 }
 
 /**
+ * Open the repo treemap drawer and trigger a load when needed.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function openTreemapDrawer(model, deps) {
+  if (model.treemapStatus === 'ready' && model.treemapReport?.scope === model.treemapScope) {
+    return [{
+      ...model,
+      activeDrawer: 'treemap',
+      palette: null,
+    }, []];
+  }
+  if (model.treemapStatus === 'loading') {
+    return [{
+      ...model,
+      activeDrawer: 'treemap',
+      palette: null,
+    }, []];
+  }
+  return [{
+    ...model,
+    activeDrawer: 'treemap',
+    palette: null,
+    treemapStatus: 'loading',
+    treemapError: null,
+  }, [/** @type {DashCmd} */ (loadTreemapCmd(deps.cas, deps.source, model.treemapScope))]];
+}
+
+/**
+ * Toggle the treemap between repository and source scopes.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function toggleTreemapScope(model, deps) {
+  const treemapScope = model.treemapScope === 'repository' ? 'source' : 'repository';
+  if (model.treemapReport?.scope === treemapScope) {
+    return [{
+      ...model,
+      treemapScope,
+      activeDrawer: 'treemap',
+      palette: null,
+      treemapStatus: 'ready',
+      treemapError: null,
+    }, []];
+  }
+  return [{
+    ...model,
+    treemapScope,
+    activeDrawer: 'treemap',
+    palette: null,
+    treemapStatus: 'loading',
+    treemapError: null,
+  }, [/** @type {DashCmd} */ (loadTreemapCmd(deps.cas, deps.source, treemapScope))]];
+}
+
+/**
  * Close the command palette or active drawer, whichever is visible.
  *
  * @param {DashModel} model
@@ -581,6 +669,12 @@ function handlePaletteSelect(model, deps) {
   const item = model.palette ? cpSelectedItem(model.palette) : undefined;
   if (!item) {
     return [{ ...model, palette: null }, []];
+  }
+  if (item.id === 'treemap') {
+    return openTreemapDrawer(model, deps);
+  }
+  if (item.id === 'treemap-scope') {
+    return toggleTreemapScope(model, deps);
   }
   if (item.id === 'stats') {
     return openStatsDrawer(model, deps);
@@ -745,6 +839,12 @@ function handleOverlayAction(action, model, deps) {
   if (action.type === 'open-doctor') {
     return openDoctorDrawer(model, deps);
   }
+  if (action.type === 'open-treemap') {
+    return openTreemapDrawer(model, deps);
+  }
+  if (action.type === 'toggle-treemap-scope') {
+    return toggleTreemapScope(model, deps);
+  }
   if (action.type === 'overlay-close') {
     return closeOverlay(model);
   }
@@ -796,16 +896,13 @@ function handleAction(action, model, deps) {
 }
 
 /**
- * Handle app-level messages (data loading results).
+ * Handle successful report loads.
  *
  * @param {DashMsg} msg
  * @param {DashModel} model
- * @param {ContentAddressableStore} cas
  * @returns {[DashModel, DashCmd[]]}
  */
-function handleAppMsg(msg, model, cas) {
-  if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, cas); }
-  if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model); }
+function handleLoadedReport(msg, model) {
   if (msg.type === 'loaded-stats') {
     return [{
       ...model,
@@ -822,6 +919,28 @@ function handleAppMsg(msg, model, cas) {
       doctorError: null,
     }, []];
   }
+  if (msg.type === 'loaded-treemap') {
+    if (msg.report.scope !== model.treemapScope) {
+      return [model, []];
+    }
+    return [{
+      ...model,
+      treemapStatus: 'ready',
+      treemapReport: msg.report,
+      treemapError: null,
+    }, []];
+  }
+  return [model, []];
+}
+
+/**
+ * Handle load errors from async dashboard commands.
+ *
+ * @param {DashMsg & { type: 'load-error' }} msg
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleLoadError(msg, model) {
   if (msg.type === 'load-error') {
     if (msg.source === 'manifest') {
       return [{ ...model, loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug }, []];
@@ -840,9 +959,34 @@ function handleAppMsg(msg, model, cas) {
         doctorError: msg.error,
       }, []];
     }
+    if (msg.source === 'treemap') {
+      if (msg.scopeId && msg.scopeId !== model.treemapScope) {
+        return [model, []];
+      }
+      return [{
+        ...model,
+        treemapStatus: 'error',
+        treemapError: msg.error,
+      }, []];
+    }
     return [{ ...model, status: 'error', error: msg.error }, []];
   }
   return [model, []];
+}
+
+/**
+ * Handle app-level messages (data loading results).
+ *
+ * @param {DashMsg} msg
+ * @param {DashModel} model
+ * @param {ContentAddressableStore} cas
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleAppMsg(msg, model, cas) {
+  if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, cas); }
+  if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model); }
+  if (msg.type === 'load-error') { return handleLoadError(msg, model); }
+  return handleLoadedReport(msg, model);
 }
 
 /**
