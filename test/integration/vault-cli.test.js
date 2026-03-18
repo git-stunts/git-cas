@@ -151,6 +151,44 @@ describe('vault CLI — init, store, query', () => {
   });
 });
 
+describe('vault CLI — diagnostics', () => {
+  it('vault stats --json summarizes the current vault', () => {
+    const out = cli(['vault', 'stats', '--json'], repoDir);
+    const report = JSON.parse(out);
+
+    expect(report).toMatchObject({
+      entries: 1,
+      totalLogicalSize: original.length,
+      totalChunkRefs: 1,
+      uniqueChunks: 1,
+      duplicateChunkRefs: 0,
+      encryptedEntries: 0,
+      envelopeEntries: 0,
+      compressedEntries: 0,
+      chunkingStrategies: { fixed: 1 },
+      largestEntry: { slug: 'demo/hello', size: original.length },
+    });
+    expect(report.dedupRatio).toBe(1);
+  });
+
+  it('doctor --json reports a healthy vault', () => {
+    const out = cli(['doctor', '--json'], repoDir);
+    const report = JSON.parse(out);
+
+    expect(report.status).toBe('ok');
+    expect(report.hasVault).toBe(true);
+    expect(report.entryCount).toBe(1);
+    expect(report.validEntries).toBe(1);
+    expect(report.invalidEntries).toBe(0);
+    expect(report.issues).toEqual([]);
+    expect(report.stats).toMatchObject({
+      entries: 1,
+      totalChunkRefs: 1,
+      uniqueChunks: 1,
+    });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // vault restore + remove + re-add
 // ---------------------------------------------------------------------------

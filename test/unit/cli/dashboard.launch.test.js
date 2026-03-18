@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { makeCtx } from './_testContext.js';
+import { makeCtx, makeInteractiveRuntime } from './_testContext.js';
 
 const runMock = vi.fn().mockResolvedValue(undefined);
 
@@ -38,11 +38,7 @@ describe('launchDashboard runtime wiring', () => {
   it('treats an injected context without mode as interactive', async () => {
     const cas = mockCas();
     const ctx = {
-      ...makeCtx('interactive', {
-        env: { TERM: 'xterm-256color' },
-        stdoutIsTTY: true,
-        stdinIsTTY: true,
-      }),
+      ...makeCtx('interactive', makeInteractiveRuntime()),
     };
     delete ctx.mode;
 
