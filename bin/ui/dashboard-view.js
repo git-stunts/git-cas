@@ -3,6 +3,7 @@
  */
 
 import { badge, boxV3, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
+import { navigableTable, splitPaneLayout } from '@flyingrobots/bijou-tui';
 import { renderManifestView } from './manifest-view.js';
 
 /**
@@ -10,32 +11,11 @@ import { renderManifestView } from './manifest-view.js';
  * @typedef {import('./dashboard.js').DashDeps} DashDeps
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
  * @typedef {import('@flyingrobots/bijou').Surface} Surface
- * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
  */
 
-/**
- * Format bytes as compact string.
- *
- * @param {number} bytes
- * @returns {string}
- */
-function formatSize(bytes) {
-  if (bytes < 1024) { return `${bytes}B`; }
-  if (bytes < 1024 * 1024) { return `${(bytes / 1024).toFixed(1)}K`; }
-  if (bytes < 1024 * 1024 * 1024) { return `${(bytes / (1024 * 1024)).toFixed(1)}M`; }
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}G`;
-}
-
-/**
- * Format manifest stats for the list.
- *
- * @param {Manifest} manifest
- * @returns {string}
- */
-function formatStats(manifest) {
-  const m = manifest.toJSON ? manifest.toJSON() : manifest;
-  return `${formatSize(m.size)}  ${m.chunks?.length ?? 0}c`;
-}
+const SPLIT_MIN_LIST_WIDTH = 28;
+const SPLIT_MIN_DETAIL_WIDTH = 32;
+const SPLIT_DIVIDER_SIZE = 1;
 
 /**
  * Safely clip text to a pane width.
@@ -53,19 +33,6 @@ function clip(text, width) {
  * @param {number} total
  * @param {number} height
  * @returns {{ start: number, end: number }}
- */
-function visibleRange(cursor, total, height) {
-  const start = Math.max(0, Math.min(cursor - Math.floor(height / 2), total - height));
-  return { start: Math.max(0, start), end: Math.min(Math.max(0, start) + height, total) };
-}
-
-/**
- * Convert text to a fixed-size surface.
- *
- * @param {string} text
- * @param {number} width
- * @param {number} height
- * @returns {Surface}
  */
 function textSurface(text, width, height) {
   return parseAnsiToSurface(text, Math.max(1, width), Math.max(1, height));
@@ -115,9 +82,10 @@ function renderHeaderSurface(model, ctx) {
   if (model.filtering || model.filterText) {
     parts.push(badge(model.filtering ? 'filtering' : `filter ${model.filterText}`, { variant: 'accent', ctx }));
   }
-  const selected = model.filtered[model.cursor];
+  parts.push(badge(`pane ${model.splitPane.focused === 'a' ? 'entries' : 'inspector'}`, { variant: 'primary', ctx }));
+  const selected = model.filtered[model.table.focusRow];
   if (selected) {
-    parts.push(badge(`selected ${selected.slug}`, { variant: 'primary', ctx }));
+    parts.push(badge(`selected ${selected.slug}`, { variant: 'accent', ctx }));
   }
   blitInline(surface, {
     x: 0,
@@ -130,25 +98,88 @@ function renderHeaderSurface(model, ctx) {
 }
 
 /**
- * Format list rows for the explorer pane.
+ * Select the current vault entry from table focus.
  *
- * @param {{ slug: string, treeOid: string }} entry
- * @param {number} index
  * @param {DashModel} model
- * @returns {string}
+ * @returns {{ slug: string, treeOid: string } | undefined}
  */
-function renderListItem(entry, index, model) {
-  const manifest = model.manifestCache.get(entry.slug);
-  const m = manifest && (manifest.toJSON ? manifest.toJSON() : manifest);
-  const prefix = index === model.cursor ? '>' : ' ';
-  const status = manifest
-    ? [
-      m.encryption ? 'enc' : 'clr',
-      m.compression ? m.compression.algorithm : 'raw',
-      m.subManifests?.length ? 'merkle' : 'single',
-    ].join(' ')
-    : 'loading';
-  return `${prefix} ${entry.slug}  ${manifest ? formatStats(manifest) : '...'}  ${status}`;
+function selectedEntry(model) {
+  return model.filtered[model.table.focusRow];
+}
+
+/**
+ * Choose a responsive table schema for the explorer pane width.
+ *
+ * @param {number} width
+ * @returns {{ columns: { header: string, width: number, align?: 'left' | 'right' | 'center' }[], indexes: number[] }}
+ */
+function tableSchema(width) {
+  if (width >= 64) {
+    return {
+      columns: [
+        { header: 'Slug', width: Math.max(14, width - 36) },
+        { header: 'Size', width: 8, align: 'right' },
+        { header: 'Chunks', width: 6, align: 'right' },
+        { header: 'Crypto', width: 7 },
+        { header: 'Format', width: 9 },
+      ],
+      indexes: [0, 1, 2, 3, 4],
+    };
+  }
+  if (width >= 48) {
+    return {
+      columns: [
+        { header: 'Slug', width: Math.max(14, width - 23) },
+        { header: 'Size', width: 8, align: 'right' },
+        { header: 'Profile', width: 11 },
+      ],
+      indexes: [0, 1, 5],
+    };
+  }
+  return {
+    columns: [
+      { header: 'Slug', width: Math.max(14, width - 12) },
+      { header: 'State', width: 10 },
+    ],
+    indexes: [0, 5],
+  };
+}
+
+/**
+ * Clamp a table state to the current pane size and responsive schema.
+ *
+ * @param {DashModel} model
+ * @param {{ width: number, height: number }} size
+ * @returns {import('@flyingrobots/bijou-tui').NavigableTableState}
+ */
+function tableViewState(model, size) {
+  const schema = tableSchema(size.width);
+  const rows = model.table.rows.map((row) => schema.indexes.map((index) => row[index] ?? ''));
+  const focusRow = Math.max(0, Math.min(model.table.focusRow, rows.length - 1));
+  let scrollY = model.table.scrollY;
+  if (focusRow < scrollY) {
+    scrollY = focusRow;
+  } else if (focusRow >= scrollY + size.height) {
+    scrollY = focusRow - size.height + 1;
+  }
+  return {
+    ...model.table,
+    columns: schema.columns,
+    rows,
+    height: size.height,
+    focusRow,
+    scrollY: Math.min(scrollY, Math.max(0, rows.length - size.height)),
+  };
+}
+
+/**
+ * Render the split divider surface.
+ *
+ * @param {number} height
+ * @returns {Surface}
+ */
+function renderDividerSurface(height) {
+  return textSurface(Array.from({ length: Math.max(1, height) }, () => '│').join('\n'), 1, Math.max(1, height));
 }
 
 /**
@@ -161,22 +192,25 @@ function renderListItem(entry, index, model) {
 function renderListPane(model, opts) {
   const innerWidth = Math.max(1, opts.width - 2);
   const innerHeight = Math.max(1, opts.height - 2);
-  const infoLine = model.filtering ? `filter /${model.filterText}\u2588` : model.filterText ? `filter ${model.filterText}` : 'filter all';
-  const lines = [clip(infoLine, innerWidth), ''];
-  const visibleHeight = Math.max(0, innerHeight - lines.length);
+  const metaLines = [
+    clip(model.filtering ? `filter /${model.filterText}\u2588` : model.filterText ? `filter ${model.filterText}` : 'filter all', innerWidth),
+    clip(`${model.filtered.length} assets  focus row ${model.table.rows.length ? model.table.focusRow + 1 : 0}`, innerWidth),
+  ];
+  const tableHeight = Math.max(1, innerHeight - metaLines.length);
 
-  if (model.filtered.length === 0) {
-    lines.push(model.status === 'loading' ? 'Loading...' : model.error ? `Error: ${model.error}` : 'No entries');
+  if (model.table.rows.length === 0) {
+    metaLines.push(model.status === 'loading' ? 'Loading...' : model.error ? `Error: ${model.error}` : 'No entries');
   } else {
-    const { start, end } = visibleRange(model.cursor, model.filtered.length, Math.max(1, visibleHeight));
-    for (let i = start; i < end; i++) {
-      lines.push(clip(renderListItem(model.filtered[i], i, model), innerWidth));
-    }
+    const tableText = navigableTable(tableViewState(model, { width: innerWidth, height: tableHeight }), {
+      ctx: opts.ctx,
+      focusIndicator: model.splitPane.focused === 'a' ? '▸' : '·',
+    });
+    metaLines.push(tableText);
   }
 
-  return boxV3(textSurface(lines.join('\n'), innerWidth, innerHeight), {
+  return boxV3(textSurface(metaLines.join('\n'), innerWidth, innerHeight), {
     ctx: opts.ctx,
-    title: 'Entries',
+    title: model.splitPane.focused === 'a' ? 'Entries *' : 'Entries',
     width: opts.width,
   });
 }
@@ -192,11 +226,15 @@ function renderDetailPane(model, opts) {
   const innerWidth = Math.max(1, opts.width - 2);
   const innerHeight = Math.max(1, opts.height - 2);
   const content = createSurface(innerWidth, innerHeight);
-  const entry = model.filtered[model.cursor];
+  const entry = selectedEntry(model);
 
   if (!entry) {
     content.blit(textSurface('Select an entry to inspect it.', innerWidth, innerHeight), 0, 0);
-    return boxV3(content, { ctx: opts.ctx, title: 'Inspector', width: opts.width });
+    return boxV3(content, {
+      ctx: opts.ctx,
+      title: model.splitPane.focused === 'b' ? 'Inspector *' : 'Inspector',
+      width: opts.width,
+    });
   }
 
   const manifest = model.manifestCache.get(entry.slug);
@@ -209,7 +247,11 @@ function renderDetailPane(model, opts) {
   if (!manifest) {
     const loadingText = entry.slug === model.loadingSlug ? 'Loading manifest...' : 'Manifest not loaded yet.';
     content.blit(textSurface(loadingText, innerWidth, Math.max(1, innerHeight - 3)), 0, 3);
-    return boxV3(content, { ctx: opts.ctx, title: 'Inspector', width: opts.width });
+    return boxV3(content, {
+      ctx: opts.ctx,
+      title: model.splitPane.focused === 'b' ? 'Inspector *' : 'Inspector',
+      width: opts.width,
+    });
   }
 
   const manifestBody = renderManifestView({ manifest, ctx: opts.ctx });
@@ -219,7 +261,11 @@ function renderDetailPane(model, opts) {
   const bodyHeight = Math.max(1, innerHeight - bodyTop);
   content.blit(manifestSurface, 0, bodyTop, 0, model.detailScroll, innerWidth, bodyHeight);
 
-  return boxV3(content, { ctx: opts.ctx, title: 'Inspector', width: opts.width });
+  return boxV3(content, {
+    ctx: opts.ctx,
+    title: model.splitPane.focused === 'b' ? 'Inspector *' : 'Inspector',
+    width: opts.width,
+  });
 }
 
 /**
@@ -232,9 +278,10 @@ function renderDetailPane(model, opts) {
 function renderFooterSurface(ctx, width) {
   const lines = [
     '─'.repeat(Math.max(1, width)),
-    `${kbd('j/k', { ctx })} move  ${kbd('enter', { ctx })} inspect  ${kbd('/', { ctx })} filter  ${kbd('J/K', { ctx })} scroll  ${kbd('q', { ctx })} quit`,
+    `${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
+    `${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('q', { ctx })} quit`,
   ];
-  return textSurface(lines.join('\n'), width, 2);
+  return textSurface(lines.join('\n'), width, 3);
 }
 
 /**
@@ -245,13 +292,19 @@ function renderFooterSurface(ctx, width) {
  * @param {{ top: number, height: number, screen: Surface }} options
  */
 function renderBody(model, deps, options) {
-  const gap = model.columns >= 72 ? 1 : 0;
-  const listWidth = Math.max(24, Math.min(Math.floor(model.columns * 0.37), model.columns - 28 - gap));
-  const detailWidth = Math.max(24, model.columns - listWidth - gap);
-  const listPane = renderListPane(model, { width: listWidth, height: options.height, ctx: deps.ctx });
-  const detailPane = renderDetailPane(model, { width: detailWidth, height: options.height, ctx: deps.ctx });
-  options.screen.blit(listPane, 0, options.top);
-  options.screen.blit(detailPane, listWidth + gap, options.top);
+  const layout = splitPaneLayout(model.splitPane, {
+    direction: 'row',
+    width: model.columns,
+    height: options.height,
+    minA: SPLIT_MIN_LIST_WIDTH,
+    minB: SPLIT_MIN_DETAIL_WIDTH,
+    dividerSize: SPLIT_DIVIDER_SIZE,
+  });
+  const listPane = renderListPane(model, { width: layout.paneA.width, height: layout.paneA.height, ctx: deps.ctx });
+  const detailPane = renderDetailPane(model, { width: layout.paneB.width, height: layout.paneB.height, ctx: deps.ctx });
+  options.screen.blit(listPane, layout.paneA.col, options.top + layout.paneA.row);
+  options.screen.blit(renderDividerSurface(layout.divider.height), layout.divider.col, options.top + layout.divider.row);
+  options.screen.blit(detailPane, layout.paneB.col, options.top + layout.paneB.row);
 }
 
 /**

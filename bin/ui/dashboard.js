@@ -2,7 +2,11 @@
  * TEA app shell for the vault dashboard.
  */
 
-import { run, quit, createKeyMap } from '@flyingrobots/bijou-tui';
+import {
+  run, quit, createKeyMap,
+  createNavigableTableState, navTableFocusNext, navTableFocusPrev, navTablePageDown, navTablePageUp,
+  createSplitPaneState, splitPaneFocusNext, splitPaneResizeBy,
+} from '@flyingrobots/bijou-tui';
 import { loadEntriesCmd, loadManifestCmd } from './dashboard-cmds.js';
 import { createCliTuiContext, detectCliTuiMode } from './context.js';
 import { renderDashboard } from './dashboard-view.js';
@@ -13,6 +17,8 @@ import { renderDashboard } from './dashboard-view.js';
  * @typedef {import('@flyingrobots/bijou-tui').ResizeMsg} ResizeMsg
  * @typedef {import('@flyingrobots/bijou-tui').Cmd<DashMsg>} DashCmd
  * @typedef {import('@flyingrobots/bijou-tui').KeyMap<DashAction>} DashKeyMap
+ * @typedef {import('@flyingrobots/bijou-tui').NavigableTableState} NavigableTableState
+ * @typedef {import('@flyingrobots/bijou-tui').SplitPaneState} SplitPaneState
  * @typedef {import('../../index.js').default} ContentAddressableStore
  * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
  * @typedef {{ slug: string, treeOid: string }} VaultEntry
@@ -21,9 +27,12 @@ import { renderDashboard } from './dashboard-view.js';
 /**
  * @typedef {{ type: 'quit' }
  *   | { type: 'move', delta: number }
+ *   | { type: 'page', delta: number }
  *   | { type: 'select' }
  *   | { type: 'filter-start' }
  *   | { type: 'scroll-detail', delta: number }
+ *   | { type: 'split-focus' }
+ *   | { type: 'split-resize', delta: number }
  * } DashAction
  */
 
@@ -41,7 +50,6 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {number} rows
  * @property {VaultEntry[]} entries
  * @property {VaultEntry[]} filtered
- * @property {number} cursor
  * @property {string} filterText
  * @property {boolean} filtering
  * @property {any} metadata
@@ -49,6 +57,8 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {string | null} loadingSlug
  * @property {number} detailScroll
  * @property {string | null} error
+ * @property {NavigableTableState} table
+ * @property {SplitPaneState} splitPane
  */
 
 /**
@@ -70,10 +80,133 @@ export function createKeyBindings() {
     .bind('down', 'Down', { type: 'move', delta: 1 })
     .bind('k', 'Up', { type: 'move', delta: -1 })
     .bind('up', 'Up', { type: 'move', delta: -1 })
+    .bind('d', 'Page down', { type: 'page', delta: 1 })
+    .bind('pagedown', 'Page down', { type: 'page', delta: 1 })
+    .bind('u', 'Page up', { type: 'page', delta: -1 })
+    .bind('pageup', 'Page up', { type: 'page', delta: -1 })
     .bind('enter', 'Load', { type: 'select' })
     .bind('/', 'Filter', { type: 'filter-start' })
+    .bind('tab', 'Focus pane', { type: 'split-focus' })
+    .bind('shift+h', 'Narrow pane', { type: 'split-resize', delta: -4 })
+    .bind('shift+l', 'Widen pane', { type: 'split-resize', delta: 4 })
     .bind('shift+j', 'Scroll down', { type: 'scroll-detail', delta: 3 })
     .bind('shift+k', 'Scroll up', { type: 'scroll-detail', delta: -3 });
+}
+
+const TABLE_COLUMNS = [
+  { header: 'Slug', width: 20 },
+  { header: 'Size', width: 8, align: 'right' },
+  { header: 'Chunks', width: 6, align: 'right' },
+  { header: 'Crypto', width: 7 },
+  { header: 'Format', width: 10 },
+  { header: 'Profile', width: 12 },
+];
+
+const DASH_HEADER_ROWS = 3;
+const DASH_FOOTER_ROWS = 3;
+const PANE_BORDER_ROWS = 2;
+const LIST_META_ROWS = 2;
+const SPLIT_MIN_LIST_WIDTH = 28;
+const SPLIT_MIN_DETAIL_WIDTH = 32;
+const SPLIT_DIVIDER_SIZE = 1;
+
+/**
+ * Format manifest bytes as a compact human-readable string for the explorer table.
+ *
+ * @param {number} bytes
+ * @returns {string}
+ */
+function formatSize(bytes) {
+  if (bytes < 1024) { return `${bytes}B`; }
+  if (bytes < 1024 * 1024) { return `${(bytes / 1024).toFixed(1)}K`; }
+  if (bytes < 1024 * 1024 * 1024) { return `${(bytes / (1024 * 1024)).toFixed(1)}M`; }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}G`;
+}
+
+/**
+ * Table viewport height based on the full dashboard frame.
+ *
+ * @param {number} rows
+ * @returns {number}
+ */
+function tableHeight(rows) {
+  return Math.max(1, rows - DASH_HEADER_ROWS - DASH_FOOTER_ROWS - PANE_BORDER_ROWS - LIST_META_ROWS);
+}
+
+/**
+ * Clamp table scroll so the focused row remains visible.
+ *
+ * @param {{ focusRow: number, scrollY: number, height: number, totalRows: number }} options
+ * @returns {number}
+ */
+function adjustTableScroll(options) {
+  let nextScroll = options.scrollY;
+  if (options.focusRow < nextScroll) {
+    nextScroll = options.focusRow;
+  } else if (options.focusRow >= nextScroll + options.height) {
+    nextScroll = options.focusRow - options.height + 1;
+  }
+  return Math.min(nextScroll, Math.max(0, options.totalRows - options.height));
+}
+
+/**
+ * Build explorer table rows from the filtered vault entries.
+ *
+ * @param {VaultEntry[]} entries
+ * @param {Map<string, Manifest>} manifestCache
+ * @returns {string[][]}
+ */
+function buildTableRows(entries, manifestCache) {
+  return entries.map((entry) => {
+    const manifest = manifestCache.get(entry.slug);
+    if (!manifest) {
+      return [entry.slug, '...', '...', '...', '...', 'loading'];
+    }
+    const m = manifest.toJSON ? manifest.toJSON() : manifest;
+    const crypto = m.encryption ? 'enc' : 'plain';
+    const format = m.compression ? m.compression.algorithm : 'raw';
+    const profile = m.subManifests?.length ? `${format} merkle` : `${format} single`;
+    return [
+      entry.slug,
+      formatSize(m.size ?? 0),
+      String(m.chunks?.length ?? 0),
+      crypto,
+      format,
+      profile,
+    ];
+  });
+}
+
+/**
+ * Synchronize derived table rows and viewport metrics after a model change.
+ *
+ * @param {NavigableTableState} table
+ * @param {{
+ *   entries?: VaultEntry[],
+ *   manifestCache?: Map<string, Manifest>,
+ *   rows?: number,
+ *   focusRow?: number,
+ *   scrollY?: number,
+ * }} updates
+ * @returns {NavigableTableState}
+ */
+function syncTable(table, updates = {}) {
+  const rows = buildTableRows(updates.entries ?? [], updates.manifestCache ?? new Map());
+  const height = tableHeight(updates.rows ?? 24);
+  const focusRow = Math.max(0, Math.min(updates.focusRow ?? table.focusRow, rows.length - 1));
+  const scrollY = adjustTableScroll({
+    focusRow,
+    scrollY: updates.scrollY ?? table.scrollY,
+    height,
+    totalRows: rows.length,
+  });
+  return {
+    ...table,
+    rows,
+    height,
+    focusRow,
+    scrollY,
+  };
 }
 
 /**
@@ -83,13 +216,17 @@ export function createKeyBindings() {
  * @returns {DashModel}
  */
 function createInitModel(ctx) {
+  const table = createNavigableTableState({
+    columns: TABLE_COLUMNS,
+    rows: [],
+    height: tableHeight(ctx.runtime.rows ?? 24),
+  });
   return {
     status: 'loading',
     columns: ctx.runtime.columns ?? 80,
     rows: ctx.runtime.rows ?? 24,
     entries: [],
     filtered: [],
-    cursor: 0,
     filterText: '',
     filtering: false,
     metadata: null,
@@ -97,6 +234,8 @@ function createInitModel(ctx) {
     loadingSlug: null,
     detailScroll: 0,
     error: null,
+    table,
+    splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
   };
 }
 
@@ -122,15 +261,20 @@ function applyFilter(entries, text) {
  */
 function handleLoadedEntries(msg, model, cas) {
   const filtered = applyFilter(msg.entries, model.filterText);
-  const cursor = Math.max(0, Math.min(model.cursor, filtered.length - 1));
+  const table = syncTable(model.table, {
+    entries: filtered,
+    manifestCache: model.manifestCache,
+    rows: model.rows,
+  });
   const cmds = /** @type {DashCmd[]} */ (msg.entries.map((/** @type {VaultEntry} */ e) => loadManifestCmd(cas, e.slug, e.treeOid)));
   return [{
     ...model,
     status: 'ready',
     entries: msg.entries,
     filtered,
-    cursor,
     metadata: msg.metadata,
+    loadingSlug: null,
+    table,
   }, cmds];
 }
 
@@ -144,7 +288,17 @@ function handleLoadedEntries(msg, model, cas) {
 function handleLoadedManifest(msg, model) {
   const cache = new Map(model.manifestCache);
   cache.set(msg.slug, msg.manifest);
-  return [{ ...model, manifestCache: cache }, []];
+  const table = syncTable(model.table, {
+    entries: model.filtered,
+    manifestCache: cache,
+    rows: model.rows,
+  });
+  return [{
+    ...model,
+    manifestCache: cache,
+    loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug,
+    table,
+  }, []];
 }
 
 /**
@@ -155,9 +309,20 @@ function handleLoadedManifest(msg, model) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function handleMove(msg, model) {
-  const max = model.filtered.length - 1;
-  const cursor = Math.max(0, Math.min(max, model.cursor + msg.delta));
-  return [{ ...model, cursor, detailScroll: 0 }, []];
+  const table = msg.delta > 0 ? navTableFocusNext(model.table) : navTableFocusPrev(model.table);
+  return [{ ...model, table, detailScroll: 0 }, []];
+}
+
+/**
+ * Handle page-wise table navigation.
+ *
+ * @param {{ type: 'page', delta: number }} msg
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handlePage(msg, model) {
+  const table = msg.delta > 0 ? navTablePageDown(model.table) : navTablePageUp(model.table);
+  return [{ ...model, table, detailScroll: 0 }, []];
 }
 
 /**
@@ -174,12 +339,26 @@ function handleFilterKey(msg, model) {
   if (msg.key === 'backspace') {
     const text = model.filterText.slice(0, -1);
     const filtered = applyFilter(model.entries, text);
-    return [{ ...model, filterText: text, filtered, cursor: 0 }, []];
+    const table = syncTable(model.table, {
+      entries: filtered,
+      manifestCache: model.manifestCache,
+      rows: model.rows,
+      focusRow: 0,
+      scrollY: 0,
+    });
+    return [{ ...model, filterText: text, filtered, table }, []];
   }
   if (msg.key.length === 1) {
     const text = model.filterText + msg.key;
     const filtered = applyFilter(model.entries, text);
-    return [{ ...model, filterText: text, filtered, cursor: 0 }, []];
+    const table = syncTable(model.table, {
+      entries: filtered,
+      manifestCache: model.manifestCache,
+      rows: model.rows,
+      focusRow: 0,
+      scrollY: 0,
+    });
+    return [{ ...model, filterText: text, filtered, table }, []];
   }
   return [model, []];
 }
@@ -192,12 +371,19 @@ function handleFilterKey(msg, model) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function handleSelect(model, deps) {
-  const entry = model.filtered[model.cursor];
-  if (!entry || model.manifestCache.has(entry.slug)) {
+  const entry = model.filtered[model.table.focusRow];
+  if (!entry) {
     return [model, []];
   }
+  if (model.manifestCache.has(entry.slug)) {
+    return [{ ...model, splitPane: { ...model.splitPane, focused: 'b' } }, []];
+  }
   const cmd = /** @type {DashCmd} */ (loadManifestCmd(deps.cas, entry.slug, entry.treeOid));
-  return [{ ...model, loadingSlug: entry.slug }, [cmd]];
+  return [{
+    ...model,
+    loadingSlug: entry.slug,
+    splitPane: { ...model.splitPane, focused: 'b' },
+  }, [cmd]];
 }
 
 /**
@@ -211,12 +397,34 @@ function handleSelect(model, deps) {
 function handleAction(action, model, deps) {
   if (action.type === 'quit') { return [model, [quit()]]; }
   if (action.type === 'move') { return handleMove(action, model); }
+  if (action.type === 'page') { return handlePage(action, model); }
   if (action.type === 'filter-start') {
-    return [{ ...model, filtering: true, filterText: '', filtered: model.entries, cursor: 0 }, []];
+    const filtered = model.entries;
+    const table = syncTable(model.table, {
+      entries: filtered,
+      manifestCache: model.manifestCache,
+      rows: model.rows,
+      focusRow: 0,
+      scrollY: 0,
+    });
+    return [{ ...model, filtering: true, filterText: '', filtered, table }, []];
   }
   if (action.type === 'scroll-detail') {
     const scroll = Math.max(0, model.detailScroll + action.delta);
     return [{ ...model, detailScroll: scroll }, []];
+  }
+  if (action.type === 'split-focus') {
+    return [{ ...model, splitPane: splitPaneFocusNext(model.splitPane) }, []];
+  }
+  if (action.type === 'split-resize') {
+    const delta = model.splitPane.focused === 'a' ? action.delta : -action.delta;
+    const splitPane = splitPaneResizeBy(model.splitPane, delta, {
+      total: model.columns,
+      minA: SPLIT_MIN_LIST_WIDTH,
+      minB: SPLIT_MIN_DETAIL_WIDTH,
+      dividerSize: SPLIT_DIVIDER_SIZE,
+    });
+    return [{ ...model, splitPane }, []];
   }
   if (action.type === 'select') { return handleSelect(model, deps); }
   return [model, []];
@@ -235,7 +443,7 @@ function handleAppMsg(msg, model, cas) {
   if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model); }
   if (msg.type === 'load-error') {
     if (msg.source === 'manifest') {
-      return [model, []];
+      return [{ ...model, loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug }, []];
     }
     return [{ ...model, status: 'error', error: msg.error }, []];
   }
@@ -260,7 +468,12 @@ function handleUpdate(msg, model, deps) {
     return [model, []];
   }
   if (msg.type === 'resize') {
-    return [{ ...model, columns: msg.columns, rows: msg.rows }, []];
+    const table = syncTable(model.table, {
+      entries: model.filtered,
+      manifestCache: model.manifestCache,
+      rows: msg.rows,
+    });
+    return [{ ...model, columns: msg.columns, rows: msg.rows, table }, []];
   }
   return handleAppMsg(/** @type {DashMsg} */ (msg), model, deps.cas);
 }

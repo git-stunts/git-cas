@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { surfaceToString } from '@flyingrobots/bijou';
+import { createNavigableTableState, createSplitPaneState } from '@flyingrobots/bijou-tui';
 import { makeCtx } from './_testContext.js';
 
 vi.mock('../../../bin/ui/context.js', () => ({
@@ -25,21 +26,56 @@ function renderView(output, ctx) {
   return typeof output === 'string' ? output : surfaceToString(output, ctx.style);
 }
 
+function buildTableRows(entries, manifestCache = new Map()) {
+  return entries.map((entry) => {
+    const manifest = manifestCache.get(entry.slug);
+    if (!manifest) {
+      return [entry.slug, '...', '...', '...', '...', 'loading'];
+    }
+    const m = manifest.toJSON ? manifest.toJSON() : manifest;
+    return [
+      entry.slug,
+      String(m.size ?? 0),
+      String(m.chunks?.length ?? 0),
+      m.encryption ? 'enc' : 'plain',
+      m.compression ? m.compression.algorithm : 'raw',
+      m.subManifests?.length ? 'merkle' : 'single',
+    ];
+  });
+}
+
+function makeTable(filtered = [], options = {}) {
+  const rows = options.rows || 24;
+  const manifestCache = options.manifestCache || new Map();
+  return {
+    ...createNavigableTableState({
+      columns: [{ header: 'Slug', width: 20 }],
+      rows: buildTableRows(filtered, manifestCache),
+      height: Math.max(1, rows - 9),
+    }),
+    ...(options.overrides || {}),
+  };
+}
+
 function makeModel(overrides = {}) {
+  const manifestCache = overrides.manifestCache || new Map();
+  const filtered = overrides.filtered || overrides.entries || [];
+  const rows = overrides.rows || 24;
   return {
     status: 'ready',
     columns: 80,
     rows: 24,
     entries: [],
     filtered: [],
-    cursor: 0,
     filterText: '',
     filtering: false,
     metadata: null,
-    manifestCache: new Map(),
+    manifestCache,
     loadingSlug: null,
     detailScroll: 0,
     error: null,
+    table: makeTable(filtered, { rows, manifestCache }),
+    splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
     ...overrides,
   };
 }
@@ -53,26 +89,37 @@ const entries = [
   { slug: 'bravo', treeOid: 'bbb222' },
 ];
 
-describe('dashboard init and navigation', () => {
+describe('dashboard initialization', () => {
   it('init returns loading model with one cmd', () => {
     const app = createDashboardApp(makeDeps());
     const [model, cmds] = app.init();
     expect(model.status).toBe('loading');
     expect(cmds).toHaveLength(1);
+    expect(model.splitPane.focused).toBe('a');
   });
+});
 
-  it('move cursor down', () => {
+describe('dashboard navigation', () => {
+  it('move table focus down', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({ filtered: entries, entries });
     const [next] = app.update(keyMsg('j'), model);
-    expect(next.cursor).toBe(1);
+    expect(next.table.focusRow).toBe(1);
   });
 
-  it('move cursor up clamps at 0', () => {
+  it('move table focus up wraps to the last row', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({ filtered: entries, entries });
     const [next] = app.update(keyMsg('k'), model);
-    expect(next.cursor).toBe(0);
+    expect(next.table.focusRow).toBe(1);
+  });
+
+  it('pages table focus down', () => {
+    const app = createDashboardApp(makeDeps());
+    const manyEntries = Array.from({ length: 20 }, (_, index) => ({ slug: `asset-${index}`, treeOid: `oid-${index}` }));
+    const model = makeModel({ filtered: manyEntries, entries: manyEntries });
+    const [next] = app.update(keyMsg('d'), model);
+    expect(next.table.focusRow).toBeGreaterThan(0);
   });
 
   it('quit returns quit command', () => {
@@ -86,12 +133,27 @@ describe('dashboard init and navigation', () => {
     const [next] = app.update(keyMsg('j', { shift: true }), makeModel());
     expect(next.detailScroll).toBe(3);
   });
+});
 
+describe('dashboard pane controls', () => {
   it('resize updates dimensions', () => {
     const app = createDashboardApp(makeDeps());
     const [next] = app.update({ type: 'resize', columns: 120, rows: 40 }, makeModel());
     expect(next.columns).toBe(120);
     expect(next.rows).toBe(40);
+    expect(next.table.height).toBe(30);
+  });
+
+  it('tab toggles the focused pane', () => {
+    const app = createDashboardApp(makeDeps());
+    const [next] = app.update(keyMsg('tab'), makeModel());
+    expect(next.splitPane.focused).toBe('b');
+  });
+
+  it('shift+l widens the focused pane', () => {
+    const app = createDashboardApp(makeDeps());
+    const [next] = app.update(keyMsg('l', { shift: true }), makeModel());
+    expect(next.splitPane.ratio).toBeGreaterThan(0.37);
   });
 });
 
@@ -102,6 +164,7 @@ describe('dashboard data loading', () => {
     const [next, cmds] = app.update(msg, makeModel({ status: 'loading' }));
     expect(next.status).toBe('ready');
     expect(next.entries).toEqual(entries);
+    expect(next.table.rows).toHaveLength(2);
     expect(cmds).toHaveLength(2);
   });
 
@@ -118,6 +181,7 @@ describe('dashboard data loading', () => {
     const [next] = app.update(keyMsg('l'), model);
     expect(next.filterText).toBe('l');
     expect(next.filtered).toHaveLength(1);
+    expect(next.table.rows).toHaveLength(1);
     expect(next.filtered[0].slug).toBe('alpha');
   });
 
@@ -138,14 +202,14 @@ describe('dashboard data loading', () => {
   });
 });
 
-describe('dashboard edge cases', () => {
+describe('dashboard filter edge cases', () => {
   it('filter-backspace removes last char and re-filters', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({ filtering: true, filterText: 'al', entries, filtered: [entries[0]] });
     const [next] = app.update(keyMsg('backspace'), model);
     expect(next.filterText).toBe('a');
     expect(next.filtered).toHaveLength(2);
-    expect(next.cursor).toBe(0);
+    expect(next.table.focusRow).toBe(0);
   });
 
   it('load-error from entries sets error and status on model', () => {
@@ -154,7 +218,9 @@ describe('dashboard edge cases', () => {
     expect(next.error).toBe('boom');
     expect(next.status).toBe('error');
   });
+});
 
+describe('dashboard loading edge cases', () => {
   it('load-error from manifest does not set global error', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({ status: 'ready', entries, filtered: entries });
@@ -163,12 +229,16 @@ describe('dashboard edge cases', () => {
     expect(next.error).toBeNull();
   });
 
-  it('loaded-entries clamps cursor to filtered bounds', () => {
+  it('loaded-entries clamps table focus to filtered bounds', () => {
     const app = createDashboardApp(makeDeps());
-    const model = makeModel({ status: 'loading', cursor: 5, filterText: 'al' });
+    const model = makeModel({
+      status: 'loading',
+      filterText: 'al',
+      table: makeTable([], { overrides: { focusRow: 5 } }),
+    });
     const msg = { type: 'loaded-entries', entries, metadata: null };
     const [next] = app.update(msg, model);
-    expect(next.cursor).toBe(0);
+    expect(next.table.focusRow).toBe(0);
     expect(next.filtered).toHaveLength(1);
   });
 
@@ -182,9 +252,10 @@ describe('dashboard edge cases', () => {
 
   it('select on uncached entry returns loadManifestCmd', () => {
     const app = createDashboardApp(makeDeps());
-    const model = makeModel({ entries, filtered: entries, cursor: 0 });
+    const model = makeModel({ entries, filtered: entries });
     const [next, cmds] = app.update(keyMsg('enter'), model);
     expect(next.loadingSlug).toBe('alpha');
+    expect(next.splitPane.focused).toBe('b');
     expect(cmds).toHaveLength(1);
   });
 });
@@ -208,6 +279,7 @@ describe('dashboard view rendering', () => {
     const app = createDashboardApp(deps);
     const model = makeModel({ entries, filtered: entries });
     const rendered = renderView(app.view(model), deps.ctx);
+    expect(rendered).toContain('Slug');
     expect(rendered).toContain('alpha');
     expect(rendered).toContain('bravo');
   });
@@ -237,6 +309,8 @@ describe('dashboard explorer details', () => {
     const model = makeModel();
     const rendered = renderView(app.view(model), deps.ctx);
     expect(rendered).toContain('inspect');
+    expect(rendered).toContain('resize');
+    expect(rendered).toContain('pane');
     expect(rendered).toContain('quit');
   });
 
@@ -251,6 +325,14 @@ describe('dashboard explorer details', () => {
     });
     const rendered = renderView(app.view(model), deps.ctx);
     expect(rendered).toContain('asset alpha');
-    expect(rendered).toContain('Chunks (1)');
+    expect(rendered).toContain('chunks    1');
+  });
+
+  it('renders inspector focus chrome when pane b is active', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const model = makeModel({ splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }) });
+    const rendered = renderView(app.view(model), deps.ctx);
+    expect(rendered).toContain('Inspector *');
   });
 });
