@@ -28,6 +28,26 @@ function clip(text, width) {
 }
 
 /**
+ * Clip long paths from the left so the most specific suffix stays visible.
+ *
+ * @param {string} text
+ * @param {number} width
+ * @returns {string}
+ */
+function tailClip(text, width) {
+  if (width <= 0) {
+    return '';
+  }
+  if (text.length <= width) {
+    return text;
+  }
+  if (width <= 3) {
+    return clip(text, width);
+  }
+  return `...${text.slice(text.length - (width - 3))}`;
+}
+
+/**
  * Compute visible window for cursor scrolling.
  *
  * @param {number} cursor
@@ -109,19 +129,20 @@ function appendSelectionBadges(parts, model, ctx) {
  * Render the header surface.
  *
  * @param {DashModel} model
- * @param {BijouContext} ctx
+ * @param {DashDeps} deps
  * @returns {Surface}
  */
-function renderHeaderSurface(model, ctx) {
-  const surface = createSurface(Math.max(1, model.columns), 3);
+function renderHeaderSurface(model, deps) {
+  const surface = createSurface(Math.max(1, model.columns), 4);
   surface.blit(textSurface('git-cas vault explorer', surface.width, 1), 0, 0);
+  surface.blit(textSurface(tailClip(`cwd ${deps.cwdLabel ?? '-'}`, surface.width), surface.width, 1), 0, 1);
   blitInline(surface, {
     x: 0,
-    y: 1,
-    parts: headerParts(model, ctx),
+    y: 2,
+    parts: headerParts(model, deps.ctx),
     maxWidth: surface.width,
   });
-  surface.blit(textSurface('─'.repeat(surface.width), surface.width, 1), 0, 2);
+  surface.blit(textSurface('─'.repeat(surface.width), surface.width, 1), 0, 3);
   return surface;
 }
 
@@ -504,7 +525,7 @@ export function renderDashboard(model, deps) {
   const width = Math.max(1, model.columns);
   const height = Math.max(1, model.rows);
   const screen = createSurface(width, height);
-  const header = renderHeaderSurface(model, deps.ctx);
+  const header = renderHeaderSurface(model, deps);
   const footer = renderFooterSurface(deps.ctx, width);
   const bodyTop = header.height;
   const bodyHeight = Math.max(1, height - header.height - footer.height);

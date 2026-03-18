@@ -93,6 +93,7 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {DashKeyMap} keyMap
  * @property {ContentAddressableStore} cas
  * @property {BijouContext} ctx
+ * @property {string | undefined} [cwdLabel]
  */
 
 /**
@@ -134,7 +135,7 @@ const TABLE_COLUMNS = [
   { header: 'Profile', width: 12 },
 ];
 
-const DASH_HEADER_ROWS = 3;
+const DASH_HEADER_ROWS = 4;
 const DASH_FOOTER_ROWS = 4;
 const PANE_BORDER_ROWS = 2;
 const LIST_META_ROWS = 2;
@@ -933,6 +934,7 @@ function normalizeLaunchContext(ctx) {
  * @param {{
  *   ctx?: BijouContext,
  *   runApp?: typeof run,
+ *   cwd?: string,
  *   output?: Pick<NodeJS.WriteStream, 'write'>,
  * }} [options]
  */
@@ -942,7 +944,7 @@ export async function launchDashboard(cas, options = {}) {
     return printStaticList(cas, options.output);
   }
   const keyMap = createKeyBindings();
-  const deps = { keyMap, cas, ctx };
+  const deps = { keyMap, cas, ctx, cwdLabel: options.cwd };
   const runApp = options.runApp || run;
   return runApp(createDashboardApp(deps), { ctx });
 }

@@ -675,7 +675,7 @@ vault
   .action(runAction(async (/** @type {Record<string, any>} */ opts) => {
     const cas = createCas(opts.cwd);
     const { launchDashboard } = await import('./ui/dashboard.js');
-    await launchDashboard(cas);
+    await launchDashboard(cas, { cwd: path.resolve(opts.cwd) });
   }, getJson));
 
 // ---------------------------------------------------------------------------

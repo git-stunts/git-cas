@@ -18,8 +18,14 @@ function mockCas() {
   };
 }
 
-function makeDeps() {
-  return { keyMap: createKeyBindings(), cas: mockCas(), ctx: makeCtx() };
+function makeDeps(overrides = {}) {
+  return {
+    keyMap: createKeyBindings(),
+    cas: mockCas(),
+    ctx: makeCtx(),
+    cwdLabel: '/tmp/git-cas-fixture',
+    ...overrides,
+  };
 }
 
 function renderView(output, ctx) {
@@ -51,7 +57,7 @@ function makeTable(filtered = [], options = {}) {
     ...createNavigableTableState({
       columns: [{ header: 'Slug', width: 20 }],
       rows: buildTableRows(filtered, manifestCache),
-      height: Math.max(1, rows - 9),
+      height: Math.max(1, rows - 12),
     }),
     ...(options.overrides || {}),
   };
@@ -180,7 +186,7 @@ describe('dashboard pane controls', () => {
     const [next] = app.update({ type: 'resize', columns: 120, rows: 40 }, makeModel());
     expect(next.columns).toBe(120);
     expect(next.rows).toBe(40);
-    expect(next.table.height).toBe(29);
+    expect(next.table.height).toBe(28);
   });
 
   it('tab toggles the focused pane', () => {
@@ -367,6 +373,7 @@ describe('dashboard view rendering', () => {
     expect(output.width).toBe(model.columns);
     const rendered = renderView(output, deps.ctx);
     expect(rendered).toContain('git-cas vault explorer');
+    expect(rendered).toContain('cwd /tmp/git-cas-fixture');
     expect(rendered).toContain('Entries');
     expect(rendered).toContain('Inspector');
   });
