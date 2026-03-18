@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Bun blob writes in Git persistence** — `GitPersistenceAdapter.writeBlob()` now hashes temp files instead of piping large buffers through `git hash-object --stdin` under Bun, avoiding unhandled `EPIPE` failures during real Git-backed stores.
 - **Release verification runner failures** — `runReleaseVerify()` now converts thrown step-runner errors into structured step failures with a `ReleaseVerifyError` summary instead of letting raw exceptions escape.
+- **Dashboard launch context normalization** — `launchDashboard()` now treats injected Bijou contexts without an explicit `mode` as interactive, avoiding an incorrect static fallback, and the CLI mode tests now lock the `BIJOU_ACCESSIBLE` and `TERM=dumb` branches.
 
 ## [5.3.2] — 2026-03-15
 
