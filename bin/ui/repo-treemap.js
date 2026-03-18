@@ -154,25 +154,43 @@ function formatPercent(value, total) {
 }
 
 /**
+ * Sort treemap tiles by value so the layout and detail list both reflect the
+ * most significant regions first.
+ *
+ * @param {RepoTreemapTile[]} tiles
+ * @returns {RepoTreemapTile[]}
+ */
+function sortTilesByValue(tiles) {
+  return [...tiles].sort((left, right) => right.value - left.value || left.label.localeCompare(right.label));
+}
+
+/**
  * Group tiles into a binary split that approximates a treemap.
  *
  * @param {RepoTreemapTile[]} tiles
  * @returns {[RepoTreemapTile[], RepoTreemapTile[]]}
  */
 function splitTiles(tiles) {
+  if (tiles.length <= 1) {
+    return [tiles, []];
+  }
+
   const total = tiles.reduce((sum, tile) => sum + tile.value, 0);
   const target = total / 2;
-  const left = [];
-  let leftSum = 0;
-  for (let index = 0; index < tiles.length; index++) {
-    const tile = tiles[index];
-    if (index > 0 && leftSum >= target) {
-      return [left, tiles.slice(index)];
+  let bestIndex = 1;
+  let bestDelta = Infinity;
+  let running = 0;
+
+  for (let index = 1; index < tiles.length; index++) {
+    running += tiles[index - 1].value;
+    const delta = Math.abs(target - running);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      bestIndex = index;
     }
-    left.push(tile);
-    leftSum += tile.value;
   }
-  return [left, []];
+
+  return [tiles.slice(0, bestIndex), tiles.slice(bestIndex)];
 }
 
 /**
@@ -353,7 +371,7 @@ function renderLegendLines(ctx, width) {
  * @returns {string[]}
  */
 function renderDetails(tiles, options) {
-  return tiles
+  return sortTilesByValue(tiles)
     .slice(0, Math.max(0, options.lines))
     .map((tile, index) => clip(
       `${index + 1}. ${tile.label} [${TILE_LABEL[tile.kind]}] ${formatPercent(tile.value, options.totalValue)} · ${tile.detail}`,
@@ -407,7 +425,7 @@ export function renderRepoTreemapMap(report, options) {
   const width = Math.max(12, options.width);
   const height = Math.max(4, options.height);
   const grid = createGrid(width, height);
-  const layout = layoutTreemap(report.tiles, { x: 0, y: 0, width, height });
+  const layout = layoutTreemap(sortTilesByValue(report.tiles), { x: 0, y: 0, width, height });
   for (const rect of layout) {
     paintRect(grid, rect);
   }

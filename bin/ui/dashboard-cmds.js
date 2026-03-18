@@ -381,11 +381,12 @@ function buildLogicalTiles(records, kind) {
  * @returns {RepoTreemapTile[]}
  */
 function compactTiles(tiles, limit = 14) {
-  if (tiles.length <= limit) {
-    return tiles;
+  const sorted = [...tiles].sort((left, right) => right.value - left.value || left.label.localeCompare(right.label));
+  if (sorted.length <= limit) {
+    return sorted;
   }
-  const kept = tiles.slice(0, limit - 1);
-  const remainder = tiles.slice(limit - 1);
+  const kept = sorted.slice(0, limit - 1);
+  const remainder = sorted.slice(limit - 1);
   const otherValue = remainder.reduce((sum, tile) => sum + tile.value, 0);
   kept.push({
     label: 'other',
