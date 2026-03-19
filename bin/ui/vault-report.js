@@ -73,6 +73,17 @@ function formatBytes(bytes) {
 }
 
 /**
+ * Render aligned key/value pairs without tabs so TUI panels stay stable.
+ *
+ * @param {Array<[string, string | number]>} pairs
+ * @returns {string[]}
+ */
+function renderKeyValueLines(pairs) {
+  const labelWidth = pairs.reduce((max, [label]) => Math.max(max, label.length), 0);
+  return pairs.map(([label, value]) => `${label.padEnd(labelWidth)} ${value}`);
+}
+
+/**
  * Create an empty stats payload.
  *
  * @returns {VaultStats}
@@ -226,17 +237,19 @@ export function renderVaultStats(stats) {
     : '-';
 
   return [
-    `entries\t${stats.entries}`,
-    `logical-size\t${formatBytes(stats.totalLogicalSize)} (${stats.totalLogicalSize} bytes)`,
-    `chunk-refs\t${stats.totalChunkRefs}`,
-    `unique-chunks\t${stats.uniqueChunks}`,
-    `duplicate-refs\t${stats.duplicateChunkRefs}`,
-    `dedup-ratio\t${stats.dedupRatio.toFixed(2)}x`,
-    `encrypted\t${stats.encryptedEntries}`,
-    `envelope\t${stats.envelopeEntries}`,
-    `compressed\t${stats.compressedEntries}`,
-    `chunking\t${chunking}`,
-    `largest\t${largest}`,
+    ...renderKeyValueLines([
+      ['entries', stats.entries],
+      ['logical-size', `${formatBytes(stats.totalLogicalSize)} (${stats.totalLogicalSize} bytes)`],
+      ['chunk-refs', stats.totalChunkRefs],
+      ['unique-chunks', stats.uniqueChunks],
+      ['duplicate-refs', stats.duplicateChunkRefs],
+      ['dedup-ratio', `${stats.dedupRatio.toFixed(2)}x`],
+      ['encrypted', stats.encryptedEntries],
+      ['envelope', stats.envelopeEntries],
+      ['compressed', stats.compressedEntries],
+      ['chunking', chunking],
+      ['largest', largest],
+    ]),
     '',
   ].join('\n');
 }
@@ -387,18 +400,20 @@ export async function inspectVaultHealth(cas) {
  */
 export function renderDoctorReport(report) {
   const lines = [
-    `status\t${report.status}`,
-    `vault\t${report.hasVault ? 'present' : 'missing'}`,
-    `commit\t${report.commitOid ?? '-'}`,
-    `entries\t${report.entryCount}`,
-    `checked\t${report.checkedEntries}`,
-    `valid\t${report.validEntries}`,
-    `invalid\t${report.invalidEntries}`,
-    `metadata\t${report.metadataEncrypted ? 'encrypted' : 'plain'}`,
-    `issues\t${report.issues.length}`,
-    `logical-size\t${formatBytes(report.stats.totalLogicalSize)} (${report.stats.totalLogicalSize} bytes)`,
-    `chunk-refs\t${report.stats.totalChunkRefs}`,
-    `unique-chunks\t${report.stats.uniqueChunks}`,
+    ...renderKeyValueLines([
+      ['status', report.status],
+      ['vault', report.hasVault ? 'present' : 'missing'],
+      ['commit', report.commitOid ?? '-'],
+      ['entries', report.entryCount],
+      ['checked', report.checkedEntries],
+      ['valid', report.validEntries],
+      ['invalid', report.invalidEntries],
+      ['metadata', report.metadataEncrypted ? 'encrypted' : 'plain'],
+      ['issues', report.issues.length],
+      ['logical-size', `${formatBytes(report.stats.totalLogicalSize)} (${report.stats.totalLogicalSize} bytes)`],
+      ['chunk-refs', report.stats.totalChunkRefs],
+      ['unique-chunks', report.stats.uniqueChunks],
+    ]),
     '',
   ];
 

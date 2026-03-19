@@ -8,7 +8,7 @@ import {
   createSplitPaneState, splitPaneFocusNext, splitPaneResizeBy,
   createCommandPaletteState, cpFilter, cpFocusNext, cpFocusPrev, cpPageDown, cpPageUp, cpSelectedItem, commandPaletteKeyMap,
 } from '@flyingrobots/bijou-tui';
-import { loadEntriesCmd, loadManifestCmd, loadStatsCmd, loadDoctorCmd, loadTreemapCmd, readSourceEntries } from './dashboard-cmds.js';
+import { loadEntriesCmd, loadManifestCmd, loadRefsCmd, loadStatsCmd, loadDoctorCmd, loadTreemapCmd, readSourceEntries } from './dashboard-cmds.js';
 import { createCliTuiContext, detectCliTuiMode } from './context.js';
 import { renderDashboard } from './dashboard-view.js';
 
@@ -25,6 +25,8 @@ import { renderDashboard } from './dashboard-view.js';
  * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
  * @typedef {import('./dashboard-cmds.js').TreemapScope} TreemapScope
  * @typedef {import('./dashboard-cmds.js').TreemapWorktreeMode} TreemapWorktreeMode
+ * @typedef {import('./dashboard-cmds.js').RefInventory} RefInventory
+ * @typedef {import('./dashboard-cmds.js').RefInventoryItem} RefInventoryItem
  * @typedef {{ slug: string, treeOid: string }} VaultEntry
  * @typedef {'error' | 'warning' | 'info' | 'success'} ToastLevel
  * @typedef {{ id: number, level: ToastLevel, title: string, message: string }} ToastRecord
@@ -45,6 +47,7 @@ import { renderDashboard } from './dashboard-view.js';
  *   | { type: 'open-stats' }
  *   | { type: 'open-doctor' }
  *   | { type: 'open-treemap' }
+ *   | { type: 'open-refs' }
  *   | { type: 'toggle-treemap-scope' }
  *   | { type: 'toggle-treemap-worktree' }
  *   | { type: 'overlay-close' }
@@ -62,13 +65,14 @@ import { renderDashboard } from './dashboard-view.js';
  */
 
 /**
- * @typedef {{ type: 'loaded-entries', entries: VaultEntry[], metadata: any }
- *   | { type: 'loaded-manifest', slug: string, manifest: Manifest }
- *   | { type: 'loaded-stats', stats: any }
- *   | { type: 'loaded-doctor', report: any }
+ * @typedef {{ type: 'loaded-entries', entries: VaultEntry[], metadata: any, source: DashSource }
+ *   | { type: 'loaded-manifest', slug: string, manifest: Manifest, source: DashSource }
+ *   | { type: 'loaded-refs', refs: RefInventory }
+ *   | { type: 'loaded-stats', stats: any, source: DashSource }
+ *   | { type: 'loaded-doctor', report: any, source: DashSource }
  *   | { type: 'loaded-treemap', report: any }
  *   | { type: 'dismiss-toast', id: number }
- *   | { type: 'load-error', source: string, slug?: string, scopeId?: TreemapScope, worktreeMode?: TreemapWorktreeMode, error: string }
+ *   | { type: 'load-error', source: string, slug?: string, forSource?: DashSource, scopeId?: TreemapScope, worktreeMode?: TreemapWorktreeMode, error: string }
  * } DashMsg
  */
 
@@ -77,6 +81,7 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {string} status
  * @property {number} columns
  * @property {number} rows
+ * @property {DashSource} source
  * @property {VaultEntry[]} entries
  * @property {VaultEntry[]} filtered
  * @property {string} filterText
@@ -87,9 +92,13 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {number} detailScroll
  * @property {string | null} error
  * @property {NavigableTableState} table
+ * @property {NavigableTableState} refsTable
+ * @property {RefInventoryItem[]} refsItems
  * @property {SplitPaneState} splitPane
  * @property {CommandPaletteState | null} palette
- * @property {'stats' | 'doctor' | 'treemap' | null} activeDrawer
+ * @property {'stats' | 'doctor' | 'treemap' | 'refs' | null} activeDrawer
+ * @property {LoadState} refsStatus
+ * @property {string | null} refsError
  * @property {LoadState} statsStatus
  * @property {any | null} statsReport
  * @property {string | null} statsError
@@ -140,6 +149,7 @@ export function createKeyBindings() {
     .bind('s', 'Stats', { type: 'open-stats' })
     .bind('g', 'Doctor', { type: 'open-doctor' })
     .bind('t', 'Treemap', { type: 'open-treemap' })
+    .bind('r', 'Refs', { type: 'open-refs' })
     .bind('shift+t', 'Treemap scope', { type: 'toggle-treemap-scope' })
     .bind('i', 'Treemap files', { type: 'toggle-treemap-worktree' })
     .bind('escape', 'Close overlay', { type: 'overlay-close' })
@@ -167,6 +177,13 @@ const TOAST_LIMIT = 4;
 const TOAST_TTL_MS = 6000;
 
 const PALETTE_ITEMS = [
+  {
+    id: 'refs',
+    label: 'Browse Refs',
+    description: 'List refs by namespace and switch the dashboard source to a CAS-backed ref',
+    category: 'View',
+    shortcut: 'r',
+  },
   {
     id: 'treemap',
     label: 'Open Repo Treemap',
@@ -333,6 +350,73 @@ function syncTable(table, updates = {}) {
 }
 
 /**
+ * Return true when two dashboard sources describe the same target.
+ *
+ * @param {DashSource} left
+ * @param {DashSource} right
+ * @returns {boolean}
+ */
+function sourceEquals(left, right) {
+  if (left.type !== right.type) {
+    return false;
+  }
+  if (left.type === 'vault') {
+    return true;
+  }
+  if (left.type === 'ref' && right.type === 'ref') {
+    return left.ref === right.ref;
+  }
+  return left.type === 'oid' && right.type === 'oid' && left.treeOid === right.treeOid;
+}
+
+/**
+ * Build rows for the refs browser table.
+ *
+ * @param {RefInventoryItem[]} refs
+ * @returns {string[][]}
+ */
+function buildRefRows(refs) {
+  return refs.map((ref) => [
+    ref.namespace,
+    ref.ref,
+    ref.browsable ? ref.resolution : 'opaque',
+    String(ref.entryCount),
+    ref.oid.slice(0, 12),
+  ]);
+}
+
+/**
+ * Synchronize refs-browser rows and viewport metrics after a model change.
+ *
+ * @param {NavigableTableState} table
+ * @param {{
+ *   refs?: RefInventoryItem[],
+ *   rows?: number,
+ *   focusRow?: number,
+ *   scrollY?: number,
+ * }} updates
+ * @returns {NavigableTableState}
+ */
+function syncRefsTable(table, updates = {}) {
+  const rows = buildRefRows(updates.refs ?? []);
+  const height = tableHeight(updates.rows ?? 24);
+  const focusRow = Math.max(0, Math.min(updates.focusRow ?? table.focusRow, rows.length - 1));
+  const scrollY = adjustTableScroll({
+    focusRow,
+    scrollY: updates.scrollY ?? table.scrollY,
+    height,
+    totalRows: rows.length,
+  });
+  return {
+    ...table,
+    rows,
+    height,
+    focusRow,
+    scrollY,
+  };
+}
+
+/**
  * Palette viewport height based on terminal rows.
  *
  * @param {number} rows
@@ -411,6 +495,43 @@ function isStaleTreemapLoad(msg, model) {
 }
 
 /**
+ * Return true when a load/error message was emitted for a source that is no
+ * longer active on the dashboard.
+ *
+ * @param {{ forSource?: DashSource }} msg
+ * @param {DashModel} model
+ * @returns {boolean}
+ */
+function isStaleSourceLoad(msg, model) {
+  return Boolean(msg.forSource) && !sourceEquals(msg.forSource, model.source);
+}
+
+/**
+ * Apply load/error state for source-scoped async operations.
+ *
+ * @param {DashMsg & { type: 'load-error' }} msg
+ * @param {DashModel} model
+ * @returns {DashModel}
+ */
+function applySourceLoadErrorState(msg, model) {
+  if (msg.source === 'entries') {
+    return isStaleSourceLoad(msg, model) ? model : { ...model, status: 'error', error: msg.error };
+  }
+  if (msg.source === 'manifest') {
+    return isStaleSourceLoad(msg, model)
+      ? model
+      : { ...model, loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug };
+  }
+  if (msg.source === 'stats') {
+    return isStaleSourceLoad(msg, model) ? model : { ...model, statsStatus: 'error', statsError: msg.error };
+  }
+  if (msg.source === 'doctor') {
+    return isStaleSourceLoad(msg, model) ? model : { ...model, doctorStatus: 'error', doctorError: msg.error };
+  }
+  return model;
+}
+
+/**
  * Apply state changes caused by an async load error.
  *
  * @param {DashMsg & { type: 'load-error' }} msg
@@ -418,18 +539,16 @@ function isStaleTreemapLoad(msg, model) {
  * @returns {DashModel}
  */
 function applyLoadErrorState(msg, model) {
-  switch (msg.source) {
-    case 'manifest':
-      return { ...model, loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug };
-    case 'stats':
-      return { ...model, statsStatus: 'error', statsError: msg.error };
-    case 'doctor':
-      return { ...model, doctorStatus: 'error', doctorError: msg.error };
-    case 'treemap':
-      return isStaleTreemapLoad(msg, model) ? model : { ...model, treemapStatus: 'error', treemapError: msg.error };
-    default:
-      return { ...model, status: 'error', error: msg.error };
+  if (msg.source === 'refs') {
+    return { ...model, refsStatus: 'error', refsError: msg.error };
   }
+  if (msg.source === 'treemap') {
+    return isStaleTreemapLoad(msg, model) ? model : { ...model, treemapStatus: 'error', treemapError: msg.error };
+  }
+  if (['entries', 'manifest', 'stats', 'doctor'].includes(msg.source)) {
+    return applySourceLoadErrorState(msg, model);
+  }
+  return { ...model, status: 'error', error: msg.error };
 }
 
 /**
@@ -448,6 +567,9 @@ function loadErrorTitle(msg) {
   if (msg.source === 'doctor') {
     return 'Failed to load doctor report';
   }
+  if (msg.source === 'refs') {
+    return 'Failed to load refs';
+  }
   if (msg.source === 'treemap') {
     return 'Failed to load repo treemap';
   }
@@ -455,21 +577,53 @@ function loadErrorTitle(msg) {
 }
 
 /**
+ * Create the initial explorer table state.
+ *
+ * @param {number} rows
+ * @returns {NavigableTableState}
+ */
+function createInitTable(rows) {
+  return createNavigableTableState({
+    columns: TABLE_COLUMNS,
+    rows: [],
+    height: tableHeight(rows),
+  });
+}
+
+/**
+ * Create the initial refs-browser table state.
+ *
+ * @param {number} rows
+ * @returns {NavigableTableState}
+ */
+function createInitRefsTable(rows) {
+  return createNavigableTableState({
+    columns: [
+      { header: 'Namespace', width: 14 },
+      { header: 'Ref', width: 34 },
+      { header: 'Kind', width: 10 },
+      { header: 'Entries', width: 7, align: 'right' },
+      { header: 'OID', width: 12 },
+    ],
+    rows: [],
+    height: tableHeight(rows),
+  });
+}
+
+/**
  * Create the initial model.
  *
  * @param {BijouContext} ctx
+ * @param {DashSource} source
  * @returns {DashModel}
  */
-function createInitModel(ctx) {
-  const table = createNavigableTableState({
-    columns: TABLE_COLUMNS,
-    rows: [],
-    height: tableHeight(ctx.runtime.rows ?? 24),
-  });
+function createInitModel(ctx, source) {
+  const rows = ctx.runtime.rows ?? 24;
   return {
     status: 'loading',
     columns: ctx.runtime.columns ?? 80,
-    rows: ctx.runtime.rows ?? 24,
+    rows,
+    source,
     entries: [],
     filtered: [],
     filterText: '',
@@ -479,10 +633,14 @@ function createInitModel(ctx) {
     loadingSlug: null,
     detailScroll: 0,
     error: null,
-    table,
+    table: createInitTable(rows),
+    refsTable: createInitRefsTable(rows),
+    refsItems: [],
     splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
     palette: null,
     activeDrawer: null,
+    refsStatus: 'idle',
+    refsError: null,
     statsStatus: 'idle',
     statsReport: null,
     statsError: null,
@@ -497,6 +655,33 @@ function createInitModel(ctx) {
     toasts: [],
     nextToastId: 1,
   };
+}
+
+/**
+ * Handle actions that are specific to full-screen refs mode.
+ *
+ * @param {DashAction} action
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]] | null}
+ */
+function handleRefsViewAction(action, model, deps) {
+  if (model.activeDrawer !== 'refs') {
+    return null;
+  }
+  if (action.type === 'move') {
+    return handleRefsMove(action, model);
+  }
+  if (action.type === 'page') {
+    return handleRefsPage(action, model);
+  }
+  if (action.type === 'select') {
+    return handleRefSelect(model, deps);
+  }
+  if (isBlockedByTreemapView(action)) {
+    return [model, []];
+  }
+  return null;
 }
 
 /**
@@ -520,13 +705,20 @@ function applyFilter(entries, text) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function handleLoadedEntries(msg, model, cas) {
+  if (!sourceEquals(msg.source, model.source)) {
+    return [model, []];
+  }
   const filtered = applyFilter(msg.entries, model.filterText);
   const table = syncTable(model.table, {
     entries: filtered,
     manifestCache: model.manifestCache,
     rows: model.rows,
   });
-  const cmds = /** @type {DashCmd[]} */ (msg.entries.map((/** @type {VaultEntry} */ e) => loadManifestCmd(cas, e.slug, e.treeOid)));
+  const cmds = /** @type {DashCmd[]} */ (msg.entries.map((/** @type {VaultEntry} */ e) => loadManifestCmd(cas, {
+    slug: e.slug,
+    treeOid: e.treeOid,
+    source: msg.source,
+  })));
   return [{
     ...model,
     status: 'ready',
@@ -546,6 +738,9 @@ function handleLoadedEntries(msg, model, cas) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function handleLoadedManifest(msg, model) {
+  if (!sourceEquals(msg.source, model.source)) {
+    return [model, []];
+  }
   const cache = new Map(model.manifestCache);
   cache.set(msg.slug, msg.manifest);
   const table = syncTable(model.table, {
@@ -638,12 +833,40 @@ function handleSelect(model, deps) {
   if (model.manifestCache.has(entry.slug)) {
     return [{ ...model, splitPane: { ...model.splitPane, focused: 'b' } }, []];
   }
-  const cmd = /** @type {DashCmd} */ (loadManifestCmd(deps.cas, entry.slug, entry.treeOid));
+  const cmd = /** @type {DashCmd} */ (loadManifestCmd(deps.cas, {
+    slug: entry.slug,
+    treeOid: entry.treeOid,
+    source: model.source,
+  }));
   return [{
     ...model,
     loadingSlug: entry.slug,
     splitPane: { ...model.splitPane, focused: 'b' },
   }, [cmd]];
+}
+
+/**
+ * Open the refs browser and trigger a load when needed.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function openRefsDrawer(model, deps) {
+  if (model.refsStatus === 'ready' || model.refsStatus === 'loading') {
+    return [{
+      ...model,
+      activeDrawer: 'refs',
+      palette: null,
+    }, []];
+  }
+  return [{
+    ...model,
+    activeDrawer: 'refs',
+    palette: null,
+    refsStatus: 'loading',
+    refsError: null,
+  }, [/** @type {DashCmd} */ (loadRefsCmd(deps.cas))]];
 }
 
 /**
@@ -667,7 +890,7 @@ function openStatsDrawer(model, deps) {
     palette: null,
     statsStatus: 'loading',
     statsError: null,
-  }, [/** @type {DashCmd} */ (loadStatsCmd(deps.cas, model.entries))]];
+  }, [/** @type {DashCmd} */ (loadStatsCmd(deps.cas, model.entries, model.source))]];
 }
 
 /**
@@ -691,7 +914,7 @@ function openDoctorDrawer(model, deps) {
     palette: null,
     doctorStatus: 'loading',
     doctorError: null,
-  }, [/** @type {DashCmd} */ (loadDoctorCmd(deps.cas, deps.source, model.entries))]];
+  }, [/** @type {DashCmd} */ (loadDoctorCmd(deps.cas, model.source, model.entries))]];
 }
 
 /**
@@ -723,7 +946,7 @@ function openTreemapDrawer(model, deps) {
     treemapStatus: 'loading',
     treemapError: null,
   }, [/** @type {DashCmd} */ (loadTreemapCmd(deps.cas, {
-    source: deps.source,
+    source: model.source,
     scope: model.treemapScope,
     worktreeMode: model.treemapWorktreeMode,
   }))]];
@@ -756,7 +979,7 @@ function toggleTreemapScope(model, deps) {
     treemapStatus: 'loading',
     treemapError: null,
   }, [/** @type {DashCmd} */ (loadTreemapCmd(deps.cas, {
-    source: deps.source,
+    source: model.source,
     scope: treemapScope,
     worktreeMode: model.treemapWorktreeMode,
   }))]];
@@ -793,7 +1016,7 @@ function toggleTreemapWorktreeMode(model, deps) {
     treemapStatus: 'loading',
     treemapError: null,
   }, [/** @type {DashCmd} */ (loadTreemapCmd(deps.cas, {
-    source: deps.source,
+    source: model.source,
     scope: 'repository',
     worktreeMode: treemapWorktreeMode,
   }))]];
@@ -848,6 +1071,104 @@ function closeDrawerFromPalette(model) {
 }
 
 /**
+ * Switch the dashboard to a new source and reload explorer entries for it.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {DashSource} source
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function switchSource(model, deps, source) {
+  if (sourceEquals(model.source, source)) {
+    return [{
+      ...model,
+      palette: null,
+      activeDrawer: null,
+    }, []];
+  }
+  const clearedTable = syncTable(model.table, {
+    entries: [],
+    manifestCache: new Map(),
+    rows: model.rows,
+    focusRow: 0,
+    scrollY: 0,
+  });
+  return [{
+    ...model,
+    palette: null,
+    activeDrawer: null,
+    source,
+    status: 'loading',
+    entries: [],
+    filtered: [],
+    filterText: '',
+    filtering: false,
+    metadata: null,
+    manifestCache: new Map(),
+    loadingSlug: null,
+    detailScroll: 0,
+    error: null,
+    table: clearedTable,
+    splitPane: { ...model.splitPane, focused: 'a' },
+    statsStatus: 'idle',
+    statsReport: null,
+    statsError: null,
+    doctorStatus: 'idle',
+    doctorReport: null,
+    doctorError: null,
+    treemapStatus: 'idle',
+    treemapReport: null,
+    treemapError: null,
+  }, [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas, source))]];
+}
+
+/**
+ * Handle cursor movement inside the refs browser.
+ *
+ * @param {{ type: 'move', delta: number }} action
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleRefsMove(action, model) {
+  const refsTable = action.delta > 0 ? navTableFocusNext(model.refsTable) : navTableFocusPrev(model.refsTable);
+  return [{ ...model, refsTable }, []];
+}
+
+/**
+ * Handle page-wise movement inside the refs browser.
+ *
+ * @param {{ type: 'page', delta: number }} action
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleRefsPage(action, model) {
+  const refsTable = action.delta > 0 ? navTablePageDown(model.refsTable) : navTablePageUp(model.refsTable);
+  return [{ ...model, refsTable }, []];
+}
+
+/**
+ * Switch the dashboard source to the focused ref when it resolves to CAS data.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleRefSelect(model, deps) {
+  const ref = model.refsItems[model.refsTable.focusRow];
+  if (!ref) {
+    return [model, []];
+  }
+  if (!ref.browsable || !ref.source) {
+    return addToast(model, {
+      level: 'warning',
+      title: 'Ref is not browsable',
+      message: `${ref.ref} does not currently resolve to CAS entries.`,
+    });
+  }
+  return switchSource(model, deps, ref.source);
+}
+
+/**
  * Apply the focused command palette item.
  *
  * @param {DashModel} model
@@ -860,6 +1181,7 @@ function handlePaletteSelect(model, deps) {
     return [{ ...model, palette: null }, []];
   }
   const handlers = {
+    refs: () => openRefsDrawer(model, deps),
     treemap: () => openTreemapDrawer(model, deps),
     'treemap-scope': () => toggleTreemapScope(model, deps),
     'treemap-worktree': () => toggleTreemapWorktreeMode(model, deps),
@@ -1008,6 +1330,9 @@ function handleOverlayAction(action, model, deps) {
   if (action.type === 'open-doctor') {
     return openDoctorDrawer(model, deps);
   }
+  if (action.type === 'open-refs') {
+    return openRefsDrawer(model, deps);
+  }
   if (action.type === 'open-treemap') {
     return openTreemapDrawer(model, deps);
   }
@@ -1096,6 +1421,10 @@ function handlePrimaryAction(action, model, deps) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function handleAction(action, model, deps) {
+  const refsResult = handleRefsViewAction(action, model, deps);
+  if (refsResult) {
+    return refsResult;
+  }
   if (model.activeDrawer === 'treemap' && isBlockedByTreemapView(action)) {
     return [model, []];
   }
@@ -1118,7 +1447,24 @@ function handleAction(action, model, deps) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function handleLoadedReport(msg, model) {
+  if (msg.type === 'loaded-refs') {
+    return [{
+      ...model,
+      refsStatus: 'ready',
+      refsItems: msg.refs.refs,
+      refsError: null,
+      refsTable: syncRefsTable(model.refsTable, {
+        refs: msg.refs.refs,
+        rows: model.rows,
+        focusRow: 0,
+        scrollY: 0,
+      }),
+    }, []];
+  }
   if (msg.type === 'loaded-stats') {
+    if (!sourceEquals(msg.source, model.source)) {
+      return [model, []];
+    }
     return [{
       ...model,
       statsStatus: 'ready',
@@ -1127,6 +1473,9 @@ function handleLoadedReport(msg, model) {
     }, []];
   }
   if (msg.type === 'loaded-doctor') {
+    if (!sourceEquals(msg.source, model.source)) {
+      return [model, []];
+    }
     return [{
       ...model,
       doctorStatus: 'ready',
@@ -1156,6 +1505,9 @@ function handleLoadedReport(msg, model) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function handleLoadError(msg, model) {
+  if (isStaleSourceLoad(msg, model)) {
+    return [model, []];
+  }
   if (msg.source === 'treemap' && isStaleTreemapLoad(msg, model)) {
     return [model, []];
   }
@@ -1208,13 +1560,17 @@ function handleUpdate(msg, model, deps) {
       manifestCache: model.manifestCache,
       rows: msg.rows,
     });
+    const refsTable = syncRefsTable(model.refsTable, {
+      refs: model.refsItems,
+      rows: msg.rows,
+    });
     const palette = model.palette
       ? {
         ...model.palette,
         height: paletteHeight(msg.rows),
       }
       : null;
-    return [{ ...model, columns: msg.columns, rows: msg.rows, table, palette }, []];
+    return [{ ...model, columns: msg.columns, rows: msg.rows, table, refsTable, palette }, []];
   }
   return handleAppMsg(/** @type {DashMsg} */ (msg), model, deps.cas);
 }
@@ -1227,7 +1583,7 @@ function handleUpdate(msg, model, deps) {
  * @returns {boolean}
  */
 function treemapReportMatches(model, report) {
-  if (!report || report.scope !== model.treemapScope) {
+  if (!report || report.scope !== model.treemapScope || !sourceEquals(report.source, model.source)) {
     return false;
   }
   if (report.scope !== 'repository') {
@@ -1244,7 +1600,7 @@ function treemapReportMatches(model, report) {
  */
 export function createDashboardApp(deps) {
   return {
-    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(deps.ctx), [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas, deps.source))]]),
+    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(deps.ctx, deps.source), [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas, deps.source))]]),
     update: (/** @type {KeyMsg | ResizeMsg | DashMsg} */ msg, /** @type {DashModel} */ model) => handleUpdate(msg, model, deps),
     view: (/** @type {DashModel} */ model) => renderDashboard(model, deps),
   };

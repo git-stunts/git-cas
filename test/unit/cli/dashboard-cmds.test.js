@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { buildRepoTreemapReport, readSourceEntries } from '../../../bin/ui/dashboard-cmds.js';
+import { buildRepoTreemapReport, readRefInventory, readSourceEntries } from '../../../bin/ui/dashboard-cmds.js';
 
 function makePersistence(overrides = {}) {
   return {
@@ -112,7 +112,36 @@ function makeRepositoryTreemapCas(plumbing) {
     listVault: vi.fn().mockResolvedValue([{ slug: 'vault:alpha', treeOid: 'vault-tree' }]),
     getVaultMetadata: vi.fn().mockResolvedValue(null),
     readManifest: vi.fn().mockImplementation(async ({ treeOid }) => readTreemapManifest(treeOid)),
-    getService: vi.fn().mockResolvedValue({ persistence: { plumbing } }),
+    getService: vi.fn().mockResolvedValue({
+      persistence: {
+        plumbing,
+        readBlob: vi.fn(async (oid) => {
+          if (oid === 'index-blob') {
+            return Buffer.from(JSON.stringify({
+              entries: {
+                alpha: { treeOid: 'source-tree' },
+                bravo: { treeOid: 'vault-tree' },
+              },
+            }));
+          }
+          throw new Error(`unknown blob ${oid}`);
+        }),
+      },
+    }),
+    getVaultService: vi.fn().mockResolvedValue({
+      ref: {
+        resolveRef: vi.fn(async (ref) => {
+          if (ref === 'refs/heads/main') {
+            return 'plain-commit';
+          }
+          if (ref === 'refs/warp/demo/seek-cache') {
+            return 'index-blob';
+          }
+          throw new Error(`unknown ref ${ref}`);
+        }),
+        resolveTree: vi.fn().mockRejectedValue(new Error('not a cas tree')),
+      },
+    }),
   };
 }
 
@@ -272,7 +301,7 @@ describe('buildRepoTreemapReport repository scope', () => {
     expect(labels).toEqual(expect.arrayContaining([
       'README.md',
       'src',
-      '.git/objects',
+      '.git/objects/pack-1',
       'refs/heads',
       'refs/warp',
       'vault',
@@ -280,6 +309,7 @@ describe('buildRepoTreemapReport repository scope', () => {
     ]));
     expect(labels).not.toContain('node_modules');
     expect(report.notes).toEqual(expect.arrayContaining([
+      expect.stringContaining('Press r to browse refs'),
       expect.stringContaining('git ls-files'),
     ]));
   });
@@ -312,6 +342,44 @@ describe('buildRepoTreemapReport source scope', () => {
         kind: 'cas',
       }),
     ]);
-    expect(report.notes[0]).toContain('logical manifest size');
+    expect(report.notes).toEqual(expect.arrayContaining([
+      expect.stringContaining('Loaded 1 source entry'),
+      expect.stringContaining('logical manifest size'),
+    ]));
+  });
+});
+
+describe('readRefInventory', () => {
+  it('classifies refs by namespace and marks CAS-backed refs as browsable', async () => {
+    const { report } = await buildRepositoryReport();
+    const repoDir = report.cwd;
+    const plumbing = makePlumbing(repoDir, makeRepoExec(repoDir, {
+      showRefOutput: [
+        '1111111111111111111111111111111111111111 refs/heads/main',
+        '2222222222222222222222222222222222222222 refs/warp/demo/seek-cache',
+      ].join('\n'),
+      trackedPaths: ['README.md', 'src/app.js'],
+      ignoredPaths: ['node_modules/', 'coverage/'],
+    }));
+    const cas = makeRepositoryTreemapCas(plumbing);
+
+    const inventory = await readRefInventory(cas);
+
+    expect(inventory.namespaces).toEqual(expect.arrayContaining([
+      expect.objectContaining({ namespace: 'refs/heads', count: 1 }),
+      expect.objectContaining({ namespace: 'refs/warp', count: 1, browsable: 1 }),
+    ]));
+    expect(inventory.refs).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        ref: 'refs/warp/demo/seek-cache',
+        browsable: true,
+        resolution: 'index',
+        entryCount: 2,
+      }),
+      expect.objectContaining({
+        ref: 'refs/heads/main',
+        browsable: false,
+      }),
+    ]));
   });
 });

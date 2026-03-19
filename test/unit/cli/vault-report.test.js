@@ -117,11 +117,12 @@ describe('renderVaultStats', () => {
       largestEntry: { slug: 'photos/hero.jpg', size: 1000 },
     });
 
-    expect(output).toContain('entries\t2');
-    expect(output).toContain('logical-size\t1.6 KiB (1600 bytes)');
-    expect(output).toContain('dedup-ratio\t1.33x');
-    expect(output).toContain('chunking\tcdc:1, fixed:1');
-    expect(output).toContain('largest\tphotos/hero.jpg (1000 bytes)');
+    expect(output).toMatch(/entries\s+2/);
+    expect(output).toMatch(/logical-size\s+1\.6 KiB \(1600 bytes\)/);
+    expect(output).toMatch(/dedup-ratio\s+1\.33x/);
+    expect(output).toMatch(/chunking\s+cdc:1, fixed:1/);
+    expect(output).toMatch(/largest\s+photos\/hero\.jpg \(1000 bytes\)/);
+    expect(output).not.toContain('\t');
   });
 });
 
@@ -211,9 +212,10 @@ describe('renderDoctorReport', () => {
       ],
     });
 
-    expect(output).toContain('status\tfail');
-    expect(output).toContain('vault\tpresent');
-    expect(output).toContain('issues\t1');
+    expect(output).toMatch(/status\s+fail/);
+    expect(output).toMatch(/vault\s+present/);
+    expect(output).toMatch(/issues\s+1/);
     expect(output).toContain('[entry] bad/asset (tree-2) MANIFEST_NOT_FOUND: manifest missing');
+    expect(output).not.toContain('\t');
   });
 });

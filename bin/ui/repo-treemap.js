@@ -452,15 +452,24 @@ function renderDetails(tiles, options) {
  * @returns {string[]}
  */
 function renderOverview(report, width) {
-  const worktreeLabel = report.scope === 'repository'
-    ? `${report.worktreeMode} paths ${report.summary.worktreePaths}`
-    : 'logical source weighting';
+  if (report.scope === 'source') {
+    return [
+      clip(`scope ${report.scope}`, width),
+      clip(`source ${sourceLabel(report.source)}`, width),
+      clip(`root ${tailClip(report.cwd, Math.max(1, width - 5))}`, width),
+      clip(`total ${formatBytes(report.totalValue)}`, width),
+      clip('logical source weighting', width),
+      clip(`source entries ${report.summary.sourceEntries}`, width),
+      clip(`vault entries ${report.summary.vaultEntries}`, width),
+    ];
+  }
+
   return [
     clip(`scope ${report.scope}`, width),
     clip(`source ${sourceLabel(report.source)}`, width),
     clip(`root ${tailClip(report.cwd, Math.max(1, width - 5))}`, width),
     clip(`total ${formatBytes(report.totalValue)}`, width),
-    clip(worktreeLabel, width),
+    clip(`${report.worktreeMode} paths ${report.summary.worktreePaths}`, width),
     clip(`worktree regions ${report.summary.worktreeItems}`, width),
     clip(`refs ${report.summary.refCount} in ${report.summary.refNamespaces} namespaces`, width),
     clip(`vault ${report.summary.vaultEntries}  source ${report.summary.sourceEntries}`, width),

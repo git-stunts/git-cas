@@ -11,8 +11,24 @@ import { buildVaultStats, inspectVaultHealth } from './vault-report.js';
 /** @typedef {{ slug: string, treeOid: string }} ExplorerEntry */
 /** @typedef {'repository' | 'source'} TreemapScope */
 /** @typedef {'tracked' | 'ignored'} TreemapWorktreeMode */
+/** @typedef {'oid' | 'manifest' | 'tree' | 'index' | 'hint' | 'opaque'} RefResolutionKind */
 /** @typedef {'worktree' | 'git' | 'ref' | 'vault' | 'cas' | 'meta'} RepoTreemapKind */
 /** @typedef {{ label: string, kind: RepoTreemapKind, value: number, detail: string }} RepoTreemapTile */
+/** @typedef {{
+ *   ref: string,
+ *   oid: string,
+ *   namespace: string,
+ *   browsable: boolean,
+ *   resolution: RefResolutionKind,
+ *   entryCount: number,
+ *   detail: string,
+ *   previewSlugs: string[],
+ *   source: Extract<DashSource, { type: 'ref' }> | null,
+ * }} RefInventoryItem */
+/** @typedef {{
+ *   namespaces: Array<{ namespace: string, count: number, browsable: number }>,
+ *   refs: RefInventoryItem[],
+ * }} RefInventory */
 /** @typedef {{
  *   scope: TreemapScope,
  *   worktreeMode: TreemapWorktreeMode,
@@ -33,6 +49,20 @@ import { buildVaultStats, inspectVaultHealth } from './vault-report.js';
  *   }
  * }} RepoTreemapReport
  */
+
+/**
+ * Namespace bucket label for a git ref.
+ *
+ * @param {string} ref
+ * @returns {string}
+ */
+function refNamespace(ref) {
+  const parts = ref.split('/');
+  if (parts[0] === 'refs' && parts[1]) {
+    return `refs/${parts[1]}`;
+  }
+  return parts[0] || ref;
+}
 
 /**
  * Compact OID label for human-facing rows.
@@ -56,6 +86,32 @@ function singleEntrySource(slug, treeOid) {
     entries: [{ slug, treeOid }],
     metadata: null,
   };
+}
+
+/**
+ * Describe how a ref resolved into CAS entries.
+ *
+ * @param {RefResolutionKind} resolution
+ * @param {{ entries: ExplorerEntry[], resolvedOid?: string, targetTreeOid?: string | null }} result
+ * @returns {string}
+ */
+function describeResolution(resolution, result) {
+  const entryLabel = `${result.entries.length} CAS entr${result.entries.length === 1 ? 'y' : 'ies'}`;
+  const target = shortOid(result.targetTreeOid ?? result.resolvedOid ?? '');
+  switch (resolution) {
+    case 'manifest':
+      return `direct manifest tree ${target}`;
+    case 'tree':
+      return `commit/tree target ${target}`;
+    case 'index':
+      return `${entryLabel} from index blob`;
+    case 'hint':
+      return `manifest hint ${target}`;
+    case 'oid':
+      return `direct CAS tree ${target}`;
+    default:
+      return entryLabel;
+  }
 }
 
 /**
@@ -295,6 +351,51 @@ async function scanDirectoryTiles(directory, kind, labelFor) {
 }
 
 /**
+ * Read semantic git-dir tiles, expanding `.git/objects` one more level so the
+ * repository view can show pack, info, and loose-object fanout buckets instead
+ * of collapsing everything into one opaque rectangle.
+ *
+ * @param {{ gitDir: string, bare: boolean }} repo
+ * @returns {Promise<RepoTreemapTile[]>}
+ */
+async function readGitDirTiles(repo) {
+  let entries;
+  try {
+    entries = await readdir(repo.gitDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  /** @type {RepoTreemapTile[]} */
+  const tiles = [];
+
+  for (const entry of entries) {
+    if (entry.name === 'refs') {
+      continue;
+    }
+
+    const entryPath = path.join(repo.gitDir, entry.name);
+    if (entry.name === 'objects') {
+      const objectTiles = await scanDirectoryTiles(entryPath, 'git', (name) => repo.bare ? `objects/${name}` : `.git/objects/${name}`);
+      if (objectTiles.length > 0) {
+        tiles.push(...objectTiles);
+        continue;
+      }
+    }
+
+    const value = await measurePathBytes(entryPath);
+    tiles.push({
+      label: repo.bare ? entry.name : `.git/${entry.name}`,
+      kind: 'git',
+      value: Math.max(1, value),
+      detail: `${formatBytes(value)} on disk`,
+    });
+  }
+
+  return tiles.sort((left, right) => right.value - left.value || left.label.localeCompare(right.label));
+}
+
+/**
  * Group refs by their top-level namespace.
  *
  * @param {{ execute: ({ args }: { args: string[] }) => Promise<string> }} plumbing
@@ -311,8 +412,7 @@ async function readRefNamespaceTiles(plumbing) {
   const namespaces = new Map();
   for (const line of output.split('\n').map((row) => row.trim()).filter(Boolean)) {
     const [, ref = ''] = line.split(' ');
-    const parts = ref.split('/');
-    const label = parts[0] === 'refs' && parts[1] ? `refs/${parts[1]}` : ref;
+    const label = refNamespace(ref);
     namespaces.set(label, (namespaces.get(label) ?? 0) + 1);
   }
 
@@ -419,6 +519,24 @@ function aggregateLogicalTile(label, kind, records) {
 }
 
 /**
+ * Build repository-scope notes.
+ *
+ * @param {{ gitDir: string, bare: boolean }} repo
+ * @param {TreemapWorktreeMode} worktreeMode
+ * @returns {string[]}
+ */
+function buildRepositoryNotes(repo, worktreeMode) {
+  return [
+    'Repository view mixes Git-reported worktree paths, .git on-disk bytes, and logical CAS region sizes.',
+    'Press r to browse refs and switch the dashboard source to a CAS-backed ref.',
+    repo.bare
+      ? 'Bare repository: worktree regions are omitted.'
+      : `Worktree mode ${worktreeMode} via ${worktreeMode === 'tracked' ? 'git ls-files' : 'git ls-files --others --ignored --exclude-standard'}.`,
+    `Git dir ${repo.gitDir}`,
+  ];
+}
+
+/**
  * Build the source-focused treemap report.
  *
  * @param {{
@@ -445,6 +563,9 @@ function buildSourceScopeReport({ repo, source, sourceResult, sourceRecords }) {
       detail: 'No CAS entries resolved for this source',
     }],
     notes: [
+      sourceResult.entries.length === 0
+        ? `No CAS entries resolved for ${source.type === 'vault' ? 'the vault' : source.type === 'ref' ? source.ref : source.treeOid}. Press r to browse refs or T to return to repository scope.`
+        : `Loaded ${sourceResult.entries.length} source entr${sourceResult.entries.length === 1 ? 'y' : 'ies'} for ${source.type === 'vault' ? 'the vault' : source.type === 'ref' ? source.ref : source.treeOid}.`,
       'Source view weights tiles by logical manifest size.',
     ],
     summary: {
@@ -476,7 +597,7 @@ function buildSourceScopeReport({ repo, source, sourceResult, sourceRecords }) {
  */
 async function buildRepositoryScopeReport({ cas, source, repo, plumbing, sourceResult, sourceRecords, worktreeMode }) {
   const { tiles: worktreeTiles, pathCount: worktreePaths } = await readWorktreeTiles({ plumbing, repo, worktreeMode });
-  const gitTiles = await scanDirectoryTiles(repo.gitDir, 'git', (name) => repo.bare ? name : `.git/${name}`);
+  const gitTiles = await readGitDirTiles(repo);
   const { tiles: refTiles, totalRefs } = await readRefNamespaceTiles(plumbing);
   const vaultResult = source.type === 'vault' ? sourceResult : await readSourceEntries(cas, { type: 'vault' });
   const vaultRecords = source.type === 'vault' ? sourceRecords : await loadEntryRecords(cas, vaultResult.entries);
@@ -491,27 +612,19 @@ async function buildRepositoryScopeReport({ cas, source, repo, plumbing, sourceR
     ...(vaultTile ? [vaultTile] : []),
     ...(activeSourceTile ? [activeSourceTile] : []),
   ]);
-  const totalValue = tiles.reduce((sum, tile) => sum + tile.value, 0);
-
   return {
     scope: 'repository',
     worktreeMode,
     cwd: repo.cwd,
     source,
-    totalValue,
+    totalValue: tiles.reduce((sum, tile) => sum + tile.value, 0),
     tiles: tiles.length > 0 ? tiles : [{
       label: 'empty repo',
       kind: 'meta',
       value: 1,
       detail: 'No worktree, ref, or CAS regions were detected',
     }],
-    notes: [
-      'Repository view mixes Git-reported worktree paths, .git on-disk bytes, and logical CAS region sizes.',
-      repo.bare
-        ? 'Bare repository: worktree regions are omitted.'
-        : `Worktree mode ${worktreeMode} via ${worktreeMode === 'tracked' ? 'git ls-files' : 'git ls-files --others --ignored --exclude-standard'}.`,
-      `Git dir ${repo.gitDir}`,
-    ],
+    notes: buildRepositoryNotes(repo, worktreeMode),
     summary: {
       bare: repo.bare,
       gitDir: repo.gitDir,
@@ -523,6 +636,61 @@ async function buildRepositoryScopeReport({ cas, source, repo, plumbing, sourceR
       sourceEntries: sourceResult.entries.length,
     },
   };
+}
+
+/**
+ * Convert one `show-ref` line into a browsable or opaque ref record.
+ *
+ * @param {ContentAddressableStore} cas
+ * @param {{ service: { persistence: any }, vault: { ref: any } }} ports
+ * @param {string} line
+ * @returns {Promise<RefInventoryItem>}
+ */
+async function classifyRefLine(cas, ports, line) {
+  const [oid = '', ref = ''] = line.split(' ');
+  try {
+    const result = await resolveSourceDetailed(cas, { type: 'ref', ref }, ports);
+    return {
+      ref,
+      oid,
+      namespace: refNamespace(ref),
+      browsable: true,
+      resolution: result.resolution,
+      entryCount: result.entries.length,
+      detail: describeResolution(result.resolution, result),
+      previewSlugs: result.entries.slice(0, 3).map((entry) => entry.slug),
+      source: { type: 'ref', ref },
+    };
+  } catch (error) {
+    return {
+      ref,
+      oid,
+      namespace: refNamespace(ref),
+      browsable: false,
+      resolution: 'opaque',
+      entryCount: 0,
+      detail: error instanceof Error ? error.message : String(error),
+      previewSlugs: [],
+      source: null,
+    };
+  }
+}
+
+/**
+ * Summarize per-namespace ref counts.
+ *
+ * @param {RefInventoryItem[]} refs
+ * @returns {Array<{ namespace: string, count: number, browsable: number }>}
+ */
+function summarizeRefNamespaces(refs) {
+  const namespaceMap = new Map();
+  for (const ref of refs) {
+    const bucket = namespaceMap.get(ref.namespace) ?? { namespace: ref.namespace, count: 0, browsable: 0 };
+    bucket.count += 1;
+    bucket.browsable += ref.browsable ? 1 : 0;
+    namespaceMap.set(ref.namespace, bucket);
+  }
+  return Array.from(namespaceMap.values()).sort((left, right) => right.count - left.count || left.namespace.localeCompare(right.namespace));
 }
 
 /**
@@ -672,6 +840,94 @@ async function tryReadManifestHint(persistence, oid) {
 }
 
 /**
+ * Resolve a direct OID source.
+ *
+ * @param {Extract<DashSource, { type: 'oid' }>} source
+ * @returns {{ entries: ExplorerEntry[], metadata: any, resolution: RefResolutionKind, targetTreeOid: string }}
+ */
+function resolveOidSourceDetailed(source) {
+  return {
+    ...singleEntrySource(`oid:${shortOid(source.treeOid)}`, source.treeOid),
+    resolution: 'oid',
+    targetTreeOid: source.treeOid,
+  };
+}
+
+/**
+ * Resolve a ref source into CAS entries.
+ *
+ * @param {ContentAddressableStore} cas
+ * @param {Extract<DashSource, { type: 'ref' }>} source
+ * @param {{ service: { persistence: any }, vault: { ref: any } }} ports
+ * @returns {Promise<{ entries: ExplorerEntry[], metadata: any, resolution: RefResolutionKind, resolvedOid: string, targetTreeOid?: string | null }>}
+ */
+async function resolveRefSourceDetailed(cas, source, ports) {
+  const { service, vault } = ports;
+  const resolvedOid = await vault.ref.resolveRef(source.ref);
+
+  if (await canReadManifest(cas, resolvedOid)) {
+    return {
+      ...singleEntrySource(source.ref, resolvedOid),
+      resolution: 'manifest',
+      resolvedOid,
+      targetTreeOid: resolvedOid,
+    };
+  }
+
+  const treeOid = await tryResolveTree(vault.ref, resolvedOid);
+  if (treeOid && await canReadManifest(cas, treeOid)) {
+    return {
+      ...singleEntrySource(`${source.ref}^{tree}`, treeOid),
+      resolution: 'tree',
+      resolvedOid,
+      targetTreeOid: treeOid,
+    };
+  }
+
+  const indexed = extractJsonEntries(await tryReadJsonBlob(service.persistence, resolvedOid), source.ref);
+  if (indexed.length > 0) {
+    return {
+      entries: indexed,
+      metadata: null,
+      resolution: 'index',
+      resolvedOid,
+      targetTreeOid: null,
+    };
+  }
+
+  const hintedTreeOid = await tryReadManifestHint(service.persistence, resolvedOid);
+  if (hintedTreeOid) {
+    return {
+      ...singleEntrySource(source.ref, hintedTreeOid),
+      resolution: 'hint',
+      resolvedOid,
+      targetTreeOid: hintedTreeOid,
+    };
+  }
+
+  throw new Error(`Ref ${source.ref} did not resolve to a vault, CAS tree, supported CAS index, or manifest hint`);
+}
+
+/**
+ * Resolve dashboard entries for a source and include metadata about how the
+ * source was derived.
+ *
+ * @param {ContentAddressableStore} cas
+ * @param {DashSource} source
+ * @param {{ service?: any, vault?: any }} [ports]
+ * @returns {Promise<{ entries: ExplorerEntry[], metadata: any, resolution: RefResolutionKind, resolvedOid?: string, targetTreeOid?: string | null }>}
+ */
+async function resolveSourceDetailed(cas, source, ports = {}) {
+  if (source.type === 'oid') {
+    return resolveOidSourceDetailed(source);
+  }
+
+  const service = ports.service ?? await cas.getService();
+  const vault = ports.vault ?? await cas.getVaultService();
+  return resolveRefSourceDetailed(cas, source, { service, vault });
+}
+
+/**
  * Resolve dashboard entries for a non-vault source.
  *
  * @param {ContentAddressableStore} cas
@@ -679,36 +935,8 @@ async function tryReadManifestHint(persistence, oid) {
  * @returns {Promise<{ entries: ExplorerEntry[], metadata: any }>}
  */
 async function resolveNonVaultSource(cas, source) {
-  if (source.type === 'oid') {
-    return singleEntrySource(`oid:${shortOid(source.treeOid)}`, source.treeOid);
-  }
-
-  const [service, vault] = await Promise.all([
-    cas.getService(),
-    cas.getVaultService(),
-  ]);
-  const resolvedOid = await vault.ref.resolveRef(source.ref);
-
-  if (await canReadManifest(cas, resolvedOid)) {
-    return singleEntrySource(source.ref, resolvedOid);
-  }
-
-  const treeOid = await tryResolveTree(vault.ref, resolvedOid);
-  if (treeOid && await canReadManifest(cas, treeOid)) {
-    return singleEntrySource(`${source.ref}^{tree}`, treeOid);
-  }
-
-  const indexed = extractJsonEntries(await tryReadJsonBlob(service.persistence, resolvedOid), source.ref);
-  if (indexed.length > 0) {
-    return { entries: indexed, metadata: null };
-  }
-
-  const hintedTreeOid = await tryReadManifestHint(service.persistence, resolvedOid);
-  if (hintedTreeOid) {
-    return singleEntrySource(source.ref, hintedTreeOid);
-  }
-
-  throw new Error(`Ref ${source.ref} did not resolve to a vault, CAS tree, supported CAS index, or manifest hint`);
+  const result = await resolveSourceDetailed(cas, source);
+  return { entries: result.entries, metadata: result.metadata };
 }
 
 /**
@@ -727,6 +955,41 @@ export async function readSourceEntries(cas, source = { type: 'vault' }) {
     return { entries, metadata };
   }
   return resolveNonVaultSource(cas, source);
+}
+
+/**
+ * Read and classify refs so the dashboard can browse namespaces and switch the
+ * active source to CAS-backed refs.
+ *
+ * @param {ContentAddressableStore} cas
+ * @returns {Promise<RefInventory>}
+ */
+export async function readRefInventory(cas) {
+  const [service, vault] = await Promise.all([
+    cas.getService(),
+    cas.getVaultService(),
+  ]);
+
+  let output = '';
+  try {
+    output = await service.persistence.plumbing.execute({ args: ['show-ref'] });
+  } catch {
+    return { namespaces: [], refs: [] };
+  }
+
+  const refs = await Promise.all(output
+    .split('\n')
+    .map((row) => row.trim())
+    .filter(Boolean)
+    .map((line) => classifyRefLine(cas, { service, vault }, line)));
+
+  return {
+    namespaces: summarizeRefNamespaces(refs),
+    refs: refs.sort((left, right) =>
+      Number(right.browsable) - Number(left.browsable)
+      || left.namespace.localeCompare(right.namespace)
+      || left.ref.localeCompare(right.ref)),
+  };
 }
 
 /**
@@ -775,9 +1038,9 @@ export function loadEntriesCmd(cas, source = { type: 'vault' }) {
   return async () => {
     try {
       const { entries, metadata } = await readSourceEntries(cas, source);
-      return /** @type {const} */ ({ type: 'loaded-entries', entries, metadata });
+      return /** @type {const} */ ({ type: 'loaded-entries', entries, metadata, source });
     } catch (/** @type {any} */ err) {
-      return /** @type {const} */ ({ type: 'load-error', source: 'entries', error: /** @type {Error} */ (err).message });
+      return /** @type {const} */ ({ type: 'load-error', source: 'entries', forSource: source, error: /** @type {Error} */ (err).message });
     }
   };
 }
@@ -786,16 +1049,31 @@ export function loadEntriesCmd(cas, source = { type: 'vault' }) {
  * Load a single manifest by slug and tree OID.
  *
  * @param {ContentAddressableStore} cas
- * @param {string} slug
- * @param {string} treeOid
+ * @param {{ slug: string, treeOid: string, source: DashSource }} request
  */
-export function loadManifestCmd(cas, slug, treeOid) {
+export function loadManifestCmd(cas, request) {
   return async () => {
     try {
-      const manifest = await cas.readManifest({ treeOid });
-      return /** @type {const} */ ({ type: 'loaded-manifest', slug, manifest });
+      const manifest = await cas.readManifest({ treeOid: request.treeOid });
+      return /** @type {const} */ ({ type: 'loaded-manifest', slug: request.slug, manifest, source: request.source });
     } catch (/** @type {any} */ err) {
-      return /** @type {const} */ ({ type: 'load-error', source: 'manifest', slug, error: /** @type {Error} */ (err).message });
+      return /** @type {const} */ ({ type: 'load-error', source: 'manifest', slug: request.slug, forSource: request.source, error: /** @type {Error} */ (err).message });
+    }
+  };
+}
+
+/**
+ * Load the current repository ref inventory for the dashboard refs browser.
+ *
+ * @param {ContentAddressableStore} cas
+ */
+export function loadRefsCmd(cas) {
+  return async () => {
+    try {
+      const refs = await readRefInventory(cas);
+      return /** @type {const} */ ({ type: 'loaded-refs', refs });
+    } catch (/** @type {any} */ err) {
+      return /** @type {const} */ ({ type: 'load-error', source: 'refs', error: /** @type {Error} */ (err).message });
     }
   };
 }
@@ -805,17 +1083,18 @@ export function loadManifestCmd(cas, slug, treeOid) {
  *
  * @param {ContentAddressableStore} cas
  * @param {ExplorerEntry[]} entries
+ * @param {DashSource} source
  */
-export function loadStatsCmd(cas, entries) {
+export function loadStatsCmd(cas, entries, source) {
   return async () => {
     try {
       const records = await Promise.all(entries.map(async (entry) => ({
         ...entry,
         manifest: await cas.readManifest({ treeOid: entry.treeOid }),
       })));
-      return /** @type {const} */ ({ type: 'loaded-stats', stats: buildVaultStats(records) });
+      return /** @type {const} */ ({ type: 'loaded-stats', stats: buildVaultStats(records), source });
     } catch (/** @type {any} */ err) {
-      return /** @type {const} */ ({ type: 'load-error', source: 'stats', error: /** @type {Error} */ (err).message });
+      return /** @type {const} */ ({ type: 'load-error', source: 'stats', forSource: source, error: /** @type {Error} */ (err).message });
     }
   };
 }
@@ -836,12 +1115,12 @@ export function loadDoctorCmd(cas, source = { type: 'vault' }, entries = []) {
           + `target: ${target}\n`
           + `entries: ${entries.length}\n\n`
           + 'Repo-wide doctor currently targets vault mode. Use this source mode to inspect manifests and source-local stats.';
-        return /** @type {const} */ ({ type: 'loaded-doctor', report });
+        return /** @type {const} */ ({ type: 'loaded-doctor', report, source });
       }
       const report = await inspectVaultHealth(cas);
-      return /** @type {const} */ ({ type: 'loaded-doctor', report });
+      return /** @type {const} */ ({ type: 'loaded-doctor', report, source });
     } catch (/** @type {any} */ err) {
-      return /** @type {const} */ ({ type: 'load-error', source: 'doctor', error: /** @type {Error} */ (err).message });
+      return /** @type {const} */ ({ type: 'load-error', source: 'doctor', forSource: source, error: /** @type {Error} */ (err).message });
     }
   };
 }

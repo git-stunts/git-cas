@@ -64,14 +64,27 @@ function makeTable(filtered = [], options = {}) {
   };
 }
 
+function makeRefsTable(items = [], rows = 24, overrides = {}) {
+  return {
+    ...createNavigableTableState({
+      columns: [{ header: 'Ref', width: 32 }],
+      rows: items.map((item) => [item.ref, item.resolution, String(item.entryCount)]),
+      height: Math.max(1, rows - 12),
+    }),
+    ...overrides,
+  };
+}
+
 function makeModel(overrides = {}) {
   const manifestCache = overrides.manifestCache || new Map();
   const filtered = overrides.filtered || overrides.entries || [];
   const rows = overrides.rows || 24;
+  const refsItems = overrides.refsItems || [];
   return {
     status: 'ready',
     columns: 80,
     rows: 24,
+    source: { type: 'vault' },
     entries: [],
     filtered: [],
     filterText: '',
@@ -82,9 +95,13 @@ function makeModel(overrides = {}) {
     detailScroll: 0,
     error: null,
     table: makeTable(filtered, { rows, manifestCache }),
+    refsTable: makeRefsTable(refsItems, rows),
+    refsItems,
     splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
     palette: null,
     activeDrawer: null,
+    refsStatus: 'idle',
+    refsError: null,
     statsStatus: 'idle',
     statsReport: null,
     statsError: null,
@@ -140,6 +157,33 @@ function makeDoctorReport() {
     stats: makeStatsReport(),
     issues: [{ scope: 'vault', code: 'BROKEN', message: 'bad chunk' }],
   };
+}
+
+function makeRefItems() {
+  return [
+    {
+      ref: 'refs/warp/demo/seek-cache',
+      oid: '2222222222222222222222222222222222222222',
+      namespace: 'refs/warp',
+      browsable: true,
+      resolution: 'index',
+      entryCount: 2,
+      detail: '2 CAS entries from index blob',
+      previewSlugs: ['alpha', 'bravo'],
+      source: { type: 'ref', ref: 'refs/warp/demo/seek-cache' },
+    },
+    {
+      ref: 'refs/heads/main',
+      oid: '1111111111111111111111111111111111111111',
+      namespace: 'refs/heads',
+      browsable: false,
+      resolution: 'opaque',
+      entryCount: 0,
+      detail: 'does not resolve to CAS entries',
+      previewSlugs: [],
+      source: null,
+    },
+  ];
 }
 
 function makeTreemapReport(overrides = {}) {
@@ -284,7 +328,8 @@ describe('dashboard palette and overlay commands', () => {
     const [withPalette] = app.update(keyMsg('p', { ctrl: true }), makeModel());
     const [onTreemap] = app.update(keyMsg('down'), withPalette);
     const [onTreemapScope] = app.update(keyMsg('down'), onTreemap);
-    const [onStats] = app.update(keyMsg('down'), onTreemapScope);
+    const [onTreemapWorktree] = app.update(keyMsg('down'), onTreemapScope);
+    const [onStats] = app.update(keyMsg('down'), onTreemapWorktree);
     const [next, cmds] = app.update(keyMsg('enter'), onStats);
     expect(next.palette).toBeNull();
     expect(next.activeDrawer).toBe('stats');
@@ -366,10 +411,31 @@ describe('dashboard treemap shortcuts', () => {
   });
 });
 
+describe('dashboard refs shortcuts', () => {
+  it('r opens the refs view and queues a load', () => {
+    const app = createDashboardApp(makeDeps());
+    const [next, cmds] = app.update(keyMsg('r'), makeModel());
+    expect(next.activeDrawer).toBe('refs');
+    expect(next.refsStatus).toBe('loading');
+    expect(cmds).toHaveLength(1);
+  });
+
+  it('loaded-refs stores the inventory and enter switches the source', () => {
+    const app = createDashboardApp(makeDeps());
+    const refs = { namespaces: [{ namespace: 'refs/warp', count: 1, browsable: 1 }], refs: makeRefItems() };
+    const [withRefs] = app.update({ type: 'loaded-refs', refs }, makeModel({ activeDrawer: 'refs', refsStatus: 'loading' }));
+    const [next, cmds] = app.update(keyMsg('enter'), withRefs);
+    expect(next.source).toEqual({ type: 'ref', ref: 'refs/warp/demo/seek-cache' });
+    expect(next.activeDrawer).toBeNull();
+    expect(next.status).toBe('loading');
+    expect(cmds).toHaveLength(1);
+  });
+});
+
 describe('dashboard data loading', () => {
   it('loaded-entries sets entries and fires manifest loads', () => {
     const app = createDashboardApp(makeDeps());
-    const msg = { type: 'loaded-entries', entries, metadata: null };
+    const msg = { type: 'loaded-entries', entries, metadata: null, source: { type: 'vault' } };
     const [next, cmds] = app.update(msg, makeModel({ status: 'loading' }));
     expect(next.status).toBe('ready');
     expect(next.entries).toEqual(entries);
@@ -380,8 +446,16 @@ describe('dashboard data loading', () => {
   it('loaded-manifest caches manifest', () => {
     const app = createDashboardApp(makeDeps());
     const manifest = { slug: 'alpha', size: 100, chunks: [] };
-    const [next] = app.update({ type: 'loaded-manifest', slug: 'alpha', manifest }, makeModel());
+    const [next] = app.update({ type: 'loaded-manifest', slug: 'alpha', manifest, source: { type: 'vault' } }, makeModel());
     expect(next.manifestCache.get('alpha')).toBe(manifest);
+  });
+
+  it('ignores stale entry loads for a source that is no longer active', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({ source: { type: 'ref', ref: 'refs/warp/demo/seek-cache' } });
+    const [next] = app.update({ type: 'loaded-entries', entries, metadata: null, source: { type: 'vault' } }, model);
+    expect(next.entries).toEqual([]);
+    expect(next.source).toEqual({ type: 'ref', ref: 'refs/warp/demo/seek-cache' });
   });
 });
 
@@ -389,7 +463,7 @@ describe('dashboard report loading', () => {
   it('loaded-stats stores the stats report', () => {
     const app = createDashboardApp(makeDeps());
     const stats = makeStatsReport();
-    const [next] = app.update({ type: 'loaded-stats', stats }, makeModel({ activeDrawer: 'stats', statsStatus: 'loading' }));
+    const [next] = app.update({ type: 'loaded-stats', stats, source: { type: 'vault' } }, makeModel({ activeDrawer: 'stats', statsStatus: 'loading' }));
     expect(next.statsStatus).toBe('ready');
     expect(next.statsReport).toEqual(stats);
     expect(next.statsError).toBeNull();
@@ -398,7 +472,7 @@ describe('dashboard report loading', () => {
   it('loaded-doctor stores the doctor report', () => {
     const app = createDashboardApp(makeDeps());
     const report = makeDoctorReport();
-    const [next] = app.update({ type: 'loaded-doctor', report }, makeModel({ activeDrawer: 'doctor', doctorStatus: 'loading' }));
+    const [next] = app.update({ type: 'loaded-doctor', report, source: { type: 'vault' } }, makeModel({ activeDrawer: 'doctor', doctorStatus: 'loading' }));
     expect(next.doctorStatus).toBe('ready');
     expect(next.doctorReport).toEqual(report);
     expect(next.doctorError).toBeNull();
@@ -469,7 +543,7 @@ describe('dashboard filter mode', () => {
   it('loaded-entries applies active filter', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({ status: 'loading', filterText: 'al', filtering: true });
-    const msg = { type: 'loaded-entries', entries, metadata: null };
+    const msg = { type: 'loaded-entries', entries, metadata: null, source: { type: 'vault' } };
     const [next] = app.update(msg, model);
     expect(next.filtered).toHaveLength(1);
     expect(next.filtered[0].slug).toBe('alpha');
@@ -488,7 +562,7 @@ describe('dashboard filter edge cases', () => {
 
   it('load-error from entries sets error and status on model', () => {
     const app = createDashboardApp(makeDeps());
-    const [next, cmds] = app.update({ type: 'load-error', source: 'entries', error: 'boom' }, makeModel());
+    const [next, cmds] = app.update({ type: 'load-error', source: 'entries', forSource: { type: 'vault' }, error: 'boom' }, makeModel());
     expect(next.error).toBe('boom');
     expect(next.status).toBe('error');
     expect(next.toasts).toHaveLength(1);
@@ -501,7 +575,7 @@ describe('dashboard loading edge cases', () => {
   it('load-error from manifest does not set global error', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({ status: 'ready', entries, filtered: entries });
-    const [next, cmds] = app.update({ type: 'load-error', source: 'manifest', slug: 'alpha', error: 'oops' }, model);
+    const [next, cmds] = app.update({ type: 'load-error', source: 'manifest', slug: 'alpha', forSource: { type: 'vault' }, error: 'oops' }, model);
     expect(next.status).toBe('ready');
     expect(next.error).toBeNull();
     expect(next.toasts).toHaveLength(1);
@@ -516,7 +590,7 @@ describe('dashboard loading edge cases', () => {
       filterText: 'al',
       table: makeTable([], { overrides: { focusRow: 5 } }),
     });
-    const msg = { type: 'loaded-entries', entries, metadata: null };
+    const msg = { type: 'loaded-entries', entries, metadata: null, source: { type: 'vault' } };
     const [next] = app.update(msg, model);
     expect(next.table.focusRow).toBe(0);
     expect(next.filtered).toHaveLength(1);
@@ -650,6 +724,7 @@ describe('dashboard report overlay rendering', () => {
     const rendered = renderView(app.view(model), deps.ctx);
     expect(rendered).toContain('Source Stats');
     expect(rendered).toContain('dedup-ratio');
+    expect(rendered).not.toContain('\t');
   });
 
   it('renders the doctor drawer loading state', () => {
@@ -661,7 +736,7 @@ describe('dashboard report overlay rendering', () => {
   });
 });
 
-describe('dashboard treemap and palette rendering', () => {
+describe('dashboard treemap rendering', () => {
   it('renders the treemap as a full-screen view with a details sidebar', () => {
     const { rendered } = renderDashboardWithModel(makeFullScreenTreemapModel());
     expect(rendered).toContain('treemap view');
@@ -677,6 +752,54 @@ describe('dashboard treemap and palette rendering', () => {
     expect(rendered).toContain('Repository view mixes Git-reported');
   });
 
+  it('renders an actionable empty-source message in source treemap mode', () => {
+    const { rendered } = renderDashboardWithModel({
+      activeDrawer: 'treemap',
+      treemapScope: 'source',
+      treemapStatus: 'ready',
+      treemapReport: makeTreemapReport({
+        scope: 'source',
+        totalValue: 0,
+        tiles: [{ label: 'empty source', kind: 'meta', value: 1, detail: 'No CAS entries resolved for this source' }],
+        notes: [
+          'No CAS entries resolved for the vault. Press r to browse refs or T to return to repository scope.',
+          'Source view weights tiles by logical manifest size.',
+        ],
+        summary: {
+          bare: false,
+          gitDir: '/tmp/git-cas-fixture/.git',
+          worktreeItems: 0,
+          worktreePaths: 0,
+          refNamespaces: 0,
+          refCount: 0,
+          vaultEntries: 0,
+          sourceEntries: 0,
+        },
+      }),
+    });
+    expect(rendered).toContain('No CAS entries were resolved for the current source.');
+    expect(rendered).toContain('Press r to browse refs');
+  });
+});
+
+describe('dashboard refs rendering', () => {
+  it('renders the refs browser as a full-screen view', () => {
+    const { rendered } = renderDashboardWithModel({
+      activeDrawer: 'refs',
+      refsStatus: 'ready',
+      refsItems: makeRefItems(),
+      columns: 120,
+      rows: 36,
+    });
+    expect(rendered).toContain('refs view');
+    expect(rendered).toContain('Refs');
+    expect(rendered).toContain('Ref Details');
+    expect(rendered).toContain('refs/warp/demo/seek-cache');
+    expect(rendered).toContain('Press enter to switch source');
+  });
+});
+
+describe('dashboard palette rendering', () => {
   it('renders the palette badge when the command palette is open', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);

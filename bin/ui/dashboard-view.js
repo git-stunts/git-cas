@@ -110,6 +110,8 @@ function headerParts(model, ctx) {
   }
   if (model.activeDrawer === 'treemap') {
     parts.push(badge('treemap view', { variant: 'primary', ctx }));
+  } else if (model.activeDrawer === 'refs') {
+    parts.push(badge('refs view', { variant: 'primary', ctx }));
   } else {
     parts.push(badge(`pane ${model.splitPane.focused === 'a' ? 'entries' : 'inspector'}`, { variant: 'primary', ctx }));
   }
@@ -176,7 +178,7 @@ function renderHeaderSurface(model, deps) {
   blitInline(surface, {
     x: 0,
     y: 2,
-    parts: [sourceLabel(deps.source), ...headerParts(model, deps.ctx)],
+    parts: [sourceLabel(model.source), ...headerParts(model, deps.ctx)],
     maxWidth: surface.width,
   });
   surface.blit(textSurface('─'.repeat(surface.width), surface.width, 1), 0, 3);
@@ -381,7 +383,7 @@ function renderPanel(options) {
  * @returns {Surface | null}
  */
 function renderDrawerSurface(model, opts) {
-  if (!model.activeDrawer || model.activeDrawer === 'treemap') {
+  if (!model.activeDrawer || model.activeDrawer === 'treemap' || model.activeDrawer === 'refs') {
     return null;
   }
   return model.activeDrawer === 'stats'
@@ -609,6 +611,227 @@ function renderDetailPane(model, opts) {
 }
 
 /**
+ * Choose a responsive table schema for the refs browser.
+ *
+ * @param {number} width
+ * @returns {{ columns: { header: string, width: number, align?: 'left' | 'right' | 'center' }[], indexes: number[] }}
+ */
+function refTableSchema(width) {
+  if (width >= 80) {
+    return {
+      columns: [
+        { header: 'Namespace', width: 14 },
+        { header: 'Ref', width: Math.max(16, width - 47) },
+        { header: 'Kind', width: 10 },
+        { header: 'Entries', width: 7, align: 'right' },
+        { header: 'OID', width: 12 },
+      ],
+      indexes: [0, 1, 2, 3, 4],
+    };
+  }
+  if (width >= 58) {
+    return {
+      columns: [
+        { header: 'Ref', width: Math.max(18, width - 20) },
+        { header: 'Kind', width: 10 },
+        { header: 'Entries', width: 7, align: 'right' },
+      ],
+      indexes: [1, 2, 3],
+    };
+  }
+  return {
+    columns: [
+      { header: 'Ref', width: Math.max(16, width - 12) },
+      { header: 'CAS', width: 10 },
+    ],
+    indexes: [1, 2],
+  };
+}
+
+/**
+ * Clamp the refs table to the current pane size.
+ *
+ * @param {DashModel} model
+ * @param {{ width: number, height: number }} size
+ * @returns {import('@flyingrobots/bijou-tui').NavigableTableState}
+ */
+function refsTableViewState(model, size) {
+  const schema = refTableSchema(size.width);
+  const rows = model.refsTable.rows.map((row) => schema.indexes.map((index) => row[index] ?? ''));
+  const focusRow = Math.max(0, Math.min(model.refsTable.focusRow, rows.length - 1));
+  let scrollY = model.refsTable.scrollY;
+  if (focusRow < scrollY) {
+    scrollY = focusRow;
+  } else if (focusRow >= scrollY + size.height) {
+    scrollY = focusRow - size.height + 1;
+  }
+  return {
+    ...model.refsTable,
+    columns: schema.columns,
+    rows,
+    height: size.height,
+    focusRow,
+    scrollY: Math.min(scrollY, Math.max(0, rows.length - size.height)),
+  };
+}
+
+/**
+ * Return the selected ref item from the refs browser.
+ *
+ * @param {DashModel} model
+ * @returns {import('./dashboard-cmds.js').RefInventoryItem | undefined}
+ */
+function selectedRef(model) {
+  return model.refsItems[model.refsTable.focusRow];
+}
+
+/**
+ * Render the refs-browser table body.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ width: number, height: number }} size
+ * @returns {string}
+ */
+function renderRefsListBody(model, deps, size) {
+  if (model.refsStatus === 'loading') {
+    return 'Loading refs...';
+  }
+  if (model.refsStatus === 'error') {
+    return `Failed to load refs\n\n${model.refsError ?? 'unknown error'}`;
+  }
+  if (model.refsItems.length === 0) {
+    return 'No refs found.';
+  }
+  return navigableTable(refsTableViewState(model, size), {
+    ctx: deps.ctx,
+    focusIndicator: '▸',
+  });
+}
+
+/**
+ * Render the refs-browser detail sidebar.
+ *
+ * @param {DashModel} model
+ * @returns {string}
+ */
+function renderRefsDetailBody(model) {
+  const current = selectedRef(model);
+  const namespaceCounts = new Map();
+  for (const ref of model.refsItems) {
+    namespaceCounts.set(ref.namespace, (namespaceCounts.get(ref.namespace) ?? 0) + 1);
+  }
+
+  const sidebarLines = [
+    `refs ${model.refsItems.length} under ${namespaceCounts.size} namespaces`,
+    `current ${sourceLabel(model.source)}`,
+    '',
+  ];
+
+  if (current) {
+    sidebarLines.push(
+      `ref ${current.ref}`,
+      `namespace ${current.namespace}`,
+      `oid ${current.oid}`,
+      `status ${current.browsable ? 'browsable' : 'opaque'}`,
+      `kind ${current.resolution}`,
+      `entries ${current.entryCount}`,
+      '',
+      current.detail,
+    );
+    if (current.previewSlugs.length > 0) {
+      sidebarLines.push('', 'preview', ...current.previewSlugs.map((slug) => `- ${slug}`));
+    }
+    sidebarLines.push('', current.browsable
+      ? 'Press enter to switch source to this ref.'
+      : 'This ref does not currently resolve to CAS entries.');
+  } else if (model.refsStatus === 'ready') {
+    sidebarLines.push('Select a ref to inspect it.');
+  }
+
+  if (namespaceCounts.size > 0) {
+    sidebarLines.push(
+      '',
+      'namespaces',
+      ...Array.from(namespaceCounts.entries())
+        .slice(0, 8)
+        .map(([namespace, count]) => `- ${namespace} (${count})`),
+    );
+  }
+
+  return sidebarLines.join('\n');
+}
+
+/**
+ * Render the full-screen refs browser.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ top: number, height: number, screen: Surface }} options
+ */
+function renderRefsView(model, deps, options) {
+  const maxSidebarWidth = Math.max(22, options.screen.width - 25);
+  const sidebarWidth = Math.min(maxSidebarWidth, Math.max(30, Math.min(46, Math.floor(options.screen.width * 0.35))));
+  const listWidth = Math.max(18, options.screen.width - sidebarWidth - 1);
+  const viewHeight = options.height;
+  const listPanel = renderPanel({
+    title: 'Refs',
+    body: renderRefsListBody(model, deps, {
+      width: Math.max(8, listWidth - 2),
+      height: Math.max(4, viewHeight - 2),
+    }),
+    width: listWidth,
+    height: viewHeight,
+    ctx: deps.ctx,
+  });
+  const detailPanel = renderPanel({
+    title: 'Ref Details',
+    body: renderRefsDetailBody(model),
+    width: sidebarWidth,
+    height: viewHeight,
+    ctx: deps.ctx,
+  });
+
+  options.screen.blit(listPanel, 0, options.top);
+  options.screen.blit(renderDividerSurface(options.height), listWidth, options.top);
+  options.screen.blit(detailPanel, listWidth + 1, options.top);
+}
+
+/**
+ * Render the body content of the treemap map panel.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ mapWidth: number, mapHeight: number }} size
+ * @returns {string}
+ */
+function renderTreemapMapBody(model, deps, size) {
+  if (model.treemapStatus === 'loading') {
+    return `Loading ${model.treemapScope} treemap...`;
+  }
+  if (model.treemapStatus === 'error') {
+    return `Failed to load treemap\n\n${model.treemapError ?? 'unknown error'}`;
+  }
+  if (model.treemapReport && model.treemapScope === 'source' && model.treemapReport.summary.sourceEntries === 0) {
+    return [
+      'No CAS entries were resolved for the current source.',
+      '',
+      sourceLabel(model.source),
+      '',
+      'Press r to browse refs or T to return to the repository view.',
+    ].join('\n');
+  }
+  if (model.treemapReport) {
+    return renderRepoTreemapMap(model.treemapReport, {
+      ctx: deps.ctx,
+      width: Math.max(8, size.mapWidth - 2),
+      height: Math.max(4, size.mapHeight - 2),
+    });
+  }
+  return 'Treemap has not been loaded yet.';
+}
+
+/**
  * Compose sidebar copy for the full-screen treemap view.
  *
  * @param {{ model: DashModel, deps: DashDeps, width: number, height: number }} options
@@ -658,22 +881,10 @@ function renderTreemapView(model, deps, options) {
   const mapHeight = options.height;
   const sidebarHeight = options.height;
 
-  const mapBody = model.treemapStatus === 'loading'
-    ? `Loading ${model.treemapScope} treemap...`
-    : model.treemapStatus === 'error'
-      ? `Failed to load treemap\n\n${model.treemapError ?? 'unknown error'}`
-      : model.treemapReport
-        ? renderRepoTreemapMap(model.treemapReport, {
-          ctx: deps.ctx,
-          width: Math.max(8, mapWidth - 2),
-          height: Math.max(4, mapHeight - 2),
-        })
-        : 'Treemap has not been loaded yet.';
-
   const mapTitle = model.treemapScope === 'repository' ? 'Repository Map' : 'Source Map';
   const mapPanel = renderPanel({
     title: mapTitle,
-    body: mapBody,
+    body: renderTreemapMapBody(model, deps, { mapWidth, mapHeight }),
     width: mapWidth,
     height: mapHeight,
     ctx: deps.ctx,
@@ -708,15 +919,22 @@ function renderFooterSurface(model, ctx, width) {
   const lines = model.activeDrawer === 'treemap'
     ? [
       '─'.repeat(Math.max(1, width)),
-      `${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('ctrl+p', { ctx })} palette`,
+      `${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('r', { ctx })} refs  ${kbd('ctrl+p', { ctx })} palette`,
       `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
       '',
     ]
-    : [
+    : model.activeDrawer === 'refs'
+      ? [
+        '─'.repeat(Math.max(1, width)),
+        `${kbd('j/k', { ctx })} refs  ${kbd('d/u', { ctx })} page  ${kbd('enter', { ctx })} switch source`,
+        `${kbd('t', { ctx })} treemap  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('ctrl+p', { ctx })} palette`,
+        `${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
+      ]
+      : [
       '─'.repeat(Math.max(1, width)),
       `${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
       `${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
-      `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
+      `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('r', { ctx })} refs  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
     ];
   return textSurface(lines.join('\n'), width, 4);
 }
@@ -731,6 +949,10 @@ function renderFooterSurface(model, ctx, width) {
 function renderBody(model, deps, options) {
   if (model.activeDrawer === 'treemap') {
     renderTreemapView(model, deps, options);
+    return;
+  }
+  if (model.activeDrawer === 'refs') {
+    renderRefsView(model, deps, options);
     return;
   }
   const layout = splitPaneLayout(model.splitPane, {
