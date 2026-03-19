@@ -110,6 +110,8 @@ function makeModel(overrides = {}) {
     doctorError: null,
     treemapScope: 'repository',
     treemapWorktreeMode: 'tracked',
+    treemapPath: [],
+    treemapFocus: 0,
     treemapStatus: 'idle',
     treemapReport: null,
     treemapError: null,
@@ -186,32 +188,62 @@ function makeRefItems() {
   ];
 }
 
+function makeTreemapTile(options) {
+  const {
+    kind,
+    label,
+    value,
+    detail,
+    drillable = true,
+    segments = [label],
+    id = `${kind}:${segments.join(':')}`,
+  } = options;
+  return {
+    id,
+    label,
+    kind,
+    value,
+    detail,
+    drillable,
+    path: drillable && segments ? { kind, segments, label } : null,
+  };
+}
+
+function makeTreemapSummary(overrides = {}) {
+  return {
+    bare: false,
+    gitDir: '/tmp/git-cas-fixture/.git',
+    worktreeItems: 1,
+    worktreePaths: 2,
+    refNamespaces: 1,
+    refCount: 3,
+    vaultEntries: 2,
+    sourceEntries: 2,
+    ...overrides,
+  };
+}
+
 function makeTreemapReport(overrides = {}) {
   return {
     scope: 'repository',
     worktreeMode: 'tracked',
     cwd: '/tmp/git-cas-fixture',
     source: { type: 'vault' },
+    drillPath: [],
+    breadcrumb: ['repository'],
     totalValue: 8192,
     tiles: [
-      { label: 'src', kind: 'worktree', value: 4096, detail: '2 tracked paths · 4.0K on disk' },
-      { label: '.git/objects', kind: 'git', value: 2048, detail: '2.0K on disk' },
-      { label: 'vault', kind: 'vault', value: 2048, detail: '2 entries · 2.0K logical' },
+      makeTreemapTile({ kind: 'worktree', label: 'src', value: 4096, detail: '2 tracked paths · 4.0K on disk' }),
+      makeTreemapTile({ kind: 'git', label: '.git/objects', value: 2048, detail: '2 git items · 2.0K on disk',
+        segments: ['.git/objects'],
+      }),
+      makeTreemapTile({ kind: 'vault', label: 'docs', value: 2048, detail: '2 entries · 2.0K logical' }),
     ],
     notes: [
-      'Repository view mixes Git-reported worktree paths, .git on-disk bytes, and logical CAS region sizes.',
+      'Repository view mixes Git-reported worktree paths, .git on-disk bytes, ref namespaces, and logical CAS region sizes.',
       'Worktree mode tracked via git ls-files.',
     ],
-    summary: {
-      bare: false,
-      gitDir: '/tmp/git-cas-fixture/.git',
-      worktreeItems: 1,
-      worktreePaths: 2,
-      refNamespaces: 1,
-      refCount: 3,
-      vaultEntries: 2,
-      sourceEntries: 2,
-    },
+    summary: makeTreemapSummary(),
     ...overrides,
   };
 }
@@ -233,9 +265,15 @@ function makeFullScreenTreemapModel() {
     treemapStatus: 'ready',
     treemapReport: makeTreemapReport({
       tiles: [
-        { label: 'src', kind: 'worktree', value: 4096, detail: '2 tracked paths · 4.0K on disk' },
-        { label: '.git/objects', kind: 'git', value: 2048, detail: '2.0K on disk' },
-        { label: 'other', kind: 'meta', value: 1024, detail: '2 smaller regions' },
+        makeTreemapTile({ kind: 'worktree', label: 'src', value: 4096, detail: '2 tracked paths · 4.0K on disk' }),
+        makeTreemapTile({ kind: 'git', label: '.git/objects', value: 2048, detail: '2 git items · 2.0K on disk',
+          segments: ['.git/objects'],
+        }),
+        makeTreemapTile({ kind: 'meta', label: 'other', value: 1024, detail: '2 smaller regions',
+          id: 'meta:other',
+          drillable: false,
+          segments: null,
+        }),
       ],
     }),
     columns: 120,
@@ -329,7 +367,9 @@ describe('dashboard palette and overlay commands', () => {
     const [onTreemap] = app.update(keyMsg('down'), withPalette);
     const [onTreemapScope] = app.update(keyMsg('down'), onTreemap);
     const [onTreemapWorktree] = app.update(keyMsg('down'), onTreemapScope);
-    const [onStats] = app.update(keyMsg('down'), onTreemapWorktree);
+    const [onTreemapDrillIn] = app.update(keyMsg('down'), onTreemapWorktree);
+    const [onTreemapDrillOut] = app.update(keyMsg('down'), onTreemapDrillIn);
+    const [onStats] = app.update(keyMsg('down'), onTreemapDrillOut);
     const [next, cmds] = app.update(keyMsg('enter'), onStats);
     expect(next.palette).toBeNull();
     expect(next.activeDrawer).toBe('stats');
@@ -369,7 +409,7 @@ describe('dashboard toast dismissal', () => {
   });
 });
 
-describe('dashboard treemap shortcuts', () => {
+describe('dashboard treemap launch shortcuts', () => {
   it('t opens the treemap view and queues a load', () => {
     const app = createDashboardApp(makeDeps());
     const [next, cmds] = app.update(keyMsg('t'), makeModel());
@@ -377,7 +417,9 @@ describe('dashboard treemap shortcuts', () => {
     expect(next.treemapStatus).toBe('loading');
     expect(cmds).toHaveLength(1);
   });
+});
 
+describe('dashboard treemap view shortcuts', () => {
   it('shift+t toggles the treemap scope and triggers a load', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({
@@ -407,6 +449,59 @@ describe('dashboard treemap shortcuts', () => {
     expect(next.treemapWorktreeMode).toBe('ignored');
     expect(next.treemapStatus).toBe('loading');
     expect(next.activeDrawer).toBe('treemap');
+    expect(cmds).toHaveLength(1);
+  });
+
+  it('j moves treemap focus between regions', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({
+      activeDrawer: 'treemap',
+      treemapStatus: 'ready',
+      treemapReport: makeTreemapReport(),
+    });
+    const [next] = app.update(keyMsg('j'), model);
+    expect(next.treemapFocus).toBe(1);
+  });
+});
+
+describe('dashboard treemap drill shortcuts', () => {
+  it('+ drills into the focused treemap region', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({
+      activeDrawer: 'treemap',
+      treemapStatus: 'ready',
+      treemapReport: makeTreemapReport(),
+    });
+    const [next, cmds] = app.update(keyMsg('=', { shift: true }), model);
+    expect(next.treemapPath).toEqual([{ kind: 'worktree', segments: ['src'], label: 'src' }]);
+    expect(next.treemapStatus).toBe('loading');
+    expect(cmds).toHaveLength(1);
+  });
+
+  it('- ascends to the parent treemap level', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({
+      activeDrawer: 'treemap',
+      treemapScope: 'repository',
+      treemapStatus: 'ready',
+      treemapPath: [{ kind: 'git', segments: ['.git/objects'], label: '.git/objects' }],
+      treemapReport: makeTreemapReport({
+        drillPath: [{ kind: 'git', segments: ['.git/objects'], label: '.git/objects' }],
+        breadcrumb: ['repository', '.git/objects'],
+        tiles: [{
+          id: 'git:.git/objects/pack',
+          label: 'pack',
+          kind: 'git',
+          value: 2048,
+          detail: '2 git items · 2.0K on disk',
+          drillable: true,
+          path: { kind: 'git', segments: ['.git/objects', 'pack'], label: 'pack' },
+        }],
+      }),
+    });
+    const [next, cmds] = app.update(keyMsg('-'), model);
+    expect(next.treemapPath).toEqual([]);
+    expect(next.treemapStatus).toBe('loading');
     expect(cmds).toHaveLength(1);
   });
 });
@@ -482,13 +577,17 @@ describe('dashboard report loading', () => {
 describe('dashboard treemap report and toast messages', () => {
   it('loaded-treemap stores the report for the active scope', () => {
     const app = createDashboardApp(makeDeps());
-    const report = {
-      scope: 'repository',
-      worktreeMode: 'tracked',
-      cwd: '/tmp/git-cas-fixture',
-      source: { type: 'vault' },
+    const report = makeTreemapReport({
       totalValue: 2048,
-      tiles: [{ label: 'src', kind: 'worktree', value: 2048, detail: '2.0K on disk' }],
+      tiles: [{
+        id: 'worktree:src',
+        label: 'src',
+        kind: 'worktree',
+        value: 2048,
+        detail: '2 tracked paths · 2.0K on disk',
+        drillable: true,
+        path: { kind: 'worktree', segments: ['src'], label: 'src' },
+      }],
       notes: [],
       summary: {
         bare: false,
@@ -500,7 +599,7 @@ describe('dashboard treemap report and toast messages', () => {
         vaultEntries: 1,
         sourceEntries: 1,
       },
-    };
+    });
     const [next] = app.update({ type: 'loaded-treemap', report }, makeModel({ activeDrawer: 'treemap', treemapStatus: 'loading' }));
     expect(next.treemapStatus).toBe('ready');
     expect(next.treemapReport).toEqual(report);
@@ -673,6 +772,7 @@ describe('dashboard footer rendering', () => {
     expect(rendered).toContain('treemap');
     expect(rendered).toContain('scope');
     expect(rendered).toContain('files');
+    expect(rendered).toContain('refs');
     expect(rendered).toContain('clos');
     expect(rendered).toContain('quit');
   });
@@ -685,6 +785,8 @@ describe('dashboard footer rendering', () => {
       columns: 120,
     });
     expect(rendered).toContain('back');
+    expect(rendered).toContain('descend');
+    expect(rendered).toContain('ascend');
   });
 });
 
@@ -743,12 +845,15 @@ describe('dashboard treemap rendering', () => {
     expect(rendered).toContain('Repository Map');
     expect(rendered).toContain('Treemap Details');
     expect(rendered).toContain('Overview');
+    expect(rendered).toContain('Focused Region');
     expect(rendered).toContain('Legend');
     expect(rendered).toContain('Largest Regions');
     expect(rendered).toContain('scope repository');
     expect(rendered).toContain('files tracked');
+    expect(rendered).toContain('level repository');
+    expect(rendered).toContain('focus s');
     expect(rendered).toContain('other');
-    expect(rendered).toContain('tracked paths 2');
+    expect(rendered).toContain('2 tracked paths');
     expect(rendered).toContain('Repository view mixes Git-reported');
   });
 
@@ -759,8 +864,9 @@ describe('dashboard treemap rendering', () => {
       treemapStatus: 'ready',
       treemapReport: makeTreemapReport({
         scope: 'source',
+        breadcrumb: ['source'],
         totalValue: 0,
-        tiles: [{ label: 'empty source', kind: 'meta', value: 1, detail: 'No CAS entries resolved for this source' }],
+        tiles: [{ id: 'meta:empty-source', label: 'empty source', kind: 'meta', value: 1, detail: 'No CAS entries resolved for this source', drillable: false, path: null }],
         notes: [
           'No CAS entries resolved for the vault. Press r to browse refs or T to return to repository scope.',
           'Source view weights tiles by logical manifest size.',

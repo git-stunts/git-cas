@@ -139,6 +139,11 @@ function appendSelectionBadges(parts, model, ctx) {
     if (model.treemapScope === 'repository') {
       parts.push(badge(`files ${model.treemapWorktreeMode}`, { variant: 'accent', ctx }));
     }
+    parts.push(badge(`level ${treemapLevelLabel(model)}`, { variant: 'info', ctx }));
+    const tile = selectedTreemapTile(model);
+    if (tile) {
+      parts.push(badge(`focus ${tile.label}`, { variant: 'warning', ctx }));
+    }
   }
   if (model.activeDrawer && model.activeDrawer !== 'treemap') {
     parts.push(badge(`${model.activeDrawer} drawer`, { variant: 'info', ctx }));
@@ -162,6 +167,29 @@ function sourceLabel(source) {
     return `source ref ${source.ref}`;
   }
   return `source oid ${source.treeOid}`;
+}
+
+/**
+ * Current breadcrumb label for the treemap level.
+ *
+ * @param {DashModel} model
+ * @returns {string}
+ */
+function treemapLevelLabel(model) {
+  return model.treemapReport?.breadcrumb?.join(' > ') ?? (model.treemapScope === 'repository' ? 'repository' : 'source');
+}
+
+/**
+ * Selected tile in the current treemap report.
+ *
+ * @param {DashModel} model
+ * @returns {import('./dashboard-cmds.js').RepoTreemapTile | null}
+ */
+function selectedTreemapTile(model) {
+  if (!model.treemapReport || model.treemapReport.tiles.length === 0) {
+    return null;
+  }
+  return model.treemapReport.tiles[Math.max(0, Math.min(model.treemapFocus, model.treemapReport.tiles.length - 1))] ?? null;
 }
 
 /**
@@ -227,6 +255,81 @@ function limitWrappedLines(lines, width, maxLines) {
   const capped = lines.slice(0, maxLines);
   capped[maxLines - 1] = `${clip(capped[maxLines - 1], Math.max(1, width - 1))}…`;
   return capped;
+}
+
+/**
+ * Build one titled sidebar section within a line budget.
+ *
+ * @param {{ title: string, body: string, width: number, bodyLines: number }} options
+ * @returns {string[]}
+ */
+function sidebarSection(options) {
+  const lines = options.body.length === 0 ? [''] : options.body.split('\n');
+  return [
+    options.title,
+    ...limitWrappedLines(lines, options.width, Math.max(1, options.bodyLines)),
+  ];
+}
+
+/**
+ * Treemap sidebar text for loading/error/empty report states.
+ *
+ * @param {DashModel} model
+ * @returns {string | null}
+ */
+function treemapSidebarStateText(model) {
+  if (model.treemapStatus === 'loading') {
+    return `Overview\nLoading ${model.treemapScope} treemap...`;
+  }
+  if (model.treemapStatus === 'error') {
+    return `Overview\nFailed to load treemap\n\n${model.treemapError ?? 'unknown error'}`;
+  }
+  if (!model.treemapReport) {
+    return 'Overview\nTreemap has not been loaded yet.';
+  }
+  return null;
+}
+
+/**
+ * Compose the full set of sidebar sections for the treemap view.
+ *
+ * @param {{ sections: ReturnType<typeof renderRepoTreemapSidebar>, width: number, height: number }} options
+ * @returns {string}
+ */
+function composeTreemapSidebarText(options) {
+  const sectionBlocks = [
+    sidebarSection({
+      title: 'Overview',
+      body: options.sections.overview,
+      width: options.width,
+      bodyLines: 4,
+    }),
+    sidebarSection({
+      title: 'Focused Region',
+      body: options.sections.focused,
+      width: options.width,
+      bodyLines: 3,
+    }),
+    sidebarSection({
+      title: 'Legend',
+      body: options.sections.legend,
+      width: options.width,
+      bodyLines: 6,
+    }),
+    sidebarSection({
+      title: 'Largest Regions',
+      body: options.sections.regions || 'No regions to display.',
+      width: options.width,
+      bodyLines: 4,
+    }),
+    sidebarSection({
+      title: 'Notes',
+      body: options.sections.notes || 'No notes.',
+      width: options.width,
+      bodyLines: Math.max(2, options.height - 23),
+    }),
+  ];
+  return sectionBlocks.flat().join('\n');
 }
 
 /**
@@ -826,6 +929,7 @@ function renderTreemapMapBody(model, deps, size) {
       ctx: deps.ctx,
       width: Math.max(8, size.mapWidth - 2),
       height: Math.max(4, size.mapHeight - 2),
+      selectedTileId: selectedTreemapTile(model)?.id ?? null,
     });
   }
   return 'Treemap has not been loaded yet.';
@@ -838,33 +942,21 @@ function renderTreemapMapBody(model, deps, size) {
  * @returns {string}
  */
 function renderTreemapSidebarText(options) {
-  if (options.model.treemapStatus === 'loading') {
-    return `Overview\nLoading ${options.model.treemapScope} treemap...`;
-  }
-  if (options.model.treemapStatus === 'error') {
-    return `Overview\nFailed to load treemap\n\n${options.model.treemapError ?? 'unknown error'}`;
-  }
-  if (!options.model.treemapReport) {
-    return 'Overview\nTreemap has not been loaded yet.';
+  const stateText = treemapSidebarStateText(options.model);
+  if (stateText) {
+    return stateText;
   }
   const sections = renderRepoTreemapSidebar(options.model.treemapReport, {
     ctx: options.deps.ctx,
     width: Math.max(16, options.width),
     height: options.height,
+    selectedTileId: selectedTreemapTile(options.model)?.id ?? null,
   });
-  return [
-    'Overview',
-    sections.overview,
-    '',
-    'Legend',
-    sections.legend,
-    '',
-    'Largest Regions',
-    sections.regions || 'No regions to display.',
-    '',
-    'Notes',
-    sections.notes || 'No notes.',
-  ].join('\n');
+  return composeTreemapSidebarText({
+    sections,
+    width: options.width,
+    height: options.height,
+  });
 }
 
 /**
@@ -881,7 +973,7 @@ function renderTreemapView(model, deps, options) {
   const mapHeight = options.height;
   const sidebarHeight = options.height;
 
-  const mapTitle = model.treemapScope === 'repository' ? 'Repository Map' : 'Source Map';
+  const mapTitle = `${model.treemapScope === 'repository' ? 'Repository Map' : 'Source Map'} · ${treemapLevelLabel(model)}`;
   const mapPanel = renderPanel({
     title: mapTitle,
     body: renderTreemapMapBody(model, deps, { mapWidth, mapHeight }),
@@ -919,9 +1011,9 @@ function renderFooterSurface(model, ctx, width) {
   const lines = model.activeDrawer === 'treemap'
     ? [
       '─'.repeat(Math.max(1, width)),
+      `${kbd('j/k', { ctx })} regions  ${kbd('d/u', { ctx })} page  ${kbd('+', { ctx })} descend  ${kbd('-', { ctx })} ascend`,
       `${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('r', { ctx })} refs  ${kbd('ctrl+p', { ctx })} palette`,
       `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
-      '',
     ]
     : model.activeDrawer === 'refs'
       ? [

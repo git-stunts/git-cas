@@ -153,6 +153,24 @@ function makeSourceTreemapCas(plumbing) {
 }
 
 async function buildRepositoryReport({ source = { type: 'oid', treeOid: 'source-tree' }, worktreeMode = 'tracked' } = {}) {
+  return withRepositoryTreemapCase(async ({ cas, repoDir }) => ({
+    report: await buildRepoTreemapReport(cas, { source, scope: 'repository', worktreeMode }),
+    repoDir,
+  }));
+}
+
+async function buildSourceReport() {
+  return withTempRepo(async (repoDir) => {
+    const plumbing = makePlumbing(repoDir, makeRepoExec(repoDir));
+    const cas = makeSourceTreemapCas(plumbing);
+    return buildRepoTreemapReport(cas, {
+      source: { type: 'oid', treeOid: 'feedfacecafebeef' },
+      scope: 'source',
+    });
+  });
+}
+
+async function withRepositoryTreemapCase(run) {
   return withTempRepo(async (repoDir) => {
     await seedRepoLayout(repoDir);
     const plumbing = makePlumbing(repoDir, makeRepoExec(repoDir, {
@@ -164,19 +182,7 @@ async function buildRepositoryReport({ source = { type: 'oid', treeOid: 'source-
       ignoredPaths: ['node_modules/', 'coverage/'],
     }));
     const cas = makeRepositoryTreemapCas(plumbing);
-    const report = await buildRepoTreemapReport(cas, { source, scope: 'repository', worktreeMode });
-    return { report, repoDir };
-  });
-}
-
-async function buildSourceReport() {
-  return withTempRepo(async (repoDir) => {
-    const plumbing = makePlumbing(repoDir, makeRepoExec(repoDir));
-    const cas = makeSourceTreemapCas(plumbing);
-    return buildRepoTreemapReport(cas, {
-      source: { type: 'oid', treeOid: 'feedfacecafebeef' },
-      scope: 'source',
-    });
+    return run({ repoDir, plumbing, cas });
   });
 }
 
@@ -301,11 +307,11 @@ describe('buildRepoTreemapReport repository scope', () => {
     expect(labels).toEqual(expect.arrayContaining([
       'README.md',
       'src',
-      '.git/objects/pack-1',
+      '.git/objects',
       'refs/heads',
       'refs/warp',
-      'vault',
-      'active source',
+      'vault:alpha',
+      'oid:source-tree',
     ]));
     expect(labels).not.toContain('node_modules');
     expect(report.notes).toEqual(expect.arrayContaining([
@@ -327,6 +333,31 @@ describe('buildRepoTreemapReport repository scope', () => {
     expect(report.notes).toEqual(expect.arrayContaining([
       expect.stringContaining('--others --ignored --exclude-standard'),
     ]));
+  });
+});
+
+describe('buildRepoTreemapReport repository drilldown', () => {
+  it('can drill into git objects and ref namespaces', async () => {
+    await withRepositoryTreemapCase(async ({ cas }) => {
+      const objectsReport = await buildRepoTreemapReport(cas, {
+        source: { type: 'oid', treeOid: 'source-tree' },
+        scope: 'repository',
+        drillPath: [{ kind: 'git', segments: ['.git/objects'], label: '.git/objects' }],
+      });
+      expect(objectsReport.breadcrumb).toEqual(['repository', '.git/objects']);
+      expect(objectsReport.tiles).toEqual(expect.arrayContaining([
+        expect.objectContaining({ label: 'pack-1', kind: 'git' }),
+      ]));
+
+      const refsReport = await buildRepoTreemapReport(cas, {
+        source: { type: 'oid', treeOid: 'source-tree' },
+        scope: 'repository',
+        drillPath: [{ kind: 'ref', segments: ['refs/warp'], label: 'refs/warp' }],
+      });
+      expect(refsReport.tiles).toEqual(expect.arrayContaining([
+        expect.objectContaining({ label: 'demo', kind: 'ref', drillable: true }),
+      ]));
+    });
   });
 });
 

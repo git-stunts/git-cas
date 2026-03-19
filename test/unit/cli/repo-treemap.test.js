@@ -8,21 +8,23 @@ function makeReport(overrides = {}) {
     worktreeMode: 'tracked',
     cwd: '/tmp/git-cas-fixture',
     source: { type: 'vault' },
+    drillPath: [],
+    breadcrumb: ['repository'],
     totalValue: 21_400_000,
     tiles: [
-      { label: 'docs', kind: 'worktree', value: 3_638_000, detail: '33 tracked paths · 3.5M on disk' },
-      { label: 'public', kind: 'worktree', value: 107_000, detail: '5 tracked paths · 104.5K on disk' },
-      { label: 'package-lock.json', kind: 'worktree', value: 107_000, detail: '1 tracked path · 104.5K on disk' },
-      { label: 'test', kind: 'worktree', value: 64_000, detail: '17 tracked paths · 62.5K on disk' },
-      { label: 'pnpm-lock.yaml', kind: 'worktree', value: 64_000, detail: '1 tracked path · 62.5K on disk' },
-      { label: 'src', kind: 'worktree', value: 43_000, detail: '6 tracked paths · 42.0K on disk' },
-      { label: 'scripts', kind: 'worktree', value: 21_000, detail: '13 tracked paths · 20.5K on disk' },
-      { label: '.git/objects', kind: 'git', value: 8_000_000, detail: '7.6M on disk' },
-      { label: 'refs/git-cms', kind: 'ref', value: 2_000_000, detail: '17 refs' },
-      { label: 'vault', kind: 'vault', value: 1_500_000, detail: '2 entries · 1.4M logical' },
+      { id: 'worktree:docs', label: 'docs', kind: 'worktree', value: 3_638_000, detail: '33 tracked paths · 3.5M on disk', drillable: true, path: { kind: 'worktree', segments: ['docs'], label: 'docs' } },
+      { id: 'worktree:public', label: 'public', kind: 'worktree', value: 107_000, detail: '5 tracked paths · 104.5K on disk', drillable: true, path: { kind: 'worktree', segments: ['public'], label: 'public' } },
+      { id: 'worktree:package-lock.json', label: 'package-lock.json', kind: 'worktree', value: 107_000, detail: '1 tracked path · 104.5K on disk', drillable: false, path: { kind: 'worktree', segments: ['package-lock.json'], label: 'package-lock.json' } },
+      { id: 'worktree:test', label: 'test', kind: 'worktree', value: 64_000, detail: '17 tracked paths · 62.5K on disk', drillable: true, path: { kind: 'worktree', segments: ['test'], label: 'test' } },
+      { id: 'worktree:pnpm-lock.yaml', label: 'pnpm-lock.yaml', kind: 'worktree', value: 64_000, detail: '1 tracked path · 62.5K on disk', drillable: false, path: { kind: 'worktree', segments: ['pnpm-lock.yaml'], label: 'pnpm-lock.yaml' } },
+      { id: 'worktree:src', label: 'src', kind: 'worktree', value: 43_000, detail: '6 tracked paths · 42.0K on disk', drillable: true, path: { kind: 'worktree', segments: ['src'], label: 'src' } },
+      { id: 'worktree:scripts', label: 'scripts', kind: 'worktree', value: 21_000, detail: '13 tracked paths · 20.5K on disk', drillable: true, path: { kind: 'worktree', segments: ['scripts'], label: 'scripts' } },
+      { id: 'git:.git/objects', label: '.git/objects', kind: 'git', value: 8_000_000, detail: '7.6M on disk', drillable: true, path: { kind: 'git', segments: ['.git/objects'], label: '.git/objects' } },
+      { id: 'ref:refs/git-cms', label: 'refs/git-cms', kind: 'ref', value: 2_000_000, detail: '17 refs', drillable: true, path: { kind: 'ref', segments: ['refs/git-cms'], label: 'refs/git-cms' } },
+      { id: 'vault:docs', label: 'docs', kind: 'vault', value: 1_500_000, detail: '2 entries · 1.4M logical', drillable: true, path: { kind: 'vault', segments: ['docs'], label: 'docs' } },
     ],
     notes: [
-      'Repository view mixes Git-reported worktree paths, .git on-disk bytes, and logical CAS region sizes.',
+      'Repository view mixes Git-reported worktree paths, .git on-disk bytes, ref namespaces, and logical CAS region sizes.',
     ],
     summary: {
       bare: false,
@@ -67,7 +69,7 @@ describe('repo treemap map rendering', () => {
   it('renders label text as bold white without painting stripe backgrounds', () => {
     const output = renderRepoTreemapMap(makeReport({
       totalValue: 10,
-      tiles: [{ label: 'docs', kind: 'worktree', value: 10, detail: '10 tracked paths' }],
+      tiles: [{ id: 'worktree:docs', label: 'docs', kind: 'worktree', value: 10, detail: '10 tracked paths', drillable: true, path: { kind: 'worktree', segments: ['docs'], label: 'docs' } }],
     }), {
       ctx: makeStyledCtx(),
       width: 24,
@@ -93,6 +95,22 @@ describe('repo treemap sidebar rendering', () => {
     expect(regionLines[0]).toContain('.git/objects');
     expect(regionLines[1]).toContain('docs');
     expect(regionLines[2]).toContain('refs/git-cms');
+  });
+
+  it('includes the current level and focused region in the sidebar', () => {
+    const sidebar = renderRepoTreemapSidebar(makeReport({
+      drillPath: [{ kind: 'git', segments: ['.git/objects'], label: '.git/objects' }],
+      breadcrumb: ['repository', '.git/objects'],
+    }), {
+      ctx: makeCtx(),
+      width: 60,
+      height: 28,
+      selectedTileId: 'git:.git/objects',
+    });
+
+    expect(sidebar.overview).toContain('level repository > .git/objects');
+    expect(sidebar.focused).toContain('.git/objects');
+    expect(sidebar.focused).toContain('Press + to descend.');
   });
 
   it('wraps notes on whitespace before falling back to hard character breaks', () => {

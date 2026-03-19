@@ -86,6 +86,16 @@ function clip(text, width) {
 }
 
 /**
+ * Return the active breadcrumb label for the current map level.
+ *
+ * @param {RepoTreemapReport} report
+ * @returns {string}
+ */
+function currentLevelLabel(report) {
+  return report.breadcrumb.join(' > ');
+}
+
+/**
  * Clip paths from the left so the suffix stays visible.
  *
  * @param {string} text
@@ -317,6 +327,19 @@ function putCell(grid, cell) {
 const LABEL_FOREGROUND = [255, 255, 255];
 
 /**
+ * Border glyphs for normal or focused treemap outlines.
+ *
+ * @param {boolean} focused
+ * @returns {{ h: string, v: string, tl: string, tr: string, bl: string, br: string }}
+ */
+function outlineGlyphs(focused) {
+  if (focused) {
+    return { h: '═', v: '║', tl: '╔', tr: '╗', bl: '╚', br: '╝' };
+  }
+  return { h: '─', v: '│', tl: '┌', tr: '┐', bl: '└', br: '┘' };
+}
+
+/**
  * Paint a visible outline around a tile rectangle.
  *
  * Using box-drawing characters keeps same-kind regions readable in the map,
@@ -325,28 +348,30 @@ const LABEL_FOREGROUND = [255, 255, 255];
  *
  * @param {ReturnType<typeof createGrid>} grid
  * @param {{ tile: RepoTreemapTile, x: number, y: number, width: number, height: number }} rect
+ * @param {boolean} focused
  */
-function outlineRect(grid, rect) {
+function outlineRect(grid, rect, focused = false) {
   if (rect.width < 2 || rect.height < 2) {
     return;
   }
+  const { h, v, tl, tr, bl, br } = outlineGlyphs(focused);
   const top = rect.y;
   const bottom = rect.y + rect.height - 1;
   const left = rect.x;
   const right = rect.x + rect.width - 1;
 
   for (let col = left + 1; col < right; col++) {
-    putCell(grid, { row: top, col, ch: '─', kind: rect.tile.kind });
-    putCell(grid, { row: bottom, col, ch: '─', kind: rect.tile.kind });
+    putCell(grid, { row: top, col, ch: h, kind: rect.tile.kind });
+    putCell(grid, { row: bottom, col, ch: h, kind: rect.tile.kind });
   }
   for (let row = top + 1; row < bottom; row++) {
-    putCell(grid, { row, col: left, ch: '│', kind: rect.tile.kind });
-    putCell(grid, { row, col: right, ch: '│', kind: rect.tile.kind });
+    putCell(grid, { row, col: left, ch: v, kind: rect.tile.kind });
+    putCell(grid, { row, col: right, ch: v, kind: rect.tile.kind });
   }
-  putCell(grid, { row: top, col: left, ch: '┌', kind: rect.tile.kind });
-  putCell(grid, { row: top, col: right, ch: '┐', kind: rect.tile.kind });
-  putCell(grid, { row: bottom, col: left, ch: '└', kind: rect.tile.kind });
-  putCell(grid, { row: bottom, col: right, ch: '┘', kind: rect.tile.kind });
+  putCell(grid, { row: top, col: left, ch: tl, kind: rect.tile.kind });
+  putCell(grid, { row: top, col: right, ch: tr, kind: rect.tile.kind });
+  putCell(grid, { row: bottom, col: left, ch: bl, kind: rect.tile.kind });
+  putCell(grid, { row: bottom, col: right, ch: br, kind: rect.tile.kind });
 }
 
 /**
@@ -375,8 +400,9 @@ function paintLabel(grid, rect) {
  *
  * @param {ReturnType<typeof createGrid>} grid
  * @param {{ tile: RepoTreemapTile, x: number, y: number, width: number, height: number }} rect
+ * @param {string | null} selectedTileId
  */
-function paintRect(grid, rect) {
+function paintRect(grid, rect, selectedTileId) {
   const fill = TILE_FILL[rect.tile.kind] ?? TILE_FILL.meta;
 
   for (let row = rect.y; row < rect.y + rect.height; row++) {
@@ -386,7 +412,7 @@ function paintRect(grid, rect) {
       }
     }
   }
-  outlineRect(grid, rect);
+  outlineRect(grid, rect, rect.tile.id === selectedTileId);
   paintLabel(grid, rect);
 }
 
@@ -456,9 +482,11 @@ function renderOverview(report, width) {
     return [
       clip(`scope ${report.scope}`, width),
       clip(`source ${sourceLabel(report.source)}`, width),
+      clip(`level ${currentLevelLabel(report)}`, width),
       clip(`root ${tailClip(report.cwd, Math.max(1, width - 5))}`, width),
       clip(`total ${formatBytes(report.totalValue)}`, width),
       clip('logical source weighting', width),
+      clip(`current regions ${report.tiles.length}`, width),
       clip(`source entries ${report.summary.sourceEntries}`, width),
       clip(`vault entries ${report.summary.vaultEntries}`, width),
     ];
@@ -467,12 +495,49 @@ function renderOverview(report, width) {
   return [
     clip(`scope ${report.scope}`, width),
     clip(`source ${sourceLabel(report.source)}`, width),
+    clip(`level ${currentLevelLabel(report)}`, width),
     clip(`root ${tailClip(report.cwd, Math.max(1, width - 5))}`, width),
     clip(`total ${formatBytes(report.totalValue)}`, width),
     clip(`${report.worktreeMode} paths ${report.summary.worktreePaths}`, width),
+    clip(`current regions ${report.tiles.length}`, width),
     clip(`worktree regions ${report.summary.worktreeItems}`, width),
     clip(`refs ${report.summary.refCount} in ${report.summary.refNamespaces} namespaces`, width),
     clip(`vault ${report.summary.vaultEntries}  source ${report.summary.sourceEntries}`, width),
+  ];
+}
+
+/**
+ * Find the selected tile in the current report.
+ *
+ * @param {RepoTreemapReport} report
+ * @param {string | null | undefined} selectedTileId
+ * @returns {RepoTreemapTile | null}
+ */
+function selectedTile(report, selectedTileId) {
+  if (!selectedTileId) {
+    return report.tiles[0] ?? null;
+  }
+  return report.tiles.find((tile) => tile.id === selectedTileId) ?? report.tiles[0] ?? null;
+}
+
+/**
+ * Render the focused tile details for the sidebar.
+ *
+ * @param {RepoTreemapReport} report
+ * @param {string | null | undefined} selectedTileId
+ * @param {number} width
+ * @returns {string[]}
+ */
+function renderFocusedTile(report, selectedTileId, width) {
+  const tile = selectedTile(report, selectedTileId);
+  if (!tile) {
+    return ['No region selected.'];
+  }
+  return [
+    clip(tile.label, width),
+    clip(`${TILE_LABEL[tile.kind]} · ${formatPercent(tile.value, report.totalValue)}`, width),
+    clip(tile.detail, width),
+    clip(tile.drillable ? 'Press + to descend.' : 'Leaf tile.', width),
   ];
 }
 
@@ -492,7 +557,7 @@ function renderNotes(report, width, lines) {
  * Render only the treemap grid.
  *
  * @param {RepoTreemapReport} report
- * @param {{ ctx: BijouContext, width: number, height: number }} options
+ * @param {{ ctx: BijouContext, width: number, height: number, selectedTileId?: string | null }} options
  * @returns {string}
  */
 export function renderRepoTreemapMap(report, options) {
@@ -501,7 +566,7 @@ export function renderRepoTreemapMap(report, options) {
   const grid = createGrid(width, height);
   const layout = layoutTreemap(sortTilesByValue(report.tiles), { x: 0, y: 0, width, height });
   for (const rect of layout) {
-    paintRect(grid, rect);
+    paintRect(grid, rect, options.selectedTileId ?? null);
   }
   return renderGrid(grid, options.ctx).join('\n');
 }
@@ -510,14 +575,15 @@ export function renderRepoTreemapMap(report, options) {
  * Build text sections for the treemap sidebar.
  *
  * @param {RepoTreemapReport} report
- * @param {{ ctx: BijouContext, width: number, height: number }} options
- * @returns {{ overview: string, legend: string, regions: string, notes: string }}
+ * @param {{ ctx: BijouContext, width: number, height: number, selectedTileId?: string | null }} options
+ * @returns {{ overview: string, legend: string, focused: string, regions: string, notes: string }}
  */
 export function renderRepoTreemapSidebar(report, options) {
   const width = Math.max(16, options.width);
   return {
     overview: renderOverview(report, width).join('\n'),
     legend: renderLegendLines(options.ctx, width).join('\n'),
+    focused: renderFocusedTile(report, options.selectedTileId, width).join('\n'),
     regions: renderDetails(report.tiles, {
       totalValue: report.totalValue,
       width,
@@ -531,7 +597,7 @@ export function renderRepoTreemapSidebar(report, options) {
  * Render a repository treemap as ANSI-aware text.
  *
  * @param {RepoTreemapReport} report
- * @param {{ ctx: BijouContext, width: number, height: number }} options
+ * @param {{ ctx: BijouContext, width: number, height: number, selectedTileId?: string | null }} options
  * @returns {string}
  */
 export function renderRepoTreemap(report, options) {

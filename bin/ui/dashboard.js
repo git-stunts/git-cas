@@ -25,6 +25,8 @@ import { renderDashboard } from './dashboard-view.js';
  * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
  * @typedef {import('./dashboard-cmds.js').TreemapScope} TreemapScope
  * @typedef {import('./dashboard-cmds.js').TreemapWorktreeMode} TreemapWorktreeMode
+ * @typedef {import('./dashboard-cmds.js').TreemapPathNode} TreemapPathNode
+ * @typedef {import('./dashboard-cmds.js').RepoTreemapTile} RepoTreemapTile
  * @typedef {import('./dashboard-cmds.js').RefInventory} RefInventory
  * @typedef {import('./dashboard-cmds.js').RefInventoryItem} RefInventoryItem
  * @typedef {{ slug: string, treeOid: string }} VaultEntry
@@ -50,6 +52,8 @@ import { renderDashboard } from './dashboard-view.js';
  *   | { type: 'open-refs' }
  *   | { type: 'toggle-treemap-scope' }
  *   | { type: 'toggle-treemap-worktree' }
+ *   | { type: 'treemap-drill-in' }
+ *   | { type: 'treemap-drill-out' }
  *   | { type: 'overlay-close' }
  * } DashAction
  */
@@ -72,7 +76,7 @@ import { renderDashboard } from './dashboard-view.js';
  *   | { type: 'loaded-doctor', report: any, source: DashSource }
  *   | { type: 'loaded-treemap', report: any }
  *   | { type: 'dismiss-toast', id: number }
- *   | { type: 'load-error', source: string, slug?: string, forSource?: DashSource, scopeId?: TreemapScope, worktreeMode?: TreemapWorktreeMode, error: string }
+ *   | { type: 'load-error', source: string, slug?: string, forSource?: DashSource, scopeId?: TreemapScope, worktreeMode?: TreemapWorktreeMode, drillPath?: TreemapPathNode[], error: string }
  * } DashMsg
  */
 
@@ -107,6 +111,8 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {string | null} doctorError
  * @property {TreemapScope} treemapScope
  * @property {TreemapWorktreeMode} treemapWorktreeMode
+ * @property {TreemapPathNode[]} treemapPath
+ * @property {number} treemapFocus
  * @property {LoadState} treemapStatus
  * @property {any | null} treemapReport
  * @property {string | null} treemapError
@@ -152,6 +158,8 @@ export function createKeyBindings() {
     .bind('r', 'Refs', { type: 'open-refs' })
     .bind('shift+t', 'Treemap scope', { type: 'toggle-treemap-scope' })
     .bind('i', 'Treemap files', { type: 'toggle-treemap-worktree' })
+    .bind('shift+=', 'Treemap descend', { type: 'treemap-drill-in' })
+    .bind('-', 'Treemap ascend', { type: 'treemap-drill-out' })
     .bind('escape', 'Close overlay', { type: 'overlay-close' })
     .bind('shift+j', 'Scroll down', { type: 'scroll-detail', delta: 3 })
     .bind('shift+k', 'Scroll up', { type: 'scroll-detail', delta: -3 });
@@ -204,6 +212,20 @@ const PALETTE_ITEMS = [
     description: 'Switch repository treemap files between git ls-files and ignored paths',
     category: 'View',
     shortcut: 'i',
+  },
+  {
+    id: 'treemap-drill-in',
+    label: 'Treemap Descend',
+    description: 'Drill into the focused treemap region',
+    category: 'View',
+    shortcut: '+',
+  },
+  {
+    id: 'treemap-drill-out',
+    label: 'Treemap Ascend',
+    description: 'Return to the parent treemap level',
+    category: 'View',
+    shortcut: '-',
   },
   {
     id: 'stats',
@@ -370,6 +392,45 @@ function sourceEquals(left, right) {
 }
 
 /**
+ * Return true when two treemap drill paths describe the same level.
+ *
+ * @param {TreemapPathNode[]} left
+ * @param {TreemapPathNode[]} right
+ * @returns {boolean}
+ */
+function treemapPathEquals(left, right) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((node, index) =>
+    node.kind === right[index]?.kind
+    && node.label === right[index]?.label
+    && node.segments.length === right[index]?.segments.length
+    && node.segments.every((segment, segmentIndex) => segment === right[index]?.segments[segmentIndex]));
+}
+
+/**
+ * Clamp treemap focus to the current tile list.
+ *
+ * @param {number} focus
+ * @param {RepoTreemapTile[]} tiles
+ * @returns {number}
+ */
+function clampTreemapFocus(focus, tiles) {
+  return Math.max(0, Math.min(focus, tiles.length - 1));
+}
+
+/**
+ * Return the selected treemap tile from the current report.
+ *
+ * @param {DashModel} model
+ * @returns {RepoTreemapTile | null}
+ */
+function selectedTreemapTile(model) {
+  return model.treemapReport?.tiles[clampTreemapFocus(model.treemapFocus, model.treemapReport?.tiles ?? [])] ?? null;
+}
+
+/**
  * Build rows for the refs browser table.
  *
  * @param {RefInventoryItem[]} refs
@@ -481,12 +542,15 @@ function dismissToast(model, id) {
 /**
  * Return true when a treemap load message is stale for the current model.
  *
- * @param {{ scopeId?: TreemapScope, worktreeMode?: TreemapWorktreeMode }} msg
+ * @param {{ scopeId?: TreemapScope, worktreeMode?: TreemapWorktreeMode, drillPath?: TreemapPathNode[] }} msg
  * @param {DashModel} model
  * @returns {boolean}
  */
 function isStaleTreemapLoad(msg, model) {
   if (msg.scopeId && msg.scopeId !== model.treemapScope) {
+    return true;
+  }
+  if (msg.drillPath && !treemapPathEquals(msg.drillPath, model.treemapPath)) {
     return true;
   }
   return msg.scopeId === 'repository'
@@ -649,6 +713,8 @@ function createInitModel(ctx, source) {
     doctorError: null,
     treemapScope: 'repository',
     treemapWorktreeMode: 'tracked',
+    treemapPath: [],
+    treemapFocus: 0,
     treemapStatus: 'idle',
     treemapReport: null,
     treemapError: null,
@@ -680,6 +746,139 @@ function handleRefsViewAction(action, model, deps) {
   }
   if (isBlockedByTreemapView(action)) {
     return [model, []];
+  }
+  return null;
+}
+
+/**
+ * Handle cursor movement inside the treemap view.
+ *
+ * @param {{ type: 'move', delta: number }} action
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleTreemapMove(action, model) {
+  const total = model.treemapReport?.tiles.length ?? 0;
+  if (total === 0) {
+    return [model, []];
+  }
+  const treemapFocus = (model.treemapFocus + action.delta + total) % total;
+  return [{ ...model, treemapFocus }, []];
+}
+
+/**
+ * Handle page-wise movement inside the treemap view.
+ *
+ * @param {{ type: 'page', delta: number }} action
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleTreemapPage(action, model) {
+  const total = model.treemapReport?.tiles.length ?? 0;
+  if (total === 0) {
+    return [model, []];
+  }
+  const pageSize = Math.max(1, Math.min(8, model.rows - 16));
+  const treemapFocus = clampTreemapFocus(model.treemapFocus + (action.delta * pageSize), model.treemapReport?.tiles ?? []);
+  return [{ ...model, treemapFocus }, []];
+}
+
+/**
+ * Descend into the focused treemap region when it has child nodes.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleTreemapDrillIn(model, deps) {
+  const tile = selectedTreemapTile(model);
+  if (!tile) {
+    return [model, []];
+  }
+  if (!tile.drillable || !tile.path) {
+    return addToast(model, {
+      level: 'info',
+      title: 'Leaf region',
+      message: `${tile.label} does not have a deeper treemap level.`,
+    });
+  }
+
+  const nextModel = {
+    ...model,
+    treemapPath: [...model.treemapPath, tile.path],
+    treemapFocus: 0,
+    activeDrawer: 'treemap',
+    palette: null,
+  };
+  if (treemapReportMatches(nextModel, model.treemapReport)) {
+    return [{
+      ...nextModel,
+      treemapStatus: 'ready',
+      treemapError: null,
+    }, []];
+  }
+  return [{
+    ...nextModel,
+    treemapStatus: 'loading',
+    treemapError: null,
+  }, [treemapLoad(nextModel, deps)]];
+}
+
+/**
+ * Ascend to the parent treemap level.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleTreemapDrillOut(model, deps) {
+  if (model.treemapPath.length === 0) {
+    return [model, []];
+  }
+  const nextModel = {
+    ...model,
+    treemapPath: model.treemapPath.slice(0, -1),
+    treemapFocus: 0,
+    activeDrawer: 'treemap',
+    palette: null,
+  };
+  if (treemapReportMatches(nextModel, model.treemapReport)) {
+    return [{
+      ...nextModel,
+      treemapStatus: 'ready',
+      treemapError: null,
+    }, []];
+  }
+  return [{
+    ...nextModel,
+    treemapStatus: 'loading',
+    treemapError: null,
+  }, [treemapLoad(nextModel, deps)]];
+}
+
+/**
+ * Handle actions that are specific to the full-screen treemap view.
+ *
+ * @param {DashAction} action
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]] | null}
+ */
+function handleTreemapViewAction(action, model, deps) {
+  if (model.activeDrawer !== 'treemap') {
+    return null;
+  }
+  if (action.type === 'move') {
+    return handleTreemapMove(action, model);
+  }
+  if (action.type === 'page') {
+    return handleTreemapPage(action, model);
+  }
+  if (action.type === 'select' || action.type === 'treemap-drill-in') {
+    return handleTreemapDrillIn(model, deps);
+  }
+  if (action.type === 'treemap-drill-out') {
+    return handleTreemapDrillOut(model, deps);
   }
   return null;
 }
@@ -918,6 +1117,23 @@ function openDoctorDrawer(model, deps) {
 }
 
 /**
+ * Build a treemap load command from the current dashboard state.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ scope?: TreemapScope, worktreeMode?: TreemapWorktreeMode, drillPath?: TreemapPathNode[] }} [overrides]
+ * @returns {DashCmd}
+ */
+function treemapLoad(model, deps, overrides = {}) {
+  return /** @type {DashCmd} */ (loadTreemapCmd(deps.cas, {
+    source: model.source,
+    scope: overrides.scope ?? model.treemapScope,
+    worktreeMode: overrides.worktreeMode ?? model.treemapWorktreeMode,
+    drillPath: overrides.drillPath ?? model.treemapPath,
+  }));
+}
+
+/**
  * Open the repo treemap view and trigger a load when needed.
  *
  * @param {DashModel} model
@@ -945,11 +1161,74 @@ function openTreemapDrawer(model, deps) {
     palette: null,
     treemapStatus: 'loading',
     treemapError: null,
-  }, [/** @type {DashCmd} */ (loadTreemapCmd(deps.cas, {
-    source: model.source,
-    scope: model.treemapScope,
-    worktreeMode: model.treemapWorktreeMode,
-  }))]];
+  }, [treemapLoad(model, deps)]];
+}
+
+/**
+ * Keep the refs browser state stable while a source switch reloads entries.
+ *
+ * @param {DashModel} model
+ * @returns {{ refsStatus: LoadState, refsItems: RefInventoryItem[], refsTable: NavigableTableState }}
+ */
+function preserveRefsState(model) {
+  return {
+    refsStatus: model.refsStatus,
+    refsItems: model.refsItems,
+    refsTable: syncRefsTable(model.refsTable, {
+      refs: model.refsItems,
+      rows: model.rows,
+      focusRow: model.refsTable.focusRow,
+      scrollY: model.refsTable.scrollY,
+    }),
+  };
+}
+
+/**
+ * Reset source-scoped explorer state ahead of loading a different source.
+ *
+ * @param {DashModel} model
+ * @param {DashSource} source
+ * @returns {DashModel}
+ */
+function buildSourceSwitchModel(model, source) {
+  const clearedTable = syncTable(model.table, {
+    entries: [],
+    manifestCache: new Map(),
+    rows: model.rows,
+    focusRow: 0,
+    scrollY: 0,
+  });
+
+  return {
+    ...model,
+    ...preserveRefsState(model),
+    palette: null,
+    activeDrawer: null,
+    source,
+    status: 'loading',
+    entries: [],
+    filtered: [],
+    filterText: '',
+    filtering: false,
+    metadata: null,
+    manifestCache: new Map(),
+    loadingSlug: null,
+    detailScroll: 0,
+    error: null,
+    table: clearedTable,
+    splitPane: { ...model.splitPane, focused: 'a' },
+    statsStatus: 'idle',
+    statsReport: null,
+    statsError: null,
+    doctorStatus: 'idle',
+    doctorReport: null,
+    doctorError: null,
+    treemapStatus: 'idle',
+    treemapReport: null,
+    treemapError: null,
+    treemapPath: [],
+    treemapFocus: 0,
+  };
 }
 
 /**
@@ -961,10 +1240,15 @@ function openTreemapDrawer(model, deps) {
  */
 function toggleTreemapScope(model, deps) {
   const treemapScope = model.treemapScope === 'repository' ? 'source' : 'repository';
-  if (treemapReportMatches({ ...model, treemapScope }, model.treemapReport)) {
+  const nextModel = {
+    ...model,
+    treemapScope,
+    treemapPath: [],
+    treemapFocus: 0,
+  };
+  if (treemapReportMatches(nextModel, model.treemapReport)) {
     return [{
-      ...model,
-      treemapScope,
+      ...nextModel,
       activeDrawer: 'treemap',
       palette: null,
       treemapStatus: 'ready',
@@ -972,17 +1256,12 @@ function toggleTreemapScope(model, deps) {
     }, []];
   }
   return [{
-    ...model,
-    treemapScope,
+    ...nextModel,
     activeDrawer: 'treemap',
     palette: null,
     treemapStatus: 'loading',
     treemapError: null,
-  }, [/** @type {DashCmd} */ (loadTreemapCmd(deps.cas, {
-    source: model.source,
-    scope: treemapScope,
-    worktreeMode: model.treemapWorktreeMode,
-  }))]];
+  }, [treemapLoad(nextModel, deps)]];
 }
 
 /**
@@ -1001,6 +1280,8 @@ function toggleTreemapWorktreeMode(model, deps) {
     ...model,
     treemapScope: 'repository',
     treemapWorktreeMode,
+    treemapPath: [],
+    treemapFocus: 0,
     activeDrawer: 'treemap',
     palette: null,
   };
@@ -1015,11 +1296,7 @@ function toggleTreemapWorktreeMode(model, deps) {
     ...nextModel,
     treemapStatus: 'loading',
     treemapError: null,
-  }, [/** @type {DashCmd} */ (loadTreemapCmd(deps.cas, {
-    source: model.source,
-    scope: 'repository',
-    worktreeMode: treemapWorktreeMode,
-  }))]];
+  }, [treemapLoad(nextModel, deps)]];
 }
 
 /**
@@ -1086,40 +1363,7 @@ function switchSource(model, deps, source) {
       activeDrawer: null,
     }, []];
   }
-  const clearedTable = syncTable(model.table, {
-    entries: [],
-    manifestCache: new Map(),
-    rows: model.rows,
-    focusRow: 0,
-    scrollY: 0,
-  });
-  return [{
-    ...model,
-    palette: null,
-    activeDrawer: null,
-    source,
-    status: 'loading',
-    entries: [],
-    filtered: [],
-    filterText: '',
-    filtering: false,
-    metadata: null,
-    manifestCache: new Map(),
-    loadingSlug: null,
-    detailScroll: 0,
-    error: null,
-    table: clearedTable,
-    splitPane: { ...model.splitPane, focused: 'a' },
-    statsStatus: 'idle',
-    statsReport: null,
-    statsError: null,
-    doctorStatus: 'idle',
-    doctorReport: null,
-    doctorError: null,
-    treemapStatus: 'idle',
-    treemapReport: null,
-    treemapError: null,
-  }, [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas, source))]];
+  return [buildSourceSwitchModel(model, source), [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas, source))]];
 }
 
 /**
@@ -1185,6 +1429,8 @@ function handlePaletteSelect(model, deps) {
     treemap: () => openTreemapDrawer(model, deps),
     'treemap-scope': () => toggleTreemapScope(model, deps),
     'treemap-worktree': () => toggleTreemapWorktreeMode(model, deps),
+    'treemap-drill-in': () => handleTreemapDrillIn(model, deps),
+    'treemap-drill-out': () => handleTreemapDrillOut(model, deps),
     stats: () => openStatsDrawer(model, deps),
     doctor: () => openDoctorDrawer(model, deps),
     'focus-entries': () => focusPane(model, 'a'),
@@ -1321,31 +1567,19 @@ function resizeSplitPane(model, delta) {
  * @returns {[DashModel, DashCmd[]] | null}
  */
 function handleOverlayAction(action, model, deps) {
-  if (action.type === 'open-palette') {
-    return setPalette(model, createPalette(model.rows));
-  }
-  if (action.type === 'open-stats') {
-    return openStatsDrawer(model, deps);
-  }
-  if (action.type === 'open-doctor') {
-    return openDoctorDrawer(model, deps);
-  }
-  if (action.type === 'open-refs') {
-    return openRefsDrawer(model, deps);
-  }
-  if (action.type === 'open-treemap') {
-    return openTreemapDrawer(model, deps);
-  }
-  if (action.type === 'toggle-treemap-scope') {
-    return toggleTreemapScope(model, deps);
-  }
-  if (action.type === 'toggle-treemap-worktree') {
-    return toggleTreemapWorktreeMode(model, deps);
-  }
-  if (action.type === 'overlay-close') {
-    return closeOverlay(model);
-  }
-  return null;
+  const handlers = {
+    'open-palette': () => setPalette(model, createPalette(model.rows)),
+    'open-stats': () => openStatsDrawer(model, deps),
+    'open-doctor': () => openDoctorDrawer(model, deps),
+    'open-refs': () => openRefsDrawer(model, deps),
+    'open-treemap': () => openTreemapDrawer(model, deps),
+    'toggle-treemap-scope': () => toggleTreemapScope(model, deps),
+    'toggle-treemap-worktree': () => toggleTreemapWorktreeMode(model, deps),
+    'treemap-drill-in': () => handleTreemapDrillIn(model, deps),
+    'treemap-drill-out': () => handleTreemapDrillOut(model, deps),
+    'overlay-close': () => closeOverlay(model),
+  };
+  return action.type in handlers ? handlers[action.type]() : null;
 }
 
 /**
@@ -1425,6 +1659,10 @@ function handleAction(action, model, deps) {
   if (refsResult) {
     return refsResult;
   }
+  const treemapResult = handleTreemapViewAction(action, model, deps);
+  if (treemapResult) {
+    return treemapResult;
+  }
   if (model.activeDrawer === 'treemap' && isBlockedByTreemapView(action)) {
     return [model, []];
   }
@@ -1448,53 +1686,98 @@ function handleAction(action, model, deps) {
  */
 function handleLoadedReport(msg, model) {
   if (msg.type === 'loaded-refs') {
-    return [{
-      ...model,
-      refsStatus: 'ready',
-      refsItems: msg.refs.refs,
-      refsError: null,
-      refsTable: syncRefsTable(model.refsTable, {
-        refs: msg.refs.refs,
-        rows: model.rows,
-        focusRow: 0,
-        scrollY: 0,
-      }),
-    }, []];
+    return handleLoadedRefs(msg, model);
   }
   if (msg.type === 'loaded-stats') {
-    if (!sourceEquals(msg.source, model.source)) {
-      return [model, []];
-    }
-    return [{
-      ...model,
-      statsStatus: 'ready',
-      statsReport: msg.stats,
-      statsError: null,
-    }, []];
+    return handleLoadedStats(msg, model);
   }
   if (msg.type === 'loaded-doctor') {
-    if (!sourceEquals(msg.source, model.source)) {
-      return [model, []];
-    }
-    return [{
-      ...model,
-      doctorStatus: 'ready',
-      doctorReport: msg.report,
-      doctorError: null,
-    }, []];
+    return handleLoadedDoctor(msg, model);
   }
   if (msg.type === 'loaded-treemap') {
-    if (!treemapReportMatches(model, msg.report)) {
-      return [model, []];
-    }
-    return [{
-      ...model,
-      treemapStatus: 'ready',
-      treemapReport: msg.report,
-      treemapError: null,
-    }, []];
+    return handleLoadedTreemap(msg, model);
   }
   return [model, []];
+}
+
+/**
+ * Store a loaded refs inventory.
+ *
+ * @param {Extract<DashMsg, { type: 'loaded-refs' }>} msg
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleLoadedRefs(msg, model) {
+  return [{
+    ...model,
+    refsStatus: 'ready',
+    refsItems: msg.refs.refs,
+    refsError: null,
+    refsTable: syncRefsTable(model.refsTable, {
+      refs: msg.refs.refs,
+      rows: model.rows,
+      focusRow: 0,
+      scrollY: 0,
+    }),
+  }, []];
+}
+
+/**
+ * Store a loaded stats report if it still matches the active source.
+ *
+ * @param {Extract<DashMsg, { type: 'loaded-stats' }>} msg
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleLoadedStats(msg, model) {
+  if (!sourceEquals(msg.source, model.source)) {
+    return [model, []];
+  }
+  return [{
+    ...model,
+    statsStatus: 'ready',
+    statsReport: msg.stats,
+    statsError: null,
+  }, []];
+}
+
+/**
+ * Store a loaded doctor report if it still matches the active source.
+ *
+ * @param {Extract<DashMsg, { type: 'loaded-doctor' }>} msg
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleLoadedDoctor(msg, model) {
+  if (!sourceEquals(msg.source, model.source)) {
+    return [model, []];
+  }
+  return [{
+    ...model,
+    doctorStatus: 'ready',
+    doctorReport: msg.report,
+    doctorError: null,
+  }, []];
+}
+
+/**
+ * Store a loaded treemap report if it still matches the active view state.
+ *
+ * @param {Extract<DashMsg, { type: 'loaded-treemap' }>} msg
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleLoadedTreemap(msg, model) {
+  if (!treemapReportMatches(model, msg.report)) {
+    return [model, []];
+  }
+  return [{
+    ...model,
+    treemapStatus: 'ready',
+    treemapReport: msg.report,
+    treemapError: null,
+    treemapFocus: clampTreemapFocus(model.treemapFocus, msg.report.tiles ?? []),
+  }, []];
 }
 
 /**
@@ -1583,7 +1866,7 @@ function handleUpdate(msg, model, deps) {
  * @returns {boolean}
  */
 function treemapReportMatches(model, report) {
-  if (!report || report.scope !== model.treemapScope || !sourceEquals(report.source, model.source)) {
+  if (!report || report.scope !== model.treemapScope || !sourceEquals(report.source, model.source) || !treemapPathEquals(report.drillPath ?? [], model.treemapPath)) {
     return false;
   }
   if (report.scope !== 'repository') {
