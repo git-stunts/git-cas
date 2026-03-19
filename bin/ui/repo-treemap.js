@@ -314,17 +314,7 @@ function putCell(grid, cell) {
   }
 }
 
-/**
- * Pick a high-contrast foreground color for a tile background.
- *
- * @param {[number, number, number]} color
- * @returns {[number, number, number]}
- */
-function contrastColor(color) {
-  const [red, green, blue] = color;
-  const brightness = ((red * 299) + (green * 587) + (blue * 114)) / 1000;
-  return brightness >= 160 ? [0, 0, 0] : [255, 255, 255];
-}
+const LABEL_FOREGROUND = [255, 255, 255];
 
 /**
  * Paint a visible outline around a tile rectangle.
@@ -414,8 +404,9 @@ function renderGrid(grid, ctx) {
     }
     const color = TILE_COLOR[cell.kind] ?? TILE_COLOR.meta;
     if (cell.label) {
-      const foreground = contrastColor(color);
-      return ctx.style.rgb(foreground[0], foreground[1], foreground[2], cell.ch);
+      return ctx.style.bold(
+        ctx.style.rgb(LABEL_FOREGROUND[0], LABEL_FOREGROUND[1], LABEL_FOREGROUND[2], cell.ch),
+      );
     }
     return ctx.style.rgb(color[0], color[1], color[2], cell.ch);
   }).join(''));
