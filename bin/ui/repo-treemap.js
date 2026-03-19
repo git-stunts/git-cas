@@ -106,6 +106,65 @@ function tailClip(text, width) {
 }
 
 /**
+ * Find the next wrap position inside one line of plain text.
+ *
+ * @param {string} line
+ * @param {number} width
+ * @returns {number}
+ */
+function findWrapIndex(line, width) {
+  const splitAt = Math.min(width, line.length);
+  const boundaryChar = line[splitAt];
+  if (boundaryChar && /\s/u.test(boundaryChar)) {
+    return splitAt;
+  }
+  let backtrack = splitAt;
+  while (backtrack > 0 && !/\s/u.test(line[backtrack - 1])) {
+    backtrack--;
+  }
+  return backtrack > 0 ? backtrack : splitAt;
+}
+
+/**
+ * Wrap one plain-text line to the requested width.
+ *
+ * Prefer breaking on the last whitespace boundary that fits inside the
+ * available width. When a token is longer than the whole line budget, fall
+ * back to a hard break so rendering always makes forward progress.
+ *
+ * @param {string} line
+ * @param {number} width
+ * @returns {string[]}
+ */
+function wrapLine(line, width) {
+  if (line.length === 0) {
+    return [''];
+  }
+
+  const wrapped = [];
+  let remaining = line;
+
+  while (remaining.length > width) {
+    const splitAt = Math.min(width, remaining.length);
+    const wrapIndex = findWrapIndex(remaining, width);
+    const chunk = remaining.slice(0, wrapIndex).replace(/\s+$/u, '');
+    wrapped.push(chunk || remaining.slice(0, splitAt));
+
+    let nextStart = wrapIndex;
+    while (nextStart < remaining.length && /\s/u.test(remaining[nextStart])) {
+      nextStart++;
+    }
+    remaining = remaining.slice(nextStart);
+  }
+
+  if (remaining.length > 0 || wrapped.length === 0) {
+    wrapped.push(remaining);
+  }
+
+  return wrapped;
+}
+
+/**
  * Wrap plain text into fixed-width chunks.
  *
  * @param {string} text
@@ -116,10 +175,9 @@ function wrapText(text, width) {
   if (width <= 0) {
     return [''];
   }
-  const chunkPattern = new RegExp(`.{1,${Math.max(1, width)}}`, 'g');
   return text
     .split('\n')
-    .flatMap((line) => line.length === 0 ? [''] : (line.match(chunkPattern) ?? ['']));
+    .flatMap((line) => wrapLine(line, width));
 }
 
 /**
@@ -238,7 +296,7 @@ function layoutTreemap(tiles, rect, vertical = rect.width >= rect.height) {
  *
  * @param {number} width
  * @param {number} height
- * @returns {Array<Array<{ ch: string, kind: keyof typeof TILE_COLOR | null }>>}
+ * @returns {Array<Array<{ ch: string, kind: keyof typeof TILE_COLOR | null, label?: boolean }>>}
  */
 function createGrid(width, height) {
   return Array.from({ length: height }, () => Array.from({ length: width }, () => ({ ch: ' ', kind: null })));
@@ -248,12 +306,24 @@ function createGrid(width, height) {
  * Write one cell when it falls inside the current grid.
  *
  * @param {ReturnType<typeof createGrid>} grid
- * @param {{ row: number, col: number, ch: string, kind: RepoTreemapTile['kind'] }} cell
+ * @param {{ row: number, col: number, ch: string, kind: RepoTreemapTile['kind'], label?: boolean }} cell
  */
 function putCell(grid, cell) {
   if (grid[cell.row]?.[cell.col]) {
-    grid[cell.row][cell.col] = { ch: cell.ch, kind: cell.kind };
+    grid[cell.row][cell.col] = { ch: cell.ch, kind: cell.kind, label: cell.label ?? false };
   }
+}
+
+/**
+ * Pick a high-contrast foreground color for a tile background.
+ *
+ * @param {[number, number, number]} color
+ * @returns {[number, number, number]}
+ */
+function contrastColor(color) {
+  const [red, green, blue] = color;
+  const brightness = ((red * 299) + (green * 587) + (blue * 114)) / 1000;
+  return brightness >= 160 ? [0, 0, 0] : [255, 255, 255];
 }
 
 /**
@@ -305,7 +375,7 @@ function paintLabel(grid, rect) {
   for (let index = 0; index < label.length; index++) {
     const cell = grid[labelRow]?.[startCol + index];
     if (cell) {
-      grid[labelRow][startCol + index] = { ch: label[index], kind: rect.tile.kind };
+      grid[labelRow][startCol + index] = { ch: label[index], kind: rect.tile.kind, label: true };
     }
   }
 }
@@ -343,6 +413,15 @@ function renderGrid(grid, ctx) {
       return cell.ch;
     }
     const color = TILE_COLOR[cell.kind] ?? TILE_COLOR.meta;
+    if (cell.label) {
+      const foreground = contrastColor(color);
+      return ctx.style.bgRgb(
+        color[0],
+        color[1],
+        color[2],
+        ctx.style.rgb(foreground[0], foreground[1], foreground[2], cell.ch),
+      );
+    }
     return ctx.style.rgb(color[0], color[1], color[2], cell.ch);
   }).join(''));
 }

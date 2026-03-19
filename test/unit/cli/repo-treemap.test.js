@@ -38,7 +38,22 @@ function makeReport(overrides = {}) {
   };
 }
 
-describe('repo treemap rendering', () => {
+function makeStyledCtx() {
+  return /** @type {any} */ ({
+    style: {
+      rgb: (...args) => {
+        const [red, green, blue, text] = args;
+        return `[fg:${red},${green},${blue}]${text}[/fg]`;
+      },
+      bgRgb: (...args) => {
+        const [red, green, blue, text] = args;
+        return `[bg:${red},${green},${blue}]${text}[/bg]`;
+      },
+    },
+  });
+}
+
+describe('repo treemap map rendering', () => {
   it('renders multiple large regions when the half-split crosses on the last item', () => {
     const output = renderRepoTreemapMap(makeReport(), {
       ctx: makeCtx(),
@@ -51,6 +66,24 @@ describe('repo treemap rendering', () => {
     expect(output).toContain('refs/git-cms');
   });
 
+  it('renders label text with tile-colored backgrounds and contrasting foregrounds', () => {
+    const output = renderRepoTreemapMap(makeReport({
+      totalValue: 10,
+      tiles: [{ label: 'docs', kind: 'worktree', value: 10, detail: '10 tracked paths' }],
+    }), {
+      ctx: makeStyledCtx(),
+      width: 24,
+      height: 8,
+    });
+
+    expect(output).toContain('[bg:59,207,212]');
+    expect(output).toContain('[fg:0,0,0]d[/fg]');
+    expect(output).toContain('[fg:0,0,0]o[/fg]');
+  });
+});
+
+describe('repo treemap sidebar rendering', () => {
+
   it('sorts sidebar largest regions by value instead of source construction order', () => {
     const sidebar = renderRepoTreemapSidebar(makeReport(), {
       ctx: makeCtx(),
@@ -62,5 +95,22 @@ describe('repo treemap rendering', () => {
     expect(regionLines[0]).toContain('.git/objects');
     expect(regionLines[1]).toContain('docs');
     expect(regionLines[2]).toContain('refs/git-cms');
+  });
+
+  it('wraps notes on whitespace before falling back to hard character breaks', () => {
+    const sidebar = renderRepoTreemapSidebar(makeReport({
+      notes: ['alpha beta longword delta', 'supercalifragilistic'],
+    }), {
+      ctx: makeCtx(),
+      width: 16,
+      height: 32,
+    });
+
+    expect(sidebar.notes.split('\n')).toEqual([
+      'alpha beta',
+      'longword delta',
+      'supercalifragili',
+      'stic',
+    ]);
   });
 });
