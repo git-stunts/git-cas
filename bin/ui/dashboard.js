@@ -1818,6 +1818,29 @@ function handleAppMsg(msg, model, cas) {
 }
 
 /**
+ * Normalize punctuation key runtime differences across terminals.
+ *
+ * Bijou's descriptor parser can match `shift+=`, but some live terminals emit
+ * the printable `+` and `_` characters directly instead of the unshifted key
+ * plus a modifier flag. Accept both representations for treemap drill keys.
+ *
+ * @param {KeyMsg} msg
+ * @returns {DashAction | undefined}
+ */
+function runtimeSymbolAction(msg) {
+  if (msg.ctrl || msg.alt) {
+    return undefined;
+  }
+  if (msg.key === '+' || (msg.key === '=' && msg.shift)) {
+    return { type: 'treemap-drill-in' };
+  }
+  if (msg.key === '-' || msg.key === '_') {
+    return { type: 'treemap-drill-out' };
+  }
+  return undefined;
+}
+
+/**
  * Route all update messages to the appropriate handler.
  *
  * @param {KeyMsg | ResizeMsg | DashMsg} msg
@@ -1833,7 +1856,7 @@ function handleUpdate(msg, model, deps) {
     return handleFilterKey(msg, model);
   }
   if (msg.type === 'key') {
-    const action = deps.keyMap.handle(msg);
+    const action = runtimeSymbolAction(msg) ?? deps.keyMap.handle(msg);
     if (action) { return handleAction(action, model, deps); }
     return [model, []];
   }

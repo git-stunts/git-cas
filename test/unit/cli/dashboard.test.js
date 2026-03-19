@@ -464,7 +464,29 @@ describe('dashboard treemap view shortcuts', () => {
   });
 });
 
-describe('dashboard treemap drill shortcuts', () => {
+function makeDrilledTreemapModel() {
+  return makeModel({
+    activeDrawer: 'treemap',
+    treemapScope: 'repository',
+    treemapStatus: 'ready',
+    treemapPath: [{ kind: 'git', segments: ['.git/objects'], label: '.git/objects' }],
+    treemapReport: makeTreemapReport({
+      drillPath: [{ kind: 'git', segments: ['.git/objects'], label: '.git/objects' }],
+      breadcrumb: ['repository', '.git/objects'],
+      tiles: [{
+        id: 'git:.git/objects/pack',
+        label: 'pack',
+        kind: 'git',
+        value: 2048,
+        detail: '2 git items · 2.0K on disk',
+        drillable: true,
+        path: { kind: 'git', segments: ['.git/objects', 'pack'], label: 'pack' },
+      }],
+    }),
+  });
+}
+
+describe('dashboard treemap descend shortcuts', () => {
   it('+ drills into the focused treemap region', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({
@@ -478,28 +500,34 @@ describe('dashboard treemap drill shortcuts', () => {
     expect(cmds).toHaveLength(1);
   });
 
-  it('- ascends to the parent treemap level', () => {
+  it('raw + key events also drill into the focused treemap region', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({
       activeDrawer: 'treemap',
-      treemapScope: 'repository',
       treemapStatus: 'ready',
-      treemapPath: [{ kind: 'git', segments: ['.git/objects'], label: '.git/objects' }],
-      treemapReport: makeTreemapReport({
-        drillPath: [{ kind: 'git', segments: ['.git/objects'], label: '.git/objects' }],
-        breadcrumb: ['repository', '.git/objects'],
-        tiles: [{
-          id: 'git:.git/objects/pack',
-          label: 'pack',
-          kind: 'git',
-          value: 2048,
-          detail: '2 git items · 2.0K on disk',
-          drillable: true,
-          path: { kind: 'git', segments: ['.git/objects', 'pack'], label: 'pack' },
-        }],
-      }),
+      treemapReport: makeTreemapReport(),
     });
+    const [next, cmds] = app.update(keyMsg('+'), model);
+    expect(next.treemapPath).toEqual([{ kind: 'worktree', segments: ['src'], label: 'src' }]);
+    expect(next.treemapStatus).toBe('loading');
+    expect(cmds).toHaveLength(1);
+  });
+});
+
+describe('dashboard treemap ascend shortcuts', () => {
+  it('- ascends to the parent treemap level', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeDrilledTreemapModel();
     const [next, cmds] = app.update(keyMsg('-'), model);
+    expect(next.treemapPath).toEqual([]);
+    expect(next.treemapStatus).toBe('loading');
+    expect(cmds).toHaveLength(1);
+  });
+
+  it('raw _ key events also ascend to the parent treemap level', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeDrilledTreemapModel();
+    const [next, cmds] = app.update(keyMsg('_', { shift: true }), model);
     expect(next.treemapPath).toEqual([]);
     expect(next.treemapStatus).toBe('loading');
     expect(cmds).toHaveLength(1);
