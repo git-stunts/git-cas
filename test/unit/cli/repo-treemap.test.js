@@ -45,10 +45,7 @@ function makeStyledCtx() {
         const [red, green, blue, text] = args;
         return `[fg:${red},${green},${blue}]${text}[/fg]`;
       },
-      bgRgb: (...args) => {
-        const [red, green, blue, text] = args;
-        return `[bg:${red},${green},${blue}]${text}[/bg]`;
-      },
+      bgRgb: (...args) => `[bg]${args[3]}[/bg]`,
     },
   });
 }
@@ -66,7 +63,7 @@ describe('repo treemap map rendering', () => {
     expect(output).toContain('refs/git-cms');
   });
 
-  it('renders label text with tile-colored backgrounds and contrasting foregrounds', () => {
+  it('renders label text with contrast-picked foregrounds without painting stripe backgrounds', () => {
     const output = renderRepoTreemapMap(makeReport({
       totalValue: 10,
       tiles: [{ label: 'docs', kind: 'worktree', value: 10, detail: '10 tracked paths' }],
@@ -76,9 +73,9 @@ describe('repo treemap map rendering', () => {
       height: 8,
     });
 
-    expect(output).toContain('[bg:59,207,212]');
     expect(output).toContain('[fg:0,0,0]d[/fg]');
     expect(output).toContain('[fg:0,0,0]o[/fg]');
+    expect(output).not.toContain('[bg]');
   });
 });
 

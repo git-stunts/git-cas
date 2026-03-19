@@ -415,12 +415,7 @@ function renderGrid(grid, ctx) {
     const color = TILE_COLOR[cell.kind] ?? TILE_COLOR.meta;
     if (cell.label) {
       const foreground = contrastColor(color);
-      return ctx.style.bgRgb(
-        color[0],
-        color[1],
-        color[2],
-        ctx.style.rgb(foreground[0], foreground[1], foreground[2], cell.ch),
-      );
+      return ctx.style.rgb(foreground[0], foreground[1], foreground[2], cell.ch);
     }
     return ctx.style.rgb(color[0], color[1], color[2], cell.ch);
   }).join(''));
