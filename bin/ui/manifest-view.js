@@ -2,8 +2,9 @@
  * Manifest anatomy view — rich visual breakdown of a manifest.
  */
 
-import { box, badge, table, tree, headerBox, surfaceToString } from '@flyingrobots/bijou';
+import { box, table, tree } from '@flyingrobots/bijou';
 import { getCliContext } from './context.js';
+import { chipText, sectionHeading, themeText } from './theme.js';
 
 /**
  * @typedef {import('../../src/domain/value-objects/Manifest.js').ManifestData} ManifestData
@@ -37,16 +38,19 @@ function formatBytes(bytes) {
  * @returns {string}
  */
 function renderBadges(m, ctx) {
-  const renderBadge = (label, options = {}) => surfaceToString(badge(label, { ...options, ctx }), ctx.style);
-  const badges = [renderBadge(`v${m.version}`)];
+  const renderBadge = (label, tone = 'neutral') => chipText(ctx, label, tone);
+  const badges = [];
+  if (Number.isFinite(m.version)) {
+    badges.push(renderBadge(`v${m.version}`, 'brand'));
+  }
   if (m.encryption) {
-    badges.push(renderBadge('encrypted', { variant: 'warning' }));
+    badges.push(renderBadge('encrypted', 'warning'));
   }
   if (m.compression) {
-    badges.push(renderBadge(m.compression.algorithm, { variant: 'info' }));
+    badges.push(renderBadge(m.compression.algorithm, 'info'));
   }
   if (m.subManifests?.length) {
-    badges.push(renderBadge('merkle', { variant: 'info' }));
+    badges.push(renderBadge('merkle', 'accent'));
   }
   return badges.join(' ');
 }
@@ -75,7 +79,7 @@ function renderEncryptionSection(enc, ctx) {
   if (enc.tag) {
     rows.push(`  tag        ${enc.tag.slice(0, 16)}...`);
   }
-  return `${headerBox('Encryption', { ctx })}\n${box(rows.join('\n'), { ctx })}`;
+  return `${sectionHeading(ctx, 'Encryption Profile', 'warning')}\n${box(rows.join('\n'), { ctx })}`;
 }
 
 /**
@@ -101,7 +105,7 @@ function renderChunksSection(chunks, ctx) {
   const suffix = chunks.length > 20
     ? `\n  ...and ${chunks.length - 20} more`
     : '';
-  return `${headerBox(`Chunks (${chunks.length})`, { ctx })}\n${chunkTable}${suffix}`;
+  return `${sectionHeading(ctx, `Chunk Ledger (${chunks.length})`, 'info')}\n${chunkTable}${suffix}`;
 }
 
 /**
@@ -113,12 +117,12 @@ function renderChunksSection(chunks, ctx) {
  */
 function renderMetadataSection(m, ctx) {
   const meta = [
-    `  slug      ${m.slug}`,
-    `  filename  ${m.filename}`,
+    `  slug      ${m.slug ?? '-'}`,
+    `  filename  ${m.filename ?? '-'}`,
     `  size      ${formatBytes(m.size)}`,
     `  chunks    ${m.chunks?.length ?? 0}`,
   ];
-  return `${headerBox('Metadata', { ctx })}\n${box(meta.join('\n'), { ctx })}`;
+  return `${sectionHeading(ctx, 'Asset Metadata', 'brand')}\n${box(meta.join('\n'), { ctx })}`;
 }
 
 /**
@@ -133,7 +137,7 @@ function renderSubManifestsSection(m, ctx) {
   const nodes = subs.map((/** @type {import('../../src/domain/value-objects/Manifest.js').SubManifestRef} */ sm, /** @type {number} */ i) => ({
     label: `sub-${i}  ${sm.chunkCount} chunks  start: ${sm.startIndex}  oid: ${sm.oid.slice(0, 8)}...`,
   }));
-  return `${headerBox(`Sub-manifests (${subs.length})`, { ctx })}\n${tree(nodes, { ctx })}`;
+  return `${sectionHeading(ctx, `Merkle Branches (${subs.length})`, 'accent')}\n${tree(nodes, { ctx })}`;
 }
 
 /**
@@ -146,13 +150,18 @@ function renderSubManifestsSection(m, ctx) {
  */
 export function renderManifestView({ manifest, ctx = getCliContext() }) {
   const m = /** @type {ManifestData} */ ('toJSON' in manifest ? manifest.toJSON() : manifest);
-  const sections = [renderBadges(m, ctx), renderMetadataSection(m, ctx)];
+  const badges = renderBadges(m, ctx);
+  const sections = [themeText(ctx, 'Manifest Ledger', { tone: 'brand' })];
+  if (badges.length > 0) {
+    sections.push(badges);
+  }
+  sections.push(renderMetadataSection(m, ctx));
 
   if (m.encryption) {
     sections.push(renderEncryptionSection(m.encryption, ctx));
   }
   if (m.compression) {
-    sections.push(`${headerBox('Compression', { ctx })}\n${box(`  algorithm  ${m.compression.algorithm}`, { ctx })}`);
+    sections.push(`${sectionHeading(ctx, 'Compression Profile', 'info')}\n${box(`  algorithm  ${m.compression.algorithm}`, { ctx })}`);
   }
   if (m.subManifests?.length) {
     sections.push(renderSubManifestsSection(m, ctx));

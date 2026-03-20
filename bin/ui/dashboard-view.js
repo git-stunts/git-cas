@@ -2,9 +2,10 @@
  * Pure render functions for the vault dashboard.
  */
 
-import { badge, boxV3, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
+import { boxV3, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
 import { commandPalette, navigableTable, splitPaneLayout } from '@flyingrobots/bijou-tui';
 import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
+import { GIT_CAS_PALETTE, chipSurface, inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
 import { renderDoctorReport, renderVaultStats } from './vault-report.js';
 import { renderManifestView } from './manifest-view.js';
 
@@ -20,10 +21,10 @@ const SPLIT_MIN_LIST_WIDTH = 28;
 const SPLIT_MIN_DETAIL_WIDTH = 32;
 const SPLIT_DIVIDER_SIZE = 1;
 const TOAST_THEME = {
-  error: { label: 'Error', bg: [185, 28, 28], fg: [255, 255, 255] },
-  warning: { label: 'Warning', bg: [202, 138, 4], fg: [17, 24, 39] },
-  info: { label: 'Info', bg: [37, 99, 235], fg: [255, 255, 255] },
-  success: { label: 'Success', bg: [22, 163, 74], fg: [255, 255, 255] },
+  error: { label: 'Error', bg: GIT_CAS_PALETTE.wine, fg: GIT_CAS_PALETTE.ivory },
+  warning: { label: 'Warning', bg: [148, 82, 23], fg: GIT_CAS_PALETTE.ivory },
+  info: { label: 'Info', bg: GIT_CAS_PALETTE.indigo, fg: GIT_CAS_PALETTE.ivory },
+  success: { label: 'Success', bg: GIT_CAS_PALETTE.moss, fg: GIT_CAS_PALETTE.ivory },
 };
 
 /**
@@ -100,20 +101,20 @@ function blitInline(target, options) {
  */
 function headerParts(model, ctx) {
   const parts = [
-    badge(`${model.filtered.length}/${model.entries.length || model.filtered.length} visible`, { variant: 'info', ctx }),
+    chipSurface(ctx, `${model.filtered.length}/${model.entries.length || model.filtered.length} visible`, 'info'),
   ];
   if (model.metadata?.encryption) {
-    parts.push(badge('encrypted', { variant: 'warning', ctx }));
+    parts.push(chipSurface(ctx, 'encrypted', 'warning'));
   }
   if (model.filtering || model.filterText) {
-    parts.push(badge(model.filtering ? 'filtering' : `filter ${model.filterText}`, { variant: 'accent', ctx }));
+    parts.push(chipSurface(ctx, model.filtering ? 'filtering' : `filter ${model.filterText}`, 'accent'));
   }
   if (model.activeDrawer === 'treemap') {
-    parts.push(badge('treemap view', { variant: 'primary', ctx }));
+    parts.push(chipSurface(ctx, 'atlas view', 'brand'));
   } else if (model.activeDrawer === 'refs') {
-    parts.push(badge('refs view', { variant: 'primary', ctx }));
+    parts.push(chipSurface(ctx, 'ref index', 'brand'));
   } else {
-    parts.push(badge(`pane ${model.splitPane.focused === 'a' ? 'entries' : 'inspector'}`, { variant: 'primary', ctx }));
+    parts.push(chipSurface(ctx, model.splitPane.focused === 'a' ? 'entries ledger' : 'manifest inspector', 'brand'));
   }
   appendSelectionBadges(parts, model, ctx);
   return parts;
@@ -129,27 +130,27 @@ function headerParts(model, ctx) {
 function appendSelectionBadges(parts, model, ctx) {
   const selected = model.filtered[model.table.focusRow];
   if (selected && model.activeDrawer !== 'treemap') {
-    parts.push(badge(`selected ${selected.slug}`, { variant: 'accent', ctx }));
+    parts.push(chipSurface(ctx, `selected ${selected.slug}`, 'accent'));
   }
   if (model.toasts.length > 0) {
-    parts.push(badge(`alerts ${model.toasts.length}`, { variant: 'warning', ctx }));
+    parts.push(chipSurface(ctx, `alerts ${model.toasts.length}`, 'warning'));
   }
   if (model.activeDrawer === 'treemap') {
-    parts.push(badge(`scope ${model.treemapScope}`, { variant: 'primary', ctx }));
+    parts.push(chipSurface(ctx, `scope ${model.treemapScope}`, 'brand'));
     if (model.treemapScope === 'repository') {
-      parts.push(badge(`files ${model.treemapWorktreeMode}`, { variant: 'accent', ctx }));
+      parts.push(chipSurface(ctx, `files ${model.treemapWorktreeMode}`, 'accent'));
     }
-    parts.push(badge(`level ${treemapLevelLabel(model)}`, { variant: 'info', ctx }));
+    parts.push(chipSurface(ctx, `level ${treemapLevelLabel(model)}`, 'info'));
     const tile = selectedTreemapTile(model);
     if (tile) {
-      parts.push(badge(`focus ${tile.label}`, { variant: 'warning', ctx }));
+      parts.push(chipSurface(ctx, `focus ${tile.label}`, 'warning'));
     }
   }
   if (model.activeDrawer && model.activeDrawer !== 'treemap') {
-    parts.push(badge(`${model.activeDrawer} drawer`, { variant: 'info', ctx }));
+    parts.push(chipSurface(ctx, `${model.activeDrawer} drawer`, 'info'));
   }
   if (model.palette) {
-    parts.push(badge('palette', { variant: 'warning', ctx }));
+    parts.push(chipSurface(ctx, 'command deck', 'warning'));
   }
 }
 
@@ -201,15 +202,31 @@ function selectedTreemapTile(model) {
  */
 function renderHeaderSurface(model, deps) {
   const surface = createSurface(Math.max(1, model.columns), 4);
-  surface.blit(textSurface('git-cas repository explorer', surface.width, 1), 0, 0);
-  surface.blit(textSurface(tailClip(`cwd ${deps.cwdLabel ?? '-'}`, surface.width), surface.width, 1), 0, 1);
+  blitInline(surface, {
+    x: 0,
+    y: 0,
+    parts: [
+      inlineSurface(deps.ctx, 'git-cas', { tone: 'brand' }),
+      inlineSurface(deps.ctx, 'repository explorer', { tone: 'secondary' }),
+    ],
+    maxWidth: surface.width,
+  });
+  blitInline(surface, {
+    x: 0,
+    y: 1,
+    parts: [
+      inlineSurface(deps.ctx, 'cwd', { tone: 'accent' }),
+      inlineSurface(deps.ctx, tailClip(deps.cwdLabel ?? '-', Math.max(1, surface.width - 5)), { tone: 'subdued' }),
+    ],
+    maxWidth: surface.width,
+  });
   blitInline(surface, {
     x: 0,
     y: 2,
-    parts: [sourceLabel(model.source), ...headerParts(model, deps.ctx)],
+    parts: [inlineSurface(deps.ctx, sourceLabel(model.source), { tone: 'primary' }), ...headerParts(model, deps.ctx)],
     maxWidth: surface.width,
   });
-  surface.blit(textSurface('─'.repeat(surface.width), surface.width, 1), 0, 3);
+  surface.blit(textSurface(shellRule(deps.ctx, surface.width), surface.width, 1), 0, 3);
   return surface;
 }
 
@@ -260,13 +277,13 @@ function limitWrappedLines(lines, width, maxLines) {
 /**
  * Build one titled sidebar section within a line budget.
  *
- * @param {{ title: string, body: string, width: number, bodyLines: number }} options
+ * @param {{ title: string, body: string, width: number, bodyLines: number, ctx: BijouContext, tone?: 'brand' | 'accent' | 'info' | 'warning' | 'subdued' }} options
  * @returns {string[]}
  */
 function sidebarSection(options) {
   const lines = options.body.length === 0 ? [''] : options.body.split('\n');
   return [
-    options.title,
+    sectionHeading(options.ctx, options.title, options.tone ?? 'brand'),
     ...limitWrappedLines(lines, options.width, Math.max(1, options.bodyLines)),
   ];
 }
@@ -293,7 +310,7 @@ function treemapSidebarStateText(model) {
 /**
  * Compose the full set of sidebar sections for the treemap view.
  *
- * @param {{ sections: ReturnType<typeof renderRepoTreemapSidebar>, width: number, height: number }} options
+ * @param {{ sections: ReturnType<typeof renderRepoTreemapSidebar>, width: number, height: number, ctx: BijouContext }} options
  * @returns {string}
  */
 function composeTreemapSidebarText(options) {
@@ -301,30 +318,40 @@ function composeTreemapSidebarText(options) {
     sidebarSection({
       title: 'Overview',
       body: options.sections.overview,
+      ctx: options.ctx,
+      tone: 'brand',
       width: options.width,
       bodyLines: 4,
     }),
     sidebarSection({
       title: 'Focused Region',
       body: options.sections.focused,
+      ctx: options.ctx,
+      tone: 'accent',
       width: options.width,
       bodyLines: 3,
     }),
     sidebarSection({
       title: 'Legend',
       body: options.sections.legend,
+      ctx: options.ctx,
+      tone: 'info',
       width: options.width,
       bodyLines: 6,
     }),
     sidebarSection({
       title: 'Largest Regions',
       body: options.sections.regions || 'No regions to display.',
+      ctx: options.ctx,
+      tone: 'warning',
       width: options.width,
       bodyLines: 4,
     }),
     sidebarSection({
       title: 'Notes',
       body: options.sections.notes || 'No notes.',
+      ctx: options.ctx,
+      tone: 'subdued',
       width: options.width,
       bodyLines: Math.max(2, options.height - 23),
     }),
@@ -396,9 +423,10 @@ function renderToastSurface(toast, opts) {
  * Build drawer copy for the stats overlay.
  *
  * @param {DashModel} model
+ * @param {BijouContext} ctx
  * @returns {string}
  */
-function statsDrawerBody(model) {
+function statsDrawerBody(model, ctx) {
   if (model.statsStatus === 'loading') {
     return 'Loading source stats...';
   }
@@ -406,7 +434,7 @@ function statsDrawerBody(model) {
     return `Failed to load stats\n\n${model.statsError ?? 'unknown error'}`;
   }
   return model.statsReport
-    ? renderVaultStats(model.statsReport)
+    ? `${sectionHeading(ctx, 'Repository Economics', 'brand')}\n${themeText(ctx, 'Logical size, dedupe, encryption, and chunk shape at a glance.', { tone: 'subdued' })}\n\n${renderVaultStats(model.statsReport)}`
     : 'Stats have not been loaded yet.';
 }
 
@@ -414,9 +442,10 @@ function statsDrawerBody(model) {
  * Build drawer copy for the doctor overlay.
  *
  * @param {DashModel} model
+ * @param {BijouContext} ctx
  * @returns {string}
  */
-function doctorDrawerBody(model) {
+function doctorDrawerBody(model, ctx) {
   if (model.doctorStatus === 'loading') {
     return 'Loading doctor report...';
   }
@@ -426,7 +455,7 @@ function doctorDrawerBody(model) {
   return typeof model.doctorReport === 'string'
     ? model.doctorReport
     : model.doctorReport
-    ? renderDoctorReport(model.doctorReport)
+    ? `${sectionHeading(ctx, 'Integrity Sweep', 'brand')}\n${themeText(ctx, 'Vault reachability, manifest health, and issue inventory.', { tone: 'subdued' })}\n\n${renderDoctorReport(model.doctorReport)}`
     : 'Doctor report has not been loaded yet.';
 }
 
@@ -439,8 +468,8 @@ function doctorDrawerBody(model) {
  */
 function renderStatsDrawer(model, opts) {
   return renderOverlayPanel({
-    title: 'Source Stats',
-    body: statsDrawerBody(model),
+    title: 'Vault Metrics',
+    body: statsDrawerBody(model, opts.ctx),
     width: Math.max(32, Math.min(56, opts.width - 2)),
     height: Math.max(8, opts.height),
     ctx: opts.ctx,
@@ -456,8 +485,8 @@ function renderStatsDrawer(model, opts) {
  */
 function renderDoctorDrawer(model, opts) {
   return renderOverlayPanel({
-    title: 'Doctor Report',
-    body: doctorDrawerBody(model),
+    title: 'Vault Doctor',
+    body: doctorDrawerBody(model, opts.ctx),
     width: Math.max(32, Math.min(56, opts.width - 2)),
     height: Math.max(8, opts.height),
     ctx: opts.ctx,
@@ -534,7 +563,7 @@ function renderPaletteSurface(model, opts) {
     ctx: opts.ctx,
   });
   return renderOverlayPanel({
-    title: 'Command Palette',
+    title: 'Command Deck',
     body,
     width,
     height: Math.min(opts.height, model.palette.height + 3),
@@ -638,13 +667,17 @@ function renderListPane(model, opts) {
   const innerWidth = Math.max(1, opts.width - 2);
   const innerHeight = Math.max(1, opts.height - 2);
   const metaLines = [
-    clip(model.filtering ? `filter /${model.filterText}\u2588` : model.filterText ? `filter ${model.filterText}` : 'filter all', innerWidth),
-    clip(`${model.filtered.length} assets  focus row ${model.table.rows.length ? model.table.focusRow + 1 : 0}`, innerWidth),
+    themeText(opts.ctx, clip(model.filtering ? `filter /${model.filterText}\u2588` : model.filterText ? `filter ${model.filterText}` : 'filter all', innerWidth), { tone: 'accent' }),
+    themeText(opts.ctx, clip(`${model.filtered.length} assets  focus row ${model.table.rows.length ? model.table.focusRow + 1 : 0}`, innerWidth), { tone: 'subdued' }),
   ];
   const tableHeight = Math.max(1, innerHeight - metaLines.length);
 
   if (model.table.rows.length === 0) {
-    metaLines.push(model.status === 'loading' ? 'Loading...' : model.error ? `Error: ${model.error}` : 'No entries');
+    metaLines.push(model.status === 'loading'
+      ? themeText(opts.ctx, 'Loading...', { tone: 'info' })
+      : model.error
+      ? themeText(opts.ctx, `Error: ${model.error}`, { tone: 'danger' })
+      : themeText(opts.ctx, 'No entries', { tone: 'subdued' }));
   } else {
     const tableText = navigableTable(tableViewState(model, { width: innerWidth, height: tableHeight }), {
       ctx: opts.ctx,
@@ -655,7 +688,7 @@ function renderListPane(model, opts) {
 
   return boxV3(textSurface(metaLines.join('\n'), innerWidth, innerHeight), {
     ctx: opts.ctx,
-    title: model.splitPane.focused === 'a' ? 'Entries *' : 'Entries',
+    title: model.splitPane.focused === 'a' ? 'Entries Ledger *' : 'Entries Ledger',
     width: opts.width,
   });
 }
@@ -677,24 +710,26 @@ function renderDetailPane(model, opts) {
     content.blit(textSurface('Select an entry to inspect it.', innerWidth, innerHeight), 0, 0);
     return boxV3(content, {
       ctx: opts.ctx,
-      title: model.splitPane.focused === 'b' ? 'Inspector *' : 'Inspector',
+      title: model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector',
       width: opts.width,
     });
   }
 
   const manifest = model.manifestCache.get(entry.slug);
   const summary = [
-    `asset ${entry.slug}`,
-    `tree  ${entry.treeOid.slice(0, 12)}...`,
+    `${themeText(opts.ctx, 'asset', { tone: 'accent' })} ${themeText(opts.ctx, entry.slug, { tone: 'primary', bold: true })}`,
+    `${themeText(opts.ctx, 'tree', { tone: 'subdued' })}  ${themeText(opts.ctx, `${entry.treeOid.slice(0, 12)}...`, { tone: 'secondary' })}`,
   ];
   content.blit(textSurface(summary.join('\n'), innerWidth, Math.min(2, innerHeight)), 0, 0);
 
   if (!manifest) {
-    const loadingText = entry.slug === model.loadingSlug ? 'Loading manifest...' : 'Manifest not loaded yet.';
+    const loadingText = entry.slug === model.loadingSlug
+      ? themeText(opts.ctx, 'Loading manifest...', { tone: 'info' })
+      : themeText(opts.ctx, 'Manifest not loaded yet.', { tone: 'subdued' });
     content.blit(textSurface(loadingText, innerWidth, Math.max(1, innerHeight - 3)), 0, 3);
     return boxV3(content, {
       ctx: opts.ctx,
-      title: model.splitPane.focused === 'b' ? 'Inspector *' : 'Inspector',
+      title: model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector',
       width: opts.width,
     });
   }
@@ -708,7 +743,7 @@ function renderDetailPane(model, opts) {
 
   return boxV3(content, {
     ctx: opts.ctx,
-    title: model.splitPane.focused === 'b' ? 'Inspector *' : 'Inspector',
+    title: model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector',
     width: opts.width,
   });
 }
@@ -816,9 +851,10 @@ function renderRefsListBody(model, deps, size) {
  * Render the refs-browser detail sidebar.
  *
  * @param {DashModel} model
+ * @param {BijouContext} ctx
  * @returns {string}
  */
-function renderRefsDetailBody(model) {
+function renderRefsDetailBody(model, ctx) {
   const current = selectedRef(model);
   const namespaceCounts = new Map();
   for (const ref of model.refsItems) {
@@ -826,6 +862,7 @@ function renderRefsDetailBody(model) {
   }
 
   const sidebarLines = [
+    sectionHeading(ctx, 'Inventory', 'brand'),
     `refs ${model.refsItems.length} under ${namespaceCounts.size} namespaces`,
     `current ${sourceLabel(model.source)}`,
     '',
@@ -833,6 +870,7 @@ function renderRefsDetailBody(model) {
 
   if (current) {
     sidebarLines.push(
+      sectionHeading(ctx, 'Selected Ref', 'accent'),
       `ref ${current.ref}`,
       `namespace ${current.namespace}`,
       `oid ${current.oid}`,
@@ -843,7 +881,7 @@ function renderRefsDetailBody(model) {
       current.detail,
     );
     if (current.previewSlugs.length > 0) {
-      sidebarLines.push('', 'preview', ...current.previewSlugs.map((slug) => `- ${slug}`));
+      sidebarLines.push('', sectionHeading(ctx, 'Preview', 'info'), ...current.previewSlugs.map((slug) => `- ${slug}`));
     }
     sidebarLines.push('', current.browsable
       ? 'Press enter to switch source to this ref.'
@@ -855,7 +893,7 @@ function renderRefsDetailBody(model) {
   if (namespaceCounts.size > 0) {
     sidebarLines.push(
       '',
-      'namespaces',
+      sectionHeading(ctx, 'Namespaces', 'warning'),
       ...Array.from(namespaceCounts.entries())
         .slice(0, 8)
         .map(([namespace, count]) => `- ${namespace} (${count})`),
@@ -878,7 +916,7 @@ function renderRefsView(model, deps, options) {
   const listWidth = Math.max(18, options.screen.width - sidebarWidth - 1);
   const viewHeight = options.height;
   const listPanel = renderPanel({
-    title: 'Refs',
+    title: 'Ref Index',
     body: renderRefsListBody(model, deps, {
       width: Math.max(8, listWidth - 2),
       height: Math.max(4, viewHeight - 2),
@@ -888,8 +926,8 @@ function renderRefsView(model, deps, options) {
     ctx: deps.ctx,
   });
   const detailPanel = renderPanel({
-    title: 'Ref Details',
-    body: renderRefsDetailBody(model),
+    title: 'Ref Dispatch',
+    body: renderRefsDetailBody(model, deps.ctx),
     width: sidebarWidth,
     height: viewHeight,
     ctx: deps.ctx,
@@ -954,6 +992,7 @@ function renderTreemapSidebarText(options) {
   });
   return composeTreemapSidebarText({
     sections,
+    ctx: options.deps.ctx,
     width: options.width,
     height: options.height,
   });
@@ -973,7 +1012,7 @@ function renderTreemapView(model, deps, options) {
   const mapHeight = options.height;
   const sidebarHeight = options.height;
 
-  const mapTitle = `${model.treemapScope === 'repository' ? 'Repository Map' : 'Source Map'} · ${treemapLevelLabel(model)}`;
+  const mapTitle = `${model.treemapScope === 'repository' ? 'Repository Atlas' : 'Source Atlas'} · ${treemapLevelLabel(model)}`;
   const mapPanel = renderPanel({
     title: mapTitle,
     body: renderTreemapMapBody(model, deps, { mapWidth, mapHeight }),
@@ -982,7 +1021,7 @@ function renderTreemapView(model, deps, options) {
     ctx: deps.ctx,
   });
   const sidebarPanel = renderPanel({
-    title: 'Treemap Details',
+    title: 'Atlas Briefing',
     body: renderTreemapSidebarText({
       model,
       deps,
@@ -1010,23 +1049,23 @@ function renderTreemapView(model, deps, options) {
 function renderFooterSurface(model, ctx, width) {
   const lines = model.activeDrawer === 'treemap'
     ? [
-      '─'.repeat(Math.max(1, width)),
-      `${kbd('j/k', { ctx })} regions  ${kbd('d/u', { ctx })} page  ${kbd('+', { ctx })} descend  ${kbd('-', { ctx })} ascend`,
-      `${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('r', { ctx })} refs  ${kbd('ctrl+p', { ctx })} palette`,
-      `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
+      shellRule(ctx, width),
+      `${themeText(ctx, 'atlas', { tone: 'accent' })}  ${kbd('j/k', { ctx })} regions  ${kbd('d/u', { ctx })} page  ${kbd('+', { ctx })} descend  ${kbd('-', { ctx })} ascend`,
+      `${themeText(ctx, 'scope', { tone: 'brand' })}  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('r', { ctx })} refs  ${kbd('ctrl+p', { ctx })} palette`,
+      `${themeText(ctx, 'ops', { tone: 'warning' })}  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
     ]
     : model.activeDrawer === 'refs'
       ? [
-        '─'.repeat(Math.max(1, width)),
-        `${kbd('j/k', { ctx })} refs  ${kbd('d/u', { ctx })} page  ${kbd('enter', { ctx })} switch source`,
-        `${kbd('t', { ctx })} treemap  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('ctrl+p', { ctx })} palette`,
-        `${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
+        shellRule(ctx, width),
+        `${themeText(ctx, 'index', { tone: 'accent' })}  ${kbd('j/k', { ctx })} refs  ${kbd('d/u', { ctx })} page  ${kbd('enter', { ctx })} switch source`,
+        `${themeText(ctx, 'inspect', { tone: 'brand' })}  ${kbd('t', { ctx })} treemap  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('ctrl+p', { ctx })} palette`,
+        `${themeText(ctx, 'shell', { tone: 'warning' })}  ${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
       ]
       : [
-      '─'.repeat(Math.max(1, width)),
-      `${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
-      `${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
-      `${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('r', { ctx })} refs  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
+      shellRule(ctx, width),
+      `${themeText(ctx, 'browse', { tone: 'accent' })}  ${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
+      `${themeText(ctx, 'shell', { tone: 'brand' })}  ${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
+      `${themeText(ctx, 'ops', { tone: 'warning' })}  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('r', { ctx })} refs  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
     ];
   return textSurface(lines.join('\n'), width, 4);
 }

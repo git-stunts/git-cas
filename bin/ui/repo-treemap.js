@@ -9,13 +9,15 @@
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
  */
 
+import { GIT_CAS_PALETTE } from './theme.js';
+
 const TILE_COLOR = {
-  worktree: [59, 207, 212],
-  git: [252, 147, 5],
-  ref: [242, 0, 148],
-  vault: [166, 227, 1],
-  cas: [137, 180, 250],
-  meta: [148, 163, 184],
+  worktree: GIT_CAS_PALETTE.teal,
+  git: GIT_CAS_PALETTE.copper,
+  ref: GIT_CAS_PALETTE.orchid,
+  vault: GIT_CAS_PALETTE.lime,
+  cas: GIT_CAS_PALETTE.sky,
+  meta: GIT_CAS_PALETTE.slate,
 };
 
 const TILE_FILL = {
@@ -450,7 +452,7 @@ function renderLegendLines(ctx, width) {
     .map((kind) => {
       const fill = TILE_FILL[kind];
       const color = TILE_COLOR[kind];
-      return clip(`${ctx.style.rgb(color[0], color[1], color[2], fill)} ${TILE_LABEL[kind]}`, width);
+      return clip(ctx.style.rgb(color[0], color[1], color[2], `${fill} ${TILE_LABEL[kind]}`), width);
     });
 }
 

@@ -356,7 +356,7 @@ describe('dashboard palette and overlay commands', () => {
     const [next] = app.update(keyMsg('p', { ctrl: true }), makeModel());
     expect(next.palette).not.toBeNull();
     const rendered = renderView(app.view(next), deps.ctx);
-    expect(rendered).toContain('Command Palette');
+    expect(rendered).toContain('Command Deck');
     expect(rendered).toContain('Open Repo Treemap');
     expect(rendered).toContain('Open Source Stats');
   });
@@ -754,7 +754,7 @@ describe('dashboard view rendering', () => {
     expect(rendered).toContain('cwd /tmp/git-cas-fixture');
     expect(rendered).toContain('source vault refs/cas/vault');
     expect(rendered).toContain('Entries');
-    expect(rendered).toContain('Inspector');
+    expect(rendered).toContain('Manifest Inspector');
   });
 
   it('renders entry list when entries exist', () => {
@@ -838,7 +838,7 @@ describe('dashboard inspector rendering', () => {
     const app = createDashboardApp(deps);
     const model = makeModel({ splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }) });
     const rendered = renderView(app.view(model), deps.ctx);
-    expect(rendered).toContain('Inspector *');
+    expect(rendered).toContain('Manifest Inspector *');
   });
 });
 
@@ -852,7 +852,7 @@ describe('dashboard report overlay rendering', () => {
       statsReport: makeStatsReport(),
     });
     const rendered = renderView(app.view(model), deps.ctx);
-    expect(rendered).toContain('Source Stats');
+    expect(rendered).toContain('Vault Metrics');
     expect(rendered).toContain('dedup-ratio');
     expect(rendered).not.toContain('\t');
   });
@@ -861,7 +861,7 @@ describe('dashboard report overlay rendering', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
     const rendered = renderView(app.view(makeModel({ activeDrawer: 'doctor', doctorStatus: 'loading' })), deps.ctx);
-    expect(rendered).toContain('Doctor Report');
+    expect(rendered).toContain('Vault Doctor');
     expect(rendered).toContain('Loading doctor report');
   });
 });
@@ -869,9 +869,9 @@ describe('dashboard report overlay rendering', () => {
 describe('dashboard treemap rendering', () => {
   it('renders the treemap as a full-screen view with a details sidebar', () => {
     const { rendered } = renderDashboardWithModel(makeFullScreenTreemapModel());
-    expect(rendered).toContain('treemap view');
-    expect(rendered).toContain('Repository Map');
-    expect(rendered).toContain('Treemap Details');
+    expect(rendered).toContain('atlas view');
+    expect(rendered).toContain('Repository Atlas');
+    expect(rendered).toContain('Atlas Briefing');
     expect(rendered).toContain('Overview');
     expect(rendered).toContain('Focused Region');
     expect(rendered).toContain('Legend');
@@ -925,9 +925,9 @@ describe('dashboard refs rendering', () => {
       columns: 120,
       rows: 36,
     });
-    expect(rendered).toContain('refs view');
-    expect(rendered).toContain('Refs');
-    expect(rendered).toContain('Ref Details');
+    expect(rendered).toContain('ref index');
+    expect(rendered).toContain('Ref Index');
+    expect(rendered).toContain('Ref Dispatch');
     expect(rendered).toContain('refs/warp/demo/seek-cache');
     expect(rendered).toContain('Press enter to switch source');
   });
@@ -940,7 +940,7 @@ describe('dashboard palette rendering', () => {
     const [withPalette] = app.update(keyMsg('p', { ctrl: true }), makeModel());
     const rendered = renderView(app.view(withPalette), deps.ctx);
     expect(rendered).toContain('palette');
-    expect(rendered).toContain('Command Palette');
+    expect(rendered).toContain('Command Deck');
     expect(rendered).toContain('Open Repo Treemap');
     expect(rendered).toContain('Open Source Stats');
   });
