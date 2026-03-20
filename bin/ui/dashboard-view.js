@@ -462,18 +462,71 @@ function styleToastLine(options) {
 }
 
 /**
+ * Ease toast entry with a small overshoot so it pops into place.
+ *
+ * @param {number} progress
+ * @returns {number}
+ */
+function easeOutBack(progress) {
+  const clamped = Math.max(0, Math.min(1, progress));
+  const overshoot = 1.70158;
+  const shifted = clamped - 1;
+  return 1 + ((overshoot + 1) * shifted * shifted * shifted) + (overshoot * shifted * shifted);
+}
+
+/**
+ * Visible body line budget for the current toast animation phase.
+ *
+ * @param {{ phase?: 'entering' | 'steady' | 'exiting', progress?: number }} toast
+ * @returns {number}
+ */
+function toastBodyLineBudget(toast) {
+  if (toast.phase !== 'exiting') {
+    return 3;
+  }
+  const progress = Math.max(0, Math.min(1, toast.progress ?? 1));
+  if (progress > 0.66) {
+    return 3;
+  }
+  if (progress > 0.36) {
+    return 2;
+  }
+  if (progress > 0.16) {
+    return 1;
+  }
+  return 0;
+}
+
+/**
+ * Width of the toast for the current motion phase.
+ *
+ * @param {{ phase?: 'entering' | 'steady' | 'exiting', progress?: number }} toast
+ * @param {number} baseWidth
+ * @returns {number}
+ */
+function visibleToastWidth(toast, baseWidth) {
+  if (toast.phase !== 'exiting') {
+    return baseWidth;
+  }
+  const progress = Math.max(0, Math.min(1, toast.progress ?? 1));
+  return Math.max(24, Math.min(baseWidth, Math.round(baseWidth * (0.56 + (progress * 0.44)))));
+}
+
+/**
  * Render one toast box surface.
  *
- * @param {{ id: number, level: 'error' | 'warning' | 'info' | 'success', title: string, message: string, progress?: number }} toast
+ * @param {{ id: number, level: 'error' | 'warning' | 'info' | 'success', title: string, message: string, phase?: 'entering' | 'steady' | 'exiting', progress?: number }} toast
  * @param {{ width: number, ctx: BijouContext }} opts
  * @returns {Surface}
  */
 function renderToastSurface(toast, opts) {
   const theme = TOAST_THEME[toast.level] ?? TOAST_THEME.info;
-  const width = measureToastWidth(toast, Math.max(32, Math.min(48, opts.width)));
+  const baseWidth = measureToastWidth(toast, Math.max(32, Math.min(48, opts.width)));
+  const width = visibleToastWidth(toast, baseWidth);
   const innerWidth = Math.max(1, width - 2);
   const bodyWidth = Math.max(1, innerWidth - 3);
-  const bodyLines = wrapToastText(toast.message, bodyWidth, 3).map((line) => styleToastLine({
+  const bodyLineBudget = toastBodyLineBudget(toast);
+  const bodyLines = wrapToastText(toast.message, bodyWidth, bodyLineBudget).map((line) => styleToastLine({
     text: line,
     theme,
     ctx: opts.ctx,
@@ -491,7 +544,10 @@ function renderToastSurface(toast, opts) {
     return `${border}${rail} ${line} ${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'))}`;
   });
   const bottomLine = `${bottom}${opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '═'.repeat(innerWidth))}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╝'))}`;
-  return textSurface([topLine, titleLine, dividerLine, ...contentLines, bottomLine].join('\n'), width, contentLines.length + 4);
+  const lines = contentLines.length > 0
+    ? [topLine, titleLine, dividerLine, ...contentLines, bottomLine]
+    : [topLine, titleLine, bottomLine];
+  return textSurface(lines.join('\n'), width, lines.length);
 }
 
 /**
@@ -515,7 +571,13 @@ function renderToastShadow(width, height, ctx) {
  */
 function toastSlideOffset(toast) {
   const progress = Math.max(0, Math.min(1, toast.progress ?? 1));
-  return Math.round((1 - progress) * 16);
+  if (toast.phase === 'entering') {
+    return Math.round((1 - easeOutBack(progress)) * 18);
+  }
+  if (toast.phase === 'exiting') {
+    return Math.round((1 - progress) * 24);
+  }
+  return 0;
 }
 
 /**

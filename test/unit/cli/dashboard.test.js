@@ -624,7 +624,7 @@ describe('dashboard report loading', () => {
   });
 });
 
-describe('dashboard treemap report and toast messages', () => {
+describe('dashboard treemap reports', () => {
   it('loaded-treemap stores the report for the active scope', () => {
     const app = createDashboardApp(makeDeps());
     const report = makeTreemapReport({
@@ -655,7 +655,9 @@ describe('dashboard treemap report and toast messages', () => {
     expect(next.treemapReport).toEqual(report);
     expect(next.treemapError).toBeNull();
   });
+});
 
+describe('dashboard toast messages', () => {
   it('dismiss-toast removes the matching toast', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({
@@ -667,6 +669,17 @@ describe('dashboard treemap report and toast messages', () => {
     const [next] = app.update({ type: 'dismiss-toast', id: 1 }, model);
     expect(next.toasts).toEqual([
       makeToast({ id: 2, level: 'warning', title: 'Heads up', message: 'careful' }),
+    ]);
+  });
+
+  it('toast-progress promotes entering toasts to steady once animation completes', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({
+      toasts: [makeToast({ id: 3, title: 'Loaded', phase: 'entering', progress: 0.4 })],
+    });
+    const [next] = app.update({ type: 'toast-progress', id: 3, progress: 1 }, model);
+    expect(next.toasts).toEqual([
+      makeToast({ id: 3, title: 'Loaded', phase: 'steady', progress: 1 }),
     ]);
   });
 });
