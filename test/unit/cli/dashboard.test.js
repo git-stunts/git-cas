@@ -996,4 +996,23 @@ describe('dashboard palette rendering', () => {
     expect(rendered).toContain('WARNING // Heads up');
     expect(rendered).toContain('yellow alert with more words');
   });
+
+  it('renders exiting toasts near completion without crashing', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const rendered = renderView(app.view(makeModel({
+      toasts: [
+        makeToast({
+          id: 7,
+          level: 'error',
+          title: 'Opaque ref',
+          message: 'refs/heads/main does not resolve to CAS entries',
+          phase: 'exiting',
+          progress: 0.08,
+        }),
+      ],
+    })), deps.ctx);
+    expect(rendered).toContain('║ERROR');
+    expect(rendered).not.toContain('TypeError');
+  });
 });

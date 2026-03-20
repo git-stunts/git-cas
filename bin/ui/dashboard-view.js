@@ -266,6 +266,9 @@ function padToWidth(text, width) {
  * @returns {string[]}
  */
 function limitWrappedLines(lines, width, maxLines) {
+  if (maxLines <= 0) {
+    return [];
+  }
   if (lines.length <= maxLines) {
     return lines;
   }
