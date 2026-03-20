@@ -968,6 +968,33 @@ describe('dashboard refs rendering', () => {
     expect(rendered).toContain('refs/warp/demo/seek-cache');
     expect(rendered).toContain('Press enter to switch source');
   });
+
+  it('wraps refs list metadata and sidebar prose on narrow layouts', () => {
+    const refsItems = [
+      {
+        ref: 'refs/heads/main',
+        oid: '69956e82efb7f6fb21fd0749d0d83a13c14068b7',
+        namespace: 'refs/heads',
+        browsable: false,
+        resolution: 'opaque',
+        entryCount: 0,
+        detail: 'Ref refs/heads/main did not resolve to a vault manifest or index blob.',
+        previewSlugs: [],
+        source: null,
+      },
+    ];
+    const { rendered } = renderDashboardWithModel({
+      activeDrawer: 'refs',
+      refsStatus: 'ready',
+      refsItems,
+      refsTable: makeRefsTable(refsItems, 20, { focusRow: 0 }),
+      columns: 84,
+      rows: 20,
+    });
+    expect(rendered).toContain('69956e82efb7');
+    expect(rendered).toContain('resolve to a vault manifest');
+    expect(rendered).toContain('or index blob.');
+  });
 });
 
 describe('dashboard palette rendering', () => {

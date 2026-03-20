@@ -385,7 +385,7 @@ function lastWhitespaceBoundary(text, index) {
  * @param {number} width
  * @returns {string[]}
  */
-function wrapToastParagraph(text, width) {
+function wrapWhitespaceParagraph(text, width) {
   const lines = [];
   let remaining = text.trimEnd();
   if (remaining.length === 0) {
@@ -410,6 +410,22 @@ function wrapToastParagraph(text, width) {
     lines.push(remaining);
   }
   return lines;
+}
+
+/**
+ * Wrap plain text on whitespace with hard-break fallback.
+ *
+ * @param {string} text
+ * @param {number} width
+ * @returns {string[]}
+ */
+function wrapWhitespaceText(text, width) {
+  if (width <= 0) {
+    return [''];
+  }
+  return text
+    .split('\n')
+    .flatMap((part) => wrapWhitespaceParagraph(part, Math.max(1, width)));
 }
 
 /**
@@ -438,9 +454,7 @@ function measureToastWidth(toast, maxWidth) {
  * @returns {string[]}
  */
 function wrapToastText(text, width, maxLines) {
-  const lines = text
-    .split('\n')
-    .flatMap((part) => wrapToastParagraph(part, Math.max(1, width)));
+  const lines = wrapWhitespaceText(text, width);
   return limitWrappedLines(lines, width, maxLines);
 }
 
@@ -920,71 +934,6 @@ function renderDetailPane(model, opts) {
 }
 
 /**
- * Choose a responsive table schema for the refs browser.
- *
- * @param {number} width
- * @returns {{ columns: { header: string, width: number, align?: 'left' | 'right' | 'center' }[], indexes: number[] }}
- */
-function refTableSchema(width) {
-  if (width >= 80) {
-    return {
-      columns: [
-        { header: 'Namespace', width: 14 },
-        { header: 'Ref', width: Math.max(16, width - 47) },
-        { header: 'Kind', width: 10 },
-        { header: 'Entries', width: 7, align: 'right' },
-        { header: 'OID', width: 12 },
-      ],
-      indexes: [0, 1, 2, 3, 4],
-    };
-  }
-  if (width >= 58) {
-    return {
-      columns: [
-        { header: 'Ref', width: Math.max(18, width - 20) },
-        { header: 'Kind', width: 10 },
-        { header: 'Entries', width: 7, align: 'right' },
-      ],
-      indexes: [1, 2, 3],
-    };
-  }
-  return {
-    columns: [
-      { header: 'Ref', width: Math.max(16, width - 12) },
-      { header: 'CAS', width: 10 },
-    ],
-    indexes: [1, 2],
-  };
-}
-
-/**
- * Clamp the refs table to the current pane size.
- *
- * @param {DashModel} model
- * @param {{ width: number, height: number }} size
- * @returns {import('@flyingrobots/bijou-tui').NavigableTableState}
- */
-function refsTableViewState(model, size) {
-  const schema = refTableSchema(size.width);
-  const rows = model.refsTable.rows.map((row) => schema.indexes.map((index) => row[index] ?? ''));
-  const focusRow = Math.max(0, Math.min(model.refsTable.focusRow, rows.length - 1));
-  let scrollY = model.refsTable.scrollY;
-  if (focusRow < scrollY) {
-    scrollY = focusRow;
-  } else if (focusRow >= scrollY + size.height) {
-    scrollY = focusRow - size.height + 1;
-  }
-  return {
-    ...model.refsTable,
-    columns: schema.columns,
-    rows,
-    height: size.height,
-    focusRow,
-    scrollY: Math.min(scrollY, Math.max(0, rows.length - size.height)),
-  };
-}
-
-/**
  * Return the selected ref item from the refs browser.
  *
  * @param {DashModel} model
@@ -995,7 +944,97 @@ function selectedRef(model) {
 }
 
 /**
- * Render the refs-browser table body.
+ * Build human-readable metadata for a ref row.
+ *
+ * @param {import('./dashboard-cmds.js').RefInventoryItem} item
+ * @returns {string}
+ */
+function refMetaText(item) {
+  return `${item.namespace}  ${item.resolution}  ${item.entryCount} entries  ${item.oid.slice(0, 12)}`;
+}
+
+/**
+ * Wrap and prefix a line collection.
+ *
+ * @param {string[]} lines
+ * @param {string} text
+ * @param {{ width: number, prefix?: string }} options
+ */
+function pushWrappedText(lines, text, options) {
+  const prefix = options.prefix ?? '';
+  const width = options.width;
+  const wrapped = wrapWhitespaceText(text, Math.max(1, width - prefix.length));
+  for (const line of wrapped) {
+    lines.push(`${prefix}${line}`);
+  }
+}
+
+/**
+ * Render the visible lines for one ref row.
+ *
+ * @param {import('./dashboard-cmds.js').RefInventoryItem} item
+ * @param {boolean} focused
+ * @param {number} width
+ * @returns {string[]}
+ */
+function renderRefRowLines(item, focused, width) {
+  const lines = [];
+  pushWrappedText(lines, item.ref, { width, prefix: focused ? '▸ ' : '  ' });
+  pushWrappedText(lines, refMetaText(item), { width, prefix: '  ' });
+  return lines;
+}
+
+/**
+ * Render refs-browser status text.
+ *
+ * @param {DashModel} model
+ * @param {number} width
+ * @returns {string}
+ */
+function renderRefsListStatusBody(model, width) {
+  if (model.refsStatus === 'loading') {
+    return wrapWhitespaceText('Loading refs...', width).join('\n');
+  }
+  if (model.refsStatus === 'error') {
+    return wrapWhitespaceText(`Failed to load refs\n\n${model.refsError ?? 'unknown error'}`, width).join('\n');
+  }
+  return wrapWhitespaceText('No refs found.', width).join('\n');
+}
+
+/**
+ * Build a visible refs-list viewport.
+ *
+ * @param {{ items: import('./dashboard-cmds.js').RefInventoryItem[], focusRow: number, startIndex: number, width: number, height: number, ctx: BijouContext }} options
+ * @returns {{ lines: string[], visibleFocus: boolean }}
+ */
+function buildRefsViewport(options) {
+  const lines = [themeText(options.ctx, `${options.items.length} refs  focus row ${options.focusRow + 1}`, { tone: 'subdued' })];
+  let visibleFocus = false;
+
+  for (let index = options.startIndex; index < options.items.length; index += 1) {
+    const rowLines = renderRefRowLines(options.items[index], index === options.focusRow, options.width);
+    const needed = rowLines.length + (index > options.startIndex ? 1 : 0);
+    if (lines.length + needed > options.height && lines.length > 1) {
+      break;
+    }
+    if (index > options.startIndex) {
+      lines.push('');
+    }
+    const remaining = Math.max(1, options.height - lines.length);
+    lines.push(...rowLines.slice(0, remaining));
+    if (index === options.focusRow) {
+      visibleFocus = true;
+    }
+    if (lines.length >= options.height) {
+      break;
+    }
+  }
+
+  return { lines, visibleFocus };
+}
+
+/**
+ * Render the refs-browser list body with whitespace-aware wrapping.
  *
  * @param {DashModel} model
  * @param {DashDeps} deps
@@ -1003,19 +1042,110 @@ function selectedRef(model) {
  * @returns {string}
  */
 function renderRefsListBody(model, deps, size) {
-  if (model.refsStatus === 'loading') {
-    return 'Loading refs...';
+  if (model.refsStatus !== 'ready') {
+    return renderRefsListStatusBody(model, size.width);
   }
-  if (model.refsStatus === 'error') {
-    return `Failed to load refs\n\n${model.refsError ?? 'unknown error'}`;
-  }
-  if (model.refsItems.length === 0) {
-    return 'No refs found.';
-  }
-  return navigableTable(refsTableViewState(model, size), {
+
+  const focusRow = Math.max(0, Math.min(model.refsTable.focusRow, model.refsItems.length - 1));
+  let start = Math.max(0, Math.min(model.refsTable.scrollY, model.refsItems.length - 1));
+  let viewport = buildRefsViewport({
+    items: model.refsItems,
+    focusRow,
+    startIndex: start,
+    width: size.width,
+    height: size.height,
     ctx: deps.ctx,
-    focusIndicator: '▸',
   });
+  while (!viewport.visibleFocus && start < focusRow) {
+    start += 1;
+    viewport = buildRefsViewport({
+      items: model.refsItems,
+      focusRow,
+      startIndex: start,
+      width: size.width,
+      height: size.height,
+      ctx: deps.ctx,
+    });
+  }
+
+  return viewport.lines.join('\n');
+}
+
+/**
+ * Build ref namespace counts.
+ *
+ * @param {import('./dashboard-cmds.js').RefInventoryItem[]} refsItems
+ * @returns {Map<string, number>}
+ */
+function refNamespaceCounts(refsItems) {
+  const counts = new Map();
+  for (const ref of refsItems) {
+    counts.set(ref.namespace, (counts.get(ref.namespace) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Append inventory summary lines to the refs sidebar.
+ *
+ * @param {{ lines: string[], model: DashModel, ctx: BijouContext, width: number, namespaceCounts: Map<string, number> }} options
+ */
+function appendRefsInventory(options) {
+  options.lines.push(sectionHeading(options.ctx, 'Inventory', 'brand'));
+  pushWrappedText(
+    options.lines,
+    `refs ${options.model.refsItems.length} under ${options.namespaceCounts.size} namespaces`,
+    { width: options.width },
+  );
+  pushWrappedText(options.lines, `current ${sourceLabel(options.model.source)}`, { width: options.width });
+}
+
+/**
+ * Append selected-ref detail lines to the refs sidebar.
+ *
+ * @param {{ lines: string[], current: import('./dashboard-cmds.js').RefInventoryItem, ctx: BijouContext, width: number }} options
+ */
+function appendSelectedRefDetails(options) {
+  options.lines.push('', sectionHeading(options.ctx, 'Selected Ref', 'accent'));
+  pushWrappedText(options.lines, `ref ${options.current.ref}`, { width: options.width });
+  pushWrappedText(
+    options.lines,
+    options.current.detail,
+    { width: options.width },
+  );
+  pushWrappedText(options.lines, `namespace ${options.current.namespace}`, { width: options.width });
+  pushWrappedText(
+    options.lines,
+    `status ${options.current.browsable ? 'browsable' : 'opaque'}  kind ${options.current.resolution}  entries ${options.current.entryCount}`,
+    { width: options.width },
+  );
+  if (options.current.browsable) {
+    options.lines.push('');
+    pushWrappedText(options.lines, 'Press enter to switch source to this ref.', { width: options.width });
+  }
+  options.lines.push('');
+  pushWrappedText(options.lines, `oid ${options.current.oid}`, { width: options.width });
+  if (options.current.previewSlugs.length > 0) {
+    options.lines.push('', sectionHeading(options.ctx, 'Preview', 'info'));
+    for (const slug of options.current.previewSlugs) {
+      pushWrappedText(options.lines, slug, { width: options.width, prefix: '- ' });
+    }
+  }
+}
+
+/**
+ * Append namespace summary lines to the refs sidebar.
+ *
+ * @param {{ lines: string[], namespaceCounts: Map<string, number>, ctx: BijouContext, width: number }} options
+ */
+function appendNamespaceSummary(options) {
+  if (options.namespaceCounts.size === 0) {
+    return;
+  }
+  options.lines.push('', sectionHeading(options.ctx, 'Namespaces', 'warning'));
+  for (const [namespace, count] of Array.from(options.namespaceCounts.entries()).slice(0, 8)) {
+    pushWrappedText(options.lines, `${namespace} (${count})`, { width: options.width, prefix: '- ' });
+  }
 }
 
 /**
@@ -1023,54 +1153,24 @@ function renderRefsListBody(model, deps, size) {
  *
  * @param {DashModel} model
  * @param {BijouContext} ctx
+ * @param {number} width
  * @returns {string}
  */
-function renderRefsDetailBody(model, ctx) {
+function renderRefsDetailBody(model, ctx, width) {
   const current = selectedRef(model);
-  const namespaceCounts = new Map();
-  for (const ref of model.refsItems) {
-    namespaceCounts.set(ref.namespace, (namespaceCounts.get(ref.namespace) ?? 0) + 1);
-  }
+  const namespaceCounts = refNamespaceCounts(model.refsItems);
 
-  const sidebarLines = [
-    sectionHeading(ctx, 'Inventory', 'brand'),
-    `refs ${model.refsItems.length} under ${namespaceCounts.size} namespaces`,
-    `current ${sourceLabel(model.source)}`,
-    '',
-  ];
+  const sidebarLines = [];
+  appendRefsInventory({ lines: sidebarLines, model, ctx, width, namespaceCounts });
 
   if (current) {
-    sidebarLines.push(
-      sectionHeading(ctx, 'Selected Ref', 'accent'),
-      `ref ${current.ref}`,
-      `namespace ${current.namespace}`,
-      `oid ${current.oid}`,
-      `status ${current.browsable ? 'browsable' : 'opaque'}`,
-      `kind ${current.resolution}`,
-      `entries ${current.entryCount}`,
-      '',
-      current.detail,
-    );
-    if (current.previewSlugs.length > 0) {
-      sidebarLines.push('', sectionHeading(ctx, 'Preview', 'info'), ...current.previewSlugs.map((slug) => `- ${slug}`));
-    }
-    sidebarLines.push('', current.browsable
-      ? 'Press enter to switch source to this ref.'
-      : 'This ref does not currently resolve to CAS entries.');
+    appendSelectedRefDetails({ lines: sidebarLines, current, ctx, width });
   } else if (model.refsStatus === 'ready') {
-    sidebarLines.push('Select a ref to inspect it.');
+    sidebarLines.push('');
+    pushWrappedText(sidebarLines, 'Select a ref to inspect it.', { width });
   }
 
-  if (namespaceCounts.size > 0) {
-    sidebarLines.push(
-      '',
-      sectionHeading(ctx, 'Namespaces', 'warning'),
-      ...Array.from(namespaceCounts.entries())
-        .slice(0, 8)
-        .map(([namespace, count]) => `- ${namespace} (${count})`),
-    );
-  }
-
+  appendNamespaceSummary({ lines: sidebarLines, namespaceCounts, ctx, width });
   return sidebarLines.join('\n');
 }
 
@@ -1098,7 +1198,7 @@ function renderRefsView(model, deps, options) {
   });
   const detailPanel = renderPanel({
     title: 'Ref Dispatch',
-    body: renderRefsDetailBody(model, deps.ctx),
+    body: renderRefsDetailBody(model, deps.ctx, Math.max(8, sidebarWidth - 2)),
     width: sidebarWidth,
     height: viewHeight,
     ctx: deps.ctx,
