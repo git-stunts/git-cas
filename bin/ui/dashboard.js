@@ -7,6 +7,7 @@ import {
   createNavigableTableState, navTableFocusNext, navTableFocusPrev, navTablePageDown, navTablePageUp,
   createSplitPaneState, splitPaneFocusNext, splitPaneResizeBy,
   createCommandPaletteState, cpFilter, cpFocusNext, cpFocusPrev, cpPageDown, cpPageUp, cpSelectedItem, commandPaletteKeyMap,
+  animate,
 } from '@flyingrobots/bijou-tui';
 import { loadEntriesCmd, loadManifestCmd, loadRefsCmd, loadStatsCmd, loadDoctorCmd, loadTreemapCmd, readSourceEntries } from './dashboard-cmds.js';
 import { createCliTuiContext, detectCliTuiMode } from './context.js';
@@ -31,7 +32,8 @@ import { renderDashboard } from './dashboard-view.js';
  * @typedef {import('./dashboard-cmds.js').RefInventoryItem} RefInventoryItem
  * @typedef {{ slug: string, treeOid: string }} VaultEntry
  * @typedef {'error' | 'warning' | 'info' | 'success'} ToastLevel
- * @typedef {{ id: number, level: ToastLevel, title: string, message: string }} ToastRecord
+ * @typedef {'entering' | 'steady' | 'exiting'} ToastPhase
+ * @typedef {{ id: number, level: ToastLevel, title: string, message: string, phase: ToastPhase, progress: number }} ToastRecord
  * @typedef {{ type: 'vault' } | { type: 'ref', ref: string } | { type: 'oid', treeOid: string }} DashSource
  * @typedef {'idle' | 'loading' | 'ready' | 'error'} LoadState
  */
@@ -75,6 +77,8 @@ import { renderDashboard } from './dashboard-view.js';
  *   | { type: 'loaded-stats', stats: any, source: DashSource }
  *   | { type: 'loaded-doctor', report: any, source: DashSource }
  *   | { type: 'loaded-treemap', report: any }
+ *   | { type: 'toast-progress', id: number, progress: number }
+ *   | { type: 'toast-expire', id: number }
  *   | { type: 'dismiss-toast', id: number }
  *   | { type: 'load-error', source: string, slug?: string, forSource?: DashSource, scopeId?: TreemapScope, worktreeMode?: TreemapWorktreeMode, drillPath?: TreemapPathNode[], error: string }
  * } DashMsg
@@ -183,6 +187,8 @@ const SPLIT_MIN_DETAIL_WIDTH = 32;
 const SPLIT_DIVIDER_SIZE = 1;
 const TOAST_LIMIT = 4;
 const TOAST_TTL_MS = 6000;
+const TOAST_ENTER_MS = 180;
+const TOAST_EXIT_MS = 180;
 
 const PALETTE_ITEMS = [
   {
@@ -517,12 +523,15 @@ function setPalette(model, palette) {
  */
 function addToast(model, toastSpec) {
   const id = model.nextToastId;
-  const toast = { id, ...toastSpec };
+  const toast = { id, ...toastSpec, phase: 'entering', progress: 0 };
   return [{
     ...model,
     nextToastId: id + 1,
     toasts: [toast, ...model.toasts].slice(0, TOAST_LIMIT),
-  }, [/** @type {DashCmd} */ (tick(TOAST_TTL_MS, { type: 'dismiss-toast', id }))]];
+  }, [
+    animateToast(id, 0, 1),
+    /** @type {DashCmd} */ (tick(TOAST_TTL_MS, { type: 'toast-expire', id })),
+  ]];
 }
 
 /**
@@ -537,6 +546,70 @@ function dismissToast(model, id) {
     ...model,
     toasts: model.toasts.filter((toast) => toast.id !== id),
   }, []];
+}
+
+/**
+ * Animate one toast progress value.
+ *
+ * @param {number} id
+ * @param {number} from
+ * @param {number} to
+ * @returns {DashCmd}
+ */
+function animateToast(id, from, to) {
+  const duration = from < to ? TOAST_ENTER_MS : TOAST_EXIT_MS;
+  return /** @type {DashCmd} */ (animate({
+    type: 'tween',
+    from,
+    to,
+    duration,
+    onFrame: (progress) => ({ type: 'toast-progress', id, progress }),
+  }));
+}
+
+/**
+ * Update one toast record by id.
+ *
+ * @param {DashModel} model
+ * @param {number} id
+ * @param {(toast: ToastRecord) => ToastRecord} updater
+ * @returns {DashModel}
+ */
+function updateToast(model, id, updater) {
+  let changed = false;
+  const toasts = model.toasts.map((toast) => {
+    if (toast.id !== id) {
+      return toast;
+    }
+    changed = true;
+    return updater(toast);
+  });
+  return changed ? { ...model, toasts } : model;
+}
+
+/**
+ * Begin toast exit animation when a toast is dismissed or expires.
+ *
+ * @param {DashModel} model
+ * @param {number} id
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function startToastExit(model, id) {
+  const toast = model.toasts.find((entry) => entry.id === id);
+  if (!toast) {
+    return [model, []];
+  }
+  if (toast.phase === 'exiting') {
+    return [model, []];
+  }
+  const nextModel = updateToast(model, id, (entry) => ({
+    ...entry,
+    phase: 'exiting',
+  }));
+  return [nextModel, [
+    animateToast(id, toast.progress, 0),
+    /** @type {DashCmd} */ (tick(TOAST_EXIT_MS + 16, { type: 'dismiss-toast', id })),
+  ]];
 }
 
 /**
@@ -1313,7 +1386,7 @@ function closeOverlay(model) {
     return [{ ...model, activeDrawer: null }, []];
   }
   if (model.toasts.length > 0) {
-    return dismissToast(model, model.toasts[0].id);
+    return startToastExit(model, model.toasts[0].id);
   }
   return [model, []];
 }
@@ -1812,6 +1885,16 @@ function handleLoadError(msg, model) {
 function handleAppMsg(msg, model, cas) {
   if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, cas); }
   if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model); }
+  if (msg.type === 'toast-progress') {
+    return [updateToast(model, msg.id, (toast) => ({
+      ...toast,
+      progress: Math.max(0, Math.min(1, msg.progress)),
+      phase: msg.progress >= 1 && toast.phase === 'entering' ? 'steady' : toast.phase,
+    })), []];
+  }
+  if (msg.type === 'toast-expire') {
+    return startToastExit(model, msg.id);
+  }
   if (msg.type === 'dismiss-toast') { return dismissToast(model, msg.id); }
   if (msg.type === 'load-error') { return handleLoadError(msg, model); }
   return handleLoadedReport(msg, model);

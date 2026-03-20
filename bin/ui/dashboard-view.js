@@ -360,7 +360,74 @@ function composeTreemapSidebarText(options) {
 }
 
 /**
- * Wrap toast copy with simple fixed-width chunks.
+ * Find the last whitespace boundary at or before an index.
+ *
+ * @param {string} text
+ * @param {number} index
+ * @returns {number}
+ */
+function lastWhitespaceBoundary(text, index) {
+  for (let cursor = Math.min(index, text.length - 1); cursor >= 0; cursor -= 1) {
+    if (/\s/.test(text[cursor])) {
+      return cursor;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Wrap one paragraph to a width using whitespace boundaries when available.
+ *
+ * @param {string} text
+ * @param {number} width
+ * @returns {string[]}
+ */
+function wrapToastParagraph(text, width) {
+  const lines = [];
+  let remaining = text.trimEnd();
+  if (remaining.length === 0) {
+    return [''];
+  }
+  while (remaining.length > width) {
+    let wrapIndex = Math.min(width, remaining.length);
+    if (wrapIndex < remaining.length && !/\s/.test(remaining[wrapIndex])) {
+      const boundary = lastWhitespaceBoundary(remaining, wrapIndex);
+      if (boundary > 0) {
+        wrapIndex = boundary;
+      }
+    }
+    if (wrapIndex <= 0) {
+      wrapIndex = width;
+    }
+    const line = remaining.slice(0, wrapIndex).trimEnd();
+    lines.push(line.length > 0 ? line : remaining.slice(0, width));
+    remaining = remaining.slice(wrapIndex).trimStart();
+  }
+  if (remaining.length > 0) {
+    lines.push(remaining);
+  }
+  return lines;
+}
+
+/**
+ * Measure an appropriate toast width for its title and message.
+ *
+ * @param {{ level: 'error' | 'warning' | 'info' | 'success', title: string, message: string }} toast
+ * @param {number} maxWidth
+ * @returns {number}
+ */
+function measureToastWidth(toast, maxWidth) {
+  const theme = TOAST_THEME[toast.level] ?? TOAST_THEME.info;
+  const titleLength = `${theme.label.toUpperCase()} // ${toast.title}`.length;
+  const messageLength = toast.message
+    .split('\n')
+    .reduce((longest, line) => Math.max(longest, line.length), 0);
+  const preferredInnerWidth = Math.max(26, Math.min(maxWidth - 2, Math.max(titleLength, messageLength + 4)));
+  return Math.max(28, Math.min(maxWidth, preferredInnerWidth + 2));
+}
+
+/**
+ * Wrap toast copy while preferring whitespace boundaries.
  *
  * @param {string} text
  * @param {number} width
@@ -368,10 +435,9 @@ function composeTreemapSidebarText(options) {
  * @returns {string[]}
  */
 function wrapToastText(text, width, maxLines) {
-  const chunkPattern = new RegExp(`.{1,${Math.max(1, width)}}`, 'g');
   const lines = text
     .split('\n')
-    .flatMap((part) => part.length === 0 ? [''] : (part.match(chunkPattern) ?? ['']));
+    .flatMap((part) => wrapToastParagraph(part, Math.max(1, width)));
   return limitWrappedLines(lines, width, maxLines);
 }
 
@@ -398,25 +464,58 @@ function styleToastLine(options) {
 /**
  * Render one toast box surface.
  *
- * @param {{ id: number, level: 'error' | 'warning' | 'info' | 'success', title: string, message: string }} toast
+ * @param {{ id: number, level: 'error' | 'warning' | 'info' | 'success', title: string, message: string, progress?: number }} toast
  * @param {{ width: number, ctx: BijouContext }} opts
  * @returns {Surface}
  */
 function renderToastSurface(toast, opts) {
   const theme = TOAST_THEME[toast.level] ?? TOAST_THEME.info;
-  const width = Math.max(28, Math.min(46, opts.width));
+  const width = measureToastWidth(toast, Math.max(32, Math.min(48, opts.width)));
   const innerWidth = Math.max(1, width - 2);
-  const bodyLines = wrapToastText(toast.message, innerWidth, 3).map((line) => styleToastLine({
+  const bodyWidth = Math.max(1, innerWidth - 3);
+  const bodyLines = wrapToastText(toast.message, bodyWidth, 3).map((line) => styleToastLine({
     text: line,
     theme,
     ctx: opts.ctx,
-    width: innerWidth,
+    width: bodyWidth,
   }));
-  return boxV3(textSurface(bodyLines.join('\n'), innerWidth, bodyLines.length), {
-    ctx: opts.ctx,
-    title: `${theme.label}: ${toast.title}`,
-    width,
+  const titleText = padToWidth(`${theme.label.toUpperCase()} // ${toast.title}`, innerWidth);
+  const chrome = opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╔'));
+  const border = opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'));
+  const bottom = opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╚'));
+  const topLine = `${chrome}${opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '═'.repeat(innerWidth))}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╗'))}`;
+  const titleLine = `${border}${styleToastLine({ text: titleText, theme, ctx: opts.ctx, width: innerWidth })}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'))}`;
+  const dividerLine = `${border}${opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '─'.repeat(innerWidth))}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'))}`;
+  const contentLines = bodyLines.map((line) => {
+    const rail = opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '▌'));
+    return `${border}${rail} ${line} ${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'))}`;
   });
+  const bottomLine = `${bottom}${opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '═'.repeat(innerWidth))}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╝'))}`;
+  return textSurface([topLine, titleLine, dividerLine, ...contentLines, bottomLine].join('\n'), width, contentLines.length + 4);
+}
+
+/**
+ * Render a soft drop shadow behind a toast.
+ *
+ * @param {number} width
+ * @param {number} height
+ * @param {BijouContext} ctx
+ * @returns {Surface}
+ */
+function renderToastShadow(width, height, ctx) {
+  const line = ctx.style.rgb(32, 38, 52, '░'.repeat(Math.max(1, width)));
+  return textSurface(Array.from({ length: Math.max(1, height) }, () => line).join('\n'), width, height);
+}
+
+/**
+ * Compute horizontal slide for toast motion.
+ *
+ * @param {{ progress?: number }} toast
+ * @returns {number}
+ */
+function toastSlideOffset(toast) {
+  const progress = Math.max(0, Math.min(1, toast.progress ?? 1));
+  return Math.round((1 - progress) * 16);
 }
 
 /**
@@ -531,18 +630,25 @@ function renderDrawerSurface(model, opts) {
  * @param {{ top: number, height: number, screen: Surface }} options
  */
 function renderToastStack(model, deps, options) {
-  let cursorY = options.top + options.height;
+  const marginTop = 1;
+  const marginRight = 4;
+  let cursorY = options.top + marginTop;
   for (const toast of model.toasts) {
     const surface = renderToastSurface(toast, {
-      width: Math.min(54, Math.max(34, Math.floor(options.screen.width * 0.55))),
+      width: Math.min(52, Math.max(40, Math.floor(options.screen.width * 0.44))),
       ctx: deps.ctx,
     });
-    cursorY -= surface.height;
-    if (cursorY < options.top) {
+    if (cursorY + surface.height > options.top + options.height) {
       break;
     }
-    options.screen.blit(surface, Math.max(0, options.screen.width - surface.width), cursorY);
-    cursorY -= 1;
+    const slideOffset = toastSlideOffset(toast);
+    const x = Math.max(0, options.screen.width - surface.width - marginRight + slideOffset);
+    const shadow = renderToastShadow(surface.width, surface.height, deps.ctx);
+    const shadowX = Math.max(0, x + 2);
+    const shadowY = Math.min(options.top + options.height - shadow.height, cursorY + 1);
+    options.screen.blit(shadow, shadowX, shadowY);
+    options.screen.blit(surface, x, cursorY);
+    cursorY += surface.height + 1;
   }
 }
 

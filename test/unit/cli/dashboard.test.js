@@ -248,6 +248,18 @@ function makeTreemapReport(overrides = {}) {
   };
 }
 
+function makeToast(overrides = {}) {
+  return {
+    id: 1,
+    level: 'info',
+    title: 'Toast title',
+    message: 'toast body',
+    phase: 'steady',
+    progress: 1,
+    ...overrides,
+  };
+}
+
 function renderDashboardWithModel(modelOverrides = {}, depsOverrides = {}) {
   const deps = makeDeps(depsOverrides);
   const app = createDashboardApp(deps);
@@ -395,17 +407,27 @@ describe('dashboard drawer shortcuts', () => {
 });
 
 describe('dashboard toast dismissal', () => {
-  it('escape dismisses the latest toast when no overlay is open', () => {
+  it('escape starts the latest toast exit animation when no overlay is open', () => {
     const app = createDashboardApp(makeDeps());
-    const [next] = app.update(keyMsg('escape'), makeModel({
+    const [next, cmds] = app.update(keyMsg('escape'), makeModel({
       toasts: [
-        { id: 2, level: 'warning', title: 'Heads up', message: 'yellow alert' },
-        { id: 1, level: 'error', title: 'Failed to load repo treemap', message: 'boom' },
+        makeToast({ id: 2, level: 'warning', title: 'Heads up', message: 'yellow alert' }),
+        makeToast({ id: 1, level: 'error', title: 'Failed to load repo treemap', message: 'boom' }),
       ],
     }));
-    expect(next.toasts).toEqual([
-      { id: 1, level: 'error', title: 'Failed to load repo treemap', message: 'boom' },
-    ]);
+    expect(next.toasts).toHaveLength(2);
+    expect(next.toasts[0]).toMatchObject({
+      id: 2,
+      title: 'Heads up',
+      phase: 'exiting',
+      progress: 1,
+    });
+    expect(next.toasts[1]).toMatchObject({
+      id: 1,
+      title: 'Failed to load repo treemap',
+      phase: 'steady',
+    });
+    expect(cmds).toHaveLength(2);
   });
 });
 
@@ -638,13 +660,13 @@ describe('dashboard treemap report and toast messages', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({
       toasts: [
-        { id: 1, level: 'error', title: 'Failed to load entries', message: 'boom' },
-        { id: 2, level: 'warning', title: 'Heads up', message: 'careful' },
+        makeToast({ id: 1, level: 'error', title: 'Failed to load entries', message: 'boom' }),
+        makeToast({ id: 2, level: 'warning', title: 'Heads up', message: 'careful' }),
       ],
     });
     const [next] = app.update({ type: 'dismiss-toast', id: 1 }, model);
     expect(next.toasts).toEqual([
-      { id: 2, level: 'warning', title: 'Heads up', message: 'careful' },
+      makeToast({ id: 2, level: 'warning', title: 'Heads up', message: 'careful' }),
     ]);
   });
 });
@@ -694,7 +716,8 @@ describe('dashboard filter edge cases', () => {
     expect(next.status).toBe('error');
     expect(next.toasts).toHaveLength(1);
     expect(next.toasts[0].title).toBe('Failed to load entries');
-    expect(cmds).toHaveLength(1);
+    expect(next.toasts[0]).toMatchObject({ phase: 'entering', progress: 0 });
+    expect(cmds).toHaveLength(2);
   });
 });
 
@@ -707,7 +730,8 @@ describe('dashboard loading edge cases', () => {
     expect(next.error).toBeNull();
     expect(next.toasts).toHaveLength(1);
     expect(next.toasts[0].title).toBe('Failed to load alpha');
-    expect(cmds).toHaveLength(1);
+    expect(next.toasts[0]).toMatchObject({ phase: 'entering', progress: 0 });
+    expect(cmds).toHaveLength(2);
   });
 
   it('loaded-entries clamps table focus to filtered bounds', () => {
@@ -950,12 +974,13 @@ describe('dashboard palette rendering', () => {
     const app = createDashboardApp(deps);
     const rendered = renderView(app.view(makeModel({
       toasts: [
-        { id: 2, level: 'warning', title: 'Heads up', message: 'yellow alert' },
-        { id: 1, level: 'error', title: 'Failed to load repo treemap', message: 'boom' },
+        makeToast({ id: 2, level: 'warning', title: 'Heads up', message: 'yellow alert with more words to wrap cleanly' }),
+        makeToast({ id: 1, level: 'error', title: 'Failed to load repo treemap', message: 'boom' }),
       ],
     })), deps.ctx);
     expect(rendered).toContain('alerts 2');
-    expect(rendered).toContain('Error: Failed to load repo treemap');
-    expect(rendered).toContain('Warning: Heads up');
+    expect(rendered).toContain('ERROR // Failed to load repo treemap');
+    expect(rendered).toContain('WARNING // Heads up');
+    expect(rendered).toContain('yellow alert with more words');
   });
 });
