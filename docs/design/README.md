@@ -1,0 +1,14 @@
+# Design Docs
+
+This directory holds pre-implementation design docs for `git-cas`.
+
+The working rules are simple:
+
+- design docs come first
+- executable tests come second
+- implementation comes third
+- `main` is the playback truth
+
+Current design docs:
+
+- [0001 — M18 Relay: Agent CLI Foundation](./0001-m18-relay-agent-cli.md)
