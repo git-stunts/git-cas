@@ -3,11 +3,14 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import ContentAddressableStore from '../../index.js';
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
+import { readPassphraseFile } from '../ui/passphrase-prompt.js';
 import { buildVaultStats, inspectVaultHealth } from '../ui/vault-report.js';
 import { filterEntries } from '../ui/vault-list.js';
 import { AGENT_EXIT_CODES, createAgentSession, getAgentExitCode } from './protocol.js';
 
 const AVAILABLE_COMMANDS = Object.freeze([
+  'store',
+  'restore',
   'inspect',
   'verify',
   'doctor',
@@ -38,6 +41,22 @@ function invalidInput(message, meta) {
     new Error(message)
   );
   err.code = 'INVALID_INPUT';
+  if (meta) {
+    err.meta = meta;
+  }
+  return err;
+}
+
+/**
+ * @param {string} message
+ * @param {Record<string, any>} [meta]
+ * @returns {Error & { code: string, meta?: Record<string, any> }}
+ */
+function needsInput(message, meta) {
+  const err = /** @type {Error & { code: string, meta?: Record<string, any> }} */ (
+    new Error(message)
+  );
+  err.code = 'NEEDS_INPUT';
   if (meta) {
     err.meta = meta;
   }
@@ -103,7 +122,7 @@ async function readStream(stream) {
  * @param {string[]} args
  * @param {Record<string, { type: 'string' | 'boolean' }>} options
  * @param {NodeJS.ReadStream} stdin
- * @returns {Promise<{ values: Record<string, any>, positionals: string[] }>}
+ * @returns {Promise<{ values: Record<string, any>, positionals: string[], requestSource?: string }>}
  */
 async function parseAgentInput(args, options, stdin) {
   let parsed;
@@ -125,7 +144,11 @@ async function parseAgentInput(args, options, stdin) {
   const values = { ...request, ...parsed.values };
   delete values.request;
 
-  return { values, positionals: parsed.positionals };
+  return {
+    values,
+    positionals: parsed.positionals,
+    requestSource: parsed.values.request,
+  };
 }
 
 /**
@@ -148,6 +171,19 @@ function assignPositionals(positionals, names) {
     }
   });
   return assigned;
+}
+
+/**
+ * @param {Record<string, any>} input
+ * @returns {Record<string, any>}
+ */
+function normalizeInputAliases(input) {
+  return {
+    ...input,
+    keyFile: input.keyFile ?? input['key-file'],
+    vaultPassphrase: input.vaultPassphrase ?? input['vault-passphrase'],
+    vaultPassphraseFile: input.vaultPassphraseFile ?? input['vault-passphrase-file'],
+  };
 }
 
 /**
@@ -202,6 +238,232 @@ async function resolveTree(input) {
 }
 
 /**
+ * @param {string} keyFilePath
+ * @returns {Buffer}
+ */
+function readKeyFile(keyFilePath) {
+  const key = readFileSync(keyFilePath);
+  if (key.length !== 32) {
+    throw invalidInput(`Invalid key length: expected 32 bytes, got ${key.length} (${keyFilePath})`);
+  }
+  return key;
+}
+
+/**
+ * @param {Record<string, any>} input
+ * @returns {boolean}
+ */
+function hasVaultPassphraseSource(input) {
+  return Boolean(input.vaultPassphraseFile || input.vaultPassphrase);
+}
+
+/**
+ * @param {Record<string, any>} input
+ */
+function validateCredentialSources(input) {
+  if (input.keyFile && hasVaultPassphraseSource(input)) {
+    throw invalidInput('Provide --key-file or a vault passphrase source, not both');
+  }
+}
+
+/**
+ * @param {Record<string, any>} input
+ * @param {string | undefined} requestSource
+ * @returns {Promise<string | undefined>}
+ */
+async function resolveVaultPassphrase(input, requestSource) {
+  if (input.vaultPassphraseFile === '-' && requestSource === '-') {
+    throw invalidInput('Cannot read both request payload and vault passphrase from stdin');
+  }
+  if (input.vaultPassphraseFile) {
+    return await readPassphraseFile(input.vaultPassphraseFile);
+  }
+  if (input.vaultPassphrase !== undefined) {
+    if (!String(input.vaultPassphrase).trim()) {
+      throw invalidInput('Passphrase must not be empty');
+    }
+    return input.vaultPassphrase;
+  }
+  return undefined;
+}
+
+/**
+ * @param {ContentAddressableStore} cas
+ * @param {NonNullable<Awaited<ReturnType<ContentAddressableStore['getVaultMetadata']>>>} metadata
+ * @param {string} passphrase
+ * @returns {Promise<Buffer>}
+ */
+async function deriveVaultKey(cas, metadata, passphrase) {
+  const { kdf } = metadata.encryption;
+  const { key } = await cas.deriveKey({
+    passphrase,
+    salt: Buffer.from(kdf.salt, 'base64'),
+    algorithm: kdf.algorithm,
+    iterations: kdf.iterations,
+    cost: kdf.cost,
+    blockSize: kdf.blockSize,
+    parallelization: kdf.parallelization,
+    keyLength: kdf.keyLength,
+  });
+  return key;
+}
+
+/**
+ * @param {import('../../index.js').default} cas
+ * @param {Record<string, any>} input
+ * @param {string | undefined} requestSource
+ * @returns {Promise<Buffer | undefined>}
+ */
+async function resolveStoreEncryptionKey(cas, input, requestSource) {
+  validateCredentialSources(input);
+  if (input.keyFile) {
+    return readKeyFile(input.keyFile);
+  }
+  const passphrase = await resolveVaultPassphrase(input, requestSource);
+  if (!passphrase) {
+    return undefined;
+  }
+  const metadata = await cas.getVaultMetadata();
+  if (!metadata?.encryption?.kdf) {
+    throw invalidInput('Vault passphrase source is only valid for encrypted vaults');
+  }
+  return await deriveVaultKey(cas, metadata, passphrase);
+}
+
+/**
+ * @param {import('../../src/domain/value-objects/Manifest.js').default} manifest
+ * @returns {boolean}
+ */
+function hasEnvelopeRecipients(manifest) {
+  return (
+    Array.isArray(manifest.encryption?.recipients) && manifest.encryption.recipients.length > 0
+  );
+}
+
+/**
+ * @param {import('../../src/domain/value-objects/Manifest.js').default} manifest
+ * @param {Awaited<ReturnType<ContentAddressableStore['getVaultMetadata']>>} metadata
+ * @returns {string[]}
+ */
+function getRestoreRequiredInputs(manifest, metadata) {
+  if (hasEnvelopeRecipients(manifest)) {
+    return ['keyFile'];
+  }
+  if (metadata?.encryption?.kdf) {
+    return ['keyFile', 'vaultPassphrase', 'vaultPassphraseFile'];
+  }
+  return ['keyFile'];
+}
+
+/**
+ * @param {{
+ *   cas: ContentAddressableStore,
+ *   manifest: import('../../src/domain/value-objects/Manifest.js').default,
+ *   input: Record<string, any>,
+ *   requestSource?: string,
+ *   treeOid: string,
+ * }} options
+ * @returns {Promise<Buffer | undefined>}
+ */
+async function resolveRestoreEncryptionKey({ cas, manifest, input, requestSource, treeOid }) {
+  validateCredentialSources(input);
+  if (input.keyFile) {
+    return readKeyFile(input.keyFile);
+  }
+
+  const metadata = await cas.getVaultMetadata();
+  const passphrase = await resolveVaultPassphrase(input, requestSource);
+
+  if (passphrase) {
+    if (hasEnvelopeRecipients(manifest)) {
+      throw invalidInput(
+        'Vault passphrase source cannot decrypt recipient-encrypted assets; provide --key-file'
+      );
+    }
+    if (!metadata?.encryption?.kdf) {
+      throw invalidInput('Vault passphrase source is only valid for encrypted vaults');
+    }
+    return await deriveVaultKey(cas, metadata, passphrase);
+  }
+
+  if (!manifest.encryption?.encrypted) {
+    return undefined;
+  }
+
+  throw needsInput('Encrypted restore requires --key-file or a vault passphrase source', {
+    requiredInputs: getRestoreRequiredInputs(manifest, metadata),
+    slug: input.slug || manifest.slug,
+    treeOid,
+  });
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<Record<string, any>>}
+ */
+async function parseStoreInput(args, stdin) {
+  const { values, positionals, requestSource } = await parseAgentInput(
+    args,
+    {
+      slug: { type: 'string' },
+      tree: { type: 'boolean' },
+      force: { type: 'boolean' },
+      gzip: { type: 'boolean' },
+      cwd: { type: 'string' },
+      'key-file': { type: 'string' },
+      'vault-passphrase': { type: 'string' },
+      'vault-passphrase-file': { type: 'string' },
+    },
+    stdin
+  );
+  return normalizeInputAliases({
+    ...values,
+    ...assignPositionals(positionals, ['file']),
+    requestSource,
+  });
+}
+
+/**
+ * @param {Record<string, any>} input
+ */
+function validateStoreInput(input) {
+  if (!input.file) {
+    throw invalidInput('Provide a file path');
+  }
+  if (!input.slug) {
+    throw invalidInput('Provide --slug <slug>');
+  }
+  if (input.force && !input.tree) {
+    throw invalidInput('--force requires --tree');
+  }
+}
+
+/**
+ * @param {{
+ *   input: Record<string, any>,
+ *   manifest: import('../../src/domain/value-objects/Manifest.js').default,
+ *   treeOid?: string,
+ *   commitOid?: string,
+ * }} options
+ * @returns {{ data: Record<string, any> }}
+ */
+function buildStoreOutcome({ input, manifest, treeOid, commitOid }) {
+  return {
+    data: {
+      slug: input.slug,
+      manifest: manifest.toJSON(),
+      ...(treeOid ? { treeOid } : {}),
+      ...(commitOid ? { commitOid } : {}),
+      addedToVault: Boolean(commitOid),
+      chunkCount: manifest.chunks.length,
+      encrypted: Boolean(manifest.encryption?.encrypted),
+      compressed: Boolean(manifest.compression),
+    },
+  };
+}
+
+/**
  * @param {string[]} argv
  * @returns {{ command: string, args: string[] }}
  */
@@ -242,7 +504,11 @@ export async function runAgentCli(
   } catch (err) {
     const exitCode = getAgentExitCode(err);
     process.exitCode = exitCode;
-    session.writeError(err);
+    if (err instanceof Error && err.code === 'NEEDS_INPUT') {
+      session.writeNeedsInput(err);
+    } else {
+      session.writeError(err);
+    }
     session.writeEnd({ ok: false, exitCode });
   }
 }
@@ -255,6 +521,10 @@ export async function runAgentCli(
  */
 async function executeAgentCommand(command, args, stdin) {
   switch (command) {
+    case 'store':
+      return storeCommand(args, stdin);
+    case 'restore':
+      return restoreCommand(args, stdin);
     case 'inspect':
       return inspectCommand(args, stdin);
     case 'verify':
@@ -275,6 +545,91 @@ async function executeAgentCommand(command, args, stdin) {
         availableCommands: AVAILABLE_COMMANDS,
       });
   }
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<{ data: Record<string, any> }>}
+ */
+async function storeCommand(args, stdin) {
+  const input = await parseStoreInput(args, stdin);
+  validateStoreInput(input);
+
+  const cas = createCas(input.cwd || '.');
+  const encryptionKey = await resolveStoreEncryptionKey(cas, input, input.requestSource);
+  const manifest = await cas.storeFile({
+    filePath: input.file,
+    slug: input.slug,
+    ...(encryptionKey ? { encryptionKey } : {}),
+    ...(input.gzip ? { compression: { algorithm: 'gzip' } } : {}),
+  });
+
+  let treeOid;
+  let commitOid;
+  if (input.tree) {
+    treeOid = await cas.createTree({ manifest });
+    ({ commitOid } = await cas.addToVault({
+      slug: input.slug,
+      treeOid,
+      force: Boolean(input.force),
+    }));
+  }
+
+  return buildStoreOutcome({ input, manifest, treeOid, commitOid });
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<{ data: Record<string, any> }>}
+ */
+async function restoreCommand(args, stdin) {
+  const { values, positionals, requestSource } = await parseAgentInput(
+    args,
+    {
+      slug: { type: 'string' },
+      oid: { type: 'string' },
+      out: { type: 'string' },
+      cwd: { type: 'string' },
+      'key-file': { type: 'string' },
+      'vault-passphrase': { type: 'string' },
+      'vault-passphrase-file': { type: 'string' },
+    },
+    stdin
+  );
+  assignPositionals(positionals, []);
+
+  const input = normalizeInputAliases(values);
+  if (!input.out) {
+    throw invalidInput('Provide --out <path>');
+  }
+
+  const target = resolveTarget(input);
+  const { cas, treeOid } = await resolveTree(target);
+  const manifest = await cas.readManifest({ treeOid });
+  const encryptionKey = await resolveRestoreEncryptionKey({
+    cas,
+    manifest,
+    input,
+    requestSource,
+    treeOid,
+  });
+  const { bytesWritten } = await cas.restoreFile({
+    manifest,
+    ...(encryptionKey ? { encryptionKey } : {}),
+    outputPath: input.out,
+  });
+
+  return {
+    data: {
+      slug: manifest.slug,
+      treeOid,
+      outputPath: input.out,
+      bytesWritten,
+      encrypted: Boolean(manifest.encryption?.encrypted),
+    },
+  };
 }
 
 /**

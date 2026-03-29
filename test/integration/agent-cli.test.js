@@ -94,25 +94,20 @@ let repoDir;
 let inputDir;
 let requestDir;
 let treeOid;
+let encRepoDir;
+let encInputDir;
+let encTreeOid;
 const original = randomBytes(4096);
+const encryptedOriginal = randomBytes(3072);
+const vaultPassphrase = 'relay-agent-passphrase';
 
 beforeAll(async () => {
-  repoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-integ-'));
-  initBareRepo(repoDir);
-
-  const cas = createCas(repoDir);
-  await cas.initVault();
-
-  const input = tempFile(original);
-  inputDir = input.dir;
-
-  const manifest = await cas.storeFile({
-    filePath: input.filePath,
-    slug: 'demo/hello',
-  });
-  treeOid = await cas.createTree({ manifest });
-  await cas.addToVault({ slug: 'demo/hello', treeOid });
-
+  ({ repoDir, inputDir, treeOid } = await setupPlainRepo());
+  ({
+    repoDir: encRepoDir,
+    inputDir: encInputDir,
+    treeOid: encTreeOid,
+  } = await setupEncryptedRepo());
   requestDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-request-'));
 });
 
@@ -120,13 +115,78 @@ afterAll(() => {
   if (repoDir) {
     rmSync(repoDir, { recursive: true, force: true });
   }
+  if (encRepoDir) {
+    rmSync(encRepoDir, { recursive: true, force: true });
+  }
   if (inputDir) {
     rmSync(inputDir, { recursive: true, force: true });
+  }
+  if (encInputDir) {
+    rmSync(encInputDir, { recursive: true, force: true });
   }
   if (requestDir) {
     rmSync(requestDir, { recursive: true, force: true });
   }
 });
+
+async function setupPlainRepo() {
+  const plainRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-integ-'));
+  initBareRepo(plainRepoDir);
+
+  const cas = createCas(plainRepoDir);
+  await cas.initVault();
+
+  const input = tempFile(original);
+  const manifest = await cas.storeFile({
+    filePath: input.filePath,
+    slug: 'demo/hello',
+  });
+  const plainTreeOid = await cas.createTree({ manifest });
+  await cas.addToVault({ slug: 'demo/hello', treeOid: plainTreeOid });
+
+  return { repoDir: plainRepoDir, inputDir: input.dir, treeOid: plainTreeOid };
+}
+
+async function setupEncryptedRepo() {
+  const encryptedRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-enc-integ-'));
+  initBareRepo(encryptedRepoDir);
+
+  const cas = createCas(encryptedRepoDir);
+  await cas.initVault({ passphrase: vaultPassphrase });
+
+  const input = tempFile(encryptedOriginal);
+  const manifest = await cas.storeFile({
+    filePath: input.filePath,
+    slug: 'enc/hello',
+    encryptionKey: await deriveVaultKey(cas, vaultPassphrase),
+  });
+  const encryptedTreeOid = await cas.createTree({ manifest });
+  await cas.addToVault({ slug: 'enc/hello', treeOid: encryptedTreeOid });
+
+  return {
+    repoDir: encryptedRepoDir,
+    inputDir: input.dir,
+    treeOid: encryptedTreeOid,
+  };
+}
+
+async function deriveVaultKey(cas, passphrase) {
+  const metadata = await cas.getVaultMetadata();
+  if (!metadata?.encryption?.kdf) {
+    throw new Error('Encrypted vault metadata missing KDF configuration');
+  }
+  const { key } = await cas.deriveKey({
+    passphrase,
+    salt: Buffer.from(metadata.encryption.kdf.salt, 'base64'),
+    algorithm: metadata.encryption.kdf.algorithm,
+    iterations: metadata.encryption.kdf.iterations,
+    cost: metadata.encryption.kdf.cost,
+    blockSize: metadata.encryption.kdf.blockSize,
+    parallelization: metadata.encryption.kdf.parallelization,
+    keyLength: metadata.encryption.kdf.keyLength,
+  });
+  return key;
+}
 
 function defineReadOnlyProtocolTests() {
   it('inspect emits start, result, and end rows on stdout', () => {
@@ -246,6 +306,161 @@ function defineRequestAndValidationTests() {
   });
 }
 
+function definePlainWriteFlowTests() {
+  it('store reports explicit side effects when creating a vault entry', () => {
+    const input = tempFile(Buffer.from('relay plain store\n'));
+    const result = runAgentCli(
+      ['store', input.filePath, '--slug', 'demo/new-store', '--tree'],
+      repoDir
+    );
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    expect(rows.map((row) => row.type)).toEqual(['start', 'result', 'end']);
+    expect(rows[1].data).toMatchObject({
+      slug: 'demo/new-store',
+      addedToVault: true,
+      chunkCount: 1,
+      encrypted: false,
+      compressed: false,
+    });
+    expect(rows[1].data.treeOid).toMatch(/^[0-9a-f]{40}$/);
+    expect(rows[1].data.commitOid).toMatch(/^[0-9a-f]{40}$/);
+    expect(rows[1].data.manifest.slug).toBe('demo/new-store');
+
+    rmSync(input.dir, { recursive: true, force: true });
+  });
+}
+
+function defineRestoreWriteFlowTests() {
+  it('restore reports output path and bytes written without leaking file bytes', () => {
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-restore-'));
+    const outputPath = path.join(outputDir, 'restored.bin');
+    const result = runAgentCli(['restore', '--slug', 'demo/hello', '--out', outputPath], repoDir);
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    expect(rows[1].data).toMatchObject({
+      slug: 'demo/hello',
+      treeOid,
+      outputPath,
+      bytesWritten: original.length,
+      encrypted: false,
+    });
+    expect(rows[1].data.outputPath).not.toContain('hello world');
+
+    rmSync(outputDir, { recursive: true, force: true });
+  });
+}
+
+function storeEncryptedAsset() {
+  const input = tempFile(Buffer.from('relay encrypted store\n'));
+  const result = runAgentCli(
+    [
+      'store',
+      input.filePath,
+      '--slug',
+      'enc/new-store',
+      '--tree',
+      '--vault-passphrase',
+      vaultPassphrase,
+    ],
+    encRepoDir
+  );
+
+  return { result, inputDir: input.dir };
+}
+
+function restoreEncryptedAsset(outputPath) {
+  return runAgentCli(
+    [
+      'restore',
+      '--slug',
+      'enc/new-store',
+      '--out',
+      outputPath,
+      '--vault-passphrase',
+      vaultPassphrase,
+    ],
+    encRepoDir
+  );
+}
+
+function defineEncryptedWriteFlowTests() {
+  it('encrypted store works with an explicit vault passphrase', () => {
+    const { result, inputDir: storeInputDir } = storeEncryptedAsset();
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const storeRows = parseJsonl(result.stdout);
+    expect(storeRows[1].data).toMatchObject({
+      slug: 'enc/new-store',
+      addedToVault: true,
+      encrypted: true,
+    });
+
+    rmSync(storeInputDir, { recursive: true, force: true });
+  });
+
+  it('encrypted restore works with an explicit vault passphrase', () => {
+    const { inputDir: storeInputDir } = storeEncryptedAsset();
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-enc-restore-'));
+    const outputPath = path.join(outputDir, 'restored.bin');
+    const restoreResult = restoreEncryptedAsset(outputPath);
+
+    expect(restoreResult.status).toBe(0);
+    expect(`${restoreResult.stderr ?? ''}`).toBe('');
+
+    const restoreRows = parseJsonl(restoreResult.stdout);
+    expect(restoreRows[1].data).toMatchObject({
+      slug: 'enc/new-store',
+      outputPath,
+      encrypted: true,
+    });
+
+    rmSync(outputDir, { recursive: true, force: true });
+    rmSync(storeInputDir, { recursive: true, force: true });
+  });
+}
+
+function defineNeedsInputTests() {
+  it('encrypted restore emits needs-input when no key source is provided', () => {
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-needs-input-'));
+    const outputPath = path.join(outputDir, 'restored.bin');
+    const result = runAgentCli(['restore', '--slug', 'enc/hello', '--out', outputPath], encRepoDir);
+
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'restore',
+      type: 'needs-input',
+      data: {
+        code: 'NEEDS_INPUT',
+        message: 'Encrypted restore requires --key-file or a vault passphrase source',
+        requiredInputs: ['keyFile', 'vaultPassphrase', 'vaultPassphraseFile'],
+        slug: 'enc/hello',
+        treeOid: encTreeOid,
+      },
+    });
+
+    rmSync(outputDir, { recursive: true, force: true });
+  });
+}
+
 describe('agent CLI protocol — read commands', defineReadOnlyProtocolTests);
 describe('agent CLI protocol — vault commands', defineVaultProtocolTests);
 describe('agent CLI protocol — request and validation', defineRequestAndValidationTests);
+describe('agent CLI protocol — store write flow', definePlainWriteFlowTests);
+describe('agent CLI protocol — restore write flow', defineRestoreWriteFlowTests);
+describe('agent CLI protocol — encrypted write flows', defineEncryptedWriteFlowTests);
+describe('agent CLI protocol — needs-input', defineNeedsInputTests);

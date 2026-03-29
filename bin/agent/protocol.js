@@ -56,6 +56,20 @@ export function normalizeAgentError(err) {
 }
 
 /**
+ * Normalize a needs-input branch into the JSONL protocol shape.
+ *
+ * @param {unknown} err
+ * @returns {{ code: string, message: string } & Record<string, any>}
+ */
+export function normalizeAgentNeedsInput(err) {
+  const code = getErrorCode(err) || 'NEEDS_INPUT';
+  const message = getErrorMessage(err);
+  const meta = getErrorMeta(err);
+
+  return meta ? { code, message, ...meta } : { code, message };
+}
+
+/**
  * @param {unknown} err
  * @returns {string | undefined}
  */
@@ -154,8 +168,8 @@ export function createAgentSession({
     writeWarning(data) {
       write(stderr, 'warning', data);
     },
-    writeNeedsInput(data) {
-      write(stderr, 'needs-input', data);
+    writeNeedsInput(err) {
+      write(stderr, 'needs-input', normalizeAgentNeedsInput(err));
     },
     writeError(err) {
       write(stderr, 'error', normalizeAgentError(err));
