@@ -69,6 +69,10 @@ implementation, review, and follow-on planning.
 
 ## Current Cycle Surface
 
+Current Truth design docs:
+
+- [TR-001 — Truth: Architecture Reality Gap](../design/TR-001-architecture-reality-gap.md)
+
 Backlog items under this legend are currently focused on:
 
 - repairing stale architecture truth
