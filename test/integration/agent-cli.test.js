@@ -334,6 +334,75 @@ function definePlainWriteFlowTests() {
   });
 }
 
+function defineTreeCommandFilePathTest() {
+  it('tree creates a tree from a manifest file without human formatting', async () => {
+    const manifestDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-manifest-'));
+    const manifestPath = path.join(manifestDir, 'manifest.json');
+    const manifest = await createCas(repoDir).readManifest({ treeOid });
+    writeFileSync(manifestPath, JSON.stringify(manifest.toJSON()));
+
+    const result = runAgentCli(['tree', '--manifest', manifestPath], repoDir);
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    expect(rows.map((row) => row.type)).toEqual(['start', 'result', 'end']);
+    expect(rows[1].data).toEqual({
+      treeOid,
+      slug: 'demo/hello',
+      chunkCount: 1,
+      encrypted: false,
+      compressed: false,
+    });
+
+    rmSync(manifestDir, { recursive: true, force: true });
+  });
+}
+
+function defineTreeCommandRequestPayloadTest() {
+  it('tree accepts an inline manifest object through the request payload', async () => {
+    const manifest = await createCas(repoDir).readManifest({ treeOid });
+    const requestPath = path.join(requestDir, 'tree-request.json');
+    writeFileSync(requestPath, JSON.stringify({ manifest: manifest.toJSON() }));
+
+    const result = runAgentCli(['tree', '--request', `@${requestPath}`], repoDir);
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    expect(rows[1].data).toEqual({
+      treeOid,
+      slug: 'demo/hello',
+      chunkCount: 1,
+      encrypted: false,
+      compressed: false,
+    });
+  });
+}
+
+function defineTreeCommandValidationTest() {
+  it('tree emits structured invalid-input errors when no manifest source is provided', () => {
+    const result = runAgentCli(['tree'], repoDir);
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'tree',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+        message: 'Provide --manifest <path> or request.manifest',
+      },
+    });
+  });
+}
+
 function defineRestoreWriteFlowTests() {
   it('restore reports output path and bytes written without leaking file bytes', () => {
     const outputDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-restore-'));
@@ -461,6 +530,9 @@ describe('agent CLI protocol — read commands', defineReadOnlyProtocolTests);
 describe('agent CLI protocol — vault commands', defineVaultProtocolTests);
 describe('agent CLI protocol — request and validation', defineRequestAndValidationTests);
 describe('agent CLI protocol — store write flow', definePlainWriteFlowTests);
+describe('agent CLI protocol — tree command (file path)', defineTreeCommandFilePathTest);
+describe('agent CLI protocol — tree command (request payload)', defineTreeCommandRequestPayloadTest);
+describe('agent CLI protocol — tree command (validation)', defineTreeCommandValidationTest);
 describe('agent CLI protocol — restore write flow', defineRestoreWriteFlowTests);
 describe('agent CLI protocol — encrypted write flows', defineEncryptedWriteFlowTests);
 describe('agent CLI protocol — needs-input', defineNeedsInputTests);

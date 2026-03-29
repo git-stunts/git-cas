@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import ContentAddressableStore from '../../index.js';
+import Manifest from '../../src/domain/value-objects/Manifest.js';
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 import { readPassphraseFile } from '../ui/passphrase-prompt.js';
 import { buildVaultStats, inspectVaultHealth } from '../ui/vault-report.js';
@@ -10,6 +11,7 @@ import { AGENT_EXIT_CODES, createAgentSession, getAgentExitCode } from './protoc
 
 const AVAILABLE_COMMANDS = Object.freeze([
   'store',
+  'tree',
   'restore',
   'inspect',
   'verify',
@@ -464,6 +466,58 @@ function buildStoreOutcome({ input, manifest, treeOid, commitOid }) {
 }
 
 /**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<Record<string, any>>}
+ */
+async function parseTreeInput(args, stdin) {
+  const { values, positionals } = await parseAgentInput(
+    args,
+    {
+      manifest: { type: 'string' },
+      cwd: { type: 'string' },
+    },
+    stdin
+  );
+  assignPositionals(positionals, []);
+  return values;
+}
+
+/**
+ * @param {Record<string, any>} input
+ * @returns {Manifest}
+ */
+function resolveManifestInput(input) {
+  if (typeof input.manifest === 'string') {
+    const raw = readFileSync(path.resolve(input.manifest), 'utf8');
+    return new Manifest(JSON.parse(raw));
+  }
+
+  if (input.manifest && typeof input.manifest === 'object' && !Array.isArray(input.manifest)) {
+    return new Manifest(input.manifest);
+  }
+
+  throw invalidInput('Provide --manifest <path> or request.manifest');
+}
+
+/**
+ * @param {Manifest} manifest
+ * @param {string} treeOid
+ * @returns {{ data: Record<string, any> }}
+ */
+function buildTreeOutcome(manifest, treeOid) {
+  return {
+    data: {
+      treeOid,
+      slug: manifest.slug,
+      chunkCount: manifest.chunks.length,
+      encrypted: Boolean(manifest.encryption?.encrypted),
+      compressed: Boolean(manifest.compression),
+    },
+  };
+}
+
+/**
  * @param {string[]} argv
  * @returns {{ command: string, args: string[] }}
  */
@@ -513,6 +567,19 @@ export async function runAgentCli(
   }
 }
 
+const COMMAND_HANDLERS = Object.freeze({
+  store: storeCommand,
+  tree: treeCommand,
+  restore: restoreCommand,
+  inspect: inspectCommand,
+  verify: verifyCommand,
+  doctor: doctorCommand,
+  'vault.list': vaultListCommand,
+  'vault.info': vaultInfoCommand,
+  'vault.history': vaultHistoryCommand,
+  'vault.stats': vaultStatsCommand,
+});
+
 /**
  * @param {string} command
  * @param {string[]} args
@@ -520,31 +587,16 @@ export async function runAgentCli(
  * @returns {Promise<{ exitCode?: number, data: Record<string, any> }>}
  */
 async function executeAgentCommand(command, args, stdin) {
-  switch (command) {
-    case 'store':
-      return storeCommand(args, stdin);
-    case 'restore':
-      return restoreCommand(args, stdin);
-    case 'inspect':
-      return inspectCommand(args, stdin);
-    case 'verify':
-      return verifyCommand(args, stdin);
-    case 'doctor':
-      return doctorCommand(args, stdin);
-    case 'vault.list':
-      return vaultListCommand(args, stdin);
-    case 'vault.info':
-      return vaultInfoCommand(args, stdin);
-    case 'vault.history':
-      return vaultHistoryCommand(args, stdin);
-    case 'vault.stats':
-      return vaultStatsCommand(args, stdin);
-    default:
-      throw invalidInput('Unknown agent command', {
-        command,
-        availableCommands: AVAILABLE_COMMANDS,
-      });
+  const handler = COMMAND_HANDLERS[command];
+
+  if (!handler) {
+    throw invalidInput('Unknown agent command', {
+      command,
+      availableCommands: AVAILABLE_COMMANDS,
+    });
   }
+
+  return handler(args, stdin);
 }
 
 /**
@@ -577,6 +629,20 @@ async function storeCommand(args, stdin) {
   }
 
   return buildStoreOutcome({ input, manifest, treeOid, commitOid });
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<{ data: Record<string, any> }>}
+ */
+async function treeCommand(args, stdin) {
+  const input = await parseTreeInput(args, stdin);
+  const manifest = resolveManifestInput(input);
+  const cas = createCas(input.cwd || '.');
+  const treeOid = await cas.createTree({ manifest });
+
+  return buildTreeOutcome(manifest, treeOid);
 }
 
 /**
