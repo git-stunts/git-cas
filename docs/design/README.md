@@ -24,3 +24,4 @@ Current design docs:
 - [0003 — M18 Relay: Tree Creation Primitive](./0003-m18-relay-tree-creation.md)
 - [RL-001 — Relay: Agent Recipient List](./RL-001-agent-recipient-list.md)
 - [RL-002 — Relay: Agent Recipient Mutations](./RL-002-agent-recipient-mutations.md)
+- [RL-003 — Relay: Agent Rotate](./RL-003-agent-rotate.md)

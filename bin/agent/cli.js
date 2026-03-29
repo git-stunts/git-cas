@@ -13,6 +13,7 @@ const AVAILABLE_COMMANDS = Object.freeze([
   'store',
   'tree',
   'restore',
+  'rotate',
   'inspect',
   'verify',
   'doctor',
@@ -186,6 +187,8 @@ function normalizeInputAliases(input) {
   return {
     ...input,
     keyFile: input.keyFile ?? input['key-file'],
+    oldKeyFile: input.oldKeyFile ?? input['old-key-file'],
+    newKeyFile: input.newKeyFile ?? input['new-key-file'],
     existingKeyFile: input.existingKeyFile ?? input['existing-key-file'],
     vaultPassphrase: input.vaultPassphrase ?? input['vault-passphrase'],
     vaultPassphraseFile: input.vaultPassphraseFile ?? input['vault-passphrase-file'],
@@ -489,6 +492,40 @@ function buildStoreOutcome({ input, manifest, treeOid, commitOid }) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<Record<string, any>>}
  */
+async function parseRotateInput(args, stdin) {
+  const { values, positionals } = await parseAgentInput(
+    args,
+    {
+      slug: { type: 'string' },
+      oid: { type: 'string' },
+      label: { type: 'string' },
+      cwd: { type: 'string' },
+      'old-key-file': { type: 'string' },
+      'new-key-file': { type: 'string' },
+    },
+    stdin
+  );
+  assignPositionals(positionals, []);
+  return normalizeInputAliases(values);
+}
+
+/**
+ * @param {Record<string, any>} input
+ */
+function validateRotateInput(input) {
+  if (!input.oldKeyFile) {
+    throw invalidInput('Provide --old-key-file <path>');
+  }
+  if (!input.newKeyFile) {
+    throw invalidInput('Provide --new-key-file <path>');
+  }
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<Record<string, any>>}
+ */
 async function parseRecipientAddInput(args, stdin) {
   const { values, positionals } = await parseAgentInput(
     args,
@@ -607,6 +644,35 @@ function buildRecipientMutationOutcome({
 }
 
 /**
+ * @param {{
+ *   previousTreeOid: string,
+ *   treeOid: string,
+ *   commitOid?: string,
+ *   manifest: import('../../src/domain/value-objects/Manifest.js').default,
+ *   label?: string,
+ * }} options
+ * @returns {{ data: Record<string, any> }}
+ */
+function buildRotateOutcome({ previousTreeOid, treeOid, commitOid, manifest, label }) {
+  const recipients = buildRecipientRows(manifest);
+
+  return {
+    data: {
+      action: 'rotate',
+      slug: manifest.slug,
+      ...(label ? { label } : {}),
+      previousTreeOid,
+      treeOid,
+      ...(commitOid ? { commitOid } : {}),
+      updatedVault: Boolean(commitOid),
+      keyVersion: manifest.encryption?.keyVersion,
+      recipientCount: recipients.length,
+      recipients,
+    },
+  };
+}
+
+/**
  * @param {string[]} args
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<Record<string, any>>}
@@ -712,6 +778,7 @@ const COMMAND_HANDLERS = Object.freeze({
   store: storeCommand,
   tree: treeCommand,
   restore: restoreCommand,
+  rotate: rotateCommand,
   inspect: inspectCommand,
   verify: verifyCommand,
   doctor: doctorCommand,
@@ -840,6 +907,44 @@ async function restoreCommand(args, stdin) {
       encrypted: Boolean(manifest.encryption?.encrypted),
     },
   };
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<{ data: Record<string, any> }>}
+ */
+async function rotateCommand(args, stdin) {
+  const input = await parseRotateInput(args, stdin);
+  const target = resolveTarget(input);
+  validateRotateInput(input);
+
+  const { cas, treeOid: previousTreeOid } = await resolveTree(target);
+  const manifest = await cas.readManifest({ treeOid: previousTreeOid });
+  const updated = await cas.rotateKey({
+    manifest,
+    oldKey: readKeyFile(input.oldKeyFile),
+    newKey: readKeyFile(input.newKeyFile),
+    ...(input.label ? { label: input.label } : {}),
+  });
+
+  const treeOid = await cas.createTree({ manifest: updated });
+  let commitOid;
+  if (input.slug) {
+    ({ commitOid } = await cas.addToVault({
+      slug: input.slug,
+      treeOid,
+      force: true,
+    }));
+  }
+
+  return buildRotateOutcome({
+    previousTreeOid,
+    treeOid,
+    commitOid,
+    manifest: updated,
+    label: input.label,
+  });
 }
 
 /**

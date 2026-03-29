@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -597,6 +597,275 @@ function defineRecipientRemoveLastRecipientTest() {
   });
 }
 
+async function prepareRotateSlugFixture() {
+  const alice = randomBytes(32);
+  const bob = randomBytes(32);
+  const aliceNew = randomBytes(32);
+  const slug = 'env/rotate-target';
+  const { treeOid: previousTreeOid, inputDir: fixtureInputDir } = await createEnvelopeVaultEntry(
+    recipientRepoDir,
+    {
+      slug,
+      recipients: [
+        { label: 'alice', key: alice },
+        { label: 'bob', key: bob },
+      ],
+    }
+  );
+  const oldKeyFile = tempFile(alice);
+  const newKeyFile = tempFile(aliceNew);
+
+  return {
+    slug,
+    previousTreeOid,
+    fixtureInputDir,
+    oldKeyFile,
+    newKeyFile,
+  };
+}
+
+async function prepareRotateRequestFixture() {
+  const alice = randomBytes(32);
+  const aliceNew = randomBytes(32);
+  const slug = 'env/rotate-detached';
+  const { treeOid: previousTreeOid, inputDir: fixtureInputDir } = await createEnvelopeVaultEntry(
+    recipientRepoDir,
+    {
+      slug,
+      recipients: [{ label: 'alice', key: alice }],
+    }
+  );
+  const oldKeyFile = tempFile(alice);
+  const newKeyFile = tempFile(aliceNew);
+  const requestPath = path.join(requestDir, 'rotate-request.json');
+  writeFileSync(
+    requestPath,
+    JSON.stringify({
+      oid: previousTreeOid,
+      oldKeyFile: oldKeyFile.filePath,
+      newKeyFile: newKeyFile.filePath,
+    })
+  );
+
+  return {
+    slug,
+    previousTreeOid,
+    fixtureInputDir,
+    oldKeyFile,
+    newKeyFile,
+    requestPath,
+  };
+}
+
+function assertRotateResult(data, expected) {
+  expect(data).toMatchObject(expected);
+  expect(data.treeOid).toMatch(/^[0-9a-f]{40}$/);
+  expect(data.treeOid).not.toBe(expected.previousTreeOid);
+}
+
+function assertRestoreResult(result, outputPath, expectedBuffer) {
+  expect(result.status).toBe(0);
+  expect(readFileSync(outputPath).equals(expectedBuffer)).toBe(true);
+}
+
+function cleanupTempDirs(...dirs) {
+  dirs.forEach((dir) => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+}
+
+function assertRotateOldKeyFailure(result) {
+  expect(result.status).toBe(1);
+
+  const oldKeyErrors = parseJsonl(result.stderr);
+  expect(oldKeyErrors[0]).toMatchObject({
+    command: 'restore',
+    type: 'error',
+    data: {
+      code: 'NO_MATCHING_RECIPIENT',
+    },
+  });
+}
+
+function assertSlugRotateRestore(slug, newKeyFilePath, oldKeyFilePath) {
+  const outputDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-rotate-restore-'));
+  const outputPath = path.join(outputDir, 'restored.bin');
+  const restoreNew = runAgentCli(
+    ['restore', '--slug', slug, '--out', outputPath, '--key-file', newKeyFilePath],
+    recipientRepoDir
+  );
+  assertRestoreResult(restoreNew, outputPath, envelopeOriginal);
+
+  const failedOutputPath = path.join(outputDir, 'restored-old.bin');
+  const restoreOld = runAgentCli(
+    ['restore', '--slug', slug, '--out', failedOutputPath, '--key-file', oldKeyFilePath],
+    recipientRepoDir
+  );
+  assertRotateOldKeyFailure(restoreOld);
+  cleanupTempDirs(outputDir);
+}
+
+function defineRotateSlugSuccessTest() {
+  it('rotate updates a slug-targeted vault entry and reports explicit side effects', async () => {
+    const { slug, previousTreeOid, fixtureInputDir, oldKeyFile, newKeyFile } =
+      await prepareRotateSlugFixture();
+    const rotateResult = runAgentCli(
+      [
+        'rotate',
+        '--slug',
+        slug,
+        '--label',
+        'alice',
+        '--old-key-file',
+        oldKeyFile.filePath,
+        '--new-key-file',
+        newKeyFile.filePath,
+      ],
+      recipientRepoDir
+    );
+
+    expect(rotateResult.status).toBe(0);
+    expect(`${rotateResult.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(rotateResult.stdout);
+    expect(rows.map((row) => row.type)).toEqual(['start', 'result', 'end']);
+    assertRotateResult(rows[1].data, {
+      action: 'rotate',
+      slug,
+      label: 'alice',
+      previousTreeOid,
+      updatedVault: true,
+      keyVersion: 1,
+      recipientCount: 2,
+      recipients: [{ label: 'alice', keyVersion: 1 }, { label: 'bob' }],
+    });
+    expect(rows[1].data.commitOid).toMatch(/^[0-9a-f]{40}$/);
+
+    assertSlugRotateRestore(slug, newKeyFile.filePath, oldKeyFile.filePath);
+    cleanupTempDirs(fixtureInputDir, oldKeyFile.dir, newKeyFile.dir);
+  });
+}
+
+function defineRotateRequestPayloadTest() {
+  it('rotate accepts request payloads for detached-tree rotation without updating the vault', async () => {
+    const { slug, previousTreeOid, fixtureInputDir, oldKeyFile, newKeyFile, requestPath } =
+      await prepareRotateRequestFixture();
+    const result = runAgentCli(['rotate', '--request', `@${requestPath}`], recipientRepoDir);
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    assertRotateResult(rows[1].data, {
+      action: 'rotate',
+      slug,
+      previousTreeOid,
+      updatedVault: false,
+      keyVersion: 1,
+      recipientCount: 1,
+      recipients: [{ label: 'alice', keyVersion: 1 }],
+    });
+    expect(rows[1].data).not.toHaveProperty('commitOid');
+
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-rotate-detached-'));
+    const outputPath = path.join(outputDir, 'restored.bin');
+    const restoreResult = runAgentCli(
+      [
+        'restore',
+        '--oid',
+        rows[1].data.treeOid,
+        '--out',
+        outputPath,
+        '--key-file',
+        newKeyFile.filePath,
+      ],
+      recipientRepoDir
+    );
+    assertRestoreResult(restoreResult, outputPath, envelopeOriginal);
+
+    const infoResult = runAgentCli(['vault', 'info', slug], recipientRepoDir);
+    expect(infoResult.status).toBe(0);
+
+    const infoRows = parseJsonl(infoResult.stdout);
+    expect(infoRows[1].data).toEqual({ slug, treeOid: previousTreeOid });
+
+    cleanupTempDirs(outputDir, fixtureInputDir, oldKeyFile.dir, newKeyFile.dir);
+  });
+}
+
+function defineRotateValidationTest() {
+  it('rotate emits structured invalid-input errors when no target is provided', () => {
+    const oldKeyFile = tempFile(randomBytes(32));
+    const newKeyFile = tempFile(randomBytes(32));
+    const result = runAgentCli(
+      ['rotate', '--old-key-file', oldKeyFile.filePath, '--new-key-file', newKeyFile.filePath],
+      recipientRepoDir
+    );
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'rotate',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+        message: 'Provide --slug <slug> or --oid <tree-oid>',
+      },
+    });
+
+    cleanupTempDirs(oldKeyFile.dir, newKeyFile.dir);
+  });
+}
+
+function defineRotateWrongOldKeyTest() {
+  it('rotate surfaces wrong-key failures as structured protocol errors', async () => {
+    const alice = randomBytes(32);
+    const slug = 'env/rotate-wrong-key';
+    const { inputDir: fixtureInputDir } = await createEnvelopeVaultEntry(recipientRepoDir, {
+      slug,
+      recipients: [{ label: 'alice', key: alice }],
+    });
+    const oldKeyFile = tempFile(randomBytes(32));
+    const newKeyFile = tempFile(randomBytes(32));
+
+    const result = runAgentCli(
+      [
+        'rotate',
+        '--slug',
+        slug,
+        '--label',
+        'alice',
+        '--old-key-file',
+        oldKeyFile.filePath,
+        '--new-key-file',
+        newKeyFile.filePath,
+      ],
+      recipientRepoDir
+    );
+    expect(result.status).toBe(1);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'rotate',
+      type: 'error',
+      data: {
+        code: 'DEK_UNWRAP_FAILED',
+        message: 'Failed to unwrap DEK: authentication failed',
+      },
+    });
+
+    cleanupTempDirs(fixtureInputDir, oldKeyFile.dir, newKeyFile.dir);
+  });
+}
+
 function defineRequestAndValidationTests() {
   it('inspect supports request payloads from a file', () => {
     const requestPath = path.join(requestDir, 'inspect.json');
@@ -876,6 +1145,10 @@ describe(
   'agent CLI protocol — recipient remove (last recipient)',
   defineRecipientRemoveLastRecipientTest
 );
+describe('agent CLI protocol — rotate (slug)', defineRotateSlugSuccessTest);
+describe('agent CLI protocol — rotate (request payload)', defineRotateRequestPayloadTest);
+describe('agent CLI protocol — rotate (validation)', defineRotateValidationTest);
+describe('agent CLI protocol — rotate (wrong old key)', defineRotateWrongOldKeyTest);
 describe('agent CLI protocol — request and validation', defineRequestAndValidationTests);
 describe('agent CLI protocol — store write flow', definePlainWriteFlowTests);
 describe('agent CLI protocol — tree command (file path)', defineTreeCommandFilePathTest);
