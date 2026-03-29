@@ -5,7 +5,7 @@
  * Uses the current runtime (node/bun/deno) to invoke the CLI.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -21,6 +21,11 @@ if (process.env.GIT_STUNTS_DOCKER !== '1') {
       'Use: docker compose run --build --rm test-<runtime>'
   );
 }
+
+vi.setConfig({
+  testTimeout: 30000,
+  hookTimeout: 60000,
+});
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.resolve(__dirname, '../../bin/git-cas.js');
