@@ -109,6 +109,15 @@ function tempFile(content) {
   return { filePath: fp, dir };
 }
 
+/**
+ * Helper: create a throwaway bare repo for isolated validation tests.
+ */
+function tempRepo(prefix = 'cas-cli-repo-') {
+  const dir = mkdtempSync(path.join(os.tmpdir(), prefix));
+  initBareRepo(dir);
+  return dir;
+}
+
 // Shared state for the plaintext workflow describes
 let repoDir;
 const original = randomBytes(4096);
@@ -195,6 +204,137 @@ describe('vault CLI — diagnostics', () => {
       totalChunkRefs: 1,
       uniqueChunks: 1,
     });
+  });
+});
+
+describe('vault CLI — validation', () => { // eslint-disable-line max-lines-per-function
+  it('vault init rejects --algorithm without a passphrase source', () => {
+    const validationRepoDir = tempRepo('cas-cli-init-validation-');
+
+    try {
+      const result = runCli(
+        ['vault', 'init', '--algorithm', 'scrypt'],
+        validationRepoDir,
+        { env: { GIT_CAS_PASSPHRASE: undefined } },
+      );
+
+      expect(result.status).toBe(1);
+      expect(`${result.stderr ?? ''}`).toContain(
+        'Provide --vault-passphrase or --vault-passphrase-file when using --algorithm',
+      );
+    } finally {
+      rmSync(validationRepoDir, { recursive: true, force: true });
+    }
+  });
+
+  it('vault init rejects an explicitly empty inline passphrase plus a passphrase file', () => {
+    const validationRepoDir = tempRepo('cas-cli-init-passphrase-conflict-');
+    const passphraseFile = tempFile(Buffer.from('passphrase-from-file\n'));
+
+    try {
+      const result = runCli(
+        [
+          'vault',
+          'init',
+          '--vault-passphrase',
+          '',
+          '--vault-passphrase-file',
+          passphraseFile.filePath,
+        ],
+        validationRepoDir,
+      );
+
+      expect(result.status).toBe(1);
+      expect(`${result.stderr ?? ''}`).toContain(
+        'Provide --vault-passphrase or --vault-passphrase-file, not both',
+      );
+    } finally {
+      rmSync(validationRepoDir, { recursive: true, force: true });
+      rmSync(passphraseFile.dir, { recursive: true, force: true });
+    }
+  });
+
+  it('store rejects key-file plus an explicitly empty vault passphrase', () => {
+    const validationRepoDir = tempRepo('cas-cli-store-validation-');
+    const input = tempFile(Buffer.from('store validation payload\n'));
+    const keyFile = tempFile(randomBytes(32));
+
+    try {
+      cli(['vault', 'init'], validationRepoDir);
+
+      const result = runCli(
+        [
+          'store',
+          input.filePath,
+          '--tree',
+          '--slug',
+          'validation/store-conflict',
+          '--key-file',
+          keyFile.filePath,
+          '--vault-passphrase',
+          '',
+        ],
+        validationRepoDir,
+      );
+
+      expect(result.status).toBe(1);
+      expect(`${result.stderr ?? ''}`).toContain(
+        'Provide --key-file or a vault passphrase source, not both',
+      );
+    } finally {
+      rmSync(validationRepoDir, { recursive: true, force: true });
+      rmSync(input.dir, { recursive: true, force: true });
+      rmSync(keyFile.dir, { recursive: true, force: true });
+    }
+  });
+
+  it('restore rejects key-file plus an explicitly empty vault passphrase', () => {
+    const validationRepoDir = tempRepo('cas-cli-restore-validation-');
+    const input = tempFile(Buffer.from('restore validation payload\n'));
+    const keyFile = tempFile(randomBytes(32));
+    const outDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cli-restore-validation-out-'));
+    const outPath = path.join(outDir, 'restored.bin');
+
+    try {
+      cli(['vault', 'init'], validationRepoDir);
+      cli(
+        [
+          'store',
+          input.filePath,
+          '--tree',
+          '--slug',
+          'validation/restore-conflict',
+          '--key-file',
+          keyFile.filePath,
+        ],
+        validationRepoDir,
+      );
+
+      const result = runCli(
+        [
+          'restore',
+          '--slug',
+          'validation/restore-conflict',
+          '--out',
+          outPath,
+          '--key-file',
+          keyFile.filePath,
+          '--vault-passphrase',
+          '',
+        ],
+        validationRepoDir,
+      );
+
+      expect(result.status).toBe(1);
+      expect(`${result.stderr ?? ''}`).toContain(
+        'Provide --key-file or a vault passphrase source, not both',
+      );
+    } finally {
+      rmSync(validationRepoDir, { recursive: true, force: true });
+      rmSync(input.dir, { recursive: true, force: true });
+      rmSync(keyFile.dir, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
   });
 });
 

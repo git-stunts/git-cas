@@ -122,7 +122,21 @@ function hasPassphraseSource(opts) {
  * @returns {boolean}
  */
 function hasExplicitPassphraseSource(opts) {
-  return Boolean(opts.vaultPassphraseFile || opts.vaultPassphrase);
+  return opts.vaultPassphraseFile !== undefined || opts.vaultPassphrase !== undefined;
+}
+
+/**
+ * Validate human CLI credential sources so explicit-but-empty values still count as provided.
+ *
+ * @param {Record<string, any>} opts
+ */
+function validateCredentialSources(opts) {
+  if (opts.vaultPassphrase !== undefined && opts.vaultPassphraseFile !== undefined) {
+    throw new Error('Provide --vault-passphrase or --vault-passphrase-file, not both');
+  }
+  if (opts.keyFile !== undefined && hasExplicitPassphraseSource(opts)) {
+    throw new Error('Provide --key-file or a vault passphrase source, not both');
+  }
 }
 
 /**
@@ -137,10 +151,10 @@ function hasExplicitPassphraseSource(opts) {
  * @returns {Promise<string | undefined>}
  */
 async function resolvePassphrase(opts, extra = {}) {
-  if (opts.vaultPassphraseFile) {
+  if (opts.vaultPassphraseFile !== undefined) {
     return await readPassphraseFile(opts.vaultPassphraseFile);
   }
-  if (opts.vaultPassphrase) {
+  if (opts.vaultPassphrase !== undefined) {
     if (!opts.vaultPassphrase.trim()) {
       throw new Error('Passphrase must not be empty');
     }
@@ -292,6 +306,7 @@ program
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {string} */ file, /** @type {Record<string, any>} */ opts) => {
+      validateCredentialSources(opts);
       if (opts.recipient && (opts.keyFile || hasExplicitPassphraseSource(opts))) {
         throw new Error(
           'Provide --key-file or a vault passphrase source (--vault-passphrase, --vault-passphrase-file, GIT_CAS_PASSPHRASE), or --recipient — not both'
@@ -409,6 +424,7 @@ program
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
+      validateCredentialSources(opts);
       validateRestoreFlags(opts);
       const quiet = program.opts().quiet || program.opts().json;
       const observer = new EventEmitterObserver();
@@ -523,19 +539,25 @@ vault
     'Passphrase for vault-level encryption (prefer GIT_CAS_PASSPHRASE env var)'
   )
   .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
-  .addOption(
-    new Option('--algorithm <alg>', 'KDF algorithm').choices(['pbkdf2', 'scrypt']).default('pbkdf2')
-  )
+  .addOption(new Option('--algorithm <alg>', 'KDF algorithm').choices(['pbkdf2', 'scrypt']))
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
+      validateCredentialSources(opts);
       const cas = createCas(opts.cwd);
       /** @type {{ passphrase?: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
       const initOpts = {};
       const passphrase = await resolvePassphrase(opts, { confirm: true });
+      if (!passphrase && opts.algorithm !== undefined) {
+        throw new Error(
+          'Provide --vault-passphrase or --vault-passphrase-file when using --algorithm'
+        );
+      }
       if (passphrase) {
         initOpts.passphrase = passphrase;
-        initOpts.kdfOptions = { algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm) };
+        initOpts.kdfOptions = {
+          algorithm: /** @type {'pbkdf2' | 'scrypt'} */ (opts.algorithm || 'pbkdf2'),
+        };
       }
       const { commitOid } = await cas.initVault(initOpts);
       const json = program.opts().json;
