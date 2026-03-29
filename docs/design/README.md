@@ -9,6 +9,14 @@ The working rules are simple:
 - implementation comes third
 - `main` is the playback truth
 
+New cycle docs should follow the workflow in [WORKFLOW.md](../../WORKFLOW.md)
+and use legend-code naming:
+
+`<Legend code>-<numerical identifier>-<name>.md`
+
+The existing `0001`/`0002`/`0003` docs are legacy cycle docs from before that
+naming migration and can remain until they are touched.
+
 Current design docs:
 
 - [0001 — M18 Relay: Agent CLI Foundation](./0001-m18-relay-agent-cli.md)

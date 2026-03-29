@@ -3,6 +3,17 @@
 This document tracks the real current state of `git-cas` and the sequenced work
 that remains.
 
+Fresh planning now follows [WORKFLOW.md](./WORKFLOW.md), not roadmap-first
+milestone writing.
+
+That means this file is now:
+
+- sequence context
+- release-line context
+- migration context
+
+It is not the primary source of truth for new cycle planning.
+
 It now follows the workflow defined in [CONTRIBUTING.md](./CONTRIBUTING.md):
 
 - sponsor user
@@ -306,16 +317,17 @@ light until the agent-first line is delivered.
 | Spectrum     | Storage and observability extensibility            |
 | Bastion      | Enterprise key-management research                 |
 
-## Milestone Delivery Rules
+## Cycle Delivery Rules
 
-Every milestone follows the repository workflow discipline:
+Every cycle follows the repository workflow discipline:
 
 1. design docs first
 2. tests as spec second
 3. implementation third
 4. retrospective after delivery
-5. rewrite the root README to reflect reality
-6. close the milestone in roadmap/status docs
+5. update `docs/BACKLOG/` with follow-on work and debt
+6. rewrite the root README to reflect reality when needed
+7. update the root changelog
 
 Additional release discipline:
 
@@ -329,6 +341,7 @@ Additional release discipline:
 
 - [ROADMAP.md](./ROADMAP.md): current reality plus future sequence
 - [STATUS.md](./STATUS.md): compact project snapshot
+- [WORKFLOW.md](./WORKFLOW.md): planning and delivery source of truth for fresh work
 - [COMPLETED_TASKS.md](./COMPLETED_TASKS.md): shipped milestone details
 - [GRAVEYARD.md](./GRAVEYARD.md): superseded or merged-away work
 - [CHANGELOG.md](./CHANGELOG.md): release-by-release history

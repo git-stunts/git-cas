@@ -81,28 +81,59 @@ Bad:
 - indirection before there is pressure for it
 - architecture rituals that slow delivery without protecting behavior
 
-## Product Management Philosophy
+## Planning And Delivery Model
 
-This project uses IBM Design Thinking style framing for milestone design:
+This project now plans fresh work through:
 
-- sponsor user
-- sponsor agent
-- hills
-- playback questions
+- legends
+- cycles
+- backlog items
+- invariants
+
+The working source of truth is [WORKFLOW.md](./WORKFLOW.md).
+
+That means:
+
+- legends carry broad thematic efforts
+- cycles are the implementation and design loop
+- backlog items are cheap, single-file work candidates
+- invariants are explicit project truths that work cannot violate
+
+This project still uses IBM Design Thinking framing, but it is now applied at
+the cycle level with both human and agent passes:
+
+- human users, jobs, and hills
+- agent users, jobs, and hills
+- human playback
+- agent playback
 - explicit non-goals
 
-Milestones should be grounded in user or agent value, not backend vanity.
+Fresh work should be grounded in human or agent value, not backend vanity.
 
 Before promoting a new direction, ask:
 
-- which hill does this support?
+- which legend does this support?
+- which cycle hill does this support?
 - what human or agent behavior does this improve?
 - what trust does this increase?
-- does this make the system more deterministic, more legible, or more
-  automatable?
+- what invariant does this depend on or risk violating?
 
-If the answer is unclear, the work probably belongs in the backlog, not the
-roadmap.
+If the answer is unclear, the work probably belongs in
+[`docs/BACKLOG/`](./docs/BACKLOG/), not in an active cycle doc.
+
+## Directory Model
+
+New planning work uses:
+
+- [`docs/legends/`](./docs/legends/)
+- [`docs/BACKLOG/`](./docs/BACKLOG/)
+- [`docs/design/`](./docs/design/)
+- [`docs/invariants/`](./docs/invariants/)
+- [`test/cycles/`](./test/cycles/)
+
+`ROADMAP.md` and `STATUS.md` remain useful sequence and snapshot documents, but
+they are now migration surfaces for planning, not the primary place where fresh
+cycle planning starts.
 
 ## Build Order
 
@@ -117,16 +148,18 @@ Tests are the spec.
 Do not insert a second prose-spec layer between design and tests.
 Do not treat implementation details as the primary unit of correctness.
 
-## Milestone Development Loop
+## Cycle Development Loop
 
-Each milestone should follow the same explicit loop:
+Each cycle should follow the same explicit loop:
 
 1. design docs first
 2. tests as spec second
 3. implementation third
-4. retrospective after delivery
-5. rewrite the root README to reflect reality
-6. close the milestone in roadmap/status docs
+4. human and agent playbacks
+5. retrospective after delivery
+6. update `docs/BACKLOG/` with debt and follow-on work
+7. update the root [CHANGELOG.md](./CHANGELOG.md)
+8. rewrite the root README when reality changed materially
 
 This loop is part of the process, not optional cleanup.
 
@@ -139,17 +172,19 @@ The point is to keep the repo honest about:
 
 ## Release Discipline
 
-Milestone closure and release discipline are coupled.
+Cycle closure and release discipline are coupled when a landed cycle materially
+changes the product.
 
 Rules:
 
 - keep the root [CHANGELOG.md](./CHANGELOG.md)
 - keep `package.json` and `jsr.json` versioned to reality, not aspiration
-- when a milestone is closed, bump the in-flight version on the release commit
+- when a release-worthy cycle or grouped set of cycles is closed, bump the
+  in-flight version on the release commit
 - create a Git tag on the commit that lands on `main` for that release
 - follow [docs/RELEASE.md](./docs/RELEASE.md) instead of improvising release flow
 
-The version and tag should reflect milestone reality, not hopeful scope.
+The version and tag should reflect shipped reality, not hopeful scope.
 
 ## Testing Rules
 
@@ -272,8 +307,12 @@ The point is not aesthetic Git history. The point is trustworthy collaboration.
 Before making non-trivial changes, read:
 
 - [README.md](./README.md)
+- [WORKFLOW.md](./WORKFLOW.md)
 - [STATUS.md](./STATUS.md)
 - [ROADMAP.md](./ROADMAP.md)
+- [docs/legends/README.md](./docs/legends/README.md)
+- [docs/invariants/README.md](./docs/invariants/README.md)
+- [docs/BACKLOG/README.md](./docs/BACKLOG/README.md)
 - [docs/design/README.md](./docs/design/README.md)
 - [docs/design/0001-m18-relay-agent-cli.md](./docs/design/0001-m18-relay-agent-cli.md)
 - [docs/API.md](./docs/API.md)

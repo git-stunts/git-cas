@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.3.3] — Unreleased
 
 ### Added
+
+- **Workflow model** — added [WORKFLOW.md](./WORKFLOW.md), explicit legends/backlog/invariants directories, and a cycle-first planning model for fresh work.
 - **Review automation baseline** — added `.github/CODEOWNERS` with repo-wide ownership for `@git-stunts`.
 - **Release runbook** — added `docs/RELEASE.md` and linked it from `CONTRIBUTING.md` as the canonical patch-release workflow.
 - **`pnpm release:verify`** — new maintainer-facing release helper runs the full release checklist, captures observed test counts, and prints a Markdown summary that can be pasted into release notes or changelog prep.
@@ -16,11 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Deterministic property-based envelope coverage** — added a `fast-check`-backed property suite for envelope-encrypted store/restore round-trips and tamper rejection across empty, boundary-adjacent, and multi-chunk payload sizes.
 
 ### Changed
+
 - **GitHub Actions runtime maintenance** — CI and release workflows now run on `actions/checkout@v6` and `actions/setup-node@v6`, clearing the Node 20 deprecation warnings from GitHub-hosted runners.
 - **Ubuntu-based Docker test stages** — the local/CI Node, Bun, and Deno test images now build on `ubuntu:24.04`, copying runtime binaries from the official upstream images instead of inheriting Debian-based runtime images directly, and the final test commands now run as an unprivileged `gitstunts` user.
 - **Test conventions expanded** — `test/CONVENTIONS.md` now documents Git tree filename ordering, Docker-only integration policy, pinned integration `fileParallelism: false`, and direct-argv subprocess helpers.
 
 ### Fixed
+
 - **Bun blob writes in Git persistence** — `GitPersistenceAdapter.writeBlob()` now hashes temp files instead of piping large buffers through `git hash-object --stdin` under Bun, avoiding unhandled `EPIPE` failures during real Git-backed stores.
 - **Release verification runner failures** — `runReleaseVerify()` now converts thrown step-runner errors into structured step failures with a `ReleaseVerifyError` summary instead of letting raw exceptions escape.
 - **Machine-readable release verification** — `pnpm release:verify --json` now emits structured JSON on both success and failure paths, making CI automation and release-note tooling consume the same verification source of truth.
@@ -29,15 +33,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.3.2] — 2026-03-15
 
 ### Changed
+
 - **Vitest workspace split** — unit, integration, and benchmark suites now live in explicit workspace projects so the integration suite always runs with `fileParallelism: false`, regardless of the exact CLI invocation shape.
 - **Status semantics** — `STATUS.md` now distinguishes the last released version (`v5.3.1`) from the current branch version (`v5.3.2`).
 
 ### Fixed
+
 - **CLI version drift** — `bin/git-cas.js` now reads the package version instead of carrying a stale hardcoded literal, so `git-cas --version` tracks the in-repo release line correctly.
 
 ## [5.3.1] — 2026-03-15
 
 ### Fixed
+
 - **Repeated chunk tree emission** — `createTree()` and `_createMerkleTree()` now emit one chunk blob tree entry per unique digest, preserving first-seen order at write time while leaving the manifest unchanged as the authoritative ordered index of chunk occurrences.
 - **Invalid Git trees for repetitive content** — repetitive files no longer produce duplicate tree entry names, so emitted trees pass `git fsck --full` without `duplicateEntries` failures.
 - **Regression coverage for tree reachability** — added unit tests for first-seen dedupe behavior and integration tests that store repetitive content, verify restore correctness, and assert clean `git fsck` results on a real Git repository.
@@ -45,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.3.0] — 2026-03-08
 
 ### Added
+
 - **Vault rotate passphrase-file support** — `vault rotate` now accepts `--old-passphrase-file` and `--new-passphrase-file` flags, bringing it to parity with the store/restore passphrase-file support.
 - **CLI store flags** — `--gzip`, `--strategy <fixed|cdc>`, `--chunk-size <n>`, `--concurrency <n>`, `--codec <json|cbor>`, `--merkle-threshold <n>`, `--target-chunk-size <n>`, `--min-chunk-size <n>`, `--max-chunk-size <n>`. All library-level chunking, compression, codec, and concurrency options are now accessible from the CLI.
 - **CLI restore flags** — `--concurrency <n>`, `--max-restore-buffer <n>`. Parallel I/O and restore buffer limit now configurable from CLI.
@@ -63,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **16.7 — Lifecycle method naming** — Added `inspectAsset()` (replaces `deleteAsset()`) and `collectReferencedChunks()` (replaces `findOrphanedChunks()`) as canonical names on both `CasService` and the facade. Old names are preserved as deprecated aliases that emit observability warnings. Type definitions updated with `@deprecated` JSDoc.
 
 ### Changed
+
 - **`runAction` injectable delay** — `runAction()` now accepts an optional `{ delay }` dependency, replacing the hardcoded `setTimeout` call. Tests inject a spy instead of using `vi.useFakeTimers()`, making INTEGRITY_ERROR rate-limit tests deterministic across Node, Bun, and Deno.
 - **Test conventions** — Added `test/CONVENTIONS.md` documenting rules for deterministic, cross-runtime tests: inject time dependencies, use `chmod()` instead of `writeFile({ mode })`, avoid global state patching.
 - **VaultService test observability wiring** — `VaultService.test.js` now passes a `mockObservability()` port to all tests instead of relying on the silent no-op default. `rotateVaultPassphrase.test.js` now passes `SilentObserver` explicitly. If observability wiring breaks, the test suite will catch it.
@@ -73,6 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **16.4 — FixedChunker pre-allocated buffer** — Replaced `Buffer.concat()` loop with a pre-allocated `Buffer.allocUnsafe(chunkSize)` working buffer, eliminating O(n²) copies for many small input buffers. Matches the allocation strategy used by `CdcChunker`.
 
 ### Fixed
+
 - **Post-decompression size guard** — `_restoreBuffered` now enforces `maxRestoreBufferSize` after decompression, not just before. Compressed payloads that inflate beyond the configured limit now throw `RESTORE_TOO_LARGE` instead of silently allocating unbounded memory.
 - **CLI passphrase prompt deferral** — `resolveEncryptionKey` now checks vault metadata before calling `resolvePassphrase`, avoiding unnecessary TTY prompts for unencrypted vaults. Store action recipient-conflict check inspects flags/env without consuming stdin.
 - **CRLF passphrase normalization** — `readPassphraseFile` now strips trailing `\r\n` (Windows line endings) in addition to `\n`, preventing passphrase mismatches from Windows-edited files.
@@ -95,6 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.2.4] — Prism polish (2026-03-03)
 
 ### Fixed
+
 - **`CryptoPortBase.sha256()` type** — `index.d.ts` declaration corrected from `string | Promise<string>` to `Promise<string>`, matching the async implementation since v5.2.3.
 - **`keyLength` passthrough** — `KeyResolver.#resolveKeyFromPassphrase` and `deriveKekFromKdf` now forward `kdf.keyLength` to `deriveKey()`, fixing a latent bug for vaults configured with non-default key lengths.
 - **Deno test compatibility** — `createCryptoAdapter.test.js` no longer crashes on Deno by guarding immutable `globalThis.Deno` restoration with try/catch and skipping Node-only tests on non-Node runtimes.
@@ -103,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vestigial `lastchat.txt`** removed from `jsr.json` exclude list.
 
 ### Changed
+
 - **`keyResolver` is now private** — `CasService.keyResolver` changed to `#keyResolver`, preventing external access to an internal implementation detail.
 - **`VaultPassphraseRotator.js` → `rotateVaultPassphrase.js`** — renamed to follow camelCase convention for files that export a function (PascalCase is reserved for classes).
 - **`resolveChunker` validation** — `chunkSize` now validated as a finite positive number before constructing `FixedChunker`; invalid values fall through to CasService default.
@@ -114,6 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.2.3] — Prism refactor (2026-03-03)
 
 ### Changed
+
 - **Async `sha256()` across all adapters** — `NodeCryptoAdapter.sha256()` now returns `Promise<string>` (was sync `string`), matching Bun and Web adapters. Fixes Liskov Substitution violation; all callers already `await`. `CryptoPort` JSDoc and `CasService.d.ts` updated to `Promise<string>`.
 - **Extract `KeyResolver`** — ~170 lines of key resolution logic (`wrapDek`, `unwrapDek`, `resolveForDecryption`, `resolveForStore`, `resolveRecipients`, `resolveKeyForRecipients`, passphrase derivation, mutual-exclusion validation) extracted from `CasService` into `src/domain/services/KeyResolver.js`. CasService delegates via `this.keyResolver`. No public API changes. 24 new unit tests.
 - **Move `createCryptoAdapter`** — runtime crypto detection moved from `index.js` to `src/infrastructure/adapters/createCryptoAdapter.js`; test helper now delegates instead of duplicating.
@@ -130,12 +143,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.2.2] — JSDoc total coverage (2026-02-28)
 
 ### Added
+
 - `tsconfig.checkjs.json` — strict `checkJs` configuration; `tsc --noEmit` passes with zero errors.
 - `src/types/ambient.d.ts` — ambient type declarations for `@git-stunts/plumbing` and `bun` modules.
 - `@types/node` dev dependency for typecheck support.
 - JSDoc `@typedef` types: `EncryptionMeta`, `KdfParamSet`, `DeriveKeyParams` (CryptoPort); `VaultMetadata`, `VaultState`, `VaultEncryptionMeta` (VaultService).
 
 ### Changed
+
 - Every exported and internal function, class method, and callback across all 32 source files now has complete JSDoc `@param`/`@returns` annotations.
 - CryptoPort return types widened to `string | Promise<string>` (sha256), `Buffer | Uint8Array` (randomBytes), sync-or-async for encrypt/decrypt — accurately reflecting adapter implementations.
 - Port `@param` names corrected to match underscore-prefixed abstract parameters (fixes TS8024).
@@ -145,19 +160,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.2.1] — Carousel polish (2026-02-28)
 
 ### Added
+
 - CLI reference in `docs/API.md` for `git cas rotate` and `git cas vault rotate` flags.
 
 ### Changed
+
 - Rotation helpers in `CasService` use native `#private` methods, matching the facade's style.
 - `VAULT_CONFLICT` and `VAULT_METADATA_INVALID` error code docs now list `rotateVaultPassphrase()`.
 
 ### Fixed
+
 - `rotateVaultPassphrase` now honours `kdfOptions.algorithm` instead of silently using the old algorithm.
 - Rotation integration test no longer flaps under CI load (reduced test-only KDF iterations).
 
 ## [5.2.0] — Carousel (2026-02-28)
 
 ### Added
+
 - **Key rotation without re-encrypting data** — `CasService.rotateKey()` re-wraps the DEK with a new KEK, leaving data blobs untouched. Enables key compromise response without re-storing assets.
 - **`keyVersion` tracking** — manifest-level and per-recipient `keyVersion` counters track rotation history for audit compliance. Optional field, backward-compatible with existing manifests.
 - **`git cas rotate` CLI command** — rotate a recipient's key via `--slug` (vault round-trip) or `--oid` (manifest-only). Supports `--label` for targeted single-recipient rotation.
@@ -169,6 +188,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.1.0] — Locksmith (2026-02-28)
 
 ### Added
+
 - **Envelope encryption (DEK/KEK)** — multi-recipient model where a random DEK encrypts content and per-recipient KEKs wrap the DEK. Recipients can be added/removed without re-encrypting data.
 - **`RecipientSchema`** — Zod schema for validating recipient entries in manifests.
 - **`recipients` field on `EncryptionSchema`** — optional array of `{ label, wrappedDek, nonce, tag }` entries.
@@ -179,6 +199,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 48 new unit tests covering envelope store/restore, recipient management, edge cases, and fuzz round-trips.
 
 ### Fixed
+
 - **`_wrapDek` / `_unwrapDek` missing `await`** — these called async `encryptBuffer()` / `decryptBuffer()` without `await`, silently producing garbage on Bun/Deno runtimes where crypto is async.
 - **`--recipient` + `--vault-passphrase` not guarded** — CLI now rejects combining `--recipient` with `--key-file` or `--vault-passphrase`.
 - **Dead `_resolveEncryptionKey` method removed** — superseded by `_resolveDecryptionKey` but left behind.
@@ -194,10 +215,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.0.0] — Hydra (2026-02-28)
 
 ### Breaking Changes
+
 - **`CasService` constructor accepts `chunker` port** — a new optional `ChunkingPort` parameter controls chunking strategy. Existing code that does not pass `chunker` is unaffected (defaults to `FixedChunker`).
 - **Major version bump** — new hexagonal port (`ChunkingPort`) and manifest schema extension warrant a semver-major release for downstream tooling awareness.
 
 ### Added
+
 - **Content-defined chunking (CDC)** — Buzhash rolling-hash engine with configurable `minChunkSize` (64 KiB), `maxChunkSize` (1 MiB), and `targetChunkSize` (256 KiB). CDC limits the dedup blast radius to 1–2 chunks on incremental edits vs. total invalidation with fixed-size chunking. Benchmarked at 265 MB/s and 98.4% chunk reuse on small edits.
 - **`ChunkingPort`** — new hexagonal port (`src/ports/ChunkingPort.js`) with `async *chunk(source)`, `strategy`, and `params`. Abstracts chunking behind a pluggable interface.
 - **`FixedChunker`** — adapter wrapping existing fixed-size buffer slicing behind `ChunkingPort`.
@@ -210,12 +233,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 90 new unit tests (709 total).
 
 ### Changed
+
 - `CasService._chunkAndStore()` refactored to delegate to `ChunkingPort` instead of inline buffer slicing.
 - `ChunkingPort`, `FixedChunker`, `CdcChunker` exported from the main entry point.
 
 ## [4.0.1] — M8 Spit Shine + M9 Cockpit (2026-02-28)
 
 ### Added
+
 - **`git cas verify`** command — verify stored asset integrity from the CLI (checks blob hashes; no key needed).
 - **`--json` global flag** — structured JSON output for all commands (`store`, `restore`, `verify`, `inspect`, `vault list/init/remove/info/history`).
 - **`runAction` error handler** (`bin/actions.js`) — centralized `try`/`catch` with CasError code display and actionable hints for 5 common errors.
@@ -227,6 +252,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WebCryptoAdapter.finalize()` guard — throws `STREAM_NOT_CONSUMED` if called before encrypt stream is fully consumed.
 
 ### Fixed
+
 - `verify` command uses `process.exitCode = 1` instead of `process.exit(1)` to allow stdout to drain on pipes.
 - `runAction` uses `process.exitCode = 1` for consistent exit behavior across all commands.
 - `vault info --json --encryption` now includes encryption metadata in JSON output.
@@ -240,16 +266,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `_doDeriveKey` in `NodeCryptoAdapter` now properly `await`s promisified calls.
 
 ### Changed
+
 - `CryptoPort` is now the single source of truth for key validation, metadata building, and KDF parameter normalization. All three adapters override only `_doDeriveKey()`.
 - ROADMAP.md pruned: completed M1–M7 task cards moved to COMPLETED_TASKS.md.
 
 ## [4.0.0] — Conduit (2026-02-27)
 
 ### Breaking Changes
+
 - **`CasService` no longer extends `EventEmitter`** — event subscriptions must use the new `ObservabilityPort` adapters instead of `service.on()`. The `EventEmitterObserver` adapter provides full backward compatibility for existing event-based code.
 - **`observability` is a required constructor port** for `CasService`. The facade (`ContentAddressableStore`) defaults to `SilentObserver` when omitted.
 
 ### Added
+
 - **ObservabilityPort** — new hexagonal port (`src/ports/ObservabilityPort.js`) with `metric(channel, data)`, `log(level, msg, meta?)`, and `span(name)` methods. Decouples the domain layer from Node's event infrastructure.
 - **SilentObserver** — no-op adapter (default). Zero overhead when observability is not needed.
 - **EventEmitterObserver** — bridges `metric()` calls to EventEmitter events (`chunk:stored`, `file:restored`, etc.) for backward-compatible progress tracking. Exposes `.on()`, `.removeListener()`, `.listenerCount()`.
@@ -261,6 +290,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 43 new unit tests (567 total).
 
 ### Changed
+
 - CLI `store` and `restore` commands now create an `EventEmitterObserver` and pass it to the CAS instance, attaching progress tracking to the observer instead of the service.
 - `restore()` reimplemented as a collector over `restoreStream()`.
 - `_chunkAndStore()` refactored to use semaphore-gated parallel writes with `Promise.all`, sorting results by index after completion.
@@ -269,6 +299,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.1.0] — Bijou (2026-02-27)
 
 ### Added
+
 - **Interactive vault dashboard** (`git cas vault dashboard`) — TEA-based TUI with split-pane layout, manifest detail view, keyboard navigation (`j`/`k`/`Enter`/`/`), and real-time filtering.
 - **Manifest inspector** (`git cas inspect <tree-oid>`) — renders manifest details with chunk table, encryption info, and compression badges.
 - **Progress bars** for `store` and `restore` operations — animated progress with throughput reporting, auto-disabled in non-TTY environments.
@@ -280,6 +311,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New runtime dependencies: `@flyingrobots/bijou`, `@flyingrobots/bijou-node`, `@flyingrobots/bijou-tui`.
 
 ### Fixed
+
 - CLI `restore` now uses the canonical `readManifest` path instead of duplicating manifest resolution logic.
 - Progress trackers wrapped in `try`/`finally` to prevent event listener leaks when `storeFile` or `restoreFile` throws.
 - Dashboard filter and error lines clamped to pane width to prevent wrapping artifacts in narrow terminals.
@@ -293,6 +325,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0] — Vault (2026-02-08)
 
 ### Added
+
 - **Vault** — GC-safe ref-based storage via `refs/cas/vault`. A single Git ref pointing to a commit chain indexes all stored assets by slug. `git gc` can no longer silently discard stored data.
   - `initVault()` — initialize the vault, optionally with passphrase-based encryption (vault-level KDF policy).
   - `addToVault()` — add or update an entry by slug + tree OID, with `force` flag for overwrites.
@@ -316,6 +349,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 46 vault unit tests + facade delegation smoke test.
 
 ### Fixed
+
 - `#validateMetadata` now requires `kdf.keyLength` in encryption metadata, preventing downstream KDF failures from manually edited `.vault.json` files.
 - `#casUpdateRef` now preserves the original error in `VAULT_CONFLICT` meta for better diagnostics.
 - CLI `--vault-passphrase` now emits a stderr warning when the vault is not encrypted, instead of silently ignoring the passphrase.
@@ -329,6 +363,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI uses `program.parseAsync()` instead of `program.parse()` to prevent Bun from hanging on async action handlers.
 
 ### Changed
+
 - **Vault promoted to domain layer** — all vault logic extracted from facade (`index.js`) into `VaultService` (`src/domain/services/VaultService.js`) with `GitRefPort`/`GitRefAdapter` for ref operations. Facade now delegates to VaultService.
 - CLI `restore` command no longer takes a positional `<tree-oid>` argument. Use `--oid <tree-oid>` or `--slug <slug>` instead.
 - Purged completed milestones (M1–M7) and their task cards from ROADMAP.md, reducing it from 3,153 to 1,675 lines.
@@ -336,6 +371,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] — M7 Horizon (2026-02-08)
 
 ### Added
+
 - **Compression support** (Task 7.1): Optional gzip compression pipeline via `compression: { algorithm: 'gzip' }` option on `store()`. Compression is applied before encryption when both are enabled. Manifests include a new optional `compression` field. Decompression on `restore()` is automatic.
 - **KDF support** (Task 7.2): Passphrase-based encryption using PBKDF2 or scrypt via `deriveKey()` method and `passphrase` option on `store()`/`restore()`. KDF parameters are stored in `manifest.encryption.kdf` for deterministic re-derivation. All three crypto adapters (Node, Bun, Web) implement `deriveKey()`.
 - **Merkle tree manifests** (Task 7.3): Large manifests (chunk count exceeding `merkleThreshold`, default 1000) are automatically split into sub-manifests stored as separate blobs. Root manifest uses `version: 2` with `subManifests` references. `readManifest()` transparently reconstitutes v2 manifests into flat chunk lists. Full backward compatibility with v1 manifests.
@@ -345,6 +381,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated API reference (`docs/API.md`), guide (`GUIDE.md`), and README with v2.0.0 feature documentation.
 
 ### Changed
+
 - **BREAKING**: Manifest schema now includes `version` field (defaults to 1). Existing v1 manifests are fully backward-compatible.
 - `CasService` constructor accepts new `merkleThreshold` option (must be a positive integer).
 - `ContentAddressableStore` constructor now accepts and forwards `merkleThreshold` to `CasService`.
@@ -353,6 +390,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Static imports for `createGzip` and `Readable` in `CasService` (previously dynamic imports on every call).
 
 ### Fixed
+
 - **Sub-manifest blobs are now included as tree entries** (`sub-manifest-N.json`), preventing them from being garbage-collected by `git gc`.
 - `storeFile()` now forwards `passphrase`, `kdfOptions`, and `compression` options to `store()` (previously silently dropped).
 - `store()` and `restore()` reject when both `passphrase` and `encryptionKey` are provided (`INVALID_OPTIONS`).
@@ -369,19 +407,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.6.2] — OIDC publishing + JSR docs coverage (2026-02-07)
 
 ### Added
+
 - JSDoc comments on all exported TypeScript interfaces (`CryptoPort`, `CodecPort`, `GitPersistencePort`, `CasServiceOptions`, `EncryptionMeta`, `ManifestData`, `ContentAddressableStoreOptions`) to reach 100% JSR symbol documentation coverage.
 
 ### Fixed
+
 - npm publish workflow now uses OIDC trusted publishing (no stored token). Upgrades npm to >=11.5.1 at publish time since pnpm does not yet support OIDC natively.
 
 ## [1.6.1] — JSR quality fixes (2026-02-07)
 
 ### Added
+
 - TypeScript declaration files (`.d.ts`) for all three entrypoints and shared value objects, resolving JSR "slow types" scoring penalty.
 - `@ts-self-types` directives in `index.js`, `CasService.js`, and `ManifestSchema.js`.
 - `@fileoverview` module doc to `CasService.js` (required by JSR for module docs scoring).
 
 ### Fixed
+
 - JSR package name corrected to `@git-stunts/git-cas`.
 - JSR publication now excludes tests, docs, CI configs, and other non-distribution files via `jsr.json` exclude list.
 - `index.d.ts` added to `package.json` files array for npm distribution.
@@ -389,6 +431,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.6.0] — M4 Compass + M5 Sonar + M6 Cartographer (2026-02-06)
 
 ### Added
+
 - `CasService.readManifest({ treeOid })` — reads a Git tree, locates and decodes the manifest, returns a validated `Manifest` value object.
 - `CasService.deleteAsset({ treeOid })` — returns logical deletion metadata (`{ slug, chunksOrphaned }`) without performing destructive Git operations.
 - `CasService.findOrphanedChunks({ treeOids })` — aggregates referenced chunk blob OIDs across multiple assets, returning `{ referenced: Set<string>, total: number }`.
@@ -411,18 +454,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.0] — M3 Launchpad (2026-02-06)
 
 ### Added
+
 - Native Bun support via `BunCryptoAdapter` (uses `Bun.CryptoHasher`).
 - Native Deno/Web standard support via `WebCryptoAdapter` (uses `crypto.subtle`).
 - Automated, secure release workflow (`.github/workflows/release.yml`) with:
-    - **NPM OIDC support** including build provenance.
-    - **JSR support** via `jsr.json` and automated publishing.
-    - **GitHub Releases** with automated release notes.
-    - **Idempotency & Version Checks** to prevent failed partial releases.
+  - **NPM OIDC support** including build provenance.
+  - **JSR support** via `jsr.json` and automated publishing.
+  - **GitHub Releases** with automated release notes.
+  - **Idempotency & Version Checks** to prevent failed partial releases.
 - Dynamic runtime detection in `ContentAddressableStore` to pick the best adapter automatically.
 - Hardened `package.json` with repository metadata, engine constraints, and explicit file inclusion.
 - Local quality gates via `pre-push` git hook and `scripts/install-hooks.sh`.
 
 ### Changed
+
 - **Breaking Change:** `CasService` cryptographic methods (`sha256`, `encrypt`, `decrypt`, `verifyIntegrity`) are now asynchronous to support Web Crypto and native optimizations.
 - `ContentAddressableStore` facade methods are now asynchronous to accommodate lazy service initialization and async crypto.
 - Project migrated from `npm` to `pnpm` for faster, more reliable dependency management.
@@ -430,6 +475,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Dockerfile` now uses `corepack` for pnpm management.
 
 ### Fixed
+
 - Fixed recursion bug in `BunCryptoAdapter` where `randomBytes` shadowed the imported function.
 - Resolved lazy-initialization race condition in `ContentAddressableStore` via promise caching.
 - Fixed state leak in `WebCryptoAdapter` streaming encryption.
@@ -439,6 +485,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.0] — M2 Boomerang (v1.2.0)
 
 ### Added
+
 - `CryptoPort` interface and `NodeCryptoAdapter` — extracted all `node:crypto` usage from the domain layer.
 - `CasService.store()` — accepts `AsyncIterable<Buffer>` sources (renamed from `storeFile`).
 - Multi-stage Dockerfile (Node 22, Bun, Deno) with `docker-compose.yml` for per-runtime testing.
@@ -451,14 +498,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deterministic test digest helper (`digestOf`).
 
 ### Changed
+
 - `CasService` domain layer has zero `node:*` imports — all platform dependencies injected via ports.
 - Constructor requires `crypto` and `codec` params (no defaults); facade supplies them.
 - Facade `storeFile()` now opens the file and delegates to `CasService.store()`.
 
 ### Fixed
+
 - None.
 
 ### Security
+
 - None.
 
 ## [1.0.0] - 2025-05-30
@@ -475,10 +525,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker-based test runner for reproducible CI builds.
 
 ### Changed
+
 - None.
 
 ### Fixed
+
 - None.
 
 ### Security
+
 - None.

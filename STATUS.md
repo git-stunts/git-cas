@@ -5,8 +5,12 @@
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current strategic focus:** agent-first for the next few cycles
+**Fresh planning workflow:** [WORKFLOW.md](./WORKFLOW.md)
 
 ---
+
+`STATUS.md` remains a compact snapshot, but new planning now starts from
+`WORKFLOW.md`, legends, backlog items, invariants, and cycle docs.
 
 ## Honest State
 
