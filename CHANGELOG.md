@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CLI credential edge cases** — `store --recipient` now ignores ambient `GIT_CAS_PASSPHRASE` state when no explicit vault passphrase flag/file was provided, and `vault rotate` now rejects whitespace-only old/new passphrase inputs instead of treating them as valid credentials.
 - **Bun blob writes in Git persistence** — `GitPersistenceAdapter.writeBlob()` now hashes temp files instead of piping large buffers through `git hash-object --stdin` under Bun, avoiding unhandled `EPIPE` failures during real Git-backed stores.
 - **Release verification runner failures** — `runReleaseVerify()` now converts thrown step-runner errors into structured step failures with a `ReleaseVerifyError` summary instead of letting raw exceptions escape.
 - **Machine-readable release verification** — `pnpm release:verify --json` now emits structured JSON on both success and failure paths, making CI automation and release-note tooling consume the same verification source of truth.
