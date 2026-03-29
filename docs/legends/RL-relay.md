@@ -72,6 +72,10 @@ The currently landed Relay cycle docs still use legacy numeric naming:
 
 Future Relay cycle docs should use the `RL-...` naming model.
 
+Active Relay cycle docs now using that model:
+
+- [RL-001 — Relay: Agent Recipient List](../design/RL-001-agent-recipient-list.md)
+
 ## Explicit Non-Goals
 
 - no attempt to collapse the human and agent surfaces into one contract

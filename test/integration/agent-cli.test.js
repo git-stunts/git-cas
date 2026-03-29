@@ -97,8 +97,12 @@ let treeOid;
 let encRepoDir;
 let encInputDir;
 let encTreeOid;
+let recipientRepoDir;
+let recipientInputDir;
+let recipientTreeOid;
 const original = randomBytes(4096);
 const encryptedOriginal = randomBytes(3072);
+const envelopeOriginal = randomBytes(2048);
 const vaultPassphrase = 'relay-agent-passphrase';
 
 beforeAll(async () => {
@@ -108,6 +112,11 @@ beforeAll(async () => {
     inputDir: encInputDir,
     treeOid: encTreeOid,
   } = await setupEncryptedRepo());
+  ({
+    repoDir: recipientRepoDir,
+    inputDir: recipientInputDir,
+    treeOid: recipientTreeOid,
+  } = await setupRecipientRepo());
   requestDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-request-'));
 });
 
@@ -118,11 +127,17 @@ afterAll(() => {
   if (encRepoDir) {
     rmSync(encRepoDir, { recursive: true, force: true });
   }
+  if (recipientRepoDir) {
+    rmSync(recipientRepoDir, { recursive: true, force: true });
+  }
   if (inputDir) {
     rmSync(inputDir, { recursive: true, force: true });
   }
   if (encInputDir) {
     rmSync(encInputDir, { recursive: true, force: true });
+  }
+  if (recipientInputDir) {
+    rmSync(recipientInputDir, { recursive: true, force: true });
   }
   if (requestDir) {
     rmSync(requestDir, { recursive: true, force: true });
@@ -167,6 +182,32 @@ async function setupEncryptedRepo() {
     repoDir: encryptedRepoDir,
     inputDir: input.dir,
     treeOid: encryptedTreeOid,
+  };
+}
+
+async function setupRecipientRepo() {
+  const envelopeRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-recipient-integ-'));
+  initBareRepo(envelopeRepoDir);
+
+  const cas = createCas(envelopeRepoDir);
+  await cas.initVault();
+
+  const input = tempFile(envelopeOriginal);
+  const manifest = await cas.storeFile({
+    filePath: input.filePath,
+    slug: 'env/hello',
+    recipients: [
+      { label: 'alice', key: randomBytes(32) },
+      { label: 'bob', key: randomBytes(32) },
+    ],
+  });
+  const envelopeTreeOid = await cas.createTree({ manifest });
+  await cas.addToVault({ slug: 'env/hello', treeOid: envelopeTreeOid });
+
+  return {
+    repoDir: envelopeRepoDir,
+    inputDir: input.dir,
+    treeOid: envelopeTreeOid,
   };
 }
 
@@ -265,6 +306,85 @@ function defineVaultProtocolTests() {
       entries: 1,
       totalLogicalSize: original.length,
       uniqueChunks: 1,
+    });
+  });
+}
+
+function defineRecipientListSlugTest() {
+  it('recipient list returns structured recipient rows for an envelope asset', () => {
+    const result = runAgentCli(['recipient', 'list', '--slug', 'env/hello'], recipientRepoDir);
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    expect(rows.map((row) => row.type)).toEqual(['start', 'result', 'end']);
+    expect(rows[1].data).toEqual({
+      slug: 'env/hello',
+      treeOid: recipientTreeOid,
+      envelope: true,
+      recipientCount: 2,
+      recipients: [{ label: 'alice' }, { label: 'bob' }],
+    });
+  });
+}
+
+function defineRecipientListRequestPayloadTest() {
+  it('recipient list accepts request payloads that target an asset by oid', () => {
+    const requestPath = path.join(requestDir, 'recipient-list.json');
+    writeFileSync(requestPath, JSON.stringify({ oid: recipientTreeOid }));
+
+    const result = runAgentCli(
+      ['recipient', 'list', '--request', `@${requestPath}`],
+      recipientRepoDir
+    );
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    expect(rows[1].data).toEqual({
+      slug: 'env/hello',
+      treeOid: recipientTreeOid,
+      envelope: true,
+      recipientCount: 2,
+      recipients: [{ label: 'alice' }, { label: 'bob' }],
+    });
+  });
+}
+
+function defineRecipientListPlaintextTest() {
+  it('recipient list returns a non-envelope result for plaintext assets', () => {
+    const result = runAgentCli(['recipient', 'list', '--slug', 'demo/hello'], repoDir);
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    expect(rows[1].data).toEqual({
+      slug: 'demo/hello',
+      treeOid,
+      envelope: false,
+      recipientCount: 0,
+      recipients: [],
+    });
+  });
+}
+
+function defineRecipientListValidationTest() {
+  it('recipient list emits structured invalid-input errors when no target is provided', () => {
+    const result = runAgentCli(['recipient', 'list'], recipientRepoDir);
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'recipient.list',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+        message: 'Provide --slug <slug> or --oid <tree-oid>',
+      },
     });
   });
 }
@@ -528,10 +648,20 @@ function defineNeedsInputTests() {
 
 describe('agent CLI protocol — read commands', defineReadOnlyProtocolTests);
 describe('agent CLI protocol — vault commands', defineVaultProtocolTests);
+describe('agent CLI protocol — recipient list (slug)', defineRecipientListSlugTest);
+describe(
+  'agent CLI protocol — recipient list (request payload)',
+  defineRecipientListRequestPayloadTest
+);
+describe('agent CLI protocol — recipient list (plaintext)', defineRecipientListPlaintextTest);
+describe('agent CLI protocol — recipient list (validation)', defineRecipientListValidationTest);
 describe('agent CLI protocol — request and validation', defineRequestAndValidationTests);
 describe('agent CLI protocol — store write flow', definePlainWriteFlowTests);
 describe('agent CLI protocol — tree command (file path)', defineTreeCommandFilePathTest);
-describe('agent CLI protocol — tree command (request payload)', defineTreeCommandRequestPayloadTest);
+describe(
+  'agent CLI protocol — tree command (request payload)',
+  defineTreeCommandRequestPayloadTest
+);
 describe('agent CLI protocol — tree command (validation)', defineTreeCommandValidationTest);
 describe('agent CLI protocol — restore write flow', defineRestoreWriteFlowTests);
 describe('agent CLI protocol — encrypted write flows', defineEncryptedWriteFlowTests);

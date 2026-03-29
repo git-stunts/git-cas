@@ -22,3 +22,7 @@ Example:
 
 When work begins, the chosen backlog item should move or be copied into
 `docs/design/` and expanded into a full cycle doc.
+
+Current backlog items:
+
+- [RL-001 — Agent Recipient List](./RL-001-agent-recipient-list.md)

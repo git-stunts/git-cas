@@ -16,6 +16,7 @@ const AVAILABLE_COMMANDS = Object.freeze([
   'inspect',
   'verify',
   'doctor',
+  'recipient list',
   'vault list',
   'vault info',
   'vault history',
@@ -526,11 +527,11 @@ function resolveCommand(argv) {
     return { command: 'agent', args: [] };
   }
 
-  if (argv[0] === 'vault') {
+  if (argv[0] === 'vault' || argv[0] === 'recipient') {
     if (!argv[1]) {
-      return { command: 'vault', args: [] };
+      return { command: argv[0], args: [] };
     }
-    return { command: `vault.${argv[1]}`, args: argv.slice(2) };
+    return { command: `${argv[0]}.${argv[1]}`, args: argv.slice(2) };
   }
 
   return { command: argv[0], args: argv.slice(1) };
@@ -574,6 +575,7 @@ const COMMAND_HANDLERS = Object.freeze({
   inspect: inspectCommand,
   verify: verifyCommand,
   doctor: doctorCommand,
+  'recipient.list': recipientListCommand,
   'vault.list': vaultListCommand,
   'vault.info': vaultInfoCommand,
   'vault.history': vaultHistoryCommand,
@@ -780,6 +782,50 @@ async function doctorCommand(args, stdin) {
   return {
     exitCode,
     data: { report },
+  };
+}
+
+/**
+ * @param {import('../../src/domain/value-objects/Manifest.js').default} manifest
+ * @returns {Array<{ label: string, keyVersion?: number }>}
+ */
+function buildRecipientRows(manifest) {
+  return (manifest.encryption?.recipients || []).map((recipient) => ({
+    label: recipient.label,
+    ...(recipient.keyVersion !== undefined ? { keyVersion: recipient.keyVersion } : {}),
+  }));
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<{ data: Record<string, any> }>}
+ */
+async function recipientListCommand(args, stdin) {
+  const { values, positionals } = await parseAgentInput(
+    args,
+    {
+      slug: { type: 'string' },
+      oid: { type: 'string' },
+      cwd: { type: 'string' },
+    },
+    stdin
+  );
+  assignPositionals(positionals, []);
+
+  const input = resolveTarget(values);
+  const { cas, treeOid } = await resolveTree(input);
+  const manifest = await cas.readManifest({ treeOid });
+  const recipients = buildRecipientRows(manifest);
+
+  return {
+    data: {
+      slug: manifest.slug,
+      treeOid,
+      envelope: recipients.length > 0,
+      recipientCount: recipients.length,
+      recipients,
+    },
   };
 }
 
