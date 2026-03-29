@@ -19,6 +19,8 @@ const HINTS = {
   CANNOT_REMOVE_LAST_RECIPIENT: 'At least one recipient must remain in the manifest',
   ROTATION_NOT_SUPPORTED:
     'Key rotation requires envelope encryption — store with --recipient first',
+  VAULT_METADATA_INVALID: 'Initialize an encrypted vault before rotating its passphrase',
+  VAULT_CONFLICT: 'Retry the vault rotation after concurrent vault updates settle',
 };
 
 /**

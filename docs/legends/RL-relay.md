@@ -77,6 +77,7 @@ Active Relay cycle docs now using that model:
 - [RL-001 — Relay: Agent Recipient List](../design/RL-001-agent-recipient-list.md)
 - [RL-002 — Relay: Agent Recipient Mutations](../design/RL-002-agent-recipient-mutations.md)
 - [RL-003 — Relay: Agent Rotate](../design/RL-003-agent-rotate.md)
+- [RL-004 — Relay: Agent Vault Rotate](../design/RL-004-agent-vault-rotate.md)
 
 ## Explicit Non-Goals
 

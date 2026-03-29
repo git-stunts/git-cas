@@ -25,3 +25,4 @@ Current design docs:
 - [RL-001 — Relay: Agent Recipient List](./RL-001-agent-recipient-list.md)
 - [RL-002 — Relay: Agent Recipient Mutations](./RL-002-agent-recipient-mutations.md)
 - [RL-003 — Relay: Agent Rotate](./RL-003-agent-rotate.md)
+- [RL-004 — Relay: Agent Vault Rotate](./RL-004-agent-vault-rotate.md)

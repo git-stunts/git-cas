@@ -103,6 +103,8 @@ let recipientTreeOid;
 const original = randomBytes(4096);
 const encryptedOriginal = randomBytes(3072);
 const envelopeOriginal = randomBytes(2048);
+const vaultRotateEnvelopeOriginal = randomBytes(1536);
+const vaultRotateDirectOriginal = randomBytes(1024);
 const vaultPassphrase = 'relay-agent-passphrase';
 
 beforeAll(async () => {
@@ -244,6 +246,46 @@ async function deriveVaultKey(cas, passphrase) {
     keyLength: metadata.encryption.kdf.keyLength,
   });
   return key;
+}
+
+async function setupVaultRotateRepo() {
+  const rotateRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-vault-rotate-'));
+  initBareRepo(rotateRepoDir);
+
+  const oldPassphrase = 'relay-old-passphrase';
+  const newPassphrase = 'relay-new-passphrase';
+  const cas = createCas(rotateRepoDir);
+  await cas.initVault({ passphrase: oldPassphrase });
+
+  const oldKek = await deriveVaultKey(cas, oldPassphrase);
+  const oldKeyFile = tempFile(oldKek);
+
+  const envelopeInput = tempFile(vaultRotateEnvelopeOriginal);
+  const envelopeManifest = await cas.storeFile({
+    filePath: envelopeInput.filePath,
+    slug: 'vault/env',
+    recipients: [{ label: 'vault', key: oldKek }],
+  });
+  const envelopeTreeOid = await cas.createTree({ manifest: envelopeManifest });
+  await cas.addToVault({ slug: 'vault/env', treeOid: envelopeTreeOid });
+
+  const directInput = tempFile(vaultRotateDirectOriginal);
+  const directManifest = await cas.storeFile({
+    filePath: directInput.filePath,
+    slug: 'vault/direct',
+    encryptionKey: oldKek,
+  });
+  const directTreeOid = await cas.createTree({ manifest: directManifest });
+  await cas.addToVault({ slug: 'vault/direct', treeOid: directTreeOid });
+
+  return {
+    repoDir: rotateRepoDir,
+    oldPassphrase,
+    newPassphrase,
+    oldKeyFile,
+    envelopeInput,
+    directInput,
+  };
 }
 
 function defineReadOnlyProtocolTests() {
@@ -687,6 +729,11 @@ function assertRotateOldKeyFailure(result) {
   });
 }
 
+function assertVaultRotateResult(data, expected) {
+  expect(data).toMatchObject(expected);
+  expect(data.commitOid).toMatch(/^[0-9a-f]{40}$/);
+}
+
 function assertSlugRotateRestore(slug, newKeyFilePath, oldKeyFilePath) {
   const outputDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-rotate-restore-'));
   const outputPath = path.join(outputDir, 'restored.bin');
@@ -703,6 +750,25 @@ function assertSlugRotateRestore(slug, newKeyFilePath, oldKeyFilePath) {
   );
   assertRotateOldKeyFailure(restoreOld);
   cleanupTempDirs(outputDir);
+}
+
+async function assertVaultRotateRestore(repoPath, newPassphrase, oldKeyFilePath) {
+  const newKeyFile = tempFile(await deriveVaultKey(createCas(repoPath), newPassphrase));
+  const outputDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-vault-rotate-restore-'));
+  const outputPath = path.join(outputDir, 'restored.bin');
+  const restoreNew = runAgentCli(
+    ['restore', '--slug', 'vault/env', '--out', outputPath, '--key-file', newKeyFile.filePath],
+    repoPath
+  );
+  assertRestoreResult(restoreNew, outputPath, vaultRotateEnvelopeOriginal);
+
+  const failedOutputPath = path.join(outputDir, 'restored-old.bin');
+  const restoreOld = runAgentCli(
+    ['restore', '--slug', 'vault/env', '--out', failedOutputPath, '--key-file', oldKeyFilePath],
+    repoPath
+  );
+  assertRotateOldKeyFailure(restoreOld);
+  cleanupTempDirs(outputDir, newKeyFile.dir);
 }
 
 function defineRotateSlugSuccessTest() {
@@ -863,6 +929,155 @@ function defineRotateWrongOldKeyTest() {
     });
 
     cleanupTempDirs(fixtureInputDir, oldKeyFile.dir, newKeyFile.dir);
+  });
+}
+
+function defineVaultRotateSuccessTest() {
+  it('vault rotate reports commit, rotated entries, and resulting KDF state', async () => {
+    const fixture = await setupVaultRotateRepo();
+    const result = runAgentCli(
+      [
+        'vault',
+        'rotate',
+        '--old-passphrase',
+        fixture.oldPassphrase,
+        '--new-passphrase',
+        fixture.newPassphrase,
+      ],
+      fixture.repoDir
+    );
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    expect(rows.map((row) => row.type)).toEqual(['start', 'result', 'end']);
+    assertVaultRotateResult(rows[1].data, {
+      updatedVault: true,
+      rotatedSlugs: ['vault/env'],
+      skippedSlugs: ['vault/direct'],
+      rotatedCount: 1,
+      skippedCount: 1,
+      entryCount: 2,
+      kdfAlgorithm: 'pbkdf2',
+    });
+
+    await assertVaultRotateRestore(
+      fixture.repoDir,
+      fixture.newPassphrase,
+      fixture.oldKeyFile.filePath
+    );
+    cleanupTempDirs(
+      fixture.repoDir,
+      fixture.oldKeyFile.dir,
+      fixture.envelopeInput.dir,
+      fixture.directInput.dir
+    );
+  });
+}
+
+function defineVaultRotateRequestPayloadTest() {
+  it('vault rotate accepts request payload file sources and algorithm override', async () => {
+    const fixture = await setupVaultRotateRepo();
+    const oldPassphraseFile = tempFile(Buffer.from(fixture.oldPassphrase));
+    const newPassphraseFile = tempFile(Buffer.from(fixture.newPassphrase));
+    const requestPath = path.join(requestDir, 'vault-rotate-request.json');
+    writeFileSync(
+      requestPath,
+      JSON.stringify({
+        oldPassphraseFile: oldPassphraseFile.filePath,
+        newPassphraseFile: newPassphraseFile.filePath,
+        algorithm: 'scrypt',
+      })
+    );
+
+    const result = runAgentCli(
+      ['vault', 'rotate', '--request', `@${requestPath}`],
+      fixture.repoDir
+    );
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    assertVaultRotateResult(rows[1].data, {
+      updatedVault: true,
+      rotatedCount: 1,
+      skippedCount: 1,
+      kdfAlgorithm: 'scrypt',
+    });
+
+    const metadata = await createCas(fixture.repoDir).getVaultMetadata();
+    expect(metadata?.encryption?.kdf?.algorithm).toBe('scrypt');
+
+    cleanupTempDirs(
+      fixture.repoDir,
+      fixture.oldKeyFile.dir,
+      fixture.envelopeInput.dir,
+      fixture.directInput.dir,
+      oldPassphraseFile.dir,
+      newPassphraseFile.dir
+    );
+  });
+}
+
+function defineVaultRotateValidationTest() {
+  it('vault rotate emits structured invalid-input errors when the old passphrase is missing', () => {
+    const result = runAgentCli(['vault', 'rotate', '--new-passphrase', 'next'], encRepoDir);
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'vault.rotate',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+        message: 'Provide --old-passphrase <pass> or --old-passphrase-file <path>',
+      },
+    });
+  });
+}
+
+function defineVaultRotateWrongPassphraseTest() {
+  it('vault rotate surfaces wrong-passphrase failures as structured protocol errors', async () => {
+    const fixture = await setupVaultRotateRepo();
+    const result = runAgentCli(
+      [
+        'vault',
+        'rotate',
+        '--old-passphrase',
+        'wrong-passphrase',
+        '--new-passphrase',
+        fixture.newPassphrase,
+      ],
+      fixture.repoDir
+    );
+    expect(result.status).toBe(1);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'vault.rotate',
+      type: 'error',
+      data: {
+        code: 'NO_MATCHING_RECIPIENT',
+        message: 'No recipient entry could be unwrapped with the provided key',
+      },
+    });
+
+    cleanupTempDirs(
+      fixture.repoDir,
+      fixture.oldKeyFile.dir,
+      fixture.envelopeInput.dir,
+      fixture.directInput.dir
+    );
   });
 }
 
@@ -1149,6 +1364,16 @@ describe('agent CLI protocol — rotate (slug)', defineRotateSlugSuccessTest);
 describe('agent CLI protocol — rotate (request payload)', defineRotateRequestPayloadTest);
 describe('agent CLI protocol — rotate (validation)', defineRotateValidationTest);
 describe('agent CLI protocol — rotate (wrong old key)', defineRotateWrongOldKeyTest);
+describe('agent CLI protocol — vault rotate (success)', defineVaultRotateSuccessTest);
+describe(
+  'agent CLI protocol — vault rotate (request payload)',
+  defineVaultRotateRequestPayloadTest
+);
+describe('agent CLI protocol — vault rotate (validation)', defineVaultRotateValidationTest);
+describe(
+  'agent CLI protocol — vault rotate (wrong passphrase)',
+  defineVaultRotateWrongPassphraseTest
+);
 describe('agent CLI protocol — request and validation', defineRequestAndValidationTests);
 describe('agent CLI protocol — store write flow', definePlainWriteFlowTests);
 describe('agent CLI protocol — tree command (file path)', defineTreeCommandFilePathTest);

@@ -23,10 +23,23 @@ const AVAILABLE_COMMANDS = Object.freeze([
   'vault list',
   'vault info',
   'vault history',
+  'vault rotate',
   'vault stats',
 ]);
 
 const REQUEST_OPTION = { request: { type: 'string' } };
+const INPUT_ALIAS_MAP = Object.freeze({
+  keyFile: 'key-file',
+  oldKeyFile: 'old-key-file',
+  newKeyFile: 'new-key-file',
+  existingKeyFile: 'existing-key-file',
+  oldPassphrase: 'old-passphrase',
+  newPassphrase: 'new-passphrase',
+  oldPassphraseFile: 'old-passphrase-file',
+  newPassphraseFile: 'new-passphrase-file',
+  vaultPassphrase: 'vault-passphrase',
+  vaultPassphraseFile: 'vault-passphrase-file',
+});
 
 /**
  * @param {string} cwd
@@ -184,15 +197,11 @@ function assignPositionals(positionals, names) {
  * @returns {Record<string, any>}
  */
 function normalizeInputAliases(input) {
-  return {
-    ...input,
-    keyFile: input.keyFile ?? input['key-file'],
-    oldKeyFile: input.oldKeyFile ?? input['old-key-file'],
-    newKeyFile: input.newKeyFile ?? input['new-key-file'],
-    existingKeyFile: input.existingKeyFile ?? input['existing-key-file'],
-    vaultPassphrase: input.vaultPassphrase ?? input['vault-passphrase'],
-    vaultPassphraseFile: input.vaultPassphraseFile ?? input['vault-passphrase-file'],
-  };
+  const normalized = { ...input };
+  for (const [key, alias] of Object.entries(INPUT_ALIAS_MAP)) {
+    normalized[key] = input[key] ?? input[alias];
+  }
+  return normalized;
 }
 
 /**
@@ -274,6 +283,23 @@ function readKeyFile(keyFilePath) {
 }
 
 /**
+ * @param {string} filePath
+ * @returns {Promise<string>}
+ */
+async function readAgentPassphraseFile(filePath) {
+  if (filePath === '-') {
+    return await readPassphraseFile(filePath);
+  }
+
+  const trimmed = readFileSync(path.resolve(filePath), 'utf8').replace(/\r?\n$/, '');
+  if (!trimmed) {
+    throw invalidInput('Passphrase must not be empty');
+  }
+
+  return trimmed;
+}
+
+/**
  * @param {Record<string, any>} input
  * @returns {boolean}
  */
@@ -300,7 +326,7 @@ async function resolveVaultPassphrase(input, requestSource) {
     throw invalidInput('Cannot read both request payload and vault passphrase from stdin');
   }
   if (input.vaultPassphraseFile) {
-    return await readPassphraseFile(input.vaultPassphraseFile);
+    return await readAgentPassphraseFile(input.vaultPassphraseFile);
   }
   if (input.vaultPassphrase !== undefined) {
     if (!String(input.vaultPassphrase).trim()) {
@@ -522,6 +548,139 @@ function validateRotateInput(input) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {'pbkdf2' | 'scrypt' | undefined}
+ */
+function parseKdfAlgorithm(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === 'pbkdf2' || value === 'scrypt') {
+    return value;
+  }
+  throw invalidInput('Provide --algorithm <pbkdf2|scrypt>');
+}
+
+/**
+ * @param {string} label
+ * @param {unknown} value
+ * @returns {string | undefined}
+ */
+function resolveInlinePassphrase(label, value) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const passphrase = String(value);
+  if (!passphrase.trim()) {
+    throw invalidInput(`${label} must not be empty`);
+  }
+
+  return passphrase;
+}
+
+/**
+ * @param {Record<string, any>} input
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<Record<string, any>>}
+ */
+async function parseVaultRotateInput(args, stdin) {
+  const { values, positionals, requestSource } = await parseAgentInput(
+    args,
+    {
+      cwd: { type: 'string' },
+      algorithm: { type: 'string' },
+      'old-passphrase': { type: 'string' },
+      'new-passphrase': { type: 'string' },
+      'old-passphrase-file': { type: 'string' },
+      'new-passphrase-file': { type: 'string' },
+    },
+    stdin
+  );
+  assignPositionals(positionals, []);
+  return normalizeInputAliases({
+    ...values,
+    requestSource,
+  });
+}
+
+/**
+ * @param {Record<string, any>} input
+ */
+function validateVaultRotateInput(input) {
+  if (input.oldPassphrase && input.oldPassphraseFile) {
+    throw invalidInput('Provide --old-passphrase or --old-passphrase-file, not both');
+  }
+  if (input.newPassphrase && input.newPassphraseFile) {
+    throw invalidInput('Provide --new-passphrase or --new-passphrase-file, not both');
+  }
+  if (!input.oldPassphrase && !input.oldPassphraseFile) {
+    throw invalidInput('Provide --old-passphrase <pass> or --old-passphrase-file <path>');
+  }
+  if (!input.newPassphrase && !input.newPassphraseFile) {
+    throw invalidInput('Provide --new-passphrase <pass> or --new-passphrase-file <path>');
+  }
+
+  parseKdfAlgorithm(input.algorithm);
+}
+
+/**
+ * @param {Record<string, any>} input
+ * @param {string | undefined} requestSource
+ * @returns {Promise<{ oldPassphrase: string, newPassphrase: string }>}
+ */
+async function resolveVaultRotatePassphrases(input, requestSource) {
+  validateVaultRotateStdinSources(input, requestSource);
+
+  return {
+    oldPassphrase: await readVaultRotatePassphrase(
+      'Old passphrase',
+      input.oldPassphrase,
+      input.oldPassphraseFile
+    ),
+    newPassphrase: await readVaultRotatePassphrase(
+      'New passphrase',
+      input.newPassphrase,
+      input.newPassphraseFile
+    ),
+  };
+}
+
+/**
+ * @param {Record<string, any>} input
+ * @param {string | undefined} requestSource
+ */
+function validateVaultRotateStdinSources(input, requestSource) {
+  if (input.oldPassphraseFile === '-' && input.newPassphraseFile === '-') {
+    throw invalidInput('Cannot read both old and new passphrase from stdin');
+  }
+  if (
+    requestSource === '-' &&
+    (input.oldPassphraseFile === '-' || input.newPassphraseFile === '-')
+  ) {
+    throw invalidInput('Cannot read both request payload and vault rotation passphrase from stdin');
+  }
+}
+
+/**
+ * @param {string} label
+ * @param {unknown} inlineValue
+ * @param {string | undefined} fileValue
+ * @returns {Promise<string>}
+ */
+async function readVaultRotatePassphrase(label, inlineValue, fileValue) {
+  const passphrase = fileValue
+    ? await readAgentPassphraseFile(fileValue)
+    : resolveInlinePassphrase(label, inlineValue);
+
+  if (!passphrase?.trim()) {
+    throw invalidInput(`${label} must not be empty`);
+  }
+
+  return passphrase;
+}
+
+/**
  * @param {string[]} args
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<Record<string, any>>}
@@ -673,6 +832,30 @@ function buildRotateOutcome({ previousTreeOid, treeOid, commitOid, manifest, lab
 }
 
 /**
+ * @param {{
+ *   commitOid: string,
+ *   rotatedSlugs: string[],
+ *   skippedSlugs: string[],
+ *   kdfAlgorithm?: string,
+ * }} options
+ * @returns {{ data: Record<string, any> }}
+ */
+function buildVaultRotateOutcome({ commitOid, rotatedSlugs, skippedSlugs, kdfAlgorithm }) {
+  return {
+    data: {
+      commitOid,
+      updatedVault: true,
+      rotatedSlugs,
+      skippedSlugs,
+      rotatedCount: rotatedSlugs.length,
+      skippedCount: skippedSlugs.length,
+      entryCount: rotatedSlugs.length + skippedSlugs.length,
+      ...(kdfAlgorithm ? { kdfAlgorithm } : {}),
+    },
+  };
+}
+
+/**
  * @param {string[]} args
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<Record<string, any>>}
@@ -788,6 +971,7 @@ const COMMAND_HANDLERS = Object.freeze({
   'vault.list': vaultListCommand,
   'vault.info': vaultInfoCommand,
   'vault.history': vaultHistoryCommand,
+  'vault.rotate': vaultRotateCommand,
   'vault.stats': vaultStatsCommand,
 });
 
@@ -1142,6 +1326,35 @@ async function recipientListCommand(args, stdin) {
       recipients,
     },
   };
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<{ data: Record<string, any> }>}
+ */
+async function vaultRotateCommand(args, stdin) {
+  const input = await parseVaultRotateInput(args, stdin);
+  validateVaultRotateInput(input);
+
+  const { oldPassphrase, newPassphrase } = await resolveVaultRotatePassphrases(
+    input,
+    input.requestSource
+  );
+  const cas = createCas(input.cwd || '.');
+  const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase({
+    oldPassphrase,
+    newPassphrase,
+    ...(input.algorithm ? { kdfOptions: { algorithm: parseKdfAlgorithm(input.algorithm) } } : {}),
+  });
+  const metadata = await cas.getVaultMetadata();
+
+  return buildVaultRotateOutcome({
+    commitOid,
+    rotatedSlugs,
+    skippedSlugs,
+    kdfAlgorithm: metadata?.encryption?.kdf?.algorithm,
+  });
 }
 
 /**
