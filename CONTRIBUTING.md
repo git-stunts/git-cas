@@ -47,7 +47,7 @@ In practice, that means:
 - keep Git internals out of normal UX unless they are operationally necessary
 - keep future automation concerns out of the human path until they are earned
 - keep every human CLI command machine-readable through `--json`
-- keep the future `git cas agent` surface JSONL-first and non-interactive
+- keep the `git cas agent` surface JSONL-first and non-interactive
 
 ## Architectural Principles
 
@@ -247,7 +247,7 @@ The human path should feel trustworthy and boring, not magical.
 
 ## Agent Surface Guardrails
 
-The planned `git cas agent` surface is the automation contract.
+The `git cas agent` surface is the automation contract.
 
 That implies:
 
@@ -332,4 +332,4 @@ When in doubt:
 - choose main as the playback truth
 - choose behavior over architecture theater
 - protect the human path from unnecessary sophistication
-- protect the future agent path from ambiguity
+- protect the agent path from ambiguity
