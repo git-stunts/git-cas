@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -310,6 +310,10 @@ function defineReadOnlyProtocolTests() {
     const rows = parseJsonl(result.stdout);
     expect(rows.map((row) => row.type)).toEqual(['start', 'result', 'end']);
     expect(rows.map((row) => row.command)).toEqual(['inspect', 'inspect', 'inspect']);
+    assertStartRow(rows, {
+      cwd: '.',
+      slug: 'demo/hello',
+    });
     expect(rows[1].data).toMatchObject({
       treeOid,
       manifest: { slug: 'demo/hello' },
@@ -446,7 +450,7 @@ function defineRecipientListValidationTest() {
     const stdoutRows = parseJsonl(result.stdout);
     const stderrRows = parseJsonl(result.stderr);
 
-    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
     expect(stderrRows).toHaveLength(1);
     expect(stderrRows[0]).toMatchObject({
       command: 'recipient.list',
@@ -727,6 +731,16 @@ function cleanupTempDirs(...dirs) {
   });
 }
 
+function assertStartRow(rows, expectedInput) {
+  expect(rows[0]).toMatchObject({
+    type: 'start',
+    data: {
+      input: expectedInput,
+    },
+  });
+  expect(rows[0].data).not.toHaveProperty('argv');
+}
+
 function assertRotateOldKeyFailure(result) {
   expect(result.status).toBe(1);
 
@@ -893,7 +907,7 @@ function defineRotateValidationTest() {
     const stdoutRows = parseJsonl(result.stdout);
     const stderrRows = parseJsonl(result.stderr);
 
-    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
     expect(stderrRows).toHaveLength(1);
     expect(stderrRows[0]).toMatchObject({
       command: 'rotate',
@@ -1018,15 +1032,18 @@ function defineVaultRotateRequestPayloadTest() {
     );
 
     expect(result.status).toBe(0);
-    expect(`${result.stderr ?? ''}`).toBe('');
 
     const rows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
     assertVaultRotateResult(rows[1].data, {
       updatedVault: true,
       rotatedCount: 1,
       skippedCount: 1,
       kdfAlgorithm: 'scrypt',
     });
+    expect(stderrRows).toHaveLength(2);
+    expect(stderrRows.every((row) => row.type === 'warning')).toBe(true);
+    expect(stderrRows.every((row) => row.data.code === 'INSECURE_FILE_PERMISSIONS')).toBe(true);
 
     const metadata = await createCas(fixture.repoDir).getVaultMetadata();
     expect(metadata?.encryption?.kdf?.algorithm).toBe('scrypt');
@@ -1050,7 +1067,7 @@ function defineVaultRotateValidationTest() {
     const stdoutRows = parseJsonl(result.stdout);
     const stderrRows = parseJsonl(result.stderr);
 
-    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
     expect(stderrRows).toHaveLength(1);
     expect(stderrRows[0]).toMatchObject({
       command: 'vault.rotate',
@@ -1140,13 +1157,21 @@ function defineVaultInitEncryptedRequestPayloadTest() {
     const result = runAgentCli(['vault', 'init', '--request', `@${requestPath}`], vaultRepoDir);
 
     expect(result.status).toBe(0);
-    expect(`${result.stderr ?? ''}`).toBe('');
 
     const rows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
     assertVaultInitResult(rows[1].data, {
       initializedVault: true,
       encrypted: true,
       kdfAlgorithm: 'scrypt',
+    });
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'vault.init',
+      type: 'warning',
+      data: {
+        code: 'INSECURE_FILE_PERMISSIONS',
+      },
     });
 
     const metadata = await createCas(vaultRepoDir).getVaultMetadata();
@@ -1165,7 +1190,7 @@ function defineVaultInitValidationTest() {
     const stdoutRows = parseJsonl(result.stdout);
     const stderrRows = parseJsonl(result.stderr);
 
-    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
     expect(stderrRows).toHaveLength(1);
     expect(stderrRows[0]).toMatchObject({
       command: 'vault.init',
@@ -1237,10 +1262,14 @@ function defineRequestAndValidationTests() {
     expect(`${result.stderr ?? ''}`).toBe('');
 
     const rows = parseJsonl(result.stdout);
+    assertStartRow(rows, {
+      slug: 'demo/hello',
+    });
     expect(rows[1].data).toMatchObject({
       treeOid,
       manifest: { slug: 'demo/hello' },
     });
+    expect(result.stdout).not.toContain(requestPath);
   });
 
   it('inspect emits structured invalid-input errors without human help text', () => {
@@ -1250,7 +1279,7 @@ function defineRequestAndValidationTests() {
     const stdoutRows = parseJsonl(result.stdout);
     const stderrRows = parseJsonl(result.stderr);
 
-    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
     expect(stderrRows).toHaveLength(1);
     expect(stderrRows[0]).toMatchObject({
       command: 'inspect',
@@ -1277,6 +1306,11 @@ function definePlainWriteFlowTests() {
 
     const rows = parseJsonl(result.stdout);
     expect(rows.map((row) => row.type)).toEqual(['start', 'result', 'end']);
+    assertStartRow(rows, {
+      file: input.filePath,
+      slug: 'demo/new-store',
+      tree: true,
+    });
     expect(rows[1].data).toMatchObject({
       slug: 'demo/new-store',
       addedToVault: true,
@@ -1306,6 +1340,12 @@ function defineTreeCommandFilePathTest() {
 
     const rows = parseJsonl(result.stdout);
     expect(rows.map((row) => row.type)).toEqual(['start', 'result', 'end']);
+    assertStartRow(rows, {
+      manifest: {
+        provided: true,
+        source: 'file',
+      },
+    });
     expect(rows[1].data).toEqual({
       treeOid,
       slug: 'demo/hello',
@@ -1330,6 +1370,12 @@ function defineTreeCommandRequestPayloadTest() {
     expect(`${result.stderr ?? ''}`).toBe('');
 
     const rows = parseJsonl(result.stdout);
+    assertStartRow(rows, {
+      manifest: {
+        provided: true,
+        source: 'inline',
+      },
+    });
     expect(rows[1].data).toEqual({
       treeOid,
       slug: 'demo/hello',
@@ -1348,7 +1394,7 @@ function defineTreeCommandValidationTest() {
     const stdoutRows = parseJsonl(result.stdout);
     const stderrRows = parseJsonl(result.stderr);
 
-    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
     expect(stderrRows).toHaveLength(1);
     expect(stderrRows[0]).toMatchObject({
       command: 'tree',
@@ -1417,7 +1463,7 @@ function restoreEncryptedAsset(outputPath) {
   );
 }
 
-function defineEncryptedWriteFlowTests() {
+function defineEncryptedStoreWithPassphraseTest() {
   it('encrypted store works with an explicit vault passphrase', () => {
     const { result, inputDir: storeInputDir } = storeEncryptedAsset();
 
@@ -1425,15 +1471,24 @@ function defineEncryptedWriteFlowTests() {
     expect(`${result.stderr ?? ''}`).toBe('');
 
     const storeRows = parseJsonl(result.stdout);
+    assertStartRow(storeRows, {
+      file: path.join(storeInputDir, 'input.bin'),
+      slug: 'enc/new-store',
+      tree: true,
+      vaultPassphrase: true,
+    });
     expect(storeRows[1].data).toMatchObject({
       slug: 'enc/new-store',
       addedToVault: true,
       encrypted: true,
     });
+    expect(result.stdout).not.toContain(vaultPassphrase);
 
     rmSync(storeInputDir, { recursive: true, force: true });
   });
+}
 
+function defineEncryptedRestoreWithPassphraseTest() {
   it('encrypted restore works with an explicit vault passphrase', () => {
     const { inputDir: storeInputDir } = storeEncryptedAsset();
     const outputDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-enc-restore-'));
@@ -1444,6 +1499,11 @@ function defineEncryptedWriteFlowTests() {
     expect(`${restoreResult.stderr ?? ''}`).toBe('');
 
     const restoreRows = parseJsonl(restoreResult.stdout);
+    assertStartRow(restoreRows, {
+      out: outputPath,
+      slug: 'enc/new-store',
+      vaultPassphrase: true,
+    });
     expect(restoreRows[1].data).toMatchObject({
       slug: 'enc/new-store',
       outputPath,
@@ -1452,6 +1512,155 @@ function defineEncryptedWriteFlowTests() {
 
     rmSync(outputDir, { recursive: true, force: true });
     rmSync(storeInputDir, { recursive: true, force: true });
+  });
+}
+
+function defineEncryptedStoreConflictingPassphraseSourcesTest() {
+  it('encrypted store rejects conflicting vault passphrase sources', () => {
+    const storeInput = tempFile(Buffer.from('conflicting passphrase sources\n'));
+    const passphraseFile = tempFile(Buffer.from(`${vaultPassphrase}\n`));
+    const result = runAgentCli(
+      [
+        'store',
+        storeInput.filePath,
+        '--slug',
+        'enc/conflict',
+        '--vault-passphrase',
+        'wrong-passphrase',
+        '--vault-passphrase-file',
+        passphraseFile.filePath,
+      ],
+      encRepoDir
+    );
+
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'store',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+        message: 'Provide --vault-passphrase or --vault-passphrase-file, not both',
+      },
+    });
+
+    cleanupTempDirs(storeInput.dir, passphraseFile.dir);
+  });
+}
+
+function defineVaultInitInlinePassphraseRedactionTest() {
+  it('vault init redacts inline passphrases in the start row', () => {
+    const vaultRepoDir = createEmptyAgentRepo();
+    const result = runAgentCli(
+      ['vault', 'init', '--cwd', vaultRepoDir, '--passphrase', 'supersecret'],
+      vaultRepoDir
+    );
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    assertStartRow(rows, {
+      cwd: vaultRepoDir,
+      passphrase: true,
+    });
+    expect(result.stdout).not.toContain('supersecret');
+
+    cleanupTempDirs(vaultRepoDir);
+  });
+}
+
+function defineVaultInitPermissionWarningTest() {
+  it('vault init emits structured warnings for insecure passphrase files', () => {
+    const vaultRepoDir = createEmptyAgentRepo();
+    const passphraseFile = tempFile(Buffer.from('relay-warning-passphrase\n'));
+    chmodSync(passphraseFile.filePath, 0o644);
+
+    const result = runAgentCli(
+      ['vault', 'init', '--cwd', vaultRepoDir, '--passphrase-file', passphraseFile.filePath],
+      vaultRepoDir
+    );
+
+    expect(result.status).toBe(0);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    assertStartRow(stdoutRows, {
+      cwd: vaultRepoDir,
+      passphraseFile: true,
+    });
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'vault.init',
+      type: 'warning',
+      data: {
+        code: 'INSECURE_FILE_PERMISSIONS',
+        filePath: path.resolve(passphraseFile.filePath),
+        recommendation: 'chmod 600',
+      },
+    });
+
+    cleanupTempDirs(vaultRepoDir, passphraseFile.dir);
+  });
+}
+
+function defineVaultInitEmptyStdinPassphraseTest() {
+  it('vault init classifies empty stdin passphrase sources as invalid input', () => {
+    const vaultRepoDir = createEmptyAgentRepo();
+    const result = runAgentCli(
+      ['vault', 'init', '--cwd', vaultRepoDir, '--passphrase-file', '-'],
+      vaultRepoDir,
+      { input: '' }
+    );
+
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    assertStartRow(stdoutRows, {
+      cwd: vaultRepoDir,
+      passphraseFile: true,
+    });
+    expect(stderrRows[0]).toMatchObject({
+      command: 'vault.init',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+        message: 'Passphrase must not be empty',
+      },
+    });
+
+    cleanupTempDirs(vaultRepoDir);
+  });
+}
+
+function defineVaultInitInlineRequestRedactionTest() {
+  it('vault init redacts inline request payload secrets in the start row', () => {
+    const vaultRepoDir = createEmptyAgentRepo();
+    const result = runAgentCli(
+      ['vault', 'init', '--cwd', vaultRepoDir, '--request', '{"passphrase":"supersecret"}'],
+      vaultRepoDir
+    );
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    assertStartRow(rows, {
+      cwd: vaultRepoDir,
+      passphrase: true,
+      requestSource: 'inline',
+    });
+    expect(result.stdout).not.toContain('supersecret');
+
+    cleanupTempDirs(vaultRepoDir);
   });
 }
 
@@ -1526,6 +1735,22 @@ describe(
   defineVaultInitEncryptedRequestPayloadTest
 );
 describe('agent CLI protocol — vault init (validation)', defineVaultInitValidationTest);
+describe(
+  'agent CLI protocol — vault init (inline passphrase redaction)',
+  defineVaultInitInlinePassphraseRedactionTest
+);
+describe(
+  'agent CLI protocol — vault init (permission warning)',
+  defineVaultInitPermissionWarningTest
+);
+describe(
+  'agent CLI protocol — vault init (empty stdin passphrase)',
+  defineVaultInitEmptyStdinPassphraseTest
+);
+describe(
+  'agent CLI protocol — vault init (inline request redaction)',
+  defineVaultInitInlineRequestRedactionTest
+);
 describe('agent CLI protocol — vault remove (success)', defineVaultRemoveSuccessTest);
 describe('agent CLI protocol — vault remove (missing entry)', defineVaultRemoveMissingEntryTest);
 describe('agent CLI protocol — request and validation', defineRequestAndValidationTests);
@@ -1537,5 +1762,16 @@ describe(
 );
 describe('agent CLI protocol — tree command (validation)', defineTreeCommandValidationTest);
 describe('agent CLI protocol — restore write flow', defineRestoreWriteFlowTests);
-describe('agent CLI protocol — encrypted write flows', defineEncryptedWriteFlowTests);
+describe(
+  'agent CLI protocol — encrypted store (vault passphrase)',
+  defineEncryptedStoreWithPassphraseTest
+);
+describe(
+  'agent CLI protocol — encrypted restore (vault passphrase)',
+  defineEncryptedRestoreWithPassphraseTest
+);
+describe(
+  'agent CLI protocol — encrypted store (conflicting vault passphrase sources)',
+  defineEncryptedStoreConflictingPassphraseSourcesTest
+);
 describe('agent CLI protocol — needs-input', defineNeedsInputTests);

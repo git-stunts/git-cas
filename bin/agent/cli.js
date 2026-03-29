@@ -1,10 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import ContentAddressableStore from '../../index.js';
 import Manifest from '../../src/domain/value-objects/Manifest.js';
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
-import { readPassphraseFile } from '../ui/passphrase-prompt.js';
 import { buildVaultStats, inspectVaultHealth } from '../ui/vault-report.js';
 import { filterEntries } from '../ui/vault-list.js';
 import { AGENT_EXIT_CODES, createAgentSession, getAgentExitCode } from './protocol.js';
@@ -44,6 +43,157 @@ const INPUT_ALIAS_MAP = Object.freeze({
   vaultPassphrase: 'vault-passphrase',
   vaultPassphraseFile: 'vault-passphrase-file',
 });
+
+const START_REDACTED_FIELDS = new Set([
+  'passphrase',
+  'passphraseFile',
+  'keyFile',
+  'oldKeyFile',
+  'newKeyFile',
+  'existingKeyFile',
+  'oldPassphrase',
+  'newPassphrase',
+  'oldPassphraseFile',
+  'newPassphraseFile',
+  'vaultPassphrase',
+  'vaultPassphraseFile',
+]);
+
+/**
+ * @param {string | undefined} requestSource
+ * @returns {'inline' | 'file' | 'stdin' | undefined}
+ */
+function normalizeRequestSourceKind(requestSource) {
+  if (!requestSource) {
+    return undefined;
+  }
+  if (requestSource === '-') {
+    return 'stdin';
+  }
+  if (requestSource.startsWith('@')) {
+    return 'file';
+  }
+  return 'inline';
+}
+
+/**
+ * @param {string | undefined} key
+ * @param {unknown} value
+ * @returns {{ handled: boolean, value?: unknown }}
+ */
+function sanitizeSpecialStartValue(key, value) {
+  if (!key) {
+    return { handled: false };
+  }
+
+  if (key.includes('-')) {
+    return { handled: true };
+  }
+
+  if (key === 'requestSource') {
+    return {
+      handled: true,
+      value: normalizeRequestSourceKind(/** @type {string | undefined} */ (value)),
+    };
+  }
+
+  if (key === 'manifest') {
+    return {
+      handled: true,
+      value: {
+        provided: true,
+        source: typeof value === 'string' ? 'file' : 'inline',
+      },
+    };
+  }
+
+  if (START_REDACTED_FIELDS.has(key)) {
+    return { handled: true, value: true };
+  }
+
+  return { handled: false };
+}
+
+/**
+ * @param {Record<string, unknown>} value
+ * @returns {Record<string, unknown>}
+ */
+function sanitizeStartObject(value) {
+  /** @type {Record<string, unknown>} */
+  const sanitized = {};
+  for (const [nestedKey, nestedValue] of Object.entries(value)) {
+    const safeValue = sanitizeStartValue(nestedKey, nestedValue);
+    if (safeValue !== undefined) {
+      sanitized[nestedKey] = safeValue;
+    }
+  }
+  return sanitized;
+}
+
+/**
+ * @param {unknown[]} value
+ * @returns {unknown[]}
+ */
+function sanitizeStartArray(value) {
+  return value
+    .map((entry) => sanitizeStartValue(undefined, entry))
+    .filter((entry) => entry !== undefined);
+}
+
+/**
+ * @param {string | undefined} key
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+function sanitizeStartValue(key, value) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const special = sanitizeSpecialStartValue(key, value);
+  if (special.handled) {
+    return special.value;
+  }
+
+  if (Buffer.isBuffer(value)) {
+    return true;
+  }
+
+  if (Array.isArray(value)) {
+    return sanitizeStartArray(value);
+  }
+
+  if (value && typeof value === 'object') {
+    return sanitizeStartObject(/** @type {Record<string, unknown>} */ (value));
+  }
+
+  return value;
+}
+
+/**
+ * @param {Record<string, any>} input
+ * @returns {Record<string, any>}
+ */
+function buildAgentStartData(input) {
+  const sanitized = sanitizeStartValue(undefined, input);
+  if (
+    sanitized &&
+    typeof sanitized === 'object' &&
+    !Array.isArray(sanitized) &&
+    Object.keys(sanitized).length > 0
+  ) {
+    return { input: sanitized };
+  }
+  return {};
+}
+
+/**
+ * @param {ReturnType<typeof createAgentSession>} session
+ * @param {Record<string, any>} input
+ */
+function writeAgentStart(session, input) {
+  session.writeStart(buildAgentStartData(input));
+}
 
 /**
  * @param {string} cwd
@@ -290,12 +440,32 @@ function readKeyFile(keyFilePath) {
  * @param {string} filePath
  * @returns {Promise<string>}
  */
-async function readAgentPassphraseFile(filePath) {
+async function readAgentPassphraseFile(filePath, { stdin, onWarning } = {}) {
   if (filePath === '-') {
-    return await readPassphraseFile(filePath);
+    const raw = await readStream(stdin || process.stdin);
+    const trimmed = raw.replace(/\r?\n$/, '');
+    if (!trimmed) {
+      throw invalidInput('Passphrase must not be empty');
+    }
+    return trimmed;
   }
 
-  const trimmed = readFileSync(path.resolve(filePath), 'utf8').replace(/\r?\n$/, '');
+  const resolvedPath = path.resolve(filePath);
+  try {
+    const stats = statSync(resolvedPath);
+    if (stats.mode & 0o077) {
+      onWarning?.({
+        code: 'INSECURE_FILE_PERMISSIONS',
+        message: `${resolvedPath} has insecure permissions`,
+        filePath: resolvedPath,
+        recommendation: 'chmod 600',
+      });
+    }
+  } catch {
+    // Let the file read raise the real error.
+  }
+
+  const trimmed = readFileSync(resolvedPath, 'utf8').replace(/\r?\n$/, '');
   if (!trimmed) {
     throw invalidInput('Passphrase must not be empty');
   }
@@ -315,6 +485,9 @@ function hasVaultPassphraseSource(input) {
  * @param {Record<string, any>} input
  */
 function validateCredentialSources(input) {
+  if (input.vaultPassphrase !== undefined && input.vaultPassphraseFile) {
+    throw invalidInput('Provide --vault-passphrase or --vault-passphrase-file, not both');
+  }
   if (input.keyFile && hasVaultPassphraseSource(input)) {
     throw invalidInput('Provide --key-file or a vault passphrase source, not both');
   }
@@ -325,12 +498,12 @@ function validateCredentialSources(input) {
  * @param {string | undefined} requestSource
  * @returns {Promise<string | undefined>}
  */
-async function resolveVaultPassphrase(input, requestSource) {
+async function resolveVaultPassphrase(input, requestSource, options = {}) {
   if (input.vaultPassphraseFile === '-' && requestSource === '-') {
     throw invalidInput('Cannot read both request payload and vault passphrase from stdin');
   }
   if (input.vaultPassphraseFile) {
-    return await readAgentPassphraseFile(input.vaultPassphraseFile);
+    return await readAgentPassphraseFile(input.vaultPassphraseFile, options);
   }
   if (input.vaultPassphrase !== undefined) {
     if (!String(input.vaultPassphrase).trim()) {
@@ -365,15 +538,14 @@ async function deriveVaultKey(cas, metadata, passphrase) {
 /**
  * @param {import('../../index.js').default} cas
  * @param {Record<string, any>} input
- * @param {string | undefined} requestSource
  * @returns {Promise<Buffer | undefined>}
  */
-async function resolveStoreEncryptionKey(cas, input, requestSource) {
+async function resolveStoreEncryptionKey(cas, input, options = {}) {
   validateCredentialSources(input);
   if (input.keyFile) {
     return readKeyFile(input.keyFile);
   }
-  const passphrase = await resolveVaultPassphrase(input, requestSource);
+  const passphrase = await resolveVaultPassphrase(input, input.requestSource, options);
   if (!passphrase) {
     return undefined;
   }
@@ -426,7 +598,10 @@ async function resolveRestoreEncryptionKey({ cas, manifest, input, requestSource
   }
 
   const metadata = await cas.getVaultMetadata();
-  const passphrase = await resolveVaultPassphrase(input, requestSource);
+  const passphrase = await resolveVaultPassphrase(input, requestSource, {
+    stdin: input.stdin,
+    onWarning: input.onWarning,
+  });
 
   if (passphrase) {
     if (hasEnvelopeRecipients(manifest)) {
@@ -561,12 +736,12 @@ function validateVaultInitInput(input) {
  * @param {string | undefined} requestSource
  * @returns {Promise<string | undefined>}
  */
-async function resolveVaultInitPassphrase(input, requestSource) {
+async function resolveVaultInitPassphrase(input, requestSource, options = {}) {
   if (input.passphraseFile === '-' && requestSource === '-') {
     throw invalidInput('Cannot read both request payload and vault init passphrase from stdin');
   }
   if (input.passphraseFile) {
-    return await readAgentPassphraseFile(input.passphraseFile);
+    return await readAgentPassphraseFile(input.passphraseFile, options);
   }
   if (input.passphrase !== undefined) {
     return resolveInlinePassphrase('Passphrase', input.passphrase);
@@ -690,20 +865,22 @@ function validateVaultRotateInput(input) {
  * @param {string | undefined} requestSource
  * @returns {Promise<{ oldPassphrase: string, newPassphrase: string }>}
  */
-async function resolveVaultRotatePassphrases(input, requestSource) {
+async function resolveVaultRotatePassphrases(input, requestSource, options = {}) {
   validateVaultRotateStdinSources(input, requestSource);
 
   return {
-    oldPassphrase: await readVaultRotatePassphrase(
-      'Old passphrase',
-      input.oldPassphrase,
-      input.oldPassphraseFile
-    ),
-    newPassphrase: await readVaultRotatePassphrase(
-      'New passphrase',
-      input.newPassphrase,
-      input.newPassphraseFile
-    ),
+    oldPassphrase: await readVaultRotatePassphrase({
+      label: 'Old passphrase',
+      inlineValue: input.oldPassphrase,
+      fileValue: input.oldPassphraseFile,
+      ...options,
+    }),
+    newPassphrase: await readVaultRotatePassphrase({
+      label: 'New passphrase',
+      inlineValue: input.newPassphrase,
+      fileValue: input.newPassphraseFile,
+      ...options,
+    }),
   };
 }
 
@@ -724,14 +901,18 @@ function validateVaultRotateStdinSources(input, requestSource) {
 }
 
 /**
- * @param {string} label
- * @param {unknown} inlineValue
- * @param {string | undefined} fileValue
+ * @param {{
+ *   label: string,
+ *   inlineValue: unknown,
+ *   fileValue?: string,
+ *   stdin?: NodeJS.ReadStream,
+ *   onWarning?: (warning: Record<string, any>) => void,
+ * }} options
  * @returns {Promise<string>}
  */
-async function readVaultRotatePassphrase(label, inlineValue, fileValue) {
+async function readVaultRotatePassphrase({ label, inlineValue, fileValue, ...options }) {
   const passphrase = fileValue
-    ? await readAgentPassphraseFile(fileValue)
+    ? await readAgentPassphraseFile(fileValue, options)
     : resolveInlinePassphrase(label, inlineValue);
 
   if (!passphrase?.trim()) {
@@ -1036,10 +1217,9 @@ export async function runAgentCli(
 ) {
   const { command, args } = resolveCommand(argv);
   const session = createAgentSession({ command, stdout, stderr });
-  session.writeStart({ argv });
 
   try {
-    const outcome = await executeAgentCommand(command, args, stdin);
+    const outcome = await executeAgentCommand(command, args, { stdin, session });
     const exitCode = outcome.exitCode ?? AGENT_EXIT_CODES.SUCCESS;
     process.exitCode = exitCode;
     session.writeResult(outcome.data);
@@ -1079,10 +1259,10 @@ const COMMAND_HANDLERS = Object.freeze({
 /**
  * @param {string} command
  * @param {string[]} args
- * @param {NodeJS.ReadStream} stdin
+ * @param {{ stdin: NodeJS.ReadStream, session: ReturnType<typeof createAgentSession> }} context
  * @returns {Promise<{ exitCode?: number, data: Record<string, any> }>}
  */
-async function executeAgentCommand(command, args, stdin) {
+async function executeAgentCommand(command, args, context) {
   const handler = COMMAND_HANDLERS[command];
 
   if (!handler) {
@@ -1092,7 +1272,55 @@ async function executeAgentCommand(command, args, stdin) {
     });
   }
 
-  return handler(args, stdin);
+  return handler(args, context.stdin, context.session);
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<{ input: Record<string, any>, requestSource?: string }>}
+ */
+async function parseRestoreInput(args, stdin) {
+  const { values, positionals, requestSource } = await parseAgentInput(
+    args,
+    {
+      slug: { type: 'string' },
+      oid: { type: 'string' },
+      out: { type: 'string' },
+      cwd: { type: 'string' },
+      'key-file': { type: 'string' },
+      'vault-passphrase': { type: 'string' },
+      'vault-passphrase-file': { type: 'string' },
+    },
+    stdin
+  );
+  assignPositionals(positionals, []);
+
+  return {
+    input: normalizeInputAliases(values),
+    requestSource,
+  };
+}
+
+/**
+ * @param {{
+ *   manifest: import('../../src/domain/value-objects/Manifest.js').default,
+ *   treeOid: string,
+ *   outputPath: string,
+ *   bytesWritten: number,
+ * }} options
+ * @returns {{ data: Record<string, any> }}
+ */
+function buildRestoreOutcome({ manifest, treeOid, outputPath, bytesWritten }) {
+  return {
+    data: {
+      slug: manifest.slug,
+      treeOid,
+      outputPath,
+      bytesWritten,
+      encrypted: Boolean(manifest.encryption?.encrypted),
+    },
+  };
 }
 
 /**
@@ -1100,12 +1328,17 @@ async function executeAgentCommand(command, args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function storeCommand(args, stdin) {
+async function storeCommand(args, stdin, session) {
   const input = await parseStoreInput(args, stdin);
   validateStoreInput(input);
+  validateCredentialSources(input);
+  writeAgentStart(session, input);
 
   const cas = createCas(input.cwd || '.');
-  const encryptionKey = await resolveStoreEncryptionKey(cas, input, input.requestSource);
+  const encryptionKey = await resolveStoreEncryptionKey(cas, input, {
+    stdin,
+    onWarning: (warning) => session.writeWarning(warning),
+  });
   const manifest = await cas.storeFile({
     filePath: input.file,
     slug: input.slug,
@@ -1132,9 +1365,10 @@ async function storeCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function treeCommand(args, stdin) {
+async function treeCommand(args, stdin, session) {
   const input = await parseTreeInput(args, stdin);
   const manifest = resolveManifestInput(input);
+  writeAgentStart(session, input);
   const cas = createCas(input.cwd || '.');
   const treeOid = await cas.createTree({ manifest });
 
@@ -1146,34 +1380,24 @@ async function treeCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function restoreCommand(args, stdin) {
-  const { values, positionals, requestSource } = await parseAgentInput(
-    args,
-    {
-      slug: { type: 'string' },
-      oid: { type: 'string' },
-      out: { type: 'string' },
-      cwd: { type: 'string' },
-      'key-file': { type: 'string' },
-      'vault-passphrase': { type: 'string' },
-      'vault-passphrase-file': { type: 'string' },
-    },
-    stdin
-  );
-  assignPositionals(positionals, []);
-
-  const input = normalizeInputAliases(values);
+async function restoreCommand(args, stdin, session) {
+  const { input, requestSource } = await parseRestoreInput(args, stdin);
   if (!input.out) {
     throw invalidInput('Provide --out <path>');
   }
-
+  validateCredentialSources(input);
   const target = resolveTarget(input);
+  writeAgentStart(session, input);
   const { cas, treeOid } = await resolveTree(target);
   const manifest = await cas.readManifest({ treeOid });
   const encryptionKey = await resolveRestoreEncryptionKey({
     cas,
     manifest,
-    input,
+    input: {
+      ...input,
+      stdin,
+      onWarning: (warning) => session.writeWarning(warning),
+    },
     requestSource,
     treeOid,
   });
@@ -1183,15 +1407,12 @@ async function restoreCommand(args, stdin) {
     outputPath: input.out,
   });
 
-  return {
-    data: {
-      slug: manifest.slug,
-      treeOid,
-      outputPath: input.out,
-      bytesWritten,
-      encrypted: Boolean(manifest.encryption?.encrypted),
-    },
-  };
+  return buildRestoreOutcome({
+    manifest,
+    treeOid,
+    outputPath: input.out,
+    bytesWritten,
+  });
 }
 
 /**
@@ -1199,10 +1420,11 @@ async function restoreCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function rotateCommand(args, stdin) {
+async function rotateCommand(args, stdin, session) {
   const input = await parseRotateInput(args, stdin);
   const target = resolveTarget(input);
   validateRotateInput(input);
+  writeAgentStart(session, input);
 
   const { cas, treeOid: previousTreeOid } = await resolveTree(target);
   const manifest = await cas.readManifest({ treeOid: previousTreeOid });
@@ -1237,7 +1459,7 @@ async function rotateCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function inspectCommand(args, stdin) {
+async function inspectCommand(args, stdin, session) {
   const { values, positionals } = await parseAgentInput(
     args,
     {
@@ -1249,6 +1471,7 @@ async function inspectCommand(args, stdin) {
   );
   const positionalInput = assignPositionals(positionals, []);
   const input = resolveTarget({ ...values, ...positionalInput });
+  writeAgentStart(session, input);
   const { cas, treeOid } = await resolveTree(input);
   const manifest = await cas.readManifest({ treeOid });
   return {
@@ -1264,7 +1487,7 @@ async function inspectCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ exitCode: number, data: Record<string, any> }>}
  */
-async function verifyCommand(args, stdin) {
+async function verifyCommand(args, stdin, session) {
   const { values, positionals } = await parseAgentInput(
     args,
     {
@@ -1276,6 +1499,7 @@ async function verifyCommand(args, stdin) {
   );
   const positionalInput = assignPositionals(positionals, []);
   const input = resolveTarget({ ...values, ...positionalInput });
+  writeAgentStart(session, input);
   const { cas, treeOid } = await resolveTree(input);
   const manifest = await cas.readManifest({ treeOid });
   const ok = await cas.verifyIntegrity(manifest);
@@ -1296,7 +1520,7 @@ async function verifyCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ exitCode: number, data: Record<string, any> }>}
  */
-async function doctorCommand(args, stdin) {
+async function doctorCommand(args, stdin, session) {
   const { values, positionals } = await parseAgentInput(
     args,
     {
@@ -1305,6 +1529,7 @@ async function doctorCommand(args, stdin) {
     stdin
   );
   assignPositionals(positionals, []);
+  writeAgentStart(session, values);
 
   const cas = createCas(values.cwd || '.');
   const report = await inspectVaultHealth(cas);
@@ -1322,9 +1547,10 @@ async function doctorCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function recipientAddCommand(args, stdin) {
+async function recipientAddCommand(args, stdin, session) {
   const input = await parseRecipientAddInput(args, stdin);
   validateRecipientAddInput(input);
+  writeAgentStart(session, input);
 
   const target = resolveSlugTarget(input);
   const { cas, treeOid: previousTreeOid, manifest } = await resolveVaultManifestBySlug(target);
@@ -1357,9 +1583,10 @@ async function recipientAddCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function recipientRemoveCommand(args, stdin) {
+async function recipientRemoveCommand(args, stdin, session) {
   const input = await parseRecipientRemoveInput(args, stdin);
   validateRecipientRemoveInput(input);
+  writeAgentStart(session, input);
 
   const target = resolveSlugTarget(input);
   const { cas, treeOid: previousTreeOid, manifest } = await resolveVaultManifestBySlug(target);
@@ -1401,7 +1628,7 @@ function buildRecipientRows(manifest) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function recipientListCommand(args, stdin) {
+async function recipientListCommand(args, stdin, session) {
   const { values, positionals } = await parseAgentInput(
     args,
     {
@@ -1414,6 +1641,7 @@ async function recipientListCommand(args, stdin) {
   assignPositionals(positionals, []);
 
   const input = resolveTarget(values);
+  writeAgentStart(session, input);
   const { cas, treeOid } = await resolveTree(input);
   const manifest = await cas.readManifest({ treeOid });
   const recipients = buildRecipientRows(manifest);
@@ -1434,11 +1662,15 @@ async function recipientListCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function vaultInitCommand(args, stdin) {
+async function vaultInitCommand(args, stdin, session) {
   const input = await parseVaultInitInput(args, stdin);
   validateVaultInitInput(input);
+  writeAgentStart(session, input);
 
-  const passphrase = await resolveVaultInitPassphrase(input, input.requestSource);
+  const passphrase = await resolveVaultInitPassphrase(input, input.requestSource, {
+    stdin,
+    onWarning: (warning) => session.writeWarning(warning),
+  });
   const algorithm = parseKdfAlgorithm(input.algorithm);
   const cas = createCas(input.cwd || '.');
   const { commitOid } = await cas.initVault({
@@ -1459,7 +1691,7 @@ async function vaultInitCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function vaultRemoveCommand(args, stdin) {
+async function vaultRemoveCommand(args, stdin, session) {
   const { values, positionals } = await parseAgentInput(
     args,
     {
@@ -1473,6 +1705,7 @@ async function vaultRemoveCommand(args, stdin) {
   if (!values.slug) {
     throw invalidInput('Provide --slug <slug>');
   }
+  writeAgentStart(session, values);
 
   const cas = createCas(values.cwd || '.');
   const { commitOid, removedTreeOid } = await cas.removeFromVault({ slug: values.slug });
@@ -1489,13 +1722,18 @@ async function vaultRemoveCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function vaultRotateCommand(args, stdin) {
+async function vaultRotateCommand(args, stdin, session) {
   const input = await parseVaultRotateInput(args, stdin);
   validateVaultRotateInput(input);
+  writeAgentStart(session, input);
 
   const { oldPassphrase, newPassphrase } = await resolveVaultRotatePassphrases(
     input,
-    input.requestSource
+    input.requestSource,
+    {
+      stdin,
+      onWarning: (warning) => session.writeWarning(warning),
+    }
   );
   const cas = createCas(input.cwd || '.');
   const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase({
@@ -1518,7 +1756,7 @@ async function vaultRotateCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function vaultListCommand(args, stdin) {
+async function vaultListCommand(args, stdin, session) {
   const { values, positionals } = await parseAgentInput(
     args,
     {
@@ -1528,6 +1766,7 @@ async function vaultListCommand(args, stdin) {
     stdin
   );
   assignPositionals(positionals, []);
+  writeAgentStart(session, values);
 
   const cas = createCas(values.cwd || '.');
   const all = await cas.listVault();
@@ -1543,7 +1782,7 @@ async function vaultListCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function vaultInfoCommand(args, stdin) {
+async function vaultInfoCommand(args, stdin, session) {
   const { values, positionals } = await parseAgentInput(
     args,
     {
@@ -1557,6 +1796,7 @@ async function vaultInfoCommand(args, stdin) {
   if (!input.slug) {
     throw invalidInput('Provide a vault slug');
   }
+  writeAgentStart(session, input);
 
   const cas = createCas(input.cwd || '.');
   const treeOid = await cas.resolveVaultEntry({ slug: input.slug });
@@ -1581,7 +1821,7 @@ async function vaultInfoCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function vaultHistoryCommand(args, stdin) {
+async function vaultHistoryCommand(args, stdin, session) {
   const { values, positionals } = await parseAgentInput(
     args,
     {
@@ -1591,10 +1831,10 @@ async function vaultHistoryCommand(args, stdin) {
     stdin
   );
   assignPositionals(positionals, []);
-
   const plumbing = createGitPlumbing({ cwd: values.cwd || '.' });
   const argsForGit = ['log', '--oneline', ContentAddressableStore.VAULT_REF];
   const maxCount = parsePositiveInteger(values['max-count']);
+  writeAgentStart(session, values);
   if (maxCount !== undefined) {
     argsForGit.push(`-${maxCount}`);
   }
@@ -1616,7 +1856,7 @@ async function vaultHistoryCommand(args, stdin) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
  */
-async function vaultStatsCommand(args, stdin) {
+async function vaultStatsCommand(args, stdin, session) {
   const { values, positionals } = await parseAgentInput(
     args,
     {
@@ -1626,6 +1866,7 @@ async function vaultStatsCommand(args, stdin) {
     stdin
   );
   assignPositionals(positionals, []);
+  writeAgentStart(session, values);
 
   const cas = createCas(values.cwd || '.');
   const all = await cas.listVault();
