@@ -1,19 +1,64 @@
-# @git-stunts/cas — ROADMAP
+# @git-stunts/git-cas — ROADMAP
 
-This document tracks the real current state of `git-cas` and the sequenced work that remains.
-Completed milestone detail lives in [COMPLETED_TASKS.md](./COMPLETED_TASKS.md). Superseded work
-lives in [GRAVEYARD.md](./GRAVEYARD.md).
+This document tracks the real current state of `git-cas` and the sequenced work
+that remains.
+
+Fresh planning now follows [WORKFLOW.md](./WORKFLOW.md), not roadmap-first
+milestone writing.
+
+That means this file is now:
+
+- sequence context
+- release-line context
+- migration context
+
+It is not the primary source of truth for new cycle planning.
+
+It now follows the workflow defined in [CONTRIBUTING.md](./CONTRIBUTING.md):
+
+- sponsor user
+- sponsor agent
+- hills
+- playback questions
+- explicit non-goals
+- design docs first, tests second, implementation third
+
+`main` is the playback truth. If code lands out of order, the roadmap adjusts to
+match reality instead of pretending the original sequence still happened.
+
+Completed milestone detail lives in [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
+Superseded work lives in [GRAVEYARD.md](./GRAVEYARD.md).
 
 ## Current Reality
 
-- **Current release:** `v5.3.2` (2026-03-15)
-- **Current line:** M16 Capstone shipped in `v5.3.0`; `v5.3.1` fixed repeated-chunk tree emission for repetitive content; `v5.3.2` stabilized test/runtime tooling; `v5.3.3` is the remaining M17 Ledger closeout in flight.
+- **Last tagged release:** `v5.3.2` (`2026-03-15`)
+- **Current package version on `main`:** `v5.3.3`
 - **Supported runtimes:** Node.js 22.x (primary), Bun, Deno
-- **Current operator experience:** the human-facing CLI/TUI is shipped now; the machine-facing agent CLI is planned next.
+- **Human surface reality:** the human CLI/TUI is already substantial and now
+  includes early repo-explorer work that belongs closer to the later UX line
+  than to M17 closeout.
+- **Agent surface reality:** there is still no first-class `git cas agent`
+  contract. The main product gap is machine-facing determinism, not human
+  surface richness.
+- **M17 reality:** the M17 closeout work is materially present on `main`
+  (`CODEOWNERS`, release verification, test conventions, property coverage),
+  even though release bookkeeping and docs drifted.
+- **Next deliberate focus:** the next few cycles are agent-first. The human
+  surface should now follow the application boundaries that fall out of the
+  machine surface, not the other way around.
 
-## Interface Strategy
+## Product Doctrine
 
-`git-cas` now has an explicit two-surface direction:
+- Git is the substrate, not the product.
+- Integrity is sacred.
+- Restore must be deterministic.
+- Provenance matters.
+- Verification matters.
+- Human CLI/TUI and agent CLI are separate surfaces over one shared domain core.
+- The default human UX should stay boring and trustworthy.
+- The default machine UX should stay deterministic and replayable.
+
+## Two-Surface Strategy
 
 ### Human CLI/TUI
 
@@ -21,233 +66,282 @@ This is the current public operator surface.
 
 - Existing `git cas ...` commands remain the stable human workflow.
 - Bijou formatting, prompts, dashboards, and TTY-aware behavior stay here.
-- `--json` remains supported as convenience structured output for humans and simple scripts.
-- Human-facing improvements continue under the Bijou/TUI roadmap.
+- The human `--json` flag remains convenience structured output for humans and
+  simple scripts.
+- Future human-surface work should reuse shared app-layer behavior instead of
+  inventing parallel logic in the TUI.
 
 ### Agent CLI
 
-This is planned work starting in **M18 Relay**.
+This is now the priority surface.
 
 - Namespace: `git cas agent`
-- Output: JSONL on `stdout` only, one record per line
-- No Bijou formatting, no TTY-mode branching, no implicit prompts
-- Stable event envelope: `protocol`, `command`, `type`, `seq`, `ts`, `data`
-- Reserved record types: `start`, `progress`, `warning`, `needs-input`, `result`, `error`, `end`
-- One-shot commands in v1: stream records during execution, then exit
-- Non-interactive secret/input handling:
-  - missing required input -> emit `needs-input`, exit `2`
-  - fatal execution failure -> emit `error`, exit `1`
-  - integrity/verification failure -> exit `3`
-  - success -> exit `0`
-- Request input supports normal flags plus `--request -` and `--request @file.json`
+- Output: JSONL on `stdout`, one protocol record per line
+- `stderr`: structured warnings and errors only
+- No TTY branching, no implicit prompts, no Bijou rendering
+- Stable record envelope: `protocol`, `command`, `type`, `seq`, `ts`, `data`
+- Reserved record types: `start`, `progress`, `warning`, `needs-input`,
+  `result`, `error`, `end`
+- Missing required input emits `needs-input` and exits with a distinct code
+- Integrity and verification failures get their own exit-code semantics
+- The agent CLI is a first-class workflow, not an extension of the human
+  `--json` path
 
-The agent CLI is a first-class workflow, not an extension of the human `--json` mode.
+## Honest State of `main`
 
-## Shipped Summary
+### Human Surface
 
-| Version | Milestone | Codename | Theme | Status |
-|---------|-----------|----------|-------|--------|
-| v3.1.0 | M13 | Bijou | TUI dashboard and animated progress | ✅ Shipped |
-| v4.0.0 | M14 | Conduit | Streaming restore, observability, parallel chunk I/O | ✅ Shipped |
-| v4.0.1 | M8 + M9 | Spit Shine + Cockpit | Review hardening, `verify`, `--json`, CLI polish | ✅ Shipped |
-| v5.0.0 | M10 | Hydra | Content-defined chunking | ✅ Shipped |
-| v5.1.0 | M11 | Locksmith | Envelope encryption and recipient management | ✅ Shipped |
-| v5.2.0 | M12 | Carousel | Key rotation without re-encrypting data | ✅ Shipped |
-| v5.3.0 | M16 | Capstone | Audit remediation and security hardening | ✅ Shipped |
-| v5.3.1 | — | Maintenance | Repeated-chunk tree integrity fix | ✅ Shipped |
-| v5.3.2 | — | Maintenance | Vitest workspace split, CLI version sync, and runtime/tooling stabilization | ✅ Shipped |
+What is already true on `main`:
+
+- chunked Git-backed storage, restore, verify, encryption, recipients, and
+  rotation are already shipped in the domain/library
+- the vault workflow is real and GC-safe
+- diagnostics and release verification already exist
+- the TUI has already moved beyond a simple vault inspector into a richer
+  repository explorer with refs browsing, source inspection, treemap views, and
+  a stronger theme layer
+
+This means the human surface is no longer the thing waiting to become real. It
+is already real and ahead of the planning docs.
+
+### Agent Surface
+
+What is still missing:
+
+- a first-class machine runner
+- a JSONL protocol contract
+- exact machine-facing exit-code semantics
+- non-interactive input handling as a core design constraint
+- parity for the operational command set without scraping human CLI output
+
+This is the current product bottleneck.
+
+## Tagged Releases
+
+| Version  | Milestone     | Theme                                                                   | Status    |
+| -------- | ------------- | ----------------------------------------------------------------------- | --------- |
+| `v5.3.2` | Maintenance   | Vitest workspace split, CLI version sync, runtime/tooling stabilization | ✅ Tagged |
+| `v5.3.1` | Maintenance   | Repeated-chunk tree integrity fix                                       | ✅ Tagged |
+| `v5.3.0` | M16 Capstone  | Audit remediation and security hardening                                | ✅ Tagged |
+| `v5.2.0` | M12 Carousel  | Key rotation without re-encrypting data                                 | ✅ Tagged |
+| `v5.1.0` | M11 Locksmith | Envelope encryption and recipient management                            | ✅ Tagged |
+| `v5.0.0` | M10 Hydra     | Content-defined chunking                                                | ✅ Tagged |
+| `v4.0.1` | M8 + M9       | Review hardening, `verify`, `--json`, CLI polish                        | ✅ Tagged |
+| `v4.0.0` | M14 Conduit   | Streaming restore, observability, parallel chunk I/O                    | ✅ Tagged |
+| `v3.1.0` | M13 Bijou     | TUI dashboard and animated progress                                     | ✅ Tagged |
 
 Older history remains in [CHANGELOG.md](./CHANGELOG.md).
 
-## Planned Release Sequence
+## Untagged `main` Line
 
-| Version | Milestone | Codename | Theme | Status |
-|---------|-----------|----------|-------|--------|
-| v5.3.3 | M17 | Ledger | Planning and ops reset | 📝 Planned |
-| v5.4.0 | M18 | Relay | LLM-native CLI foundation | 📝 Planned |
-| v5.5.0 | M19 | Nouveau | Bijou v3 human UX refresh | 📝 Planned |
-| v5.6.0 | M20 | Sentinel | Vault health and safety | 📝 Planned |
-| v5.7.0 | M21 | Atelier | Vault ergonomics and publishing | 📝 Planned |
-| v5.8.0 | M22 | Cartographer | Repo intelligence and change analysis | 📝 Planned |
-| v5.9.0 | M23 | Courier | Artifact sets and transfer | 📝 Planned |
-| v5.10.0 | M24 | Spectrum | Storage and observability extensibility | 📝 Planned |
-| v5.11.0 | M25 | Bastion | Enterprise key management research | 📝 Planned |
+The current `main` branch is ahead of the last tagged release.
 
-## Dependency Sequence
+It currently includes:
 
-```text
-M16 Capstone + v5.3.1/v5.3.2 maintenance ✅
-                |
-            M17 Ledger
-                |
-            M18 Relay
-                |
-           M19 Nouveau
-                |
-           M20 Sentinel
-                |
-            M21 Atelier
-                |
-         M22 Cartographer
-                |
-           M23 Courier
-                |
-          M24 Spectrum
-                |
-           M25 Bastion
-```
+- the M17 closeout work that was previously tracked as pending
+- package version `5.3.3`
+- early human-surface repo-explorer work that landed ahead of the old planned
+  sequence
 
-This sequence is intentionally linear. It forces the docs/ops reset first, then the machine
-interface split, then the human TUI refresh, and only then the broader feature expansion.
+The roadmap therefore treats the next planning cycle as a recentering cycle,
+not as a continuation of stale milestone fiction.
+
+## Near-Term Priority Stack
+
+1. **M18 Relay foundation**
+   Build the first credible agent contract.
+2. **Relay follow-through**
+   Stay agent-first until the machine surface can handle core workflows without
+   scraping or prompting.
+3. **M19 Nouveau**
+   Resume major human-surface work only after the agent surface has forced
+   cleaner application boundaries.
 
 ## Open Milestones
 
-### M17 — Ledger (`v5.3.3`)
+### M18 — Relay (`v5.4.0` target)
 
-**Theme:** planning and operational reset after Capstone.
+**Theme:** first-class agent CLI foundation.
 
-Deliverables:
+**Sponsor user**
 
-- Close M16 in docs and reconcile [ROADMAP.md](./ROADMAP.md), [STATUS.md](./STATUS.md), and the shipped version history.
-- Add `CODEOWNERS` or equivalent review-assignment automation.
-- Document Git tree filename ordering semantics in test conventions to prevent future false positives.
-- Define a release-prep workflow for `CHANGELOG` updates and version bump timing.
-- Automate test-count injection into release notes or changelog prep.
-- Add property-based fuzz coverage for envelope-encryption round-trips.
+- A maintainer or release engineer who wants to automate `git-cas` operations
+  without scraping terminal text.
 
-### M18 — Relay (`v5.4.0`)
+**Sponsor agent**
 
-**Theme:** first-class LLM-native CLI.
+- A coding agent, CI job, release bot, or backup workflow that needs exact,
+  replayable outcomes and explicit side effects.
 
-Deliverables:
+**Hills**
 
-- Introduce `git cas agent` as a separate machine-facing namespace.
-- Add a dedicated machine command runner instead of extending the current human `runAction()` path.
-- Define and implement the JSONL envelope contract:
-  `protocol`, `command`, `type`, `seq`, `ts`, `data`.
-- Implement reserved record types:
-  `start`, `progress`, `warning`, `needs-input`, `result`, `error`, `end`.
-- Enforce non-interactive behavior for secrets and missing inputs.
-- Support flags plus `--request -` / `--request @file.json`.
-- Deliver parity for:
-  `agent store`, `agent tree`, `agent inspect`, `agent restore`, `agent verify`,
-  `agent vault list`, `agent vault info`, `agent vault history`.
-- Publish contract docs with exact exit-code behavior.
+- A sponsor agent can inspect, verify, and query `git-cas` state through a
+  stable JSONL protocol without depending on TTY behavior or human-readable
+  formatting.
+- A sponsor user can trust automation built on `git-cas` because failures,
+  warnings, and requested inputs are explicit and machine-actionable.
 
-Acceptance:
+**Playback questions**
 
-- JSONL contract tests must verify record order, record shapes, `stdout` purity, `stderr` silence after protocol start, and exit codes on Node, Bun, and Deno.
+- Can an agent complete `inspect`, `verify`, `vault list`, `vault info`,
+  `vault history`, `doctor`, and `vault stats` without scraping prose?
+- Are protocol records ordered, typed, and stable across Node, Bun, and Deno?
+- Does `stdout` remain pure protocol output after the first record?
+- Are missing inputs and integrity failures distinguished cleanly by both record
+  type and exit code?
 
-### M19 — Nouveau (`v5.5.0`)
+**Explicit non-goals**
 
-**Theme:** Bijou v3 refresh for the human-facing experience.
+- No long-lived session protocol.
+- No TUI redesign.
+- No attempt to turn the human `--json` path into the automation contract.
+- No binary restore payload over protocol `stdout`.
 
-Deliverables:
+**Work order**
 
-- Upgrade `@flyingrobots/bijou`, `@flyingrobots/bijou-node`, and `@flyingrobots/bijou-tui` to `3.0.0`.
-- Add `@flyingrobots/bijou-tui-app` for the refreshed shell.
-- Move inspector/dashboard rendering onto the v3 `ViewOutput` contract.
-- Split the current inspector into sub-apps for list, detail, history, and health panes.
-- Add BCSS-driven responsive styling and layout presets.
-- Add motion for focus shifts, pane changes, and shell transitions where it improves legibility.
-- Add session restore for the human TUI layout.
-- Replace the current low-fidelity heatmap/detail composition with a higher-fidelity surface-native view.
+1. Write the agent protocol design doc.
+2. Write contract tests for record order, shapes, `stdout` purity, `stderr`
+   behavior, and exit codes.
+3. Implement a dedicated machine runner.
+4. Ship read-heavy parity first:
+   `agent inspect`, `agent verify`, `agent vault list`, `agent vault info`,
+   `agent vault history`, `agent doctor`, `agent vault stats`.
 
-Acceptance:
+**Acceptance**
 
-- Existing human CLI behavior stays stable outside the refreshed TUI.
-- PTY smoke coverage must exercise inspect/dashboard navigation, filtering, resize, pane composition, and non-TTY fallback.
+- The protocol contract is documented in-repo.
+- The read-heavy agent commands are JSONL-first and non-interactive.
+- Contract tests pass on Node, Bun, and Deno.
+- The human CLI continues to work unchanged outside explicitly shared internals.
 
-### M20 — Sentinel (`v5.6.0`)
+### Relay Follow-through (`v5.5.0` target)
 
-**Theme:** vault health, crypto hygiene, and safety workflows.
+**Theme:** bring the agent surface to operational parity before more large
+human-surface pushes.
 
-Deliverables:
+**Sponsor user**
 
-- `git cas vault status`
-- `git cas gc`
-- `encryptionCount` auto-rotation policy
-- `.casrc` KDF parameter tuning with safe validation
-- Human CLI warnings for nonce budget and KDF health
-- Agent CLI warnings/results for the same health signals
+- A maintainer who wants to wire `git-cas` into repeatable backup, restore,
+  publish, or release flows.
 
-### M21 — Atelier (`v5.7.0`)
+**Sponsor agent**
 
-**Theme:** vault ergonomics and publishing workflows.
+- An autonomous system that must perform state-changing workflows end-to-end
+  with explicit inputs and replayable outcomes.
 
-Deliverables:
+**Hills**
 
-- Named vaults
-- `git cas vault add` to adopt existing trees
-- Vault export flows:
-  - whole vault export
-  - single-entry export
-  - bulk export
-- Publish flows:
-  - publish to working tree
-  - publish to branch
-  - auto-publish hook support
-- File-level `--passphrase` CLI for standalone encrypted store flows
+- A sponsor agent can complete the core `git-cas` operational loop
+  non-interactively: store, restore, rotate, recipient management, and vault
+  administration.
+- A sponsor user can build automation on top of `git-cas` without needing a
+  human escape hatch for normal success paths.
 
-### M22 — Cartographer (`v5.8.0`)
+**Playback questions**
 
-**Theme:** repo intelligence and artifact comparison.
+- Can an agent complete encrypted store and restore flows without prompting?
+- Are passphrase files, request payloads, and missing-input branches explicit?
+- Are state-changing side effects obvious in protocol output?
+- Can agents reason about failures without parsing human error text?
 
-Deliverables:
+**Explicit non-goals**
 
-- Duplicate-detection warnings during store
-- `git cas scan` / dedup advisor
-- Manifest diff engine
-- Machine diff stream for the agent CLI
-- Human compare view layered on the M19 shell
+- No long-lived interactive agent session.
+- No human-surface expansion that bypasses the shared command/model layer.
+- No hidden convenience prompting in the machine path.
 
-### M23 — Courier (`v5.9.0`)
+**Work order**
 
-**Theme:** artifact sets and transport.
+1. Extend the design doc to cover write flows and input request semantics.
+2. Extend contract tests to state-changing commands and failure branches.
+3. Implement:
+   `agent store`, `agent tree`, `agent restore`, `agent rotate`,
+   `agent recipient ...`, and the vault write flows that belong in the machine
+   surface.
+4. Add structured warnings for safety and policy signals that agents can act on.
 
-Deliverables:
+**Acceptance**
 
-- Snapshot trees for directory-level store and restore
-- Portable bundles for air-gap transfer
-- Watch mode built on snapshot-root semantics rather than ad hoc per-file state
+- Core state-changing workflows are machine-accessible without prompting.
+- Input request behavior is explicit and documented.
+- Cross-runtime contract tests cover both read and write paths.
+- The machine surface is credible enough to become the app-layer reference for
+  later human-surface work.
 
-### M24 — Spectrum (`v5.10.0`)
+### M19 — Nouveau (after Relay is credible)
 
-**Theme:** storage and observability extensibility.
+**Theme:** human UX refresh on top of agent-native application boundaries.
 
-Deliverables:
+Some groundwork has already landed on `main`:
 
-- `CompressionPort`
-- Additional codecs: `zstd`, `brotli`, `lz4`
-- Prometheus/OpenTelemetry adapter for `ObservabilityPort`
+- repo explorer shell
+- refs browser
+- source inspection
+- treemap atlas and drilldown
+- stronger theme and motion work
 
-### M25 — Bastion (`v5.11.0`)
+That work should now be treated as input, not as permission to keep pushing the
+human surface ahead of the machine surface.
 
-**Theme:** enterprise key-management research with hard exit criteria.
+**Sponsor user**
 
-Deliverables:
+- An operator who wants to inspect, understand, and recover artifact state with
+  less uncertainty and less CLI memorization.
 
-- ADR for external key-management support
-- Threat model for HSM/Vault-backed key flows
-- Proof-of-concept `KeyManagementPort` adapter
-- Decision memo on whether enterprise key management should become a product milestone
+**Sponsor agent**
 
-## Delivery Standards
+- An agent that benefits when the human surface reuses the same shared
+  application operations instead of bespoke TUI behavior.
 
-Every planned milestone follows the repository release discipline:
+**Hill**
 
-- Human CLI/TUI behavior remains backward compatible unless a release explicitly declares otherwise.
-- The human `--json` flag remains convenience output, not the automation contract.
-- The first machine interface release is JSONL-only and one-shot; no session protocol is planned before the contract proves useful.
-- `agent restore` writes to the filesystem in v1; binary payloads do not share protocol `stdout`.
-- Any user-visible feature added after M18 must include:
-  - at least one human CLI/TUI test, and
-  - at least one agent-protocol test when the feature is exposed to the machine surface.
+- The human surface becomes easier to trust because it sits on top of cleaner,
+  explicit app-layer behavior that was first forced into shape by the agent CLI.
+
+**Explicit non-goals**
+
+- No bespoke TUI-only behavior that bypasses shared command/model boundaries.
+- No large human-surface push before Relay and Relay follow-through are credible.
+
+## Later Lines
+
+The later roadmap remains directionally the same, but detailed scoping stays
+light until the agent-first line is delivered.
+
+| Line         | Theme                                              |
+| ------------ | -------------------------------------------------- |
+| Sentinel     | Vault health, crypto hygiene, and safety workflows |
+| Atelier      | Vault ergonomics and publishing workflows          |
+| Cartographer | Repo intelligence and artifact comparison          |
+| Courier      | Artifact sets and transport                        |
+| Spectrum     | Storage and observability extensibility            |
+| Bastion      | Enterprise key-management research                 |
+
+## Cycle Delivery Rules
+
+Every cycle follows the repository workflow discipline:
+
+1. design docs first
+2. tests as spec second
+3. implementation third
+4. retrospective after delivery
+5. update `docs/BACKLOG/` with follow-on work and debt
+6. rewrite the root README to reflect reality when needed
+7. update the root changelog
+
+Additional release discipline:
+
+- tagged releases reflect reality, not aspiration
+- the human `--json` flag remains convenience output, not the automation
+  contract
+- the machine surface stays JSONL-first and one-shot until a stronger protocol
+  is justified by playback
 
 ## Document Boundaries
 
 - [ROADMAP.md](./ROADMAP.md): current reality plus future sequence
 - [STATUS.md](./STATUS.md): compact project snapshot
+- [WORKFLOW.md](./WORKFLOW.md): planning and delivery source of truth for fresh work
 - [COMPLETED_TASKS.md](./COMPLETED_TASKS.md): shipped milestone details
 - [GRAVEYARD.md](./GRAVEYARD.md): superseded or merged-away work
 - [CHANGELOG.md](./CHANGELOG.md): release-by-release history

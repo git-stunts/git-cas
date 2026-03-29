@@ -6,6 +6,7 @@
 
 /** @type {Readonly<Record<string, string>>} */
 const HINTS = {
+  INVALID_INPUT: 'Check the agent command name and required input fields',
   MISSING_KEY: 'Provide --key-file or --vault-passphrase',
   MANIFEST_NOT_FOUND: 'Verify the tree OID contains a manifest',
   VAULT_ENTRY_NOT_FOUND: "Run 'git cas vault list' to see available entries",
@@ -16,7 +17,10 @@ const HINTS = {
   RECIPIENT_NOT_FOUND: 'No recipient with that label exists in the manifest',
   RECIPIENT_ALREADY_EXISTS: 'A recipient with that label already exists',
   CANNOT_REMOVE_LAST_RECIPIENT: 'At least one recipient must remain in the manifest',
-  ROTATION_NOT_SUPPORTED: 'Key rotation requires envelope encryption — store with --recipient first',
+  ROTATION_NOT_SUPPORTED:
+    'Key rotation requires envelope encryption — store with --recipient first',
+  VAULT_METADATA_INVALID: 'Initialize an encrypted vault before rotating its passphrase',
+  VAULT_CONFLICT: 'Retry the vault rotation after concurrent vault updates settle',
 };
 
 /**
@@ -31,7 +35,9 @@ function writeError(err, json) {
   if (json) {
     /** @type {{ error: string, code?: string }} */
     const obj = { error: message };
-    if (code) { obj.code = code; }
+    if (code) {
+      obj.code = code;
+    }
     process.stderr.write(`${JSON.stringify(obj)}\n`);
   } else {
     const prefix = code ? `error [${code}]: ` : 'error: ';
@@ -62,7 +68,9 @@ function getHint(code) {
  * @returns {Promise<void>}
  */
 function defaultDelay(ms) {
-  return new Promise((resolve) => { setTimeout(resolve, ms); });
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 /**
@@ -73,10 +81,16 @@ function defaultDelay(ms) {
  * @param {{ delay?: (ms: number) => Promise<void>, setExitCode?: (code: number) => void }} [options] - Injectable dependencies.
  * @returns {(...args: any[]) => Promise<void>} Wrapped action.
  */
-export function runAction(fn, getJson, {
-  delay = defaultDelay,
-  setExitCode = (code) => { process.exitCode = code; },
-} = {}) {
+export function runAction(
+  fn,
+  getJson,
+  {
+    delay = defaultDelay,
+    setExitCode = (code) => {
+      process.exitCode = code;
+    },
+  } = {}
+) {
   return async (/** @type {any[]} */ ...args) => {
     try {
       await fn(...args);

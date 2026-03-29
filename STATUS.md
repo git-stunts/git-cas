@@ -1,85 +1,96 @@
-# @git-stunts/cas — Project Status
+# @git-stunts/git-cas — Project Status
 
-**Current release:** `v5.3.2`
-**Current branch version:** `v5.3.3`
-**Last release:** `2026-03-15`
-**Current line:** M16 Capstone shipped in `v5.3.0`; `v5.3.1` fixed repeated-chunk tree emission; `v5.3.2` stabilized test/runtime tooling; `v5.3.3` is the remaining M17 closeout in flight.
+**Last tagged release:** `v5.3.2` (`2026-03-15`)
+**Current package version on `main`:** `v5.3.3`
+**Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
+**Current strategic focus:** agent-first for the next few cycles
+**Fresh planning workflow:** [WORKFLOW.md](./WORKFLOW.md)
 
 ---
 
-## Interface Strategy
+`STATUS.md` remains a compact snapshot, but new planning now starts from
+`WORKFLOW.md`, legends, backlog items, invariants, and cycle docs.
 
-- **Human CLI/TUI:** the current public operator surface. Existing `git cas ...` commands, Bijou formatting, prompts, dashboards, and `--json` convenience output stay here.
-- **Agent CLI:** planned next as `git cas agent`. It will be JSONL-first, non-interactive by default, and independent from Bijou rendering or TTY-only behavior.
+## Honest State
+
+- The human CLI/TUI is already real and ahead of the old planning docs.
+- M17 closeout work is materially on `main`, even though the release/docs
+  bookkeeping drifted.
+- Early repo-explorer and TUI refresh work also landed on `main` ahead of the
+  old sequence.
+- The biggest product gap is now the missing first-class agent CLI.
 
 ---
 
-## Recently Shipped
+## Two Surfaces
 
-| Version | Milestone | Highlights |
-|---------|-----------|------------|
-| `v5.3.2` | Maintenance | Vitest workspace split for deterministic integration runs; CLI version sync; test/runtime tooling stabilization |
-| `v5.3.1` | Maintenance | Repeated-chunk tree integrity fix; unique chunk tree entries; `git fsck` regression coverage |
-| `v5.3.0` | M16 Capstone | Audit remediation, `.casrc`, passphrase-file support, restore guards, `encryptionCount`, lifecycle rename |
-| `v5.2.0` | M12 Carousel | Key rotation without re-encrypting data |
-| `v5.1.0` | M11 Locksmith | Envelope encryption and recipient management |
-| `v5.0.0` | M10 Hydra | Content-defined chunking |
-| `v4.0.1` | M8 + M9 | Review hardening, `verify`, `--json`, CLI polish |
-| `v4.0.0` | M14 Conduit | Streaming restore, observability, parallel chunk I/O |
-| `v3.1.0` | M13 Bijou | Interactive dashboard and animated progress |
+- **Human CLI/TUI:** stable operator surface, boring by default, `--json` kept
+  as convenience structured output for humans and simple scripts.
+- **Agent CLI:** next priority surface, JSONL-first, non-interactive, and
+  separate from the human `--json` path.
 
-Milestone labels are thematic and non-sequential; the versions above are listed in release order.
+---
+
+## Current Hills
+
+### Human Hill
+
+A human operator can store, inspect, verify, restore, and manage artifacts with
+confidence and without memorizing Git plumbing.
+
+### Agent Hill
+
+A coding agent, CI job, or release bot can execute core `git-cas` workflows
+through a stable machine contract without scraping prose or depending on TTY
+behavior.
 
 ---
 
 ## Next Up
 
-### M17 — Ledger (`v5.3.3`)
+### M18 — Relay (`v5.4.0` target)
 
-Planning and ops reset:
+**Sponsor user**
 
-- Reconcile `ROADMAP.md`, `STATUS.md`, and release messaging
-- Add review automation (`CODEOWNERS` or equivalent)
-- Document Git tree ordering test conventions
-- Define release-prep workflow for changelog/version timing
-- Automate test-count injection into release notes or changelog prep
-- Add property-based fuzz coverage for envelope encryption
+- Maintainer or release engineer building automation around `git-cas`
 
-### M18 — Relay (`v5.4.0`)
+**Sponsor agent**
 
-LLM-native CLI foundation:
+- Coding agent, CI job, release bot, or backup workflow
 
-- Introduce `git cas agent`
-- Define the JSONL protocol envelope and exit codes
-- Add machine-facing parity for the current operational command set
-- Enforce strict non-interactive input handling
+**Hill**
 
-### M19 — Nouveau (`v5.5.0`)
+- Read-heavy `git-cas` operations become available through a first-class
+  JSONL-first machine protocol with explicit exit-code semantics.
 
-Human UX refresh:
+**Immediate work order**
 
-- Upgrade Bijou packages to `3.0.0`
-- Move the inspector shell to the v3 `ViewOutput` model
-- Split the dashboard into sub-apps
-- Add better styling, motion, layout persistence, and richer heatmap/detail rendering
+1. protocol design doc
+2. contract tests
+3. dedicated machine runner
+4. read-heavy command parity
 
----
+### Relay Follow-through (`v5.5.0` target)
 
-## Sequenced Roadmap
+- Stay agent-first until state-changing flows are also credible for automation.
 
-| Version | Milestone | Theme |
-|---------|-----------|-------|
-| `v5.3.3` | M17 Ledger | Planning and ops reset |
-| `v5.4.0` | M18 Relay | LLM-native CLI foundation |
-| `v5.5.0` | M19 Nouveau | Bijou v3 human UX refresh |
-| `v5.6.0` | M20 Sentinel | Vault health and safety |
-| `v5.7.0` | M21 Atelier | Vault ergonomics and publishing |
-| `v5.8.0` | M22 Cartographer | Repo intelligence and change analysis |
-| `v5.9.0` | M23 Courier | Artifact sets and transfer |
-| `v5.10.0` | M24 Spectrum | Storage and observability extensibility |
-| `v5.11.0` | M25 Bastion | Enterprise key-management research |
+### M19 — Nouveau (after Relay is credible)
+
+- Resume major human-surface work only after the agent surface has forced
+  cleaner app-layer boundaries.
 
 ---
 
-*Future details: [ROADMAP.md](./ROADMAP.md) | Shipped detail: [COMPLETED_TASKS.md](./COMPLETED_TASKS.md) | Superseded: [GRAVEYARD.md](./GRAVEYARD.md)*
+## Sequence Snapshot
+
+| Order | Focus                                                       |
+| ----- | ----------------------------------------------------------- |
+| Now   | Relay foundation                                            |
+| Next  | Relay follow-through                                        |
+| Then  | Nouveau                                                     |
+| Later | Sentinel, Atelier, Cartographer, Courier, Spectrum, Bastion |
+
+---
+
+_Future detail: [ROADMAP.md](./ROADMAP.md) | Shipped detail: [COMPLETED_TASKS.md](./COMPLETED_TASKS.md) | Release history: [CHANGELOG.md](./CHANGELOG.md)_

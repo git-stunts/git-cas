@@ -7,7 +7,7 @@
  * MUST run inside Docker (GIT_STUNTS_DOCKER=1). Refuses to run on the host.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -22,9 +22,14 @@ import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js
 if (process.env.GIT_STUNTS_DOCKER !== '1') {
   throw new Error(
     'Integration tests MUST run inside Docker (GIT_STUNTS_DOCKER=1). ' +
-    'Use: npm run test:integration:node',
+      'Use: npm run test:integration:node'
   );
 }
+
+vi.setConfig({
+  testTimeout: 15000,
+  hookTimeout: 30000,
+});
 
 let repoDir;
 let cas;
@@ -152,7 +157,7 @@ describe('vault remove', () => {
 
   it('throws VAULT_ENTRY_NOT_FOUND for missing slug', async () => {
     await expect(cas.removeFromVault({ slug: 'nonexistent' })).rejects.toSatisfy(
-      (e) => e instanceof CasError && e.code === 'VAULT_ENTRY_NOT_FOUND',
+      (e) => e instanceof CasError && e.code === 'VAULT_ENTRY_NOT_FOUND'
     );
   });
 });
@@ -167,10 +172,8 @@ describe('vault add with force overwrite', () => {
     const newTree = await cas.createTree({ manifest });
     rmSync(dir, { recursive: true, force: true });
 
-    await expect(
-      cas.addToVault({ slug: 'integ/asset-1', treeOid: newTree }),
-    ).rejects.toSatisfy(
-      (e) => e instanceof CasError && e.code === 'VAULT_ENTRY_EXISTS',
+    await expect(cas.addToVault({ slug: 'integ/asset-1', treeOid: newTree })).rejects.toSatisfy(
+      (e) => e instanceof CasError && e.code === 'VAULT_ENTRY_EXISTS'
     );
   });
 
@@ -221,10 +224,8 @@ describe('encrypted vault', () => {
   });
 
   it('throws VAULT_ENCRYPTION_ALREADY_CONFIGURED on re-init', async () => {
-    await expect(
-      encCas.initVault({ passphrase: 'different' }),
-    ).rejects.toSatisfy(
-      (e) => e instanceof CasError && e.code === 'VAULT_ENCRYPTION_ALREADY_CONFIGURED',
+    await expect(encCas.initVault({ passphrase: 'different' })).rejects.toSatisfy(
+      (e) => e instanceof CasError && e.code === 'VAULT_ENCRYPTION_ALREADY_CONFIGURED'
     );
   });
 });
