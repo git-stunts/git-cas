@@ -30,3 +30,8 @@ Current backlog items:
 - [RL-003 — Agent Rotate](./RL-003-agent-rotate.md)
 - [RL-004 — Agent Vault Rotate](./RL-004-agent-vault-rotate.md)
 - [RL-005 — Agent Vault Lifecycle](./RL-005-agent-vault-lifecycle.md)
+- [TR-001 — Architecture Reality Gap](./TR-001-architecture-reality-gap.md)
+- [TR-002 — Threat Model](./TR-002-threat-model.md)
+- [TR-003 — Benchmark Baselines](./TR-003-benchmark-baselines.md)
+- [TR-004 — Design Doc Lifecycle](./TR-004-design-doc-lifecycle.md)
+- [TR-005 — CasService Decomposition Plan](./TR-005-casservice-decomposition-plan.md)

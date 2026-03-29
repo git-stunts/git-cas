@@ -16,3 +16,4 @@ Each legend should define:
 Current legend docs:
 
 - [RL — Relay](./RL-relay.md)
+- [TR — Truth](./TR-truth.md)
