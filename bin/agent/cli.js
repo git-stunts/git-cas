@@ -347,6 +347,65 @@ async function readRequestPayload(request, stdin) {
 }
 
 /**
+ * @param {string} key
+ * @param {Record<string, { type: 'string' | 'boolean' }>} options
+ * @returns {{ type: 'string' | 'boolean' } | undefined}
+ */
+function resolveRequestOptionSpec(key, options) {
+  if (options[key]) {
+    return options[key];
+  }
+
+  const alias = INPUT_ALIAS_MAP[key];
+  if (alias && options[alias]) {
+    return options[alias];
+  }
+
+  return undefined;
+}
+
+/**
+ * @param {string} key
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function allowsStructuredRequestValue(key, value) {
+  return key === 'manifest' && Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * @param {string} key
+ * @param {unknown} value
+ * @param {{ type: 'string' | 'boolean' } | undefined} spec
+ */
+function validateRequestFieldType(key, value, spec) {
+  if (spec?.type === 'boolean' && typeof value !== 'boolean') {
+    throw invalidInput(`Request field "${key}" must be a boolean`);
+  }
+  if (spec?.type === 'string' && typeof value !== 'string' && !allowsStructuredRequestValue(key, value)) {
+    throw invalidInput(`Request field "${key}" must be a string`);
+  }
+}
+
+/**
+ * @param {Record<string, any>} request
+ * @param {Record<string, { type: 'string' | 'boolean' }>} options
+ * @returns {Record<string, any>}
+ */
+function normalizeRequestValues(request, options) {
+  /** @type {Record<string, any>} */
+  const normalized = {};
+
+  for (const [key, value] of Object.entries(request)) {
+    const spec = resolveRequestOptionSpec(key, options);
+    validateRequestFieldType(key, value, spec);
+    normalized[key] = value;
+  }
+
+  return normalized;
+}
+
+/**
  * @param {NodeJS.ReadStream} stream
  * @returns {Promise<string>}
  */
@@ -369,22 +428,27 @@ async function readStream(stream) {
  * @returns {Promise<{ values: Record<string, any>, positionals: string[], requestSource?: string }>}
  */
 async function parseAgentInput(args, options, stdin) {
+  const optionSpec = {
+    ...options,
+    ...REQUEST_OPTION,
+  };
+
   let parsed;
   try {
     parsed = parseArgs({
       args,
       allowPositionals: true,
       strict: true,
-      options: {
-        ...options,
-        ...REQUEST_OPTION,
-      },
+      options: optionSpec,
     });
   } catch (err) {
     throw invalidInput(err instanceof Error ? err.message : String(err));
   }
 
-  const request = await readRequestPayload(parsed.values.request, stdin);
+  const request = normalizeRequestValues(
+    await readRequestPayload(parsed.values.request, stdin),
+    optionSpec
+  );
   const values = { ...request, ...parsed.values };
   delete values.request;
 
@@ -729,6 +793,9 @@ async function parseStoreInput(args, stdin) {
  * @param {Record<string, any>} input
  */
 function validateStoreInput(input) {
+  if (input.file !== undefined && typeof input.file !== 'string') {
+    throw invalidInput('Request field "file" must be a string');
+  }
   if (!input.file) {
     throw invalidInput('Provide a file path');
   }

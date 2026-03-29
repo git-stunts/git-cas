@@ -1594,6 +1594,73 @@ function defineStoreEmptyVaultPassphraseKeyConflictTest() {
   });
 }
 
+function defineStoreRequestBooleanTypeValidationTest() {
+  it('store rejects string boolean fields in request payloads', () => {
+    const storeInput = tempFile(Buffer.from('request boolean validation\n'));
+    const result = runAgentCli(
+      [
+        'store',
+        '--request',
+        JSON.stringify({
+          file: storeInput.filePath,
+          slug: 'demo/request-boolean-validation',
+          tree: 'false',
+          force: 'false',
+        }),
+      ],
+      repoDir
+    );
+
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'store',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+        message: 'Request field "tree" must be a boolean',
+      },
+    });
+
+    cleanupTempDirs(storeInput.dir);
+  });
+}
+
+function defineStoreRequestFileTypeValidationTest() {
+  it('store rejects non-string file fields in request payloads', () => {
+    const result = runAgentCli(
+      [
+        'store',
+        '--request',
+        JSON.stringify({
+          file: 123,
+          slug: 'demo/request-file-validation',
+        }),
+      ],
+      repoDir
+    );
+
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'store',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+        message: 'Request field "file" must be a string',
+      },
+    });
+  });
+}
+
 function defineVaultInitInlinePassphraseRedactionTest() {
   it('vault init redacts inline passphrases in the start row', () => {
     const vaultRepoDir = createEmptyAgentRepo();
@@ -2024,6 +2091,14 @@ describe(
 describe(
   'agent CLI protocol — store (empty vault passphrase plus key conflict)',
   defineStoreEmptyVaultPassphraseKeyConflictTest
+);
+describe(
+  'agent CLI protocol — store (request boolean type validation)',
+  defineStoreRequestBooleanTypeValidationTest
+);
+describe(
+  'agent CLI protocol — store (request file type validation)',
+  defineStoreRequestFileTypeValidationTest
 );
 describe(
   'agent CLI protocol — vault rotate (empty inline and file conflict)',
