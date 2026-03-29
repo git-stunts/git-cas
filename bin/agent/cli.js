@@ -20,15 +20,19 @@ const AVAILABLE_COMMANDS = Object.freeze([
   'recipient add',
   'recipient remove',
   'recipient list',
+  'vault init',
   'vault list',
   'vault info',
   'vault history',
+  'vault remove',
   'vault rotate',
   'vault stats',
 ]);
 
 const REQUEST_OPTION = { request: { type: 'string' } };
 const INPUT_ALIAS_MAP = Object.freeze({
+  passphrase: 'passphrase',
+  passphraseFile: 'passphrase-file',
   keyFile: 'key-file',
   oldKeyFile: 'old-key-file',
   newKeyFile: 'new-key-file',
@@ -518,6 +522,63 @@ function buildStoreOutcome({ input, manifest, treeOid, commitOid }) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<Record<string, any>>}
  */
+async function parseVaultInitInput(args, stdin) {
+  const { values, positionals, requestSource } = await parseAgentInput(
+    args,
+    {
+      cwd: { type: 'string' },
+      algorithm: { type: 'string' },
+      passphrase: { type: 'string' },
+      'passphrase-file': { type: 'string' },
+    },
+    stdin
+  );
+  assignPositionals(positionals, []);
+  return normalizeInputAliases({
+    ...values,
+    requestSource,
+  });
+}
+
+/**
+ * @param {Record<string, any>} input
+ */
+function validateVaultInitInput(input) {
+  if (input.passphrase && input.passphraseFile) {
+    throw invalidInput('Provide --passphrase or --passphrase-file, not both');
+  }
+
+  const algorithm = parseKdfAlgorithm(input.algorithm);
+  if (algorithm && !input.passphrase && !input.passphraseFile) {
+    throw invalidInput(
+      'Provide --passphrase <pass> or --passphrase-file <path> when using --algorithm'
+    );
+  }
+}
+
+/**
+ * @param {Record<string, any>} input
+ * @param {string | undefined} requestSource
+ * @returns {Promise<string | undefined>}
+ */
+async function resolveVaultInitPassphrase(input, requestSource) {
+  if (input.passphraseFile === '-' && requestSource === '-') {
+    throw invalidInput('Cannot read both request payload and vault init passphrase from stdin');
+  }
+  if (input.passphraseFile) {
+    return await readAgentPassphraseFile(input.passphraseFile);
+  }
+  if (input.passphrase !== undefined) {
+    return resolveInlinePassphrase('Passphrase', input.passphrase);
+  }
+  return undefined;
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<Record<string, any>>}
+ */
 async function parseRotateInput(args, stdin) {
   const { values, positionals } = await parseAgentInput(
     args,
@@ -856,6 +917,44 @@ function buildVaultRotateOutcome({ commitOid, rotatedSlugs, skippedSlugs, kdfAlg
 }
 
 /**
+ * @param {{
+ *   commitOid: string,
+ *   encrypted: boolean,
+ *   kdfAlgorithm?: string,
+ * }} options
+ * @returns {{ data: Record<string, any> }}
+ */
+function buildVaultInitOutcome({ commitOid, encrypted, kdfAlgorithm }) {
+  return {
+    data: {
+      commitOid,
+      initializedVault: true,
+      encrypted,
+      ...(kdfAlgorithm ? { kdfAlgorithm } : {}),
+    },
+  };
+}
+
+/**
+ * @param {{
+ *   slug: string,
+ *   commitOid: string,
+ *   removedTreeOid: string,
+ * }} options
+ * @returns {{ data: Record<string, any> }}
+ */
+function buildVaultRemoveOutcome({ slug, commitOid, removedTreeOid }) {
+  return {
+    data: {
+      slug,
+      commitOid,
+      removedTreeOid,
+      updatedVault: true,
+    },
+  };
+}
+
+/**
  * @param {string[]} args
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<Record<string, any>>}
@@ -968,9 +1067,11 @@ const COMMAND_HANDLERS = Object.freeze({
   'recipient.add': recipientAddCommand,
   'recipient.remove': recipientRemoveCommand,
   'recipient.list': recipientListCommand,
+  'vault.init': vaultInitCommand,
   'vault.list': vaultListCommand,
   'vault.info': vaultInfoCommand,
   'vault.history': vaultHistoryCommand,
+  'vault.remove': vaultRemoveCommand,
   'vault.rotate': vaultRotateCommand,
   'vault.stats': vaultStatsCommand,
 });
@@ -1326,6 +1427,61 @@ async function recipientListCommand(args, stdin) {
       recipients,
     },
   };
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<{ data: Record<string, any> }>}
+ */
+async function vaultInitCommand(args, stdin) {
+  const input = await parseVaultInitInput(args, stdin);
+  validateVaultInitInput(input);
+
+  const passphrase = await resolveVaultInitPassphrase(input, input.requestSource);
+  const algorithm = parseKdfAlgorithm(input.algorithm);
+  const cas = createCas(input.cwd || '.');
+  const { commitOid } = await cas.initVault({
+    ...(passphrase ? { passphrase } : {}),
+    ...(passphrase && algorithm ? { kdfOptions: { algorithm } } : {}),
+  });
+  const metadata = await cas.getVaultMetadata();
+
+  return buildVaultInitOutcome({
+    commitOid,
+    encrypted: Boolean(metadata?.encryption),
+    kdfAlgorithm: metadata?.encryption?.kdf?.algorithm,
+  });
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<{ data: Record<string, any> }>}
+ */
+async function vaultRemoveCommand(args, stdin) {
+  const { values, positionals } = await parseAgentInput(
+    args,
+    {
+      slug: { type: 'string' },
+      cwd: { type: 'string' },
+    },
+    stdin
+  );
+  assignPositionals(positionals, []);
+
+  if (!values.slug) {
+    throw invalidInput('Provide --slug <slug>');
+  }
+
+  const cas = createCas(values.cwd || '.');
+  const { commitOid, removedTreeOid } = await cas.removeFromVault({ slug: values.slug });
+
+  return buildVaultRemoveOutcome({
+    slug: values.slug,
+    commitOid,
+    removedTreeOid,
+  });
 }
 
 /**

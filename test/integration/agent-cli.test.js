@@ -288,6 +288,12 @@ async function setupVaultRotateRepo() {
   };
 }
 
+function createEmptyAgentRepo() {
+  const vaultRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-empty-vault-'));
+  initBareRepo(vaultRepoDir);
+  return vaultRepoDir;
+}
+
 function defineReadOnlyProtocolTests() {
   it('inspect emits start, result, and end rows on stdout', () => {
     const result = runAgentCli(['inspect', '--slug', 'demo/hello'], repoDir);
@@ -734,6 +740,16 @@ function assertVaultRotateResult(data, expected) {
   expect(data.commitOid).toMatch(/^[0-9a-f]{40}$/);
 }
 
+function assertVaultInitResult(data, expected) {
+  expect(data).toMatchObject(expected);
+  expect(data.commitOid).toMatch(/^[0-9a-f]{40}$/);
+}
+
+function assertVaultRemoveResult(data, expected) {
+  expect(data).toMatchObject(expected);
+  expect(data.commitOid).toMatch(/^[0-9a-f]{40}$/);
+}
+
 function assertSlugRotateRestore(slug, newKeyFilePath, oldKeyFilePath) {
   const outputDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-rotate-restore-'));
   const outputPath = path.join(outputDir, 'restored.bin');
@@ -1081,6 +1097,131 @@ function defineVaultRotateWrongPassphraseTest() {
   });
 }
 
+function defineVaultInitPlaintextTest() {
+  it('vault init initializes a plaintext vault and reports commit side effects', async () => {
+    const vaultRepoDir = createEmptyAgentRepo();
+    const result = runAgentCli(['vault', 'init'], vaultRepoDir);
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    expect(rows.map((row) => row.type)).toEqual(['start', 'result', 'end']);
+    assertVaultInitResult(rows[1].data, {
+      initializedVault: true,
+      encrypted: false,
+    });
+
+    const metadata = await createCas(vaultRepoDir).getVaultMetadata();
+    expect(metadata?.encryption).toBeUndefined();
+
+    cleanupTempDirs(vaultRepoDir);
+  });
+}
+
+function defineVaultInitEncryptedRequestPayloadTest() {
+  it('vault init accepts encrypted request payload input and reports the resulting KDF algorithm', async () => {
+    const vaultRepoDir = createEmptyAgentRepo();
+    const passphraseFile = tempFile(Buffer.from('relay-init-passphrase'));
+    const requestPath = path.join(requestDir, 'vault-init-request.json');
+    writeFileSync(
+      requestPath,
+      JSON.stringify({
+        passphraseFile: passphraseFile.filePath,
+        algorithm: 'scrypt',
+      })
+    );
+
+    const result = runAgentCli(['vault', 'init', '--request', `@${requestPath}`], vaultRepoDir);
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    assertVaultInitResult(rows[1].data, {
+      initializedVault: true,
+      encrypted: true,
+      kdfAlgorithm: 'scrypt',
+    });
+
+    const metadata = await createCas(vaultRepoDir).getVaultMetadata();
+    expect(metadata?.encryption?.kdf?.algorithm).toBe('scrypt');
+
+    cleanupTempDirs(vaultRepoDir, passphraseFile.dir);
+  });
+}
+
+function defineVaultInitValidationTest() {
+  it('vault init rejects algorithm selection without an encryption source', () => {
+    const vaultRepoDir = createEmptyAgentRepo();
+    const result = runAgentCli(['vault', 'init', '--algorithm', 'scrypt'], vaultRepoDir);
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'vault.init',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+        message: 'Provide --passphrase <pass> or --passphrase-file <path> when using --algorithm',
+      },
+    });
+
+    cleanupTempDirs(vaultRepoDir);
+  });
+}
+
+function defineVaultRemoveSuccessTest() {
+  it('vault remove reports the removed tree and vault commit explicitly', async () => {
+    const fixture = await setupPlainRepo();
+    const result = runAgentCli(['vault', 'remove', '--slug', 'demo/hello'], fixture.repoDir);
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    expect(rows.map((row) => row.type)).toEqual(['start', 'result', 'end']);
+    assertVaultRemoveResult(rows[1].data, {
+      slug: 'demo/hello',
+      removedTreeOid: fixture.treeOid,
+      updatedVault: true,
+    });
+
+    const entries = await createCas(fixture.repoDir).listVault();
+    expect(entries).toEqual([]);
+
+    cleanupTempDirs(fixture.repoDir, fixture.inputDir);
+  });
+}
+
+function defineVaultRemoveMissingEntryTest() {
+  it('vault remove surfaces missing-entry failures as structured protocol errors', async () => {
+    const fixture = await setupPlainRepo();
+    const result = runAgentCli(['vault', 'remove', '--slug', 'missing'], fixture.repoDir);
+    expect(result.status).toBe(1);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'vault.remove',
+      type: 'error',
+      data: {
+        code: 'VAULT_ENTRY_NOT_FOUND',
+        message: 'Vault entry "missing" not found',
+      },
+    });
+
+    cleanupTempDirs(fixture.repoDir, fixture.inputDir);
+  });
+}
+
 function defineRequestAndValidationTests() {
   it('inspect supports request payloads from a file', () => {
     const requestPath = path.join(requestDir, 'inspect.json');
@@ -1374,6 +1515,14 @@ describe(
   'agent CLI protocol — vault rotate (wrong passphrase)',
   defineVaultRotateWrongPassphraseTest
 );
+describe('agent CLI protocol — vault init (plaintext)', defineVaultInitPlaintextTest);
+describe(
+  'agent CLI protocol — vault init (encrypted request payload)',
+  defineVaultInitEncryptedRequestPayloadTest
+);
+describe('agent CLI protocol — vault init (validation)', defineVaultInitValidationTest);
+describe('agent CLI protocol — vault remove (success)', defineVaultRemoveSuccessTest);
+describe('agent CLI protocol — vault remove (missing entry)', defineVaultRemoveMissingEntryTest);
 describe('agent CLI protocol — request and validation', defineRequestAndValidationTests);
 describe('agent CLI protocol — store write flow', definePlainWriteFlowTests);
 describe('agent CLI protocol — tree command (file path)', defineTreeCommandFilePathTest);

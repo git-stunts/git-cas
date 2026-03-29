@@ -29,3 +29,4 @@ Current backlog items:
 - [RL-002 — Agent Recipient Mutations](./RL-002-agent-recipient-mutations.md)
 - [RL-003 — Agent Rotate](./RL-003-agent-rotate.md)
 - [RL-004 — Agent Vault Rotate](./RL-004-agent-vault-rotate.md)
+- [RL-005 — Agent Vault Lifecycle](./RL-005-agent-vault-lifecycle.md)
