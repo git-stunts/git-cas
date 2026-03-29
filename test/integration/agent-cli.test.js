@@ -741,6 +741,11 @@ function assertStartRow(rows, expectedInput) {
   expect(rows[0].data).not.toHaveProperty('argv');
 }
 
+function assertExactStartRow(rows, expectedInput) {
+  assertStartRow(rows, expectedInput);
+  expect(rows[0].data.input).toEqual(expectedInput);
+}
+
 function assertRotateOldKeyFailure(result) {
   expect(result.status).toBe(1);
 
@@ -1552,6 +1557,43 @@ function defineEncryptedStoreConflictingPassphraseSourcesTest() {
   });
 }
 
+function defineStoreEmptyVaultPassphraseKeyConflictTest() {
+  it('store rejects key-file plus an explicitly empty vault passphrase', () => {
+    const storeInput = tempFile(Buffer.from('empty vault passphrase conflict\n'));
+    const keyFile = tempFile(randomBytes(32));
+    const result = runAgentCli(
+      [
+        'store',
+        storeInput.filePath,
+        '--slug',
+        'demo/empty-passphrase-conflict',
+        '--key-file',
+        keyFile.filePath,
+        '--vault-passphrase',
+        '',
+      ],
+      repoDir
+    );
+
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'store',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+        message: 'Provide --key-file or a vault passphrase source, not both',
+      },
+    });
+
+    cleanupTempDirs(storeInput.dir, keyFile.dir);
+  });
+}
+
 function defineVaultInitInlinePassphraseRedactionTest() {
   it('vault init redacts inline passphrases in the start row', () => {
     const vaultRepoDir = createEmptyAgentRepo();
@@ -1569,6 +1611,37 @@ function defineVaultInitInlinePassphraseRedactionTest() {
       passphrase: true,
     });
     expect(result.stdout).not.toContain('supersecret');
+
+    cleanupTempDirs(vaultRepoDir);
+  });
+}
+
+function defineVaultInitInlineRequestWhitelistTest() {
+  it('vault init omits unknown request fields from the start row', () => {
+    const vaultRepoDir = createEmptyAgentRepo();
+    const result = runAgentCli(
+      [
+        'vault',
+        'init',
+        '--cwd',
+        vaultRepoDir,
+        '--request',
+        '{"passphrase":"supersecret","token":"supersecret-token"}',
+      ],
+      vaultRepoDir
+    );
+
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    assertExactStartRow(rows, {
+      cwd: vaultRepoDir,
+      passphrase: true,
+      requestSource: 'inline',
+    });
+    expect(result.stdout).not.toContain('supersecret');
+    expect(result.stdout).not.toContain('supersecret-token');
 
     cleanupTempDirs(vaultRepoDir);
   });
@@ -1609,6 +1682,43 @@ function defineVaultInitPermissionWarningTest() {
   });
 }
 
+function defineVaultInitEmptyInlineAndFileConflictTest() {
+  it('vault init rejects an explicitly empty inline passphrase plus a passphrase file', () => {
+    const vaultRepoDir = createEmptyAgentRepo();
+    const passphraseFile = tempFile(Buffer.from('relay-init-passphrase\n'));
+    const result = runAgentCli(
+      [
+        'vault',
+        'init',
+        '--cwd',
+        vaultRepoDir,
+        '--passphrase',
+        '',
+        '--passphrase-file',
+        passphraseFile.filePath,
+      ],
+      vaultRepoDir
+    );
+
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'vault.init',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+        message: 'Provide --passphrase or --passphrase-file, not both',
+      },
+    });
+
+    cleanupTempDirs(vaultRepoDir, passphraseFile.dir);
+  });
+}
+
 function defineVaultInitEmptyStdinPassphraseTest() {
   it('vault init classifies empty stdin passphrase sources as invalid input', () => {
     const vaultRepoDir = createEmptyAgentRepo();
@@ -1641,6 +1751,35 @@ function defineVaultInitEmptyStdinPassphraseTest() {
   });
 }
 
+function defineVaultInitMissingPassphraseFileTest() {
+  it('vault init classifies a missing passphrase file as invalid input', () => {
+    const vaultRepoDir = createEmptyAgentRepo();
+    const missingPath = path.join(vaultRepoDir, 'missing-passphrase.txt');
+    const result = runAgentCli(
+      ['vault', 'init', '--cwd', vaultRepoDir, '--passphrase-file', missingPath],
+      vaultRepoDir
+    );
+
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'vault.init',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+      },
+    });
+    expect(stderrRows[0].data.message).toContain('passphrase file');
+    expect(stderrRows[0].data.message).toContain('missing-passphrase.txt');
+
+    cleanupTempDirs(vaultRepoDir);
+  });
+}
+
 function defineVaultInitInlineRequestRedactionTest() {
   it('vault init redacts inline request payload secrets in the start row', () => {
     const vaultRepoDir = createEmptyAgentRepo();
@@ -1661,6 +1800,102 @@ function defineVaultInitInlineRequestRedactionTest() {
     expect(result.stdout).not.toContain('supersecret');
 
     cleanupTempDirs(vaultRepoDir);
+  });
+}
+
+function defineVaultRotateEmptyInlineAndFileConflictTest() {
+  it('vault rotate rejects an explicitly empty old passphrase plus a file source', async () => {
+    const fixture = await setupVaultRotateRepo();
+    const oldPassphraseFile = tempFile(Buffer.from(`${fixture.oldPassphrase}\n`));
+    const result = runAgentCli(
+      [
+        'vault',
+        'rotate',
+        '--old-passphrase',
+        '',
+        '--old-passphrase-file',
+        oldPassphraseFile.filePath,
+        '--new-passphrase',
+        fixture.newPassphrase,
+      ],
+      fixture.repoDir
+    );
+
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'vault.rotate',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+        message: 'Provide --old-passphrase or --old-passphrase-file, not both',
+      },
+    });
+
+    cleanupTempDirs(
+      fixture.repoDir,
+      fixture.oldKeyFile.dir,
+      fixture.envelopeInput.dir,
+      fixture.directInput.dir,
+      oldPassphraseFile.dir
+    );
+  });
+}
+
+function defineRestoreMissingKeyFileTest() {
+  it('restore classifies a missing key file as invalid input', () => {
+    const outputDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-missing-key-'));
+    const outputPath = path.join(outputDir, 'restored.bin');
+    const missingKeyPath = path.join(outputDir, 'missing.key');
+    const result = runAgentCli(
+      ['restore', '--slug', 'demo/hello', '--out', outputPath, '--key-file', missingKeyPath],
+      repoDir
+    );
+
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'restore',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+      },
+    });
+    expect(stderrRows[0].data.message).toContain('key file');
+    expect(stderrRows[0].data.message).toContain('missing.key');
+
+    cleanupTempDirs(outputDir);
+  });
+}
+
+function defineTreeMissingManifestFileTest() {
+  it('tree classifies a missing manifest file as invalid input', () => {
+    const missingManifestPath = path.join(repoDir, 'missing-manifest.json');
+    const result = runAgentCli(['tree', '--manifest', missingManifestPath], repoDir);
+
+    expect(result.status).toBe(2);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['end']);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'tree',
+      type: 'error',
+      data: {
+        code: 'INVALID_INPUT',
+      },
+    });
+    expect(stderrRows[0].data.message).toContain('manifest file');
+    expect(stderrRows[0].data.message).toContain('missing-manifest.json');
   });
 }
 
@@ -1740,12 +1975,24 @@ describe(
   defineVaultInitInlinePassphraseRedactionTest
 );
 describe(
+  'agent CLI protocol — vault init (inline request whitelist)',
+  defineVaultInitInlineRequestWhitelistTest
+);
+describe(
   'agent CLI protocol — vault init (permission warning)',
   defineVaultInitPermissionWarningTest
 );
 describe(
+  'agent CLI protocol — vault init (empty inline and file conflict)',
+  defineVaultInitEmptyInlineAndFileConflictTest
+);
+describe(
   'agent CLI protocol — vault init (empty stdin passphrase)',
   defineVaultInitEmptyStdinPassphraseTest
+);
+describe(
+  'agent CLI protocol — vault init (missing passphrase file)',
+  defineVaultInitMissingPassphraseFileTest
 );
 describe(
   'agent CLI protocol — vault init (inline request redaction)',
@@ -1773,5 +2020,21 @@ describe(
 describe(
   'agent CLI protocol — encrypted store (conflicting vault passphrase sources)',
   defineEncryptedStoreConflictingPassphraseSourcesTest
+);
+describe(
+  'agent CLI protocol — store (empty vault passphrase plus key conflict)',
+  defineStoreEmptyVaultPassphraseKeyConflictTest
+);
+describe(
+  'agent CLI protocol — vault rotate (empty inline and file conflict)',
+  defineVaultRotateEmptyInlineAndFileConflictTest
+);
+describe(
+  'agent CLI protocol — restore (missing key file)',
+  defineRestoreMissingKeyFileTest
+);
+describe(
+  'agent CLI protocol — tree command (missing manifest file)',
+  defineTreeMissingManifestFileTest
 );
 describe('agent CLI protocol — needs-input', defineNeedsInputTests);

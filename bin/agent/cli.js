@@ -59,6 +59,8 @@ const START_REDACTED_FIELDS = new Set([
   'vaultPassphraseFile',
 ]);
 
+const LOCAL_INPUT_ERROR_CODES = new Set(['ENOENT', 'EISDIR', 'ENOTDIR', 'EACCES', 'EPERM']);
+
 /**
  * @param {string | undefined} requestSource
  * @returns {'inline' | 'file' | 'stdin' | undefined}
@@ -172,6 +174,22 @@ function sanitizeStartValue(key, value) {
 
 /**
  * @param {Record<string, any>} input
+ * @param {string[]} fields
+ * @returns {Record<string, any>}
+ */
+function selectStartInput(input, fields) {
+  /** @type {Record<string, any>} */
+  const selected = {};
+  for (const field of fields) {
+    if (input[field] !== undefined) {
+      selected[field] = input[field];
+    }
+  }
+  return selected;
+}
+
+/**
+ * @param {Record<string, any>} input
  * @returns {Record<string, any>}
  */
 function buildAgentStartData(input) {
@@ -193,6 +211,59 @@ function buildAgentStartData(input) {
  */
 function writeAgentStart(session, input) {
   session.writeStart(buildAgentStartData(input));
+}
+
+/**
+ * @param {unknown} err
+ * @param {string} label
+ * @param {string} filePath
+ * @returns {Error}
+ */
+function normalizeLocalInputError(err, label, filePath) {
+  const resolvedPath = path.resolve(filePath);
+
+  if (err instanceof SyntaxError) {
+    return invalidInput(`Invalid ${label}: ${resolvedPath}: ${err.message}`, {
+      filePath: resolvedPath,
+    });
+  }
+
+  if (typeof err === 'object' && err && typeof err.code === 'string') {
+    if (LOCAL_INPUT_ERROR_CODES.has(err.code)) {
+      return invalidInput(`Unable to read ${label}: ${resolvedPath}`, {
+        filePath: resolvedPath,
+        errorCode: err.code,
+      });
+    }
+  }
+
+  return err instanceof Error ? err : new Error(String(err));
+}
+
+/**
+ * @param {string} filePath
+ * @param {string} label
+ * @returns {Buffer}
+ */
+function readBinaryInputFile(filePath, label) {
+  try {
+    return readFileSync(filePath);
+  } catch (err) {
+    throw normalizeLocalInputError(err, label, filePath);
+  }
+}
+
+/**
+ * @param {string} filePath
+ * @param {string} label
+ * @returns {string}
+ */
+function readTextInputFile(filePath, label) {
+  try {
+    return readFileSync(path.resolve(filePath), 'utf8');
+  } catch (err) {
+    throw normalizeLocalInputError(err, label, filePath);
+  }
 }
 
 /**
@@ -250,7 +321,7 @@ async function readRequestPayload(request, stdin) {
   if (request === '-') {
     raw = await readStream(stdin);
   } else if (request.startsWith('@')) {
-    raw = readFileSync(path.resolve(request.slice(1)), 'utf8');
+    raw = readTextInputFile(request.slice(1), 'request payload file');
   } else {
     raw = request;
   }
@@ -429,7 +500,7 @@ async function resolveTree(input) {
  * @returns {Buffer}
  */
 function readKeyFile(keyFilePath) {
-  const key = readFileSync(keyFilePath);
+  const key = readBinaryInputFile(keyFilePath, 'key file');
   if (key.length !== 32) {
     throw invalidInput(`Invalid key length: expected 32 bytes, got ${key.length} (${keyFilePath})`);
   }
@@ -465,7 +536,7 @@ async function readAgentPassphraseFile(filePath, { stdin, onWarning } = {}) {
     // Let the file read raise the real error.
   }
 
-  const trimmed = readFileSync(resolvedPath, 'utf8').replace(/\r?\n$/, '');
+  const trimmed = readTextInputFile(resolvedPath, 'passphrase file').replace(/\r?\n$/, '');
   if (!trimmed) {
     throw invalidInput('Passphrase must not be empty');
   }
@@ -478,7 +549,7 @@ async function readAgentPassphraseFile(filePath, { stdin, onWarning } = {}) {
  * @returns {boolean}
  */
 function hasVaultPassphraseSource(input) {
-  return Boolean(input.vaultPassphraseFile || input.vaultPassphrase);
+  return input.vaultPassphraseFile !== undefined || input.vaultPassphrase !== undefined;
 }
 
 /**
@@ -719,12 +790,12 @@ async function parseVaultInitInput(args, stdin) {
  * @param {Record<string, any>} input
  */
 function validateVaultInitInput(input) {
-  if (input.passphrase && input.passphraseFile) {
+  if (input.passphrase !== undefined && input.passphraseFile !== undefined) {
     throw invalidInput('Provide --passphrase or --passphrase-file, not both');
   }
 
   const algorithm = parseKdfAlgorithm(input.algorithm);
-  if (algorithm && !input.passphrase && !input.passphraseFile) {
+  if (algorithm && input.passphrase === undefined && input.passphraseFile === undefined) {
     throw invalidInput(
       'Provide --passphrase <pass> or --passphrase-file <path> when using --algorithm'
     );
@@ -844,16 +915,16 @@ async function parseVaultRotateInput(args, stdin) {
  * @param {Record<string, any>} input
  */
 function validateVaultRotateInput(input) {
-  if (input.oldPassphrase && input.oldPassphraseFile) {
+  if (input.oldPassphrase !== undefined && input.oldPassphraseFile !== undefined) {
     throw invalidInput('Provide --old-passphrase or --old-passphrase-file, not both');
   }
-  if (input.newPassphrase && input.newPassphraseFile) {
+  if (input.newPassphrase !== undefined && input.newPassphraseFile !== undefined) {
     throw invalidInput('Provide --new-passphrase or --new-passphrase-file, not both');
   }
-  if (!input.oldPassphrase && !input.oldPassphraseFile) {
+  if (input.oldPassphrase === undefined && input.oldPassphraseFile === undefined) {
     throw invalidInput('Provide --old-passphrase <pass> or --old-passphrase-file <path>');
   }
-  if (!input.newPassphrase && !input.newPassphraseFile) {
+  if (input.newPassphrase === undefined && input.newPassphraseFile === undefined) {
     throw invalidInput('Provide --new-passphrase <pass> or --new-passphrase-file <path>');
   }
 
@@ -1159,12 +1230,23 @@ async function parseTreeInput(args, stdin) {
  */
 function resolveManifestInput(input) {
   if (typeof input.manifest === 'string') {
-    const raw = readFileSync(path.resolve(input.manifest), 'utf8');
-    return new Manifest(JSON.parse(raw));
+    const manifestPath = input.manifest;
+    const raw = readTextInputFile(manifestPath, 'manifest file');
+    try {
+      return new Manifest(JSON.parse(raw));
+    } catch (err) {
+      throw normalizeLocalInputError(err, 'manifest file', manifestPath);
+    }
   }
 
   if (input.manifest && typeof input.manifest === 'object' && !Array.isArray(input.manifest)) {
-    return new Manifest(input.manifest);
+    try {
+      return new Manifest(input.manifest);
+    } catch (err) {
+      throw invalidInput(
+        `Invalid manifest object: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
   }
 
   throw invalidInput('Provide --manifest <path> or request.manifest');
@@ -1332,7 +1414,21 @@ async function storeCommand(args, stdin, session) {
   const input = await parseStoreInput(args, stdin);
   validateStoreInput(input);
   validateCredentialSources(input);
-  writeAgentStart(session, input);
+  writeAgentStart(
+    session,
+    selectStartInput(input, [
+      'cwd',
+      'file',
+      'slug',
+      'tree',
+      'force',
+      'gzip',
+      'keyFile',
+      'vaultPassphrase',
+      'vaultPassphraseFile',
+      'requestSource',
+    ])
+  );
 
   const cas = createCas(input.cwd || '.');
   const encryptionKey = await resolveStoreEncryptionKey(cas, input, {
@@ -1368,7 +1464,7 @@ async function storeCommand(args, stdin, session) {
 async function treeCommand(args, stdin, session) {
   const input = await parseTreeInput(args, stdin);
   const manifest = resolveManifestInput(input);
-  writeAgentStart(session, input);
+  writeAgentStart(session, selectStartInput(input, ['cwd', 'manifest', 'requestSource']));
   const cas = createCas(input.cwd || '.');
   const treeOid = await cas.createTree({ manifest });
 
@@ -1387,7 +1483,19 @@ async function restoreCommand(args, stdin, session) {
   }
   validateCredentialSources(input);
   const target = resolveTarget(input);
-  writeAgentStart(session, input);
+  writeAgentStart(
+    session,
+    selectStartInput(input, [
+      'cwd',
+      'slug',
+      'oid',
+      'out',
+      'keyFile',
+      'vaultPassphrase',
+      'vaultPassphraseFile',
+      'requestSource',
+    ])
+  );
   const { cas, treeOid } = await resolveTree(target);
   const manifest = await cas.readManifest({ treeOid });
   const encryptionKey = await resolveRestoreEncryptionKey({
@@ -1424,7 +1532,10 @@ async function rotateCommand(args, stdin, session) {
   const input = await parseRotateInput(args, stdin);
   const target = resolveTarget(input);
   validateRotateInput(input);
-  writeAgentStart(session, input);
+  writeAgentStart(
+    session,
+    selectStartInput(input, ['cwd', 'slug', 'oid', 'label', 'oldKeyFile', 'newKeyFile'])
+  );
 
   const { cas, treeOid: previousTreeOid } = await resolveTree(target);
   const manifest = await cas.readManifest({ treeOid: previousTreeOid });
@@ -1471,7 +1582,7 @@ async function inspectCommand(args, stdin, session) {
   );
   const positionalInput = assignPositionals(positionals, []);
   const input = resolveTarget({ ...values, ...positionalInput });
-  writeAgentStart(session, input);
+  writeAgentStart(session, selectStartInput(input, ['cwd', 'slug', 'oid']));
   const { cas, treeOid } = await resolveTree(input);
   const manifest = await cas.readManifest({ treeOid });
   return {
@@ -1499,7 +1610,7 @@ async function verifyCommand(args, stdin, session) {
   );
   const positionalInput = assignPositionals(positionals, []);
   const input = resolveTarget({ ...values, ...positionalInput });
-  writeAgentStart(session, input);
+  writeAgentStart(session, selectStartInput(input, ['cwd', 'slug', 'oid']));
   const { cas, treeOid } = await resolveTree(input);
   const manifest = await cas.readManifest({ treeOid });
   const ok = await cas.verifyIntegrity(manifest);
@@ -1529,7 +1640,7 @@ async function doctorCommand(args, stdin, session) {
     stdin
   );
   assignPositionals(positionals, []);
-  writeAgentStart(session, values);
+  writeAgentStart(session, selectStartInput(values, ['cwd']));
 
   const cas = createCas(values.cwd || '.');
   const report = await inspectVaultHealth(cas);
@@ -1550,7 +1661,10 @@ async function doctorCommand(args, stdin, session) {
 async function recipientAddCommand(args, stdin, session) {
   const input = await parseRecipientAddInput(args, stdin);
   validateRecipientAddInput(input);
-  writeAgentStart(session, input);
+  writeAgentStart(
+    session,
+    selectStartInput(input, ['cwd', 'slug', 'label', 'keyFile', 'existingKeyFile'])
+  );
 
   const target = resolveSlugTarget(input);
   const { cas, treeOid: previousTreeOid, manifest } = await resolveVaultManifestBySlug(target);
@@ -1586,7 +1700,7 @@ async function recipientAddCommand(args, stdin, session) {
 async function recipientRemoveCommand(args, stdin, session) {
   const input = await parseRecipientRemoveInput(args, stdin);
   validateRecipientRemoveInput(input);
-  writeAgentStart(session, input);
+  writeAgentStart(session, selectStartInput(input, ['cwd', 'slug', 'label']));
 
   const target = resolveSlugTarget(input);
   const { cas, treeOid: previousTreeOid, manifest } = await resolveVaultManifestBySlug(target);
@@ -1641,7 +1755,7 @@ async function recipientListCommand(args, stdin, session) {
   assignPositionals(positionals, []);
 
   const input = resolveTarget(values);
-  writeAgentStart(session, input);
+  writeAgentStart(session, selectStartInput(input, ['cwd', 'slug', 'oid']));
   const { cas, treeOid } = await resolveTree(input);
   const manifest = await cas.readManifest({ treeOid });
   const recipients = buildRecipientRows(manifest);
@@ -1665,7 +1779,10 @@ async function recipientListCommand(args, stdin, session) {
 async function vaultInitCommand(args, stdin, session) {
   const input = await parseVaultInitInput(args, stdin);
   validateVaultInitInput(input);
-  writeAgentStart(session, input);
+  writeAgentStart(
+    session,
+    selectStartInput(input, ['cwd', 'algorithm', 'passphrase', 'passphraseFile', 'requestSource'])
+  );
 
   const passphrase = await resolveVaultInitPassphrase(input, input.requestSource, {
     stdin,
@@ -1705,7 +1822,7 @@ async function vaultRemoveCommand(args, stdin, session) {
   if (!values.slug) {
     throw invalidInput('Provide --slug <slug>');
   }
-  writeAgentStart(session, values);
+  writeAgentStart(session, selectStartInput(values, ['cwd', 'slug']));
 
   const cas = createCas(values.cwd || '.');
   const { commitOid, removedTreeOid } = await cas.removeFromVault({ slug: values.slug });
@@ -1725,7 +1842,18 @@ async function vaultRemoveCommand(args, stdin, session) {
 async function vaultRotateCommand(args, stdin, session) {
   const input = await parseVaultRotateInput(args, stdin);
   validateVaultRotateInput(input);
-  writeAgentStart(session, input);
+  writeAgentStart(
+    session,
+    selectStartInput(input, [
+      'cwd',
+      'algorithm',
+      'oldPassphrase',
+      'oldPassphraseFile',
+      'newPassphrase',
+      'newPassphraseFile',
+      'requestSource',
+    ])
+  );
 
   const { oldPassphrase, newPassphrase } = await resolveVaultRotatePassphrases(
     input,
@@ -1766,7 +1894,7 @@ async function vaultListCommand(args, stdin, session) {
     stdin
   );
   assignPositionals(positionals, []);
-  writeAgentStart(session, values);
+  writeAgentStart(session, selectStartInput(values, ['cwd', 'filter']));
 
   const cas = createCas(values.cwd || '.');
   const all = await cas.listVault();
@@ -1796,7 +1924,7 @@ async function vaultInfoCommand(args, stdin, session) {
   if (!input.slug) {
     throw invalidInput('Provide a vault slug');
   }
-  writeAgentStart(session, input);
+  writeAgentStart(session, selectStartInput(input, ['cwd', 'slug', 'encryption']));
 
   const cas = createCas(input.cwd || '.');
   const treeOid = await cas.resolveVaultEntry({ slug: input.slug });
@@ -1834,7 +1962,13 @@ async function vaultHistoryCommand(args, stdin, session) {
   const plumbing = createGitPlumbing({ cwd: values.cwd || '.' });
   const argsForGit = ['log', '--oneline', ContentAddressableStore.VAULT_REF];
   const maxCount = parsePositiveInteger(values['max-count']);
-  writeAgentStart(session, values);
+  writeAgentStart(
+    session,
+    selectStartInput({
+      cwd: values.cwd,
+      maxCount,
+    }, ['cwd', 'maxCount'])
+  );
   if (maxCount !== undefined) {
     argsForGit.push(`-${maxCount}`);
   }
@@ -1866,7 +2000,7 @@ async function vaultStatsCommand(args, stdin, session) {
     stdin
   );
   assignPositionals(positionals, []);
-  writeAgentStart(session, values);
+  writeAgentStart(session, selectStartInput(values, ['cwd', 'filter']));
 
   const cas = createCas(values.cwd || '.');
   const all = await cas.listVault();
