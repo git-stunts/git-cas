@@ -26,3 +26,4 @@ When work begins, the chosen backlog item should move or be copied into
 Current backlog items:
 
 - [RL-001 — Agent Recipient List](./RL-001-agent-recipient-list.md)
+- [RL-002 — Agent Recipient Mutations](./RL-002-agent-recipient-mutations.md)

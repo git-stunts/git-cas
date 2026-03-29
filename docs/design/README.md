@@ -23,3 +23,4 @@ Current design docs:
 - [0002 — M18 Relay: Write Flows and Input Semantics](./0002-m18-relay-write-flows.md)
 - [0003 — M18 Relay: Tree Creation Primitive](./0003-m18-relay-tree-creation.md)
 - [RL-001 — Relay: Agent Recipient List](./RL-001-agent-recipient-list.md)
+- [RL-002 — Relay: Agent Recipient Mutations](./RL-002-agent-recipient-mutations.md)

@@ -16,6 +16,8 @@ const AVAILABLE_COMMANDS = Object.freeze([
   'inspect',
   'verify',
   'doctor',
+  'recipient add',
+  'recipient remove',
   'recipient list',
   'vault list',
   'vault info',
@@ -184,6 +186,7 @@ function normalizeInputAliases(input) {
   return {
     ...input,
     keyFile: input.keyFile ?? input['key-file'],
+    existingKeyFile: input.existingKeyFile ?? input['existing-key-file'],
     vaultPassphrase: input.vaultPassphrase ?? input['vault-passphrase'],
     vaultPassphraseFile: input.vaultPassphraseFile ?? input['vault-passphrase-file'],
   };
@@ -204,6 +207,21 @@ function resolveTarget(input) {
     cwd: input.cwd || '.',
     ...(input.slug ? { slug: input.slug } : {}),
     ...(input.oid ? { oid: input.oid } : {}),
+  };
+}
+
+/**
+ * @param {Record<string, any>} input
+ * @returns {{ cwd: string, slug: string }}
+ */
+function resolveSlugTarget(input) {
+  if (!input.slug) {
+    throw invalidInput('Provide --slug <slug>');
+  }
+
+  return {
+    cwd: input.cwd || '.',
+    slug: input.slug,
   };
 }
 
@@ -471,6 +489,128 @@ function buildStoreOutcome({ input, manifest, treeOid, commitOid }) {
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<Record<string, any>>}
  */
+async function parseRecipientAddInput(args, stdin) {
+  const { values, positionals } = await parseAgentInput(
+    args,
+    {
+      slug: { type: 'string' },
+      label: { type: 'string' },
+      cwd: { type: 'string' },
+      'key-file': { type: 'string' },
+      'existing-key-file': { type: 'string' },
+    },
+    stdin
+  );
+  assignPositionals(positionals, []);
+  return normalizeInputAliases(values);
+}
+
+/**
+ * @param {Record<string, any>} input
+ */
+function validateRecipientAddInput(input) {
+  if (!input.slug) {
+    throw invalidInput('Provide --slug <slug>');
+  }
+  if (!input.label) {
+    throw invalidInput('Provide --label <label>');
+  }
+  if (!input.keyFile) {
+    throw invalidInput('Provide --key-file <path>');
+  }
+  if (!input.existingKeyFile) {
+    throw invalidInput('Provide --existing-key-file <path>');
+  }
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<Record<string, any>>}
+ */
+async function parseRecipientRemoveInput(args, stdin) {
+  const { values, positionals } = await parseAgentInput(
+    args,
+    {
+      slug: { type: 'string' },
+      label: { type: 'string' },
+      cwd: { type: 'string' },
+    },
+    stdin
+  );
+  assignPositionals(positionals, []);
+  return values;
+}
+
+/**
+ * @param {Record<string, any>} input
+ */
+function validateRecipientRemoveInput(input) {
+  if (!input.slug) {
+    throw invalidInput('Provide --slug <slug>');
+  }
+  if (!input.label) {
+    throw invalidInput('Provide --label <label>');
+  }
+}
+
+/**
+ * @param {{ cwd: string, slug: string }} input
+ * @returns {Promise<{
+ *   cas: ContentAddressableStore,
+ *   treeOid: string,
+ *   manifest: import('../../src/domain/value-objects/Manifest.js').default,
+ * }>}
+ */
+async function resolveVaultManifestBySlug(input) {
+  const cas = createCas(input.cwd);
+  const treeOid = await cas.resolveVaultEntry({ slug: input.slug });
+  const manifest = await cas.readManifest({ treeOid });
+  return { cas, treeOid, manifest };
+}
+
+/**
+ * @param {{
+ *   action: 'add' | 'remove',
+ *   slug: string,
+ *   label: string,
+ *   previousTreeOid: string,
+ *   treeOid: string,
+ *   commitOid: string,
+ *   manifest: import('../../src/domain/value-objects/Manifest.js').default,
+ * }} options
+ * @returns {{ data: Record<string, any> }}
+ */
+function buildRecipientMutationOutcome({
+  action,
+  slug,
+  label,
+  previousTreeOid,
+  treeOid,
+  commitOid,
+  manifest,
+}) {
+  const recipients = buildRecipientRows(manifest);
+
+  return {
+    data: {
+      action,
+      slug,
+      label,
+      previousTreeOid,
+      treeOid,
+      commitOid,
+      recipientCount: recipients.length,
+      recipients,
+    },
+  };
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<Record<string, any>>}
+ */
 async function parseTreeInput(args, stdin) {
   const { values, positionals } = await parseAgentInput(
     args,
@@ -575,6 +715,8 @@ const COMMAND_HANDLERS = Object.freeze({
   inspect: inspectCommand,
   verify: verifyCommand,
   doctor: doctorCommand,
+  'recipient.add': recipientAddCommand,
+  'recipient.remove': recipientRemoveCommand,
   'recipient.list': recipientListCommand,
   'vault.list': vaultListCommand,
   'vault.info': vaultInfoCommand,
@@ -783,6 +925,74 @@ async function doctorCommand(args, stdin) {
     exitCode,
     data: { report },
   };
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<{ data: Record<string, any> }>}
+ */
+async function recipientAddCommand(args, stdin) {
+  const input = await parseRecipientAddInput(args, stdin);
+  validateRecipientAddInput(input);
+
+  const target = resolveSlugTarget(input);
+  const { cas, treeOid: previousTreeOid, manifest } = await resolveVaultManifestBySlug(target);
+  const updated = await cas.addRecipient({
+    manifest,
+    existingKey: readKeyFile(input.existingKeyFile),
+    newRecipientKey: readKeyFile(input.keyFile),
+    label: input.label,
+  });
+  const treeOid = await cas.createTree({ manifest: updated });
+  const { commitOid } = await cas.addToVault({
+    slug: input.slug,
+    treeOid,
+    force: true,
+  });
+
+  return buildRecipientMutationOutcome({
+    action: 'add',
+    slug: input.slug,
+    label: input.label,
+    previousTreeOid,
+    treeOid,
+    commitOid,
+    manifest: updated,
+  });
+}
+
+/**
+ * @param {string[]} args
+ * @param {NodeJS.ReadStream} stdin
+ * @returns {Promise<{ data: Record<string, any> }>}
+ */
+async function recipientRemoveCommand(args, stdin) {
+  const input = await parseRecipientRemoveInput(args, stdin);
+  validateRecipientRemoveInput(input);
+
+  const target = resolveSlugTarget(input);
+  const { cas, treeOid: previousTreeOid, manifest } = await resolveVaultManifestBySlug(target);
+  const updated = await cas.removeRecipient({
+    manifest,
+    label: input.label,
+  });
+  const treeOid = await cas.createTree({ manifest: updated });
+  const { commitOid } = await cas.addToVault({
+    slug: input.slug,
+    treeOid,
+    force: true,
+  });
+
+  return buildRecipientMutationOutcome({
+    action: 'remove',
+    slug: input.slug,
+    label: input.label,
+    previousTreeOid,
+    treeOid,
+    commitOid,
+    manifest: updated,
+  });
 }
 
 /**

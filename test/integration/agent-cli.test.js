@@ -211,6 +211,23 @@ async function setupRecipientRepo() {
   };
 }
 
+async function createEnvelopeVaultEntry(
+  repoPath,
+  { slug, recipients, content = envelopeOriginal }
+) {
+  const cas = createCas(repoPath);
+  const input = tempFile(content);
+  const manifest = await cas.storeFile({
+    filePath: input.filePath,
+    slug,
+    recipients,
+  });
+  const createdTreeOid = await cas.createTree({ manifest });
+  await cas.addToVault({ slug, treeOid: createdTreeOid });
+
+  return { treeOid: createdTreeOid, inputDir: input.dir };
+}
+
 async function deriveVaultKey(cas, passphrase) {
   const metadata = await cas.getVaultMetadata();
   if (!metadata?.encryption?.kdf) {
@@ -386,6 +403,197 @@ function defineRecipientListValidationTest() {
         message: 'Provide --slug <slug> or --oid <tree-oid>',
       },
     });
+  });
+}
+
+async function prepareRecipientAddRequestFixture() {
+  const alice = randomBytes(32);
+  const bob = randomBytes(32);
+  const carol = randomBytes(32);
+  const slug = 'env/add-target';
+  const { treeOid: previousTreeOid, inputDir: fixtureInputDir } = await createEnvelopeVaultEntry(
+    recipientRepoDir,
+    {
+      slug,
+      recipients: [
+        { label: 'alice', key: alice },
+        { label: 'bob', key: bob },
+      ],
+    }
+  );
+  const existingKeyFile = tempFile(alice);
+  const newKeyFile = tempFile(carol);
+  const requestPath = path.join(requestDir, 'recipient-add.json');
+  writeFileSync(
+    requestPath,
+    JSON.stringify({
+      slug,
+      label: 'carol',
+      existingKeyFile: existingKeyFile.filePath,
+      keyFile: newKeyFile.filePath,
+    })
+  );
+
+  return {
+    slug,
+    previousTreeOid,
+    fixtureInputDir,
+    existingKeyFile,
+    newKeyFile,
+    requestPath,
+  };
+}
+
+function defineRecipientAddRequestPayloadTest() {
+  it('recipient add supports request payloads and reports vault side effects', async () => {
+    const { slug, previousTreeOid, fixtureInputDir, existingKeyFile, newKeyFile, requestPath } =
+      await prepareRecipientAddRequestFixture();
+
+    const result = runAgentCli(
+      ['recipient', 'add', '--request', `@${requestPath}`],
+      recipientRepoDir
+    );
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    expect(rows.map((row) => row.type)).toEqual(['start', 'result', 'end']);
+    expect(rows[1].data).toMatchObject({
+      action: 'add',
+      slug,
+      label: 'carol',
+      previousTreeOid,
+      recipientCount: 3,
+      recipients: [{ label: 'alice' }, { label: 'bob' }, { label: 'carol' }],
+    });
+    expect(rows[1].data.treeOid).toMatch(/^[0-9a-f]{40}$/);
+    expect(rows[1].data.treeOid).not.toBe(previousTreeOid);
+    expect(rows[1].data.commitOid).toMatch(/^[0-9a-f]{40}$/);
+
+    rmSync(fixtureInputDir, { recursive: true, force: true });
+    rmSync(existingKeyFile.dir, { recursive: true, force: true });
+    rmSync(newKeyFile.dir, { recursive: true, force: true });
+  });
+}
+
+function defineRecipientRemoveSuccessTest() {
+  it('recipient remove reports the new tree, commit, and remaining recipients', async () => {
+    const alice = randomBytes(32);
+    const bob = randomBytes(32);
+    const slug = 'env/remove-target';
+    const { treeOid: previousTreeOid, inputDir: fixtureInputDir } = await createEnvelopeVaultEntry(
+      recipientRepoDir,
+      {
+        slug,
+        recipients: [
+          { label: 'alice', key: alice },
+          { label: 'bob', key: bob },
+        ],
+      }
+    );
+
+    const result = runAgentCli(
+      ['recipient', 'remove', '--slug', slug, '--label', 'bob'],
+      recipientRepoDir
+    );
+    expect(result.status).toBe(0);
+    expect(`${result.stderr ?? ''}`).toBe('');
+
+    const rows = parseJsonl(result.stdout);
+    expect(rows[1].data).toMatchObject({
+      action: 'remove',
+      slug,
+      label: 'bob',
+      previousTreeOid,
+      recipientCount: 1,
+      recipients: [{ label: 'alice' }],
+    });
+    expect(rows[1].data.treeOid).toMatch(/^[0-9a-f]{40}$/);
+    expect(rows[1].data.treeOid).not.toBe(previousTreeOid);
+    expect(rows[1].data.commitOid).toMatch(/^[0-9a-f]{40}$/);
+
+    rmSync(fixtureInputDir, { recursive: true, force: true });
+  });
+}
+
+function defineRecipientAddDuplicateLabelTest() {
+  it('recipient add surfaces duplicate-label failures as structured protocol errors', async () => {
+    const alice = randomBytes(32);
+    const slug = 'env/add-duplicate';
+    const { inputDir: fixtureInputDir } = await createEnvelopeVaultEntry(recipientRepoDir, {
+      slug,
+      recipients: [{ label: 'alice', key: alice }],
+    });
+    const existingKeyFile = tempFile(alice);
+    const newKeyFile = tempFile(randomBytes(32));
+
+    const result = runAgentCli(
+      [
+        'recipient',
+        'add',
+        '--slug',
+        slug,
+        '--label',
+        'alice',
+        '--existing-key-file',
+        existingKeyFile.filePath,
+        '--key-file',
+        newKeyFile.filePath,
+      ],
+      recipientRepoDir
+    );
+    expect(result.status).toBe(1);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'recipient.add',
+      type: 'error',
+      data: {
+        code: 'RECIPIENT_ALREADY_EXISTS',
+        message: 'Recipient "alice" already exists',
+      },
+    });
+
+    rmSync(fixtureInputDir, { recursive: true, force: true });
+    rmSync(existingKeyFile.dir, { recursive: true, force: true });
+    rmSync(newKeyFile.dir, { recursive: true, force: true });
+  });
+}
+
+function defineRecipientRemoveLastRecipientTest() {
+  it('recipient remove surfaces last-recipient protection as a structured protocol error', async () => {
+    const alice = randomBytes(32);
+    const slug = 'env/remove-last';
+    const { inputDir: fixtureInputDir } = await createEnvelopeVaultEntry(recipientRepoDir, {
+      slug,
+      recipients: [{ label: 'alice', key: alice }],
+    });
+
+    const result = runAgentCli(
+      ['recipient', 'remove', '--slug', slug, '--label', 'alice'],
+      recipientRepoDir
+    );
+    expect(result.status).toBe(1);
+
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows).toHaveLength(1);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'recipient.remove',
+      type: 'error',
+      data: {
+        code: 'CANNOT_REMOVE_LAST_RECIPIENT',
+        message: 'Cannot remove the last recipient',
+      },
+    });
+
+    rmSync(fixtureInputDir, { recursive: true, force: true });
   });
 }
 
@@ -655,6 +863,19 @@ describe(
 );
 describe('agent CLI protocol — recipient list (plaintext)', defineRecipientListPlaintextTest);
 describe('agent CLI protocol — recipient list (validation)', defineRecipientListValidationTest);
+describe(
+  'agent CLI protocol — recipient add (request payload)',
+  defineRecipientAddRequestPayloadTest
+);
+describe('agent CLI protocol — recipient remove (success)', defineRecipientRemoveSuccessTest);
+describe(
+  'agent CLI protocol — recipient add (duplicate label)',
+  defineRecipientAddDuplicateLabelTest
+);
+describe(
+  'agent CLI protocol — recipient remove (last recipient)',
+  defineRecipientRemoveLastRecipientTest
+);
 describe('agent CLI protocol — request and validation', defineRequestAndValidationTests);
 describe('agent CLI protocol — store write flow', definePlainWriteFlowTests);
 describe('agent CLI protocol — tree command (file path)', defineTreeCommandFilePathTest);

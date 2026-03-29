@@ -75,6 +75,7 @@ Future Relay cycle docs should use the `RL-...` naming model.
 Active Relay cycle docs now using that model:
 
 - [RL-001 — Relay: Agent Recipient List](../design/RL-001-agent-recipient-list.md)
+- [RL-002 — Relay: Agent Recipient Mutations](../design/RL-002-agent-recipient-mutations.md)
 
 ## Explicit Non-Goals
 
