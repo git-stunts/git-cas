@@ -43,19 +43,28 @@ const RUNTIME_CMD = globalThis.Bun
 
 /**
  * Run a CLI command and capture stdout/stderr without routing through /bin/sh.
+ *
+ * @param {string[]} args
+ * @param {string} cwd
+ * @param {{ env?: Record<string, string | undefined> }} [options]
  */
-function runCli(args, cwd) {
+function runCli(args, cwd, options = {}) {
   return spawnSync(RUNTIME_CMD[0], [...RUNTIME_CMD.slice(1), ...args, '--cwd', cwd], {
     encoding: 'utf8',
+    env: { ...process.env, ...(options.env || {}) },
     timeout: 90_000,
   });
 }
 
 /**
  * Run a CLI command, returning trimmed stdout.
+ *
+ * @param {string[]} args
+ * @param {string} cwd
+ * @param {{ env?: Record<string, string | undefined> }} [options]
  */
-function cli(args, cwd) {
-  const result = runCli(args, cwd);
+function cli(args, cwd, options = {}) {
+  const result = runCli(args, cwd, options);
 
   if (result.error) {
     throw result.error;
@@ -221,7 +230,7 @@ describe('vault CLI — restore, remove, re-add', () => {
 // ---------------------------------------------------------------------------
 // Encrypted vault CLI workflow
 // ---------------------------------------------------------------------------
-describe('vault CLI — encrypted workflow', () => {
+describe('vault CLI — encrypted workflow', () => { // eslint-disable-line max-lines-per-function
   let encRepoDir;
   const encOriginal = randomBytes(2048);
   let encInputFile;
@@ -242,6 +251,30 @@ describe('vault CLI — encrypted workflow', () => {
   it('vault init --vault-passphrase prints commit OID', () => {
     const out = cli(['vault', 'init', '--vault-passphrase', passphrase], encRepoDir);
     expect(out).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it('vault rotate rejects whitespace-only old passphrases', () => {
+    const result = runCli(
+      ['vault', 'rotate', '--old-passphrase', '   ', '--new-passphrase', 'next-passphrase'],
+      encRepoDir,
+    );
+
+    expect(result.status).toBe(1);
+    expect(`${result.stderr ?? ''}`).toContain(
+      'Old passphrase required (--old-passphrase or --old-passphrase-file)',
+    );
+  });
+
+  it('vault rotate rejects whitespace-only new passphrases', () => {
+    const result = runCli(
+      ['vault', 'rotate', '--old-passphrase', passphrase, '--new-passphrase', '   '],
+      encRepoDir,
+    );
+
+    expect(result.status).toBe(1);
+    expect(`${result.stderr ?? ''}`).toContain(
+      'New passphrase required (--new-passphrase or --new-passphrase-file)',
+    );
   });
 
   it('encrypted store --tree --vault-passphrase prints tree OID', () => {
@@ -303,6 +336,16 @@ describe('vault CLI — rotate', () => { // eslint-disable-line max-lines-per-fu
       ['store', rotateInputFile, '--tree', '--slug', 'rotate/asset', '--recipient', `alice:${oldKeyFile}`],
       rotateRepoDir,
     );
+    expect(oid).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it('store --recipient ignores ambient vault passphrase env state', () => {
+    const oid = cli(
+      ['store', rotateInputFile, '--tree', '--slug', 'rotate/env-asset', '--recipient', `bob:${oldKeyFile}`],
+      rotateRepoDir,
+      { env: { GIT_CAS_PASSPHRASE: 'ambient-secret' } },
+    );
+
     expect(oid).toMatch(/^[0-9a-f]{40}$/);
   });
 

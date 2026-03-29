@@ -115,6 +115,17 @@ function hasPassphraseSource(opts) {
 }
 
 /**
+ * Returns true when an explicit non-interactive passphrase source exists on the CLI.
+ * Does not consider ambient environment variables.
+ *
+ * @param {Record<string, any>} opts
+ * @returns {boolean}
+ */
+function hasExplicitPassphraseSource(opts) {
+  return Boolean(opts.vaultPassphraseFile || opts.vaultPassphrase);
+}
+
+/**
  * Resolve passphrase from (in priority order):
  * 1. --vault-passphrase-file <path>
  * 2. --vault-passphrase <pass>
@@ -281,7 +292,7 @@ program
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {string} */ file, /** @type {Record<string, any>} */ opts) => {
-      if (opts.recipient && (opts.keyFile || hasPassphraseSource(opts))) {
+      if (opts.recipient && (opts.keyFile || hasExplicitPassphraseSource(opts))) {
         throw new Error(
           'Provide --key-file or a vault passphrase source (--vault-passphrase, --vault-passphrase-file, GIT_CAS_PASSPHRASE), or --recipient — not both'
         );
@@ -700,10 +711,10 @@ async function resolveRotatePassphrases(opts) {
   const newPassphrase = opts.newPassphraseFile
     ? await readPassphraseFile(opts.newPassphraseFile)
     : opts.newPassphrase;
-  if (!oldPassphrase) {
+  if (!oldPassphrase || !oldPassphrase.trim()) {
     throw new Error('Old passphrase required (--old-passphrase or --old-passphrase-file)');
   }
-  if (!newPassphrase) {
+  if (!newPassphrase || !newPassphrase.trim()) {
     throw new Error('New passphrase required (--new-passphrase or --new-passphrase-file)');
   }
   return { oldPassphrase, newPassphrase };

@@ -509,6 +509,7 @@ function readKeyFile(keyFilePath) {
 
 /**
  * @param {string} filePath
+ * @param {{ stdin?: NodeJS.ReadStream, onWarning?: (warning: Record<string, any>) => void }} [options]
  * @returns {Promise<string>}
  */
 async function readAgentPassphraseFile(filePath, { stdin, onWarning } = {}) {
@@ -887,7 +888,7 @@ function resolveInlinePassphrase(label, value) {
 }
 
 /**
- * @param {Record<string, any>} input
+ * @param {string[]} args
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<Record<string, any>>}
  */
