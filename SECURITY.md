@@ -2,6 +2,9 @@
 
 This document describes the security architecture, cryptographic design, and limitations of git-cas's content-addressable storage system with optional encryption.
 
+For explicit attacker models, trust boundaries, protected assets, exposed
+metadata, and non-goals, see [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md).
+
 ## Table of Contents
 
 1. [Operational Limits](#operational-limits)
@@ -31,27 +34,32 @@ git-cas tracks encryption operations via `encryptionCount` in vault metadata. Wh
 
 When using passphrase-based encryption, git-cas derives keys using PBKDF2 or scrypt.
 
-| Algorithm | Recommended Parameters | Notes |
-|-----------|----------------------|-------|
-| PBKDF2 | iterations ≥ 600,000 (SHA-256) | OWASP 2024 recommendation |
-| scrypt | N=2^17, r=8, p=1 | ~128 MiB memory |
+| Algorithm | Recommended Parameters         | Notes                     |
+| --------- | ------------------------------ | ------------------------- |
+| PBKDF2    | iterations ≥ 600,000 (SHA-256) | OWASP 2024 recommendation |
+| scrypt    | N=2^17, r=8, p=1               | ~128 MiB memory           |
 
 Higher iteration counts / cost parameters increase resistance to brute-force attacks but also increase the time to derive a key. Choose parameters based on your threat model and latency tolerance.
 
 ### Passphrase Entropy Recommendations
 
-| Entropy (bits) | Example | Brute-Force Resistance |
-|---------------|---------|----------------------|
-| < 40 | `password123` | Trivially crackable |
-| 40–60 | 4–5 random dictionary words | Weak against GPU attacks |
-| 60–80 | 6+ random dictionary words or 12+ mixed characters | Moderate |
-| > 80 | 8+ random dictionary words or 16+ mixed characters | Strong |
+| Entropy (bits) | Example                                            | Brute-Force Resistance   |
+| -------------- | -------------------------------------------------- | ------------------------ |
+| < 40           | `password123`                                      | Trivially crackable      |
+| 40–60          | 4–5 random dictionary words                        | Weak against GPU attacks |
+| 60–80          | 6+ random dictionary words or 12+ mixed characters | Moderate                 |
+| > 80           | 8+ random dictionary words or 16+ mixed characters | Strong                   |
 
 **Minimum recommendation**: 80+ bits of entropy for vault passphrases. Use a random passphrase generator (e.g., Diceware) rather than human-chosen passwords.
 
 ---
 
 ## Threat Model
+
+For the canonical threat model, see
+[docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md).
+
+This section is the short-form summary.
 
 ### What git-cas Protects Against
 
@@ -180,6 +188,7 @@ _validateKey(key) {
 **Required length**: Exactly 32 bytes (256 bits)
 
 If validation fails:
+
 - **INVALID_KEY_TYPE**: Key is not a Buffer or Uint8Array
 - **INVALID_KEY_LENGTH**: Key is not 32 bytes
 
@@ -211,15 +220,18 @@ When storing content with encryption enabled:
 ### Step-by-Step: `store({ source, slug, filename, encryptionKey })`
 
 **Step 1: Key Validation**
+
 ```javascript
 if (encryptionKey) {
   this._validateKey(encryptionKey);
 }
 ```
+
 - If `encryptionKey` is provided, validate it is a 32-byte Buffer/Uint8Array.
 - If validation fails, throw `CasError` with code `INVALID_KEY_TYPE` or `INVALID_KEY_LENGTH`.
 
 **Step 2: Initialize Manifest Data**
+
 ```javascript
 const manifestData = {
   slug,
@@ -230,9 +242,11 @@ const manifestData = {
 ```
 
 **Step 3: Create Encryption Stream**
+
 ```javascript
 const { encrypt, finalize } = this.crypto.createEncryptionStream(encryptionKey);
 ```
+
 - `createEncryptionStream()` generates a 12-byte random nonce.
 - Creates an `aes-256-gcm` cipher with the key and nonce.
 - Returns:
@@ -240,18 +254,22 @@ const { encrypt, finalize } = this.crypto.createEncryptionStream(encryptionKey);
   - `finalize`: a function that returns encryption metadata after encryption completes
 
 **Step 4: Chunk and Store Encrypted Stream**
+
 ```javascript
 await this._chunkAndStore(encrypt(source), manifestData);
 ```
+
 - The `encrypt(source)` async generator reads from the source, encrypts data incrementally, and yields encrypted buffers.
 - `_chunkAndStore()` buffers encrypted data to 256KB boundaries.
 - Each 256KB chunk is SHA-256 hashed and written as a Git blob.
 - Chunk metadata (index, size, digest, blob OID) is appended to `manifestData.chunks`.
 
 **Step 5: Finalize Encryption Metadata**
+
 ```javascript
 manifestData.encryption = finalize();
 ```
+
 - `finalize()` retrieves the GCM authentication tag.
 - Returns an object:
   ```javascript
@@ -265,6 +283,7 @@ manifestData.encryption = finalize();
 - This metadata is stored in the manifest's `encryption` field.
 
 **Step 6: Create Manifest**
+
 ```javascript
 const manifest = new Manifest(manifestData);
 ```
@@ -295,6 +314,7 @@ When restoring content with encryption:
 ### Step-by-Step: `restore({ manifest, encryptionKey })`
 
 **Step 1: Key Validation**
+
 ```javascript
 if (encryptionKey) {
   this._validateKey(encryptionKey);
@@ -302,20 +322,21 @@ if (encryptionKey) {
 ```
 
 **Step 2: Check if Key is Required**
+
 ```javascript
 if (manifest.encryption?.encrypted && !encryptionKey) {
-  throw new CasError(
-    'Encryption key required to restore encrypted content',
-    'MISSING_KEY',
-  );
+  throw new CasError('Encryption key required to restore encrypted content', 'MISSING_KEY');
 }
 ```
+
 - If the manifest indicates content is encrypted but no key is provided, throw `MISSING_KEY`.
 
 **Step 3: Read and Verify Chunks**
+
 ```javascript
 const chunks = await this._readAndVerifyChunks(manifest.chunks);
 ```
+
 - For each chunk in the manifest:
   1. Read the Git blob by OID.
   2. Compute SHA-256 digest of the blob.
@@ -324,14 +345,17 @@ const chunks = await this._readAndVerifyChunks(manifest.chunks);
   5. If match, append blob to `buffers` array.
 
 **Step 4: Concatenate Encrypted Chunks**
+
 ```javascript
 let buffer = Buffer.concat(chunks);
 ```
+
 - All encrypted chunk buffers are concatenated into a single ciphertext buffer.
 
 **CRITICAL**: This operation loads the entire ciphertext into memory. For large files, this may cause memory exhaustion. See [Limitations](#limitations).
 
 **Step 5: Decrypt Buffer**
+
 ```javascript
 if (manifest.encryption?.encrypted) {
   buffer = await this.decrypt({
@@ -341,6 +365,7 @@ if (manifest.encryption?.encrypted) {
   });
 }
 ```
+
 - Extract nonce and tag from `manifest.encryption`.
 - Create `aes-256-gcm` decipher with key and nonce.
 - Set authentication tag via `setAuthTag()`.
@@ -355,6 +380,7 @@ if (manifest.encryption?.encrypted) {
 - If `decipher.final()` throws (due to tag mismatch or corrupted ciphertext), catch and re-throw as `CasError` with code `INTEGRITY_ERROR`.
 
 **Step 6: Return Plaintext**
+
 ```javascript
 return { buffer, bytesWritten: buffer.length };
 ```
@@ -414,10 +440,12 @@ let buffer = Buffer.concat(chunks);
 ```
 
 **Impact**:
+
 - For large encrypted files (e.g., 1GB+), this can cause memory exhaustion.
 - Node.js has a maximum buffer size of ~2GB (depending on architecture).
 
 **Workaround**:
+
 - Avoid encrypting extremely large files with git-cas.
 - If large encrypted files are required, implement application-level chunking (e.g., split a 10GB file into 10 separate 1GB files before storing).
 
@@ -428,6 +456,7 @@ let buffer = Buffer.concat(chunks);
 **Issue**: AES-256-GCM decryption is currently performed on the entire ciphertext as a single operation. The authentication tag is verified only at the end of decryption.
 
 **Impact**:
+
 - Cannot stream decrypted plaintext to the caller incrementally.
 - Cannot detect tampering until the entire ciphertext is processed.
 
@@ -441,6 +470,7 @@ let buffer = Buffer.concat(chunks);
 - `rotateVaultPassphrase({ oldPassphrase, newPassphrase })` — rotates all envelope-encrypted vault entries atomically.
 
 **Limitations**:
+
 - **Legacy (non-envelope) encrypted content** does not support rotation. You must restore with the old key and re-store with envelope encryption.
 - **Rotation does not invalidate old ciphertext**: The encrypted data blobs remain unchanged in the Git object database. An attacker who has both the old wrapped DEK (from a prior manifest commit) and the old KEK can still decrypt. To fully revoke access, the old manifest commits must be unreachable (e.g., via vault history squash + `git gc`).
 
@@ -451,25 +481,30 @@ let buffer = Buffer.concat(chunks);
 **Issue**: While 96-bit nonces have negligible collision probability for practical use cases, the GCM security proof degrades after ~2^32 encryptions with the same key.
 
 **Impact**:
+
 - If the same key is used to encrypt more than 2^32 files, nonce reuse becomes more likely.
 - Nonce reuse with AES-GCM is catastrophic: it allows attackers to recover the plaintext and authentication key.
 
 **Mitigation**:
+
 - Rotate encryption keys after a reasonable number of operations (e.g., every 1 million encryptions, or every 90 days, whichever comes first).
 
 ### 5. Metadata Not Encrypted
 
 **Issue**: The following metadata is stored in plaintext in the manifest:
+
 - `slug` (file identifier)
 - `filename`
 - `size` (total size of encrypted content)
 - `chunks` array (chunk indices, sizes, digests, blob OIDs)
 
 **Impact**:
+
 - An attacker with access to the repository can infer file structure, sizes, and access patterns.
 - Chunk digests may leak information about plaintext content if chunks are small or predictable.
 
 **Mitigation**:
+
 - If metadata privacy is required, implement application-level encryption of the entire manifest before storing it as a Git blob.
 
 ### 6. No Protection Against Replay or Rollback Attacks
@@ -477,10 +512,12 @@ let buffer = Buffer.concat(chunks);
 **Issue**: git-cas does not include versioning or timestamps in the encryption metadata.
 
 **Impact**:
+
 - An attacker can replace a newer manifest tree with an older one (rollback attack).
 - An attacker can duplicate encrypted content across different slugs (replay attack).
 
 **Mitigation**:
+
 - Use Git commit signing to authenticate manifest trees.
 - Implement application-level versioning or monotonic counters.
 
@@ -511,6 +548,7 @@ git gc --aggressive --prune=now
 ```
 
 **Important**:
+
 - `git gc` only removes objects that are not reachable from any ref (branch, tag, commit).
 - If a manifest tree is still referenced (e.g., in a commit or reflog), its chunks will NOT be pruned.
 
@@ -519,6 +557,7 @@ git gc --aggressive --prune=now
 1. **Deleted content may persist**: If you "delete" a file by removing its manifest reference, the encrypted chunks remain in `.git/objects/` until `git gc` prunes them.
 
 2. **Reflog prevents immediate pruning**: Git's reflog keeps references to old commits for 90 days by default. To prune immediately:
+
    ```bash
    git reflog expire --expire=now --all
    git gc --prune=now
@@ -545,69 +584,77 @@ git-cas defines the following error codes for security-related operations:
 ### `INTEGRITY_ERROR`
 
 **Thrown when**:
+
 - A chunk's SHA-256 digest does not match the stored digest in the manifest.
 - AES-256-GCM authentication tag verification fails during decryption.
 
 **Example**:
+
 ```javascript
-throw new CasError(
-  'Chunk 2 integrity check failed',
-  'INTEGRITY_ERROR',
-  { chunkIndex: 2, expected: 'abc123...', actual: 'def456...' },
-);
+throw new CasError('Chunk 2 integrity check failed', 'INTEGRITY_ERROR', {
+  chunkIndex: 2,
+  expected: 'abc123...',
+  actual: 'def456...',
+});
 ```
 
 **Possible causes**:
+
 - Corruption of Git objects on disk.
 - Tampering with chunk blobs.
 - Wrong encryption key used for decryption (GCM tag mismatch).
 - Incomplete or interrupted writes.
 
 **Recommended action**:
+
 - If this occurs during `restore()`, the file is corrupted and cannot be recovered without a backup.
 - If this occurs during `verifyIntegrity()`, investigate storage hardware or Git repository health.
 
 ### `INVALID_KEY_LENGTH`
 
 **Thrown when**:
+
 - An encryption key is provided but is not exactly 32 bytes (256 bits).
 
 **Example**:
+
 ```javascript
-throw new CasError(
-  'Encryption key must be 32 bytes, got 16',
-  'INVALID_KEY_LENGTH',
-  { expected: 32, actual: 16 },
-);
+throw new CasError('Encryption key must be 32 bytes, got 16', 'INVALID_KEY_LENGTH', {
+  expected: 32,
+  actual: 16,
+});
 ```
 
 **Possible causes**:
+
 - Incorrect key generation (e.g., using 128-bit AES key instead of 256-bit).
 - Key truncation during storage or transmission.
 - Encoding issues (e.g., base64 decoding resulting in wrong length).
 
 **Recommended action**:
+
 - Verify key generation logic uses `crypto.randomBytes(32)` or equivalent.
 - Check key storage/retrieval does not corrupt or truncate the key.
 
 ### `INVALID_KEY_TYPE`
 
 **Thrown when**:
+
 - An encryption key is provided but is not a `Buffer` or `Uint8Array`.
 
 **Example**:
+
 ```javascript
-throw new CasError(
-  'Encryption key must be a Buffer or Uint8Array',
-  'INVALID_KEY_TYPE',
-);
+throw new CasError('Encryption key must be a Buffer or Uint8Array', 'INVALID_KEY_TYPE');
 ```
 
 **Possible causes**:
+
 - Passing a string instead of a Buffer (e.g., `"my-secret-key"` instead of `Buffer.from("my-secret-key")`).
 - Passing a base64-encoded string without decoding it first.
 
 **Recommended action**:
+
 - Ensure keys are stored as `Buffer` or `Uint8Array`.
 - If keys are stored as hex/base64 strings, decode them before passing to git-cas:
   ```javascript
@@ -617,44 +664,48 @@ throw new CasError(
 ### `MISSING_KEY`
 
 **Thrown when**:
+
 - A manifest indicates content is encrypted (`manifest.encryption.encrypted === true`) but no `encryptionKey` is provided to `restore()`.
 
 **Example**:
+
 ```javascript
-throw new CasError(
-  'Encryption key required to restore encrypted content',
-  'MISSING_KEY',
-);
+throw new CasError('Encryption key required to restore encrypted content', 'MISSING_KEY');
 ```
 
 **Possible causes**:
+
 - Application logic error: Forgot to pass key to `restore()`.
 - Key was lost or not available in the current environment.
 
 **Recommended action**:
+
 - Verify the encryption key is available and passed to `restore()`.
 - If the key is lost, the content is permanently inaccessible.
 
 ### `RESTORE_TOO_LARGE`
 
 **Thrown when**:
+
 - An encrypted or compressed restore would exceed the configured `maxRestoreBufferSize` limit.
 - The post-decompression size exceeds the limit (checked after gunzip).
 
 **Example**:
+
 ```javascript
-throw new CasError(
-  'Restore buffer exceeds limit',
-  'RESTORE_TOO_LARGE',
-  { size: 1073741824, limit: 536870912 },
-);
+throw new CasError('Restore buffer exceeds limit', 'RESTORE_TOO_LARGE', {
+  size: 1073741824,
+  limit: 536870912,
+});
 ```
 
 **Possible causes**:
+
 - The asset is larger than the configured buffer limit (default 512 MiB).
 - A compressed asset inflates beyond the limit after decompression.
 
 **Recommended action**:
+
 - Increase `maxRestoreBufferSize` in the `CasService` constructor or `.casrc`.
 - For very large assets, consider storing without encryption to enable streaming restore.
 
@@ -663,23 +714,27 @@ throw new CasError(
 ### `ENCRYPTION_BUFFER_EXCEEDED`
 
 **Thrown when**:
+
 - Web Crypto AES-GCM encryption is attempted on data exceeding the configured `maxEncryptionBufferSize`.
 - Web Crypto is a one-shot API — it cannot stream, so the entire plaintext must fit in memory.
 
 **Example**:
+
 ```javascript
 throw new CasError(
   'Streaming encryption buffered 1073741824 bytes (limit: 536870912)...',
   'ENCRYPTION_BUFFER_EXCEEDED',
-  { accumulated: 1073741824, limit: 536870912 },
+  { accumulated: 1073741824, limit: 536870912 }
 );
 ```
 
 **Possible causes**:
+
 - Large chunks combined with `WebCryptoAdapter` (used in Bun/Deno).
 - `NodeCryptoAdapter` uses true streaming and is not affected by this limit.
 
 **Recommended action**:
+
 - Increase `maxEncryptionBufferSize` in the `WebCryptoAdapter` constructor.
 - Switch to `NodeCryptoAdapter` if streaming encryption is needed.
 - Split the asset before storing, or store without encryption on the Web Crypto path for very large files.

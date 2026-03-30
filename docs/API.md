@@ -20,7 +20,7 @@ The main facade class providing high-level API for content-addressable storage.
 ### Constructor
 
 ```javascript
-new ContentAddressableStore(options)
+new ContentAddressableStore(options);
 ```
 
 **Parameters:**
@@ -47,7 +47,7 @@ const cas = new ContentAddressableStore({ plumbing });
 #### createJson
 
 ```javascript
-ContentAddressableStore.createJson({ plumbing, chunkSize, policy })
+ContentAddressableStore.createJson({ plumbing, chunkSize, policy });
 ```
 
 Creates a CAS instance with JSON codec.
@@ -69,7 +69,7 @@ const cas = ContentAddressableStore.createJson({ plumbing });
 #### createCbor
 
 ```javascript
-ContentAddressableStore.createCbor({ plumbing, chunkSize, policy })
+ContentAddressableStore.createCbor({ plumbing, chunkSize, policy });
 ```
 
 Creates a CAS instance with CBOR codec.
@@ -93,7 +93,7 @@ const cas = ContentAddressableStore.createCbor({ plumbing });
 #### getService
 
 ```javascript
-await cas.getService()
+await cas.getService();
 ```
 
 Lazily initializes and returns the underlying CasService instance.
@@ -109,7 +109,7 @@ const service = await cas.getService();
 #### store
 
 ```javascript
-await cas.store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression })
+await cas.store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression });
 ```
 
 Stores content from an async iterable source.
@@ -143,14 +143,22 @@ const stream = createReadStream('/path/to/file.txt');
 const manifest = await cas.store({
   source: stream,
   slug: 'my-asset',
-  filename: 'file.txt'
+  filename: 'file.txt',
 });
 ```
 
 #### storeFile
 
 ```javascript
-await cas.storeFile({ filePath, slug, filename, encryptionKey, passphrase, kdfOptions, compression })
+await cas.storeFile({
+  filePath,
+  slug,
+  filename,
+  encryptionKey,
+  passphrase,
+  kdfOptions,
+  compression,
+});
 ```
 
 Convenience method that opens a file and stores it.
@@ -174,14 +182,14 @@ Convenience method that opens a file and stores it.
 ```javascript
 const manifest = await cas.storeFile({
   filePath: '/path/to/file.txt',
-  slug: 'my-asset'
+  slug: 'my-asset',
 });
 ```
 
 #### restore
 
 ```javascript
-await cas.restore({ manifest, encryptionKey, passphrase })
+await cas.restore({ manifest, encryptionKey, passphrase });
 ```
 
 Restores content from a manifest and returns the buffer.
@@ -213,7 +221,7 @@ const { buffer, bytesWritten } = await cas.restore({ manifest });
 #### restoreFile
 
 ```javascript
-await cas.restoreFile({ manifest, encryptionKey, passphrase, outputPath })
+await cas.restoreFile({ manifest, encryptionKey, passphrase, outputPath });
 ```
 
 Restores content from a manifest and writes it to a file.
@@ -234,14 +242,14 @@ Restores content from a manifest and writes it to a file.
 ```javascript
 await cas.restoreFile({
   manifest,
-  outputPath: '/path/to/output.txt'
+  outputPath: '/path/to/output.txt',
 });
 ```
 
 #### createTree
 
 ```javascript
-await cas.createTree({ manifest })
+await cas.createTree({ manifest });
 ```
 
 Creates a Git tree object from a manifest.
@@ -261,7 +269,7 @@ const treeOid = await cas.createTree({ manifest });
 #### verifyIntegrity
 
 ```javascript
-await cas.verifyIntegrity(manifest)
+await cas.verifyIntegrity(manifest);
 ```
 
 Verifies the integrity of stored content by re-hashing all chunks.
@@ -284,7 +292,7 @@ if (!isValid) {
 #### readManifest
 
 ```javascript
-await cas.readManifest({ treeOid })
+await cas.readManifest({ treeOid });
 ```
 
 Reads a Git tree, locates the manifest entry, decodes it, and returns a validated Manifest value object.
@@ -306,14 +314,14 @@ Reads a Git tree, locates the manifest entry, decodes it, and returns a validate
 ```javascript
 const treeOid = 'a1b2c3d4e5f6...';
 const manifest = await cas.readManifest({ treeOid });
-console.log(manifest.slug);      // "photos/vacation"
-console.log(manifest.chunks);    // array of Chunk objects
+console.log(manifest.slug); // "photos/vacation"
+console.log(manifest.chunks); // array of Chunk objects
 ```
 
 #### deleteAsset
 
 ```javascript
-await cas.deleteAsset({ treeOid })
+await cas.deleteAsset({ treeOid });
 ```
 
 Returns logical deletion metadata for an asset. Does not perform any destructive Git operations — the caller must remove refs, and physical deletion requires `git gc --prune`.
@@ -340,7 +348,7 @@ console.log(`Asset "${slug}" has ${chunksOrphaned} chunks to clean up`);
 #### deriveKey
 
 ```javascript
-await cas.deriveKey(options)
+await cas.deriveKey(options);
 ```
 
 Derives an encryption key from a passphrase using PBKDF2 or scrypt.
@@ -382,7 +390,7 @@ const manifest = await cas.storeFile({
 #### findOrphanedChunks
 
 ```javascript
-await cas.findOrphanedChunks({ treeOids })
+await cas.findOrphanedChunks({ treeOids });
 ```
 
 Aggregates all chunk blob OIDs referenced across multiple assets and returns a report. Analysis only — does not delete or modify anything.
@@ -405,7 +413,7 @@ Aggregates all chunk blob OIDs referenced across multiple assets and returns a r
 
 ```javascript
 const { referenced, total } = await cas.findOrphanedChunks({
-  treeOids: [treeOid1, treeOid2, treeOid3]
+  treeOids: [treeOid1, treeOid2, treeOid3],
 });
 console.log(`${referenced.size} unique blobs across ${total} total chunk references`);
 ```
@@ -413,7 +421,7 @@ console.log(`${referenced.size} unique blobs across ${total} total chunk referen
 #### encrypt
 
 ```javascript
-await cas.encrypt({ buffer, key })
+await cas.encrypt({ buffer, key });
 ```
 
 Encrypts a buffer using AES-256-GCM.
@@ -435,14 +443,14 @@ Encrypts a buffer using AES-256-GCM.
 ```javascript
 const { buf, meta } = await cas.encrypt({
   buffer: Buffer.from('secret data'),
-  key: crypto.randomBytes(32)
+  key: crypto.randomBytes(32),
 });
 ```
 
 #### decrypt
 
 ```javascript
-await cas.decrypt({ buffer, key, meta })
+await cas.decrypt({ buffer, key, meta });
 ```
 
 Decrypts a buffer using AES-256-GCM.
@@ -468,7 +476,7 @@ const decrypted = await cas.decrypt({ buffer: buf, key, meta });
 #### rotateKey
 
 ```javascript
-await cas.rotateKey({ manifest, oldKey, newKey, label })
+await cas.rotateKey({ manifest, oldKey, newKey, label });
 ```
 
 Rotates a recipient's encryption key without re-encrypting data blobs. Unwraps the DEK with `oldKey`, re-wraps with `newKey`, and increments `keyVersion` counters.
@@ -493,7 +501,10 @@ Rotates a recipient's encryption key without re-encrypting data blobs. Unwraps t
 
 ```javascript
 const rotated = await cas.rotateKey({
-  manifest, oldKey: aliceOldKey, newKey: aliceNewKey, label: 'alice',
+  manifest,
+  oldKey: aliceOldKey,
+  newKey: aliceNewKey,
+  label: 'alice',
 });
 const treeOid = await cas.createTree({ manifest: rotated });
 await cas.addToVault({ slug: 'my-asset', treeOid, force: true });
@@ -502,7 +513,7 @@ await cas.addToVault({ slug: 'my-asset', treeOid, force: true });
 #### rotateVaultPassphrase
 
 ```javascript
-await cas.rotateVaultPassphrase({ oldPassphrase, newPassphrase, kdfOptions })
+await cas.rotateVaultPassphrase({ oldPassphrase, newPassphrase, kdfOptions });
 ```
 
 Rotates the vault-level encryption passphrase. Re-wraps every envelope-encrypted entry's DEK with a new KEK derived from `newPassphrase`. Non-envelope entries are skipped.
@@ -525,7 +536,8 @@ Rotates the vault-level encryption passphrase. Re-wraps every envelope-encrypted
 
 ```javascript
 const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase({
-  oldPassphrase: 'old-secret', newPassphrase: 'new-secret',
+  oldPassphrase: 'old-secret',
+  newPassphrase: 'new-secret',
 });
 console.log(`Rotated: ${rotatedSlugs.join(', ')}`);
 console.log(`Skipped: ${skippedSlugs.join(', ')}`);
@@ -536,7 +548,7 @@ console.log(`Skipped: ${skippedSlugs.join(', ')}`);
 #### chunkSize
 
 ```javascript
-cas.chunkSize
+cas.chunkSize;
 ```
 
 Returns the configured chunk size in bytes.
@@ -659,7 +671,7 @@ await cas.addToVault({ slug: 'demo/hello', treeOid });
 #### listVault
 
 ```javascript
-await cas.listVault()
+await cas.listVault();
 ```
 
 Lists all vault entries sorted by slug.
@@ -678,7 +690,7 @@ for (const { slug, treeOid } of entries) {
 #### removeFromVault
 
 ```javascript
-await cas.removeFromVault({ slug })
+await cas.removeFromVault({ slug });
 ```
 
 Removes an entry from the vault.
@@ -702,7 +714,7 @@ const { removedTreeOid } = await cas.removeFromVault({ slug: 'demo/hello' });
 #### resolveVaultEntry
 
 ```javascript
-await cas.resolveVaultEntry({ slug })
+await cas.resolveVaultEntry({ slug });
 ```
 
 Resolves a vault entry slug to its tree OID.
@@ -727,7 +739,7 @@ const manifest = await cas.readManifest({ treeOid });
 #### getVaultMetadata
 
 ```javascript
-await cas.getVaultMetadata()
+await cas.getVaultMetadata();
 ```
 
 Returns the vault metadata, or `null` if no vault exists.
@@ -755,9 +767,11 @@ Slugs are validated with the following rules:
 - Each segment must not exceed 255 bytes
 - Total slug must not exceed 1024 bytes
 
-### Vault-Level Encryption
+### Vault-Configured Passphrase Encryption
 
-When a vault is initialized with a passphrase, all store/restore operations through the vault derive the encryption key from the vault's KDF configuration:
+When a vault is initialized with a passphrase, store and restore operations that
+use that vault passphrase derive the asset encryption key from the vault's KDF
+configuration:
 
 ```javascript
 // Initialize vault with encryption
@@ -770,7 +784,12 @@ await cas.initVault({ passphrase: 'secret' });
 // git-cas restore --slug demo/hello --out file.txt --vault-passphrase secret
 ```
 
-The vault stores the KDF parameters (algorithm, salt, iterations) in `.vault.json` — the passphrase is never stored.
+The vault stores the KDF parameters (algorithm, salt, iterations) in
+`.vault.json`; the passphrase is never stored.
+
+This does not make `refs/cas/vault` itself confidential. The vault remains a
+readable slug-to-tree index for repository readers. See
+[docs/THREAT_MODEL.md](./THREAT_MODEL.md) for the explicit boundary.
 
 ### CLI Vault Commands
 
@@ -804,23 +823,23 @@ git cas rotate --slug demo/hello \
 
 #### `git cas rotate` flags
 
-| Flag | Description |
-|------|-------------|
-| `--slug <slug>` | Resolve tree OID from vault slug (updates vault entry) |
-| `--oid <tree-oid>` | Direct tree OID (outputs updated manifest) |
-| `--old-key-file <path>` | Path to current 32-byte key file (required) |
-| `--new-key-file <path>` | Path to new 32-byte key file (required) |
-| `--label <label>` | Only rotate the named recipient entry |
-| `--cwd <dir>` | Git working directory (default: `.`) |
+| Flag                    | Description                                            |
+| ----------------------- | ------------------------------------------------------ |
+| `--slug <slug>`         | Resolve tree OID from vault slug (updates vault entry) |
+| `--oid <tree-oid>`      | Direct tree OID (outputs updated manifest)             |
+| `--old-key-file <path>` | Path to current 32-byte key file (required)            |
+| `--new-key-file <path>` | Path to new 32-byte key file (required)                |
+| `--label <label>`       | Only rotate the named recipient entry                  |
+| `--cwd <dir>`           | Git working directory (default: `.`)                   |
 
 #### `git cas vault rotate` flags
 
-| Flag | Description |
-|------|-------------|
-| `--old-passphrase <pass>` | Current vault passphrase (required) |
-| `--new-passphrase <pass>` | New vault passphrase (required) |
-| `--algorithm <alg>` | KDF algorithm for new passphrase (`pbkdf2` or `scrypt`) |
-| `--cwd <dir>` | Git working directory (default: `.`) |
+| Flag                      | Description                                             |
+| ------------------------- | ------------------------------------------------------- |
+| `--old-passphrase <pass>` | Current vault passphrase (required)                     |
+| `--new-passphrase <pass>` | New vault passphrase (required)                         |
+| `--algorithm <alg>`       | KDF algorithm for new passphrase (`pbkdf2` or `scrypt`) |
+| `--cwd <dir>`             | Git working directory (default: `.`)                    |
 
 ### Vault History
 
@@ -846,7 +865,7 @@ Core domain service implementing CAS operations. Usually accessed via ContentAdd
 ### Constructor
 
 ```javascript
-new CasService({ persistence, codec, crypto, chunkSize, merkleThreshold })
+new CasService({ persistence, codec, crypto, chunkSize, merkleThreshold });
 ```
 
 **Parameters:**
@@ -874,7 +893,7 @@ const service = new CasService({
   persistence: new GitPersistenceAdapter({ plumbing }),
   codec: new JsonCodec(),
   crypto: new NodeCryptoAdapter(),
-  chunkSize: 512 * 1024
+  chunkSize: 512 * 1024,
 });
 ```
 
@@ -974,7 +993,7 @@ Emitted when integrity verification passes for all chunks.
 
 ```javascript
 {
-  slug: string        // Asset slug
+  slug: string; // Asset slug
 }
 ```
 
@@ -1015,7 +1034,7 @@ Immutable value object representing a file manifest.
 #### Constructor
 
 ```javascript
-new Manifest(data)
+new Manifest(data);
 ```
 
 **Parameters:**
@@ -1043,9 +1062,9 @@ const manifest = new Manifest({
       index: 0,
       size: 1024,
       digest: 'a'.repeat(64),
-      blob: 'abc123def456'
-    }
-  ]
+      blob: 'abc123def456',
+    },
+  ],
 });
 ```
 
@@ -1065,7 +1084,7 @@ const manifest = new Manifest({
 ##### toJSON
 
 ```javascript
-manifest.toJSON()
+manifest.toJSON();
 ```
 
 Returns a plain object representation suitable for serialization.
@@ -1086,7 +1105,7 @@ Immutable value object representing a content chunk.
 #### Constructor
 
 ```javascript
-new Chunk(data)
+new Chunk(data);
 ```
 
 **Parameters:**
@@ -1105,7 +1124,7 @@ const chunk = new Chunk({
   index: 0,
   size: 262144,
   digest: 'a'.repeat(64),
-  blob: 'abc123def456'
+  blob: 'abc123def456',
 });
 ```
 
@@ -1129,7 +1148,7 @@ Interface for Git persistence operations.
 ##### writeBlob
 
 ```javascript
-await port.writeBlob(content)
+await port.writeBlob(content);
 ```
 
 Writes content as a Git blob.
@@ -1143,7 +1162,7 @@ Writes content as a Git blob.
 ##### writeTree
 
 ```javascript
-await port.writeTree(entries)
+await port.writeTree(entries);
 ```
 
 Creates a Git tree object.
@@ -1157,7 +1176,7 @@ Creates a Git tree object.
 ##### readBlob
 
 ```javascript
-await port.readBlob(oid)
+await port.readBlob(oid);
 ```
 
 Reads a Git blob.
@@ -1171,7 +1190,7 @@ Reads a Git blob.
 ##### readTree
 
 ```javascript
-await port.readTree(treeOid)
+await port.readTree(treeOid);
 ```
 
 Reads a Git tree object.
@@ -1215,7 +1234,7 @@ Interface for encoding/decoding manifest data.
 ##### encode
 
 ```javascript
-port.encode(data)
+port.encode(data);
 ```
 
 Encodes data to Buffer or string.
@@ -1229,7 +1248,7 @@ Encodes data to Buffer or string.
 ##### decode
 
 ```javascript
-port.decode(buffer)
+port.decode(buffer);
 ```
 
 Decodes data from Buffer or string.
@@ -1245,7 +1264,7 @@ Decodes data from Buffer or string.
 ##### extension
 
 ```javascript
-port.extension
+port.extension;
 ```
 
 File extension for this codec (e.g., 'json', 'cbor').
@@ -1281,7 +1300,7 @@ Interface for cryptographic operations.
 ##### sha256
 
 ```javascript
-port.sha256(buf)
+port.sha256(buf);
 ```
 
 Computes SHA-256 hash.
@@ -1295,7 +1314,7 @@ Computes SHA-256 hash.
 ##### randomBytes
 
 ```javascript
-port.randomBytes(n)
+port.randomBytes(n);
 ```
 
 Generates cryptographically random bytes.
@@ -1309,7 +1328,7 @@ Generates cryptographically random bytes.
 ##### encryptBuffer
 
 ```javascript
-port.encryptBuffer(buffer, key)
+port.encryptBuffer(buffer, key);
 ```
 
 Encrypts a buffer using AES-256-GCM.
@@ -1324,7 +1343,7 @@ Encrypts a buffer using AES-256-GCM.
 ##### decryptBuffer
 
 ```javascript
-port.decryptBuffer(buffer, key, meta)
+port.decryptBuffer(buffer, key, meta);
 ```
 
 Decrypts a buffer using AES-256-GCM.
@@ -1342,7 +1361,7 @@ Decrypts a buffer using AES-256-GCM.
 ##### createEncryptionStream
 
 ```javascript
-port.createEncryptionStream(key)
+port.createEncryptionStream(key);
 ```
 
 Creates a streaming encryption context.
@@ -1359,7 +1378,7 @@ Creates a streaming encryption context.
 ##### deriveKey
 
 ```javascript
-await port.deriveKey(options)
+await port.deriveKey(options);
 ```
 
 Derives an encryption key from a passphrase using PBKDF2 or scrypt.
@@ -1452,7 +1471,7 @@ import CasError from 'git-cas/src/domain/errors/CasError.js';
 #### Constructor
 
 ```javascript
-new CasError(message, code, meta)
+new CasError(message, code, meta);
 ```
 
 **Parameters:**
@@ -1471,28 +1490,28 @@ new CasError(message, code, meta)
 
 ### Error Codes
 
-| Code | Description | Thrown By |
-|------|-------------|-----------|
-| `INVALID_KEY_TYPE` | Encryption key must be a Buffer or Uint8Array | `encrypt()`, `decrypt()`, `store()`, `restore()` |
-| `INVALID_KEY_LENGTH` | Encryption key must be exactly 32 bytes | `encrypt()`, `decrypt()`, `store()`, `restore()` |
-| `MISSING_KEY` | Encryption key required to restore encrypted content but none was provided | `restore()` |
-| `INTEGRITY_ERROR` | Chunk digest verification failed or decryption authentication failed | `restore()`, `verifyIntegrity()`, `decrypt()` |
-| `STREAM_ERROR` | Stream error occurred during store operation | `store()` |
-| `MANIFEST_NOT_FOUND` | No manifest entry found in the Git tree | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()` |
-| `GIT_ERROR` | Underlying Git plumbing command failed | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()` |
-| `INVALID_OPTIONS` | Mutually exclusive options provided or unsupported option value | `store()`, `restore()` |
-| `INVALID_SLUG` | Slug fails validation (empty, control chars, `..` segments, etc.) | `addToVault()` |
-| `VAULT_ENTRY_NOT_FOUND` | Slug does not exist in vault | `removeFromVault()`, `resolveVaultEntry()` |
-| `VAULT_ENTRY_EXISTS` | Slug already exists (use `force` to overwrite) | `addToVault()` |
-| `VAULT_CONFLICT` | Concurrent vault update detected (CAS failure after retries) | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
-| `VAULT_METADATA_INVALID` | `.vault.json` malformed, unknown version, or missing required fields | `readState()`, `rotateVaultPassphrase()` |
-| `VAULT_ENCRYPTION_ALREADY_CONFIGURED` | Cannot reconfigure encryption without key rotation | `initVault()` |
-| `NO_MATCHING_RECIPIENT` | No recipient entry matches the provided KEK | `restore()`, `rotateKey()` |
-| `DEK_UNWRAP_FAILED` | Failed to unwrap DEK with the provided KEK | `addRecipient()`, `rotateKey()` |
-| `RECIPIENT_NOT_FOUND` | Recipient label not found in manifest | `removeRecipient()`, `rotateKey()` |
-| `RECIPIENT_ALREADY_EXISTS` | Recipient label already exists | `addRecipient()` |
-| `CANNOT_REMOVE_LAST_RECIPIENT` | Cannot remove the last recipient | `removeRecipient()` |
-| `ROTATION_NOT_SUPPORTED` | Key rotation requires envelope encryption (recipients) | `rotateKey()` |
+| Code                                  | Description                                                                | Thrown By                                                                     |
+| ------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `INVALID_KEY_TYPE`                    | Encryption key must be a Buffer or Uint8Array                              | `encrypt()`, `decrypt()`, `store()`, `restore()`                              |
+| `INVALID_KEY_LENGTH`                  | Encryption key must be exactly 32 bytes                                    | `encrypt()`, `decrypt()`, `store()`, `restore()`                              |
+| `MISSING_KEY`                         | Encryption key required to restore encrypted content but none was provided | `restore()`                                                                   |
+| `INTEGRITY_ERROR`                     | Chunk digest verification failed or decryption authentication failed       | `restore()`, `verifyIntegrity()`, `decrypt()`                                 |
+| `STREAM_ERROR`                        | Stream error occurred during store operation                               | `store()`                                                                     |
+| `MANIFEST_NOT_FOUND`                  | No manifest entry found in the Git tree                                    | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()`                     |
+| `GIT_ERROR`                           | Underlying Git plumbing command failed                                     | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()`                     |
+| `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value            | `store()`, `restore()`                                                        |
+| `INVALID_SLUG`                        | Slug fails validation (empty, control chars, `..` segments, etc.)          | `addToVault()`                                                                |
+| `VAULT_ENTRY_NOT_FOUND`               | Slug does not exist in vault                                               | `removeFromVault()`, `resolveVaultEntry()`                                    |
+| `VAULT_ENTRY_EXISTS`                  | Slug already exists (use `force` to overwrite)                             | `addToVault()`                                                                |
+| `VAULT_CONFLICT`                      | Concurrent vault update detected (CAS failure after retries)               | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
+| `VAULT_METADATA_INVALID`              | `.vault.json` malformed, unknown version, or missing required fields       | `readState()`, `rotateVaultPassphrase()`                                      |
+| `VAULT_ENCRYPTION_ALREADY_CONFIGURED` | Cannot reconfigure encryption without key rotation                         | `initVault()`                                                                 |
+| `NO_MATCHING_RECIPIENT`               | No recipient entry matches the provided KEK                                | `restore()`, `rotateKey()`                                                    |
+| `DEK_UNWRAP_FAILED`                   | Failed to unwrap DEK with the provided KEK                                 | `addRecipient()`, `rotateKey()`                                               |
+| `RECIPIENT_NOT_FOUND`                 | Recipient label not found in manifest                                      | `removeRecipient()`, `rotateKey()`                                            |
+| `RECIPIENT_ALREADY_EXISTS`            | Recipient label already exists                                             | `addRecipient()`                                                              |
+| `CANNOT_REMOVE_LAST_RECIPIENT`        | Cannot remove the last recipient                                           | `removeRecipient()`                                                           |
+| `ROTATION_NOT_SUPPORTED`              | Key rotation requires envelope encryption (recipients)                     | `rotateKey()`                                                                 |
 
 ### Error Handling
 

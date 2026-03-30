@@ -72,6 +72,7 @@ implementation, review, and follow-on planning.
 Current Truth design docs:
 
 - [TR-001 — Truth: Architecture Reality Gap](../design/TR-001-architecture-reality-gap.md)
+- [TR-002 — Truth: Threat Model](../design/TR-002-threat-model.md)
 
 Backlog items under this legend are currently focused on:
 

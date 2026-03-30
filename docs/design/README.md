@@ -28,3 +28,4 @@ Current design docs:
 - [RL-004 — Relay: Agent Vault Rotate](./RL-004-agent-vault-rotate.md)
 - [RL-005 — Relay: Agent Vault Lifecycle](./RL-005-agent-vault-lifecycle.md)
 - [TR-001 — Truth: Architecture Reality Gap](./TR-001-architecture-reality-gap.md)
+- [TR-002 — Truth: Threat Model](./TR-002-threat-model.md)

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`git cas agent rotate`** — added a machine-facing rotation flow so Relay can rotate recipient keys by slug or detached tree OID and expose the resulting tree and vault side effects explicitly.
 - **`git cas agent vault rotate`** — added a machine-facing vault passphrase rotation flow so Relay can rotate encrypted vault state with explicit commit, KDF, and rotated/skipped-entry results.
 - **`git cas agent vault init|remove`** — added machine-facing vault lifecycle commands so Relay can initialize encrypted or plaintext vaults and remove entries without scraping human CLI output.
+- **Threat model doc** — added [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md) as the canonical statement of attacker models, trust boundaries, exposed metadata, and explicit non-goals.
 - **Workflow model** — added [WORKFLOW.md](./WORKFLOW.md), explicit legends/backlog/invariants directories, and a cycle-first planning model for fresh work.
 - **Review automation baseline** — added `.github/CODEOWNERS` with repo-wide ownership for `@git-stunts`.
 - **Release runbook** — added `docs/RELEASE.md` and linked it from `CONTRIBUTING.md` as the canonical patch-release workflow.
