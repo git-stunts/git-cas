@@ -63,6 +63,13 @@ Current key domain pieces:
 - `CasError`
   - the canonical domain error type with stable codes and metadata
 
+Public API boundary:
+
+- the package entry re-exports `Manifest`, `Chunk`, `CasService`, and
+  `VaultService`
+- `KeyResolver`, `rotateVaultPassphrase`, and `CasError` are internal domain
+  implementation details, even though they are important architectural pieces
+
 `CasService` is still the central orchestration unit for content flows. That is
 current architecture truth, not a future-state claim.
 
@@ -280,5 +287,7 @@ Use these docs for adjacent truth:
   - library and CLI reference
 - [SECURITY.md](./SECURITY.md)
   - crypto and security guidance
+- [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md)
+  - threat model, assets, and trust boundaries
 - [WORKFLOW.md](./WORKFLOW.md)
   - current planning and delivery model

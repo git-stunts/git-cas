@@ -82,7 +82,7 @@ Landed Relay cycle docs now using that model:
 
 Current Relay backlog:
 
-- none currently
+- None currently.
 
 ## Explicit Non-Goals
 
