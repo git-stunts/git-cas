@@ -154,6 +154,26 @@ of the workflow, not optional cleanup.
 
 If a file moves lifecycle state, update the relevant indexes in the same change.
 
+### Planning Index Consistency Review
+
+Run a planning-index consistency review whenever a branch:
+
+- changes backlog, design, archive, or legend indexes
+- moves a backlog card between live and archived state
+- closes a cycle and prepares the merged post-merge truth state
+- discovers drift on `main`
+
+This does not need a fixed calendar cadence. Run it when planning surfaces
+change and as a Truth maintenance pass when drift is found.
+
+The minimum review must confirm:
+
+- the live backlog only lists pending, in-cycle, or unresolved follow-on work
+- landed cycle docs are represented in `docs/design/`
+- archived backlog history matches delivered or retired cards
+- legend summaries agree with the current backlog and design surfaces
+- empty-state wording stays consistent with the existing house style
+
 ## Cycle Workflow
 
 1. Design docs first, using the human and agent IBM Design Thinking passes.

@@ -44,6 +44,7 @@ Landed cycle docs:
 - [TR-003 — Truth: Benchmark Baselines](./TR-003-benchmark-baselines.md)
 - [TR-004 — Truth: Design Doc Lifecycle](./TR-004-design-doc-lifecycle.md)
 - [TR-006 — Truth: Docs Maintainer Checklist](./TR-006-docs-maintainer-checklist.md)
+- [TR-010 — Truth: Planning Index Consistency Review](./TR-010-planning-index-consistency-review.md)
 
 Archived or retired cycle docs:
 
