@@ -2,7 +2,7 @@
 
 ## Legend
 
-- [RL — Relay](../legends/RL-relay.md)
+- [RL — Relay](../../legends/RL-relay.md)
 
 ## Why This Exists
 
@@ -34,7 +34,7 @@ without inferring from prose or TTY behavior.
 
 ## Linked Invariants
 
-- [I-001 — Determinism, Trust, And Explicit Surfaces](../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
+- [I-001 — Determinism, Trust, And Explicit Surfaces](../../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
 
 ## Notes
 

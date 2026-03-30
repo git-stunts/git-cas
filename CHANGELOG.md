@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Planning lifecycle clarified** — live backlog items now exclude delivered work, archive directories now hold retired backlog history and reserved retired design space, landed cycle docs use explicit landed status, and the design/backlog indexes now reflect current truth instead of stale activity.
 - **Architecture map repaired** — [ARCHITECTURE.md](./ARCHITECTURE.md) now describes the shipped system instead of an older flat-manifest-only model, including Merkle manifests, the extracted `VaultService` and `KeyResolver`, current ports/adapters, and the real storage layout for trees and the vault.
 - **GitHub Actions runtime maintenance** — CI and release workflows now run on `actions/checkout@v6` and `actions/setup-node@v6`, clearing the Node 20 deprecation warnings from GitHub-hosted runners.
 - **Ubuntu-based Docker test stages** — the local/CI Node, Bun, and Deno test images now build on `ubuntu:24.04`, copying runtime binaries from the official upstream images instead of inheriting Debian-based runtime images directly, and the final test commands now run as an unprivileged `gitstunts` user.

@@ -2,17 +2,17 @@
 
 ## Legend
 
-- [TR — Truth](../legends/TR-truth.md)
+- [TR — Truth](../../legends/TR-truth.md)
 
 ## Why This Exists
 
-[ARCHITECTURE.md](../../ARCHITECTURE.md) appears to lag the shipped system.
+[ARCHITECTURE.md](../../../ARCHITECTURE.md) appears to lag the shipped system.
 If it still describes flat manifests and treats Merkle structure as future work,
 it is no longer guidance. It is misinformation.
 
 ## Target Outcome
 
-Either rewrite [ARCHITECTURE.md](../../ARCHITECTURE.md) so it matches the
+Either rewrite [ARCHITECTURE.md](../../../ARCHITECTURE.md) so it matches the
 current code and shipped behavior, or retire it and fold the durable truth into
 the docs that are actually maintained.
 
@@ -29,7 +29,7 @@ work.
 
 ## Linked Invariants
 
-- [I-001 — Determinism, Trust, And Explicit Surfaces](../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
+- [I-001 — Determinism, Trust, And Explicit Surfaces](../../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
 
 ## Notes
 

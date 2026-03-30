@@ -72,13 +72,17 @@ The currently landed Relay cycle docs still use legacy numeric naming:
 
 Future Relay cycle docs should use the `RL-...` naming model.
 
-Active Relay cycle docs now using that model:
+Landed Relay cycle docs now using that model:
 
 - [RL-001 — Relay: Agent Recipient List](../design/RL-001-agent-recipient-list.md)
 - [RL-002 — Relay: Agent Recipient Mutations](../design/RL-002-agent-recipient-mutations.md)
 - [RL-003 — Relay: Agent Rotate](../design/RL-003-agent-rotate.md)
 - [RL-004 — Relay: Agent Vault Rotate](../design/RL-004-agent-vault-rotate.md)
 - [RL-005 — Relay: Agent Vault Lifecycle](../design/RL-005-agent-vault-lifecycle.md)
+
+Current Relay backlog:
+
+- none currently
 
 ## Explicit Non-Goals
 

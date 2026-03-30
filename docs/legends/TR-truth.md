@@ -73,12 +73,16 @@ Current Truth design docs:
 
 - [TR-001 — Truth: Architecture Reality Gap](../design/TR-001-architecture-reality-gap.md)
 - [TR-002 — Truth: Threat Model](../design/TR-002-threat-model.md)
+- [TR-004 — Truth: Design Doc Lifecycle](../design/TR-004-design-doc-lifecycle.md)
 
-Backlog items under this legend are currently focused on:
+Current Truth backlog items:
 
-- repairing stale architecture truth
-- publishing security and benchmark guidance that matches shipped behavior
-- defining planning-document lifecycle rules
+- [TR-003 — Benchmark Baselines](../BACKLOG/TR-003-benchmark-baselines.md)
+- [TR-005 — CasService Decomposition Plan](../BACKLOG/TR-005-casservice-decomposition-plan.md)
+
+Truth work under this legend is currently focused on:
+
+- publishing benchmark guidance that matches shipped behavior
 - evaluating service decomposition where the current boundary is under strain
 
 ## Explicit Non-Goals
