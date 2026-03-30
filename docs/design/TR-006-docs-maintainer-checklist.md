@@ -90,8 +90,8 @@ review heuristics through comments and memory.
 
 ### Wire The Checklist Into Doctrine
 
-The checklist should be linked from the main contribution and workflow docs so
-it is part of the normal process, not an orphaned reference file.
+The checklist should be linked from the tracked contribution and workflow docs
+so it is part of the normal process, not an orphaned reference file.
 
 ### Keep It Focused On Recurring Truth Failures
 
@@ -109,8 +109,8 @@ It should not become a generic writing-style manifesto.
 
 1. Add [docs/DOCS_CHECKLIST.md](../DOCS_CHECKLIST.md) as the canonical
    maintainer-facing checklist.
-2. Link it from [CONTRIBUTING.md](../../CONTRIBUTING.md),
-   [AGENTS.md](../../AGENTS.md), and [WORKFLOW.md](../../WORKFLOW.md).
+2. Link it from [CONTRIBUTING.md](../../CONTRIBUTING.md) and
+   [WORKFLOW.md](../../WORKFLOW.md).
 3. Add this cycle doc, archive the consumed backlog card, update the Truth
    indexes, and record the cycle in [CHANGELOG.md](../../CHANGELOG.md).
 
@@ -136,4 +136,5 @@ This is a documentation-truth cycle. Verification is:
 This is the right kind of small Truth cycle.
 
 The repo did not need a bigger process model. It needed one short, canonical
-pass that turns repeated review lessons into normal maintainer behavior.
+pass in the tracked doctrine surface that turns repeated review lessons into
+normal maintainer behavior.

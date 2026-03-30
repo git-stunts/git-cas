@@ -173,9 +173,6 @@ The point is to keep the repo honest about:
 - what is actually implemented
 - what was learned
 
-For doc-heavy branches, the final maintainer pass should include
-[docs/DOCS_CHECKLIST.md](./docs/DOCS_CHECKLIST.md).
-
 ## Release Discipline
 
 Cycle closure and release discipline are coupled when a landed cycle materially
