@@ -71,6 +71,10 @@ Once a cycle lands:
 3. if the cheap planning history is still useful, move that backlog card into
    `docs/archive/BACKLOG/`
 
+Cycle-closing pull requests should update statuses and indexes to the intended
+post-merge state in the same change, so the merge result on `main` is already
+honest without a cleanup follow-up.
+
 ### Cycle Tests
 
 Cycle-owned tests live under:
@@ -118,6 +122,10 @@ Delivered backlog items should not remain in the live backlog by default.
 Archive them under `docs/archive/BACKLOG/` if their historical intent remains
 useful.
 
+When a branch is landing the work represented by a backlog card, it is correct
+to remove that card from the live backlog in the same PR so the merge result is
+truthful.
+
 ### Design Doc Lifecycle
 
 `docs/design/` holds the current design surface.
@@ -134,6 +142,10 @@ Landed cycle docs remain in `docs/design/`.
 
 Only superseded, abandoned, or retired cycle docs should move to
 `docs/archive/design/`.
+
+When a branch is closing a cycle, it may update that cycle doc to `Landed`
+before merge so the merged result on `main` reflects the delivered state
+immediately. `main` remains the playback truth for already-merged work.
 
 ### Index Hygiene
 

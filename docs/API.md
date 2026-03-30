@@ -769,18 +769,18 @@ Slugs are validated with the following rules:
 
 ### Vault-Configured Passphrase Encryption
 
-When a vault is initialized with a passphrase, store and restore operations that
-use that vault passphrase derive the asset encryption key from the vault's KDF
-configuration:
+When a vault is initialized with a passphrase, the human CLI can derive an
+asset encryption key from the vault's KDF configuration when you supply
+`--vault-passphrase` or `--vault-passphrase-file` during store and restore:
 
 ```javascript
 // Initialize vault with encryption
 await cas.initVault({ passphrase: 'secret' });
 
-// Store with vault-level encryption (CLI derives key automatically)
+// Store with vault-configured passphrase derivation (human CLI convenience)
 // git-cas store file.txt --slug demo/hello --tree --vault-passphrase secret
 
-// Restore with vault-level encryption
+// Restore with vault-configured passphrase derivation
 // git-cas restore --slug demo/hello --out file.txt --vault-passphrase secret
 ```
 
@@ -790,6 +790,11 @@ The vault stores the KDF parameters (algorithm, salt, iterations) in
 This does not make `refs/cas/vault` itself confidential. The vault remains a
 readable slug-to-tree index for repository readers. See
 [docs/THREAT_MODEL.md](./THREAT_MODEL.md) for the explicit boundary.
+
+This is not an implicit library-level `store()` or `restore()` behavior.
+Library callers still pass explicit `encryptionKey` or `passphrase` values, or
+derive keys themselves through `getVaultMetadata()` plus `deriveKey()` before
+calling the content APIs.
 
 ### CLI Vault Commands
 

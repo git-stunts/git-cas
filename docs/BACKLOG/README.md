@@ -29,10 +29,7 @@ If the planning history is still useful, move it to
 
 Current backlog items:
 
-- [TR-001 — Architecture Reality Gap](./TR-001-architecture-reality-gap.md)
-- [TR-002 — Threat Model](./TR-002-threat-model.md)
 - [TR-003 — Benchmark Baselines](./TR-003-benchmark-baselines.md)
-- [TR-004 — Design Doc Lifecycle](./TR-004-design-doc-lifecycle.md)
 - [TR-005 — CasService Decomposition Plan](./TR-005-casservice-decomposition-plan.md)
 
 Archived delivered backlog items:

@@ -2,7 +2,7 @@
 
 ## Legend
 
-- [TR — Truth](../legends/TR-truth.md)
+- [TR — Truth](../../legends/TR-truth.md)
 
 ## Why This Exists
 
@@ -29,7 +29,7 @@ historical context, or implementation residue.
 
 ## Linked Invariants
 
-- [I-001 — Determinism, Trust, And Explicit Surfaces](../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
+- [I-001 — Determinism, Trust, And Explicit Surfaces](../../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
 
 ## Notes
 

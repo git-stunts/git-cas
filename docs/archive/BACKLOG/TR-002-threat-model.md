@@ -2,18 +2,18 @@
 
 ## Legend
 
-- [TR — Truth](../legends/TR-truth.md)
+- [TR — Truth](../../legends/TR-truth.md)
 
 ## Why This Exists
 
 `git-cas` has meaningful security behavior, but
-[SECURITY.md](../../SECURITY.md) is not the same thing as a threat model.
+[SECURITY.md](../../../SECURITY.md) is not the same thing as a threat model.
 Operators still need explicit answers about what is protected, what is exposed,
 and which compromises are out of scope.
 
 ## Target Outcome
 
-Add [docs/THREAT_MODEL.md](../THREAT_MODEL.md) with explicit attacker models,
+Add [docs/THREAT_MODEL.md](../../THREAT_MODEL.md) with explicit attacker models,
 trust boundaries, non-goals, and operator responsibilities.
 
 ## Human Value
@@ -29,7 +29,7 @@ actual guarantees and non-guarantees during implementation and review.
 
 ## Linked Invariants
 
-- [I-001 — Determinism, Trust, And Explicit Surfaces](../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
+- [I-001 — Determinism, Trust, And Explicit Surfaces](../../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
 
 ## Notes
 
