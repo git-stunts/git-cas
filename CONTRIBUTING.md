@@ -321,6 +321,8 @@ Before making non-trivial changes, read:
 - [docs/BACKLOG/README.md](./docs/BACKLOG/README.md)
 - [docs/design/README.md](./docs/design/README.md)
 - [docs/design/0001-m18-relay-agent-cli.md](./docs/design/0001-m18-relay-agent-cli.md)
+- [SECURITY.md](./SECURITY.md)
+- [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md)
 - [docs/API.md](./docs/API.md)
 - [docs/RELEASE.md](./docs/RELEASE.md)
 - [COMPLETED_TASKS.md](./COMPLETED_TASKS.md)

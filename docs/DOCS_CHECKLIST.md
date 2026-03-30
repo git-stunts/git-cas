@@ -57,6 +57,7 @@ This checklist is most useful when a change touches files like:
 - [CONTRIBUTING.md](../CONTRIBUTING.md)
 - [WORKFLOW.md](../WORKFLOW.md)
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [SECURITY.md](../SECURITY.md)
 - [docs/API.md](./API.md)
 - [docs/THREAT_MODEL.md](./THREAT_MODEL.md)
 - [docs/BENCHMARKS.md](./BENCHMARKS.md)

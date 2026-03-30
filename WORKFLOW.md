@@ -200,6 +200,9 @@ The minimum review must confirm:
 - `main` is the playback truth when docs and branches drift.
 - Doc-heavy branches should run [docs/DOCS_CHECKLIST.md](./docs/DOCS_CHECKLIST.md)
   before review.
+- When a doc makes security or threat claims, link [SECURITY.md](./SECURITY.md)
+  and [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md) instead of creating a
+  second canonical narrative.
 - Human CLI/TUI and agent CLI are separate surfaces over one shared core.
 - The human `--json` surface and the agent JSONL surface are not the same
   contract.

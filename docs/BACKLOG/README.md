@@ -30,7 +30,6 @@ If the planning history is still useful, move it to
 Current backlog items:
 
 - [TR-005 — CasService Decomposition Plan](./TR-005-casservice-decomposition-plan.md)
-- [TR-007 — Security Doc Discoverability Audit](./TR-007-security-doc-discoverability-audit.md)
 - [TR-008 — Empty-State Phrasing Consistency](./TR-008-empty-state-phrasing-consistency.md)
 - [TR-009 — Pre-PR Doc Cross-Link Audit](./TR-009-pre-pr-doc-cross-link-audit.md)
 - [TR-011 — Streaming Encrypted Restore](./TR-011-streaming-encrypted-restore.md)

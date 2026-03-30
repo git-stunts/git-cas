@@ -2,6 +2,11 @@
 
 This document provides the complete API reference for git-cas.
 
+For cryptographic design, nonce and KDF guidance, and security-relevant
+implementation details, see [SECURITY.md](../SECURITY.md). For attacker models,
+trust boundaries, exposed metadata, and explicit non-goals, see
+[docs/THREAT_MODEL.md](./THREAT_MODEL.md).
+
 ## Table of Contents
 
 1. [ContentAddressableStore](#contentaddressablestore)
@@ -789,6 +794,7 @@ The vault stores the KDF parameters (algorithm, salt, iterations) in
 
 This does not make `refs/cas/vault` itself confidential. The vault remains a
 readable slug-to-tree index for repository readers. See
+[SECURITY.md](../SECURITY.md) for the cryptographic design details and
 [docs/THREAT_MODEL.md](./THREAT_MODEL.md) for the explicit boundary.
 
 This is not an implicit library-level `store()` or `restore()` behavior.
