@@ -176,6 +176,8 @@ If a file moves lifecycle state, update the relevant indexes in the same change.
 - Important project-wide invariants must be documented explicitly and linked
   when referenced.
 - `main` is the playback truth when docs and branches drift.
+- Doc-heavy branches should run [docs/DOCS_CHECKLIST.md](./docs/DOCS_CHECKLIST.md)
+  before review.
 - Human CLI/TUI and agent CLI are separate surfaces over one shared core.
 - The human `--json` surface and the agent JSONL surface are not the same
   contract.

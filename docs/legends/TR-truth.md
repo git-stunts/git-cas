@@ -75,11 +75,11 @@ Current Truth design docs:
 - [TR-002 — Truth: Threat Model](../design/TR-002-threat-model.md)
 - [TR-003 — Truth: Benchmark Baselines](../design/TR-003-benchmark-baselines.md)
 - [TR-004 — Truth: Design Doc Lifecycle](../design/TR-004-design-doc-lifecycle.md)
+- [TR-006 — Truth: Docs Maintainer Checklist](../design/TR-006-docs-maintainer-checklist.md)
 
 Current Truth backlog items:
 
 - [TR-005 — CasService Decomposition Plan](../BACKLOG/TR-005-casservice-decomposition-plan.md)
-- [TR-006 — Docs Maintainer Checklist](../BACKLOG/TR-006-docs-maintainer-checklist.md)
 - [TR-007 — Security Doc Discoverability Audit](../BACKLOG/TR-007-security-doc-discoverability-audit.md)
 - [TR-008 — Empty-State Phrasing Consistency](../BACKLOG/TR-008-empty-state-phrasing-consistency.md)
 - [TR-009 — Pre-PR Doc Cross-Link Audit](../BACKLOG/TR-009-pre-pr-doc-cross-link-audit.md)
@@ -93,7 +93,8 @@ Truth work under this legend is currently focused on:
 - defining planning-document lifecycle rules
 - publishing benchmark guidance that matches shipped behavior
 - evaluating service decomposition where the current boundary is under strain
-- improving documentation review hygiene and cross-link discoverability
+- improving documentation review hygiene through a shared maintainer checklist
+- improving cross-link discoverability
 - keeping planning indexes and empty-state language consistent over time
 - investigating lower-memory restore paths for encrypted and compressed assets
 
