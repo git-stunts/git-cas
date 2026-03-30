@@ -79,6 +79,11 @@ Current Truth backlog items:
 
 - [TR-003 — Benchmark Baselines](../BACKLOG/TR-003-benchmark-baselines.md)
 - [TR-005 — CasService Decomposition Plan](../BACKLOG/TR-005-casservice-decomposition-plan.md)
+- [TR-006 — Docs Maintainer Checklist](../BACKLOG/TR-006-docs-maintainer-checklist.md)
+- [TR-007 — Security Doc Discoverability Audit](../BACKLOG/TR-007-security-doc-discoverability-audit.md)
+- [TR-008 — Empty-State Phrasing Consistency](../BACKLOG/TR-008-empty-state-phrasing-consistency.md)
+- [TR-009 — Pre-PR Doc Cross-Link Audit](../BACKLOG/TR-009-pre-pr-doc-cross-link-audit.md)
+- [TR-010 — Planning Index Consistency Review](../BACKLOG/TR-010-planning-index-consistency-review.md)
 
 Truth work under this legend is currently focused on:
 
@@ -87,6 +92,8 @@ Truth work under this legend is currently focused on:
 - defining planning-document lifecycle rules
 - publishing benchmark guidance that matches shipped behavior
 - evaluating service decomposition where the current boundary is under strain
+- improving documentation review hygiene and cross-link discoverability
+- keeping planning indexes and empty-state language consistent over time
 
 ## Explicit Non-Goals
 
