@@ -73,17 +73,18 @@ Current Truth design docs:
 
 - [TR-001 — Truth: Architecture Reality Gap](../design/TR-001-architecture-reality-gap.md)
 - [TR-002 — Truth: Threat Model](../design/TR-002-threat-model.md)
+- [TR-003 — Truth: Benchmark Baselines](../design/TR-003-benchmark-baselines.md)
 - [TR-004 — Truth: Design Doc Lifecycle](../design/TR-004-design-doc-lifecycle.md)
 
 Current Truth backlog items:
 
-- [TR-003 — Benchmark Baselines](../BACKLOG/TR-003-benchmark-baselines.md)
 - [TR-005 — CasService Decomposition Plan](../BACKLOG/TR-005-casservice-decomposition-plan.md)
 - [TR-006 — Docs Maintainer Checklist](../BACKLOG/TR-006-docs-maintainer-checklist.md)
 - [TR-007 — Security Doc Discoverability Audit](../BACKLOG/TR-007-security-doc-discoverability-audit.md)
 - [TR-008 — Empty-State Phrasing Consistency](../BACKLOG/TR-008-empty-state-phrasing-consistency.md)
 - [TR-009 — Pre-PR Doc Cross-Link Audit](../BACKLOG/TR-009-pre-pr-doc-cross-link-audit.md)
 - [TR-010 — Planning Index Consistency Review](../BACKLOG/TR-010-planning-index-consistency-review.md)
+- [TR-011 — Streaming Encrypted Restore](../BACKLOG/TR-011-streaming-encrypted-restore.md)
 
 Truth work under this legend is currently focused on:
 
@@ -94,6 +95,7 @@ Truth work under this legend is currently focused on:
 - evaluating service decomposition where the current boundary is under strain
 - improving documentation review hygiene and cross-link discoverability
 - keeping planning indexes and empty-state language consistent over time
+- investigating lower-memory restore paths for encrypted and compressed assets
 
 ## Explicit Non-Goals
 
