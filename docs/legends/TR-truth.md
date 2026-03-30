@@ -73,11 +73,11 @@ Current Truth design docs:
 
 - [TR-001 — Truth: Architecture Reality Gap](../design/TR-001-architecture-reality-gap.md)
 - [TR-002 — Truth: Threat Model](../design/TR-002-threat-model.md)
+- [TR-003 — Truth: Benchmark Baselines](../design/TR-003-benchmark-baselines.md)
 - [TR-004 — Truth: Design Doc Lifecycle](../design/TR-004-design-doc-lifecycle.md)
 
 Current Truth backlog items:
 
-- [TR-003 — Benchmark Baselines](../BACKLOG/TR-003-benchmark-baselines.md)
 - [TR-005 — CasService Decomposition Plan](../BACKLOG/TR-005-casservice-decomposition-plan.md)
 - [TR-006 — Docs Maintainer Checklist](../BACKLOG/TR-006-docs-maintainer-checklist.md)
 - [TR-007 — Security Doc Discoverability Audit](../BACKLOG/TR-007-security-doc-discoverability-audit.md)

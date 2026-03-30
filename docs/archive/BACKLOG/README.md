@@ -21,5 +21,7 @@ Landed archived backlog items:
   - landed as [TR-001 — Truth: Architecture Reality Gap](../../design/TR-001-architecture-reality-gap.md)
 - [TR-002 — Threat Model](./TR-002-threat-model.md)
   - landed as [TR-002 — Truth: Threat Model](../../design/TR-002-threat-model.md)
+- [TR-003 — Benchmark Baselines](./TR-003-benchmark-baselines.md)
+  - landed as [TR-003 — Truth: Benchmark Baselines](../../design/TR-003-benchmark-baselines.md)
 - [TR-004 — Design Doc Lifecycle](./TR-004-design-doc-lifecycle.md)
   - landed as [TR-004 — Truth: Design Doc Lifecycle](../../design/TR-004-design-doc-lifecycle.md)

@@ -29,7 +29,6 @@ If the planning history is still useful, move it to
 
 Current backlog items:
 
-- [TR-003 — Benchmark Baselines](./TR-003-benchmark-baselines.md)
 - [TR-005 — CasService Decomposition Plan](./TR-005-casservice-decomposition-plan.md)
 - [TR-006 — Docs Maintainer Checklist](./TR-006-docs-maintainer-checklist.md)
 - [TR-007 — Security Doc Discoverability Audit](./TR-007-security-doc-discoverability-audit.md)

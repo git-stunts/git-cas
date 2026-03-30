@@ -41,6 +41,7 @@ Landed cycle docs:
 - [RL-005 — Relay: Agent Vault Lifecycle](./RL-005-agent-vault-lifecycle.md)
 - [TR-001 — Truth: Architecture Reality Gap](./TR-001-architecture-reality-gap.md)
 - [TR-002 — Truth: Threat Model](./TR-002-threat-model.md)
+- [TR-003 — Truth: Benchmark Baselines](./TR-003-benchmark-baselines.md)
 - [TR-004 — Truth: Design Doc Lifecycle](./TR-004-design-doc-lifecycle.md)
 
 Archived or retired cycle docs:
