@@ -172,7 +172,9 @@ The minimum review must confirm:
 - landed cycle docs are represented in `docs/design/`
 - archived backlog history matches delivered or retired cards
 - legend summaries agree with the current backlog and design surfaces
-- empty-state wording stays consistent with the existing house style
+- empty-state wording stays consistent with the existing house style, such as
+  `- none currently` in [docs/design/README.md](./docs/design/README.md),
+  instead of inventing a new empty-list phrase for the same condition
 
 ## Cycle Workflow
 
