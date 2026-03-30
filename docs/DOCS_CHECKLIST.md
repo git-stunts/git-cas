@@ -30,6 +30,25 @@ truth and discoverability failures that keep surfacing late in review.
   If a summary doc repeats claims that are already maintained elsewhere, reduce
   it to a short summary plus a link instead of maintaining two full narratives.
 
+## Planning Index Review
+
+Run this extra pass whenever a branch changes:
+
+- `docs/BACKLOG/README.md`
+- `docs/design/README.md`
+- `docs/archive/BACKLOG/README.md`
+- a legend's current-cycle summary
+- a backlog card's lifecycle state
+
+Confirm all of the following before review:
+
+- live backlog entries are still pending, in cycle, or carrying unresolved
+  follow-on work
+- landed cycle docs are represented in `docs/design/`
+- archived backlog history reflects moved or retired backlog cards
+- legend summaries agree with the current backlog and design surfaces
+- empty-state wording does not introduce a new house style accidentally
+
 ## Use It On These Files
 
 This checklist is most useful when a change touches files like:
@@ -42,7 +61,9 @@ This checklist is most useful when a change touches files like:
 - [docs/THREAT_MODEL.md](./THREAT_MODEL.md)
 - [docs/BENCHMARKS.md](./BENCHMARKS.md)
 - planning indexes under [`docs/BACKLOG/`](./BACKLOG/README.md),
-  [`docs/design/`](./design/README.md), and [`docs/legends/`](./legends/README.md)
+  [`docs/design/`](./design/README.md),
+  [`docs/archive/BACKLOG/`](./archive/BACKLOG/README.md), and
+  [`docs/legends/`](./legends/README.md)
 
 ## Exit Criteria
 
