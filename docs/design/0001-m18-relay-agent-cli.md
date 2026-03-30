@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Landed
 
 ## Context
 
@@ -322,3 +322,12 @@ M18 is complete when:
   involved?
 - Which state-changing flows belong in the first follow-through wave versus a
   later parity wave?
+
+## Retrospective
+
+The dedicated agent entrypoint was the right architectural cut.
+
+It created a real machine-facing contract instead of stretching the human
+`--json` path past its limits, and later review feedback validated that the
+protocol boundary needed to own redaction, explicit input handling, and stable
+error semantics from the beginning.

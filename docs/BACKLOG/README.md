@@ -1,6 +1,6 @@
 # Backlog
 
-Backlog items are single-file work items.
+Backlog items are single-file work items in the live backlog.
 
 They can be:
 
@@ -23,10 +23,20 @@ Example:
 When work begins, the chosen backlog item should move or be copied into
 `docs/design/` and expanded into a full cycle doc.
 
+When work lands, the consumed backlog card should leave the live backlog.
+If the planning history is still useful, move it to
+[`docs/archive/BACKLOG/`](../archive/BACKLOG/README.md).
+
 Current backlog items:
 
-- [RL-001 — Agent Recipient List](./RL-001-agent-recipient-list.md)
-- [RL-002 — Agent Recipient Mutations](./RL-002-agent-recipient-mutations.md)
-- [RL-003 — Agent Rotate](./RL-003-agent-rotate.md)
-- [RL-004 — Agent Vault Rotate](./RL-004-agent-vault-rotate.md)
-- [RL-005 — Agent Vault Lifecycle](./RL-005-agent-vault-lifecycle.md)
+- [TR-003 — Benchmark Baselines](./TR-003-benchmark-baselines.md)
+- [TR-005 — CasService Decomposition Plan](./TR-005-casservice-decomposition-plan.md)
+- [TR-006 — Docs Maintainer Checklist](./TR-006-docs-maintainer-checklist.md)
+- [TR-007 — Security Doc Discoverability Audit](./TR-007-security-doc-discoverability-audit.md)
+- [TR-008 — Empty-State Phrasing Consistency](./TR-008-empty-state-phrasing-consistency.md)
+- [TR-009 — Pre-PR Doc Cross-Link Audit](./TR-009-pre-pr-doc-cross-link-audit.md)
+- [TR-010 — Planning Index Consistency Review](./TR-010-planning-index-consistency-review.md)
+
+Archived delivered backlog items:
+
+- [docs/archive/BACKLOG](../archive/BACKLOG/README.md)

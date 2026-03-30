@@ -1,6 +1,6 @@
 # Design Docs
 
-This directory holds pre-implementation design docs for `git-cas`.
+This directory holds the current cycle design surface for `git-cas`.
 
 The working rules are simple:
 
@@ -17,7 +17,19 @@ and use legend-code naming:
 The existing `0001`/`0002`/`0003` docs are legacy cycle docs from before that
 naming migration and can remain until they are touched.
 
-Current design docs:
+Status vocabulary used here:
+
+- `Proposed`
+- `Active`
+- `Landed`
+- `Superseded`
+- `Archived`
+
+Active cycle docs:
+
+- none currently
+
+Landed cycle docs:
 
 - [0001 — M18 Relay: Agent CLI Foundation](./0001-m18-relay-agent-cli.md)
 - [0002 — M18 Relay: Write Flows and Input Semantics](./0002-m18-relay-write-flows.md)
@@ -27,3 +39,10 @@ Current design docs:
 - [RL-003 — Relay: Agent Rotate](./RL-003-agent-rotate.md)
 - [RL-004 — Relay: Agent Vault Rotate](./RL-004-agent-vault-rotate.md)
 - [RL-005 — Relay: Agent Vault Lifecycle](./RL-005-agent-vault-lifecycle.md)
+- [TR-001 — Truth: Architecture Reality Gap](./TR-001-architecture-reality-gap.md)
+- [TR-002 — Truth: Threat Model](./TR-002-threat-model.md)
+- [TR-004 — Truth: Design Doc Lifecycle](./TR-004-design-doc-lifecycle.md)
+
+Archived or retired cycle docs:
+
+- [docs/archive/design](../archive/design/README.md)

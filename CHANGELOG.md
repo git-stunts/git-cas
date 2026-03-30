@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`git cas agent rotate`** — added a machine-facing rotation flow so Relay can rotate recipient keys by slug or detached tree OID and expose the resulting tree and vault side effects explicitly.
 - **`git cas agent vault rotate`** — added a machine-facing vault passphrase rotation flow so Relay can rotate encrypted vault state with explicit commit, KDF, and rotated/skipped-entry results.
 - **`git cas agent vault init|remove`** — added machine-facing vault lifecycle commands so Relay can initialize encrypted or plaintext vaults and remove entries without scraping human CLI output.
+- **Threat model doc** — added [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md) as the canonical statement of attacker models, trust boundaries, exposed metadata, and explicit non-goals.
 - **Workflow model** — added [WORKFLOW.md](./WORKFLOW.md), explicit legends/backlog/invariants directories, and a cycle-first planning model for fresh work.
 - **Review automation baseline** — added `.github/CODEOWNERS` with repo-wide ownership for `@git-stunts`.
 - **Release runbook** — added `docs/RELEASE.md` and linked it from `CONTRIBUTING.md` as the canonical patch-release workflow.
@@ -23,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Planning lifecycle clarified** — live backlog items now exclude delivered work, archive directories now hold retired backlog history and reserved retired design space, landed cycle docs use explicit landed status, and the design/backlog indexes now reflect current truth instead of stale activity.
+- **Architecture map repaired** — [ARCHITECTURE.md](./ARCHITECTURE.md) now describes the shipped system instead of an older flat-manifest-only model, including Merkle manifests, the extracted `VaultService` and `KeyResolver`, current ports/adapters, and the real storage layout for trees and the vault.
+- **Architecture navigation clarified** — [ARCHITECTURE.md](./ARCHITECTURE.md) now distinguishes the public package boundary from internal domain helpers and links directly to [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md) as adjacent truth.
 - **GitHub Actions runtime maintenance** — CI and release workflows now run on `actions/checkout@v6` and `actions/setup-node@v6`, clearing the Node 20 deprecation warnings from GitHub-hosted runners.
 - **Ubuntu-based Docker test stages** — the local/CI Node, Bun, and Deno test images now build on `ubuntu:24.04`, copying runtime binaries from the official upstream images instead of inheriting Debian-based runtime images directly, and the final test commands now run as an unprivileged `gitstunts` user.
 - **Test conventions expanded** — `test/CONVENTIONS.md` now documents Git tree filename ordering, Docker-only integration policy, pinned integration `fileParallelism: false`, and direct-argv subprocess helpers.

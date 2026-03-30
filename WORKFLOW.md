@@ -27,9 +27,13 @@ invariants instead.
 - `docs/legends/`
   - one document per legend
 - `docs/BACKLOG/`
-  - one file per backlog item
+  - live backlog items only
 - `docs/design/`
   - active and landed cycle design docs
+- `docs/archive/BACKLOG/`
+  - delivered or retired backlog history
+- `docs/archive/design/`
+  - superseded or retired cycle docs
 - `docs/invariants/`
   - explicit project-wide invariants
 - `test/cycles/<cycle>/`
@@ -59,6 +63,17 @@ When a cycle begins:
 1. pick a backlog item
 2. move or copy that file into `docs/design/`
 3. enrich it with the information required to implement the cycle
+
+Once a cycle lands:
+
+1. keep the landed cycle doc in `docs/design/`
+2. remove the consumed card from the live backlog
+3. if the cheap planning history is still useful, move that backlog card into
+   `docs/archive/BACKLOG/`
+
+Cycle-closing pull requests should update statuses and indexes to the intended
+post-merge state in the same change, so the merge result on `main` is already
+honest without a cleanup follow-up.
 
 ### Cycle Tests
 
@@ -90,6 +105,54 @@ Design here follows IBM Design Thinking twice:
 - once for agents
 
 Agents are first-class users of `git-cas`, not a derived audience.
+
+## Document Lifecycle
+
+### Backlog Lifecycle
+
+`docs/BACKLOG/` is the live backlog.
+
+It should contain only items that are:
+
+- queued
+- in cycle
+- still carrying unresolved follow-on work
+
+Delivered backlog items should not remain in the live backlog by default.
+Archive them under `docs/archive/BACKLOG/` if their historical intent remains
+useful.
+
+When a branch is landing the work represented by a backlog card, it is correct
+to remove that card from the live backlog in the same PR so the merge result is
+truthful.
+
+### Design Doc Lifecycle
+
+`docs/design/` holds the current design surface.
+
+Cycle docs there should use explicit statuses:
+
+- `Proposed`
+- `Active`
+- `Landed`
+- `Superseded`
+- `Archived`
+
+Landed cycle docs remain in `docs/design/`.
+
+Only superseded, abandoned, or retired cycle docs should move to
+`docs/archive/design/`.
+
+When a branch is closing a cycle, it may update that cycle doc to `Landed`
+before merge so the merged result on `main` reflects the delivered state
+immediately. `main` remains the playback truth for already-merged work.
+
+### Index Hygiene
+
+Readme indexes in `docs/BACKLOG/`, `docs/design/`, and `docs/legends/` are part
+of the workflow, not optional cleanup.
+
+If a file moves lifecycle state, update the relevant indexes in the same change.
 
 ## Cycle Workflow
 

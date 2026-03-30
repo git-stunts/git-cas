@@ -2,7 +2,7 @@
 
 ## Status
 
-Active
+Landed
 
 ## Linked Legend
 
@@ -150,4 +150,8 @@ test namespace.
 
 ## Retrospective
 
-Pending.
+Keeping this slice read-only was the right call.
+
+It established the recipient result shape and the non-envelope success path that
+later recipient mutation and rotation work reused directly, without forcing
+agents to branch through avoidable exception cases.
