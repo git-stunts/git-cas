@@ -25,3 +25,5 @@ Landed archived backlog items:
   - landed as [TR-003 — Truth: Benchmark Baselines](../../design/TR-003-benchmark-baselines.md)
 - [TR-004 — Design Doc Lifecycle](./TR-004-design-doc-lifecycle.md)
   - landed as [TR-004 — Truth: Design Doc Lifecycle](../../design/TR-004-design-doc-lifecycle.md)
+- [TR-006 — Docs Maintainer Checklist](./TR-006-docs-maintainer-checklist.md)
+  - landed as [TR-006 — Truth: Docs Maintainer Checklist](../../design/TR-006-docs-maintainer-checklist.md)

@@ -43,6 +43,7 @@ Landed cycle docs:
 - [TR-002 — Truth: Threat Model](./TR-002-threat-model.md)
 - [TR-003 — Truth: Benchmark Baselines](./TR-003-benchmark-baselines.md)
 - [TR-004 — Truth: Design Doc Lifecycle](./TR-004-design-doc-lifecycle.md)
+- [TR-006 — Truth: Docs Maintainer Checklist](./TR-006-docs-maintainer-checklist.md)
 
 Archived or retired cycle docs:
 

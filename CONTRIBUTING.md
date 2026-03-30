@@ -121,6 +121,9 @@ Before promoting a new direction, ask:
 If the answer is unclear, the work probably belongs in
 [`docs/BACKLOG/`](./docs/BACKLOG/), not in an active cycle doc.
 
+Before opening a doc-heavy pull request, run the short maintainer pass in
+[docs/DOCS_CHECKLIST.md](./docs/DOCS_CHECKLIST.md).
+
 ## Directory Model
 
 New planning work uses:
@@ -169,6 +172,9 @@ The point is to keep the repo honest about:
 - what is specified
 - what is actually implemented
 - what was learned
+
+For doc-heavy branches, the final maintainer pass should include
+[docs/DOCS_CHECKLIST.md](./docs/DOCS_CHECKLIST.md).
 
 ## Release Discipline
 
