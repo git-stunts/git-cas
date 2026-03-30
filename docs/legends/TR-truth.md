@@ -69,7 +69,7 @@ implementation, review, and follow-on planning.
 
 ## Current Cycle Surface
 
-Current Truth design docs:
+Active Truth cycle docs:
 
 - [TR-001 — Truth: Architecture Reality Gap](../design/TR-001-architecture-reality-gap.md)
 - [TR-002 — Truth: Threat Model](../design/TR-002-threat-model.md)
@@ -77,11 +77,17 @@ Current Truth design docs:
 
 Current Truth backlog items:
 
+- [TR-001 — Architecture Reality Gap](../BACKLOG/TR-001-architecture-reality-gap.md)
+- [TR-002 — Threat Model](../BACKLOG/TR-002-threat-model.md)
 - [TR-003 — Benchmark Baselines](../BACKLOG/TR-003-benchmark-baselines.md)
+- [TR-004 — Design Doc Lifecycle](../BACKLOG/TR-004-design-doc-lifecycle.md)
 - [TR-005 — CasService Decomposition Plan](../BACKLOG/TR-005-casservice-decomposition-plan.md)
 
 Truth work under this legend is currently focused on:
 
+- repairing stale architecture truth
+- publishing security and threat guidance that matches shipped behavior
+- defining planning-document lifecycle rules
 - publishing benchmark guidance that matches shipped behavior
 - evaluating service decomposition where the current boundary is under strain
 

@@ -27,7 +27,9 @@ Status vocabulary used here:
 
 Active cycle docs:
 
-- none currently
+- [TR-001 — Truth: Architecture Reality Gap](./TR-001-architecture-reality-gap.md)
+- [TR-002 — Truth: Threat Model](./TR-002-threat-model.md)
+- [TR-004 — Truth: Design Doc Lifecycle](./TR-004-design-doc-lifecycle.md)
 
 Landed cycle docs:
 
@@ -39,9 +41,6 @@ Landed cycle docs:
 - [RL-003 — Relay: Agent Rotate](./RL-003-agent-rotate.md)
 - [RL-004 — Relay: Agent Vault Rotate](./RL-004-agent-vault-rotate.md)
 - [RL-005 — Relay: Agent Vault Lifecycle](./RL-005-agent-vault-lifecycle.md)
-- [TR-001 — Truth: Architecture Reality Gap](./TR-001-architecture-reality-gap.md)
-- [TR-002 — Truth: Threat Model](./TR-002-threat-model.md)
-- [TR-004 — Truth: Design Doc Lifecycle](./TR-004-design-doc-lifecycle.md)
 
 Archived or retired cycle docs:
 

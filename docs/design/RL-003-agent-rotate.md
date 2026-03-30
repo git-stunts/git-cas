@@ -183,4 +183,9 @@ These are Relay contract tests and belong in the agent CLI integration suite.
 
 ## Retrospective
 
-Pending.
+This slice forced the first full key-lifecycle mutation through the Relay
+surface.
+
+That was useful pressure: it confirmed the value of explicit tree and vault
+side-effect reporting, and it exposed how important stable key-input contracts
+would be for later review and protocol hardening.

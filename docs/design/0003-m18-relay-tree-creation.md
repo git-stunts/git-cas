@@ -86,3 +86,11 @@ Contract coverage for this slice must pin:
 - manifest file and inline request-object inputs both work
 - invalid-input behavior stays structured
 - the supported runtime matrix passes
+
+## Retrospective
+
+Keeping `agent tree` as a narrow primitive was the right choice.
+
+It gave Relay a reusable manifest-to-tree operation without dragging vault
+mutation into the same cycle, and that separation kept later repository-facing
+automation work cleaner.

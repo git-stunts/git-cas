@@ -162,4 +162,8 @@ These are Relay contract tests and belong in the agent CLI integration suite.
 
 ## Retrospective
 
-Pending.
+Vault-wide rotation was the right next step after recipient rotation.
+
+It validated that Relay could handle a more sensitive multi-entry mutation while
+keeping the result shape explicit, and it exposed warning and passphrase-source
+behavior that later review tightened further.

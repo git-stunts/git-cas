@@ -59,41 +59,20 @@ Higher iteration counts / cost parameters increase resistance to brute-force att
 For the canonical threat model, see
 [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md).
 
-This section is the short-form summary.
+Short-form summary:
 
-### What git-cas Protects Against
+- encrypted content can remain confidential against repository readers who do
+  not have the relevant key material
+- integrity verification and authenticated decryption detect corruption or
+  ciphertext tampering
+- repository exposure still reveals meaningful metadata, including slugs,
+  manifest structure, object IDs, and vault metadata
+- `git-cas` does not provide access control, key custody, host-compromise
+  protection, or secure deletion
 
-git-cas provides defense against the following threat scenarios:
-
-1. **At-rest confidentiality**: When encryption is enabled, stored content is protected from unauthorized reading by anyone who gains access to the Git object database without the encryption key.
-
-2. **Data integrity**: All stored content (encrypted or not) is protected by SHA-256 digests per chunk. Any corruption, tampering, or bit-rot is detected during restore or integrity verification.
-
-3. **Authentication of ciphertext**: AES-256-GCM's built-in authentication tag ensures that encrypted data has not been modified or tampered with. Any modification to ciphertext will cause decryption to fail.
-
-### What git-cas Does NOT Protect Against
-
-git-cas does NOT provide protection in the following scenarios:
-
-1. **Key management**: git-cas does not store or manage encryption keys. Key storage and lifecycle management are entirely the caller's responsibility. Key rotation is supported for envelope-encrypted content via `rotateKey()` (v5.2.0+).
-
-2. **Access control**: git-cas does not implement access control lists or authorization policies. If an attacker can access the Git repository and has the encryption key, they can read all content.
-
-3. **Side-channel attacks**: No protection against timing attacks, power analysis, or other side-channel attacks on the cryptographic operations.
-
-4. **Memory safety**: Decryption of encrypted content loads the entire ciphertext into memory. No protection against memory dumps or swap file exposure.
-
-5. **Key recovery**: If an encryption key is lost, there is no key recovery mechanism. Encrypted data becomes permanently inaccessible.
-
-6. **Metadata privacy**: The following metadata is NOT encrypted:
-   - Manifest structure (slug, filename, chunk count)
-   - Chunk sizes and indices
-   - SHA-256 digests of encrypted chunks
-   - Git tree and blob object IDs
-
-7. **Deletion guarantees**: Logical deletion from the manifest does not physically remove data from Git's object database. See [Git Object Immutability](#git-object-immutability).
-
-8. **Concurrent key rotation**: Envelope-encrypted content supports key rotation without re-encryption (v5.2.0+). Legacy (non-envelope) encrypted content still requires manual re-store.
+Use [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md) when making or reviewing
+security claims. This document focuses on the cryptographic and implementation
+details behind that boundary.
 
 ---
 

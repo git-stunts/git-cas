@@ -159,3 +159,12 @@ Contract coverage for this slice must pin:
 - side effects are explicit in `result` rows
 - encrypted missing-credential branches emit `needs-input`
 - the supported runtime matrix passes for unit and integration suites
+
+## Retrospective
+
+Write flows were the boundary-forcing step Relay needed.
+
+They made request-source conflicts, stdout purity, and missing-credential
+classification impossible to hand-wave, and the later review rounds were mostly
+about tightening exactly those seams rather than rethinking the overall
+direction.

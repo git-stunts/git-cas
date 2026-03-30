@@ -150,4 +150,9 @@ protocol contract tests over the Relay boundary.
 
 ## Retrospective
 
-Pending.
+This slice proved that recipient mutation should return explicit side effects,
+not just "success" status.
+
+The result shape and edge-case failures here became the contract foundation for
+later rotation work and for review hardening around machine-visible error
+semantics.

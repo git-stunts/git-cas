@@ -168,4 +168,8 @@ These are Relay contract tests and belong in the agent CLI integration suite.
 
 ## Retrospective
 
-Pending.
+This slice completed the basic machine-facing vault lifecycle.
+
+That mattered less for surface area than for contract completeness: after this
+cycle, Relay could initialize, inspect, mutate, rotate, and remove vault state
+through one machine-native path rather than relying on human CLI gaps.
