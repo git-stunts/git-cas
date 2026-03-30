@@ -84,6 +84,7 @@ Current Truth backlog items:
 - [TR-008 — Empty-State Phrasing Consistency](../BACKLOG/TR-008-empty-state-phrasing-consistency.md)
 - [TR-009 — Pre-PR Doc Cross-Link Audit](../BACKLOG/TR-009-pre-pr-doc-cross-link-audit.md)
 - [TR-010 — Planning Index Consistency Review](../BACKLOG/TR-010-planning-index-consistency-review.md)
+- [TR-011 — Streaming Encrypted Restore](../BACKLOG/TR-011-streaming-encrypted-restore.md)
 
 Truth work under this legend is currently focused on:
 
@@ -94,6 +95,7 @@ Truth work under this legend is currently focused on:
 - evaluating service decomposition where the current boundary is under strain
 - improving documentation review hygiene and cross-link discoverability
 - keeping planning indexes and empty-state language consistent over time
+- investigating lower-memory restore paths for encrypted and compressed assets
 
 ## Explicit Non-Goals
 

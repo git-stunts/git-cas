@@ -35,6 +35,7 @@ Current backlog items:
 - [TR-008 — Empty-State Phrasing Consistency](./TR-008-empty-state-phrasing-consistency.md)
 - [TR-009 — Pre-PR Doc Cross-Link Audit](./TR-009-pre-pr-doc-cross-link-audit.md)
 - [TR-010 — Planning Index Consistency Review](./TR-010-planning-index-consistency-review.md)
+- [TR-011 — Streaming Encrypted Restore](./TR-011-streaming-encrypted-restore.md)
 
 Archived delivered backlog items:
 
