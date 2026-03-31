@@ -10,9 +10,9 @@
 
 ### Git, freebased: pure CAS that’ll knock your SHAs off. LFS hates this repo.
 
-Git isn’t source control. 
+Git isn’t source control.
 Git is a content-addressed object database.  
-We use the object database.  
+We use the object database.
 
 `git-cas` chunks files into Git blobs (dedupe for free), optionally encrypts them, and emits a manifest + a real Git tree so you can commit/tag/ref it like any other artifact.
 
@@ -102,12 +102,16 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 ```js
 // Rotate a single recipient's key
 const rotated = await cas.rotateKey({
-  manifest, oldKey: aliceOldKey, newKey: aliceNewKey, label: 'alice',
+  manifest,
+  oldKey: aliceOldKey,
+  newKey: aliceNewKey,
+  label: 'alice',
 });
 
 // Rotate the vault passphrase (all entries, atomic commit)
 const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase({
-  oldPassphrase: 'old-secret', newPassphrase: 'new-secret',
+  oldPassphrase: 'old-secret',
+  newPassphrase: 'new-secret',
 });
 ```
 
@@ -138,7 +142,10 @@ const manifest = await cas.storeFile({
 
 // Add a recipient later (no re-encryption)
 const updated = await cas.addRecipient({
-  manifest, existingKey: aliceKey, newRecipientKey: carolKey, label: 'carol',
+  manifest,
+  existingKey: aliceKey,
+  newRecipientKey: carolKey,
+  label: 'carol',
 });
 
 // List / remove recipients
@@ -167,7 +174,12 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
 ```js
 const cas = new ContentAddressableStore({
   plumbing,
-  chunking: { strategy: 'cdc', targetChunkSize: 262144, minChunkSize: 65536, maxChunkSize: 1048576 },
+  chunking: {
+    strategy: 'cdc',
+    targetChunkSize: 262144,
+    minChunkSize: 65536,
+    maxChunkSize: 1048576,
+  },
 });
 ```
 
@@ -367,7 +379,8 @@ CLI flags always take precedence over `.casrc` values.
 - [Guide](./GUIDE.md) — progressive walkthrough
 - [API Reference](./docs/API.md) — full method documentation
 - [Architecture](./ARCHITECTURE.md) — hexagonal design overview
-- [Security](./SECURITY.md) — crypto design and threat model
+- [Security](./SECURITY.md) — cryptographic design, limits, and operational guidance
+- [Threat Model](./docs/THREAT_MODEL.md) — trust boundaries, exposed metadata, and explicit non-goals
 
 ## When to use git-cas (and when not to)
 
@@ -379,14 +392,14 @@ Use an **orphan branch**. Seriously. It's 5 git commands, zero dependencies, and
 
 That's git-cas. The orphan branch gives you none of:
 
-| | Orphan branch | git-cas |
-|---|---|---|
-| **Encryption** | None — plaintext forever in history | AES-256-GCM + passphrase KDF + multi-recipient + key rotation |
-| **Large files** | Bloats `git clone` for everyone | Chunked, restored on demand |
-| **Dedup** | None | Chunk-level content addressing |
-| **Integrity** | Git SHA-1 | SHA-256 per chunk + GCM auth tag |
-| **Lifecycle** | `git rm` (still in reflog) | Vault with audit trail + `git gc` reclaims |
-| **Compression** | None | gzip before encryption |
+|                 | Orphan branch                       | git-cas                                                       |
+| --------------- | ----------------------------------- | ------------------------------------------------------------- |
+| **Encryption**  | None — plaintext forever in history | AES-256-GCM + passphrase KDF + multi-recipient + key rotation |
+| **Large files** | Bloats `git clone` for everyone     | Chunked, restored on demand                                   |
+| **Dedup**       | None                                | Chunk-level content addressing                                |
+| **Integrity**   | Git SHA-1                           | SHA-256 per chunk + GCM auth tag                              |
+| **Lifecycle**   | `git rm` (still in reflog)          | Vault with audit trail + `git gc` reclaims                    |
+| **Compression** | None                                | gzip before encryption                                        |
 
 ### "Why not Git LFS?"
 
@@ -404,7 +417,7 @@ If your team uses GitHub and needs file locking + web UI previews, use LFS. If y
 
 ## License
 
-Apache-2.0 
+Apache-2.0
 Copyright © 2026 [James Ross](https://github.com/flyingrobots)
 
 ---

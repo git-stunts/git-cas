@@ -2,7 +2,7 @@
 
 ## Legend
 
-- [TR — Truth](../legends/TR-truth.md)
+- [TR — Truth](../../legends/TR-truth.md)
 
 ## Why This Exists
 
@@ -15,7 +15,7 @@ contains it.
 ## Target Outcome
 
 Audit the top-level doc surface and add or repair discoverability links to
-[SECURITY.md](../../SECURITY.md) and [docs/THREAT_MODEL.md](../THREAT_MODEL.md)
+[SECURITY.md](../../../SECURITY.md) and [docs/THREAT_MODEL.md](../../THREAT_MODEL.md)
 where they are materially relevant.
 
 ## Human Value
@@ -30,7 +30,7 @@ of citing secondary or partial summaries.
 
 ## Linked Invariants
 
-- [I-001 — Determinism, Trust, And Explicit Surfaces](../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
+- [I-001 — Determinism, Trust, And Explicit Surfaces](../../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
 
 ## Notes
 

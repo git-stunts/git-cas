@@ -4,7 +4,8 @@ This document is the high-level map of the shipped `git-cas` system.
 
 It is intentionally not a full API reference. For command and method details,
 see [docs/API.md](./docs/API.md). For crypto and security guidance, see
-[SECURITY.md](./SECURITY.md).
+[SECURITY.md](./SECURITY.md). For attacker models, trust boundaries, and
+metadata exposure, see [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md).
 
 ## System Model
 
