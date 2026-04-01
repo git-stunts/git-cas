@@ -26,7 +26,9 @@ It now follows the workflow defined in [CONTRIBUTING.md](./CONTRIBUTING.md):
 `main` is the playback truth. If code lands out of order, the roadmap adjusts to
 match reality instead of pretending the original sequence still happened.
 
-Completed milestone detail lives in [COMPLETED_TASKS.md](./COMPLETED_TASKS.md).
+Delivered cycle detail now lives in
+[docs/design/README.md](./docs/design/README.md) and
+[docs/archive/BACKLOG/README.md](./docs/archive/BACKLOG/README.md).
 Superseded work lives in [GRAVEYARD.md](./GRAVEYARD.md).
 
 ## Current Reality
@@ -342,6 +344,7 @@ Additional release discipline:
 - [ROADMAP.md](./ROADMAP.md): current reality plus future sequence
 - [STATUS.md](./STATUS.md): compact project snapshot
 - [WORKFLOW.md](./WORKFLOW.md): planning and delivery source of truth for fresh work
-- [COMPLETED_TASKS.md](./COMPLETED_TASKS.md): shipped milestone details
+- [docs/design/README.md](./docs/design/README.md): landed cycle history
+- [docs/archive/BACKLOG/README.md](./docs/archive/BACKLOG/README.md): archived backlog cards
 - [GRAVEYARD.md](./GRAVEYARD.md): superseded or merged-away work
 - [CHANGELOG.md](./CHANGELOG.md): release-by-release history

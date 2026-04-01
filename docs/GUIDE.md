@@ -5,6 +5,11 @@ builds on the same running example -- storing, managing, and restoring a photo
 called `vacation.jpg` under the slug `photos/vacation` -- so you can follow
 along from first principles to full mastery.
 
+This is the long-form walkthrough. For the current public API surface and the
+canonical architecture and security guidance, see [README.md](../README.md),
+[API.md](./API.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [SECURITY.md](../SECURITY.md),
+and [THREAT_MODEL.md](./THREAT_MODEL.md).
+
 ---
 
 ## Table of Contents
@@ -20,7 +25,7 @@ along from first principles to full mastery.
 9. [Observability](#9-observability)
 10. [Compression](#10-compression)
 11. [Passphrase Encryption (KDF)](#11-passphrase-encryption-kdf)
-11b. [Multi-Recipient Encryption & Key Rotation](#11b-multi-recipient-encryption--key-rotation)
+    11b. [Multi-Recipient Encryption & Key Rotation](#11b-multi-recipient-encryption--key-rotation)
 12. [Merkle Manifests](#12-merkle-manifests)
 13. [Vault](#13-vault)
 14. [Architecture](#14-architecture)
@@ -87,14 +92,14 @@ const manifest = await cas.storeFile({
   slug: 'photos/vacation',
 });
 
-console.log(manifest.slug);           // "photos/vacation"
-console.log(manifest.filename);       // "vacation.jpg"
-console.log(manifest.size);           // total bytes stored
-console.log(manifest.chunks.length);  // number of chunks
+console.log(manifest.slug); // "photos/vacation"
+console.log(manifest.filename); // "vacation.jpg"
+console.log(manifest.size); // total bytes stored
+console.log(manifest.chunks.length); // number of chunks
 
 // Create a Git tree from the manifest
 const treeOid = await cas.createTree({ manifest });
-console.log(treeOid);  // e.g. "a1b2c3d4..."
+console.log(treeOid); // e.g. "a1b2c3d4..."
 
 // Restore the file later
 await cas.restoreFile({ manifest, outputPath: './restored.jpg' });
@@ -120,12 +125,12 @@ data lives in Git's object database.
 Large files are split into fixed-size pieces called chunks. Each chunk is
 stored as a Git blob. A chunk has four properties:
 
-| Field   | Type   | Description                                  |
-|---------|--------|----------------------------------------------|
-| `index` | number | Zero-based position in the file              |
-| `size`  | number | Byte length of this chunk                    |
-| `digest`| string | SHA-256 hex digest of the chunk's raw bytes   |
-| `blob`  | string | Git OID (the SHA-1 hash Git uses to store it) |
+| Field    | Type   | Description                                   |
+| -------- | ------ | --------------------------------------------- |
+| `index`  | number | Zero-based position in the file               |
+| `size`   | number | Byte length of this chunk                     |
+| `digest` | string | SHA-256 hex digest of the chunk's raw bytes   |
+| `blob`   | string | Git OID (the SHA-1 hash Git uses to store it) |
 
 Because Git is itself content-addressed, if two chunks happen to contain
 identical bytes, Git stores them only once. This gives you deduplication
@@ -230,7 +235,7 @@ construction time. The minimum is 1,024 bytes.
 ```js
 const cas = new ContentAddressableStore({
   plumbing: git,
-  chunkSize: 1024 * 1024,  // 1 MiB chunks
+  chunkSize: 1024 * 1024, // 1 MiB chunks
 });
 ```
 
@@ -300,9 +305,13 @@ console.log(`Tree OID: ${treeOid}`);
 
 ### Restoring to Disk
 
-Given a manifest, `restoreFile()` reads every chunk from Git, verifies each
-chunk's SHA-256 digest, concatenates the buffers, and writes the result to
-the specified output path.
+Given a manifest, `restoreFile()` restores the asset and writes it to the
+specified output path.
+
+For plaintext assets, this uses `restoreStream()` and writes chunk-by-chunk with
+bounded memory. For encrypted or compressed assets, the current implementation
+still buffers after chunk verification so it can decrypt and/or decompress
+safely before yielding output.
 
 ```js
 await cas.restoreFile({
@@ -347,24 +356,11 @@ if (isValid) {
 ### Restoring from a Tree OID
 
 In many workflows you do not have the manifest object in memory -- you have a
-Git tree OID that was committed earlier. To restore, you need to read the tree,
-extract the manifest, and then restore from it:
+Git tree OID that was committed earlier. Use the public `readManifest()`
+helper, then restore from that manifest:
 
 ```js
-const service = await cas.getService();
-
-// Read the tree entries
-const entries = await service.persistence.readTree(treeOid);
-
-// Find the manifest entry (named manifest.json or manifest.cbor)
-const manifestEntry = entries.find(e => e.name.startsWith('manifest.'));
-const manifestBlob = await service.persistence.readBlob(manifestEntry.oid);
-
-// Decode the manifest using the configured codec
-import Manifest from '@git-stunts/git-cas/src/domain/value-objects/Manifest.js';
-const manifest = new Manifest(service.codec.decode(manifestBlob));
-
-// Restore the file
+const manifest = await cas.readManifest({ treeOid });
 await cas.restoreFile({ manifest, outputPath: './restored-vacation.jpg' });
 ```
 
@@ -496,7 +492,7 @@ const treeOid = await cas.createTree({ manifest });
 
 ## 7. The CLI
 
-<img src="./docs/cli.gif" alt="git-cas CLI demo" />
+<img src="./cli.gif" alt="git-cas CLI demo" />
 
 `git-cas` installs as a Git subcommand. After installation, `git cas` is
 available in any Git repository.
@@ -553,7 +549,7 @@ git cas tree --manifest manifest.json
 ### Restore from a Tree OID
 
 ```bash
-git cas restore a1b2c3d4e5f67890... --out ./restored-vacation.jpg
+git cas restore --oid a1b2c3d4e5f67890... --out ./restored-vacation.jpg
 # Output: 524288  (bytes written)
 ```
 
@@ -571,7 +567,7 @@ git cas store ./vacation.jpg --slug photos/vacation --key-file ./vacation.key --
 # Output: a1b2c3d4e5f67890...
 
 # Restore with the same key
-git cas restore a1b2c3d4e5f67890... --out ./decrypted-vacation.jpg --key-file ./vacation.key
+git cas restore --oid a1b2c3d4e5f67890... --out ./decrypted-vacation.jpg --key-file ./vacation.key
 # Output: 524288
 ```
 
@@ -641,14 +637,14 @@ manifest object with a single call:
 ```js
 const manifest = await cas.readManifest({ treeOid });
 
-console.log(manifest.slug);      // "photos/vacation"
-console.log(manifest.chunks);    // array of Chunk objects
+console.log(manifest.slug); // "photos/vacation"
+console.log(manifest.chunks); // array of Chunk objects
 ```
 
-`readManifest` reads the tree, locates the manifest entry (e.g.
-`manifest.json` or `manifest.cbor`), decodes it using the configured codec,
-and returns a frozen, Zod-validated `Manifest`. If no manifest entry is found,
-it throws `CasError('MANIFEST_NOT_FOUND')`.
+`readManifest` reads the tree, locates the manifest entry (for example
+`manifest.json` or `manifest.cbor`), decodes it using the configured codec, and
+returns a frozen, Zod-validated `Manifest`. If no manifest entry is found, it
+throws `CasError('MANIFEST_NOT_FOUND')`.
 
 ### Verifying Integrity Over Time
 
@@ -663,8 +659,8 @@ if (!ok) {
 ```
 
 The `verifyIntegrity` method reads each chunk blob from Git, recomputes its
-SHA-256 digest, and compares it against the manifest. It emits either
-`integrity:pass` or `integrity:fail` events (see Section 9).
+SHA-256 digest, and compares it against the manifest. With an observability
+adapter attached, it also emits integrity metrics (see Section 9).
 
 ### Inspecting an Asset
 
@@ -695,7 +691,7 @@ across multiple assets:
 
 ```js
 const { referenced, total } = await cas.collectReferencedChunks({
-  treeOids: [treeOid1, treeOid2, treeOid3]
+  treeOids: [treeOid1, treeOid2, treeOid3],
 });
 console.log(`${referenced.size} unique blobs across ${total} total chunk references`);
 ```
@@ -733,37 +729,42 @@ const videoTree = await cas.createTree({ manifest: videoManifest });
 
 ## 9. Observability
 
-`CasService` extends `EventEmitter`. Every significant operation emits an
-event you can listen to for progress tracking, logging, or monitoring.
+`git-cas` now routes progress, integrity, and error signals through an
+`ObservabilityPort`. If you want the older Node-style event workflow, attach an
+`EventEmitterObserver` and listen on that adapter instead of subscribing
+directly to `CasService`.
 
 ### Available Events
 
-| Event              | Emitted When                              | Payload                                                  |
-|--------------------|-------------------------------------------|----------------------------------------------------------|
-| `chunk:stored`     | A chunk is written to Git                 | `{ index, size, digest, blob }`                          |
-| `chunk:restored`   | A chunk is read back from Git             | `{ index, size, digest }`                                |
-| `file:stored`      | All chunks for a file have been stored    | `{ slug, size, chunkCount, encrypted }`                  |
-| `file:restored`    | A file has been fully restored            | `{ slug, size, chunkCount }`                             |
-| `integrity:pass`   | All chunks pass integrity verification    | `{ slug }`                                               |
-| `integrity:fail`   | A chunk fails integrity verification      | `{ slug, chunkIndex, expected, actual }`                  |
-| `error`            | An error occurs (guarded)                 | `{ code, message }`                                      |
+| Event            | Emitted When                           | Payload                                  |
+| ---------------- | -------------------------------------- | ---------------------------------------- |
+| `chunk:stored`   | A chunk is written to Git              | `{ index, size, digest, blob }`          |
+| `chunk:restored` | A chunk is read back from Git          | `{ index, size, digest }`                |
+| `file:stored`    | All chunks for a file have been stored | `{ slug, size, chunkCount, encrypted }`  |
+| `file:restored`  | A file has been fully restored         | `{ slug, size, chunkCount }`             |
+| `integrity:pass` | All chunks pass integrity verification | `{ slug }`                               |
+| `integrity:fail` | A chunk fails integrity verification   | `{ slug, chunkIndex, expected, actual }` |
+| `error`          | An error occurs (guarded)              | `{ code, message }`                      |
 
 The `error` event is guarded: it is only emitted if there is at least one
-listener attached. This prevents unhandled `error` event crashes from
-`EventEmitter`.
+listener attached. This preserves the old behavior that avoided unhandled
+`error` event crashes.
 
 ### Building a Progress Bar
 
 ```js
-const service = await cas.getService();
+import ContentAddressableStore, { EventEmitterObserver } from '@git-stunts/git-cas';
+
+const observability = new EventEmitterObserver();
+const cas = new ContentAddressableStore({ plumbing: git, observability });
 
 let chunksStored = 0;
-service.on('chunk:stored', ({ index, size }) => {
+observability.on('chunk:stored', ({ index, size }) => {
   chunksStored++;
   console.log(`  Stored chunk ${index} (${size} bytes)`);
 });
 
-service.on('file:stored', ({ slug, size, chunkCount }) => {
+observability.on('file:stored', ({ slug, size, chunkCount }) => {
   console.log(`Finished: ${slug} -- ${size} bytes in ${chunkCount} chunks`);
 });
 
@@ -777,11 +778,11 @@ const manifest = await cas.storeFile({
 ### Monitoring Restores
 
 ```js
-service.on('chunk:restored', ({ index, size, digest }) => {
+observability.on('chunk:restored', ({ index, size, digest }) => {
   console.log(`  Restored chunk ${index} (${size} bytes, digest: ${digest.slice(0, 8)}...)`);
 });
 
-service.on('file:restored', ({ slug, size, chunkCount }) => {
+observability.on('file:restored', ({ slug, size, chunkCount }) => {
   console.log(`Restored: ${slug} -- ${size} bytes from ${chunkCount} chunks`);
 });
 
@@ -791,7 +792,7 @@ await cas.restoreFile({ manifest, outputPath: './restored-vacation.jpg' });
 ### Logging Errors
 
 ```js
-service.on('error', ({ code, message }) => {
+observability.on('error', ({ code, message }) => {
   console.error(`[CAS ERROR] ${code}: ${message}`);
 });
 ```
@@ -799,11 +800,11 @@ service.on('error', ({ code, message }) => {
 ### Integrity Monitoring
 
 ```js
-service.on('integrity:pass', ({ slug }) => {
+observability.on('integrity:pass', ({ slug }) => {
   console.log(`Integrity OK: ${slug}`);
 });
 
-service.on('integrity:fail', ({ slug, chunkIndex, expected, actual }) => {
+observability.on('integrity:fail', ({ slug, chunkIndex, expected, actual }) => {
   console.error(`CORRUPT: ${slug} chunk ${chunkIndex}`);
   console.error(`  expected: ${expected}`);
   console.error(`  actual:   ${actual}`);
@@ -816,7 +817,7 @@ await cas.verifyIntegrity(manifest);
 
 ## 10. Compression
 
-*New in v2.0.0.*
+_New in v2.0.0._
 
 `git-cas` supports optional gzip compression. When enabled, file content is
 compressed before encryption (if any) and before chunking. This reduces storage
@@ -877,7 +878,7 @@ CPU cost without meaningful size reduction. Use your judgement.
 
 ## 11. Passphrase Encryption (KDF)
 
-*New in v2.0.0.*
+_New in v2.0.0._
 
 Instead of managing raw 32-byte encryption keys, you can derive keys from
 passphrases using standard key derivation functions (KDFs). `git-cas` supports
@@ -957,16 +958,16 @@ const manifest = await cas.storeFile({
 
 ### Supported KDF Algorithms
 
-| Algorithm | Default Params | Notes |
-|-----------|---------------|-------|
-| `pbkdf2` (default) | 100,000 iterations, SHA-512 | Widely supported, good baseline |
-| `scrypt` | N=16384, r=8, p=1 | Memory-hard, stronger against GPU attacks |
+| Algorithm          | Default Params              | Notes                                     |
+| ------------------ | --------------------------- | ----------------------------------------- |
+| `pbkdf2` (default) | 100,000 iterations, SHA-512 | Widely supported, good baseline           |
+| `scrypt`           | N=16384, r=8, p=1           | Memory-hard, stronger against GPU attacks |
 
 ---
 
 ## 11b. Multi-Recipient Encryption & Key Rotation
 
-*New in v5.1.0 (recipients), v5.2.0 (rotation).*
+_New in v5.1.0 (recipients), v5.2.0 (rotation)._
 
 ### Envelope Encryption
 
@@ -974,7 +975,9 @@ Instead of encrypting with a single key, you can encrypt for multiple recipients
 
 ```javascript
 const manifest = await cas.store({
-  source, slug: 'shared', filename: 'shared.bin',
+  source,
+  slug: 'shared',
+  filename: 'shared.bin',
   recipients: [
     { label: 'alice', key: aliceKey },
     { label: 'bob', key: bobKey },
@@ -994,7 +997,10 @@ When a key is compromised, rotate it without re-encrypting data:
 
 ```javascript
 const rotated = await cas.rotateKey({
-  manifest, oldKey: aliceOldKey, newKey: aliceNewKey, label: 'alice',
+  manifest,
+  oldKey: aliceOldKey,
+  newKey: aliceNewKey,
+  label: 'alice',
 });
 // Persist the updated manifest
 const treeOid = await cas.createTree({ manifest: rotated });
@@ -1003,7 +1009,7 @@ const treeOid = await cas.createTree({ manifest: rotated });
 The `keyVersion` counter increments with each rotation:
 
 ```javascript
-console.log(rotated.encryption.keyVersion);           // 1
+console.log(rotated.encryption.keyVersion); // 1
 console.log(rotated.encryption.recipients[0].keyVersion); // 1
 ```
 
@@ -1013,7 +1019,8 @@ Rotate the master passphrase for all vault entries at once:
 
 ```javascript
 const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase({
-  oldPassphrase: 'old-secret', newPassphrase: 'new-secret',
+  oldPassphrase: 'old-secret',
+  newPassphrase: 'new-secret',
 });
 ```
 
@@ -1033,7 +1040,7 @@ git cas vault rotate --old-passphrase old-secret --new-passphrase new-secret
 
 ## 12. Merkle Manifests
 
-*New in v2.0.0.*
+_New in v2.0.0._
 
 When storing very large files, the manifest (which lists every chunk) can
 itself become large. Merkle manifests solve this by splitting the chunk list
@@ -1058,7 +1065,7 @@ Set `merkleThreshold` at construction time:
 ```js
 const cas = new ContentAddressableStore({
   plumbing: git,
-  merkleThreshold: 500,  // Split at 500 chunks instead of 1000
+  merkleThreshold: 500, // Split at 500 chunks instead of 1000
 });
 ```
 
@@ -1071,7 +1078,7 @@ concatenates their chunk lists, and returns a flat `Manifest` object:
 ```js
 const manifest = await cas.readManifest({ treeOid });
 // Works identically whether the manifest is v1 or v2
-console.log(manifest.chunks.length);  // Full chunk list, regardless of structure
+console.log(manifest.chunks.length); // Full chunk list, regardless of structure
 ```
 
 ### Backward Compatibility
@@ -1084,7 +1091,7 @@ console.log(manifest.chunks.length);  // Full chunk list, regardless of structur
 
 ## 13. Vault
 
-<img src="./docs/vault.gif" alt="git-cas vault demo" />
+<img src="./vault.gif" alt="git-cas vault demo" />
 
 When you call `createTree({ manifest })`, the resulting tree is a loose Git
 object. If nothing references it -- no commit, no tag, no ref -- `git gc`
@@ -1261,7 +1268,7 @@ ports.
 Facade (ContentAddressableStore)
   |
   +-- Domain Layer
-  |     +-- CasService         (core logic, EventEmitter)
+  |     +-- CasService         (core logic)
   |     +-- Manifest            (value object, Zod-validated)
   |     +-- Chunk               (value object, Zod-validated)
   |     +-- CasError            (structured errors)
@@ -1271,6 +1278,7 @@ Facade (ContentAddressableStore)
   |     +-- GitPersistencePort  (writeBlob, writeTree, readBlob, readTree)
   |     +-- CodecPort           (encode, decode, extension)
   |     +-- CryptoPort          (sha256, randomBytes, encryptBuffer, decryptBuffer, createEncryptionStream)
+  |     +-- ObservabilityPort   (metric, log, span)
   |
   +-- Infrastructure (adapters)
         +-- GitPersistenceAdapter   (Git plumbing commands)
@@ -1279,21 +1287,25 @@ Facade (ContentAddressableStore)
         +-- NodeCryptoAdapter       (node:crypto)
         +-- BunCryptoAdapter        (Bun.CryptoHasher)
         +-- WebCryptoAdapter        (crypto.subtle)
+        +-- SilentObserver          (no-op observability)
+        +-- EventEmitterObserver    (Node event bridge)
+        +-- StatsCollector          (metric accumulator)
 ```
 
 ### Ports
 
-Each port is an abstract base class with methods that throw `Not implemented`.
-Adapters extend these classes and provide concrete implementations.
+Each port defines a contract that adapters are expected to satisfy. Some are
+exported directly from the package, while others are easiest to understand as
+method shapes rather than stable extension entrypoints.
 
 **GitPersistencePort** -- the storage interface:
 
 ```js
 class GitPersistencePort {
-  async writeBlob(content) {}   // Returns Git OID
-  async writeTree(entries) {}   // Returns tree OID
-  async readBlob(oid) {}        // Returns Buffer
-  async readTree(treeOid) {}    // Returns array of tree entries
+  async writeBlob(content) {} // Returns Git OID
+  async writeTree(entries) {} // Returns tree OID
+  async readBlob(oid) {} // Returns Buffer
+  async readTree(treeOid) {} // Returns array of tree entries
 }
 ```
 
@@ -1301,9 +1313,9 @@ class GitPersistencePort {
 
 ```js
 class CodecPort {
-  encode(data) {}        // Returns Buffer or string
-  decode(buffer) {}      // Returns object
-  get extension() {}     // Returns 'json', 'cbor', etc.
+  encode(data) {} // Returns Buffer or string
+  decode(buffer) {} // Returns object
+  get extension() {} // Returns 'json', 'cbor', etc.
 }
 ```
 
@@ -1311,24 +1323,22 @@ class CodecPort {
 
 ```js
 class CryptoPort {
-  sha256(buf) {}                          // Returns hex digest
-  randomBytes(n) {}                       // Returns Buffer
-  encryptBuffer(buffer, key) {}           // Returns { buf, meta }
-  decryptBuffer(buffer, key, meta) {}     // Returns Buffer
-  createEncryptionStream(key) {}          // Returns { encrypt, finalize }
-  deriveKey(options) {}                   // Returns { key, salt, params }  (v2.0.0)
+  sha256(buf) {} // Returns hex digest
+  randomBytes(n) {} // Returns Buffer
+  encryptBuffer(buffer, key) {} // Returns { buf, meta }
+  decryptBuffer(buffer, key, meta) {} // Returns Buffer
+  createEncryptionStream(key) {} // Returns { encrypt, finalize }
+  deriveKey(options) {} // Returns { key, salt, params }  (v2.0.0)
 }
 ```
 
 ### Writing a Custom Persistence Adapter
 
-To store chunks somewhere other than Git (e.g., S3, a database, or the local
-filesystem), implement `GitPersistencePort`:
+To store chunks somewhere other than Git (for example S3, a database, or the
+local filesystem), implement the same persistence shape used by `CasService`:
 
 ```js
-import GitPersistencePort from '@git-stunts/git-cas/src/ports/GitPersistencePort.js';
-
-class S3PersistenceAdapter extends GitPersistencePort {
+class S3PersistenceAdapter {
   async writeBlob(content) {
     const hash = computeHash(content);
     await s3.putObject({ Key: hash, Body: content });
@@ -1353,12 +1363,13 @@ class S3PersistenceAdapter extends GitPersistencePort {
 Then inject it:
 
 ```js
-import CasService from '@git-stunts/git-cas/service';
+import { CasService, JsonCodec, NodeCryptoAdapter, SilentObserver } from '@git-stunts/git-cas';
 
 const service = new CasService({
   persistence: new S3PersistenceAdapter(),
   codec: new JsonCodec(),
   crypto: new NodeCryptoAdapter(),
+  observability: new SilentObserver(),
 });
 ```
 
@@ -1396,7 +1407,7 @@ const codec = new JsonCodec();
 const encoded = codec.encode({ slug: 'photos/vacation', chunks: [] });
 // '{\n  "slug": "photos/vacation",\n  "chunks": []\n}'
 
-codec.extension;  // 'json'
+codec.extension; // 'json'
 ```
 
 Manifests are stored in the tree as `manifest.json`.
@@ -1423,13 +1434,13 @@ Manifests are stored in the tree as `manifest.cbor`.
 
 ### When to Use Which
 
-| Consideration         | JSON               | CBOR               |
-|-----------------------|--------------------|---------------------|
-| Human-readable        | Yes                | No                  |
-| Manifest size         | Larger             | Smaller             |
-| Debugging ease        | Easy to inspect    | Requires tooling    |
-| Parse performance     | Good               | Slightly better     |
-| Default               | Yes                | No                  |
+| Consideration     | JSON            | CBOR             |
+| ----------------- | --------------- | ---------------- |
+| Human-readable    | Yes             | No               |
+| Manifest size     | Larger          | Smaller          |
+| Debugging ease    | Easy to inspect | Requires tooling |
+| Parse performance | Good            | Slightly better  |
+| Default           | Yes             | No               |
 
 For most use cases, JSON is the right choice. Switch to CBOR if you are
 storing thousands of assets and the manifest size difference matters, or if
@@ -1437,13 +1448,13 @@ you are in a pipeline where human readability is irrelevant.
 
 ### Implementing a Custom Codec
 
-To implement your own codec (e.g., MessagePack, Protobuf), extend `CodecPort`:
+To implement your own codec (for example MessagePack or Protobuf), provide the
+same method shape that the built-in codecs use:
 
 ```js
-import CodecPort from '@git-stunts/git-cas/src/ports/CodecPort.js';
 import msgpack from 'msgpack-lite';
 
-class MsgPackCodec extends CodecPort {
+class MsgPackCodec {
   encode(data) {
     return msgpack.encode(data);
   }
@@ -1481,20 +1492,18 @@ All errors thrown by `git-cas` are instances of `CasError`, which extends
 
 ### Error Codes Reference
 
-| Code                 | Meaning                                              | Typical `meta`                              |
-|----------------------|------------------------------------------------------|----------------------------------------------|
-| `INVALID_KEY_TYPE`   | Encryption key is not a Buffer or Uint8Array         | --                                           |
-| `INVALID_KEY_LENGTH` | Encryption key is not 32 bytes                       | `{ expected: 32, actual: N }`                |
-| `MISSING_KEY`        | Encrypted content restored without a key             | --                                           |
-| `INTEGRITY_ERROR`    | Chunk digest mismatch or decryption auth failure     | `{ chunkIndex, expected, actual }` or `{ originalError }` |
-| `STREAM_ERROR`       | Error reading from source stream during store        | `{ chunksWritten, originalError }`           |
-| `TREE_PARSE_ERROR`   | Malformed `ls-tree` output from Git                  | `{ rawEntry }`                               |
+| Code                 | Meaning                                          | Typical `meta`                                            |
+| -------------------- | ------------------------------------------------ | --------------------------------------------------------- |
+| `INVALID_KEY_TYPE`   | Encryption key is not a Buffer or Uint8Array     | --                                                        |
+| `INVALID_KEY_LENGTH` | Encryption key is not 32 bytes                   | `{ expected: 32, actual: N }`                             |
+| `MISSING_KEY`        | Encrypted content restored without a key         | --                                                        |
+| `INTEGRITY_ERROR`    | Chunk digest mismatch or decryption auth failure | `{ chunkIndex, expected, actual }` or `{ originalError }` |
+| `STREAM_ERROR`       | Error reading from source stream during store    | `{ chunksWritten, originalError }`                        |
+| `TREE_PARSE_ERROR`   | Malformed `ls-tree` output from Git              | `{ rawEntry }`                                            |
 
 ### Catching and Handling Errors
 
 ```js
-import { CasError } from '@git-stunts/git-cas/src/domain/errors/CasError.js';
-
 try {
   await cas.restoreFile({
     manifest,
@@ -1507,7 +1516,7 @@ try {
   } else if (err.code === 'INTEGRITY_ERROR') {
     console.error('Data corruption detected:', err.meta);
   } else {
-    throw err;  // unexpected error, re-throw
+    throw err; // unexpected error, re-throw
   }
 }
 ```
@@ -1543,7 +1552,7 @@ Constructing a `Manifest` or `Chunk` with invalid data throws a plain `Error`
 (not a `CasError`) with a descriptive message from Zod validation:
 
 ```js
-import Manifest from '@git-stunts/git-cas/src/domain/value-objects/Manifest.js';
+import { Manifest } from '@git-stunts/git-cas';
 
 try {
   new Manifest({ slug: '', filename: 'test.jpg', size: 0, chunks: [] });
@@ -1589,8 +1598,8 @@ during decryption.
 
 ### Q: Can I use this with Bun or Deno?
 
-Yes. `git-cas` v1.3.0+ includes runtime detection that automatically selects
-the appropriate crypto adapter:
+Yes. `git-cas` includes runtime detection that automatically selects the
+appropriate crypto adapter:
 
 - **Node.js**: `NodeCryptoAdapter` (uses `node:crypto`)
 - **Bun**: `BunCryptoAdapter` (uses `Bun.CryptoHasher`)
@@ -1609,11 +1618,12 @@ git update-ref refs/heads/assets "$COMMIT_OID"
 ### Q: What is the maximum file size?
 
 There is no hard limit imposed by `git-cas`. The practical limit is determined
-by your Git repository's object database and available memory. Files are
-streamed in chunks, so memory usage is proportional to `chunkSize`, not to
-file size. However, the restore operation currently concatenates all chunks
-into a single buffer, so restoring very large files requires enough memory
-to hold the entire file.
+by your Git repository's object database and available memory.
+
+Plaintext restore can stream chunk-by-chunk, so memory usage is close to
+`chunkSize` plus normal I/O overhead. Encrypted or compressed restore currently
+buffers and is bounded by `maxRestoreBufferSize` (default 512 MiB) unless you
+raise that limit explicitly.
 
 ### Q: I get "Chunk size must be an integer >= 1024 bytes"
 
@@ -1663,7 +1673,7 @@ git push origin refs/builds/latest
 # In your deploy step:
 git fetch origin refs/builds/latest
 TREE=$(git log -1 --format='%T' FETCH_HEAD)
-git cas restore "$TREE" --out ./artifact.tar.gz
+git cas restore --oid "$TREE" --out ./artifact.tar.gz
 ```
 
 ### Q: How does the resilience policy work?
@@ -1676,4 +1686,4 @@ construction time (see Section 14).
 
 ---
 
-*Copyright 2026 James Ross. Licensed under Apache-2.0.*
+_Copyright 2026 James Ross. Licensed under Apache-2.0._

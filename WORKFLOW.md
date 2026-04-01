@@ -99,7 +99,7 @@ Every active cycle design doc should include:
 - risks and unknowns
 - retrospective
 
-Design here follows IBM Design Thinking twice:
+Design here follows a two-pass design-thinking approach:
 
 - once for humans
 - once for agents
@@ -201,7 +201,7 @@ The detailed pass lives in [docs/DOCS_CHECKLIST.md](./docs/DOCS_CHECKLIST.md).
 
 ## Cycle Workflow
 
-1. Design docs first, using the human and agent IBM Design Thinking passes.
+1. Design docs first, using the human and agent design-thinking passes.
 2. Tests are the spec. Write failing tests first.
 3. Green the tests.
 4. Run human and agent playbacks.

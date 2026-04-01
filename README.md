@@ -376,7 +376,7 @@ CLI flags always take precedence over `.casrc` values.
 
 ## Documentation
 
-- [Guide](./GUIDE.md) — progressive walkthrough
+- [Guide](./docs/GUIDE.md) — progressive walkthrough
 - [API Reference](./docs/API.md) — full method documentation
 - [Architecture](./ARCHITECTURE.md) — hexagonal design overview
 - [Security](./SECURITY.md) — cryptographic design, limits, and operational guidance
