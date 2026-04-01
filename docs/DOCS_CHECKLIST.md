@@ -47,6 +47,7 @@ changes:
   [`docs/design/`](./design/README.md),
   [`docs/archive/BACKLOG/`](./archive/BACKLOG/README.md), and
   [`docs/legends/`](./legends/README.md)
+- legend summary files such as [`docs/legends/TR-truth.md`](./legends/TR-truth.md)
 
 This is not exhaustive link checking. It is a lightweight routing pass for the
 docs people and agents are most likely to read first.
@@ -97,6 +98,7 @@ This checklist is most useful when a change touches files like:
   [`docs/design/`](./design/README.md),
   [`docs/archive/BACKLOG/`](./archive/BACKLOG/README.md), and
   [`docs/legends/`](./legends/README.md)
+- legend summary files such as [`docs/legends/TR-truth.md`](./legends/TR-truth.md)
 
 ## Exit Criteria
 
