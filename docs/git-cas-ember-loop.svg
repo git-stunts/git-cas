@@ -1,26 +1,56 @@
 <svg width="698" height="133.4" viewBox="0 0 698 133.4" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="fillGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse" spreadMethod="repeat">
-      <stop offset="0%" stop-color="#d8ffc9" />
-      <stop offset="14.2857%" stop-color="#e9feb7" />
-      <stop offset="28.5714%" stop-color="#fbed87" />
-      <stop offset="42.8571%" stop-color="#ea954d" />
-      <stop offset="57.1428%" stop-color="#b03833" />
-      <stop offset="71.4285%" stop-color="#6b2d45" />
-      <stop offset="85.7142%" stop-color="#44203d" />
-      <stop offset="100%" stop-color="#311b37" />
-      <animateTransform attributeName="gradientTransform" type="translate" values="0 0;698 0" dur="30s" repeatCount="indefinite" />
+    <linearGradient id="fillGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#d8ffc9">
+        <animate attributeName="stop-color" values="#d8ffc9;#e9feb7;#fbed87;#ea954d;#b03833;#6b2d45;#44203d;#311b37;#d8ffc9" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="14.285714285714285%" stop-color="#e9feb7">
+        <animate attributeName="stop-color" values="#e9feb7;#fbed87;#ea954d;#b03833;#6b2d45;#44203d;#311b37;#d8ffc9;#e9feb7" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="28.57142857142857%" stop-color="#fbed87">
+        <animate attributeName="stop-color" values="#fbed87;#ea954d;#b03833;#6b2d45;#44203d;#311b37;#d8ffc9;#e9feb7;#fbed87" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="42.857142857142854%" stop-color="#ea954d">
+        <animate attributeName="stop-color" values="#ea954d;#b03833;#6b2d45;#44203d;#311b37;#d8ffc9;#e9feb7;#fbed87;#ea954d" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="57.14285714285714%" stop-color="#b03833">
+        <animate attributeName="stop-color" values="#b03833;#6b2d45;#44203d;#311b37;#d8ffc9;#e9feb7;#fbed87;#ea954d;#b03833" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="71.42857142857143%" stop-color="#6b2d45">
+        <animate attributeName="stop-color" values="#6b2d45;#44203d;#311b37;#d8ffc9;#e9feb7;#fbed87;#ea954d;#b03833;#6b2d45" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="85.71428571428571%" stop-color="#44203d">
+        <animate attributeName="stop-color" values="#44203d;#311b37;#d8ffc9;#e9feb7;#fbed87;#ea954d;#b03833;#6b2d45;#44203d" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="100%" stop-color="#311b37">
+        <animate attributeName="stop-color" values="#311b37;#d8ffc9;#e9feb7;#fbed87;#ea954d;#b03833;#6b2d45;#44203d;#311b37" dur="36s" repeatCount="indefinite" />
+      </stop>
     </linearGradient>
-    <linearGradient id="strokeGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse" spreadMethod="repeat">
-      <stop offset="0%" stop-color="#311b37" />
-      <stop offset="14.2857%" stop-color="#44203d" />
-      <stop offset="28.5714%" stop-color="#6b2d45" />
-      <stop offset="42.8571%" stop-color="#b03833" />
-      <stop offset="57.1428%" stop-color="#ea954d" />
-      <stop offset="71.4285%" stop-color="#fbed87" />
-      <stop offset="85.7142%" stop-color="#e9feb7" />
-      <stop offset="100%" stop-color="#d8ffc9" />
-      <animateTransform attributeName="gradientTransform" type="translate" values="0 0;698 0" dur="30s" repeatCount="indefinite" />
+    <linearGradient id="strokeGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#311b37">
+        <animate attributeName="stop-color" values="#311b37;#44203d;#6b2d45;#b03833;#ea954d;#fbed87;#e9feb7;#d8ffc9;#311b37" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="14.285714285714285%" stop-color="#44203d">
+        <animate attributeName="stop-color" values="#44203d;#6b2d45;#b03833;#ea954d;#fbed87;#e9feb7;#d8ffc9;#311b37;#44203d" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="28.57142857142857%" stop-color="#6b2d45">
+        <animate attributeName="stop-color" values="#6b2d45;#b03833;#ea954d;#fbed87;#e9feb7;#d8ffc9;#311b37;#44203d;#6b2d45" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="42.857142857142854%" stop-color="#b03833">
+        <animate attributeName="stop-color" values="#b03833;#ea954d;#fbed87;#e9feb7;#d8ffc9;#311b37;#44203d;#6b2d45;#b03833" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="57.14285714285714%" stop-color="#ea954d">
+        <animate attributeName="stop-color" values="#ea954d;#fbed87;#e9feb7;#d8ffc9;#311b37;#44203d;#6b2d45;#b03833;#ea954d" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="71.42857142857143%" stop-color="#fbed87">
+        <animate attributeName="stop-color" values="#fbed87;#e9feb7;#d8ffc9;#311b37;#44203d;#6b2d45;#b03833;#ea954d;#fbed87" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="85.71428571428571%" stop-color="#e9feb7">
+        <animate attributeName="stop-color" values="#e9feb7;#d8ffc9;#311b37;#44203d;#6b2d45;#b03833;#ea954d;#fbed87;#e9feb7" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="100%" stop-color="#d8ffc9">
+        <animate attributeName="stop-color" values="#d8ffc9;#311b37;#44203d;#6b2d45;#b03833;#ea954d;#fbed87;#e9feb7;#d8ffc9" dur="36s" repeatCount="indefinite" />
+      </stop>
     </linearGradient>
   </defs>
   <g id="svgGroup" stroke-linecap="round" fill-rule="evenodd" font-size="9pt" stroke="url(#strokeGradient)" stroke-width="2" fill="url(#fillGradient)" style="stroke:url(#strokeGradient);stroke-width:2;fill:url(#fillGradient)">

@@ -1,20 +1,38 @@
 <svg width="698" height="133.4" viewBox="0 0 698 133.4" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="fillGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse" spreadMethod="repeat">
-      <stop offset="0%" stop-color="#f2ece2" />
-      <stop offset="25%" stop-color="#d5d4cb" />
-      <stop offset="50%" stop-color="#6b8f9c" />
-      <stop offset="75%" stop-color="#354449" />
-      <stop offset="100%" stop-color="#252c2c" />
-      <animateTransform attributeName="gradientTransform" type="translate" values="0 0;698 0" dur="30s" repeatCount="indefinite" />
+    <linearGradient id="fillGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f2ece2">
+        <animate attributeName="stop-color" values="#f2ece2;#d5d4cb;#6b8f9c;#354449;#252c2c;#f2ece2" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="25%" stop-color="#d5d4cb">
+        <animate attributeName="stop-color" values="#d5d4cb;#6b8f9c;#354449;#252c2c;#f2ece2;#d5d4cb" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="50%" stop-color="#6b8f9c">
+        <animate attributeName="stop-color" values="#6b8f9c;#354449;#252c2c;#f2ece2;#d5d4cb;#6b8f9c" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="75%" stop-color="#354449">
+        <animate attributeName="stop-color" values="#354449;#252c2c;#f2ece2;#d5d4cb;#6b8f9c;#354449" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="100%" stop-color="#252c2c">
+        <animate attributeName="stop-color" values="#252c2c;#f2ece2;#d5d4cb;#6b8f9c;#354449;#252c2c" dur="36s" repeatCount="indefinite" />
+      </stop>
     </linearGradient>
-    <linearGradient id="strokeGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse" spreadMethod="repeat">
-      <stop offset="0%" stop-color="#252c2c" />
-      <stop offset="25%" stop-color="#354449" />
-      <stop offset="50%" stop-color="#6b8f9c" />
-      <stop offset="75%" stop-color="#d5d4cb" />
-      <stop offset="100%" stop-color="#f2ece2" />
-      <animateTransform attributeName="gradientTransform" type="translate" values="0 0;698 0" dur="30s" repeatCount="indefinite" />
+    <linearGradient id="strokeGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#252c2c">
+        <animate attributeName="stop-color" values="#252c2c;#354449;#6b8f9c;#d5d4cb;#f2ece2;#252c2c" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="25%" stop-color="#354449">
+        <animate attributeName="stop-color" values="#354449;#6b8f9c;#d5d4cb;#f2ece2;#252c2c;#354449" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="50%" stop-color="#6b8f9c">
+        <animate attributeName="stop-color" values="#6b8f9c;#d5d4cb;#f2ece2;#252c2c;#354449;#6b8f9c" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="75%" stop-color="#d5d4cb">
+        <animate attributeName="stop-color" values="#d5d4cb;#f2ece2;#252c2c;#354449;#6b8f9c;#d5d4cb" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="100%" stop-color="#f2ece2">
+        <animate attributeName="stop-color" values="#f2ece2;#252c2c;#354449;#6b8f9c;#d5d4cb;#f2ece2" dur="36s" repeatCount="indefinite" />
+      </stop>
     </linearGradient>
   </defs>
   <g id="svgGroup" stroke-linecap="round" fill-rule="evenodd" font-size="9pt" stroke="url(#strokeGradient)" stroke-width="2" fill="url(#fillGradient)" style="stroke:url(#strokeGradient);stroke-width:2;fill:url(#fillGradient)">

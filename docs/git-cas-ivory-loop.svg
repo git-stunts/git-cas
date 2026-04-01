@@ -1,22 +1,44 @@
 <svg width="698" height="133.4" viewBox="0 0 698 133.4" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="fillGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse" spreadMethod="repeat">
-      <stop offset="0%" stop-color="#e1ead8" />
-      <stop offset="20%" stop-color="#f5f2d5" />
-      <stop offset="40%" stop-color="#fcf4de" />
-      <stop offset="60%" stop-color="#fcf2e4" />
-      <stop offset="80%" stop-color="#fcf4ea" />
-      <stop offset="100%" stop-color="#fcf4eb" />
-      <animateTransform attributeName="gradientTransform" type="translate" values="0 0;698 0" dur="30s" repeatCount="indefinite" />
+    <linearGradient id="fillGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#e1ead8">
+        <animate attributeName="stop-color" values="#e1ead8;#f5f2d5;#fcf4de;#fcf2e4;#fcf4ea;#fcf4eb;#e1ead8" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="20%" stop-color="#f5f2d5">
+        <animate attributeName="stop-color" values="#f5f2d5;#fcf4de;#fcf2e4;#fcf4ea;#fcf4eb;#e1ead8;#f5f2d5" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="40%" stop-color="#fcf4de">
+        <animate attributeName="stop-color" values="#fcf4de;#fcf2e4;#fcf4ea;#fcf4eb;#e1ead8;#f5f2d5;#fcf4de" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="60%" stop-color="#fcf2e4">
+        <animate attributeName="stop-color" values="#fcf2e4;#fcf4ea;#fcf4eb;#e1ead8;#f5f2d5;#fcf4de;#fcf2e4" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="80%" stop-color="#fcf4ea">
+        <animate attributeName="stop-color" values="#fcf4ea;#fcf4eb;#e1ead8;#f5f2d5;#fcf4de;#fcf2e4;#fcf4ea" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="100%" stop-color="#fcf4eb">
+        <animate attributeName="stop-color" values="#fcf4eb;#e1ead8;#f5f2d5;#fcf4de;#fcf2e4;#fcf4ea;#fcf4eb" dur="36s" repeatCount="indefinite" />
+      </stop>
     </linearGradient>
-    <linearGradient id="strokeGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse" spreadMethod="repeat">
-      <stop offset="0%" stop-color="#fcf4eb" />
-      <stop offset="20%" stop-color="#fcf4ea" />
-      <stop offset="40%" stop-color="#fcf2e4" />
-      <stop offset="60%" stop-color="#fcf4de" />
-      <stop offset="80%" stop-color="#f5f2d5" />
-      <stop offset="100%" stop-color="#e1ead8" />
-      <animateTransform attributeName="gradientTransform" type="translate" values="0 0;698 0" dur="30s" repeatCount="indefinite" />
+    <linearGradient id="strokeGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fcf4eb">
+        <animate attributeName="stop-color" values="#fcf4eb;#fcf4ea;#fcf2e4;#fcf4de;#f5f2d5;#e1ead8;#fcf4eb" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="20%" stop-color="#fcf4ea">
+        <animate attributeName="stop-color" values="#fcf4ea;#fcf2e4;#fcf4de;#f5f2d5;#e1ead8;#fcf4eb;#fcf4ea" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="40%" stop-color="#fcf2e4">
+        <animate attributeName="stop-color" values="#fcf2e4;#fcf4de;#f5f2d5;#e1ead8;#fcf4eb;#fcf4ea;#fcf2e4" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="60%" stop-color="#fcf4de">
+        <animate attributeName="stop-color" values="#fcf4de;#f5f2d5;#e1ead8;#fcf4eb;#fcf4ea;#fcf2e4;#fcf4de" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="80%" stop-color="#f5f2d5">
+        <animate attributeName="stop-color" values="#f5f2d5;#e1ead8;#fcf4eb;#fcf4ea;#fcf2e4;#fcf4de;#f5f2d5" dur="36s" repeatCount="indefinite" />
+      </stop>
+      <stop offset="100%" stop-color="#e1ead8">
+        <animate attributeName="stop-color" values="#e1ead8;#fcf4eb;#fcf4ea;#fcf2e4;#fcf4de;#f5f2d5;#e1ead8" dur="36s" repeatCount="indefinite" />
+      </stop>
     </linearGradient>
   </defs>
   <g id="svgGroup" stroke-linecap="round" fill-rule="evenodd" font-size="9pt" stroke="url(#strokeGradient)" stroke-width="2" fill="url(#fillGradient)" style="stroke:url(#strokeGradient);stroke-width:2;fill:url(#fillGradient)">
