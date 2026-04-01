@@ -94,9 +94,10 @@ That keeps the workflow small and discoverable.
 
 ### Audit High-Traffic And Canonical Surfaces Explicitly
 
-The audit should run when a branch changes top-level or canonical docs such as
-README, CONTRIBUTING, WORKFLOW, ARCHITECTURE, SECURITY, API, THREAT_MODEL,
-BENCHMARKS, and planning indexes.
+The audit should run when a branch changes top-level or canonical doc surfaces
+such as `README.md`, `CONTRIBUTING.md`, `WORKFLOW.md`, `ARCHITECTURE.md`,
+`SECURITY.md`, `docs/API.md`, `docs/THREAT_MODEL.md`,
+`docs/BENCHMARKS.md`, and planning indexes.
 
 That makes the trigger concrete without pretending every markdown file needs the
 same treatment.
