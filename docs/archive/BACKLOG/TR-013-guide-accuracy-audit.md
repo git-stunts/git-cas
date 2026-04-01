@@ -6,7 +6,7 @@
 
 ## Why This Exists
 
-[GUIDE.md](../../GUIDE.md) is a long, high-traffic root document that presents
+[GUIDE.md](../../GUIDE.md) is a long, high-traffic guide that presents
 itself as a complete guide. That makes accuracy drift especially costly: if the
 guide overstates, lags, or duplicates other canonical docs, it can mislead both
 humans and agents at scale.

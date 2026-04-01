@@ -33,7 +33,6 @@ Current backlog items:
 - [TR-008 — Empty-State Phrasing Consistency](./TR-008-empty-state-phrasing-consistency.md)
 - [TR-011 — Streaming Encrypted Restore](./TR-011-streaming-encrypted-restore.md)
 - [TR-012 — Examples Surface Audit](./TR-012-examples-surface-audit.md)
-- [TR-013 — Guide Accuracy Audit](./TR-013-guide-accuracy-audit.md)
 - [TR-014 — Markdown Surface Rationalization](./TR-014-markdown-surface-rationalization.md)
 
 Archived delivered backlog items:
