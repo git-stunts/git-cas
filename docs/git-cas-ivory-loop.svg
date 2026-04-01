@@ -41,7 +41,7 @@
       </stop>
     </linearGradient>
   </defs>
-  <g id="svgGroup" stroke-linecap="round" fill-rule="evenodd" font-size="9pt" stroke="url(#strokeGradient)" stroke-width="2" fill="url(#fillGradient)" style="stroke:url(#strokeGradient);stroke-width:2;fill:url(#fillGradient)">
+  <g id="svgGroup" stroke-linecap="round" fill-rule="evenodd" font-size="9pt" stroke="url(#strokeGradient)" stroke-width="1" fill="url(#fillGradient)" style="stroke:url(#strokeGradient);stroke-width:1;fill:url(#fillGradient)">
     <path d="M 0 133.4 L 23.6 0 L 132.8 0 L 127.2 32 L 54.6 32 L 42.4 101.4 L 78.4 101.4 L 81.6 82.8 L 62.2 82.8 L 68 50.8 L 124 50.8 L 109.4 133.4 L 0 133.4 Z" id="0" vector-effect="non-scaling-stroke" />
     <path d="M 123.4 133.4 L 147 0 L 183.6 0 L 160 133.4 L 123.4 133.4 Z" id="1" vector-effect="non-scaling-stroke" />
     <path d="M 207.4 133.4 L 225.2 32 L 188.2 32 L 193.8 0 L 303.2 0 L 297.6 32 L 261.8 32 L 244 133.4 L 207.4 133.4 Z" id="2" vector-effect="non-scaling-stroke" />
