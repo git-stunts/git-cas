@@ -88,6 +88,7 @@ Current Truth backlog items:
 - [TR-005 — CasService Decomposition Plan](../BACKLOG/TR-005-casservice-decomposition-plan.md)
 - [TR-008 — Empty-State Phrasing Consistency](../BACKLOG/TR-008-empty-state-phrasing-consistency.md)
 - [TR-011 — Streaming Encrypted Restore](../BACKLOG/TR-011-streaming-encrypted-restore.md)
+- [TR-015 — Platform-Agnostic CLI Plan](../BACKLOG/TR-015-platform-agnostic-cli-plan.md)
 
 Truth work under this legend is currently focused on:
 
@@ -108,6 +109,8 @@ Truth work under this legend is currently focused on:
 - running planning-index consistency reviews and keeping empty-state language
   consistent over time
 - investigating lower-memory restore paths for encrypted and compressed assets
+- defining a runtime-neutral CLI boundary before promising broader
+  cross-platform binary distribution
 
 ## Explicit Non-Goals
 
