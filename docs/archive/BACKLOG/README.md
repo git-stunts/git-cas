@@ -29,5 +29,7 @@ Landed archived backlog items:
   - landed as [TR-006 — Truth: Docs Maintainer Checklist](../../design/TR-006-docs-maintainer-checklist.md)
 - [TR-007 — Security Doc Discoverability Audit](./TR-007-security-doc-discoverability-audit.md)
   - landed as [TR-007 — Truth: Security Doc Discoverability Audit](../../design/TR-007-security-doc-discoverability-audit.md)
+- [TR-009 — Pre-PR Doc Cross-Link Audit](./TR-009-pre-pr-doc-cross-link-audit.md)
+  - landed as [TR-009 — Truth: Pre-PR Doc Cross-Link Audit](../../design/TR-009-pre-pr-doc-cross-link-audit.md)
 - [TR-010 — Planning Index Consistency Review](./TR-010-planning-index-consistency-review.md)
   - landed as [TR-010 — Truth: Planning Index Consistency Review](../../design/TR-010-planning-index-consistency-review.md)

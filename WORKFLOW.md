@@ -176,6 +176,29 @@ The minimum review must confirm:
   `- none currently` in [docs/design/README.md](./docs/design/README.md),
   instead of inventing a new empty-list phrase for the same condition
 
+### Pre-PR Doc Cross-Link Audit
+
+Run a pre-PR doc cross-link audit whenever a branch changes high-traffic
+documentation surfaces such as:
+
+- [README.md](./README.md)
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [WORKFLOW.md](./WORKFLOW.md)
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [SECURITY.md](./SECURITY.md)
+- [docs/API.md](./docs/API.md)
+- [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md)
+- [docs/BENCHMARKS.md](./docs/BENCHMARKS.md)
+- planning indexes and legend summaries
+
+This audit should stay lightweight.
+
+Its purpose is to confirm that touched docs still route readers to the
+canonical adjacent docs they need, not to create a second full link-checking
+system.
+
+The detailed pass lives in [docs/DOCS_CHECKLIST.md](./docs/DOCS_CHECKLIST.md).
+
 ## Cycle Workflow
 
 1. Design docs first, using the human and agent IBM Design Thinking passes.
@@ -200,6 +223,9 @@ The minimum review must confirm:
 - `main` is the playback truth when docs and branches drift.
 - Doc-heavy branches should run [docs/DOCS_CHECKLIST.md](./docs/DOCS_CHECKLIST.md)
   before review.
+- If a doc-heavy branch touches top-level or canonical docs, include the
+  pre-PR doc cross-link audit from
+  [docs/DOCS_CHECKLIST.md](./docs/DOCS_CHECKLIST.md) before review.
 - When a doc makes security or threat claims, link [SECURITY.md](./SECURITY.md)
   and [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md) instead of creating a
   second canonical narrative.

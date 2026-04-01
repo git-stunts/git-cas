@@ -30,6 +30,38 @@ truth and discoverability failures that keep surfacing late in review.
   If a summary doc repeats claims that are already maintained elsewhere, reduce
   it to a short summary plus a link instead of maintaining two full narratives.
 
+## Pre-PR Doc Cross-Link Audit
+
+Run this extra pass before opening a doc-heavy pull request when a branch
+changes:
+
+- [README.md](../README.md)
+- [CONTRIBUTING.md](../CONTRIBUTING.md)
+- [WORKFLOW.md](../WORKFLOW.md)
+- [ARCHITECTURE.md](../ARCHITECTURE.md)
+- [SECURITY.md](../SECURITY.md)
+- [docs/API.md](./API.md)
+- [docs/THREAT_MODEL.md](./THREAT_MODEL.md)
+- [docs/BENCHMARKS.md](./BENCHMARKS.md)
+- planning indexes under [`docs/BACKLOG/`](./BACKLOG/README.md),
+  [`docs/design/`](./design/README.md),
+  [`docs/archive/BACKLOG/`](./archive/BACKLOG/README.md), and
+  [`docs/legends/`](./legends/README.md)
+
+This is not exhaustive link checking. It is a lightweight routing pass for the
+docs people and agents are most likely to read first.
+
+At minimum, confirm the following before review:
+
+- front-door docs still route to the canonical adjacent docs a maintainer would
+  expect from that surface
+- summary docs link canonical truth instead of becoming a second narrative
+- security-sensitive docs route to [SECURITY.md](../SECURITY.md) and
+  [docs/THREAT_MODEL.md](./THREAT_MODEL.md) where those boundaries matter
+- planning indexes and legends point to the current backlog, design, and
+  archive surfaces they describe
+- no touched doc loses an important discoverability link that existed before
+
 ## Planning Index Review
 
 Run this extra pass whenever a branch changes:
@@ -71,6 +103,7 @@ This checklist is most useful when a change touches files like:
 Before a doc-heavy branch is ready for review:
 
 - the changed docs point at the right canonical truth
+- the pre-PR doc cross-link audit passed for the touched surfaces
 - public and internal boundaries are not blurred
 - planning indexes match the files they describe
 - empty-state wording does not introduce a new style accidentally
