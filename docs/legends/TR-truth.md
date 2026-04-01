@@ -80,6 +80,7 @@ Current Truth design docs:
 - [TR-009 — Truth: Pre-PR Doc Cross-Link Audit](../design/TR-009-pre-pr-doc-cross-link-audit.md)
 - [TR-010 — Truth: Planning Index Consistency Review](../design/TR-010-planning-index-consistency-review.md)
 - [TR-013 — Truth: Guide Accuracy Audit](../design/TR-013-guide-accuracy-audit.md)
+- [TR-014 — Truth: Markdown Surface Rationalization](../design/TR-014-markdown-surface-rationalization.md)
 
 Current Truth backlog items:
 
@@ -87,7 +88,6 @@ Current Truth backlog items:
 - [TR-008 — Empty-State Phrasing Consistency](../BACKLOG/TR-008-empty-state-phrasing-consistency.md)
 - [TR-011 — Streaming Encrypted Restore](../BACKLOG/TR-011-streaming-encrypted-restore.md)
 - [TR-012 — Examples Surface Audit](../BACKLOG/TR-012-examples-surface-audit.md)
-- [TR-014 — Markdown Surface Rationalization](../BACKLOG/TR-014-markdown-surface-rationalization.md)
 
 Truth work under this legend is currently focused on:
 
@@ -100,6 +100,8 @@ Truth work under this legend is currently focused on:
 - improving security doc discoverability from high-traffic repo surfaces
 - keeping the long-form guide accurate and positioned as a docs surface instead
   of a root-level front door
+- making the tracked Markdown surface explicit so root, docs, archive, and
+  local-only placement decisions stop living only in memory
 - running a lightweight pre-PR doc cross-link audit on doc-heavy branches
 - running planning-index consistency reviews and keeping empty-state language
   consistent over time

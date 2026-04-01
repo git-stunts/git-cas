@@ -35,3 +35,5 @@ Landed archived backlog items:
   - landed as [TR-010 — Truth: Planning Index Consistency Review](../../design/TR-010-planning-index-consistency-review.md)
 - [TR-013 — Guide Accuracy Audit](./TR-013-guide-accuracy-audit.md)
   - landed as [TR-013 — Truth: Guide Accuracy Audit](../../design/TR-013-guide-accuracy-audit.md)
+- [TR-014 — Markdown Surface Rationalization](./TR-014-markdown-surface-rationalization.md)
+  - landed as [TR-014 — Truth: Markdown Surface Rationalization](../../design/TR-014-markdown-surface-rationalization.md)

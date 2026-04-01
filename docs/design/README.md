@@ -48,6 +48,7 @@ Landed cycle docs:
 - [TR-009 — Truth: Pre-PR Doc Cross-Link Audit](./TR-009-pre-pr-doc-cross-link-audit.md)
 - [TR-010 — Truth: Planning Index Consistency Review](./TR-010-planning-index-consistency-review.md)
 - [TR-013 — Truth: Guide Accuracy Audit](./TR-013-guide-accuracy-audit.md)
+- [TR-014 — Truth: Markdown Surface Rationalization](./TR-014-markdown-surface-rationalization.md)
 
 Archived or retired cycle docs:
 
