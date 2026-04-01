@@ -1,0 +1,56 @@
+<svg width="698" height="133.4" viewBox="0 0 698 133.4" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="fillGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2007a9" />
+      <stop offset="14.2857%" stop-color="#0907b3" />
+      <stop offset="28.5714%" stop-color="#0822cf" />
+      <stop offset="42.8571%" stop-color="#0a4bf8" />
+      <stop offset="57.1428%" stop-color="#3588fc" />
+      <stop offset="71.4285%" stop-color="#5eb8fd" />
+      <stop offset="85.7142%" stop-color="#7bd7fe" />
+      <stop offset="100%" stop-color="#85ecfe" />
+      <animateTransform
+        attributeName="gradientTransform"
+        type="translate"
+        values="-349 0;349 0;-349 0"
+        dur="10s"
+        repeatCount="indefinite"
+      />
+    </linearGradient>
+    <linearGradient id="strokeGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#85ecfe" />
+      <stop offset="14.2857%" stop-color="#7bd7fe" />
+      <stop offset="28.5714%" stop-color="#5eb8fd" />
+      <stop offset="42.8571%" stop-color="#3588fc" />
+      <stop offset="57.1428%" stop-color="#0a4bf8" />
+      <stop offset="71.4285%" stop-color="#0822cf" />
+      <stop offset="85.7142%" stop-color="#0907b3" />
+      <stop offset="100%" stop-color="#2007a9" />
+      <animateTransform
+        attributeName="gradientTransform"
+        type="translate"
+        values="-349 0;349 0;-349 0"
+        dur="10s"
+        repeatCount="indefinite"
+      />
+    </linearGradient>
+  </defs>
+  <g
+    id="svgGroup"
+    stroke-linecap="round"
+    fill-rule="evenodd"
+    font-size="9pt"
+    stroke="url(#strokeGradient)"
+    stroke-width="2"
+    fill="url(#fillGradient)"
+    style="stroke:url(#strokeGradient);stroke-width:2;fill:url(#fillGradient)"
+  >
+    <path d="M 0 133.4 L 23.6 0 L 132.8 0 L 127.2 32 L 54.6 32 L 42.4 101.4 L 78.4 101.4 L 81.6 82.8 L 62.2 82.8 L 68 50.8 L 124 50.8 L 109.4 133.4 L 0 133.4 Z" id="0" vector-effect="non-scaling-stroke" />
+    <path d="M 123.4 133.4 L 147 0 L 183.6 0 L 160 133.4 L 123.4 133.4 Z" id="1" vector-effect="non-scaling-stroke" />
+    <path d="M 207.4 133.4 L 225.2 32 L 188.2 32 L 193.8 0 L 303.2 0 L 297.6 32 L 261.8 32 L 244 133.4 L 207.4 133.4 Z" id="2" vector-effect="non-scaling-stroke" />
+    <path d="M 275.8 82.8 L 281 53.4 L 333 53.4 L 327.8 82.8 L 275.8 82.8 Z" id="3" vector-effect="non-scaling-stroke" />
+    <path d="M 333.6 133.4 L 357.2 0 L 453.2 0 L 447.4 32 L 388.2 32 L 376 101.4 L 435.2 101.4 L 429.6 133.4 L 333.6 133.4 Z" id="4" vector-effect="non-scaling-stroke" />
+    <path d="M 441.8 133.4 L 465.4 0 L 574.6 0 L 551.2 133.4 L 514.4 133.4 L 523.4 82.8 L 487.4 82.8 L 478.4 133.4 L 441.8 133.4 Z M 493 50.8 L 496.4 32 L 532.4 32 L 529 50.8 L 493 50.8 Z" id="5" vector-effect="non-scaling-stroke" />
+    <path d="M 565.2 133.4 L 570.8 101.4 L 643.6 101.4 L 646.8 82.8 L 574.2 82.8 L 588.8 0 L 698 0 L 692.4 32 L 619.8 32 L 616.4 50.8 L 689.2 50.8 L 674.6 133.4 L 565.2 133.4 Z" id="6" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>
