@@ -328,8 +328,6 @@ Before making non-trivial changes, read:
 - [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md)
 - [docs/API.md](./docs/API.md)
 - [docs/RELEASE.md](./docs/RELEASE.md)
-- [COMPLETED_TASKS.md](./COMPLETED_TASKS.md)
-- [CODE-EVAL.md](./CODE-EVAL.md)
 
 ## Decision Rule
 

@@ -93,4 +93,4 @@ behavior.
 
 ---
 
-_Future detail: [ROADMAP.md](./ROADMAP.md) | Shipped detail: [COMPLETED_TASKS.md](./COMPLETED_TASKS.md) | Release history: [CHANGELOG.md](./CHANGELOG.md)_
+_Future detail: [ROADMAP.md](./ROADMAP.md) | Cycle history: [docs/design/README.md](./docs/design/README.md) | Release history: [CHANGELOG.md](./CHANGELOG.md)_

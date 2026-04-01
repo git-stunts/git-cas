@@ -85,6 +85,9 @@ Current Truth backlog items:
 - [TR-005 — CasService Decomposition Plan](../BACKLOG/TR-005-casservice-decomposition-plan.md)
 - [TR-008 — Empty-State Phrasing Consistency](../BACKLOG/TR-008-empty-state-phrasing-consistency.md)
 - [TR-011 — Streaming Encrypted Restore](../BACKLOG/TR-011-streaming-encrypted-restore.md)
+- [TR-012 — Examples Surface Audit](../BACKLOG/TR-012-examples-surface-audit.md)
+- [TR-013 — Guide Accuracy Audit](../BACKLOG/TR-013-guide-accuracy-audit.md)
+- [TR-014 — Markdown Surface Rationalization](../BACKLOG/TR-014-markdown-surface-rationalization.md)
 
 Truth work under this legend is currently focused on:
 
