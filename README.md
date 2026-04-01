@@ -1,4 +1,16 @@
+![git-cas](./docs/git-cas.svg)
+
 # @git-stunts/git-cas
+
+<img width="420" alt="git-cas" src="https://github.com/user-attachments/assets/e7cb63b9-25b7-4369-b053-4a35962ccee4" />
+
+## JESSIE, STOP—
+
+> Hold on. He’s turning Git into a blob store. Let him cook.
+
+**Most potent clone available on GitHub (legally).**
+
+### Git, freebased: pure CAS that’ll knock your SHAs off. LFS hates this repo.
 
 `git-cas` uses Git's object database as a storage layer for large, awkward, or
 security-sensitive files.
