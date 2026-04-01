@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **README rewritten** — the front page now focuses on current product truth, clear quick starts, operational caveats, and the canonical doc map instead of mixing release history, marketing copy, and reference detail.
 - **Planning lifecycle clarified** — live backlog items now exclude delivered work, archive directories now hold retired backlog history and reserved retired design space, landed cycle docs use explicit landed status, and the design/backlog indexes now reflect current truth instead of stale activity.
 - **Architecture map repaired** — [ARCHITECTURE.md](./ARCHITECTURE.md) now describes the shipped system instead of an older flat-manifest-only model, including Merkle manifests, the extracted `VaultService` and `KeyResolver`, current ports/adapters, and the real storage layout for trees and the vault.
 - **Architecture navigation clarified** — [ARCHITECTURE.md](./ARCHITECTURE.md) now distinguishes the public package boundary from internal domain helpers and links directly to [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md) as adjacent truth.
