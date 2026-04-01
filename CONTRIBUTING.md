@@ -99,8 +99,8 @@ That means:
 - backlog items are cheap, single-file work candidates
 - invariants are explicit project truths that work cannot violate
 
-This project still uses IBM Design Thinking framing, but it is now applied at
-the cycle level with both human and agent passes:
+This project still uses a design-thinking framing, but it is now applied at the
+cycle level with both human and agent passes:
 
 - human users, jobs, and hills
 - agent users, jobs, and hills
