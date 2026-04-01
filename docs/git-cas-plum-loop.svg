@@ -1,6 +1,6 @@
 <svg width="698" height="133.4" viewBox="0 0 698 133.4" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="fillGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse">
+    <linearGradient id="fillGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse" spreadMethod="repeat">
       <stop offset="0%" stop-color="#545454" />
       <stop offset="16.6666%" stop-color="#5b5a5a" />
       <stop offset="33.3333%" stop-color="#72666a" />
@@ -11,12 +11,12 @@
       <animateTransform
         attributeName="gradientTransform"
         type="translate"
-        values="-349 0;349 0;-349 0"
-        dur="10s"
+        values="0 0;698 0"
+        dur="30s"
         repeatCount="indefinite"
       />
     </linearGradient>
-    <linearGradient id="strokeGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse">
+    <linearGradient id="strokeGradient" x1="0" y1="0" x2="698" y2="0" gradientUnits="userSpaceOnUse" spreadMethod="repeat">
       <stop offset="0%" stop-color="#ce97cf" />
       <stop offset="16.6666%" stop-color="#ca8fc1" />
       <stop offset="33.3333%" stop-color="#ba7ca7" />
@@ -27,8 +27,8 @@
       <animateTransform
         attributeName="gradientTransform"
         type="translate"
-        values="-349 0;349 0;-349 0"
-        dur="10s"
+        values="0 0;698 0"
+        dur="30s"
         repeatCount="indefinite"
       />
     </linearGradient>
