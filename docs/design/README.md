@@ -45,6 +45,7 @@ Landed cycle docs:
 - [TR-004 — Truth: Design Doc Lifecycle](./TR-004-design-doc-lifecycle.md)
 - [TR-006 — Truth: Docs Maintainer Checklist](./TR-006-docs-maintainer-checklist.md)
 - [TR-007 — Truth: Security Doc Discoverability Audit](./TR-007-security-doc-discoverability-audit.md)
+- [TR-009 — Truth: Pre-PR Doc Cross-Link Audit](./TR-009-pre-pr-doc-cross-link-audit.md)
 - [TR-010 — Truth: Planning Index Consistency Review](./TR-010-planning-index-consistency-review.md)
 
 Archived or retired cycle docs:

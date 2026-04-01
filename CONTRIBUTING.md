@@ -124,6 +124,9 @@ If the answer is unclear, the work probably belongs in
 Before opening a doc-heavy pull request, run the short maintainer pass in
 [docs/DOCS_CHECKLIST.md](./docs/DOCS_CHECKLIST.md).
 
+If the branch touches top-level or canonical docs, planning indexes, or legend
+summaries, include the pre-PR doc cross-link audit in that checklist pass.
+
 If the branch touches planning surfaces, include the planning-index review in
 that checklist pass.
 
