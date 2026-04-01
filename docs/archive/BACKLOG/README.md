@@ -33,6 +33,8 @@ Landed archived backlog items:
   - landed as [TR-009 — Truth: Pre-PR Doc Cross-Link Audit](../../design/TR-009-pre-pr-doc-cross-link-audit.md)
 - [TR-010 — Planning Index Consistency Review](./TR-010-planning-index-consistency-review.md)
   - landed as [TR-010 — Truth: Planning Index Consistency Review](../../design/TR-010-planning-index-consistency-review.md)
+- [TR-012 — Examples Surface Audit](./TR-012-examples-surface-audit.md)
+  - landed as [TR-012 — Truth: Examples Surface Audit](../../design/TR-012-examples-surface-audit.md)
 - [TR-013 — Guide Accuracy Audit](./TR-013-guide-accuracy-audit.md)
   - landed as [TR-013 — Truth: Guide Accuracy Audit](../../design/TR-013-guide-accuracy-audit.md)
 - [TR-014 — Markdown Surface Rationalization](./TR-014-markdown-surface-rationalization.md)

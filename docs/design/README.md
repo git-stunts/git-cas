@@ -47,6 +47,7 @@ Landed cycle docs:
 - [TR-007 — Truth: Security Doc Discoverability Audit](./TR-007-security-doc-discoverability-audit.md)
 - [TR-009 — Truth: Pre-PR Doc Cross-Link Audit](./TR-009-pre-pr-doc-cross-link-audit.md)
 - [TR-010 — Truth: Planning Index Consistency Review](./TR-010-planning-index-consistency-review.md)
+- [TR-012 — Truth: Examples Surface Audit](./TR-012-examples-surface-audit.md)
 - [TR-013 — Truth: Guide Accuracy Audit](./TR-013-guide-accuracy-audit.md)
 - [TR-014 — Truth: Markdown Surface Rationalization](./TR-014-markdown-surface-rationalization.md)
 
