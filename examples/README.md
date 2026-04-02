@@ -4,12 +4,12 @@ This directory contains runnable examples demonstrating the core features of `@g
 
 Audit status:
 
-| File                             | Recommendation | Notes                                                                                                          |
-| -------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------- |
-| `examples/README.md`             | Keep, refresh  | Canonical index for the examples surface; keep it accurate and scoped to maintained examples.                  |
-| `examples/store-and-restore.js`  | Keep, refresh  | Good first example, but it should use the public `readManifest()` helper instead of internal service plumbing. |
-| `examples/encrypted-workflow.js` | Keep           | Still a useful end-to-end encryption example with current public APIs.                                         |
-| `examples/progress-tracking.js`  | Keep           | Still the right observability example now that it teaches `EventEmitterObserver`.                              |
+| File                             | Recommendation | Notes                                                                                         |
+| -------------------------------- | -------------- | --------------------------------------------------------------------------------------------- |
+| `examples/README.md`             | Keep, refresh  | Canonical index for the examples surface; keep it accurate and scoped to maintained examples. |
+| `examples/store-and-restore.js`  | Keep, refresh  | Good first example; now uses the public `readManifest()` helper for tree-to-manifest reads.   |
+| `examples/encrypted-workflow.js` | Keep           | Still a useful end-to-end encryption example with current public APIs.                        |
+| `examples/progress-tracking.js`  | Keep           | Still the right observability example now that it teaches `EventEmitterObserver`.             |
 
 ## Prerequisites
 

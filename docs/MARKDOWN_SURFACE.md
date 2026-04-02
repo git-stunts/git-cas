@@ -78,7 +78,7 @@ surfaces.
   `KEEP` — active backlog work item.
 - [docs/BACKLOG/TR-011-streaming-encrypted-restore.md](./BACKLOG/TR-011-streaming-encrypted-restore.md):
   `KEEP` — active backlog work item.
-- [docs/BACKLOG/TR-012-examples-surface-audit.md](./BACKLOG/TR-012-examples-surface-audit.md):
+- [docs/BACKLOG/TR-015-platform-agnostic-cli-plan.md](./BACKLOG/TR-015-platform-agnostic-cli-plan.md):
   `KEEP` — active backlog work item.
 
 ## Landed Design Surface
@@ -117,6 +117,8 @@ surfaces.
   `KEEP` — landed cycle history.
 - [docs/design/TR-010-planning-index-consistency-review.md](./design/TR-010-planning-index-consistency-review.md):
   `KEEP` — landed cycle history.
+- [docs/design/TR-012-examples-surface-audit.md](./design/TR-012-examples-surface-audit.md):
+  `KEEP` — landed cycle history.
 - [docs/design/TR-013-guide-accuracy-audit.md](./design/TR-013-guide-accuracy-audit.md):
   `KEEP` — landed cycle history.
 - [docs/design/TR-014-markdown-surface-rationalization.md](./design/TR-014-markdown-surface-rationalization.md):
@@ -154,6 +156,8 @@ surfaces.
 - [docs/archive/BACKLOG/TR-009-pre-pr-doc-cross-link-audit.md](./archive/BACKLOG/TR-009-pre-pr-doc-cross-link-audit.md):
   `KEEP` — archived historical intent.
 - [docs/archive/BACKLOG/TR-010-planning-index-consistency-review.md](./archive/BACKLOG/TR-010-planning-index-consistency-review.md):
+  `KEEP` — archived historical intent.
+- [docs/archive/BACKLOG/TR-012-examples-surface-audit.md](./archive/BACKLOG/TR-012-examples-surface-audit.md):
   `KEEP` — archived historical intent.
 - [docs/archive/BACKLOG/TR-013-guide-accuracy-audit.md](./archive/BACKLOG/TR-013-guide-accuracy-audit.md):
   `KEEP` — archived historical intent.

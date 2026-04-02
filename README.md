@@ -1,4 +1,4 @@
-![git-cas](./docs/git-cas.svg)
+![git-cas](https://raw.githubusercontent.com/git-stunts/git-cas/2b0111bb5001123eb13b01e793bd63c338f86534/docs/git-cas.svg)
 
 # @git-stunts/git-cas
 
@@ -54,8 +54,11 @@ Deno test matrix.
 
 Even when encryption is enabled, repository readers can still see metadata such
 as slugs, filenames, chunk counts, object relationships, recipient labels, and
-vault metadata. See [SECURITY.md](./SECURITY.md) and
-[docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md) for the exact boundary.
+vault metadata. See
+[SECURITY.md](https://github.com/git-stunts/git-cas/blob/main/SECURITY.md)
+and
+[docs/THREAT_MODEL.md](https://github.com/git-stunts/git-cas/blob/main/docs/THREAT_MODEL.md)
+for the exact boundary.
 
 ## Honest Operational Notes
 
@@ -162,7 +165,8 @@ Common library entry points:
 
 `git-cas` supports both fixed-size chunking and content-defined chunking.
 Fixed-size chunking is simpler and predictable. CDC is more resilient to
-insertions and shifting edits. See [docs/BENCHMARKS.md](./docs/BENCHMARKS.md)
+insertions and shifting edits. See
+[docs/BENCHMARKS.md](https://github.com/git-stunts/git-cas/blob/main/docs/BENCHMARKS.md)
 for current published baselines.
 
 ### Trees And Reachability
@@ -188,9 +192,11 @@ The project supports:
 - vault passphrase rotation for envelope-encrypted vault entries
 
 The cryptography is useful, but it is not invisible. Metadata remains visible.
-Read [SECURITY.md](./SECURITY.md) and
-[docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md) before treating this as a
-secrets solution.
+Read
+[SECURITY.md](https://github.com/git-stunts/git-cas/blob/main/SECURITY.md)
+and
+[docs/THREAT_MODEL.md](https://github.com/git-stunts/git-cas/blob/main/docs/THREAT_MODEL.md)
+before treating this as a secrets solution.
 
 ### Observability
 
@@ -205,19 +211,19 @@ system directly. The repo ships:
 
 If you want depth instead of a front page:
 
-- [docs/GUIDE.md](./docs/GUIDE.md)
+- [docs/GUIDE.md](https://github.com/git-stunts/git-cas/blob/main/docs/GUIDE.md)
   - long-form walkthrough
-- [docs/API.md](./docs/API.md)
+- [docs/API.md](https://github.com/git-stunts/git-cas/blob/main/docs/API.md)
   - command and API reference
-- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [ARCHITECTURE.md](https://github.com/git-stunts/git-cas/blob/main/ARCHITECTURE.md)
   - high-level system map
-- [SECURITY.md](./SECURITY.md)
+- [SECURITY.md](https://github.com/git-stunts/git-cas/blob/main/SECURITY.md)
   - crypto and security-relevant implementation notes
-- [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md)
+- [docs/THREAT_MODEL.md](https://github.com/git-stunts/git-cas/blob/main/docs/THREAT_MODEL.md)
   - attacker model, trust boundaries, exposed metadata, non-goals
-- [docs/BENCHMARKS.md](./docs/BENCHMARKS.md)
+- [docs/BENCHMARKS.md](https://github.com/git-stunts/git-cas/blob/main/docs/BENCHMARKS.md)
   - published chunking baselines
-- [examples/README.md](./examples/README.md)
+- [examples/README.md](https://github.com/git-stunts/git-cas/blob/main/examples/README.md)
   - runnable examples
 - [CHANGELOG.md](./CHANGELOG.md)
   - release history
@@ -242,11 +248,12 @@ Do not use `git-cas` when you actually need:
 
 ## Examples
 
-Runnable examples live in [examples/](./examples/):
+Runnable examples live in
+[examples/](https://github.com/git-stunts/git-cas/tree/main/examples):
 
-- [examples/store-and-restore.js](./examples/store-and-restore.js)
-- [examples/encrypted-workflow.js](./examples/encrypted-workflow.js)
-- [examples/progress-tracking.js](./examples/progress-tracking.js)
+- [examples/store-and-restore.js](https://github.com/git-stunts/git-cas/blob/main/examples/store-and-restore.js)
+- [examples/encrypted-workflow.js](https://github.com/git-stunts/git-cas/blob/main/examples/encrypted-workflow.js)
+- [examples/progress-tracking.js](https://github.com/git-stunts/git-cas/blob/main/examples/progress-tracking.js)
 
 ## Project Status
 
