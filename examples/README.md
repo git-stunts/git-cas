@@ -2,6 +2,15 @@
 
 This directory contains runnable examples demonstrating the core features of `@git-stunts/git-cas`.
 
+Audit status:
+
+| File                             | Recommendation | Notes                                                                                         |
+| -------------------------------- | -------------- | --------------------------------------------------------------------------------------------- |
+| `examples/README.md`             | Keep, refresh  | Canonical index for the examples surface; keep it accurate and scoped to maintained examples. |
+| `examples/store-and-restore.js`  | Keep, refresh  | Good first example; now uses the public `readManifest()` helper for tree-to-manifest reads.   |
+| `examples/encrypted-workflow.js` | Keep           | Still a useful end-to-end encryption example with current public APIs.                        |
+| `examples/progress-tracking.js`  | Keep           | Still the right observability example now that it teaches `EventEmitterObserver`.             |
+
 ## Prerequisites
 
 - Node.js 22 or later
@@ -37,19 +46,21 @@ node progress-tracking.js
 **Demonstrates:** Basic CAS workflow with verification
 
 This example shows the complete lifecycle of storing and restoring a file:
+
 1. Creates a temporary Git bare repository
 2. Stores a file in the content-addressable store
 3. Creates a Git tree to persist the manifest
-4. Reads the manifest back from the tree
+4. Reads the manifest back from the tree with the public `readManifest()` helper
 5. Restores the file to disk
 6. Verifies the restored content matches the original
 7. Runs integrity verification on the stored chunks
 
 **Key concepts:**
+
 - `ContentAddressableStore.createJson()` factory
 - `storeFile()` to store files
 - `createTree()` to persist manifests in Git
-- Reading manifests from Git trees
+- `readManifest()` to reconstruct manifests from Git trees
 - `restoreFile()` to write files back to disk
 - `verifyIntegrity()` to check chunk digests
 
@@ -58,6 +69,7 @@ This example shows the complete lifecycle of storing and restoring a file:
 **Demonstrates:** Encryption and decryption with AES-256-GCM
 
 This example shows how to work with encrypted content:
+
 1. Generates a secure 32-byte encryption key
 2. Stores a file with encryption enabled
 3. Restores the file using the correct key
@@ -65,6 +77,7 @@ This example shows how to work with encrypted content:
 5. Shows the encryption metadata stored in the manifest
 
 **Key concepts:**
+
 - Generating encryption keys with `crypto.randomBytes(32)`
 - Storing encrypted files with `encryptionKey` parameter
 - Encryption metadata in manifests
@@ -75,10 +88,12 @@ This example shows how to work with encrypted content:
 
 **Demonstrates:** Event-driven progress monitoring
 
-This example shows how to track storage and restore operations using Node.js EventEmitter:
-1. Accesses the CasService via `cas.getService()`
-2. Attaches event listeners for various operations
-3. Builds a progress logger that tracks:
+This example shows how to track storage and restore operations using `EventEmitterObserver`:
+
+1. Creates an `EventEmitterObserver`
+2. Passes it into `ContentAddressableStore` via the `observability` option
+3. Attaches event listeners to the observer
+4. Builds a progress logger that tracks:
    - Chunk storage progress
    - File storage completion
    - Chunk restoration progress
@@ -86,7 +101,8 @@ This example shows how to track storage and restore operations using Node.js Eve
    - Integrity verification results
 
 **Key concepts:**
-- Accessing the underlying CasService
+
+- `EventEmitterObserver` as the backward-compatible event bridge
 - Event types: `chunk:stored`, `file:stored`, `chunk:restored`, `file:restored`, `integrity:pass`, `integrity:fail`, `error`
 - Building real-time progress indicators
 - Calculating percentages based on chunk counts
@@ -111,7 +127,7 @@ const manifest = await cas.storeFile({
   filePath: '/path/to/file',
   slug: 'unique-identifier',
   filename: 'optional-name.txt',
-  encryptionKey: optionalKeyBuffer  // 32-byte Buffer
+  encryptionKey: optionalKeyBuffer, // 32-byte Buffer
 });
 
 // Create a Git tree
@@ -125,13 +141,13 @@ const treeOid = await cas.createTree({ manifest });
 await cas.restoreFile({
   manifest,
   encryptionKey: optionalKeyBuffer,
-  outputPath: '/path/to/output'
+  outputPath: '/path/to/output',
 });
 
 // Restore to memory (returns Buffer)
 const { buffer, bytesWritten } = await cas.restore({
   manifest,
-  encryptionKey: optionalKeyBuffer
+  encryptionKey: optionalKeyBuffer,
 });
 ```
 
@@ -145,19 +161,7 @@ const isValid = await cas.verifyIntegrity(manifest);
 ### Reading Manifests from Trees
 
 ```javascript
-// Get the service
-const service = await cas.getService();
-
-// Read tree entries
-const entries = await service.persistence.readTree(treeOid);
-
-// Find manifest entry
-const manifestEntry = entries.find(e => e.name === 'manifest.json');
-
-// Read and decode manifest blob
-const manifestBlob = await service.persistence.readBlob(manifestEntry.oid);
-const manifestData = service.codec.decode(manifestBlob);
-const manifest = new Manifest(manifestData);
+const manifest = await cas.readManifest({ treeOid });
 ```
 
 ## Encryption Keys
@@ -179,20 +183,23 @@ const key = randomBytes(32);
 - All examples clean up temporary files and directories
 - The examples use temporary Git bare repositories to avoid polluting your working directory
 - Chunk size defaults to 256 KiB (262,144 bytes)
-- File paths must be absolute paths, not relative paths
-- The CAS service extends EventEmitter for progress tracking
+- Relative file paths are fine; these examples happen to use temporary absolute paths
+- Progress events are exposed through `EventEmitterObserver`, not by subscribing directly to `CasService`
 
 ## Troubleshooting
 
 **Error: "Encryption key must be 32 bytes"**
+
 - Ensure your encryption key is exactly 32 bytes
 - Use `crypto.randomBytes(32)` or equivalent
 
 **Error: "INTEGRITY_ERROR"**
+
 - Using wrong decryption key
 - Chunk corruption in Git object database
 - Run `verifyIntegrity()` to identify corrupted chunks
 
 **Error: "MISSING_KEY"**
+
 - Attempting to restore encrypted content without providing the key
 - Check if `manifest.encryption.encrypted === true`

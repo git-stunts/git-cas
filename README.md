@@ -1,3 +1,5 @@
+![git-cas](https://raw.githubusercontent.com/git-stunts/git-cas/2b0111bb5001123eb13b01e793bd63c338f86534/docs/git-cas.svg)
+
 # @git-stunts/git-cas
 
 <img width="420" alt="git-cas" src="https://github.com/user-attachments/assets/e7cb63b9-25b7-4369-b053-4a35962ccee4" />
@@ -10,418 +12,257 @@
 
 ### Git, freebased: pure CAS that’ll knock your SHAs off. LFS hates this repo.
 
-Git isn’t source control.
-Git is a content-addressed object database.  
-We use the object database.
-
-`git-cas` chunks files into Git blobs (dedupe for free), optionally encrypts them, and emits a manifest + a real Git tree so you can commit/tag/ref it like any other artifact.
-
-## What you get
-
-- **Dedupe for free** Git already hashes objects. We just lean into it.
-- **Chunked storage** big files become stable, reusable blobs. Fixed-size or content-defined chunking (CDC).
-- **Optional AES-256-GCM encryption** store secrets without leaking plaintext into the ODB.
-- **Multi-recipient encryption** envelope model (DEK/KEK) — add/remove access without re-encrypting data.
-- **Key rotation** rotate keys without re-encrypting data blobs. Respond to compromise in seconds.
-- **Compression** gzip before encryption — smaller blobs, same round-trip.
-- **Passphrase encryption** derive keys from passphrases via PBKDF2 or scrypt — no raw key management.
-- **Merkle manifests** large files auto-split into sub-manifests for scalability.
-- **Manifests** a tiny explicit index of chunks + metadata (JSON/CBOR).
-- **Tree output** generates standard Git trees so assets snap into commits cleanly.
-- **Full round-trip** store, tree, and restore — get your bytes back, verified.
-- **Lifecycle management** `readManifest`, `inspectAsset`, `collectReferencedChunks` — inspect trees, plan deletions, audit storage.
-- **Vault** GC-safe ref-based storage. One ref (`refs/cas/vault`) indexes all assets by slug. No more silent data loss from `git gc`.
-- **Vault diagnostics** `git cas vault stats` summarizes size/dedupe/encryption coverage, and `git cas doctor` scans the vault for broken manifests before they surprise you.
-- **Interactive dashboard** `git cas inspect` with chunk heatmap, animated progress bars, and rich manifest views.
-- **Verify & JSON output** `git cas verify` checks integrity; `--json` on all current human-facing commands provides convenient structured output for CI/scripting, including `pnpm release:verify --json` for release automation.
-
-**Use it for:** binary assets, build artifacts, model weights, data packs, secret bundles, weird experiments, etc.
-
-<img src="./docs/demo.gif" alt="git-cas demo" />
-
-## What's new in v5.3.2
-
-**Patch release — runtime/test stabilization.**
-
-- **Explicit Vitest workspace projects** — unit, integration, and benchmark suites now run as named workspace projects, with the integration suite always pinned to `fileParallelism: false`.
-- **Deterministic cross-runtime integration behavior** — Bun and Deno no longer depend on Vitest CLI argv shape to avoid subprocess `EPIPE` races.
-- **CLI version sync** — `git-cas --version` now reads package metadata instead of a stale literal, so the binary reports the correct in-repo release line.
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
-
-## What's new in v5.3.1
-
-**Patch release — repeated chunk tree fix.**
-
-- **Unique chunk tree entries** — `createTree()` and `_createMerkleTree()` now emit one tree entry per unique chunk digest instead of repeating the same filename for repeated chunk occurrences.
-- **Manifest remains authoritative** — chunk order and multiplicity still come entirely from the manifest; restore behavior is unchanged.
-- **Clean `git fsck` on repetitive files** — repetitive content no longer yields duplicate tree filenames or `duplicateEntries` errors.
-- **New regressions** — unit and integration coverage now exercises repeated-chunk files and validates real Git tree integrity with `git fsck --full`.
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
-
-## What's new in v5.3.0
-
-**M16 Capstone — audit remediation, CLI configuration, and security hardening.**
-
-- **`.casrc` config file** — JSON config at repo root sets defaults for all CLI flags (chunk size, strategy, concurrency, codec, compression, CDC params).
-- **CLI store/restore flags** — all library-level options now accessible from the command line: `--gzip`, `--strategy`, `--chunk-size`, `--concurrency`, `--codec`, `--merkle-threshold`, and CDC-specific flags.
-- **Passphrase-file support** — `--vault-passphrase-file <path>` on store, restore, and vault rotate (use `-` for stdin).
-- **Memory restore guard** — `maxRestoreBufferSize` (default 512 MiB) prevents unbounded memory allocation on encrypted/compressed restore.
-- **Web Crypto encryption buffer guard** — `maxEncryptionBufferSize` (default 512 MiB) for the one-shot AES-GCM API.
-- **Orphaned blob tracking** — `STREAM_ERROR` now includes `meta.orphanedBlobs` for cleanup after partial store failures.
-- **KDF brute-force awareness** — `decryption_failed` metric + CLI rate-limiting delay on `INTEGRITY_ERROR`.
-- **Encryption counter** — vault metadata tracks `encryptionCount` with observability warning near GCM nonce bound.
-- **Lifecycle method rename** — `inspectAsset()` / `collectReferencedChunks()` replace `deleteAsset()` / `findOrphanedChunks()` (old names preserved as deprecated aliases).
-- **FixedChunker O(n²) fix** — pre-allocated buffer replaces `Buffer.concat()` loop.
-- **Chunk size upper bound** — 100 MiB max enforced across all chunkers.
-- **Constructor validation** — `chunkSize`, `maxRestoreBufferSize`, `maxEncryptionBufferSize` validated at construction time.
-- **Cross-runtime portability** — `Error.captureStackTrace` guarded, crypto adapter contracts normalized.
-
-## What's new in v5.2.3
-
-**Internal refactoring — no breaking API changes.** The facade, CasService, and crypto adapters were restructured for better separation of concerns:
-
-- **Consistent async `sha256()`** — `NodeCryptoAdapter.sha256()` now returns `Promise<string>` like Bun and Web adapters, fixing a Liskov Substitution violation.
-- **`KeyResolver` extracted** — ~170 lines of key resolution logic (DEK wrap/unwrap, passphrase derivation, envelope recipients) moved from CasService (1085 → 909 lines) into a dedicated `KeyResolver` service.
-- **Facade decomposed** — `createCryptoAdapter`, `resolveChunker`, `FileIOHelper`, `rotateVaultPassphrase`, and `buildKdfMetadata` extracted from the monolithic `index.js` into focused modules.
-- **Barrel re-exports** — 10 re-export-only modules converted to `export { default as X } from '...'` form.
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
-
-## What's new in v5.2.1
-
-Bug fix: `rotateVaultPassphrase` now honours `kdfOptions.algorithm` — previously the `--algorithm` flag was silently ignored, always reusing the old KDF algorithm. CLI flag tables in `docs/API.md` are now split per command with `--cwd` documented.
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
-
-## What's new in v5.2.0
-
-**Key rotation without re-encrypting data** — Rotate a recipient's key by re-wrapping the DEK. Data blobs are never touched. Respond to key compromise in seconds, not hours.
-
-```js
-// Rotate a single recipient's key
-const rotated = await cas.rotateKey({
-  manifest,
-  oldKey: aliceOldKey,
-  newKey: aliceNewKey,
-  label: 'alice',
-});
-
-// Rotate the vault passphrase (all entries, atomic commit)
-const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase({
-  oldPassphrase: 'old-secret',
-  newPassphrase: 'new-secret',
-});
-```
-
-```bash
-# Rotate a recipient key
-git cas rotate --slug prod-secrets --old-key-file old.key --new-key-file new.key
-
-# Rotate vault passphrase
-git cas vault rotate --old-passphrase old-secret --new-passphrase new-secret
-```
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
-
-## What's new in v5.1.0
-
-**Multi-recipient envelope encryption** — Each file is encrypted with a random DEK; recipient KEKs wrap the DEK. Add or remove team members without re-encrypting data.
-
-```js
-// API: store for multiple recipients
-const manifest = await cas.storeFile({
-  filePath: './secrets.tar.gz',
-  slug: 'prod-secrets',
-  recipients: [
-    { label: 'alice', key: aliceKey },
-    { label: 'bob', key: bobKey },
-  ],
-});
-
-// Add a recipient later (no re-encryption)
-const updated = await cas.addRecipient({
-  manifest,
-  existingKey: aliceKey,
-  newRecipientKey: carolKey,
-  label: 'carol',
-});
-
-// List / remove recipients
-const labels = await cas.listRecipients({ manifest });
-const trimmed = await cas.removeRecipient({ manifest, label: 'bob' });
-```
-
-```bash
-# CLI: store with multiple recipients
-git cas store ./secrets.tar.gz --slug prod-secrets \
-  --recipient alice:./keys/alice.key \
-  --recipient bob:./keys/bob.key --tree
-
-# Manage recipients
-git cas recipient list prod-secrets
-git cas recipient add prod-secrets --label carol --key-file ./keys/carol.key --existing-key-file ./keys/alice.key
-git cas recipient remove prod-secrets --label bob
-```
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
-
-## What's new in v5.0.0
-
-**Content-defined chunking (CDC)** — Fixed-size chunking invalidates every chunk after an edit. CDC uses a buzhash rolling hash to find natural boundaries, limiting the blast radius to 1–2 chunks. Benchmarked at 98.4% chunk reuse on small edits vs 32% for fixed.
-
-```js
-const cas = new ContentAddressableStore({
-  plumbing,
-  chunking: {
-    strategy: 'cdc',
-    targetChunkSize: 262144,
-    minChunkSize: 65536,
-    maxChunkSize: 1048576,
-  },
-});
-```
-
-**`ChunkingPort`** — new hexagonal port abstracts chunking strategy. `FixedChunker` and `CdcChunker` adapters ship out of the box. Bring your own chunker by extending `ChunkingPort`.
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
-
-## What's new in v4.0.1
-
-**`git cas verify`** — verify stored asset integrity from the CLI without restoring (`git cas verify --slug my-asset`).
-
-**`--json` everywhere** — all commands now support `--json` for structured output. Pipe `git cas vault list --json | jq` in CI.
-
-**Vault diagnostics** — `git cas vault stats` surfaces logical size, dedupe, chunking, and encryption coverage; `git cas doctor` scans the current vault and exits non-zero when it finds trouble.
-
-**CryptoPort base class** — shared key validation, metadata building, and KDF normalization. All three adapters (Node/Bun/Web) inherit from a single source of truth.
-
-**Centralized error handling** — `runAction` wrapper with CasError codes and actionable hints (e.g., "Provide --key-file or --vault-passphrase").
-
-**Vault list filtering** — `git cas vault list --filter "photos/*"` with TTY-aware table formatting.
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
-
-## What's new in v4.0.0
-
-**ObservabilityPort** — `CasService` no longer extends `EventEmitter`. A new hexagonal `ObservabilityPort` decouples the domain from Node's event infrastructure. Three adapters ship out of the box: `SilentObserver` (no-op default), `EventEmitterObserver` (backward-compatible event bridge), and `StatsCollector` (metric accumulator).
-
-**Streaming restore** — `restoreStream()` returns an `AsyncIterable<Buffer>` with O(chunkSize) memory for unencrypted files. `restoreFile()` now writes via `createWriteStream` + `pipeline` instead of buffering.
-
-**Parallel chunk I/O** — new `concurrency` option gates store writes and restore reads through a counting semaphore. `concurrency: 4` can significantly speed up large-file operations.
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
-
-## What's new in v3.1.0
-
-**Interactive vault dashboard** — `git cas inspect --slug my-asset` renders a rich TUI with chunk heatmap, encryption card, and history timeline. Animated progress bars for long store/restore operations.
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
-
-## What's new in v3.0.0
-
-**Vault** — GC-safe ref-based storage under `refs/cas/vault`. Assets are indexed by slug and survive `git gc`. Full CLI: `git cas vault init`, `list`, `info`, `remove`, `history`. Store with `--tree` to vault automatically.
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
-
-## What's new in v2.0.0
-
-**Compression** — `compression: { algorithm: 'gzip' }` on `store()`. Compression runs before encryption. Decompression on `restore()` is automatic.
-
-**Passphrase-based encryption** — Pass `passphrase` instead of `encryptionKey`. Keys are derived via PBKDF2 (default) or scrypt. KDF parameters are stored in the manifest for deterministic re-derivation. Use `deriveKey()` directly for manual control.
-
-**Merkle tree manifests** — When chunk count exceeds `merkleThreshold` (default: 1000), manifests are automatically split into sub-manifests stored as separate blobs. `readManifest()` transparently reconstitutes them. Full backward compatibility with v1 manifests.
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full list of changes.
+`git-cas` uses Git's object database as a storage layer for large, awkward, or
+security-sensitive files.
+
+It stores content as chunk blobs, records how to rebuild that content in a
+manifest, can emit a real Git tree for reachability, and can keep named assets
+reachable through a GC-safe vault ref.
+
+This repo ships three surfaces over the same core:
+
+- a JavaScript library for Node-first applications
+- a human CLI/TUI (`git-cas`, and `git cas` when installed as a Git subcommand)
+- a machine-facing agent CLI for structured automation flows
+
+Primary runtime support is Node.js 22+. The project also maintains a Bun and
+Deno test matrix.
+
+## What It Is Good At
+
+- storing binary assets, artifacts, bundles, and other files directly in Git
+- chunk-level deduplication using fixed-size or content-defined chunking (CDC)
+- optional gzip compression before storage
+- optional AES-256-GCM encryption
+- passphrase-derived keys via PBKDF2 or scrypt
+- multi-recipient envelope encryption and recipient mutation
+- key rotation without re-encrypting underlying data blobs
+- manifest serialization in JSON or CBOR
+- large-asset support through Merkle-style sub-manifests
+- a GC-safe vault index under `refs/cas/vault`
+- integrity verification, vault diagnostics, and an interactive inspector
+
+## What It Is Not
+
+`git-cas` is not:
+
+- a hosted blob service
+- a secret-management platform
+- an access-control system
+- metadata-oblivious storage
+- secure deletion
+
+Even when encryption is enabled, repository readers can still see metadata such
+as slugs, filenames, chunk counts, object relationships, recipient labels, and
+vault metadata. See
+[SECURITY.md](https://github.com/git-stunts/git-cas/blob/main/SECURITY.md)
+and
+[docs/THREAT_MODEL.md](https://github.com/git-stunts/git-cas/blob/main/docs/THREAT_MODEL.md)
+for the exact boundary.
+
+## Honest Operational Notes
+
+- Plaintext, uncompressed restore can stream chunk-by-chunk.
+- Encrypted or compressed restore currently uses a buffered path guarded by
+  `maxRestoreBufferSize` (default `512 MiB`).
+- Encryption removes most of the dedupe advantage of CDC because ciphertext is
+  pseudorandom.
+- Git will happily retain a large number of blobs for you, but that does not
+  mean storage management disappears. You still need to think about repository
+  size, reachability, and maintenance.
+- The manifest is the authoritative description of asset order and repeated
+  chunks. The emitted tree is a reachability artifact, not the reconstruction
+  source of truth.
 
 ## Install
 
-```bash
-npm install @git-stunts/git-cas
-```
+For the library:
 
 ```bash
-npx jsr add @git-stunts/git-cas
+npm install @git-stunts/git-cas @git-stunts/plumbing
 ```
 
-## Usage (Node API)
+For the CLI:
+
+```bash
+npm install -g @git-stunts/git-cas
+```
+
+## CLI Quick Start
+
+This is the shortest practical path from an empty repo to a stored and restored
+asset.
+
+```bash
+mkdir demo-cas
+cd demo-cas
+git init
+
+git-cas vault init
+
+printf 'hello from git-cas\n' > hello.txt
+
+git-cas store hello.txt --slug demo/hello --tree
+git-cas inspect --slug demo/hello
+git-cas verify --slug demo/hello
+git-cas restore --slug demo/hello --out hello.restored.txt
+```
+
+If `git-cas` is installed on your `PATH`, Git can also invoke it as `git cas`.
+
+Useful first commands:
+
+- `git-cas store <file> --slug <slug> --tree`
+- `git-cas restore --slug <slug> --out <path>`
+- `git-cas inspect --slug <slug>`
+- `git-cas verify --slug <slug>`
+- `git-cas vault list`
+- `git-cas vault stats`
+- `git-cas doctor`
+
+## Library Quick Start
 
 ```js
 import GitPlumbing from '@git-stunts/plumbing';
-import ContentAddressableStore from '@git-stunts/cas';
+import ContentAddressableStore from '@git-stunts/git-cas';
 
-const git = new GitPlumbing({ cwd: './assets-repo' });
-const cas = new ContentAddressableStore({ plumbing: git });
+const plumbing = new GitPlumbing({ cwd: './demo-cas' });
+const cas = ContentAddressableStore.createJson({ plumbing });
 
-// Store a file -> returns a manifest (chunk list + metadata)
 const manifest = await cas.storeFile({
-  filePath: './image.png',
-  slug: 'my-image',
-  encryptionKey: myKeyBuffer, // optional (32 bytes)
+  filePath: './hello.txt',
+  slug: 'demo/hello',
 });
 
-// Turn the manifest into a Git tree OID
 const treeOid = await cas.createTree({ manifest });
+const reread = await cas.readManifest({ treeOid });
 
-// Restore later — get your bytes back, integrity-verified
-await cas.restoreFile({ manifest, outputPath: './restored.png' });
-
-// Read the manifest back from a tree OID
-const m = await cas.readManifest({ treeOid });
-
-// Lifecycle: inspect deletion impact, collect referenced chunks
-const { slug, chunksOrphaned } = await cas.inspectAsset({ treeOid });
-const { referenced, total } = await cas.collectReferencedChunks({ treeOids: [treeOid] });
-
-// v2.0.0: Compressed + passphrase-encrypted store
-const manifest2 = await cas.storeFile({
-  filePath: './image.png',
-  slug: 'my-image',
-  passphrase: 'my secret passphrase',
-  compression: { algorithm: 'gzip' },
+await cas.restoreFile({
+  manifest: reread,
+  outputPath: './hello.restored.txt',
 });
+
+const ok = await cas.verifyIntegrity(reread);
+console.log({ treeOid, ok });
 ```
 
-## CLI (git plugin)
+Common library entry points:
 
-`git-cas` installs as a Git subcommand:
+- `storeFile()`
+- `createTree()`
+- `readManifest()`
+- `restoreFile()`
+- `verifyIntegrity()`
+- `inspectAsset()`
+- `collectReferencedChunks()`
+- `initVault()`, `addToVault()`, `listVault()`, `resolveVaultEntry()`
+- `addRecipient()`, `removeRecipient()`, `listRecipients()`, `rotateKey()`
+- `rotateVaultPassphrase()`
 
-```bash
-# Store a file — prints manifest JSON
-git cas store ./image.png --slug my-image
+## Feature Overview
 
-# Store and vault the tree OID (GC-safe)
-git cas store ./image.png --slug my-image --tree
+### Chunking
 
-# Restore from a vault slug
-git cas restore --slug my-image --out ./restored.png
+`git-cas` supports both fixed-size chunking and content-defined chunking.
+Fixed-size chunking is simpler and predictable. CDC is more resilient to
+insertions and shifting edits. See
+[docs/BENCHMARKS.md](https://github.com/git-stunts/git-cas/blob/main/docs/BENCHMARKS.md)
+for current published baselines.
 
-# Restore from a direct tree OID
-git cas restore --oid <tree-oid> --out ./restored.png
+### Trees And Reachability
 
-# Verify integrity without restoring
-git cas verify --slug my-image
+Stored chunks live as ordinary Git blobs. `createTree()` writes a manifest blob
+plus the referenced chunk blobs into a Git tree so the asset becomes reachable
+like any other Git object.
 
-# Inspect manifest (interactive dashboard)
-git cas inspect --slug my-image
+### Vault
 
-# Vault management
-git cas vault init
-git cas vault list                        # TTY table
-git cas vault list --json                 # structured JSON
-git cas vault list --filter "photos/*"    # glob filter
-git cas vault stats                       # size / dedupe / coverage summary
-git cas vault info my-image
-git cas vault remove my-image
-git cas vault history
-git cas doctor                            # vault health scan
-pnpm release:verify --json                # machine-readable release report
+The vault is a commit-backed slug index rooted at `refs/cas/vault`. It exists
+to keep named assets reachable across normal Git garbage collection and to make
+slug-based workflows practical.
 
-# Multi-recipient encryption
-git cas store ./secret.bin --slug shared \
-  --recipient alice:./keys/alice.key \
-  --recipient bob:./keys/bob.key --tree
-git cas recipient list shared
-git cas recipient add shared --label carol --key-file ./keys/carol.key --existing-key-file ./keys/alice.key
-git cas recipient remove shared --label bob
+### Encryption
 
-# Key rotation (no re-encryption)
-git cas rotate --slug shared --old-key-file old.key --new-key-file new.key
-git cas rotate --slug shared --old-key-file old.key --new-key-file new.key --label alice
+The project supports:
 
-# Vault passphrase rotation
-git cas vault rotate --old-passphrase old-secret --new-passphrase new-secret
+- raw 32-byte encryption keys
+- passphrase-derived keys
+- recipient-based envelope encryption
+- recipient mutation and key rotation
+- vault passphrase rotation for envelope-encrypted vault entries
 
-# Encrypted vault round-trip (passphrase via env var or --vault-passphrase flag)
-export GIT_CAS_PASSPHRASE="secret"
-git cas vault init
-git cas store ./secret.bin --slug vault-entry --tree
-git cas restore --slug vault-entry --out ./decrypted.bin
+The cryptography is useful, but it is not invisible. Metadata remains visible.
+Read
+[SECURITY.md](https://github.com/git-stunts/git-cas/blob/main/SECURITY.md)
+and
+[docs/THREAT_MODEL.md](https://github.com/git-stunts/git-cas/blob/main/docs/THREAT_MODEL.md)
+before treating this as a secrets solution.
 
-# Compression, chunking, codec, concurrency
-git cas store ./data.bin --slug my-data --tree --gzip
-git cas store ./data.bin --slug my-data --tree --strategy cdc
-git cas store ./data.bin --slug my-data --tree --chunk-size 65536 --concurrency 4
-git cas store ./data.bin --slug my-data --tree --codec cbor
+### Observability
 
-# Restore with concurrency
-git cas restore --slug my-data --out ./data.bin --concurrency 4
+The core domain is wired through an observability port rather than Node's event
+system directly. The repo ships:
 
-# JSON output on any command (for CI/scripting)
-git cas store ./data.bin --slug my-data --tree --json
-```
+- `SilentObserver`
+- `EventEmitterObserver`
+- `StatsCollector`
 
-### `.casrc` — Project Config File
+## Documentation Map
 
-Place a `.casrc` JSON file at the repository root to set defaults for CLI flags.
-CLI flags always take precedence over `.casrc` values.
+If you want depth instead of a front page:
 
-```json
-{
-  "chunkSize": 65536,
-  "strategy": "cdc",
-  "concurrency": 4,
-  "codec": "json",
-  "compression": "gzip",
-  "merkleThreshold": 500,
-  "maxRestoreBufferSize": 1073741824,
-  "cdc": {
-    "minChunkSize": 8192,
-    "targetChunkSize": 32768,
-    "maxChunkSize": 131072
-  }
-}
-```
+- [docs/GUIDE.md](https://github.com/git-stunts/git-cas/blob/main/docs/GUIDE.md)
+  - long-form walkthrough
+- [docs/API.md](https://github.com/git-stunts/git-cas/blob/main/docs/API.md)
+  - command and API reference
+- [ARCHITECTURE.md](https://github.com/git-stunts/git-cas/blob/main/ARCHITECTURE.md)
+  - high-level system map
+- [SECURITY.md](https://github.com/git-stunts/git-cas/blob/main/SECURITY.md)
+  - crypto and security-relevant implementation notes
+- [docs/THREAT_MODEL.md](https://github.com/git-stunts/git-cas/blob/main/docs/THREAT_MODEL.md)
+  - attacker model, trust boundaries, exposed metadata, non-goals
+- [docs/BENCHMARKS.md](https://github.com/git-stunts/git-cas/blob/main/docs/BENCHMARKS.md)
+  - published chunking baselines
+- [examples/README.md](https://github.com/git-stunts/git-cas/blob/main/examples/README.md)
+  - runnable examples
+- [CHANGELOG.md](./CHANGELOG.md)
+  - release history
 
-## Documentation
+## When To Use It
 
-- [Guide](./docs/GUIDE.md) — progressive walkthrough
-- [API Reference](./docs/API.md) — full method documentation
-- [Architecture](./ARCHITECTURE.md) — hexagonal design overview
-- [Security](./SECURITY.md) — cryptographic design, limits, and operational guidance
-- [Threat Model](./docs/THREAT_MODEL.md) — trust boundaries, exposed metadata, and explicit non-goals
+Use `git-cas` when you want:
 
-## When to use git-cas (and when not to)
+- artifacts to stay inside Git instead of moving to a separate blob service
+- explicit chunk-level storage and verification
+- Git-native reachability via trees and refs
+- encryption on top of Git's object database without inventing a second storage
+  system
 
-### "I just want screenshots in my README"
+Do not use `git-cas` when you actually need:
 
-Use an **orphan branch**. Seriously. It's 5 git commands, zero dependencies, and GitHub renders the images inline. Google "git orphan branch assets" — that's all you need. git-cas is overkill for public images and demo GIFs.
+- per-user authorization
+- opaque metadata
+- remote multi-tenant storage management
+- secret recovery or escrow
+- transparent large-file ergonomics with no Git tradeoffs
 
-### "I need encrypted secrets / large binaries / deduplicated assets in a Git repo"
+## Examples
 
-That's git-cas. The orphan branch gives you none of:
+Runnable examples live in
+[examples/](https://github.com/git-stunts/git-cas/tree/main/examples):
 
-|                 | Orphan branch                       | git-cas                                                       |
-| --------------- | ----------------------------------- | ------------------------------------------------------------- |
-| **Encryption**  | None — plaintext forever in history | AES-256-GCM + passphrase KDF + multi-recipient + key rotation |
-| **Large files** | Bloats `git clone` for everyone     | Chunked, restored on demand                                   |
-| **Dedup**       | None                                | Chunk-level content addressing                                |
-| **Integrity**   | Git SHA-1                           | SHA-256 per chunk + GCM auth tag                              |
-| **Lifecycle**   | `git rm` (still in reflog)          | Vault with audit trail + `git gc` reclaims                    |
-| **Compression** | None                                | gzip before encryption                                        |
+- [examples/store-and-restore.js](https://github.com/git-stunts/git-cas/blob/main/examples/store-and-restore.js)
+- [examples/encrypted-workflow.js](https://github.com/git-stunts/git-cas/blob/main/examples/encrypted-workflow.js)
+- [examples/progress-tracking.js](https://github.com/git-stunts/git-cas/blob/main/examples/progress-tracking.js)
 
-### "Why not Git LFS?"
+## Project Status
 
-Because sometimes you want the Git object database to be the store — deterministic, content-addressed, locally replicable, commit-addressable — with no external server, no LFS endpoint, and no second system to manage.
+This is an active project with a real multi-runtime test matrix and an evolving
+docs/planning surface. The public front door should be treated as:
 
-If your team uses GitHub and needs file locking + web UI previews, use LFS. If you want encrypted, self-contained, server-free binary storage that travels with `git clone`, use git-cas.
+- README for orientation
+- API/guide docs for detail
+- changelog for release-by-release history
 
----
-
-> _THIS HASH’LL KNOCK YOUR SHAs OFF! FIRST COMMIT’S FREE, MAN._
-
-<img width="420" alt="dhtux" src="https://github.com/user-attachments/assets/f2c13357-22c7-4685-83ce-7eccd747e2fe" />
-
----
-
-## License
-
-Apache-2.0
-Copyright © 2026 [James Ross](https://github.com/flyingrobots)
-
----
-
-<p align="center">
-<sub>Built by <a href="https://github.com/flyingrobots">FLYING ROBOTS</a></sub>
-</p>
+If you are evaluating the system seriously, read the security and threat-model
+docs before designing around encrypted storage behavior.

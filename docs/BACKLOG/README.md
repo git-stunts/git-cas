@@ -32,8 +32,7 @@ Current backlog items:
 - [TR-005 — CasService Decomposition Plan](./TR-005-casservice-decomposition-plan.md)
 - [TR-008 — Empty-State Phrasing Consistency](./TR-008-empty-state-phrasing-consistency.md)
 - [TR-011 — Streaming Encrypted Restore](./TR-011-streaming-encrypted-restore.md)
-- [TR-012 — Examples Surface Audit](./TR-012-examples-surface-audit.md)
-- [TR-014 — Markdown Surface Rationalization](./TR-014-markdown-surface-rationalization.md)
+- [TR-015 — Platform-Agnostic CLI Plan](./TR-015-platform-agnostic-cli-plan.md)
 
 Archived delivered backlog items:
 

@@ -2,7 +2,7 @@
 
 ## Legend
 
-- [TR — Truth](../legends/TR-truth.md)
+- [TR — Truth](../../legends/TR-truth.md)
 
 ## Why This Exists
 
@@ -35,7 +35,7 @@ which ones still belong in the repo and why.
 
 ## Linked Invariants
 
-- [I-001 — Determinism, Trust, And Explicit Surfaces](../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
+- [I-001 — Determinism, Trust, And Explicit Surfaces](../../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
 
 ## Notes
 

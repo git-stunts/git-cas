@@ -17,7 +17,7 @@ import { execSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import GitPlumbing from '@git-stunts/plumbing';
-import ContentAddressableStore, { Manifest } from '@git-stunts/git-cas';
+import ContentAddressableStore from '@git-stunts/git-cas';
 
 console.log('=== Store and Restore Example ===\n');
 
@@ -44,7 +44,7 @@ console.log('\n--- Step 1: Storing file ---');
 const manifest = await cas.storeFile({
   filePath: testFilePath,
   slug: 'example-file',
-  filename: 'sample.bin'
+  filename: 'sample.bin',
 });
 
 console.log(`Stored successfully!`);
@@ -61,24 +61,7 @@ console.log(`Git tree created: ${treeOid}`);
 
 // Step 3: Read the manifest back from the tree
 console.log('\n--- Step 3: Reading manifest from tree ---');
-const service = await cas.getService();
-const entries = await service.persistence.readTree(treeOid);
-
-console.log(`Tree contains ${entries.length} entries:`);
-entries.forEach(entry => {
-  const label = entry.name.startsWith('manifest.') ? 'Manifest' : `Chunk ${entry.name.substring(0, 8)}...`;
-  console.log(`  - ${label} (${entry.type}): ${entry.oid}`);
-});
-
-// Find and decode the manifest
-const manifestEntry = entries.find(e => e.name === 'manifest.json');
-if (!manifestEntry) {
-  throw new Error('Manifest not found in tree');
-}
-
-const manifestBlob = await service.persistence.readBlob(manifestEntry.oid);
-const manifestData = service.codec.decode(manifestBlob);
-const restoredManifest = new Manifest(manifestData);
+const restoredManifest = await cas.readManifest({ treeOid });
 
 console.log('\nManifest successfully read from tree');
 console.log(`  Slug: ${restoredManifest.slug}`);
@@ -89,7 +72,7 @@ console.log('\n--- Step 4: Restoring file to disk ---');
 const outputPath = path.join(testDir, 'restored.bin');
 const { bytesWritten } = await cas.restoreFile({
   manifest: restoredManifest,
-  outputPath
+  outputPath,
 });
 
 console.log(`File restored to: ${outputPath}`);

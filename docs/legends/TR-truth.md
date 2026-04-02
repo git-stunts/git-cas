@@ -79,15 +79,16 @@ Current Truth design docs:
 - [TR-007 — Truth: Security Doc Discoverability Audit](../design/TR-007-security-doc-discoverability-audit.md)
 - [TR-009 — Truth: Pre-PR Doc Cross-Link Audit](../design/TR-009-pre-pr-doc-cross-link-audit.md)
 - [TR-010 — Truth: Planning Index Consistency Review](../design/TR-010-planning-index-consistency-review.md)
+- [TR-012 — Truth: Examples Surface Audit](../design/TR-012-examples-surface-audit.md)
 - [TR-013 — Truth: Guide Accuracy Audit](../design/TR-013-guide-accuracy-audit.md)
+- [TR-014 — Truth: Markdown Surface Rationalization](../design/TR-014-markdown-surface-rationalization.md)
 
 Current Truth backlog items:
 
 - [TR-005 — CasService Decomposition Plan](../BACKLOG/TR-005-casservice-decomposition-plan.md)
 - [TR-008 — Empty-State Phrasing Consistency](../BACKLOG/TR-008-empty-state-phrasing-consistency.md)
 - [TR-011 — Streaming Encrypted Restore](../BACKLOG/TR-011-streaming-encrypted-restore.md)
-- [TR-012 — Examples Surface Audit](../BACKLOG/TR-012-examples-surface-audit.md)
-- [TR-014 — Markdown Surface Rationalization](../BACKLOG/TR-014-markdown-surface-rationalization.md)
+- [TR-015 — Platform-Agnostic CLI Plan](../BACKLOG/TR-015-platform-agnostic-cli-plan.md)
 
 Truth work under this legend is currently focused on:
 
@@ -100,10 +101,16 @@ Truth work under this legend is currently focused on:
 - improving security doc discoverability from high-traffic repo surfaces
 - keeping the long-form guide accurate and positioned as a docs surface instead
   of a root-level front door
+- keeping the examples surface aligned with current public APIs instead of
+  stale internal helper paths
+- making the tracked Markdown surface explicit so root, docs, archive, and
+  local-only placement decisions stop living only in memory
 - running a lightweight pre-PR doc cross-link audit on doc-heavy branches
 - running planning-index consistency reviews and keeping empty-state language
   consistent over time
 - investigating lower-memory restore paths for encrypted and compressed assets
+- defining a runtime-neutral CLI boundary before promising broader
+  cross-platform binary distribution
 
 ## Explicit Non-Goals
 

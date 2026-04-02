@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>git-cas SVG Preview</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --border-light: rgba(0, 0, 0, 0.12);
+        --border-dark: rgba(255, 255, 255, 0.16);
+        --text-light: #111;
+        --text-dark: #f3f3f3;
+        --muted-light: #666;
+        --muted-dark: #aaa;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        min-height: 100vh;
+      }
+
+      .panel {
+        padding: 24px;
+      }
+
+      .panel.light {
+        background: #fff;
+        color: var(--text-light);
+      }
+
+      .panel.dark {
+        background: #000;
+        color: var(--text-dark);
+      }
+
+      .panel-header {
+        position: sticky;
+        top: 0;
+        padding-bottom: 16px;
+        margin-bottom: 20px;
+        backdrop-filter: blur(10px);
+      }
+
+      .panel.light .panel-header {
+        background: linear-gradient(to bottom, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.8));
+        border-bottom: 1px solid var(--border-light);
+      }
+
+      .panel.dark .panel-header {
+        background: linear-gradient(to bottom, rgba(0, 0, 0, 0.96), rgba(0, 0, 0, 0.8));
+        border-bottom: 1px solid var(--border-dark);
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 20px;
+        line-height: 1.2;
+      }
+
+      .subhead {
+        margin: 0;
+        font-size: 13px;
+      }
+
+      .panel.light .subhead {
+        color: var(--muted-light);
+      }
+
+      .panel.dark .subhead {
+        color: var(--muted-dark);
+      }
+
+      .stack {
+        display: grid;
+        gap: 20px;
+      }
+
+      .specimen {
+        padding: 18px;
+        border-radius: 16px;
+      }
+
+      .panel.light .specimen {
+        border: 1px solid var(--border-light);
+        background: rgba(0, 0, 0, 0.02);
+      }
+
+      .panel.dark .specimen {
+        border: 1px solid var(--border-dark);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .specimen h2 {
+        margin: 0 0 12px;
+        font-size: 14px;
+        line-height: 1.3;
+      }
+
+      .specimen img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      @media (max-width: 900px) {
+        .split {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="split">
+      <section class="panel light">
+        <header class="panel-header">
+          <h1>Light Background</h1>
+          <p class="subhead">Each SVG stacked vertically on white.</p>
+        </header>
+        <div class="stack">
+          <article class="specimen">
+            <h2><code>git-cas.svg</code></h2>
+            <img src="./git-cas.svg" alt="git-cas default gradient logo on light background" />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-neon-loop.svg</code></h2>
+            <img
+              src="./git-cas-neon-loop.svg"
+              alt="git-cas neon animated gradient logo on light background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-moss-loop.svg</code></h2>
+            <img
+              src="./git-cas-moss-loop.svg"
+              alt="git-cas moss animated gradient logo on light background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-ice-loop.svg</code></h2>
+            <img
+              src="./git-cas-ice-loop.svg"
+              alt="git-cas ice animated gradient logo on light background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-plum-loop.svg</code></h2>
+            <img
+              src="./git-cas-plum-loop.svg"
+              alt="git-cas plum animated gradient logo on light background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-ember-loop.svg</code></h2>
+            <img
+              src="./git-cas-ember-loop.svg"
+              alt="git-cas ember animated gradient logo on light background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-clay-loop.svg</code></h2>
+            <img
+              src="./git-cas-clay-loop.svg"
+              alt="git-cas clay animated gradient logo on light background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-honey-loop.svg</code></h2>
+            <img
+              src="./git-cas-honey-loop.svg"
+              alt="git-cas honey animated gradient logo on light background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-slate-loop.svg</code></h2>
+            <img
+              src="./git-cas-slate-loop.svg"
+              alt="git-cas slate animated gradient logo on light background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-ivory-loop.svg</code></h2>
+            <img
+              src="./git-cas-ivory-loop.svg"
+              alt="git-cas ivory animated gradient logo on light background"
+            />
+          </article>
+        </div>
+      </section>
+
+      <section class="panel dark">
+        <header class="panel-header">
+          <h1>Dark Background</h1>
+          <p class="subhead">The same SVGs stacked vertically on black.</p>
+        </header>
+        <div class="stack">
+          <article class="specimen">
+            <h2><code>git-cas.svg</code></h2>
+            <img src="./git-cas.svg" alt="git-cas default gradient logo on dark background" />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-neon-loop.svg</code></h2>
+            <img
+              src="./git-cas-neon-loop.svg"
+              alt="git-cas neon animated gradient logo on dark background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-moss-loop.svg</code></h2>
+            <img
+              src="./git-cas-moss-loop.svg"
+              alt="git-cas moss animated gradient logo on dark background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-ice-loop.svg</code></h2>
+            <img
+              src="./git-cas-ice-loop.svg"
+              alt="git-cas ice animated gradient logo on dark background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-plum-loop.svg</code></h2>
+            <img
+              src="./git-cas-plum-loop.svg"
+              alt="git-cas plum animated gradient logo on dark background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-ember-loop.svg</code></h2>
+            <img
+              src="./git-cas-ember-loop.svg"
+              alt="git-cas ember animated gradient logo on dark background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-clay-loop.svg</code></h2>
+            <img
+              src="./git-cas-clay-loop.svg"
+              alt="git-cas clay animated gradient logo on dark background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-honey-loop.svg</code></h2>
+            <img
+              src="./git-cas-honey-loop.svg"
+              alt="git-cas honey animated gradient logo on dark background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-slate-loop.svg</code></h2>
+            <img
+              src="./git-cas-slate-loop.svg"
+              alt="git-cas slate animated gradient logo on dark background"
+            />
+          </article>
+          <article class="specimen">
+            <h2><code>git-cas-ivory-loop.svg</code></h2>
+            <img
+              src="./git-cas-ivory-loop.svg"
+              alt="git-cas ivory animated gradient logo on dark background"
+            />
+          </article>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
