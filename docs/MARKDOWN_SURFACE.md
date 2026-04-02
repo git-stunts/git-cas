@@ -176,7 +176,7 @@ surfaces.
 ## Examples And Test Doctrine
 
 - [examples/README.md](../examples/README.md): `KEEP` — examples index is useful,
-  though the example surface still needs its own audit.
+  and now reflects the maintained examples surface audit.
 - [test/CONVENTIONS.md](../test/CONVENTIONS.md): `KEEP` — test doctrine belongs
   near the test surface.
 - [test/cycles/README.md](../test/cycles/README.md): `KEEP` — cycle-owned test

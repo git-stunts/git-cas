@@ -30,7 +30,7 @@ core while being honest about distribution realities, including:
 - whether file-backed store/restore helpers should stay Node-only or move
   behind a portable interface
 - what `@git-stunts/plumbing` assumptions still block true portability
-- how per-platform packaged binaries should follow after the runtime boundary is
+- how per-platform packaged binaries should follow once the runtime boundary is
   clean
 
 ## Human Value

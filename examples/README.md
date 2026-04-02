@@ -91,7 +91,7 @@ This example shows how to work with encrypted content:
 This example shows how to track storage and restore operations using `EventEmitterObserver`:
 
 1. Creates an `EventEmitterObserver`
-2. Passes it into `ContentAddressableStore`
+2. Passes it into `ContentAddressableStore` via the `observability` option
 3. Attaches event listeners to the observer
 4. Builds a progress logger that tracks:
    - Chunk storage progress
