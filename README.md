@@ -13,7 +13,7 @@
 
 **Most potent clone available on GitHub (legally).**
 
-### 
+###
 
 `git-cas` uses Git's object database as a storage layer for large, awkward, or
 security-sensitive files.
@@ -24,7 +24,7 @@ reachable through a GC-safe vault ref.
 
 This repo ships three surfaces over the same core:
 
-- a JavaScript library for Node-first applications
+- a JavaScript library for the supported runtimes
 - a human CLI/TUI (`git-cas`, and `git cas` when installed as a Git subcommand)
 - a machine-facing agent CLI for structured automation flows
 
@@ -228,6 +228,8 @@ If you want depth instead of a front page:
   - published chunking baselines
 - [examples/README.md](https://github.com/git-stunts/git-cas/blob/main/examples/README.md)
   - runnable examples
+- [WORKFLOW.md](https://github.com/git-stunts/git-cas/blob/main/WORKFLOW.md)
+  - contributor signpost to the METHOD planning surface
 - [CHANGELOG.md](./CHANGELOG.md)
   - release history
 

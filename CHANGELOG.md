@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **METHOD planning surface** — added [docs/method/process.md](./docs/method/process.md), [docs/method/release.md](./docs/method/release.md), METHOD backlog lanes, METHOD legends, retro and graveyard entrypoints, and the active cycle doc [docs/design/0020-method-adoption/adopt-method.md](./docs/design/0020-method-adoption/adopt-method.md) so fresh work now runs through one explicit method instead of the older legends/backlog workflow.
 - **`git cas agent recipient ...`** — added machine-facing recipient inspection and mutation commands so Relay can list recipients and perform add/remove flows through structured protocol data instead of human CLI text.
 - **`git cas agent rotate`** — added a machine-facing rotation flow so Relay can rotate recipient keys by slug or detached tree OID and expose the resulting tree and vault side effects explicitly.
 - **`git cas agent vault rotate`** — added a machine-facing vault passphrase rotation flow so Relay can rotate encrypted vault state with explicit commit, KDF, and rotated/skipped-entry results.
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **METHOD signposts and legacy planning compatibility** — [WORKFLOW.md](./WORKFLOW.md) and [docs/RELEASE.md](./docs/RELEASE.md) now act as signposts into `docs/method/`, active backlog cards now live in METHOD backlog lanes with non-numeric filenames, and [docs/BACKLOG/](./docs/BACKLOG/README.md) plus [docs/legends/](./docs/legends/README.md) now remain as legacy compatibility surfaces instead of active planning truth.
 - **README rewritten** — the front page now focuses on current product truth, clear quick starts, operational caveats, and the canonical doc map instead of mixing release history, marketing copy, and reference detail.
 - **Planning lifecycle clarified** — live backlog items now exclude delivered work, archive directories now hold retired backlog history and reserved retired design space, landed cycle docs use explicit landed status, and the design/backlog indexes now reflect current truth instead of stale activity.
 - **Architecture map repaired** — [ARCHITECTURE.md](./ARCHITECTURE.md) now describes the shipped system instead of an older flat-manifest-only model, including Merkle manifests, the extracted `VaultService` and `KeyResolver`, current ports/adapters, and the real storage layout for trees and the vault.

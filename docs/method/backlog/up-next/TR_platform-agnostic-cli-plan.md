@@ -1,15 +1,17 @@
-# TR-015 — Platform-Agnostic CLI Plan
+# TR — Platform-Agnostic CLI Plan
+
+_Legacy source: `TR-015`._
 
 ## Legend
 
-- [TR — Truth](../legends/TR-truth.md)
+- [TR — Truth](../../legends/TR_truth.md)
 
 ## Why This Exists
 
 `git-cas` already maintains a real Node, Bun, and Deno test matrix, but the
 human CLI entrypoint is still a Node-specific launcher.
 
-[bin/git-cas.js](../../bin/git-cas.js) depends directly on:
+[bin/git-cas.js](../../../bin/git-cas.js) depends directly on:
 
 - the `#!/usr/bin/env node` launcher model
 - `node:` built-ins for file, path, URL, and readline behavior
@@ -27,7 +29,7 @@ core while being honest about distribution realities, including:
 - what must move out of the Node-specific launcher
 - what runtime adapter boundary should exist for argv, stdio, prompts, file
   access, and exit behavior
-- whether file-backed store/restore helpers should stay Node-only or move
+- whether file-backed store or restore helpers should stay Node-only or move
   behind a portable interface
 - what `@git-stunts/plumbing` assumptions still block true portability
 - how per-platform packaged binaries should follow once the runtime boundary is
@@ -47,15 +49,15 @@ Git runner assumptions.
 
 ## Linked Invariants
 
-- [I-001 — Determinism, Trust, And Explicit Surfaces](../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
+- [I-001 — Determinism, Trust, And Explicit Surfaces](../../../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
 
 ## Notes
 
 - distinguish runtime-agnostic command logic from platform-specific binary
   packaging
-- prefer a small runtime adapter boundary over scattering `globalThis.Bun` /
+- prefer a small runtime adapter boundary over scattering `globalThis.Bun` or
   `globalThis.Deno` checks throughout command code
-- treat Git runner behavior and subprocess semantics as first-class constraints,
-  not an afterthought
+- treat Git runner behavior and subprocess semantics as first-class
+  constraints, not an afterthought
 - do not promise a single universal binary; prefer a portable codebase with
   explicit per-platform artifacts if packaging is pursued

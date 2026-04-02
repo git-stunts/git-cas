@@ -1,96 +1,33 @@
-# @git-stunts/git-cas — Project Status
+# STATUS
 
 **Last tagged release:** `v5.3.2` (`2026-03-15`)
 **Current package version on `main`:** `v5.3.3`
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
-**Current strategic focus:** agent-first for the next few cycles
-**Fresh planning workflow:** [WORKFLOW.md](./WORKFLOW.md)
+**Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
+**Live backlog:** [docs/method/backlog/README.md](./docs/method/backlog/README.md)
 
 ---
 
-`STATUS.md` remains a compact snapshot, but new planning now starts from
-`WORKFLOW.md`, legends, backlog items, invariants, and cycle docs.
+`STATUS.md` is a compact snapshot, not the active planning surface.
 
 ## Honest State
 
-- The human CLI/TUI is already real and ahead of the old planning docs.
-- M17 closeout work is materially on `main`, even though the release/docs
-  bookkeeping drifted.
-- Early repo-explorer and TUI refresh work also landed on `main` ahead of the
-  old sequence.
-- The biggest product gap is now the missing first-class agent CLI.
+- The human CLI and TUI are real and materially shipped.
+- The machine-facing `git cas agent` surface exists, but parity and
+  portability are still partial.
+- Fresh work is now organized through METHOD backlog lanes and numbered cycle
+  directories.
 
----
+## Active Queue Snapshot
 
-## Two Surfaces
+- [TR — Empty-State Phrasing Consistency](./docs/method/backlog/asap/TR_empty-state-phrasing-consistency.md)
+- [TR — Streaming Encrypted Restore](./docs/method/backlog/up-next/TR_streaming-encrypted-restore.md)
+- [TR — Platform-Agnostic CLI Plan](./docs/method/backlog/up-next/TR_platform-agnostic-cli-plan.md)
+- [TR — CasService Decomposition Plan](./docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md)
 
-- **Human CLI/TUI:** stable operator surface, boring by default, `--json` kept
-  as convenience structured output for humans and simple scripts.
-- **Agent CLI:** next priority surface, JSONL-first, non-interactive, and
-  separate from the human `--json` path.
+## Read Next
 
----
-
-## Current Hills
-
-### Human Hill
-
-A human operator can store, inspect, verify, restore, and manage artifacts with
-confidence and without memorizing Git plumbing.
-
-### Agent Hill
-
-A coding agent, CI job, or release bot can execute core `git-cas` workflows
-through a stable machine contract without scraping prose or depending on TTY
-behavior.
-
----
-
-## Next Up
-
-### M18 — Relay (`v5.4.0` target)
-
-**Sponsor user**
-
-- Maintainer or release engineer building automation around `git-cas`
-
-**Sponsor agent**
-
-- Coding agent, CI job, release bot, or backup workflow
-
-**Hill**
-
-- Read-heavy `git-cas` operations become available through a first-class
-  JSONL-first machine protocol with explicit exit-code semantics.
-
-**Immediate work order**
-
-1. protocol design doc
-2. contract tests
-3. dedicated machine runner
-4. read-heavy command parity
-
-### Relay Follow-through (`v5.5.0` target)
-
-- Stay agent-first until state-changing flows are also credible for automation.
-
-### M19 — Nouveau (after Relay is credible)
-
-- Resume major human-surface work only after the agent surface has forced
-  cleaner app-layer boundaries.
-
----
-
-## Sequence Snapshot
-
-| Order | Focus                                                       |
-| ----- | ----------------------------------------------------------- |
-| Now   | Relay foundation                                            |
-| Next  | Relay follow-through                                        |
-| Then  | Nouveau                                                     |
-| Later | Sentinel, Atelier, Cartographer, Courier, Spectrum, Bastion |
-
----
-
-_Future detail: [ROADMAP.md](./ROADMAP.md) | Cycle history: [docs/design/README.md](./docs/design/README.md) | Release history: [CHANGELOG.md](./CHANGELOG.md)_
+- [docs/method/process.md](./docs/method/process.md)
+- [docs/design/README.md](./docs/design/README.md)
+- [ROADMAP.md](./ROADMAP.md)

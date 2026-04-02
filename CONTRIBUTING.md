@@ -83,43 +83,36 @@ Bad:
 
 ## Planning And Delivery Model
 
-This project now plans fresh work through:
+This project now plans fresh work through the METHOD.
 
-- legends
-- cycles
-- backlog items
-- invariants
+The working source of truth is:
 
-The working source of truth is [WORKFLOW.md](./WORKFLOW.md).
+- [WORKFLOW.md](./WORKFLOW.md)
+- [docs/method/process.md](./docs/method/process.md)
 
-That means:
+Fresh planning work now lives in:
 
-- legends carry broad thematic efforts
-- cycles are the implementation and design loop
-- backlog items are cheap, single-file work candidates
-- invariants are explicit project truths that work cannot violate
+- backlog lanes under [`docs/method/backlog/`](./docs/method/backlog/README.md)
+- legends under [`docs/method/legends/`](./docs/method/legends/README.md)
+- numbered cycle directories under [`docs/design/`](./docs/design/README.md)
+- retros under `docs/method/retro/<cycle>/`
+- invariants under [`docs/invariants/`](./docs/invariants/README.md)
 
-This project still uses a design-thinking framing, but it is now applied at the
-cycle level with both human and agent passes:
+Every cycle must name:
 
-- human users, jobs, and hills
-- agent users, jobs, and hills
-- human playback
-- agent playback
-- explicit non-goals
+- sponsor human
+- sponsor agent
+- hill
+- playback questions for both perspectives
+- accessibility posture
+- localization or directionality posture
+- agent inspectability posture
+- non-goals
 
-Fresh work should be grounded in human or agent value, not backend vanity.
-
-Before promoting a new direction, ask:
-
-- which legend does this support?
-- which cycle hill does this support?
-- what human or agent behavior does this improve?
-- what trust does this increase?
-- what invariant does this depend on or risk violating?
-
-If the answer is unclear, the work probably belongs in
-[`docs/BACKLOG/`](./docs/BACKLOG/), not in an active cycle doc.
+Fresh work should be grounded in human or agent value, not backend vanity. If
+the playback question is unclear, the work belongs in a METHOD backlog lane,
+usually [`docs/method/backlog/inbox/`](./docs/method/backlog/README.md), not in
+an active cycle doc.
 
 Before opening a doc-heavy pull request, run the short maintainer pass in
 [docs/DOCS_CHECKLIST.md](./docs/DOCS_CHECKLIST.md).
@@ -134,15 +127,17 @@ that checklist pass.
 
 New planning work uses:
 
-- [`docs/legends/`](./docs/legends/)
-- [`docs/BACKLOG/`](./docs/BACKLOG/)
+- [`docs/method/backlog/`](./docs/method/backlog/README.md)
+- [`docs/method/legends/`](./docs/method/legends/README.md)
+- [`docs/method/retro/`](./docs/method/retro/README.md)
+- [`docs/method/graveyard/`](./docs/method/graveyard/README.md)
 - [`docs/design/`](./docs/design/)
 - [`docs/invariants/`](./docs/invariants/)
 - [`test/cycles/`](./test/cycles/)
 
-`ROADMAP.md` and `STATUS.md` remain useful sequence and snapshot documents, but
-they are now migration surfaces for planning, not the primary place where fresh
-cycle planning starts.
+Legacy compatibility planning surfaces remain in [`docs/BACKLOG/`](./docs/BACKLOG/README.md)
+and [`docs/legends/`](./docs/legends/README.md), but fresh planning should not
+start there.
 
 ## Build Order
 
@@ -164,11 +159,12 @@ Each cycle should follow the same explicit loop:
 1. design docs first
 2. tests as spec second
 3. implementation third
-4. human and agent playbacks
-5. retrospective after delivery
-6. update `docs/BACKLOG/` with debt and follow-on work
-7. update the root [CHANGELOG.md](./CHANGELOG.md)
-8. rewrite the root README when reality changed materially
+4. human and agent playback witness
+5. pull request and merge
+6. retrospective after merge
+7. update `docs/method/backlog/` with debt, follow-on work, and cool ideas
+8. update the root [CHANGELOG.md](./CHANGELOG.md)
+9. rewrite the root README when reality changed materially
 
 This loop is part of the process, not optional cleanup.
 
@@ -191,7 +187,8 @@ Rules:
 - when a release-worthy cycle or grouped set of cycles is closed, bump the
   in-flight version on the release commit
 - create a Git tag on the commit that lands on `main` for that release
-- follow [docs/RELEASE.md](./docs/RELEASE.md) instead of improvising release flow
+- follow [docs/method/release.md](./docs/method/release.md) instead of
+  improvising release flow
 
 The version and tag should reflect shipped reality, not hopeful scope.
 
@@ -317,13 +314,14 @@ Before making non-trivial changes, read:
 
 - [README.md](./README.md)
 - [WORKFLOW.md](./WORKFLOW.md)
+- [docs/method/process.md](./docs/method/process.md)
 - [STATUS.md](./STATUS.md)
 - [ROADMAP.md](./ROADMAP.md)
-- [docs/legends/README.md](./docs/legends/README.md)
+- [docs/method/legends/README.md](./docs/method/legends/README.md)
 - [docs/invariants/README.md](./docs/invariants/README.md)
-- [docs/BACKLOG/README.md](./docs/BACKLOG/README.md)
+- [docs/method/backlog/README.md](./docs/method/backlog/README.md)
 - [docs/design/README.md](./docs/design/README.md)
-- [docs/design/0001-m18-relay-agent-cli.md](./docs/design/0001-m18-relay-agent-cli.md)
+- [docs/design/0020-method-adoption/adopt-method.md](./docs/design/0020-method-adoption/adopt-method.md)
 - [SECURITY.md](./SECURITY.md)
 - [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md)
 - [docs/API.md](./docs/API.md)

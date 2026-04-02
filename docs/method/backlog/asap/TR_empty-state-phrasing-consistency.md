@@ -1,8 +1,10 @@
-# TR-008 — Empty-State Phrasing Consistency
+# TR — Empty-State Phrasing Consistency
+
+_Legacy source: `TR-008`._
 
 ## Legend
 
-- [TR — Truth](../legends/TR-truth.md)
+- [TR — Truth](../../legends/TR_truth.md)
 
 ## Why This Exists
 
@@ -29,10 +31,11 @@ instead of guessing the preferred empty-state form.
 
 ## Linked Invariants
 
-- [I-001 — Determinism, Trust, And Explicit Surfaces](../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
+- [I-001 — Determinism, Trust, And Explicit Surfaces](../../../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
 
 ## Notes
 
 - keep the pass small and mechanical
 - favor one documented empty-state style across planning surfaces
-- treat this as polish in service of lower review churn, not endless wording work
+- treat this as polish in service of lower review churn, not endless wording
+  work

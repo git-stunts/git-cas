@@ -43,11 +43,15 @@ changes:
 - [docs/API.md](./API.md)
 - [docs/THREAT_MODEL.md](./THREAT_MODEL.md)
 - [docs/BENCHMARKS.md](./BENCHMARKS.md)
-- planning indexes under [`docs/BACKLOG/`](./BACKLOG/README.md),
+- planning indexes under [`docs/method/backlog/`](./method/backlog/README.md),
   [`docs/design/`](./design/README.md),
   [`docs/archive/BACKLOG/`](./archive/BACKLOG/README.md), and
-  [`docs/legends/`](./legends/README.md)
-- legend summary files such as [`docs/legends/TR-truth.md`](./legends/TR-truth.md)
+  [`docs/method/legends/`](./method/legends/README.md)
+- METHOD legend summary files such as
+  [`docs/method/legends/TR_truth.md`](./method/legends/TR_truth.md)
+- legacy compatibility planning signposts such as
+  [`docs/BACKLOG/README.md`](./BACKLOG/README.md) and
+  [`docs/legends/README.md`](./legends/README.md) when a change touches them
 
 This is not exhaustive link checking. It is a lightweight routing pass for the
 docs people and agents are most likely to read first.
@@ -59,7 +63,7 @@ At minimum, confirm the following before review:
 - summary docs link canonical truth instead of becoming a second narrative
 - security-sensitive docs route to [SECURITY.md](../SECURITY.md) and
   [docs/THREAT_MODEL.md](./THREAT_MODEL.md) where those boundaries matter
-- planning indexes and legends point to the current backlog, design, and
+- planning indexes and legends point to the current backlog, design, retro, and
   archive surfaces they describe
 - no touched doc loses an important discoverability link that existed before
 
@@ -67,19 +71,22 @@ At minimum, confirm the following before review:
 
 Run this extra pass whenever a branch changes:
 
-- `docs/BACKLOG/README.md`
+- `docs/method/backlog/README.md`
 - `docs/design/README.md`
+- `docs/method/legends/README.md`
 - `docs/archive/BACKLOG/README.md`
 - a legend's current-cycle summary
 - a backlog card's lifecycle state
+- a legacy planning compatibility signpost
 
 Confirm all of the following before review:
 
 - live backlog entries are still pending, in cycle, or carrying unresolved
   follow-on work
-- landed cycle docs are represented in `docs/design/`
+- active cycle directories are represented in `docs/design/`
 - archived backlog history reflects moved or retired backlog cards
 - legend summaries agree with the current backlog and design surfaces
+- legacy compatibility surfaces still point at the active METHOD truth
 - empty-state wording does not introduce a new house style accidentally
 
 ## Use It On These Files
@@ -94,11 +101,15 @@ This checklist is most useful when a change touches files like:
 - [docs/API.md](./API.md)
 - [docs/THREAT_MODEL.md](./THREAT_MODEL.md)
 - [docs/BENCHMARKS.md](./BENCHMARKS.md)
-- planning indexes under [`docs/BACKLOG/`](./BACKLOG/README.md),
+- planning indexes under [`docs/method/backlog/`](./method/backlog/README.md),
   [`docs/design/`](./design/README.md),
   [`docs/archive/BACKLOG/`](./archive/BACKLOG/README.md), and
-  [`docs/legends/`](./legends/README.md)
-- legend summary files such as [`docs/legends/TR-truth.md`](./legends/TR-truth.md)
+  [`docs/method/legends/`](./method/legends/README.md)
+- METHOD legend summary files such as
+  [`docs/method/legends/TR_truth.md`](./method/legends/TR_truth.md)
+- legacy compatibility signposts such as
+  [`docs/BACKLOG/README.md`](./BACKLOG/README.md) and
+  [`docs/legends/README.md`](./legends/README.md)
 
 ## Exit Criteria
 

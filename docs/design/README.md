@@ -1,35 +1,23 @@
 # Design Docs
 
-This directory holds the current cycle design surface for `git-cas`.
+This directory now contains two kinds of cycle history:
 
-The working rules are simple:
+- active METHOD cycles in numbered subdirectories
+- legacy pre-METHOD cycle docs kept at the top level for history and stable
+  links
 
-- design docs come first
-- executable tests come second
-- implementation comes third
-- `main` is the playback truth
+Fresh work should follow [WORKFLOW.md](../../WORKFLOW.md) and the canonical
+process in [docs/method/process.md](../method/process.md).
 
-New cycle docs should follow the workflow in [WORKFLOW.md](../../WORKFLOW.md)
-and use legend-code naming:
+## Active METHOD Cycles
 
-`<Legend code>-<numerical identifier>-<name>.md`
+- [0020-method-adoption — adopt-method](./0020-method-adoption/adopt-method.md)
 
-The existing `0001`/`0002`/`0003` docs are legacy cycle docs from before that
-naming migration and can remain until they are touched.
-
-Status vocabulary used here:
-
-- `Proposed`
-- `Active`
-- `Landed`
-- `Superseded`
-- `Archived`
-
-Active cycle docs:
+## Landed METHOD Cycles
 
 - none currently
 
-Landed cycle docs:
+## Legacy Landed Cycle Docs
 
 - [0001 — M18 Relay: Agent CLI Foundation](./0001-m18-relay-agent-cli.md)
 - [0002 — M18 Relay: Write Flows and Input Semantics](./0002-m18-relay-write-flows.md)
@@ -51,6 +39,6 @@ Landed cycle docs:
 - [TR-013 — Truth: Guide Accuracy Audit](./TR-013-guide-accuracy-audit.md)
 - [TR-014 — Truth: Markdown Surface Rationalization](./TR-014-markdown-surface-rationalization.md)
 
-Archived or retired cycle docs:
+## Archived Or Retired Cycle Docs
 
 - [docs/archive/design](../archive/design/README.md)

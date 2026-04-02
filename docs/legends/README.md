@@ -1,19 +1,10 @@
-# Legends
+# Legacy Legend Index
 
-Legends are broad thematic efforts that shape multiple cycles.
+This directory is retained so pre-METHOD design docs keep stable legend links.
 
-They are larger than a single implementation slice, but smaller and more useful
-than vague long-range milestone fiction.
+Fresh legend truth now lives in [docs/method/legends/](../method/legends/README.md).
 
-Each legend should define:
-
-- why the line matters
-- the human and agent hills it supports
-- what it is explicitly not trying to do
-- which invariants it depends on
-- which cycles currently belong to it
-
-Current legend docs:
+Legacy compatibility legend docs:
 
 - [RL — Relay](./RL-relay.md)
 - [TR — Truth](./TR-truth.md)

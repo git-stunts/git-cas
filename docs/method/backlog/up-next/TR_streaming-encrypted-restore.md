@@ -1,8 +1,10 @@
-# TR-011 — Streaming Encrypted Restore
+# TR — Streaming Encrypted Restore
+
+_Legacy source: `TR-011`._
 
 ## Legend
 
-- [TR — Truth](../legends/TR-truth.md)
+- [TR — Truth](../../legends/TR_truth.md)
 
 ## Why This Exists
 
@@ -15,8 +17,8 @@ not yet benefit from a lower-memory temp-file streaming approach.
 
 ## Target Outcome
 
-Produce a design-backed investigation of streaming encrypted/compressed restore,
-including:
+Produce a design-backed investigation of streaming encrypted or compressed
+restore, including:
 
 - current integrity and buffering constraints
 - whether decrypt-to-temp-file plus atomic rename is the right model
@@ -35,11 +37,11 @@ bounded follow-on work without hand-waving around the current buffering model.
 
 ## Linked Invariants
 
-- [I-001 — Determinism, Trust, And Explicit Surfaces](../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
+- [I-001 — Determinism, Trust, And Explicit Surfaces](../../../invariants/I-001-determinism-trust-and-explicit-surfaces.md)
 
 ## Notes
 
-- distinguish plaintext streaming from encrypted/compressed restore behavior
+- distinguish plaintext streaming from encrypted or compressed restore behavior
 - account for the current whole-object AES-GCM tag model
 - evaluate temp-file restore semantics before considering direct-to-destination
   writes
