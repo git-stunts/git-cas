@@ -26,6 +26,31 @@ The same core supports:
 
 Those surfaces are different contracts over one shared core.
 
+## CAS Pipeline
+
+```mermaid
+flowchart TD
+    subgraph Ingress["Ingress Surfaces"]
+        LIB[index.js Facade]
+        CLI[bin/git-cas.js]
+        AGENT[bin/agent/cli.js]
+    end
+    subgraph Engine["CasService (Engine)"]
+        CH[Chunker]
+        EN[Encryption]
+        CM[Compression]
+        MF[Manifest Creator]
+    end
+    subgraph Persistence["Git Persistence (Substrate)"]
+        BL[Blobs]
+        TR[Trees]
+        CMT[Vault Commits]
+    end
+
+    Ingress --> Engine
+    Engine --> Persistence
+```
+
 ## Layer Model
 
 ### Facade
