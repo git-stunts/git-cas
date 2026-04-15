@@ -3,9 +3,11 @@
   <h3><i>Git, freebased: pure CAS that’ll knock your SHAs off. LFS hates this repo.</i></h3>
 </div>
 
-<hr />
+> Modern open-source systems still rely on centralized infrastructure to distribute binary artifacts, even when their source code is fully decentralized. This creates a fragile dependency: if hosting endpoints are blocked, degraded, or removed, critical artifacts become unavailable or unverifiable.
+>
+> `git-cas` addresses this by making artifact distribution inherit Git’s existing replication model, allowing binaries to be stored, verified, and transported anywhere Git can operate, including mirrored networks, constrained environments, or fully offline contexts.
 
-<img width="420" alt="git-cas" src="https://github.com/user-attachments/assets/e7cb63b9-25b7-4369-b053-4a35962ccee4" align="right" />
+<hr />
 
 ### JESSIE, STOP—
 
