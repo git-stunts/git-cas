@@ -12,6 +12,7 @@ process in [docs/method/process.md](../method/process.md).
 ## Active METHOD Cycles
 
 - [0020-method-adoption — adopt-method](./0020-method-adoption/adopt-method.md)
+- [0021-store-write-backpressure — enforce-store-backpressure](./0021-store-write-backpressure/enforce-store-backpressure.md)
 
 ## Landed METHOD Cycles
 

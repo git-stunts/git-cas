@@ -128,51 +128,143 @@ export default class CasService {
    */
   async _chunkAndStore(source, manifestData) {
     const sem = new Semaphore(this.concurrency);
-    const pending = [];
-    let nextIndex = 0;
+    const iterator = this.chunker.chunk(source)[Symbol.asyncIterator]();
+    const results = [];
+    const inFlight = new Set();
+    const orphanedBlobs = [];
+    const state = { nextIndex: 0, writeError: null };
 
-    const launchWrite = (buf, idx) => {
-      const p = sem.acquire().then(async () => {
-        try {
-          return await this._storeChunk(buf, idx);
-        } finally {
-          sem.release();
-        }
-      });
-      pending.push(p);
-    };
+    while (true) {
+      // Acquire capacity before pulling the next chunk so slow writes apply
+      // backpressure all the way to the upstream source iterator.
+      await sem.acquire();
 
-    try {
-      for await (const chunk of this.chunker.chunk(source)) {
-        launchWrite(chunk, nextIndex++);
+      if (state.writeError) {
+        sem.release();
+        await this._closeAsyncIterator(iterator);
+        break;
       }
-    } catch (err) {
-      const settled = await Promise.allSettled(pending);
-      const orphanedBlobs = settled
-        .filter((r) => r.status === 'fulfilled')
-        .map((r) => r.value.blob);
-      if (err instanceof CasError) {
-        err.meta = { ...err.meta, orphanedBlobs };
-        throw err;
-      }
-      const casErr = new CasError(
-        `Stream error during store: ${err.message}`,
-        'STREAM_ERROR',
-        { chunksDispatched: nextIndex, orphanedBlobs, originalError: err },
-      );
-      this.observability.metric('error', {
-        code: casErr.code, message: casErr.message,
-        orphanedBlobs: orphanedBlobs.length,
+
+      const step = await this._readNextStoreChunk({
+        iterator, sem, inFlight, orphanedBlobs, nextIndex: state.nextIndex,
       });
-      throw casErr;
+
+      if (step.done) {
+        sem.release();
+        break;
+      }
+
+      this._launchChunkWrite({
+        buf: step.value, idx: state.nextIndex++, sem, results, orphanedBlobs, inFlight, state,
+      });
     }
 
-    const results = await Promise.all(pending);
-    results.sort((a, b) => a.index - b.index);
+    await this._awaitChunkWrites({ inFlight, state });
+    this._appendChunkEntries(manifestData, results);
+  }
+
+  /**
+   * Starts one bounded chunk write and tracks its lifecycle.
+   * @private
+   */
+  _launchChunkWrite({ buf, idx, sem, results, orphanedBlobs, inFlight, state }) {
+    const task = (async () => {
+      try {
+        const entry = await this._storeChunk(buf, idx);
+        results[idx] = entry;
+        orphanedBlobs.push(entry.blob);
+      } finally {
+        sem.release();
+      }
+    })().catch((err) => {
+      state.writeError ??= err;
+      throw err;
+    });
+
+    inFlight.add(task);
+    task.then(
+      () => inFlight.delete(task),
+      () => inFlight.delete(task),
+    );
+  }
+
+  /**
+   * Reads the next chunk step and wraps source failures as STREAM_ERROR.
+   * @private
+   */
+  async _readNextStoreChunk({ iterator, sem, inFlight, orphanedBlobs, nextIndex }) {
+    try {
+      return await iterator.next();
+    } catch (err) {
+      sem.release();
+      await Promise.allSettled(inFlight);
+      await this._closeAsyncIterator(iterator);
+      throw this._buildStoreStreamError(err, nextIndex, orphanedBlobs);
+    }
+  }
+
+  /**
+   * Finalizes in-flight writes and rethrows the first write failure, if any.
+   * @private
+   */
+  async _awaitChunkWrites({ inFlight, state }) {
+    const settled = await Promise.allSettled(inFlight);
+    if (state.writeError) {
+      throw state.writeError;
+    }
+    for (const result of settled) {
+      if (result.status !== 'fulfilled') {
+        throw result.reason;
+      }
+    }
+  }
+
+  /**
+   * Appends chunk entries to the manifest accumulator in index order.
+   * @private
+   */
+  _appendChunkEntries(manifestData, results) {
     for (const entry of results) {
       manifestData.chunks.push(entry);
       manifestData.size += entry.size;
     }
+  }
+
+  /**
+   * Closes an async iterator if it supports early termination.
+   * @private
+   */
+  async _closeAsyncIterator(iterator) {
+    if (typeof iterator.return !== 'function') {
+      return;
+    }
+    try {
+      await iterator.return();
+    } catch {
+      // Prefer surfacing the original store failure.
+    }
+  }
+
+  /**
+   * Normalizes store-stream failures and annotates them with orphaned blobs.
+   * @private
+   */
+  _buildStoreStreamError(err, nextIndex, orphanedBlobs) {
+    if (err instanceof CasError) {
+      err.meta = { ...err.meta, orphanedBlobs };
+      return err;
+    }
+
+    const casErr = new CasError(
+      `Stream error during store: ${err.message}`,
+      'STREAM_ERROR',
+      { chunksDispatched: nextIndex, orphanedBlobs, originalError: err },
+    );
+    this.observability.metric('error', {
+      code: casErr.code, message: casErr.message,
+      orphanedBlobs: orphanedBlobs.length,
+    });
+    return casErr;
   }
 
   /**

@@ -50,6 +50,107 @@ async function storeBuffer(svc, buf, opts = {}) {
   });
 }
 
+function createDeferredWritePersistence(crypto) {
+  const deferredWrites = [];
+  let releaseWrites = false;
+
+  const mockPersistence = {
+    writeBlob: vi.fn().mockImplementation(async (content) => {
+      const buf = Buffer.isBuffer(content) ? content : Buffer.from(content);
+      const oid = await crypto.sha256(buf);
+
+      if (releaseWrites) {
+        return oid;
+      }
+
+      return await new Promise((resolve) => {
+        deferredWrites.push(() => resolve(oid));
+      });
+    }),
+    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    readBlob: vi.fn(),
+  };
+
+  const releasePendingWrites = () => {
+    releaseWrites = true;
+    for (const resolve of deferredWrites.splice(0)) {
+      resolve();
+    }
+  };
+
+  return { mockPersistence, releasePendingWrites };
+}
+
+function createCountingSource(totalChunks = 5) {
+  let pulled = 0;
+  const source = {
+    [Symbol.asyncIterator]() {
+      let emitted = 0;
+      return {
+        async next() {
+          if (emitted >= totalChunks) {
+            return { done: true, value: undefined };
+          }
+          emitted++;
+          pulled++;
+          return { done: false, value: Buffer.alloc(1024, emitted) };
+        },
+      };
+    },
+  };
+
+  return {
+    source,
+    getPulledCount() {
+      return pulled;
+    },
+  };
+}
+
+function createPassthroughChunker() {
+  return {
+    strategy: 'fixed',
+    params: { chunkSize: 1024 },
+    async *chunk(source) {
+      yield* source;
+    },
+  };
+}
+
+function setupBackpressureHarness() {
+  const crypto = testCrypto;
+  const { mockPersistence, releasePendingWrites } = createDeferredWritePersistence(crypto);
+  const { source, getPulledCount } = createCountingSource();
+  const service = new CasService({
+    persistence: mockPersistence,
+    crypto,
+    codec: new JsonCodec(),
+    observability: new SilentObserver(),
+    chunkSize: 1024,
+    concurrency: 2,
+    chunker: createPassthroughChunker(),
+  });
+
+  return { service, source, mockPersistence, releasePendingWrites, getPulledCount };
+}
+
+function failingSource(chunksBeforeError, chunkSize = 1024) {
+  let yielded = 0;
+  return {
+    [Symbol.asyncIterator]() {
+      return {
+        async next() {
+          if (yielded >= chunksBeforeError) {
+            throw new Error('simulated stream failure');
+          }
+          yielded++;
+          return { value: Buffer.alloc(chunkSize, 0xaa), done: false };
+        },
+      };
+    },
+  };
+}
+
 describe('Parallel I/O – sequential baseline', () => {
   it('concurrency: 1 — round-trip', async () => {
     const { service } = setup(1);
@@ -87,6 +188,25 @@ describe('Parallel I/O – concurrent store+restore', () => {
   });
 });
 
+describe('Parallel I/O – store backpressure', () => {
+  it('concurrency: 2 — store does not pull more chunks than in-flight capacity', async () => {
+    const { service, source, mockPersistence, releasePendingWrites, getPulledCount } = setupBackpressureHarness();
+    const storePromise = service.store({
+      source,
+      slug: 'bounded-pull',
+      filename: 'bounded.bin',
+    });
+
+    await vi.waitFor(() => {
+      expect(mockPersistence.writeBlob).toHaveBeenCalledTimes(2);
+    });
+
+    expect(getPulledCount()).toBe(2);
+    releasePendingWrites();
+    await expect(storePromise).resolves.toBeDefined();
+  });
+});
+
 describe('Parallel I/O – encrypted + compressed', () => {
   it('concurrency: 4 with encryption + compression', async () => {
     const { service } = setup(4);
@@ -109,23 +229,6 @@ describe('Parallel I/O – encrypted + compressed', () => {
 });
 
 describe('Parallel I/O – stream error', () => {
-  function failingSource(chunksBeforeError, chunkSize = 1024) {
-    let yielded = 0;
-    return {
-      [Symbol.asyncIterator]() {
-        return {
-          async next() {
-            if (yielded >= chunksBeforeError) {
-              throw new Error('simulated stream failure');
-            }
-            yielded++;
-            return { value: Buffer.alloc(chunkSize, 0xaa), done: false };
-          },
-        };
-      },
-    };
-  }
-
   it('concurrency: 4 — STREAM_ERROR with correct chunksDispatched', async () => {
     const { service } = setup(4);
     try {

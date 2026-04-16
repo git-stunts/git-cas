@@ -35,3 +35,4 @@ not use numeric IDs.
 ### `bad-code/`
 
 - [TR — CasService Decomposition Plan](./bad-code/TR_casservice-decomposition-plan.md)
+- [TR — Store Write Failure Surface](./bad-code/TR_store-write-failure-surface.md)
