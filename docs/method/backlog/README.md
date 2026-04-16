@@ -39,5 +39,4 @@ not use numeric IDs.
 - [TR — CasService Decomposition Plan](./bad-code/TR_casservice-decomposition-plan.md)
 - [TR — Store Write Failure Surface](./bad-code/TR_store-write-failure-surface.md)
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)
-- [TR — RestoreFile Service Internal Coupling](./bad-code/TR_restorefile-service-internal-coupling.md)
 - [TR — Vault Retry Abstraction](./bad-code/TR_vault-retry-abstraction.md)

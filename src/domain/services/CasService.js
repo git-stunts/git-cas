@@ -1102,6 +1102,43 @@ export default class CasService {
   }
 
   /**
+   * Creates a named restore plan for file publication without leaking
+   * underscore helper coupling into infrastructure adapters.
+   *
+   * `stream` plans can be piped directly to the destination file. `bounded-file`
+   * plans preserve the whole-object auth boundary by writing to a temp file and
+   * only publishing on success.
+   *
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @param {Buffer} [options.encryptionKey]
+   * @param {string} [options.passphrase]
+   * @returns {Promise<{ mode: 'stream'|'bounded-file', source: AsyncIterable<Buffer>, encryptionMeta?: import('../value-objects/Manifest.js').EncryptionMeta }>}
+   */
+  async createFileRestorePlan({ manifest, encryptionKey, passphrase }) {
+    const encryptionMeta = this._validatedEncryptionMeta(manifest);
+
+    if (this._shouldUseBufferedFileRestore(manifest, encryptionMeta)) {
+      return {
+        mode: 'bounded-file',
+        source: await this._createBufferedFileRestoreSource({
+          manifest,
+          encryptionKey,
+          passphrase,
+          encryptionMeta,
+        }),
+        encryptionMeta,
+      };
+    }
+
+    return {
+      mode: 'stream',
+      source: this.restoreStream({ manifest, encryptionKey, passphrase }),
+      encryptionMeta,
+    };
+  }
+
+  /**
    * Restores a file from its manifest as an async iterable of Buffer chunks.
    *
    * For unencrypted, uncompressed files this is true per-chunk streaming with
@@ -1145,6 +1182,43 @@ export default class CasService {
     } else {
       yield* this._restoreStreaming(manifest);
     }
+  }
+
+  /**
+   * Returns whether file publication must stay on the bounded temp-file path.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {undefined|import('../value-objects/Manifest.js').EncryptionMeta} encryptionMeta
+   * @returns {boolean}
+   */
+  _shouldUseBufferedFileRestore(manifest, encryptionMeta) {
+    return encryptionMeta?.scheme === 'whole-v1' || (!encryptionMeta && !!manifest.compression);
+  }
+
+  /**
+   * Builds the restore source used by bounded temp-file publication.
+   * @private
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @param {Buffer} [options.encryptionKey]
+   * @param {string} [options.passphrase]
+   * @param {undefined|import('../value-objects/Manifest.js').EncryptionMeta} options.encryptionMeta
+   * @returns {Promise<AsyncIterable<Buffer>>}
+   */
+  async _createBufferedFileRestoreSource({ manifest, encryptionKey, passphrase, encryptionMeta }) {
+    /** @type {AsyncIterable<Buffer>} */
+    let source = this._iterVerifiedChunkBlobs(manifest);
+
+    if (encryptionMeta) {
+      const key = await this._resolveRestoreKey(manifest, encryptionKey, passphrase);
+      source = this.crypto.createDecryptionStream(key, encryptionMeta).decrypt(source);
+    }
+
+    if (manifest.compression) {
+      source = this._decompressStreaming(source);
+    }
+
+    return source;
   }
 
   /**

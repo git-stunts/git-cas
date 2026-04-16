@@ -53,21 +53,18 @@ export async function storeFile(service, { filePath, slug, filename, encryptionK
  * @returns {Promise<{ bytesWritten: number }>}
  */
 export async function restoreFile(service, { manifest, encryptionKey, passphrase, outputPath }) {
-  const encryptionMeta = typeof service._validatedEncryptionMeta === 'function'
-    ? service._validatedEncryptionMeta(manifest)
-    : manifest.encryption;
+  const plan = await service.createFileRestorePlan({ manifest, encryptionKey, passphrase });
 
-  if (shouldUseBufferedFileRestore(manifest, encryptionMeta)) {
+  if (plan.mode === 'bounded-file') {
     return await restoreBufferedFile(service, {
       manifest,
-      encryptionKey,
-      passphrase,
       outputPath,
-      encryptionMeta,
+      source: plan.source,
+      encryptionMeta: plan.encryptionMeta,
     });
   }
 
-  const iterable = service.restoreStream({ manifest, encryptionKey, passphrase });
+  const iterable = plan.source;
   const readable = Readable.from(iterable);
   const writable = createWriteStream(outputPath);
   let bytesWritten = 0;
@@ -86,14 +83,13 @@ export async function restoreFile(service, { manifest, encryptionKey, passphrase
  * stay intact without publishing partial output.
  *
  * @param {import('../../domain/services/CasService.js').default} service
- * @param {{ manifest: import('../../domain/value-objects/Manifest.js').default, encryptionKey?: Buffer, passphrase?: string, outputPath: string, encryptionMeta?: { scheme: 'whole-v1', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string } }} options
+ * @param {{ manifest: import('../../domain/value-objects/Manifest.js').default, outputPath: string, source: AsyncIterable<Buffer>, encryptionMeta?: import('../../domain/value-objects/Manifest.js').EncryptionMeta }} options
  * @returns {Promise<{ bytesWritten: number }>}
  */
 async function restoreBufferedFile(service, {
   manifest,
-  encryptionKey,
-  passphrase,
   outputPath,
+  source,
   encryptionMeta,
 }) {
   let bytesWritten = 0;
@@ -102,12 +98,6 @@ async function restoreBufferedFile(service, {
   const tempPath = path.join(tempDir, path.basename(outputPath));
 
   try {
-    const source = await createBufferedRestoreSource(service, {
-      manifest,
-      encryptionKey,
-      passphrase,
-      encryptionMeta,
-    });
     const counter = createByteCounter((n) => { bytesWritten += n; });
 
     await pipeline(
@@ -134,10 +124,6 @@ async function restoreBufferedFile(service, {
   }
 }
 
-function shouldUseBufferedFileRestore(manifest, encryptionMeta) {
-  return encryptionMeta?.scheme === 'whole-v1' || (!encryptionMeta && manifest.compression);
-}
-
 function createByteCounter(onChunk) {
   return new Transform({
     transform(chunk, _encoding, cb) {
@@ -145,25 +131,4 @@ function createByteCounter(onChunk) {
       cb(null, chunk);
     },
   });
-}
-
-async function createBufferedRestoreSource(service, {
-  manifest,
-  encryptionKey,
-  passphrase,
-  encryptionMeta,
-}) {
-  /** @type {AsyncIterable<Buffer>} */
-  let source = service._iterVerifiedChunkBlobs(manifest);
-
-  if (encryptionMeta) {
-    const key = await service._resolveRestoreKey(manifest, encryptionKey, passphrase);
-    source = service.crypto.createDecryptionStream(key, encryptionMeta).decrypt(source);
-  }
-
-  if (manifest.compression) {
-    source = service._decompressStreaming(source);
-  }
-
-  return source;
 }

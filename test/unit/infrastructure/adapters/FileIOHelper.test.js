@@ -159,23 +159,23 @@ describe('FileIOHelper – storeFile option forwarding', () => {
   });
 });
 
-describe('FileIOHelper – restoreFile', () => {
-  let tmpDir;
-
-  beforeEach(() => { tmpDir = mkdtempSync(path.join(os.tmpdir(), 'fio-restore-')); });
-  afterEach(() => { if (tmpDir) { rmSync(tmpDir, { recursive: true, force: true }); } });
+describe('FileIOHelper – restoreFile stream publication', () => {
+  const getTmpDir = useTempDir('fio-restore-');
 
   it('writes restored chunks to the output path and counts bytes', async () => {
-    const outputPath = path.join(tmpDir, 'output.bin');
+    const outputPath = path.join(getTmpDir(), 'output.bin');
     const chunk1 = Buffer.from('hello ');
     const chunk2 = Buffer.from('world');
 
     const mockService = {
-      restoreStream() {
-        return (async function* gen() {
-          yield chunk1;
-          yield chunk2;
-        })();
+      async createFileRestorePlan() {
+        return {
+          mode: 'stream',
+          source: (async function* gen() {
+            yield chunk1;
+            yield chunk2;
+          })(),
+        };
       },
     };
 
@@ -187,6 +187,36 @@ describe('FileIOHelper – restoreFile', () => {
     expect(bytesWritten).toBe(11);
     const written = readFileSync(outputPath);
     expect(written.toString()).toBe('hello world');
+  });
+});
+
+describe('FileIOHelper – restoreFile bounded publication seam', () => {
+  const getTmpDir = useTempDir('fio-restore-');
+
+  it('uses createFileRestorePlan() for bounded-file publication without underscore helpers', async () => {
+    const outputPath = path.join(getTmpDir(), 'bounded.bin');
+    const chunk = Buffer.from('bounded restore source');
+
+    const mockService = {
+      observability: new SilentObserver(),
+      async createFileRestorePlan() {
+        return {
+          mode: 'bounded-file',
+          source: (async function* gen() {
+            yield chunk;
+          })(),
+        };
+      },
+    };
+
+    const { bytesWritten } = await restoreFile(mockService, {
+      manifest: { slug: 'bounded', chunks: [{}] },
+      outputPath,
+    });
+
+    expect(bytesWritten).toBe(chunk.length);
+    const written = readFileSync(outputPath);
+    expect(written.equals(chunk)).toBe(true);
   });
 });
 

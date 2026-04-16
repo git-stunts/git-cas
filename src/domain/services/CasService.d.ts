@@ -99,6 +99,12 @@ export interface StoreEncryptionOptions {
   frameBytes?: number;
 }
 
+export interface FileRestorePlan {
+  mode: "stream" | "bounded-file";
+  source: AsyncIterable<Buffer>;
+  encryptionMeta?: EncryptionMeta;
+}
+
 /**
  * Domain service for Content Addressable Storage operations.
  *
@@ -153,6 +159,12 @@ export default class CasService {
     encryptionKey?: Buffer;
     passphrase?: string;
   }): AsyncIterable<Buffer>;
+
+  createFileRestorePlan(options: {
+    manifest: Manifest;
+    encryptionKey?: Buffer;
+    passphrase?: string;
+  }): Promise<FileRestorePlan>;
 
   readManifest(options: { treeOid: string }): Promise<Manifest>;
 
