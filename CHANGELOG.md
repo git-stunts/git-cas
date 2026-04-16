@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hard buffered restore bounds** — buffered restore now enforces `maxRestoreBufferSize` against actual blob-read sizes and streamed gunzip output instead of only manifest-declared preflight estimates and post-materialization checks.
 - **CLI credential edge cases** — `store --recipient` now ignores ambient `GIT_CAS_PASSPHRASE` state when no explicit vault passphrase flag/file was provided, store/restore/init now reject ambiguous explicit credential combinations consistently, `vault init --algorithm` no longer silently falls back to plaintext without a passphrase source, and `vault rotate` now rejects whitespace-only old/new passphrase inputs instead of treating them as valid credentials.
 - **Bun blob writes in Git persistence** — `GitPersistenceAdapter.writeBlob()` now hashes temp files instead of piping large buffers through `git hash-object --stdin` under Bun, avoiding unhandled `EPIPE` failures during real Git-backed stores.
 - **Release verification runner failures** — `runReleaseVerify()` now converts thrown step-runner errors into structured step failures with a `ReleaseVerifyError` summary instead of letting raw exceptions escape.

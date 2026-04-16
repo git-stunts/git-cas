@@ -8,6 +8,24 @@ import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
+function streamFromBuffers(buffers) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (const buffer of buffers) {
+        yield buffer;
+      }
+    },
+  };
+}
+
+async function collectChunks(iterable) {
+  const chunks = [];
+  for await (const chunk of iterable) {
+    chunks.push(chunk);
+  }
+  return chunks;
+}
+
 function setup({ maxRestoreBufferSize } = {}) {
   const mockPersistence = {
     writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
@@ -116,7 +134,7 @@ describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
     const key = Buffer.alloc(32, 0xab);
 
     // Store a small encrypted+compressed manifest that fits pre-decompression
-    async function* source() { yield Buffer.alloc(2048, 0xaa); }
+    async function* source() { yield Buffer.alloc(8192, 0xaa); }
     const manifest = await service.store({
       source: source(), slug: 'bomb', filename: 'bomb.bin',
       encryptionKey: key, compression: { algorithm: 'gzip' },
@@ -127,12 +145,53 @@ describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
     let idx = 0;
     mockPersistence.readBlob.mockImplementation(() => Promise.resolve(storedBlobs[idx++] || Buffer.alloc(0)));
 
-    // Mock _decompress to return a buffer larger than the limit
-    service._decompress = vi.fn().mockResolvedValue(Buffer.alloc(8192, 0xbb));
+    await expect(
+      collectChunks(service.restoreStream({ manifest, encryptionKey: key })),
+    ).rejects.toMatchObject({ code: 'RESTORE_TOO_LARGE' });
+  });
+
+  it('uses the streaming decompression limit instead of full-buffer gunzip', async () => {
+    const { service, mockPersistence } = setup({ maxRestoreBufferSize: 1024 });
+    const plaintext = Buffer.alloc(8192, 0xaa);
+    const decompressSpy = vi.spyOn(service, '_decompress');
+
+    async function* source() { yield plaintext; }
+    const manifest = await service.store({
+      source: source(),
+      slug: 'plain-bomb',
+      filename: 'plain-bomb.bin',
+      compression: { algorithm: 'gzip' },
+    });
+
+    const storedBlobs = mockPersistence.writeBlob.mock.calls.map((c) => c[0]);
+    let idx = 0;
+    mockPersistence.readBlob.mockImplementation(() => Promise.resolve(storedBlobs[idx++] || Buffer.alloc(0)));
 
     await expect(
-      service.restoreStream({ manifest, encryptionKey: key }).next(),
+      service.restoreStream({ manifest }).next(),
     ).rejects.toMatchObject({ code: 'RESTORE_TOO_LARGE' });
+    expect(decompressSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('CasService — RESTORE_TOO_LARGE on actual blob overrun', () => {
+  it('throws when a blob is larger than the manifest-declared chunk size', async () => {
+    const { service, mockPersistence } = setup({ maxRestoreBufferSize: 1024 });
+    const manifest = makeEncryptedManifest([512]);
+
+    mockPersistence.readBlobStream = vi.fn().mockResolvedValue(
+      streamFromBuffers([
+        Buffer.alloc(300, 0xaa),
+        Buffer.alloc(300, 0xbb),
+      ]),
+    );
+
+    await expect(
+      service.restoreStream({ manifest, encryptionKey: Buffer.alloc(32, 0xab) }).next(),
+    ).rejects.toMatchObject({
+      code: 'RESTORE_TOO_LARGE',
+      meta: expect.objectContaining({ limit: 512 }),
+    });
   });
 });
 

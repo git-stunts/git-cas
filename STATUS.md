@@ -20,13 +20,16 @@
   `whole-v1` remains the compatibility whole-object mode for `restoreStream()`,
   while `restoreFile()` now has a bounded temp-file restore path for
   `whole-v1` and buffered compression modes.
+- Buffered `restoreStream()` / `restore()` now enforce `maxRestoreBufferSize`
+  against streamed gunzip output and, on stream-native blob adapters, against
+  actual blob reads instead of only manifest-estimated sizes.
 - Fresh work is now organized through METHOD backlog lanes and numbered cycle
   directories.
 
 ## Active Queue Snapshot
 
 - [TR — Empty-State Phrasing Consistency](./docs/method/backlog/asap/TR_empty-state-phrasing-consistency.md)
-- [TR — Restore Buffer Hard Limits](./docs/method/backlog/asap/TR_restore-buffer-hard-limits.md)
+- [TR — KDF Parameter Bounds And Policy](./docs/method/backlog/asap/TR_kdf-parameter-bounds-and-policy.md)
 - [TR — Platform-Agnostic CLI Plan](./docs/method/backlog/up-next/TR_platform-agnostic-cli-plan.md)
 - [TR — CasService Decomposition Plan](./docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md)
 

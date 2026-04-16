@@ -23,13 +23,14 @@ not use numeric IDs.
 
 - [TR — Empty-State Phrasing Consistency](./asap/TR_empty-state-phrasing-consistency.md)
 - [TR — KDF Parameter Bounds And Policy](./asap/TR_kdf-parameter-bounds-and-policy.md)
-- [TR — Restore Buffer Hard Limits](./asap/TR_restore-buffer-hard-limits.md)
 - [TR — Encryption Metadata Schema Hardening](./asap/TR_encryption-metadata-schema-hardening.md)
 
 ### `up-next/`
 
 - [TR — Platform-Agnostic CLI Plan](./up-next/TR_platform-agnostic-cli-plan.md)
 - [TR — Agent CLI OS-Keychain Passphrase](./up-next/TR_agent-cli-os-keychain-passphrase.md)
+- [TR — Web Crypto Streaming Parity](./up-next/TR_webcrypto-streaming-parity.md)
+- [TR — Framed-v1 Default Encrypted Store](./up-next/TR_framed-v1-default-encrypted-store.md)
 
 ### `cool-ideas/`
 
@@ -41,3 +42,4 @@ not use numeric IDs.
 - [TR — Store Write Failure Surface](./bad-code/TR_store-write-failure-surface.md)
 - [TR — AES-GCM Metadata Enforcement](./bad-code/TR_aes-gcm-metadata-enforcement.md)
 - [TR — RestoreFile Service Internal Coupling](./bad-code/TR_restorefile-service-internal-coupling.md)
+- [TR — Buffered Restore ReadBlob Fallback](./bad-code/TR_buffered-restore-readblob-fallback.md)

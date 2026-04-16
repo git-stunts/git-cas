@@ -1692,8 +1692,9 @@ Plaintext restore can stream chunk-by-chunk, so memory usage is close to
 `chunkSize` plus normal I/O overhead. On modern persistence adapters that means
 chunk blobs can be read through `readBlobStream()` instead of forcing an early
 adapter-level `Buffer` materialization. Encrypted or compressed restore
-currently buffers and is bounded by `maxRestoreBufferSize` (default 512 MiB)
-unless you raise that limit explicitly.
+currently buffers and is bounded by `maxRestoreBufferSize` (default 512 MiB).
+On stream-native persistence adapters, that bound now applies to actual blob
+reads and streamed gunzip output rather than only manifest estimates.
 
 ### Q: I get "Chunk size must be an integer >= 1024 bytes"
 

@@ -964,8 +964,8 @@ export default class CasService {
    * @returns {Promise<Buffer>} Verified chunk buffer.
    * @throws {CasError} INTEGRITY_ERROR if the chunk digest does not match.
    */
-  async _readAndVerifyChunk(chunk) {
-    const blob = await this._readChunkBlob(chunk.blob);
+  async _readAndVerifyChunk(chunk, { maxBytes } = {}) {
+    const blob = await this._readChunkBlob(chunk.blob, { maxBytes });
     const digest = await this._sha256(blob);
     if (digest !== chunk.digest) {
       const err = new CasError(
@@ -987,13 +987,19 @@ export default class CasService {
    * @param {string} oid - Chunk blob OID.
    * @returns {Promise<Buffer>}
    */
-  async _readChunkBlob(oid) {
+  async _readChunkBlob(oid, { maxBytes } = {}) {
     if (typeof this.persistence.readBlobStream !== 'function') {
-      return await this.persistence.readBlob(oid);
+      const blob = await this.persistence.readBlob(oid);
+      this._assertBufferedReadLimit({ size: blob.length, limit: maxBytes, oid });
+      return blob;
     }
+    let total = 0;
     const chunks = [];
     for await (const chunk of await this.persistence.readBlobStream(oid)) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buf.length;
+      this._assertBufferedReadLimit({ size: total, limit: maxBytes, oid });
+      chunks.push(buf);
     }
     return Buffer.concat(chunks);
   }
@@ -1005,14 +1011,52 @@ export default class CasService {
    * @returns {Promise<Buffer[]>} Verified chunk buffers in order.
    * @throws {CasError} INTEGRITY_ERROR if any chunk digest does not match.
    */
-  async _readAndVerifyChunks(chunks) {
+  async _readAndVerifyChunks(chunks, { totalLimit } = {}) {
     const buffers = [];
+    let totalRead = 0;
     for (const chunk of chunks) {
-      const blob = await this._readAndVerifyChunk(chunk);
+      const blob = await this._readAndVerifyChunk(chunk, {
+        maxBytes: this._bufferedChunkReadLimit({
+          totalLimit,
+          totalRead,
+          chunkSize: chunk.size,
+        }),
+      });
+      totalRead += blob.length;
       buffers.push(blob);
       this.observability.metric('chunk', { action: 'restored', index: chunk.index, size: blob.length, digest: chunk.digest });
     }
     return buffers;
+  }
+
+  /**
+   * Throws when a buffered read exceeds its allowed limit.
+   * @private
+   * @param {{ size: number, limit?: number, oid: string }} options
+   */
+  _assertBufferedReadLimit({ size, limit, oid }) {
+    if (limit === undefined || size <= limit) {
+      return;
+    }
+    throw new CasError(
+      `Buffered restore read ${size} bytes from blob ${oid} (limit: ${limit})`,
+      'RESTORE_TOO_LARGE',
+      { size, limit, oid, reason: 'chunk-blob-size' },
+    );
+  }
+
+  /**
+   * Computes the per-chunk buffered read limit from the remaining global budget
+   * and manifest-declared chunk size.
+   * @private
+   * @param {{ totalLimit?: number, totalRead: number, chunkSize: number }} options
+   * @returns {number|undefined}
+   */
+  _bufferedChunkReadLimit({ totalLimit, totalRead, chunkSize }) {
+    if (totalLimit === undefined) {
+      return chunkSize;
+    }
+    return Math.min(chunkSize, totalLimit - totalRead);
   }
 
   /**
@@ -1099,7 +1143,9 @@ export default class CasService {
         { size: totalSize, limit: this.maxRestoreBufferSize },
       );
     }
-    let buffer = Buffer.concat(await this._readAndVerifyChunks(manifest.chunks));
+    let buffer = Buffer.concat(await this._readAndVerifyChunks(manifest.chunks, {
+      totalLimit: this.maxRestoreBufferSize,
+    }));
 
     if (encryptionMeta) {
       try {
@@ -1113,14 +1159,7 @@ export default class CasService {
     }
 
     if (manifest.compression) {
-      buffer = await this._decompress(buffer);
-      if (buffer.length > this.maxRestoreBufferSize) {
-        throw new CasError(
-          `Decompressed restore is ${buffer.length} bytes (limit: ${this.maxRestoreBufferSize})`,
-          'RESTORE_TOO_LARGE',
-          { size: buffer.length, limit: this.maxRestoreBufferSize },
-        );
-      }
+      buffer = await this._decompressBufferedWithLimit(buffer, this.maxRestoreBufferSize);
     }
 
     this.observability.metric('file', {
@@ -1360,6 +1399,37 @@ export default class CasService {
       if (err instanceof CasError) { throw err; }
       throw new CasError(`Decompression failed: ${err.message}`, 'INTEGRITY_ERROR', { originalError: err });
     }
+  }
+
+  /**
+   * Decompresses a gzip buffer while enforcing an output-size limit during
+   * collection rather than after full materialization.
+   * @private
+   * @param {Buffer} buffer
+   * @param {number} limit
+   * @returns {Promise<Buffer>}
+   */
+  async _decompressBufferedWithLimit(buffer, limit) {
+    const chunks = [];
+    let total = 0;
+
+    async function* source() {
+      yield buffer;
+    }
+
+    for await (const chunk of this._decompressStreaming(source())) {
+      total += chunk.length;
+      if (total > limit) {
+        throw new CasError(
+          `Decompressed restore is ${total} bytes (limit: ${limit})`,
+          'RESTORE_TOO_LARGE',
+          { size: total, limit },
+        );
+      }
+      chunks.push(chunk);
+    }
+
+    return Buffer.concat(chunks);
   }
 
   /**

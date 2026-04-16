@@ -453,6 +453,10 @@ let buffer = Buffer.concat(chunks);
 - If the consumer is restoring to disk, prefer `restoreFile()`. `whole-v1`
   file restores now use a bounded temp-file path instead of buffering the full
   decrypted payload before publication.
+- `restoreStream()` / `restore()` now enforce `maxRestoreBufferSize` against
+  streamed gunzip output and, on stream-native persistence adapters, against
+  actual blob reads in the buffered path. They still fundamentally require a
+  bounded in-memory buffer for `whole-v1`.
 - If large encrypted files are required, implement application-level chunking (e.g., split a 10GB file into 10 separate 1GB files before storing).
 
 ### 2. Whole-v1 Has No Streaming Decryption
@@ -699,7 +703,8 @@ throw new CasError('Encryption key required to restore encrypted content', 'MISS
 **Thrown when**:
 
 - An encrypted or compressed restore would exceed the configured `maxRestoreBufferSize` limit.
-- The post-decompression size exceeds the limit (checked after gunzip).
+- An actual blob read in the buffered restore path exceeds its allowed bound.
+- Streamed gunzip output in the buffered restore path exceeds the limit.
 
 **Example**:
 
@@ -713,7 +718,9 @@ throw new CasError('Restore buffer exceeds limit', 'RESTORE_TOO_LARGE', {
 **Possible causes**:
 
 - The asset is larger than the configured buffer limit (default 512 MiB).
-- A compressed asset inflates beyond the limit after decompression.
+- A referenced blob is larger than the manifest-declared chunk size or the
+  remaining buffered restore budget.
+- A compressed asset inflates beyond the limit during decompression.
 
 **Recommended action**:
 

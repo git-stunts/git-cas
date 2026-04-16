@@ -29,9 +29,10 @@ timeline
 ## Tensions
 
 - **Encryption vs. Dedupe**: AES-256-GCM removes the benefits of CDC; we need clearer documentation on this tradeoff for operators.
-- **Buffer Limits**: `whole-v1 restoreStream()` is still limited by `maxRestoreBufferSize`; `restoreFile()` now has a bounded temp-file path, so the remaining question is how far to push hard limits and stream-native safeguards below the file surface.
+- **Runtime Parity**: Node and Bun now have stronger whole-object restore mechanics than the Web Crypto adapter, so the streaming story is still not runtime-identical.
+- **Buffer Limits**: `whole-v1 restoreStream()` now enforces actual buffered-read and decompression limits, but it is still a bounded in-memory compatibility path rather than a true streaming surface.
 - **Vault Contention**: Concurrent vault updates in high-frequency CI environments require robust CAS retry logic.
 
 ## Next Target
 
-The immediate focus is **Whole-v1 restore bounds and crypto hardening** now that `framed-v1` covers the authenticated streaming restore path.
+The immediate focus is **KDF policy and encryption-metadata hardening** now that the buffered restore boundary is tighter and `framed-v1` covers the authenticated streaming restore path.
