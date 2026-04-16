@@ -6,6 +6,11 @@ import Manifest from '../../src/domain/value-objects/Manifest.js';
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 import { buildVaultStats, inspectVaultHealth } from '../ui/vault-report.js';
 import { filterEntries } from '../ui/vault-list.js';
+import {
+  hasAgentPassphraseSource,
+  resolveAgentPassphraseSource,
+  validateAgentPassphraseSource,
+} from './passphrase-source.js';
 import { AGENT_EXIT_CODES, createAgentSession, getAgentExitCode } from './protocol.js';
 
 const AVAILABLE_COMMANDS = Object.freeze([
@@ -42,6 +47,12 @@ const INPUT_ALIAS_MAP = Object.freeze({
   newPassphraseFile: 'new-passphrase-file',
   vaultPassphrase: 'vault-passphrase',
   vaultPassphraseFile: 'vault-passphrase-file',
+  osKeychainTarget: 'os-keychain-target',
+  osKeychainAccount: 'os-keychain-account',
+  oldOsKeychainTarget: 'old-os-keychain-target',
+  oldOsKeychainAccount: 'old-os-keychain-account',
+  newOsKeychainTarget: 'new-os-keychain-target',
+  newOsKeychainAccount: 'new-os-keychain-account',
 });
 
 const START_REDACTED_FIELDS = new Set([
@@ -57,6 +68,12 @@ const START_REDACTED_FIELDS = new Set([
   'newPassphraseFile',
   'vaultPassphrase',
   'vaultPassphraseFile',
+  'osKeychainTarget',
+  'osKeychainAccount',
+  'oldOsKeychainTarget',
+  'oldOsKeychainAccount',
+  'newOsKeychainTarget',
+  'newOsKeychainAccount',
 ]);
 
 const LOCAL_INPUT_ERROR_CODES = new Set(['ENOENT', 'EISDIR', 'ENOTDIR', 'EACCES', 'EPERM']);
@@ -614,16 +631,29 @@ async function readAgentPassphraseFile(filePath, { stdin, onWarning } = {}) {
  * @returns {boolean}
  */
 function hasVaultPassphraseSource(input) {
-  return input.vaultPassphraseFile !== undefined || input.vaultPassphrase !== undefined;
+  return hasAgentPassphraseSource({
+    inlineValue: input.vaultPassphrase,
+    fileValue: input.vaultPassphraseFile,
+    osKeychainTarget: input.osKeychainTarget,
+  });
 }
 
 /**
  * @param {Record<string, any>} input
  */
 function validateCredentialSources(input) {
-  if (input.vaultPassphrase !== undefined && input.vaultPassphraseFile) {
-    throw invalidInput('Provide --vault-passphrase or --vault-passphrase-file, not both');
-  }
+  validateAgentPassphraseSource({
+    inlineValue: input.vaultPassphrase,
+    fileValue: input.vaultPassphraseFile,
+    osKeychainTarget: input.osKeychainTarget,
+    osKeychainAccount: input.osKeychainAccount,
+    inlineFlag: '--vault-passphrase',
+    fileFlag: '--vault-passphrase-file',
+    keychainTargetFlag: '--os-keychain-target',
+    keychainAccountFlag: '--os-keychain-account',
+    label: 'vault passphrase source',
+    errorFactory: invalidInput,
+  });
   if (input.keyFile && hasVaultPassphraseSource(input)) {
     throw invalidInput('Provide --key-file or a vault passphrase source, not both');
   }
@@ -635,19 +665,17 @@ function validateCredentialSources(input) {
  * @returns {Promise<string | undefined>}
  */
 async function resolveVaultPassphrase(input, requestSource, options = {}) {
-  if (input.vaultPassphraseFile === '-' && requestSource === '-') {
-    throw invalidInput('Cannot read both request payload and vault passphrase from stdin');
-  }
-  if (input.vaultPassphraseFile) {
-    return await readAgentPassphraseFile(input.vaultPassphraseFile, options);
-  }
-  if (input.vaultPassphrase !== undefined) {
-    if (!String(input.vaultPassphrase).trim()) {
-      throw invalidInput('Passphrase must not be empty');
-    }
-    return input.vaultPassphrase;
-  }
-  return undefined;
+  return await resolveAgentPassphraseSource({
+    label: 'Passphrase',
+    inlineValue: input.vaultPassphrase,
+    fileValue: input.vaultPassphraseFile,
+    osKeychainTarget: input.osKeychainTarget,
+    osKeychainAccount: input.osKeychainAccount,
+    requestSource,
+    readPassphraseFile: (filePath) => readAgentPassphraseFile(filePath, options),
+    resolveInlinePassphrase,
+    errorFactory: invalidInput,
+  });
 }
 
 /**
@@ -712,7 +740,7 @@ function getRestoreRequiredInputs(manifest, metadata) {
     return ['keyFile'];
   }
   if (metadata?.encryption?.kdf) {
-    return ['keyFile', 'vaultPassphrase', 'vaultPassphraseFile'];
+    return ['keyFile', 'vaultPassphrase', 'vaultPassphraseFile', 'osKeychainTarget'];
   }
   return ['keyFile'];
 }
@@ -779,6 +807,8 @@ async function parseStoreInput(args, stdin) {
       'key-file': { type: 'string' },
       'vault-passphrase': { type: 'string' },
       'vault-passphrase-file': { type: 'string' },
+      'os-keychain-target': { type: 'string' },
+      'os-keychain-account': { type: 'string' },
     },
     stdin
   );
@@ -844,6 +874,8 @@ async function parseVaultInitInput(args, stdin) {
       algorithm: { type: 'string' },
       passphrase: { type: 'string' },
       'passphrase-file': { type: 'string' },
+      'os-keychain-target': { type: 'string' },
+      'os-keychain-account': { type: 'string' },
     },
     stdin
   );
@@ -858,14 +890,30 @@ async function parseVaultInitInput(args, stdin) {
  * @param {Record<string, any>} input
  */
 function validateVaultInitInput(input) {
-  if (input.passphrase !== undefined && input.passphraseFile !== undefined) {
-    throw invalidInput('Provide --passphrase or --passphrase-file, not both');
-  }
+  validateAgentPassphraseSource({
+    inlineValue: input.passphrase,
+    fileValue: input.passphraseFile,
+    osKeychainTarget: input.osKeychainTarget,
+    osKeychainAccount: input.osKeychainAccount,
+    inlineFlag: '--passphrase',
+    fileFlag: '--passphrase-file',
+    keychainTargetFlag: '--os-keychain-target',
+    keychainAccountFlag: '--os-keychain-account',
+    label: 'passphrase source',
+    errorFactory: invalidInput,
+  });
 
   const algorithm = parseKdfAlgorithm(input.algorithm);
-  if (algorithm && input.passphrase === undefined && input.passphraseFile === undefined) {
+  if (
+    algorithm &&
+    !hasAgentPassphraseSource({
+      inlineValue: input.passphrase,
+      fileValue: input.passphraseFile,
+      osKeychainTarget: input.osKeychainTarget,
+    })
+  ) {
     throw invalidInput(
-      'Provide --passphrase <pass> or --passphrase-file <path> when using --algorithm'
+      'Provide --passphrase <pass>, --passphrase-file <path>, or --os-keychain-target <target> when using --algorithm'
     );
   }
 }
@@ -876,16 +924,17 @@ function validateVaultInitInput(input) {
  * @returns {Promise<string | undefined>}
  */
 async function resolveVaultInitPassphrase(input, requestSource, options = {}) {
-  if (input.passphraseFile === '-' && requestSource === '-') {
-    throw invalidInput('Cannot read both request payload and vault init passphrase from stdin');
-  }
-  if (input.passphraseFile) {
-    return await readAgentPassphraseFile(input.passphraseFile, options);
-  }
-  if (input.passphrase !== undefined) {
-    return resolveInlinePassphrase('Passphrase', input.passphrase);
-  }
-  return undefined;
+  return await resolveAgentPassphraseSource({
+    label: 'Passphrase',
+    inlineValue: input.passphrase,
+    fileValue: input.passphraseFile,
+    osKeychainTarget: input.osKeychainTarget,
+    osKeychainAccount: input.osKeychainAccount,
+    requestSource,
+    readPassphraseFile: (filePath) => readAgentPassphraseFile(filePath, options),
+    resolveInlinePassphrase,
+    errorFactory: invalidInput,
+  });
 }
 
 /**
@@ -969,6 +1018,10 @@ async function parseVaultRotateInput(args, stdin) {
       'new-passphrase': { type: 'string' },
       'old-passphrase-file': { type: 'string' },
       'new-passphrase-file': { type: 'string' },
+      'old-os-keychain-target': { type: 'string' },
+      'old-os-keychain-account': { type: 'string' },
+      'new-os-keychain-target': { type: 'string' },
+      'new-os-keychain-account': { type: 'string' },
     },
     stdin
   );
@@ -983,17 +1036,47 @@ async function parseVaultRotateInput(args, stdin) {
  * @param {Record<string, any>} input
  */
 function validateVaultRotateInput(input) {
-  if (input.oldPassphrase !== undefined && input.oldPassphraseFile !== undefined) {
-    throw invalidInput('Provide --old-passphrase or --old-passphrase-file, not both');
+  validateAgentPassphraseSource({
+    inlineValue: input.oldPassphrase,
+    fileValue: input.oldPassphraseFile,
+    osKeychainTarget: input.oldOsKeychainTarget,
+    osKeychainAccount: input.oldOsKeychainAccount,
+    inlineFlag: '--old-passphrase',
+    fileFlag: '--old-passphrase-file',
+    keychainTargetFlag: '--old-os-keychain-target',
+    keychainAccountFlag: '--old-os-keychain-account',
+    label: 'old passphrase source',
+    errorFactory: invalidInput,
+  });
+  validateAgentPassphraseSource({
+    inlineValue: input.newPassphrase,
+    fileValue: input.newPassphraseFile,
+    osKeychainTarget: input.newOsKeychainTarget,
+    osKeychainAccount: input.newOsKeychainAccount,
+    inlineFlag: '--new-passphrase',
+    fileFlag: '--new-passphrase-file',
+    keychainTargetFlag: '--new-os-keychain-target',
+    keychainAccountFlag: '--new-os-keychain-account',
+    label: 'new passphrase source',
+    errorFactory: invalidInput,
+  });
+  if (!hasAgentPassphraseSource({
+    inlineValue: input.oldPassphrase,
+    fileValue: input.oldPassphraseFile,
+    osKeychainTarget: input.oldOsKeychainTarget,
+  })) {
+    throw invalidInput(
+      'Provide --old-passphrase <pass>, --old-passphrase-file <path>, or --old-os-keychain-target <target>'
+    );
   }
-  if (input.newPassphrase !== undefined && input.newPassphraseFile !== undefined) {
-    throw invalidInput('Provide --new-passphrase or --new-passphrase-file, not both');
-  }
-  if (input.oldPassphrase === undefined && input.oldPassphraseFile === undefined) {
-    throw invalidInput('Provide --old-passphrase <pass> or --old-passphrase-file <path>');
-  }
-  if (input.newPassphrase === undefined && input.newPassphraseFile === undefined) {
-    throw invalidInput('Provide --new-passphrase <pass> or --new-passphrase-file <path>');
+  if (!hasAgentPassphraseSource({
+    inlineValue: input.newPassphrase,
+    fileValue: input.newPassphraseFile,
+    osKeychainTarget: input.newOsKeychainTarget,
+  })) {
+    throw invalidInput(
+      'Provide --new-passphrase <pass>, --new-passphrase-file <path>, or --new-os-keychain-target <target>'
+    );
   }
 
   parseKdfAlgorithm(input.algorithm);
@@ -1012,12 +1095,18 @@ async function resolveVaultRotatePassphrases(input, requestSource, options = {})
       label: 'Old passphrase',
       inlineValue: input.oldPassphrase,
       fileValue: input.oldPassphraseFile,
+      osKeychainTarget: input.oldOsKeychainTarget,
+      osKeychainAccount: input.oldOsKeychainAccount,
+      requestSource,
       ...options,
     }),
     newPassphrase: await readVaultRotatePassphrase({
       label: 'New passphrase',
       inlineValue: input.newPassphrase,
       fileValue: input.newPassphraseFile,
+      osKeychainTarget: input.newOsKeychainTarget,
+      osKeychainAccount: input.newOsKeychainAccount,
+      requestSource,
       ...options,
     }),
   };
@@ -1044,15 +1133,34 @@ function validateVaultRotateStdinSources(input, requestSource) {
  *   label: string,
  *   inlineValue: unknown,
  *   fileValue?: string,
+ *   osKeychainTarget?: string,
+ *   osKeychainAccount?: string,
+ *   requestSource?: string,
  *   stdin?: NodeJS.ReadStream,
  *   onWarning?: (warning: Record<string, any>) => void,
  * }} options
  * @returns {Promise<string>}
  */
-async function readVaultRotatePassphrase({ label, inlineValue, fileValue, ...options }) {
-  const passphrase = fileValue
-    ? await readAgentPassphraseFile(fileValue, options)
-    : resolveInlinePassphrase(label, inlineValue);
+async function readVaultRotatePassphrase({
+  label,
+  inlineValue,
+  fileValue,
+  osKeychainTarget,
+  osKeychainAccount,
+  requestSource,
+  ...options
+}) {
+  const passphrase = await resolveAgentPassphraseSource({
+    label,
+    inlineValue,
+    fileValue,
+    osKeychainTarget,
+    osKeychainAccount,
+    requestSource,
+    readPassphraseFile: (filePath) => readAgentPassphraseFile(filePath, options),
+    resolveInlinePassphrase,
+    errorFactory: invalidInput,
+  });
 
   if (!passphrase?.trim()) {
     throw invalidInput(`${label} must not be empty`);
@@ -1441,6 +1549,8 @@ async function parseRestoreInput(args, stdin) {
       'key-file': { type: 'string' },
       'vault-passphrase': { type: 'string' },
       'vault-passphrase-file': { type: 'string' },
+      'os-keychain-target': { type: 'string' },
+      'os-keychain-account': { type: 'string' },
     },
     stdin
   );
@@ -1494,6 +1604,8 @@ async function storeCommand(args, stdin, session) {
       'keyFile',
       'vaultPassphrase',
       'vaultPassphraseFile',
+      'osKeychainTarget',
+      'osKeychainAccount',
       'requestSource',
     ])
   );
@@ -1561,6 +1673,8 @@ async function restoreCommand(args, stdin, session) {
       'keyFile',
       'vaultPassphrase',
       'vaultPassphraseFile',
+      'osKeychainTarget',
+      'osKeychainAccount',
       'requestSource',
     ])
   );
@@ -1849,7 +1963,15 @@ async function vaultInitCommand(args, stdin, session) {
   validateVaultInitInput(input);
   writeAgentStart(
     session,
-    selectStartInput(input, ['cwd', 'algorithm', 'passphrase', 'passphraseFile', 'requestSource'])
+    selectStartInput(input, [
+      'cwd',
+      'algorithm',
+      'passphrase',
+      'passphraseFile',
+      'osKeychainTarget',
+      'osKeychainAccount',
+      'requestSource',
+    ])
   );
 
   const passphrase = await resolveVaultInitPassphrase(input, input.requestSource, {
@@ -1917,8 +2039,12 @@ async function vaultRotateCommand(args, stdin, session) {
       'algorithm',
       'oldPassphrase',
       'oldPassphraseFile',
+      'oldOsKeychainTarget',
+      'oldOsKeychainAccount',
       'newPassphrase',
       'newPassphraseFile',
+      'newOsKeychainTarget',
+      'newOsKeychainAccount',
       'requestSource',
     ])
   );

@@ -2,14 +2,11 @@
 import { CryptoHasher } from 'bun';
 import CryptoPort from '../../ports/CryptoPort.js';
 import CasError from '../../domain/errors/CasError.js';
+import scryptMaxmem from '../../domain/helpers/scryptMaxmem.js';
 // We still use node:crypto for AES-GCM because Bun's native implementation
 // is heavily optimized for these specific Node APIs.
 import { createCipheriv, createDecipheriv, pbkdf2, scrypt } from 'node:crypto';
 import { promisify } from 'node:util';
-
-function scryptMaxmem({ cost, blockSize, parallelization, keyLength }) {
-  return (128 * cost * blockSize) + (256 * blockSize * parallelization) + keyLength + (1024 * 1024);
-}
 
 function wrapDecryptError(err) {
   if (err instanceof CasError) {

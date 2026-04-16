@@ -14,7 +14,8 @@
 ## Honest State
 
 - The human CLI and TUI are real and materially shipped.
-- The machine-facing `git cas agent` surface exists, but parity and
+- The machine-facing `git cas agent` surface exists and now supports
+  OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
 - New encrypted stores now default to `framed-v1`, which provides an
   authenticated streaming encrypted restore path. `whole-v1` remains the
@@ -38,9 +39,9 @@
 
 ## Active Queue Snapshot
 
-- [TR — Platform-Agnostic CLI Plan](./docs/method/backlog/up-next/TR_platform-agnostic-cli-plan.md)
-- [TR — Agent CLI OS-Keychain Passphrase](./docs/method/backlog/up-next/TR_agent-cli-os-keychain-passphrase.md)
+- [TR — Platform Dependency Leaks](./docs/method/backlog/bad-code/TR_platform-dependency-leaks.md)
 - [TR — CasService Decomposition Plan](./docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md)
+- [TR — AES-GCM Metadata Enforcement](./docs/method/backlog/bad-code/TR_aes-gcm-metadata-enforcement.md)
 
 ## Read Next
 

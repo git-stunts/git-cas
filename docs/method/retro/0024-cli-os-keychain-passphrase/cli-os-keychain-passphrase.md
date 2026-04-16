@@ -24,8 +24,8 @@
 
 ## Debt
 
-- Logged follow-on work in
-  `docs/method/backlog/up-next/TR_agent-cli-os-keychain-passphrase.md`.
+- Follow-on work from this slice later landed as
+  `docs/design/0035-agent-cli-os-keychain-passphrase/agent-cli-os-keychain-passphrase.md`.
 
 ## Cool Ideas
 

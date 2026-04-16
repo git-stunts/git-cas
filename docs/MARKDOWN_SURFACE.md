@@ -75,13 +75,9 @@ local-only surfaces.
   process for fresh work.
 - [docs/method/backlog/README.md](./method/backlog/README.md): `KEEP` —
   canonical live backlog index.
-- [docs/method/backlog/asap/TR_empty-state-phrasing-consistency.md](./method/backlog/asap/TR_empty-state-phrasing-consistency.md):
-  `KEEP` — active backlog work item.
-- [docs/method/backlog/up-next/TR_streaming-encrypted-restore.md](./method/backlog/up-next/TR_streaming-encrypted-restore.md):
-  `KEEP` — active backlog work item.
-- [docs/method/backlog/up-next/TR_platform-agnostic-cli-plan.md](./method/backlog/up-next/TR_platform-agnostic-cli-plan.md):
-  `KEEP` — active backlog work item.
 - [docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md](./method/backlog/bad-code/TR_casservice-decomposition-plan.md):
+  `KEEP` — active debt backlog work item.
+- [docs/method/backlog/bad-code/TR_platform-dependency-leaks.md](./method/backlog/bad-code/TR_platform-dependency-leaks.md):
   `KEEP` — active debt backlog work item.
 - [docs/method/legends/README.md](./method/legends/README.md): `KEEP` —
   canonical legend index for fresh work.

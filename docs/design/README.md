@@ -26,6 +26,9 @@ process in [docs/method/process.md](../method/process.md).
 - [0032-encryption-metadata-schema-hardening — encryption-metadata-schema-hardening](./0032-encryption-metadata-schema-hardening/encryption-metadata-schema-hardening.md)
 - [0033-webcrypto-streaming-parity — webcrypto-streaming-parity](./0033-webcrypto-streaming-parity/webcrypto-streaming-parity.md)
 - [0034-framed-v1-default-encrypted-store — framed-v1-default-encrypted-store](./0034-framed-v1-default-encrypted-store/framed-v1-default-encrypted-store.md)
+- [0035-agent-cli-os-keychain-passphrase — agent-cli-os-keychain-passphrase](./0035-agent-cli-os-keychain-passphrase/agent-cli-os-keychain-passphrase.md)
+- [0036-platform-agnostic-cli-plan — platform-agnostic-cli-plan](./0036-platform-agnostic-cli-plan/platform-agnostic-cli-plan.md)
+- [0037-scrypt-maxmem-budget-dedup — scrypt-maxmem-budget-dedup](./0037-scrypt-maxmem-budget-dedup/scrypt-maxmem-budget-dedup.md)
 
 ## Landed METHOD Cycles
 

@@ -37,5 +37,5 @@
 ## Notes
 
 - Human CLI only in this slice.
-- Follow-on debt logged in
-  `docs/method/backlog/up-next/TR_agent-cli-os-keychain-passphrase.md`.
+- Follow-on machine-facing parity later landed in
+  `docs/design/0035-agent-cli-os-keychain-passphrase/agent-cli-os-keychain-passphrase.md`.

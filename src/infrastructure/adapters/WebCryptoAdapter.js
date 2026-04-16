@@ -1,5 +1,6 @@
 import CryptoPort from '../../ports/CryptoPort.js';
 import CasError from '../../domain/errors/CasError.js';
+import scryptMaxmem from '../../domain/helpers/scryptMaxmem.js';
 
 /**
  * {@link CryptoPort} implementation using the Web Crypto API.
@@ -275,10 +276,7 @@ export default class WebCryptoAdapter extends CryptoPort {
       N: params.cost,
       r: params.blockSize,
       p: params.parallelization,
-      maxmem: (128 * params.cost * params.blockSize) +
-        (256 * params.blockSize * params.parallelization) +
-        params.keyLength +
-        (1024 * 1024),
+      maxmem: scryptMaxmem(params),
     });
   }
 

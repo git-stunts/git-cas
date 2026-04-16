@@ -854,6 +854,14 @@ through `@git-stunts/vault` using OS-native secure storage. The optional
 `--os-keychain-account` flag scopes the lookup; the default account is
 `git-cas`.
 
+The machine-facing `git cas agent` surface now supports the same explicit
+keychain lookup model for vault-derived passphrase flows through structured
+request fields:
+
+- `osKeychainTarget` / `osKeychainAccount` for agent store, restore, and vault init
+- `oldOsKeychainTarget` / `oldOsKeychainAccount` and
+  `newOsKeychainTarget` / `newOsKeychainAccount` for agent vault rotate
+
 ### CLI Vault Commands
 
 ```bash

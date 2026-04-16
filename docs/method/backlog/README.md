@@ -25,8 +25,7 @@ not use numeric IDs.
 
 ### `up-next/`
 
-- [TR — Platform-Agnostic CLI Plan](./up-next/TR_platform-agnostic-cli-plan.md)
-- [TR — Agent CLI OS-Keychain Passphrase](./up-next/TR_agent-cli-os-keychain-passphrase.md)
+- none currently
 
 ### `cool-ideas/`
 
@@ -43,6 +42,5 @@ not use numeric IDs.
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)
 - [TR — RestoreFile Service Internal Coupling](./bad-code/TR_restorefile-service-internal-coupling.md)
 - [TR — Buffered Restore ReadBlob Fallback](./bad-code/TR_buffered-restore-readblob-fallback.md)
-- [TR — Scrypt Maxmem Budget Dedup](./bad-code/TR_scrypt-maxmem-budget-dedup.md)
 - [TR — KDF Salt Schema Hardening](./bad-code/TR_kdf-salt-schema-hardening.md)
 - [TR — Vault Retry Abstraction](./bad-code/TR_vault-retry-abstraction.md)

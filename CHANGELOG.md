@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Agent CLI OS-keychain passphrase sources** — `git cas agent` now accepts explicit OS-keychain passphrase lookup for vault-derived key flows, including `osKeychainTarget` / `osKeychainAccount` on store, restore, and vault init, plus distinct old/new keychain sources for vault rotation.
 - **`framed-v1` authenticated encryption** — encrypted stores can now opt into `encryption: { scheme: 'framed-v1', frameBytes }`, which serializes independently authenticated AES-256-GCM records so `restoreStream()` and `restoreFile()` can emit verified plaintext incrementally instead of buffering the full ciphertext.
 - **METHOD planning surface** — added [docs/method/process.md](./docs/method/process.md), [docs/method/release.md](./docs/method/release.md), METHOD backlog lanes, METHOD legends, retro and graveyard entrypoints, and the active cycle doc [docs/design/0020-method-adoption/adopt-method.md](./docs/design/0020-method-adoption/adopt-method.md) so fresh work now runs through one explicit method instead of the older legends/backlog workflow.
 - **`git cas agent recipient ...`** — added machine-facing recipient inspection and mutation commands so Relay can list recipients and perform add/remove flows through structured protocol data instead of human CLI text.

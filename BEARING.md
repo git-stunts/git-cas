@@ -37,6 +37,6 @@ timeline
 
 ## Next Target
 
-The immediate focus is **agent CLI parity, platform-agnostic CLI structure, and
-service decomposition** now that new encrypted stores default to `framed-v1`
-and the remaining whole-object boundaries are explicit.
+The immediate focus is **platform dependency leaks, service decomposition, and
+crypto boundary cleanup** now that the two queued up-next CLI cards are
+cleared and the repo can work directly down the bad-code lane.

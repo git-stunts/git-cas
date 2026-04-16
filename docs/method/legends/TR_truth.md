@@ -28,11 +28,11 @@ discovering later that an important boundary, tradeoff, or workflow was stale.
 ## Current Backlog
 
 - none currently in `asap/`
-- [TR — Agent CLI OS-Keychain Passphrase](../backlog/up-next/TR_agent-cli-os-keychain-passphrase.md)
-- [TR — Platform-Agnostic CLI Plan](../backlog/up-next/TR_platform-agnostic-cli-plan.md)
+- none currently in `up-next/`
 - [TR — AES-GCM Metadata Enforcement](../backlog/bad-code/TR_aes-gcm-metadata-enforcement.md)
 - [TR — CasService Decomposition Plan](../backlog/bad-code/TR_casservice-decomposition-plan.md)
 - [TR — KDF Salt Schema Hardening](../backlog/bad-code/TR_kdf-salt-schema-hardening.md)
+- [TR — Platform Dependency Leaks](../backlog/bad-code/TR_platform-dependency-leaks.md)
 
 ## Historical Context
 

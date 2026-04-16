@@ -2,6 +2,7 @@ import { createHash, createCipheriv, createDecipheriv, randomBytes, pbkdf2, scry
 import { promisify } from 'node:util';
 import CryptoPort from '../../ports/CryptoPort.js';
 import CasError from '../../domain/errors/CasError.js';
+import scryptMaxmem from '../../domain/helpers/scryptMaxmem.js';
 
 function wrapDecryptError(err) {
   if (err instanceof CasError) {
@@ -10,10 +11,6 @@ function wrapDecryptError(err) {
   throw new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', {
     originalError: err,
   });
-}
-
-function scryptMaxmem({ cost, blockSize, parallelization, keyLength }) {
-  return (128 * cost * blockSize) + (256 * blockSize * parallelization) + keyLength + (1024 * 1024);
 }
 
 /**

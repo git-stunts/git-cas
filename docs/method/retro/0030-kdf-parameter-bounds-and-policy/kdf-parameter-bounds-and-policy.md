@@ -31,8 +31,8 @@
 
 ## Debt
 
-- Logged duplicated scrypt `maxmem` math as
-  `docs/method/backlog/bad-code/TR_scrypt-maxmem-budget-dedup.md`.
+- Duplicated scrypt `maxmem` math later landed as
+  `docs/design/0037-scrypt-maxmem-budget-dedup/scrypt-maxmem-budget-dedup.md`.
 
 ## Cool Ideas
 
