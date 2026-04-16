@@ -34,6 +34,7 @@ process in [docs/method/process.md](../method/process.md).
 - [0040-kdf-salt-schema-hardening — kdf-salt-schema-hardening](./0040-kdf-salt-schema-hardening/kdf-salt-schema-hardening.md)
 - [0041-restorefile-service-internal-coupling — restorefile-service-internal-coupling](./0041-restorefile-service-internal-coupling/restorefile-service-internal-coupling.md)
 - [0042-store-write-failure-surface — store-write-failure-surface](./0042-store-write-failure-surface/store-write-failure-surface.md)
+- [0043-vault-retry-abstraction — vault-retry-abstraction](./0043-vault-retry-abstraction/vault-retry-abstraction.md)
 
 ## Landed METHOD Cycles
 

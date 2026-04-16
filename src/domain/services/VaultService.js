@@ -318,18 +318,52 @@ export default class VaultService {
   }
 
   /**
-   * Wraps a vault mutation with CAS retry logic.
-   * @param {(state: VaultState) => { entries: Map<string, string>, metadata: VaultMetadata, message: string }|Promise<{ entries: Map<string, string>, metadata: VaultMetadata, message: string }>} mutationFn - Mutation function (sync or async).
-   * @returns {Promise<{ commitOid: string }>}
+   * Creates an isolated mutable draft for a vault mutation attempt.
+   * @param {VaultState} state
+   * @returns {{ entries: Map<string, string>, metadata: VaultMetadata }}
    */
-  async #retryMutation(mutationFn) {
+  static #createMutationDraft(state) {
+    return {
+      entries: new Map(state.entries),
+      metadata: VaultService.#cloneMetadata(state.metadata || { version: 1 }),
+    };
+  }
+
+  /**
+   * Clones vault metadata so retry attempts mutate an isolated working copy.
+   * @param {VaultMetadata} metadata
+   * @returns {VaultMetadata}
+   */
+  static #cloneMetadata(metadata) {
+    return {
+      ...metadata,
+      encryption: metadata.encryption
+        ? {
+          ...metadata.encryption,
+          kdf: { ...metadata.encryption.kdf },
+        }
+        : undefined,
+    };
+  }
+
+  /**
+   * Wraps a vault mutation with CAS retry logic.
+   * @param {(context: { state: VaultState, draft: { entries: Map<string, string>, metadata: VaultMetadata } }) => { message: string, result?: Record<string, unknown> }|Promise<{ message: string, result?: Record<string, unknown> }>} mutationFn
+   * @returns {Promise<{ commitOid: string } & Record<string, unknown>>}
+   */
+  async #withVaultRetry(mutationFn) {
     for (let attempt = 0; attempt < MAX_CAS_RETRIES; attempt++) {
       const state = await this.readState();
-      const { entries, metadata, message } = await mutationFn(state);
+      const draft = VaultService.#createMutationDraft(state);
+      const { message, result } = await mutationFn({ state, draft });
       try {
-        return await this.writeCommit({
-          entries, metadata, parentCommitOid: state.parentCommitOid, message,
+        const commit = await this.writeCommit({
+          entries: draft.entries,
+          metadata: draft.metadata,
+          parentCommitOid: state.parentCommitOid,
+          message,
         });
+        return result ? { ...commit, ...result } : commit;
       } catch (err) {
         const isRetryable = err instanceof CasError && err.code === 'VAULT_CONFLICT';
         if (!isRetryable || attempt >= MAX_CAS_RETRIES - 1) {
@@ -372,28 +406,22 @@ export default class VaultService {
    * @returns {Promise<{ commitOid: string }>}
    */
   async initVault({ passphrase, kdfOptions } = {}) {
-    const state = await this.readState();
+    return await this.#withVaultRetry(async ({ state, draft }) => {
+      if (state.metadata?.encryption) {
+        throw new CasError(
+          'Vault encryption is already configured',
+          'VAULT_ENCRYPTION_ALREADY_CONFIGURED',
+        );
+      }
 
-    if (state.metadata?.encryption) {
-      throw new CasError(
-        'Vault encryption is already configured',
-        'VAULT_ENCRYPTION_ALREADY_CONFIGURED',
-      );
-    }
+      draft.metadata = { version: 1 };
+      if (passphrase) {
+        const options = prepareKdfOptions(kdfOptions, { source: 'vault-init' });
+        const { salt, params } = await this.crypto.deriveKey({ passphrase, ...options });
+        draft.metadata.encryption = VaultService.#buildEncryptionMeta(salt, params);
+      }
 
-    /** @type {VaultMetadata} */
-    const metadata = { version: 1 };
-    if (passphrase) {
-      const options = prepareKdfOptions(kdfOptions, { source: 'vault-init' });
-      const { salt, params } = await this.crypto.deriveKey({ passphrase, ...options });
-      metadata.encryption = VaultService.#buildEncryptionMeta(salt, params);
-    }
-
-    return await this.writeCommit({
-      entries: state.entries,
-      metadata,
-      parentCommitOid: state.parentCommitOid,
-      message: 'vault: init',
+      return { message: 'vault: init' };
     });
   }
 
@@ -408,34 +436,30 @@ export default class VaultService {
   async addToVault({ slug, treeOid, force = false }) {
     this.validateSlug(slug);
 
-    return await this.#retryMutation((state) => {
-      if (state.entries.has(slug) && !force) {
+    return await this.#withVaultRetry(({ draft }) => {
+      if (draft.entries.has(slug) && !force) {
         throw new CasError(
           `Vault entry "${slug}" already exists (use force to overwrite)`,
           'VAULT_ENTRY_EXISTS',
           { slug },
         );
       }
-      const isUpdate = state.entries.has(slug);
-      state.entries.set(slug, treeOid);
-      // Shallow copy to avoid mutating readState()'s object on CAS retries.
-      const metadata = { ...(state.metadata || { version: 1 }) };
-      if (metadata.encryption) {
+      const isUpdate = draft.entries.has(slug);
+      draft.entries.set(slug, treeOid);
+      if (draft.metadata.encryption) {
         // Tracks nonce-relevant operations: every addToVault on an encrypted
         // vault implies an encryption occurred at the store layer.
-        metadata.encryptionCount = (metadata.encryptionCount || 0) + 1;
-        if (metadata.encryptionCount >= VaultService.ENCRYPTION_COUNT_WARN) {
+        draft.metadata.encryptionCount = (draft.metadata.encryptionCount || 0) + 1;
+        if (draft.metadata.encryptionCount >= VaultService.ENCRYPTION_COUNT_WARN) {
           this.observability.log(
             'warn',
-            `Vault encryption count (${metadata.encryptionCount}) exceeds ` +
+            `Vault encryption count (${draft.metadata.encryptionCount}) exceeds ` +
             `${VaultService.ENCRYPTION_COUNT_WARN} — rotate your key`,
-            { encryptionCount: metadata.encryptionCount },
+            { encryptionCount: draft.metadata.encryptionCount },
           );
         }
       }
       return {
-        entries: state.entries,
-        metadata,
         message: isUpdate ? `vault: update ${slug}` : `vault: add ${slug}`,
       };
     });
@@ -459,27 +483,26 @@ export default class VaultService {
    * @returns {Promise<{ commitOid: string, removedTreeOid: string }>}
    */
   async removeFromVault({ slug }) {
-    /** @type {string|undefined} */
-    let removedTreeOid;
-
-    const result = await this.#retryMutation((state) => {
-      if (!state.entries.has(slug)) {
+    const result = await this.#withVaultRetry(({ draft }) => {
+      if (!draft.entries.has(slug)) {
         throw new CasError(
           `Vault entry "${slug}" not found`,
           'VAULT_ENTRY_NOT_FOUND',
           { slug },
         );
       }
-      removedTreeOid = state.entries.get(slug);
-      state.entries.delete(slug);
+      const removedTreeOid = /** @type {string} */ (draft.entries.get(slug));
+      draft.entries.delete(slug);
       return {
-        entries: state.entries,
-        metadata: state.metadata || { version: 1 },
         message: `vault: remove ${slug}`,
+        result: { removedTreeOid },
       };
     });
 
-    return { commitOid: result.commitOid, removedTreeOid: /** @type {string} */ (removedTreeOid) };
+    return {
+      commitOid: result.commitOid,
+      removedTreeOid: /** @type {string} */ (result.removedTreeOid),
+    };
   }
 
   /**

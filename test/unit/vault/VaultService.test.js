@@ -605,6 +605,28 @@ describe('CAS retry – succeeds on retry', () => {
     const result = await vault.addToVault({ slug: 'demo/hello', treeOid: 'entry-tree-1' });
     expect(result.commitOid).toBe('new-commit-oid');
   });
+
+  it('retries initVault() on VAULT_CONFLICT and succeeds', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+
+    setupNoVault(ref);
+    setupNoVault(ref);
+    persistence.writeBlob.mockResolvedValueOnce('meta-blob-oid-1');
+    persistence.writeBlob.mockResolvedValueOnce('meta-blob-oid-2');
+    persistence.writeTree.mockResolvedValueOnce('tree-oid-1');
+    persistence.writeTree.mockResolvedValueOnce('tree-oid-2');
+    ref.createCommit.mockResolvedValueOnce('commit-1');
+    ref.createCommit.mockResolvedValueOnce('commit-2');
+    ref.updateRef.mockRejectedValueOnce(new Error('lock failed'));
+    ref.updateRef.mockResolvedValueOnce(undefined);
+
+    const vault = createVault({ ref, persistence });
+    const result = await vault.initVault();
+
+    expect(result.commitOid).toBe('commit-2');
+    expect(ref.updateRef).toHaveBeenCalledTimes(2);
+  });
 });
 
 // ---------------------------------------------------------------------------

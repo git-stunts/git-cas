@@ -38,4 +38,3 @@ not use numeric IDs.
 
 - [TR — CasService Decomposition Plan](./bad-code/TR_casservice-decomposition-plan.md)
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)
-- [TR — Vault Retry Abstraction](./bad-code/TR_vault-retry-abstraction.md)
