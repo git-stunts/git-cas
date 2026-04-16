@@ -31,6 +31,9 @@
 - Passphrase-bearing store, restore, vault init, and vault rotation now use
   stronger KDF defaults and reject out-of-policy stored metadata before derive
   work begins.
+- Stored KDF salt metadata now rejects malformed base64 at both schema time
+  and runtime stored-KDF validation, keeping manifest and vault metadata
+  aligned before derive work starts.
 - Manifest parsing now rejects unsupported encryption schemes,
   `encrypted: false`, malformed AES-GCM nonce/tag values, and framed manifests
   that omit `frameBytes`, across both JSON and CBOR manifest codecs.

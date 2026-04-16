@@ -161,7 +161,27 @@ export default class VaultService {
         { metadata },
       );
     }
-    prepareStoredKdfOptions(kdf, { source: 'vault-metadata' });
+    VaultService.#validateStoredKdf(kdf, metadata);
+  }
+
+  /**
+   * Normalizes stored-KDF validation errors to vault-metadata parse errors.
+   * @param {VaultEncryptionMeta['kdf']} kdf
+   * @param {VaultMetadata} metadata
+   */
+  static #validateStoredKdf(kdf, metadata) {
+    try {
+      prepareStoredKdfOptions(kdf, { source: 'vault-metadata' });
+    } catch (err) {
+      if (!(err instanceof CasError) || err.code !== 'KDF_POLICY_VIOLATION') {
+        throw err;
+      }
+      throw new CasError(
+        `Vault encryption metadata invalid: ${err.message}`,
+        'VAULT_METADATA_INVALID',
+        { metadata, originalError: err },
+      );
+    }
   }
 
   /**

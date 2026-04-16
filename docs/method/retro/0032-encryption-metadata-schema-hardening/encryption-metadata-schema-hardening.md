@@ -25,7 +25,8 @@
 
 ## What Did Not
 
-- KDF salt shape is still only loosely validated.
+- KDF salt shape was still loose at the time of this cycle, but that gap is
+  now closed.
 - This cycle did not change the runtime crypto adapters or introduce new
   encryption schemes.
 - Unknown encrypted schemes now fail at manifest construction time rather than
@@ -33,8 +34,8 @@
 
 ## Debt
 
-- Logged KDF salt schema hardening as
-  `docs/method/backlog/bad-code/TR_kdf-salt-schema-hardening.md`.
+- KDF salt schema hardening is now closed in
+  [0040-kdf-salt-schema-hardening](../../../design/0040-kdf-salt-schema-hardening/kdf-salt-schema-hardening.md).
 
 ## Cool Ideas
 

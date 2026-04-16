@@ -40,5 +40,4 @@ not use numeric IDs.
 - [TR — Store Write Failure Surface](./bad-code/TR_store-write-failure-surface.md)
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)
 - [TR — RestoreFile Service Internal Coupling](./bad-code/TR_restorefile-service-internal-coupling.md)
-- [TR — KDF Salt Schema Hardening](./bad-code/TR_kdf-salt-schema-hardening.md)
 - [TR — Vault Retry Abstraction](./bad-code/TR_vault-retry-abstraction.md)

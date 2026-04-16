@@ -15,7 +15,6 @@ and what tradeoffs it makes.
 - none currently in `asap/`
 - none currently in `up-next/`
 - [TR — CasService Decomposition Plan](../method/backlog/bad-code/TR_casservice-decomposition-plan.md)
-- [TR — KDF Salt Schema Hardening](../method/backlog/bad-code/TR_kdf-salt-schema-hardening.md)
 - [TR — Platform Dependency Leaks](../method/backlog/bad-code/TR_platform-dependency-leaks.md)
 
 ## Legacy Landed Truth Cycles

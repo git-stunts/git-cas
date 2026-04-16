@@ -5,12 +5,7 @@
 
 import { Buffer } from 'node:buffer';
 import z from 'zod';
-
-const CANONICAL_BASE64_RE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-
-function isCanonicalBase64(value) {
-  return CANONICAL_BASE64_RE.test(value) && Buffer.from(value, 'base64').toString('base64') === value;
-}
+import { isCanonicalBase64 } from '../../helpers/canonicalBase64.js';
 
 function base64BytesSchema(field, byteLength) {
   return z.string()
@@ -34,7 +29,11 @@ export const ChunkSchema = z.object({
 /** Validates KDF parameters stored alongside encryption metadata. */
 export const KdfSchema = z.object({
   algorithm: z.enum(['pbkdf2', 'scrypt']),
-  salt: z.string().min(1),
+  salt: z.string()
+    .min(1)
+    .refine((value) => isCanonicalBase64(value), {
+      message: 'salt must be canonical base64',
+    }),
   iterations: z.number().int().positive().optional(),
   cost: z.number().int().positive().optional(),
   blockSize: z.number().int().positive().optional(),

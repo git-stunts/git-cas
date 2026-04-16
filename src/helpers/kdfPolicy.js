@@ -1,4 +1,5 @@
 import CasError from '../domain/errors/CasError.js';
+import { isCanonicalBase64 } from './canonicalBase64.js';
 
 export const DEFAULT_PBKDF2_ITERATIONS = 600_000;
 export const DEFAULT_SCRYPT_COST = 131_072;
@@ -37,6 +38,15 @@ function assertFiniteInteger(value, field, source) {
   if (!Number.isInteger(value) || value <= 0) {
     buildPolicyError(
       `${source} KDF field "${field}" must be a positive integer`,
+      { source, field, value },
+    );
+  }
+}
+
+function assertCanonicalBase64(value, field, source) {
+  if (typeof value !== 'string' || value.length === 0 || !isCanonicalBase64(value)) {
+    buildPolicyError(
+      `${source} KDF field "${field}" must be canonical base64`,
       { source, field, value },
     );
   }
@@ -145,6 +155,7 @@ export function prepareKdfOptions(kdfOptions, { source }) {
 }
 
 export function prepareStoredKdfOptions(kdf, { source }) {
+  assertCanonicalBase64(kdf.salt, 'salt', source);
   const params = {
     algorithm: kdf.algorithm,
     iterations: kdf.iterations,

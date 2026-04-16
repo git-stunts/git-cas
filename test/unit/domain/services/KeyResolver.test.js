@@ -182,6 +182,30 @@ describe('KeyResolver KDF policy', () => {
     ).rejects.toThrow(expect.objectContaining({ code: 'KDF_POLICY_VIOLATION' }));
     expect(cryptoStub.deriveKey).not.toHaveBeenCalled();
   });
+
+  it('rejects malformed manifest KDF salt before deriveKey', async () => {
+    const cryptoStub = {
+      deriveKey: vi.fn(),
+      _validateKey: vi.fn(),
+    };
+    const localResolver = new KeyResolver(cryptoStub);
+    const manifest = {
+      encryption: {
+        encrypted: true,
+        kdf: {
+          algorithm: 'pbkdf2',
+          salt: '%%%bad-base64%%%',
+          iterations: 600_000,
+          keyLength: 32,
+        },
+      },
+    };
+
+    await expect(
+      localResolver.resolveForDecryption(manifest, undefined, 'test-passphrase'),
+    ).rejects.toThrow(expect.objectContaining({ code: 'KDF_POLICY_VIOLATION' }));
+    expect(cryptoStub.deriveKey).not.toHaveBeenCalled();
+  });
 });
 
 describe('KeyResolver.resolveRecipients', () => {

@@ -257,6 +257,26 @@ describe('Manifest – recipients (creation)', () => { // eslint-disable-line ma
 
     expect(() => new Manifest(data)).toThrow(/Invalid manifest data/);
   });
+
+  it('throws on malformed KDF salt metadata at construction time', () => {
+    const data = {
+      ...validManifestData(),
+      encryption: {
+        algorithm: 'aes-256-gcm',
+        nonce: base64Bytes(12, 5),
+        tag: base64Bytes(16, 6),
+        encrypted: true,
+        kdf: {
+          algorithm: 'pbkdf2',
+          salt: '%%%bad-base64%%%',
+          iterations: 600000,
+          keyLength: 32,
+        },
+      },
+    };
+
+    expect(() => new Manifest(data)).toThrow(/Invalid manifest data/);
+  });
 });
 
 // ---------------------------------------------------------------------------

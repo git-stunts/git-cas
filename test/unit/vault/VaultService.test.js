@@ -249,6 +249,31 @@ describe('readState – missing kdf.keyLength', () => {
   });
 });
 
+describe('readState – malformed kdf.salt', () => {
+  it('throws VAULT_METADATA_INVALID when kdf.salt is not canonical base64', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    const bad = JSON.stringify({
+      version: 1,
+      encryption: {
+        cipher: 'aes-256-gcm',
+        kdf: {
+          algorithm: 'pbkdf2',
+          salt: '%%%bad-base64%%%',
+          iterations: 100000,
+          keyLength: 32,
+        },
+      },
+    });
+    setupExistingVault({ ref, persistence, metaJson: bad });
+    const vault = createVault({ ref, persistence });
+
+    await expect(vault.readState()).rejects.toSatisfy(
+      (e) => e instanceof CasError && e.code === 'VAULT_METADATA_INVALID',
+    );
+  });
+});
+
 describe('initVault – KDF policy', () => {
   it('rejects out-of-policy explicit KDF parameters before deriveKey', async () => {
     const ref = mockRef();
@@ -520,7 +545,12 @@ describe('initVault – already encrypted', () => {
       version: 1,
       encryption: {
         cipher: 'aes-256-gcm',
-        kdf: { algorithm: 'pbkdf2', salt: 'abc', iterations: 100000, keyLength: 32 },
+        kdf: {
+          algorithm: 'pbkdf2',
+          salt: Buffer.alloc(32, 0x11).toString('base64'),
+          iterations: 100000,
+          keyLength: 32,
+        },
       },
     });
     setupExistingVault({ ref, persistence, metaJson: meta });
