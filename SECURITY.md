@@ -83,7 +83,7 @@ details behind that boundary.
 git-cas uses **AES-256-GCM** (Galois/Counter Mode) for authenticated encryption:
 
 - **Algorithm**: `aes-256-gcm` via runtime-specific adapters (Node.js `node:crypto`, Bun `CryptoHasher` + `node:crypto`, Deno/Web `crypto.subtle`)
-- **Current payload scheme**: `whole-v1` (whole-object authenticated ciphertext)
+- **Payload schemes**: `whole-v1` (whole-object authenticated ciphertext) and `framed-v1` (independently authenticated records)
 - **Key size**: 256 bits (32 bytes)
 - **Nonce size**: 96 bits (12 bytes), cryptographically random
 - **Authentication tag**: 128 bits (16 bytes)
@@ -111,13 +111,14 @@ Each encryption operation generates a fresh 96-bit (12-byte) nonce using `crypto
 
 After encryption completes, AES-256-GCM produces a 128-bit authentication tag:
 
-- The tag is stored in the manifest's `encryption.tag` field (base64-encoded).
+- For `whole-v1`, the tag is stored in the manifest's `encryption.tag` field with one nonce for the full payload.
+- For `framed-v1`, each stored record carries its own nonce and tag inside the serialized ciphertext stream.
 - During decryption, the tag is verified by `createDecipheriv()` via `setAuthTag()`.
 - If the ciphertext or tag has been modified, `decipher.final()` will throw an error.
 
 ### Encryption Wraps Around Chunked Storage
 
-The encryption layer wraps the chunking layer:
+For `whole-v1`, the encryption layer wraps the chunking layer:
 
 ```
 [Plain source stream] → [Encrypt stream] → [Chunk into 256KB blocks] → [Store as Git blobs]
@@ -133,6 +134,16 @@ In manifest metadata, this current format is named explicitly as
 `encryption.scheme = 'whole-v1'`. Older encrypted manifests without a `scheme`
 field are still interpreted as the same whole-object format for backward
 compatibility.
+
+For `framed-v1`, git-cas first splits plaintext into fixed-size frames, then
+encrypts each frame independently and serializes records as:
+
+```text
+[4-byte ciphertext length][12-byte nonce][16-byte tag][ciphertext]
+```
+
+Chunk digests still cover the serialized encrypted bytes stored in Git, but
+restore can now authenticate and yield plaintext one frame at a time.
 
 ---
 
@@ -423,9 +434,9 @@ Every chunk (encrypted or unencrypted) is protected by a SHA-256 digest:
 
 ## Limitations
 
-### 1. Encrypted Restore Loads Full Ciphertext into Memory
+### 1. Whole-v1 Encrypted Restore Loads Full Ciphertext into Memory
 
-**Issue**: The `restore()` method concatenates all encrypted chunks into a single buffer before decryption:
+**Issue**: `whole-v1` concatenates all encrypted chunks into a single buffer before decryption:
 
 ```javascript
 let buffer = Buffer.concat(chunks);
@@ -438,21 +449,23 @@ let buffer = Buffer.concat(chunks);
 
 **Workaround**:
 
-- Avoid encrypting extremely large files with git-cas.
+- Prefer `framed-v1` for large encrypted assets that need authenticated streaming restore.
 - If large encrypted files are required, implement application-level chunking (e.g., split a 10GB file into 10 separate 1GB files before storing).
 
-**Future improvement**: Implement streaming decryption to process ciphertext in chunks without full concatenation.
+### 2. Whole-v1 Has No Streaming Decryption
 
-### 2. No Streaming Decryption
-
-**Issue**: AES-256-GCM decryption is currently performed on the entire ciphertext as a single operation. The authentication tag is verified only at the end of decryption.
+**Issue**: `whole-v1` AES-256-GCM decryption is performed on the entire ciphertext as a single operation. The authentication tag is verified only at the end of decryption.
 
 **Impact**:
 
-- Cannot stream decrypted plaintext to the caller incrementally.
-- Cannot detect tampering until the entire ciphertext is processed.
+- Cannot stream decrypted plaintext to the caller incrementally for `whole-v1`.
+- Cannot detect tampering until the entire ciphertext is processed for `whole-v1`.
 
-**Future improvement**: Investigate chunked AEAD modes or encrypt-then-MAC schemes that allow incremental authentication.
+`framed-v1` is the current streaming answer: each frame is authenticated
+independently, so restore can emit verified plaintext incrementally.
+
+**Future improvement**: Decide whether `whole-v1` needs a bounded temp-file
+restore path or should stay compatibility-only.
 
 ### 3. Key Rotation (v5.2.0+)
 
@@ -699,7 +712,7 @@ throw new CasError('Restore buffer exceeds limit', 'RESTORE_TOO_LARGE', {
 **Recommended action**:
 
 - Increase `maxRestoreBufferSize` in the `CasService` constructor or `.casrc`.
-- For very large assets, consider storing without encryption to enable streaming restore.
+- For very large assets, consider `framed-v1` so encrypted restore can stay streaming.
 
 ---
 

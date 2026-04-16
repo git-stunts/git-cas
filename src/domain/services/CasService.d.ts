@@ -93,6 +93,7 @@ export interface VerifyIntegrityOptions {
 
 export interface StoreEncryptionOptions {
   scheme?: EncryptionScheme;
+  frameBytes?: number;
 }
 
 /**

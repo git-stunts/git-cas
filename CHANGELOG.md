@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`framed-v1` authenticated encryption** — encrypted stores can now opt into `encryption: { scheme: 'framed-v1', frameBytes }`, which serializes independently authenticated AES-256-GCM records so `restoreStream()` and `restoreFile()` can emit verified plaintext incrementally instead of buffering the full ciphertext.
 - **METHOD planning surface** — added [docs/method/process.md](./docs/method/process.md), [docs/method/release.md](./docs/method/release.md), METHOD backlog lanes, METHOD legends, retro and graveyard entrypoints, and the active cycle doc [docs/design/0020-method-adoption/adopt-method.md](./docs/design/0020-method-adoption/adopt-method.md) so fresh work now runs through one explicit method instead of the older legends/backlog workflow.
 - **`git cas agent recipient ...`** — added machine-facing recipient inspection and mutation commands so Relay can list recipients and perform add/remove flows through structured protocol data instead of human CLI text.
 - **`git cas agent rotate`** — added a machine-facing rotation flow so Relay can rotate recipient keys by slug or detached tree OID and expose the resulting tree and vault side effects explicitly.
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Encrypted restore routing** — `whole-v1` remains the compatibility whole-object mode, while `framed-v1` now restores frame-by-frame and can stream through gunzip when combined with gzip compression. `verifyIntegrity()` now authenticates framed payloads by parsing and checking every record.
 - **METHOD signposts and legacy planning compatibility** — [WORKFLOW.md](./WORKFLOW.md) and [docs/RELEASE.md](./docs/RELEASE.md) now act as signposts into `docs/method/`, active backlog cards now live in METHOD backlog lanes with non-numeric filenames, and [docs/BACKLOG/](./docs/BACKLOG/README.md) plus [docs/legends/](./docs/legends/README.md) now remain as legacy compatibility surfaces instead of active planning truth.
 - **README rewritten** — the front page now focuses on current product truth, clear quick starts, operational caveats, and the canonical doc map instead of mixing release history, marketing copy, and reference detail.
 - **Planning lifecycle clarified** — live backlog items now exclude delivered work, archive directories now hold retired backlog history and reserved retired design space, landed cycle docs use explicit landed status, and the design/backlog indexes now reflect current truth instead of stale activity.

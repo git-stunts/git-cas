@@ -4,7 +4,31 @@ import path from 'node:path';
 import os from 'node:os';
 import { storeFile, restoreFile } from '../../../../src/infrastructure/adapters/FileIOHelper.js';
 
-describe('FileIOHelper – storeFile', () => {
+function createStoreCaptureService(capture) {
+  return {
+    async store(opts) {
+      const chunks = [];
+      for await (const chunk of opts.source) {
+        chunks.push(chunk);
+      }
+      capture({ ...opts, source: Buffer.concat(chunks) });
+      return { slug: opts.slug };
+    },
+  };
+}
+
+function createDrainStoreService(capture) {
+  return {
+    async store(opts) {
+      // eslint-disable-next-line no-unused-vars
+      for await (const _ of opts.source) { /* drain */ }
+      capture(opts);
+      return {};
+    },
+  };
+}
+
+describe('FileIOHelper – storeFile stream forwarding', () => {
   let tmpDir;
 
   beforeEach(() => { tmpDir = mkdtempSync(path.join(os.tmpdir(), 'fio-store-')); });
@@ -16,14 +40,9 @@ describe('FileIOHelper – storeFile', () => {
     writeFileSync(filePath, data);
 
     let capturedOpts;
-    const mockService = {
-      async store(opts) {
-        const chunks = [];
-        for await (const chunk of opts.source) { chunks.push(chunk); }
-        capturedOpts = { ...opts, source: Buffer.concat(chunks) };
-        return { slug: opts.slug };
-      },
-    };
+    const mockService = createStoreCaptureService((opts) => {
+      capturedOpts = opts;
+    });
 
     const result = await storeFile(mockService, { filePath, slug: 'test-slug' });
     expect(result).toEqual({ slug: 'test-slug' });
@@ -32,22 +51,43 @@ describe('FileIOHelper – storeFile', () => {
     expect(capturedOpts.filename).toBe('input.bin');
   });
 
+});
+
+describe('FileIOHelper – storeFile option forwarding', () => {
+  let tmpDir;
+
+  beforeEach(() => { tmpDir = mkdtempSync(path.join(os.tmpdir(), 'fio-store-')); });
+  afterEach(() => { if (tmpDir) { rmSync(tmpDir, { recursive: true, force: true }); } });
+
   it('uses filename override when provided', async () => {
     const filePath = path.join(tmpDir, 'input.bin');
     writeFileSync(filePath, 'data');
 
     let capturedFilename;
-    const mockService = {
-      async store(opts) {
-        // eslint-disable-next-line no-unused-vars
-        for await (const _ of opts.source) { /* drain */ }
-        capturedFilename = opts.filename;
-        return {};
-      },
-    };
+    const mockService = createDrainStoreService((opts) => {
+      capturedFilename = opts.filename;
+    });
 
     await storeFile(mockService, { filePath, slug: 's', filename: 'custom.dat' });
     expect(capturedFilename).toBe('custom.dat');
+  });
+
+  it('forwards explicit encryption options to service.store()', async () => {
+    const filePath = path.join(tmpDir, 'input.bin');
+    writeFileSync(filePath, 'data');
+
+    let capturedEncryption;
+    const mockService = createDrainStoreService((opts) => {
+      capturedEncryption = opts.encryption;
+    });
+
+    await storeFile(mockService, {
+      filePath,
+      slug: 's',
+      encryption: { scheme: 'framed-v1', frameBytes: 32 },
+    });
+
+    expect(capturedEncryption).toEqual({ scheme: 'framed-v1', frameBytes: 32 });
   });
 });
 

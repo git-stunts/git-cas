@@ -167,7 +167,8 @@ Manifests are immutable value objects validated by a Zod schema at
 construction time. If you try to create a `Manifest` with missing or
 malformed fields, an error is thrown immediately.
 
-When encryption is used, the manifest gains an additional `encryption` field:
+When encryption is used, the manifest gains an additional `encryption` field.
+For `whole-v1`, it looks like this:
 
 ```json
 {
@@ -312,9 +313,11 @@ specified output path.
 For plaintext assets, this uses `restoreStream()` and writes chunk-by-chunk with
 bounded memory. When the persistence adapter supports `readBlobStream()`, the
 plaintext chunk path prefers that stream-native read seam before falling back
-to `readBlob()` for compatibility. For encrypted or compressed assets, the
-current implementation still buffers after chunk verification so it can decrypt
-and/or decompress safely before yielding output.
+to `readBlob()` for compatibility. For encrypted assets, `whole-v1` still
+buffers after chunk verification so it can authenticate the full ciphertext as
+one unit, while `framed-v1` restores authenticated plaintext incrementally. If
+compression is combined with `framed-v1`, restore streams through gunzip after
+frame-by-frame decryption.
 
 ```js
 await cas.restoreFile({
@@ -423,13 +426,35 @@ console.log(manifest.encryption);
 // }
 ```
 
-The manifest now carries an `encryption` field containing the explicit
-payload `scheme`, the algorithm, a base64-encoded nonce, a base64-encoded
-authentication tag, and a flag indicating the content is encrypted. The
-current explicit scheme is `whole-v1`, which names the existing whole-object
-AES-256-GCM format. The nonce and tag are generated fresh for every store
-operation. Legacy encrypted manifests without a `scheme` field are still
-treated as implicit `whole-v1` during restore for backward compatibility.
+The manifest now carries an explicit payload `scheme`. `whole-v1` records the
+algorithm, a base64-encoded nonce, a base64-encoded authentication tag, and a
+flag indicating the content is encrypted. The nonce and tag are generated fresh
+for every store operation.
+
+For authenticated streaming restore, opt into `framed-v1`:
+
+```js
+const manifest = await cas.storeFile({
+  filePath: './vacation.jpg',
+  slug: 'photos/vacation-streaming',
+  encryptionKey,
+  encryption: { scheme: 'framed-v1', frameBytes: 64 * 1024 },
+});
+
+console.log(manifest.encryption);
+// {
+//   scheme: 'framed-v1',
+//   algorithm: 'aes-256-gcm',
+//   frameBytes: 65536,
+//   encrypted: true
+// }
+```
+
+`framed-v1` authenticates each stored frame independently. The nonce and tag
+live inside the serialized payload rather than as top-level manifest fields, so
+the manifest records `frameBytes` instead. Legacy encrypted manifests without a
+`scheme` field are still treated as implicit `whole-v1` during restore for
+backward compatibility.
 
 ### Encrypted Restore
 

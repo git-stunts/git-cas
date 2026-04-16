@@ -28,7 +28,6 @@ not use numeric IDs.
 
 ### `up-next/`
 
-- [TR — Framed V1 Authenticated Encryption](./up-next/TR_framed-v1-authenticated-encryption.md)
 - [TR — Streaming Encrypted Restore](./up-next/TR_streaming-encrypted-restore.md)
 - [TR — Platform-Agnostic CLI Plan](./up-next/TR_platform-agnostic-cli-plan.md)
 - [TR — Agent CLI OS-Keychain Passphrase](./up-next/TR_agent-cli-os-keychain-passphrase.md)
@@ -42,3 +41,4 @@ not use numeric IDs.
 - [TR — CasService Decomposition Plan](./bad-code/TR_casservice-decomposition-plan.md)
 - [TR — Store Write Failure Surface](./bad-code/TR_store-write-failure-surface.md)
 - [TR — AES-GCM Metadata Enforcement](./bad-code/TR_aes-gcm-metadata-enforcement.md)
+- [TR — Explicit AES-GCM Auth Tag Length](./bad-code/TR_explicit-aes-gcm-auth-tag-length.md)

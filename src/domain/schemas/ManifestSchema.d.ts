@@ -38,8 +38,9 @@ export declare const RecipientSchema: z.ZodObject<{
 export declare const EncryptionSchema: z.ZodObject<{
   scheme: z.ZodOptional<z.ZodString>;
   algorithm: z.ZodString;
-  nonce: z.ZodString;
-  tag: z.ZodString;
+  nonce: z.ZodOptional<z.ZodString>;
+  tag: z.ZodOptional<z.ZodString>;
+  frameBytes: z.ZodOptional<z.ZodNumber>;
   encrypted: z.ZodDefault<z.ZodBoolean>;
   kdf: z.ZodOptional<typeof KdfSchema>;
   recipients: z.ZodOptional<z.ZodArray<typeof RecipientSchema>>;

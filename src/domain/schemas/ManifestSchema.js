@@ -38,8 +38,9 @@ export const RecipientSchema = z.object({
 export const EncryptionSchema = z.object({
   scheme: z.string().optional(),
   algorithm: z.string(),
-  nonce: z.string(),
-  tag: z.string(),
+  nonce: z.string().optional(),
+  tag: z.string().optional(),
+  frameBytes: z.number().int().positive().optional(),
   encrypted: z.boolean().default(true),
   kdf: KdfSchema.optional(),
   recipients: z.array(RecipientSchema).min(1).optional(),

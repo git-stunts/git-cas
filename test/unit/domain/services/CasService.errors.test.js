@@ -12,6 +12,49 @@ const testCrypto = await getTestCryptoAdapter();
 /** Deterministic SHA-256 hex digest for a given string. */
 const sha256 = (str) => createHash('sha256').update(str).digest('hex');
 
+function createBlobBackedService() {
+  const blobStore = new Map();
+  const crypto = testCrypto;
+  const service = new CasService({
+    persistence: {
+      writeBlob: vi.fn().mockImplementation(async (content) => {
+        const buf = Buffer.isBuffer(content) ? content : Buffer.from(content);
+        const oid = await crypto.sha256(buf);
+        blobStore.set(oid, buf);
+        return oid;
+      }),
+      writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+      readBlob: vi.fn().mockImplementation(async (oid) => blobStore.get(oid)),
+    },
+    crypto,
+    codec: new JsonCodec(),
+    chunkSize: 1024,
+    observability: new SilentObserver(),
+  });
+
+  return { service, blobStore, crypto };
+}
+
+async function storeStringManifest(service, text, options = {}) {
+  async function* source() { yield Buffer.from(text); }
+  return await service.store({
+    source: source(),
+    slug: options.slug || 'encrypted-test',
+    filename: options.filename || 'file.bin',
+    encryptionKey: options.encryptionKey,
+    encryption: options.encryption,
+  });
+}
+
+function withUpdatedChunk(manifest, chunkIndex, update) {
+  return new Manifest({
+    ...manifest.toJSON(),
+    chunks: manifest.chunks.map((chunk, index) => (
+      index === chunkIndex ? update(chunk) : { ...chunk }
+    )),
+  });
+}
+
 describe('CasService – constructor – chunkSize validation', () => {
   let mockPersistence;
 
@@ -233,33 +276,12 @@ describe('CasService – verifyIntegrity (encrypted without credentials)', () =>
   });
 });
 
-describe('CasService – verifyIntegrity (encrypted tampering)', () => {
+describe('CasService – verifyIntegrity (whole-v1 metadata tampering)', () => {
   it('returns false when encrypted manifest auth metadata is tampered', async () => {
     const key = Buffer.alloc(32, 0x22);
-    const blobStore = new Map();
-    const crypto = testCrypto;
-    const service = new CasService({
-      persistence: {
-        writeBlob: vi.fn().mockImplementation(async (content) => {
-          const buf = Buffer.isBuffer(content) ? content : Buffer.from(content);
-          const oid = await crypto.sha256(buf);
-          blobStore.set(oid, buf);
-          return oid;
-        }),
-        writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
-        readBlob: vi.fn().mockImplementation(async (oid) => blobStore.get(oid)),
-      },
-      crypto,
-      codec: new JsonCodec(),
-      chunkSize: 1024,
-      observability: new SilentObserver(),
-    });
-
-    async function* source() { yield Buffer.from('encrypted verify detects tag tamper'); }
-    const manifest = await service.store({
-      source: source(),
+    const { service } = createBlobBackedService();
+    const manifest = await storeStringManifest(service, 'encrypted verify detects tag tamper', {
       slug: 'encrypted-verify-tag',
-      filename: 'file.bin',
       encryptionKey: key,
     });
 
@@ -273,6 +295,32 @@ describe('CasService – verifyIntegrity (encrypted tampering)', () => {
 
     await expect(
       service.verifyIntegrity(tamperedManifest, { encryptionKey: key }),
+    ).resolves.toBe(false);
+  });
+});
+
+describe('CasService – verifyIntegrity (framed-v1 ciphertext tampering)', () => {
+  it('returns false when framed-v1 ciphertext is tampered even if chunk digests are updated', async () => {
+    const key = Buffer.alloc(32, 0x24);
+    const { service, blobStore, crypto } = createBlobBackedService();
+    const manifest = await storeStringManifest(service, 'framed ciphertext auth still matters '.repeat(80), {
+      slug: 'framed-verify-ciphertext',
+      encryptionKey: key,
+      encryption: { scheme: 'framed-v1', frameBytes: 128 },
+    });
+
+    const originalChunk = blobStore.get(manifest.chunks[0].blob);
+    const tamperedChunk = Buffer.from(originalChunk);
+    tamperedChunk[40] ^= 0xff;
+    const tamperedBlob = await crypto.sha256(tamperedChunk);
+    const tamperedDigest = await crypto.sha256(tamperedChunk);
+    blobStore.set(tamperedBlob, tamperedChunk);
+
+    await expect(
+      service.verifyIntegrity(
+        withUpdatedChunk(manifest, 0, (chunk) => ({ ...chunk, blob: tamperedBlob, digest: tamperedDigest })),
+        { encryptionKey: key },
+      ),
     ).resolves.toBe(false);
   });
 });

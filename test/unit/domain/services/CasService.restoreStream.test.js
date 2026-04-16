@@ -45,6 +45,7 @@ async function storeBuffer(svc, buf, opts = {}) {
     slug: opts.slug || 'test',
     filename: opts.filename || 'test.bin',
     encryptionKey: opts.encryptionKey,
+    encryption: opts.encryption,
     compression: opts.compression,
   });
 }
@@ -53,6 +54,35 @@ async function collectStream(iterable) {
   const chunks = [];
   for await (const chunk of iterable) { chunks.push(chunk); }
   return Buffer.concat(chunks);
+}
+
+function buildFramedStreamingPayload() {
+  const frames = Array.from('abcdefghijklmnop', (letter) => Buffer.alloc(256, letter));
+  return {
+    firstFrame: frames[0],
+    original: Buffer.concat(frames),
+  };
+}
+
+function createBlobBackedPersistence(crypto, blobStore, { gate, readCountRef }) {
+  return {
+    writeBlob: vi.fn().mockImplementation(async (content) => {
+      const buf = Buffer.isBuffer(content) ? content : Buffer.from(content);
+      const oid = await crypto.sha256(buf);
+      blobStore.set(oid, buf);
+      return oid;
+    }),
+    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    readBlob: vi.fn().mockImplementation(async (oid) => {
+      readCountRef.count += 1;
+      if (readCountRef.count === 3) {
+        await gate.promise;
+      }
+      const buf = blobStore.get(oid);
+      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
+      return buf;
+    }),
+  };
 }
 
 describe('restoreStream – plaintext round-trips', () => {
@@ -94,6 +124,19 @@ describe('restoreStream – encrypted / compressed', () => {
     const original = randomBytes(3072);
     const key = randomBytes(32);
     const manifest = await storeBuffer(service, original, { encryptionKey: key });
+    const restored = await collectStream(service.restoreStream({ manifest, encryptionKey: key }));
+    expect(restored.equals(original)).toBe(true);
+  });
+
+  it('round-trips framed-v1 encrypted file', async () => {
+    const { service } = setup();
+    const original = randomBytes(3072);
+    const key = randomBytes(32);
+    const manifest = await storeBuffer(service, original, {
+      encryptionKey: key,
+      encryption: { scheme: 'framed-v1', frameBytes: 128 },
+    });
+
     const restored = await collectStream(service.restoreStream({ manifest, encryptionKey: key }));
     expect(restored.equals(original)).toBe(true);
   });
@@ -153,5 +196,48 @@ describe('restoreStream – consistency with restore()', () => {
     const { buffer } = await service.restore({ manifest });
     const streamed = await collectStream(service.restoreStream({ manifest }));
     expect(buffer.equals(streamed)).toBe(true);
+  });
+});
+
+describe('restoreStream – framed-v1 streaming behavior', () => {
+  it('yields authenticated plaintext before reading the full encrypted asset', async () => {
+    const crypto = testCrypto;
+    const blobStore = new Map();
+    const { firstFrame, original } = buildFramedStreamingPayload();
+    const key = randomBytes(32);
+    const gate = Promise.withResolvers();
+    const readCountRef = { count: 0 };
+    const mockPersistence = createBlobBackedPersistence(crypto, blobStore, { gate, readCountRef });
+
+    const service = new CasService({
+      persistence: mockPersistence,
+      crypto,
+      codec: new JsonCodec(),
+      observability: new SilentObserver(),
+      chunkSize: 1024,
+    });
+
+    const manifest = await storeBuffer(service, original, {
+      encryptionKey: key,
+      encryption: { scheme: 'framed-v1', frameBytes: 256 },
+    });
+    const iterator = service.restoreStream({
+      manifest,
+      encryptionKey: key,
+    })[Symbol.asyncIterator]();
+
+    const firstChunkPromise = iterator.next();
+    const firstResult = await Promise.race([
+      firstChunkPromise,
+      new Promise((resolve) => setTimeout(() => resolve('timed-out'), 25)),
+    ]);
+
+    expect(firstResult).not.toBe('timed-out');
+    expect(firstResult.done).toBe(false);
+    expect(firstResult.value.equals(firstFrame)).toBe(true);
+    expect(readCountRef.count).toBeLessThan(manifest.chunks.length);
+
+    gate.resolve();
+    await iterator.return?.();
   });
 });

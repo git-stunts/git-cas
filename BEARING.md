@@ -29,9 +29,9 @@ timeline
 ## Tensions
 
 - **Encryption vs. Dedupe**: AES-256-GCM removes the benefits of CDC; we need clearer documentation on this tradeoff for operators.
-- **Buffer Limits**: Large encrypted restores are currently limited by `maxRestoreBufferSize`; we need a true streaming path for ciphertext.
+- **Buffer Limits**: `whole-v1` restores are still limited by `maxRestoreBufferSize`; `framed-v1` now streams authenticated plaintext, so the remaining question is whether `whole-v1` needs a bounded temp-file path or should stay compatibility-only.
 - **Vault Contention**: Concurrent vault updates in high-frequency CI environments require robust CAS retry logic.
 
 ## Next Target
 
-The immediate focus is **Streaming Encrypted Restore** to remove the memory bottleneck for large protected assets.
+The immediate focus is **Whole-v1 restore bounds and crypto hardening** now that `framed-v1` covers the authenticated streaming restore path.

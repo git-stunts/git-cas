@@ -107,7 +107,21 @@ describe('CasService – store encryption schemes', () => {
     expect(manifest.encryption.scheme).toBe('whole-v1');
   });
 
-  it('rejects unsupported requested encryption schemes', async () => {
+  it('stores framed-v1 manifests with explicit frameBytes metadata', async () => {
+    async function* source() { yield Buffer.from('encrypted data'); }
+    const manifest = await service.store({
+      source: source(),
+      slug: 'encrypted-slug',
+      filename: 'encrypted.bin',
+      encryptionKey: randomBytes(32),
+      encryption: { scheme: 'framed-v1', frameBytes: 32 },
+    });
+
+    expect(manifest.encryption.scheme).toBe('framed-v1');
+    expect(manifest.encryption.frameBytes).toBe(32);
+  });
+
+  it('rejects unknown requested encryption schemes', async () => {
     async function* source() { yield Buffer.from('encrypted data'); }
 
     await expect(service.store({
@@ -115,7 +129,7 @@ describe('CasService – store encryption schemes', () => {
       slug: 'encrypted-slug',
       filename: 'encrypted.bin',
       encryptionKey: randomBytes(32),
-      encryption: { scheme: 'framed-v1' },
+      encryption: { scheme: 'mystery-v9' },
     })).rejects.toMatchObject({
       code: 'INVALID_OPTIONS',
     });

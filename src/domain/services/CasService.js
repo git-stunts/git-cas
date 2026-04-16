@@ -3,7 +3,7 @@
  * @fileoverview Domain service for Content Addressable Storage operations.
  * @module
  */
-import { gunzip, createGzip } from 'node:zlib';
+import { gunzip, createGzip, createGunzip } from 'node:zlib';
 import { Readable } from 'node:stream';
 import { promisify } from 'node:util';
 import Manifest from '../value-objects/Manifest.js';
@@ -13,6 +13,11 @@ import FixedChunker from '../../infrastructure/chunkers/FixedChunker.js';
 import KeyResolver from './KeyResolver.js';
 
 const gunzipAsync = promisify(gunzip);
+const DEFAULT_FRAMED_FRAME_BYTES = 64 * 1024;
+const FRAMED_LENGTH_BYTES = 4;
+const GCM_NONCE_BYTES = 12;
+const GCM_TAG_BYTES = 16;
+const FRAMED_RECORD_HEADER_BYTES = FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES + GCM_TAG_BYTES;
 
 /**
  * Domain service for Content Addressable Storage operations.
@@ -301,34 +306,29 @@ export default class CasService {
   }
 
   /**
-   * Resolves the requested store encryption scheme.
+   * Resolves the requested store encryption config.
    * @private
-   * @param {{ scheme?: string }} [encryption]
+   * @param {{ scheme?: string, frameBytes?: number }} [encryption]
    * @param {boolean} hasEncryptionKey
-   * @returns {'whole-v1'|undefined}
+   * @returns {undefined|{ scheme: 'whole-v1' }|{ scheme: 'framed-v1', frameBytes: number }}
    */
-  _resolveStoreEncryptionScheme(encryption, hasEncryptionKey) {
+  _resolveStoreEncryptionConfig(encryption, hasEncryptionKey) {
     const scheme = encryption?.scheme;
+    const frameBytes = encryption?.frameBytes;
+    this._assertStoreEncryptionPrereqs({ hasEncryptionKey, scheme, frameBytes });
+
     if (!hasEncryptionKey) {
-      if (scheme) {
-        throw new CasError(
-          'encryption.scheme requires encryptionKey, passphrase, or recipients',
-          'INVALID_OPTIONS',
-          { scheme },
-        );
-      }
       return undefined;
     }
+
     if (!scheme || scheme === 'whole-v1') {
-      return 'whole-v1';
+      return { scheme: 'whole-v1' };
     }
+
     if (scheme === 'framed-v1') {
-      throw new CasError(
-        'Encryption scheme framed-v1 is not implemented yet',
-        'INVALID_OPTIONS',
-        { scheme },
-      );
+      return this._resolveFramedStoreEncryptionConfig(frameBytes);
     }
+
     throw new CasError(
       `Unsupported encryption scheme: ${scheme}`,
       'INVALID_OPTIONS',
@@ -337,10 +337,55 @@ export default class CasService {
   }
 
   /**
+   * Validates that store-time encryption options are coherent.
+   * @private
+   * @param {{ hasEncryptionKey: boolean, scheme?: string, frameBytes?: number }} options
+   */
+  _assertStoreEncryptionPrereqs({ hasEncryptionKey, scheme, frameBytes }) {
+    if (!hasEncryptionKey && (scheme || frameBytes !== undefined)) {
+      throw new CasError(
+        'encryption options require encryptionKey, passphrase, or recipients',
+        'INVALID_OPTIONS',
+        { scheme, frameBytes },
+      );
+    }
+
+    if (frameBytes !== undefined && scheme !== 'framed-v1') {
+      throw new CasError(
+        'encryption.frameBytes requires encryption.scheme="framed-v1"',
+        'INVALID_OPTIONS',
+        { scheme, frameBytes },
+      );
+    }
+  }
+
+  /**
+   * Normalizes framed-v1 store config.
+   * @private
+   * @param {number|undefined} frameBytes
+   * @returns {{ scheme: 'framed-v1', frameBytes: number }}
+   */
+  _resolveFramedStoreEncryptionConfig(frameBytes) {
+    const normalizedFrameBytes = frameBytes ?? DEFAULT_FRAMED_FRAME_BYTES;
+    if (!Number.isInteger(normalizedFrameBytes) || normalizedFrameBytes < 1) {
+      throw new CasError(
+        'encryption.frameBytes must be a positive integer',
+        'INVALID_OPTIONS',
+        { frameBytes: normalizedFrameBytes },
+      );
+    }
+
+    return {
+      scheme: 'framed-v1',
+      frameBytes: normalizedFrameBytes,
+    };
+  }
+
+  /**
    * Treats manifest encryption metadata as security-critical when present.
    * @private
-   * @param {{ slug?: string, encryption?: { scheme?: string, encrypted?: boolean, algorithm?: string } }} manifest
-   * @returns {undefined|{ scheme: 'whole-v1', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
+   * @param {{ slug?: string, encryption?: { scheme?: string, encrypted?: boolean, algorithm?: string, nonce?: string, tag?: string, frameBytes?: number } }} manifest
+   * @returns {undefined|({ scheme: 'whole-v1', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }|{ scheme: 'framed-v1', encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number })}
    * @throws {CasError} INTEGRITY_ERROR if encryption metadata was downgraded or tampered.
    */
   _validatedEncryptionMeta(manifest) {
@@ -348,13 +393,30 @@ export default class CasService {
     if (!meta) {
       return undefined;
     }
-    if (meta.scheme !== undefined && meta.scheme !== 'whole-v1') {
-      throw new CasError(
-        `Encrypted manifest uses unknown scheme: ${meta.scheme}`,
-        'INTEGRITY_ERROR',
-        { slug: manifest.slug, reason: 'manifest-encryption-scheme', scheme: meta.scheme },
-      );
+    this._validateCommonEncryptedManifestMeta(manifest, meta);
+
+    if (meta.scheme === undefined || meta.scheme === 'whole-v1') {
+      return this._validateWholeEncryptionMeta(manifest, meta);
     }
+
+    if (meta.scheme === 'framed-v1') {
+      return this._validateFramedEncryptionMeta(manifest, meta);
+    }
+
+    throw new CasError(
+      `Encrypted manifest uses unknown scheme: ${meta.scheme}`,
+      'INTEGRITY_ERROR',
+      { slug: manifest.slug, reason: 'manifest-encryption-scheme', scheme: meta.scheme },
+    );
+  }
+
+  /**
+   * Validates common encrypted-manifest fields.
+   * @private
+   * @param {{ slug?: string }} manifest
+   * @param {{ encrypted?: boolean, algorithm?: string }} meta
+   */
+  _validateCommonEncryptedManifestMeta(manifest, meta) {
     if (meta.encrypted !== true) {
       throw new CasError(
         'Encrypted manifest metadata was downgraded or is invalid',
@@ -362,6 +424,7 @@ export default class CasService {
         { slug: manifest.slug, reason: 'manifest-encryption-downgrade' },
       );
     }
+
     if (meta.algorithm !== 'aes-256-gcm') {
       throw new CasError(
         `Encrypted manifest uses unexpected algorithm: ${meta.algorithm}`,
@@ -369,9 +432,50 @@ export default class CasService {
         { slug: manifest.slug, reason: 'manifest-encryption-algorithm', algorithm: meta.algorithm },
       );
     }
+  }
+
+  /**
+   * Validates whole-v1 manifest metadata.
+   * @private
+   * @param {{ slug?: string }} manifest
+   * @param {{ nonce?: string, tag?: string }} meta
+   * @returns {{ scheme: 'whole-v1', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
+   */
+  _validateWholeEncryptionMeta(manifest, meta) {
+    if (typeof meta.nonce !== 'string' || meta.nonce.length === 0 || typeof meta.tag !== 'string' || meta.tag.length === 0) {
+      throw new CasError(
+        'Whole-v1 encrypted manifest is missing nonce/tag metadata',
+        'INTEGRITY_ERROR',
+        { slug: manifest.slug, reason: 'manifest-encryption-meta' },
+      );
+    }
+
     return /** @type {{ scheme: 'whole-v1', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }} */ ({
       ...meta,
       scheme: 'whole-v1',
+    });
+  }
+
+  /**
+   * Validates framed-v1 manifest metadata.
+   * @private
+   * @param {{ slug?: string }} manifest
+   * @param {{ frameBytes?: number }} meta
+   * @returns {{ scheme: 'framed-v1', encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }}
+   */
+  _validateFramedEncryptionMeta(manifest, meta) {
+    if (!Number.isInteger(meta.frameBytes) || meta.frameBytes < 1) {
+      throw new CasError(
+        'Framed-v1 encrypted manifest is missing a valid frameBytes value',
+        'INTEGRITY_ERROR',
+        { slug: manifest.slug, reason: 'manifest-encryption-frame-bytes', frameBytes: meta.frameBytes },
+      );
+    }
+
+    return /** @type {{ scheme: 'framed-v1', encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} */ ({
+      ...meta,
+      scheme: 'framed-v1',
+      frameBytes: meta.frameBytes,
     });
   }
 
@@ -394,7 +498,7 @@ export default class CasService {
    * integrity-style manifest failures without throwing.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @returns {false|undefined|{ scheme: 'whole-v1', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
+   * @returns {false|undefined|({ scheme: 'whole-v1', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }|{ scheme: 'framed-v1', encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number })}
    */
   _getVerifyEncryptionMeta(manifest) {
     try {
@@ -457,7 +561,7 @@ export default class CasService {
   }
 
   /**
-   * Authenticates encrypted content during verifyIntegrity().
+   * Authenticates whole-v1 encrypted content during verifyIntegrity().
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
    * @param {{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }} encryptionMeta
@@ -476,6 +580,45 @@ export default class CasService {
     } catch (err) {
       if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
         this._emitIntegrityFail(manifest, { reason: 'auth', code: err.code });
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Authenticates framed-v1 encrypted content during verifyIntegrity().
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {{ encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} encryptionMeta
+   * @param {Buffer} key
+   * @param {Buffer[]} buffers
+   * @returns {Promise<boolean>}
+   */
+  async _verifyFramedAuth({ manifest, encryptionMeta, key, buffers }) {
+    try {
+      const source = (async function* framedSource() {
+        for (const buffer of buffers) {
+          yield buffer;
+        }
+      })();
+
+      for await (const record of this._parseFramedRecords(source, encryptionMeta.frameBytes)) {
+        await this.decrypt({
+          buffer: record.ciphertext,
+          key,
+          meta: record.meta,
+        });
+      }
+
+      return true;
+    } catch (err) {
+      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+        this._emitIntegrityFail(manifest, {
+          reason: err.meta?.reason === 'framed-record-parse' ? 'framing' : 'auth',
+          code: err.code,
+          ...err.meta,
+        });
         return false;
       }
       throw err;
@@ -540,7 +683,7 @@ export default class CasService {
    * @param {string} options.filename
    * @param {Buffer} [options.encryptionKey]
    * @param {string} [options.passphrase] - Derive encryption key from passphrase instead.
-   * @param {{ scheme?: 'whole-v1'|'framed-v1' }} [options.encryption] - Explicit encryption scheme selection.
+   * @param {{ scheme?: 'whole-v1'|'framed-v1', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
@@ -556,22 +699,20 @@ export default class CasService {
     const keyInfo = recipients
       ? await this.#keyResolver.resolveRecipients(recipients)
       : await this.#keyResolver.resolveForStore(encryptionKey, passphrase, kdfOptions);
-    const encryptionScheme = this._resolveStoreEncryptionScheme(encryption, !!keyInfo.key);
+    const encryptionConfig = this._resolveStoreEncryptionConfig(encryption, !!keyInfo.key);
 
     const manifestData = this._buildManifestData(slug, filename, compression);
     const processedSource = compression ? this._compressStream(source) : source;
 
-    if (keyInfo.key && this.chunker.strategy === 'cdc') {
-      this.observability.log(
-        'warn',
-        'CDC deduplication is ineffective with encryption — ciphertext is pseudorandom',
-        { strategy: 'cdc' },
-      );
-    }
     if (keyInfo.key) {
-      const { encrypt, finalize } = this.crypto.createEncryptionStream(keyInfo.key);
-      await this._chunkAndStore(encrypt(processedSource), manifestData);
-      manifestData.encryption = { ...finalize(), scheme: encryptionScheme, ...keyInfo.encExtra };
+      this._warnEncryptedCdc();
+      await this._storeEncryptedSource({
+        processedSource,
+        manifestData,
+        key: keyInfo.key,
+        encryptionConfig,
+        encExtra: keyInfo.encExtra,
+      });
     } else {
       await this._chunkAndStore(processedSource, manifestData);
     }
@@ -581,6 +722,52 @@ export default class CasService {
       action: 'stored', slug, size: manifest.size, chunkCount: manifest.chunks.length, encrypted: !!keyInfo.key,
     });
     return manifest;
+  }
+
+  /**
+   * Warns when encrypted content is stored through CDC chunking.
+   * @private
+   */
+  _warnEncryptedCdc() {
+    if (this.chunker.strategy !== 'cdc') {
+      return;
+    }
+
+    this.observability.log(
+      'warn',
+      'CDC deduplication is ineffective with encryption — ciphertext is pseudorandom',
+      { strategy: 'cdc' },
+    );
+  }
+
+  /**
+   * Stores encrypted content using the requested scheme.
+   * @private
+   * @param {{ processedSource: AsyncIterable<Buffer>, manifestData: { encryption?: object }, key: Buffer, encryptionConfig: { scheme: 'whole-v1' }|{ scheme: 'framed-v1', frameBytes: number }, encExtra: Record<string, unknown> }} options
+   */
+  async _storeEncryptedSource({ processedSource, manifestData, key, encryptionConfig, encExtra }) {
+    if (encryptionConfig.scheme === 'framed-v1') {
+      await this._chunkAndStore(
+        this._encryptFramed(processedSource, key, encryptionConfig.frameBytes),
+        manifestData,
+      );
+      manifestData.encryption = {
+        scheme: 'framed-v1',
+        algorithm: 'aes-256-gcm',
+        encrypted: true,
+        frameBytes: encryptionConfig.frameBytes,
+        ...encExtra,
+      };
+      return;
+    }
+
+    const { encrypt, finalize } = this.crypto.createEncryptionStream(key);
+    await this._chunkAndStore(encrypt(processedSource), manifestData);
+    manifestData.encryption = {
+      ...finalize(),
+      scheme: encryptionConfig.scheme,
+      ...encExtra,
+    };
   }
 
   /**
@@ -594,6 +781,63 @@ export default class CasService {
     }
     if (compression) { data.compression = { algorithm: 'gzip' }; }
     return data;
+  }
+
+  /**
+   * Encrypts plaintext frames independently and serializes them into framed-v1
+   * records.
+   * @private
+   * @param {AsyncIterable<Buffer>} source
+   * @param {Buffer} key
+   * @param {number} frameBytes
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_encryptFramed(source, key, frameBytes) {
+    let pending = Buffer.alloc(0);
+    let sawPlaintext = false;
+
+    for await (const chunk of source) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      if (buf.length === 0) {
+        continue;
+      }
+
+      sawPlaintext = true;
+      pending = pending.length === 0 ? buf : Buffer.concat([pending, buf]);
+
+      while (pending.length >= frameBytes) {
+        const frame = pending.subarray(0, frameBytes);
+        pending = pending.subarray(frameBytes);
+        yield await this._serializeFramedRecord(frame, key);
+      }
+    }
+
+    if (pending.length > 0) {
+      yield await this._serializeFramedRecord(pending, key);
+      return;
+    }
+
+    if (!sawPlaintext) {
+      yield await this._serializeFramedRecord(Buffer.alloc(0), key);
+    }
+  }
+
+  /**
+   * Serializes one framed-v1 record.
+   * @private
+   * @param {Buffer} frame
+   * @param {Buffer} key
+   * @returns {Promise<Buffer>}
+   */
+  async _serializeFramedRecord(frame, key) {
+    const { buf, meta } = await this.crypto.encryptBuffer(frame, key);
+    const nonce = Buffer.from(meta.nonce, 'base64');
+    const tag = Buffer.from(meta.tag, 'base64');
+    const header = Buffer.alloc(FRAMED_RECORD_HEADER_BYTES);
+    header.writeUInt32BE(buf.length, 0);
+    nonce.copy(header, FRAMED_LENGTH_BYTES);
+    tag.copy(header, FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES);
+    return Buffer.concat([header, buf]);
   }
 
   /**
@@ -781,18 +1025,20 @@ export default class CasService {
   /**
    * Restores a file from its manifest as an async iterable of Buffer chunks.
    *
-   * For unencrypted, uncompressed files this is true per-chunk streaming
-   * with O(chunkSize) memory. For encrypted or compressed files, all chunks
-   * are buffered internally for decryption/decompression, then yielded.
+   * For unencrypted, uncompressed files this is true per-chunk streaming with
+   * O(chunkSize) memory. `whole-v1` encrypted or buffered compression paths
+   * still collect internally before yielding, while `framed-v1` encrypted
+   * payloads authenticate and emit plaintext incrementally.
    *
    * @param {Object} options
    * @param {import('../value-objects/Manifest.js').default} options.manifest - The file manifest.
    * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * Note: For unencrypted files, each yielded buffer corresponds to an original
-   * stored chunk. For encrypted/compressed files, yielded buffers are
+   * stored chunk. For buffered restore paths, yielded buffers are
    * chunkSize-sliced pieces of the decrypted/decompressed result and may not
-   * correspond 1:1 to the original chunks.
+   * correspond 1:1 to the original chunks. `framed-v1` yields authenticated
+   * plaintext frames (or downstream gunzip output) instead.
    *
    * @yields {Buffer}
    * @throws {CasError} MISSING_KEY if manifest is encrypted but no key is provided.
@@ -802,14 +1048,20 @@ export default class CasService {
     const encryptionMeta = this._validatedEncryptionMeta(manifest);
     const key = await this.#keyResolver.resolveForDecryption(manifest, encryptionKey, passphrase);
 
-    if (manifest.chunks.length === 0) {
+    if (manifest.chunks.length === 0 && !encryptionMeta && !manifest.compression) {
       this.observability.metric('file', {
         action: 'restored', slug: manifest.slug, size: 0, chunkCount: 0,
       });
       return;
     }
 
-    if (encryptionMeta || manifest.compression) {
+    if (encryptionMeta?.scheme === 'framed-v1') {
+      if (manifest.compression) {
+        yield* this._restoreFramedCompressedStreaming(manifest, key, encryptionMeta);
+      } else {
+        yield* this._restoreFramedStreaming(manifest, key, encryptionMeta);
+      }
+    } else if (encryptionMeta || manifest.compression) {
       yield* this._restoreBuffered(manifest, key, encryptionMeta);
     } else {
       yield* this._restoreStreaming(manifest);
@@ -901,12 +1153,214 @@ export default class CasService {
   }
 
   /**
+   * Sequentially reads and verifies stored chunk blobs.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_iterVerifiedChunkBlobs(manifest) {
+    for (const chunk of manifest.chunks) {
+      const blob = await this._readAndVerifyChunk(chunk);
+      this.observability.metric('chunk', {
+        action: 'restored',
+        index: chunk.index,
+        size: blob.length,
+        digest: chunk.digest,
+      });
+      yield blob;
+    }
+  }
+
+  /**
+   * Parses framed-v1 records from a byte stream.
+   * @private
+   * @param {AsyncIterable<Buffer>} source
+   * @param {number} frameBytes
+   * @returns {AsyncIterable<{ ciphertext: Buffer, meta: { encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string } }>}
+   */
+  async *_parseFramedRecords(source, frameBytes) {
+    let pending = Buffer.alloc(0);
+
+    for await (const chunk of source) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      pending = pending.length === 0 ? buf : Buffer.concat([pending, buf]);
+
+      while (pending.length >= FRAMED_RECORD_HEADER_BYTES) {
+        const consumed = this._consumeFramedRecord(pending, frameBytes);
+        if (!consumed) {
+          break;
+        }
+        pending = consumed.remaining;
+        yield consumed.record;
+      }
+    }
+
+    if (pending.length > 0) {
+      throw new CasError(
+        'Framed ciphertext is truncated or malformed',
+        'INTEGRITY_ERROR',
+        { reason: 'framed-record-parse', remainingBytes: pending.length },
+      );
+    }
+  }
+
+  /**
+   * Tries to consume one framed-v1 record from a pending buffer.
+   * @private
+   * @param {Buffer} pending
+   * @param {number} frameBytes
+   * @returns {null|{ remaining: Buffer, record: { ciphertext: Buffer, meta: { encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string } } }}
+   */
+  _consumeFramedRecord(pending, frameBytes) {
+    const ciphertextLength = pending.readUInt32BE(0);
+    if (ciphertextLength > frameBytes) {
+      throw new CasError(
+        `Framed ciphertext length ${ciphertextLength} exceeds frameBytes ${frameBytes}`,
+        'INTEGRITY_ERROR',
+        { reason: 'framed-record-parse', ciphertextLength, frameBytes },
+      );
+    }
+
+    const recordLength = FRAMED_RECORD_HEADER_BYTES + ciphertextLength;
+    if (pending.length < recordLength) {
+      return null;
+    }
+
+    return {
+      remaining: pending.subarray(recordLength),
+      record: {
+        ciphertext: pending.subarray(FRAMED_RECORD_HEADER_BYTES, recordLength),
+        meta: this._buildFramedRecordMeta(pending),
+      },
+    };
+  }
+
+  /**
+   * Builds decryption metadata from a framed-v1 record header.
+   * @private
+   * @param {Buffer} pending
+   * @returns {{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
+   */
+  _buildFramedRecordMeta(pending) {
+    return {
+      encrypted: true,
+      algorithm: 'aes-256-gcm',
+      nonce: pending
+        .subarray(FRAMED_LENGTH_BYTES, FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES)
+        .toString('base64'),
+      tag: pending
+        .subarray(FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES, FRAMED_RECORD_HEADER_BYTES)
+        .toString('base64'),
+    };
+  }
+
+  /**
+   * Decrypts framed-v1 records into authenticated plaintext frames.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} key
+   * @param {{ encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} encryptionMeta
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_decryptFramedSource(manifest, key, encryptionMeta) {
+    for await (const record of this._parseFramedRecords(
+      this._iterVerifiedChunkBlobs(manifest),
+      encryptionMeta.frameBytes,
+    )) {
+      let plaintext;
+      try {
+        plaintext = await this.decrypt({
+          buffer: record.ciphertext,
+          key,
+          meta: record.meta,
+        });
+      } catch (err) {
+        if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+          this.observability.metric('error', { action: 'decryption_failed', slug: manifest.slug });
+        }
+        throw err;
+      }
+
+      if (plaintext.length > 0) {
+        yield plaintext;
+      }
+    }
+  }
+
+  /**
+   * Streaming restore path for framed-v1 encrypted content.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} key
+   * @param {{ encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} encryptionMeta
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_restoreFramedStreaming(manifest, key, encryptionMeta) {
+    let totalSize = 0;
+    for await (const chunk of this._decryptFramedSource(manifest, key, encryptionMeta)) {
+      totalSize += chunk.length;
+      yield chunk;
+    }
+
+    this.observability.metric('file', {
+      action: 'restored',
+      slug: manifest.slug,
+      size: totalSize,
+      chunkCount: manifest.chunks.length,
+    });
+  }
+
+  /**
+   * Streaming restore path for framed-v1 encrypted + compressed content.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} key
+   * @param {{ encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} encryptionMeta
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_restoreFramedCompressedStreaming(manifest, key, encryptionMeta) {
+    let totalSize = 0;
+    for await (const chunk of this._decompressStreaming(this._decryptFramedSource(manifest, key, encryptionMeta))) {
+      totalSize += chunk.length;
+      yield chunk;
+    }
+
+    this.observability.metric('file', {
+      action: 'restored',
+      slug: manifest.slug,
+      size: totalSize,
+      chunkCount: manifest.chunks.length,
+    });
+  }
+
+  /**
    * Decompresses a gzip buffer.
    * @private
    */
   async _decompress(buffer) {
     try {
       return await gunzipAsync(buffer);
+    } catch (err) {
+      if (err instanceof CasError) { throw err; }
+      throw new CasError(`Decompression failed: ${err.message}`, 'INTEGRITY_ERROR', { originalError: err });
+    }
+  }
+
+  /**
+   * Decompresses a gzip byte stream.
+   * @private
+   * @param {AsyncIterable<Buffer>} source
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_decompressStreaming(source) {
+    const gunzipStream = createGunzip();
+    const input = Readable.from(source);
+    const decompressed = input.pipe(gunzipStream);
+
+    try {
+      for await (const chunk of decompressed) {
+        yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      }
     } catch (err) {
       if (err instanceof CasError) { throw err; }
       throw new CasError(`Decompression failed: ${err.message}`, 'INTEGRITY_ERROR', { originalError: err });
@@ -1309,7 +1763,9 @@ export default class CasService {
       if (key === false) {
         return false;
       }
-      const authOk = await this._verifyEncryptedAuth({ manifest, encryptionMeta, key, buffers });
+      const authOk = encryptionMeta.scheme === 'framed-v1'
+        ? await this._verifyFramedAuth({ manifest, encryptionMeta, key, buffers })
+        : await this._verifyEncryptedAuth({ manifest, encryptionMeta, key, buffers });
       if (!authOk) {
         return false;
       }

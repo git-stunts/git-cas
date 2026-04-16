@@ -16,6 +16,9 @@
 - The human CLI and TUI are real and materially shipped.
 - The machine-facing `git cas agent` surface exists, but parity and
   portability are still partial.
+- `framed-v1` now provides an authenticated streaming encrypted restore path;
+  `whole-v1` remains the compatibility whole-object mode with buffered
+  restore semantics.
 - Fresh work is now organized through METHOD backlog lanes and numbered cycle
   directories.
 

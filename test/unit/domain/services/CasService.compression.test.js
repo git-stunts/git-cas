@@ -22,8 +22,27 @@ async function storeBuffer(svc, buf, opts = {}) {
     slug: opts.slug || 'test',
     filename: opts.filename || 'test.bin',
     encryptionKey: opts.encryptionKey,
+    encryption: opts.encryption,
     compression: opts.compression,
   });
+}
+
+async function expectCompressedEncryptedRoundTrip(service, encryptionOptions) {
+  const key = randomBytes(32);
+  const original = Buffer.from('Secret compressible content! '.repeat(100));
+
+  const manifest = await storeBuffer(service, original, {
+    compression: { algorithm: 'gzip' },
+    encryptionKey: key,
+    encryption: encryptionOptions,
+  });
+
+  const { buffer, bytesWritten } = await service.restore({
+    manifest,
+    encryptionKey: key,
+  });
+
+  return { key, original, manifest, buffer, bytesWritten };
 }
 
 /**
@@ -121,23 +140,23 @@ describe('CasService compression – compression + encryption round-trip', () =>
   });
 
   it('round-trips data stored with both compression and encryption', async () => {
-    const key = randomBytes(32);
-    const original = Buffer.from('Secret compressible content! '.repeat(100));
-
-    const manifest = await storeBuffer(service, original, {
-      compression: { algorithm: 'gzip' },
-      encryptionKey: key,
-    });
+    const { original, manifest, buffer, bytesWritten } = await expectCompressedEncryptedRoundTrip(service);
 
     expect(manifest.compression).toBeDefined();
     expect(manifest.encryption).toBeDefined();
     expect(manifest.encryption.encrypted).toBe(true);
+    expect(buffer.equals(original)).toBe(true);
+    expect(bytesWritten).toBe(original.length);
+  });
 
-    const { buffer, bytesWritten } = await service.restore({
-      manifest,
-      encryptionKey: key,
+  it('round-trips data stored with compression and framed-v1 encryption', async () => {
+    const { original, manifest, buffer, bytesWritten } = await expectCompressedEncryptedRoundTrip(service, {
+      scheme: 'framed-v1',
+      frameBytes: 128,
     });
 
+    expect(manifest.compression).toBeDefined();
+    expect(manifest.encryption.scheme).toBe('framed-v1');
     expect(buffer.equals(original)).toBe(true);
     expect(bytesWritten).toBe(original.length);
   });

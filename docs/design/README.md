@@ -18,6 +18,7 @@ process in [docs/method/process.md](../method/process.md).
 - [0024-cli-os-keychain-passphrase — cli-os-keychain-passphrase](./0024-cli-os-keychain-passphrase/cli-os-keychain-passphrase.md)
 - [0025-encrypted-manifest-auth-boundary — encrypted-manifest-auth-boundary](./0025-encrypted-manifest-auth-boundary/encrypted-manifest-auth-boundary.md)
 - [0026-dual-encryption-mode-foundation — dual-encryption-mode-foundation](./0026-dual-encryption-mode-foundation/dual-encryption-mode-foundation.md)
+- [0027-framed-v1-streaming-restore — framed-v1-streaming-restore](./0027-framed-v1-streaming-restore/framed-v1-streaming-restore.md)
 
 ## Landed METHOD Cycles
 

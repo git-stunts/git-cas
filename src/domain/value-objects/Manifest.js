@@ -16,7 +16,7 @@ export default class Manifest {
    * @param {string} data.filename - Original filename.
    * @param {number} data.size - Total size in bytes.
    * @param {Array<{ index: number, size: number, digest: string, blob: string }>} data.chunks - Chunk metadata.
-   * @param {{ algorithm: string, nonce: string, tag: string, encrypted: boolean }} [data.encryption] - Encryption metadata.
+   * @param {{ algorithm: string, nonce?: string, tag?: string, frameBytes?: number, encrypted: boolean }} [data.encryption] - Encryption metadata.
    * @throws {Error} If data fails schema validation.
    */
   constructor(data) {

@@ -17,12 +17,13 @@ import { pipeline } from 'node:stream/promises';
  * @param {string} [options.filename] - Override filename (defaults to basename of filePath).
  * @param {Buffer} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
  * @param {string} [options.passphrase] - Derive encryption key from passphrase.
+ * @param {{ scheme?: 'whole-v1'|'framed-v1', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
  * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
  * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
  * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients.
  * @returns {Promise<import('../../domain/value-objects/Manifest.js').default>} The resulting manifest.
  */
-export async function storeFile(service, { filePath, slug, filename, encryptionKey, passphrase, kdfOptions, compression, recipients }) {
+export async function storeFile(service, { filePath, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients }) {
   const source = createReadStream(filePath);
   return await service.store({
     source,
@@ -30,6 +31,7 @@ export async function storeFile(service, { filePath, slug, filename, encryptionK
     filename: filename || path.basename(filePath),
     encryptionKey,
     passphrase,
+    encryption,
     kdfOptions,
     compression,
     recipients,

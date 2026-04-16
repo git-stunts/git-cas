@@ -127,7 +127,8 @@ Stores content from an async iterable source.
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase (alternative to `encryptionKey`)
 - `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores
-- `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - Current whole-object mode or future framed mode. Only `'whole-v1'` is implemented today.
+- `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - `whole-v1` is the compatibility whole-object AES-GCM format; `framed-v1` stores independently authenticated frames so restore can stream verified plaintext incrementally
+- `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed-v1 record (default `65536`)
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`)
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
 
@@ -184,7 +185,8 @@ Convenience method that opens a file and stores it.
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase
 - `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores
-- `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - Current whole-object mode or future framed mode. Only `'whole-v1'` is implemented today.
+- `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - `whole-v1` is the compatibility whole-object AES-GCM format; `framed-v1` stores independently authenticated frames so restore can stream verified plaintext incrementally
+- `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed-v1 record (default `65536`)
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
 
@@ -210,6 +212,10 @@ await cas.restore({ manifest, encryptionKey, passphrase });
 ```
 
 Restores content from a manifest and returns the buffer.
+
+For encrypted content, `whole-v1` still buffers the full ciphertext before
+authenticating and decrypting. `framed-v1` restores authenticated plaintext
+frame-by-frame and only the final `restore()` collector buffers the result.
 
 **Parameters:**
 
@@ -291,7 +297,8 @@ await cas.verifyIntegrity(manifest);
 
 Verifies the integrity of stored content by re-hashing all chunks. For
 encrypted manifests, pass the same decryption credentials you would use for
-`restore()` so the ciphertext is also authenticated.
+`restore()` so the ciphertext is also authenticated. `whole-v1` authenticates
+the full ciphertext as one unit; `framed-v1` authenticates every stored frame.
 
 **Parameters:**
 

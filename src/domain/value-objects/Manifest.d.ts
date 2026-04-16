@@ -27,8 +27,9 @@ export type EncryptionScheme = "whole-v1" | "framed-v1";
 export interface EncryptionMeta {
   scheme?: EncryptionScheme | (string & {});
   algorithm: string;
-  nonce: string;
-  tag: string;
+  nonce?: string;
+  tag?: string;
+  frameBytes?: number;
   encrypted: boolean;
   kdf?: KdfParams;
   recipients?: RecipientEntry[];
