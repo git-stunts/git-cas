@@ -277,11 +277,16 @@ const treeOid = await cas.createTree({ manifest });
 await cas.verifyIntegrity(manifest);
 ```
 
-Verifies the integrity of stored content by re-hashing all chunks.
+Verifies the integrity of stored content by re-hashing all chunks. For
+encrypted manifests, pass the same decryption credentials you would use for
+`restore()` so the ciphertext is also authenticated.
 
 **Parameters:**
 
 - `manifest` (required): `Manifest` - Manifest object
+- `options` (optional): `object`
+- `options.encryptionKey` (optional): `Buffer` - 32-byte key for encrypted manifests
+- `options.passphrase` (optional): `string` - Passphrase for KDF-based encrypted manifests
 
 **Returns:** `Promise<boolean>` - True if all chunks pass verification
 
@@ -292,6 +297,14 @@ const isValid = await cas.verifyIntegrity(manifest);
 if (!isValid) {
   console.log('Integrity check failed');
 }
+```
+
+Encrypted example:
+
+```javascript
+const isValid = await cas.verifyIntegrity(manifest, {
+  encryptionKey: key,
+});
 ```
 
 #### readManifest
@@ -925,7 +938,7 @@ All methods from ContentAddressableStore delegate to CasService. See ContentAddr
 - `store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression })`
 - `restore({ manifest, encryptionKey, passphrase })`
 - `createTree({ manifest })`
-- `verifyIntegrity(manifest)`
+- `verifyIntegrity(manifest, { encryptionKey, passphrase })`
 - `readManifest({ treeOid })`
 - `deleteAsset({ treeOid })`
 - `findOrphanedChunks({ treeOids })`

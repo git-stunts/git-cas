@@ -188,6 +188,51 @@ describe('CasService.restore() – wrong key', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Encrypted manifest boundary
+// ---------------------------------------------------------------------------
+describe('CasService.restore() – encrypted manifest boundary', () => {
+  let service;
+
+  beforeEach(() => {
+    ({ service } = setup());
+  });
+
+  it('rejects a downgraded encrypted manifest instead of returning ciphertext', async () => {
+    const key = randomBytes(32);
+    const original = Buffer.from('encrypted payload that must not downgrade');
+    const manifest = await storeBuffer(service, original, { encryptionKey: key });
+
+    const downgradedManifest = {
+      ...manifest.toJSON(),
+      encryption: { ...manifest.encryption, encrypted: false },
+    };
+
+    await expect(
+      service.restore({ manifest: downgradedManifest }),
+    ).rejects.toMatchObject({
+      code: 'INTEGRITY_ERROR',
+    });
+  });
+
+  it('rejects encrypted manifests with an unexpected algorithm identifier', async () => {
+    const key = randomBytes(32);
+    const original = Buffer.from('encrypted payload with tampered algorithm');
+    const manifest = await storeBuffer(service, original, { encryptionKey: key });
+
+    const tamperedManifest = {
+      ...manifest.toJSON(),
+      encryption: { ...manifest.encryption, algorithm: 'totally-not-aes-gcm' },
+    };
+
+    await expect(
+      service.restore({ manifest: tamperedManifest, encryptionKey: key }),
+    ).rejects.toMatchObject({
+      code: 'INTEGRITY_ERROR',
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Corrupted chunk
 // ---------------------------------------------------------------------------
 describe('CasService.restore() – corrupted chunk', () => {

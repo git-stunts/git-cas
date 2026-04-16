@@ -116,7 +116,10 @@ What `git-cas` does protect:
 
 - SHA-256 chunk verification detects chunk substitution or corruption
 - AES-GCM authentication detects encrypted-content tampering
-- manifest read/restore flows fail instead of silently producing modified bytes
+- encrypted restore rejects downgraded manifest metadata instead of silently
+  returning ciphertext
+- encrypted `verifyIntegrity()` only passes when ciphertext authentication also
+  succeeds with valid credentials
 
 What it does not protect:
 

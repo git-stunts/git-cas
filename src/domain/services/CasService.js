@@ -301,6 +301,142 @@ export default class CasService {
   }
 
   /**
+   * Treats manifest encryption metadata as security-critical when present.
+   * @private
+   * @param {{ slug?: string, encryption?: { encrypted?: boolean, algorithm?: string } }} manifest
+   * @returns {undefined|{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
+   * @throws {CasError} INTEGRITY_ERROR if encryption metadata was downgraded or tampered.
+   */
+  _validatedEncryptionMeta(manifest) {
+    const meta = manifest.encryption;
+    if (!meta) {
+      return undefined;
+    }
+    if (meta.encrypted !== true) {
+      throw new CasError(
+        'Encrypted manifest metadata was downgraded or is invalid',
+        'INTEGRITY_ERROR',
+        { slug: manifest.slug, reason: 'manifest-encryption-downgrade' },
+      );
+    }
+    if (meta.algorithm !== 'aes-256-gcm') {
+      throw new CasError(
+        `Encrypted manifest uses unexpected algorithm: ${meta.algorithm}`,
+        'INTEGRITY_ERROR',
+        { slug: manifest.slug, reason: 'manifest-encryption-algorithm', algorithm: meta.algorithm },
+      );
+    }
+    return /** @type {{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }} */ (meta);
+  }
+
+  /**
+   * Emits a normalized integrity failure event/metric.
+   * @private
+   * @param {{ slug?: string }} manifest
+   * @param {Record<string, unknown>} [extra]
+   */
+  _emitIntegrityFail(manifest, extra = {}) {
+    this.observability.metric('integrity', {
+      action: 'fail',
+      slug: manifest.slug,
+      ...extra,
+    });
+  }
+
+  /**
+   * Validates encryption metadata for verifyIntegrity(), returning false on
+   * integrity-style manifest failures without throwing.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {false|undefined|{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
+   */
+  _getVerifyEncryptionMeta(manifest) {
+    try {
+      return this._validatedEncryptionMeta(manifest);
+    } catch (err) {
+      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+        this._emitIntegrityFail(manifest, err.meta);
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Verifies chunk digests and collects buffers for any later auth step.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {Promise<false|Buffer[]>}
+   */
+  async _verifyChunkDigests(manifest) {
+    const buffers = [];
+    for (const chunk of manifest.chunks) {
+      const blob = await this._readChunkBlob(chunk.blob);
+      const digest = await this._sha256(blob);
+      if (digest !== chunk.digest) {
+        this._emitIntegrityFail(manifest, {
+          chunkIndex: chunk.index,
+          expected: chunk.digest,
+          actual: digest,
+        });
+        return false;
+      }
+      buffers.push(blob);
+    }
+    return buffers;
+  }
+
+  /**
+   * Resolves a verification key for encrypted content without throwing on
+   * auth-style failures.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {{ encryptionKey?: Buffer, passphrase?: string }} options
+   * @returns {Promise<false|Buffer>}
+   */
+  async _resolveVerifyKey(manifest, options) {
+    try {
+      return await this.#keyResolver.resolveForDecryption(
+        manifest,
+        options.encryptionKey,
+        options.passphrase,
+      );
+    } catch (err) {
+      if (err instanceof CasError && ['MISSING_KEY', 'NO_MATCHING_RECIPIENT', 'DEK_UNWRAP_FAILED'].includes(err.code)) {
+        this._emitIntegrityFail(manifest, { reason: 'auth', code: err.code });
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Authenticates encrypted content during verifyIntegrity().
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }} encryptionMeta
+   * @param {Buffer} key
+   * @param {Buffer[]} buffers
+   * @returns {Promise<boolean>}
+   */
+  async _verifyEncryptedAuth({ manifest, encryptionMeta, key, buffers }) {
+    try {
+      await this.decrypt({
+        buffer: Buffer.concat(buffers),
+        key,
+        meta: encryptionMeta,
+      });
+      return true;
+    } catch (err) {
+      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+        this._emitIntegrityFail(manifest, { reason: 'auth', code: err.code });
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /**
    * Wraps an async iterable through gzip compression.
    * @private
    * @param {AsyncIterable<Buffer>} source
@@ -615,6 +751,7 @@ export default class CasService {
    * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
    */
   async *restoreStream({ manifest, encryptionKey, passphrase }) {
+    const encryptionMeta = this._validatedEncryptionMeta(manifest);
     const key = await this.#keyResolver.resolveForDecryption(manifest, encryptionKey, passphrase);
 
     if (manifest.chunks.length === 0) {
@@ -624,8 +761,8 @@ export default class CasService {
       return;
     }
 
-    if (manifest.encryption?.encrypted || manifest.compression) {
-      yield* this._restoreBuffered(manifest, key);
+    if (encryptionMeta || manifest.compression) {
+      yield* this._restoreBuffered(manifest, key, encryptionMeta);
     } else {
       yield* this._restoreStreaming(manifest);
     }
@@ -635,7 +772,7 @@ export default class CasService {
    * Buffered restore path for encrypted/compressed manifests.
    * @private
    */
-  async *_restoreBuffered(manifest, key) {
+  async *_restoreBuffered(manifest, key, encryptionMeta = this._validatedEncryptionMeta(manifest)) {
     const totalSize = manifest.chunks.reduce((acc, c) => acc + c.size, 0);
     if (totalSize > this.maxRestoreBufferSize) {
       throw new CasError(
@@ -648,9 +785,9 @@ export default class CasService {
     }
     let buffer = Buffer.concat(await this._readAndVerifyChunks(manifest.chunks));
 
-    if (manifest.encryption?.encrypted) {
+    if (encryptionMeta) {
       try {
-        buffer = await this.decrypt({ buffer, key, meta: manifest.encryption });
+        buffer = await this.decrypt({ buffer, key, meta: encryptionMeta });
       } catch (err) {
         if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
           this.observability.metric('error', { action: 'decryption_failed', slug: manifest.slug });
@@ -1105,19 +1242,31 @@ export default class CasService {
   /**
    * Verifies the integrity of a stored file by re-hashing its chunks.
    * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {{ encryptionKey?: Buffer, passphrase?: string }} [options]
    * @returns {Promise<boolean>}
    */
-  async verifyIntegrity(manifest) {
-    for (const chunk of manifest.chunks) {
-      const blob = await this.persistence.readBlob(chunk.blob);
-      const digest = await this._sha256(blob);
-      if (digest !== chunk.digest) {
-        this.observability.metric('integrity', {
-          action: 'fail', slug: manifest.slug, chunkIndex: chunk.index, expected: chunk.digest, actual: digest,
-        });
+  async verifyIntegrity(manifest, options = {}) {
+    const encryptionMeta = this._getVerifyEncryptionMeta(manifest);
+    if (encryptionMeta === false) {
+      return false;
+    }
+
+    const buffers = await this._verifyChunkDigests(manifest);
+    if (buffers === false) {
+      return false;
+    }
+
+    if (encryptionMeta) {
+      const key = await this._resolveVerifyKey(manifest, options);
+      if (key === false) {
+        return false;
+      }
+      const authOk = await this._verifyEncryptedAuth({ manifest, encryptionMeta, key, buffers });
+      if (!authOk) {
         return false;
       }
     }
+
     this.observability.metric('integrity', { action: 'pass', slug: manifest.slug });
     return true;
   }

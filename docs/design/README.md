@@ -16,6 +16,7 @@ process in [docs/method/process.md](../method/process.md).
 - [0022-git-persistence-read-blob-stream — add-read-blob-stream](./0022-git-persistence-read-blob-stream/add-read-blob-stream.md)
 - [0023-casservice-read-blob-stream-integration — use-read-blob-stream-in-restore](./0023-casservice-read-blob-stream-integration/use-read-blob-stream-in-restore.md)
 - [0024-cli-os-keychain-passphrase — cli-os-keychain-passphrase](./0024-cli-os-keychain-passphrase/cli-os-keychain-passphrase.md)
+- [0025-encrypted-manifest-auth-boundary — encrypted-manifest-auth-boundary](./0025-encrypted-manifest-auth-boundary/encrypted-manifest-auth-boundary.md)
 
 ## Landed METHOD Cycles
 

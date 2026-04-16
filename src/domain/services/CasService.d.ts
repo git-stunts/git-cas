@@ -86,6 +86,11 @@ export interface DeriveKeyResult {
   params: KdfParams;
 }
 
+export interface VerifyIntegrityOptions {
+  encryptionKey?: Buffer;
+  passphrase?: string;
+}
+
 /**
  * Domain service for Content Addressable Storage operations.
  *
@@ -181,7 +186,7 @@ export default class CasService {
     label?: string;
   }): Promise<Manifest>;
 
-  verifyIntegrity(manifest: Manifest): Promise<boolean>;
+  verifyIntegrity(manifest: Manifest, options?: VerifyIntegrityOptions): Promise<boolean>;
 
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }

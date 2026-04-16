@@ -15,10 +15,11 @@ import type {
   CasServiceOptions,
   DeriveKeyOptions,
   DeriveKeyResult,
+  VerifyIntegrityOptions,
 } from "./src/domain/services/CasService.js";
 
 export { CasService, Manifest, Chunk };
-export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult };
+export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, VerifyIntegrityOptions };
 
 /** Abstract port for splitting a byte stream into chunks. */
 export declare class ChunkingPort {
@@ -342,7 +343,7 @@ export default class ContentAddressableStore {
 
   createTree(options: { manifest: Manifest }): Promise<string>;
 
-  verifyIntegrity(manifest: Manifest): Promise<boolean>;
+  verifyIntegrity(manifest: Manifest, options?: VerifyIntegrityOptions): Promise<boolean>;
 
   readManifest(options: { treeOid: string }): Promise<Manifest>;
 

@@ -297,11 +297,12 @@ export default class ContentAddressableStore {
   /**
    * Verifies the integrity of a stored file by re-hashing its chunks.
    * @param {import('./src/domain/value-objects/Manifest.js').default} manifest - The file manifest.
+   * @param {{ encryptionKey?: Buffer, passphrase?: string }} [options] - Optional decryption credentials for encrypted manifests.
    * @returns {Promise<boolean>} `true` if all chunks pass verification.
    */
-  async verifyIntegrity(manifest) {
+  async verifyIntegrity(manifest, options) {
     const service = await this.#getService();
-    return await service.verifyIntegrity(manifest);
+    return await service.verifyIntegrity(manifest, options);
   }
 
   /**

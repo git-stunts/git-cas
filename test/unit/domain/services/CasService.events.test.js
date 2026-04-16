@@ -158,6 +158,31 @@ describe('CasService events – integrity:fail', () => {
       slug: 'test', chunkIndex: 0, expected: expect.any(String), actual: expect.any(String),
     }));
   });
+
+  it('emits integrity:fail on encrypted auth mismatch', async () => {
+    const { service, observer } = setup();
+    const key = randomBytes(32);
+    const manifest = await storeBuffer(service, Buffer.from('encrypted auth mismatch'), {
+      encryptionKey: key,
+    });
+
+    const onFail = vi.fn();
+    observer.on('integrity:fail', onFail);
+
+    await service.verifyIntegrity({
+      ...manifest.toJSON(),
+      encryption: {
+        ...manifest.encryption,
+        tag: Buffer.from('tampered-tag').toString('base64'),
+      },
+    }, { encryptionKey: key });
+
+    expect(onFail).toHaveBeenCalledTimes(1);
+    expect(onFail).toHaveBeenCalledWith(expect.objectContaining({
+      slug: 'test',
+      reason: 'auth',
+    }));
+  });
 });
 
 describe('CasService events – error on restore integrity failure', () => {

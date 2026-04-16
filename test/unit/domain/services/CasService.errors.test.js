@@ -159,7 +159,7 @@ describe('CasService – store', () => {
   });
 });
 
-describe('CasService – verifyIntegrity', () => {
+describe('CasService – verifyIntegrity (plain)', () => {
   let mockPersistence;
 
   beforeEach(() => {
@@ -203,6 +203,77 @@ describe('CasService – verifyIntegrity', () => {
 
     const result = await service.verifyIntegrity(manifest);
     expect(result).toBe(false);
+  });
+});
+
+describe('CasService – verifyIntegrity (encrypted without credentials)', () => {
+  it('returns false for encrypted content when no key is provided', async () => {
+    const key = Buffer.alloc(32, 0x11);
+    const service = new CasService({
+      persistence: {
+        writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+        writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+        readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
+      },
+      crypto: testCrypto,
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+      observability: new SilentObserver(),
+    });
+
+    async function* source() { yield Buffer.from('encrypted verify requires auth'); }
+    const manifest = await service.store({
+      source: source(),
+      slug: 'encrypted-verify-no-key',
+      filename: 'file.bin',
+      encryptionKey: key,
+    });
+
+    await expect(service.verifyIntegrity(manifest)).resolves.toBe(false);
+  });
+});
+
+describe('CasService – verifyIntegrity (encrypted tampering)', () => {
+  it('returns false when encrypted manifest auth metadata is tampered', async () => {
+    const key = Buffer.alloc(32, 0x22);
+    const blobStore = new Map();
+    const crypto = testCrypto;
+    const service = new CasService({
+      persistence: {
+        writeBlob: vi.fn().mockImplementation(async (content) => {
+          const buf = Buffer.isBuffer(content) ? content : Buffer.from(content);
+          const oid = await crypto.sha256(buf);
+          blobStore.set(oid, buf);
+          return oid;
+        }),
+        writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+        readBlob: vi.fn().mockImplementation(async (oid) => blobStore.get(oid)),
+      },
+      crypto,
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+      observability: new SilentObserver(),
+    });
+
+    async function* source() { yield Buffer.from('encrypted verify detects tag tamper'); }
+    const manifest = await service.store({
+      source: source(),
+      slug: 'encrypted-verify-tag',
+      filename: 'file.bin',
+      encryptionKey: key,
+    });
+
+    const tamperedManifest = new Manifest({
+      ...manifest.toJSON(),
+      encryption: {
+        ...manifest.encryption,
+        tag: Buffer.from('tampered-tag').toString('base64'),
+      },
+    });
+
+    await expect(
+      service.verifyIntegrity(tamperedManifest, { encryptionKey: key }),
+    ).resolves.toBe(false);
   });
 });
 

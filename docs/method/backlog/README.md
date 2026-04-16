@@ -22,6 +22,9 @@ not use numeric IDs.
 ### `asap/`
 
 - [TR — Empty-State Phrasing Consistency](./asap/TR_empty-state-phrasing-consistency.md)
+- [TR — KDF Parameter Bounds And Policy](./asap/TR_kdf-parameter-bounds-and-policy.md)
+- [TR — Restore Buffer Hard Limits](./asap/TR_restore-buffer-hard-limits.md)
+- [TR — Encryption Metadata Schema Hardening](./asap/TR_encryption-metadata-schema-hardening.md)
 
 ### `up-next/`
 

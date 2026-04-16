@@ -661,8 +661,20 @@ if (!ok) {
 ```
 
 The `verifyIntegrity` method reads each chunk blob from Git, recomputes its
-SHA-256 digest, and compares it against the manifest. With an observability
-adapter attached, it also emits integrity metrics (see Section 9).
+SHA-256 digest, and compares it against the manifest. For encrypted content,
+pass the same decryption credentials you would use for `restore()` so
+`verifyIntegrity()` also authenticates the ciphertext instead of only hashing
+the stored blobs:
+
+```js
+const ok = await cas.verifyIntegrity(manifest, {
+  encryptionKey: key,
+});
+```
+
+If encrypted content is verified without credentials, `verifyIntegrity()`
+returns `false`. With an observability adapter attached, it also emits
+integrity metrics (see Section 9).
 
 ### Inspecting an Asset
 

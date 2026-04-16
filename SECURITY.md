@@ -389,7 +389,12 @@ Every chunk (encrypted or unencrypted) is protected by a SHA-256 digest:
 
 2. **During integrity verification** (`verifyIntegrity()` method):
    - All chunks are read and their SHA-256 digests are verified.
-   - If any digest mismatch is detected, `verifyIntegrity()` returns `false` and emits an `integrity:fail` event.
+   - For encrypted manifests, authenticated decryption is also required for a
+     passing result.
+   - If any digest mismatch or encrypted-auth failure is detected,
+     `verifyIntegrity()` returns `false` and emits an `integrity:fail` event.
+   - If encrypted content is verified without decryption credentials,
+     `verifyIntegrity()` returns `false`.
 
 ### What Digests Protect Against
 
@@ -402,7 +407,9 @@ Every chunk (encrypted or unencrypted) is protected by a SHA-256 digest:
 
 - **Manifest tampering**: If an attacker modifies the manifest to point to different blobs with matching digests, the chunk verification will pass. However:
   - For unencrypted content, this results in incorrect data being restored.
-  - For encrypted content, GCM tag verification will fail unless the attacker also forges the authentication tag (which is computationally infeasible).
+  - For encrypted content, restore rejects downgraded encryption metadata and
+    GCM tag verification fails unless the attacker also forges the
+    authentication tag (which is computationally infeasible).
 
 - **Rollback attacks**: If an attacker replaces a newer manifest with an older one, chunk digests will still verify. Application-level versioning or commit signing is required to prevent rollback.
 
