@@ -3,6 +3,7 @@ import { CryptoHasher } from 'bun';
 import CryptoPort from '../../ports/CryptoPort.js';
 import CasError from '../../domain/errors/CasError.js';
 import scryptMaxmem from '../../domain/helpers/scryptMaxmem.js';
+import validateAesGcmMeta, { AES_GCM_ALGORITHM, AES_GCM_TAG_BYTES } from '../../helpers/aesGcmMeta.js';
 // We still use node:crypto for AES-GCM because Bun's native implementation
 // is heavily optimized for these specific Node APIs.
 import { createCipheriv, createDecipheriv, pbkdf2, scrypt } from 'node:crypto';
@@ -71,10 +72,9 @@ export default class BunCryptoAdapter extends CryptoPort {
    */
   async decryptBuffer(buffer, key, meta) {
     this._validateKey(key);
-    const nonce = Buffer.from(meta.nonce, 'base64');
-    const tag = Buffer.from(meta.tag, 'base64');
-    const decipher = createDecipheriv('aes-256-gcm', key, nonce, {
-      authTagLength: tag.length,
+    const { nonce, tag } = validateAesGcmMeta(meta);
+    const decipher = createDecipheriv(AES_GCM_ALGORITHM, key, nonce, {
+      authTagLength: AES_GCM_TAG_BYTES,
     });
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(buffer), decipher.final()]);
@@ -128,14 +128,13 @@ export default class BunCryptoAdapter extends CryptoPort {
    */
   createDecryptionStream(key, meta) {
     this._validateKey(key);
-    const nonce = Buffer.from(meta.nonce, 'base64');
-    const tag = Buffer.from(meta.tag, 'base64');
+    const { nonce, tag } = validateAesGcmMeta(meta);
 
     return {
       decrypt: async function* (source) {
         try {
-          const decipher = createDecipheriv('aes-256-gcm', key, nonce, {
-            authTagLength: tag.length,
+          const decipher = createDecipheriv(AES_GCM_ALGORITHM, key, nonce, {
+            authTagLength: AES_GCM_TAG_BYTES,
           });
           decipher.setAuthTag(tag);
 

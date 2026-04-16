@@ -38,7 +38,6 @@ not use numeric IDs.
 
 - [TR — CasService Decomposition Plan](./bad-code/TR_casservice-decomposition-plan.md)
 - [TR — Store Write Failure Surface](./bad-code/TR_store-write-failure-surface.md)
-- [TR — AES-GCM Metadata Enforcement](./bad-code/TR_aes-gcm-metadata-enforcement.md)
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)
 - [TR — RestoreFile Service Internal Coupling](./bad-code/TR_restorefile-service-internal-coupling.md)
 - [TR — Buffered Restore ReadBlob Fallback](./bad-code/TR_buffered-restore-readblob-fallback.md)

@@ -14,7 +14,6 @@ and what tradeoffs it makes.
 
 - none currently in `asap/`
 - none currently in `up-next/`
-- [TR — AES-GCM Metadata Enforcement](../method/backlog/bad-code/TR_aes-gcm-metadata-enforcement.md)
 - [TR — CasService Decomposition Plan](../method/backlog/bad-code/TR_casservice-decomposition-plan.md)
 - [TR — KDF Salt Schema Hardening](../method/backlog/bad-code/TR_kdf-salt-schema-hardening.md)
 - [TR — Platform Dependency Leaks](../method/backlog/bad-code/TR_platform-dependency-leaks.md)

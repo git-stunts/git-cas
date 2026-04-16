@@ -1,6 +1,7 @@
 import CryptoPort from '../../ports/CryptoPort.js';
 import CasError from '../../domain/errors/CasError.js';
 import scryptMaxmem from '../../domain/helpers/scryptMaxmem.js';
+import validateAesGcmMeta from '../../helpers/aesGcmMeta.js';
 
 /**
  * {@link CryptoPort} implementation using the Web Crypto API.
@@ -100,8 +101,7 @@ export default class WebCryptoAdapter extends CryptoPort {
    */
   async decryptBuffer(buffer, key, meta) {
     this._validateKey(key);
-    const nonce = this.#fromBase64(meta.nonce);
-    const tag = this.#fromBase64(meta.tag);
+    const { nonce, tag } = validateAesGcmMeta(meta);
     const cryptoKey = await this.#importKey(key);
 
     // Reconstruct Web Crypto format (ciphertext + tag)
@@ -154,6 +154,7 @@ export default class WebCryptoAdapter extends CryptoPort {
    */
   createDecryptionStream(key, meta) {
     this._validateKey(key);
+    validateAesGcmMeta(meta);
     const maxBuf = this.#maxDecryptionBufferSize;
 
     return {
@@ -308,15 +309,4 @@ export default class WebCryptoAdapter extends CryptoPort {
     return globalThis.btoa(String.fromCharCode(...new Uint8Array(buf)));
   }
 
-  /**
-   * Decodes a base64 string to binary, using Buffer when available.
-   * @param {string} str - Base64-encoded string.
-   * @returns {Buffer|Uint8Array}
-   */
-  #fromBase64(str) {
-    if (globalThis.Buffer) {
-      return Buffer.from(str, 'base64');
-    }
-    return Uint8Array.from(globalThis.atob(str), c => c.charCodeAt(0));
-  }
 }

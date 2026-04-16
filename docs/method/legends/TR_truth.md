@@ -29,7 +29,6 @@ discovering later that an important boundary, tradeoff, or workflow was stale.
 
 - none currently in `asap/`
 - none currently in `up-next/`
-- [TR — AES-GCM Metadata Enforcement](../backlog/bad-code/TR_aes-gcm-metadata-enforcement.md)
 - [TR — CasService Decomposition Plan](../backlog/bad-code/TR_casservice-decomposition-plan.md)
 - [TR — KDF Salt Schema Hardening](../backlog/bad-code/TR_kdf-salt-schema-hardening.md)
 - [TR — Platform Dependency Leaks](../backlog/bad-code/TR_platform-dependency-leaks.md)

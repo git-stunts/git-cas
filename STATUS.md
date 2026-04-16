@@ -31,6 +31,9 @@
 - Manifest parsing now rejects unsupported encryption schemes,
   `encrypted: false`, malformed AES-GCM nonce/tag values, and framed manifests
   that omit `frameBytes`, across both JSON and CBOR manifest codecs.
+- Node, Bun, and Web Crypto decrypt paths now enforce AES-GCM metadata at the
+  adapter boundary too, so malformed algorithm, nonce, or tag values are
+  rejected before runtime-specific decrypt calls run.
 - Web Crypto whole-object decrypt paths are now explicitly bounded by
   `maxDecryptionBufferSize` instead of collecting ciphertext without a guard.
   `framed-v1` remains the actual cross-runtime streaming-encrypted mode.
@@ -41,7 +44,7 @@
 
 - [TR — Platform Dependency Leaks](./docs/method/backlog/bad-code/TR_platform-dependency-leaks.md)
 - [TR — CasService Decomposition Plan](./docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md)
-- [TR — AES-GCM Metadata Enforcement](./docs/method/backlog/bad-code/TR_aes-gcm-metadata-enforcement.md)
+- [TR — RestoreFile Service Internal Coupling](./docs/method/backlog/bad-code/TR_restorefile-service-internal-coupling.md)
 
 ## Read Next
 

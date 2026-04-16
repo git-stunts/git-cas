@@ -38,9 +38,27 @@ async function expectStreamDecryptRoundTrip(adapter, key) {
   expect(Buffer.concat(chunks).equals(plaintext)).toBe(true);
 }
 
-describe.each(adapters)('%s conformance', (_name, adapter) => {
-  const key = Buffer.alloc(32, 0xab);
+async function expectInvalidDecryptMeta(adapter, key, mutateMeta) {
+  const { buf, meta } = await adapter.encryptBuffer(Buffer.from('test'), key);
+  await expect(
+    Promise.resolve().then(() => adapter.decryptBuffer(buf, key, mutateMeta(meta))),
+  ).rejects.toMatchObject({
+    code: 'INTEGRITY_ERROR',
+    meta: expect.objectContaining({ reason: 'invalid-encryption-meta' }),
+  });
+}
 
+async function expectInvalidStreamMeta(adapter, key, mutateMeta) {
+  const { meta } = await adapter.encryptBuffer(Buffer.from('test'), key);
+  expect(() => adapter.createDecryptionStream(key, mutateMeta(meta))).toThrow(
+    expect.objectContaining({
+      code: 'INTEGRITY_ERROR',
+      meta: expect.objectContaining({ reason: 'invalid-encryption-meta' }),
+    }),
+  );
+}
+
+function registerKeyValidationTests(adapter, key) {
   it('encryptBuffer returns a Promise (thenable)', async () => {
     const result = adapter.encryptBuffer(Buffer.from('hello'), key);
     expect(typeof result.then).toBe('function');
@@ -63,7 +81,9 @@ describe.each(adapters)('%s conformance', (_name, adapter) => {
       Promise.resolve().then(() => adapter.decryptBuffer(buf, shortKey, meta)),
     ).rejects.toMatchObject({ code: 'INVALID_KEY_LENGTH' });
   });
+}
 
+function registerStreamingTests(adapter, key) {
   it('createEncryptionStream.finalize() throws STREAM_NOT_CONSUMED before consumption', () => {
     const { finalize } = adapter.createEncryptionStream(key);
     expect(() => finalize()).toThrow(
@@ -74,4 +94,35 @@ describe.each(adapters)('%s conformance', (_name, adapter) => {
   it('createDecryptionStream round-trips streamed ciphertext', async () => {
     await expectStreamDecryptRoundTrip(adapter, key);
   });
+}
+
+function registerInvalidMetaTests(adapter, key) {
+  it('decryptBuffer rejects a non-AES-GCM algorithm at the adapter boundary', async () => {
+    await expectInvalidDecryptMeta(adapter, key, (meta) => ({
+      ...meta,
+      algorithm: 'aes-128-cbc',
+    }));
+  });
+
+  it('decryptBuffer rejects short auth tags before runtime decrypt', async () => {
+    await expectInvalidDecryptMeta(adapter, key, (meta) => ({
+      ...meta,
+      tag: Buffer.alloc(8, 0x55).toString('base64'),
+    }));
+  });
+
+  it('createDecryptionStream rejects malformed nonce metadata immediately', async () => {
+    await expectInvalidStreamMeta(adapter, key, (meta) => ({
+      ...meta,
+      nonce: '%%%bad-base64%%%',
+    }));
+  });
+}
+
+describe.each(adapters)('%s conformance', (_name, adapter) => {
+  const key = Buffer.alloc(32, 0xab);
+
+  registerKeyValidationTests(adapter, key);
+  registerStreamingTests(adapter, key);
+  registerInvalidMetaTests(adapter, key);
 });
