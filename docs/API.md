@@ -1198,6 +1198,20 @@ Reads a Git blob.
 
 **Returns:** `Promise<Buffer>` - Blob content
 
+##### readBlobStream
+
+```javascript
+await port.readBlobStream(oid);
+```
+
+Reads a Git blob as an async stream of `Buffer` chunks.
+
+**Parameters:**
+
+- `oid`: `string` - Git blob OID
+
+**Returns:** `Promise<AsyncIterable<Buffer>>` - Blob byte stream
+
 ##### readTree
 
 ```javascript
@@ -1223,6 +1237,10 @@ class CustomGitAdapter extends GitPersistencePort {
   }
 
   async writeTree(entries) {
+    // Implementation
+  }
+
+  async readBlobStream(oid) {
     // Implementation
   }
 

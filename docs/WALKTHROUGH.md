@@ -1275,7 +1275,7 @@ Facade (ContentAddressableStore)
   |     +-- ManifestSchema      (Zod schemas)
   |
   +-- Ports (interfaces)
-  |     +-- GitPersistencePort  (writeBlob, writeTree, readBlob, readTree)
+  |     +-- GitPersistencePort  (writeBlob, writeTree, readBlobStream, readBlob, readTree)
   |     +-- CodecPort           (encode, decode, extension)
   |     +-- CryptoPort          (sha256, randomBytes, encryptBuffer, decryptBuffer, createEncryptionStream)
   |     +-- ObservabilityPort   (metric, log, span)
@@ -1304,6 +1304,7 @@ method shapes rather than stable extension entrypoints.
 class GitPersistencePort {
   async writeBlob(content) {} // Returns Git OID
   async writeTree(entries) {} // Returns tree OID
+  async readBlobStream(oid) {} // Returns AsyncIterable<Buffer>
   async readBlob(oid) {} // Returns Buffer
   async readTree(treeOid) {} // Returns array of tree entries
 }
@@ -1345,9 +1346,19 @@ class S3PersistenceAdapter {
     return hash;
   }
 
-  async readBlob(oid) {
+  async *readBlobStream(oid) {
     const response = await s3.getObject({ Key: oid });
-    return Buffer.from(await response.Body.transformToByteArray());
+    for await (const chunk of response.Body) {
+      yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    }
+  }
+
+  async readBlob(oid) {
+    const chunks = [];
+    for await (const chunk of await this.readBlobStream(oid)) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 
   async writeTree(entries) {

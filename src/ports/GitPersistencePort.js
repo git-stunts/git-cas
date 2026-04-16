@@ -31,6 +31,15 @@ export default class GitPersistencePort {
   }
 
   /**
+   * Reads a Git blob by its OID as an async byte stream.
+   * @param {string} _oid - Git object ID.
+   * @returns {Promise<AsyncIterable<Buffer>>} The blob byte stream.
+   */
+  async readBlobStream(_oid) {
+    throw new Error('Not implemented');
+  }
+
+  /**
    * Reads and parses a Git tree object.
    * @param {string} _treeOid - Git tree OID.
    * @returns {Promise<Array<{ mode: string, type: string, oid: string, name: string }>>} Parsed tree entries.

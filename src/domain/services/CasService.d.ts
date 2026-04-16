@@ -34,6 +34,7 @@ export interface GitPersistencePort {
   writeBlob(content: Buffer | string): Promise<string>;
   writeTree(entries: string[]): Promise<string>;
   readBlob(oid: string): Promise<Buffer>;
+  readBlobStream(oid: string): Promise<AsyncIterable<Buffer>>;
   readTree(
     treeOid: string,
   ): Promise<Array<{ mode: string; type: string; oid: string; name: string }>>;
