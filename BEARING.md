@@ -23,7 +23,8 @@ timeline
 - Maturation of the machine-facing agent CLI for full parity with human commands.
 
 ### 3. Architectural Decomposition
-- Moving toward a more modular `CasService` to reduce orchestration bloat.
+- Executing the published `CasService` decomposition order without changing the
+  public facade.
 - Finalizing the platform-agnostic CLI structure to simplify cross-runtime binaries.
 
 ## Tensions
@@ -33,11 +34,11 @@ timeline
 - **Buffer Limits**: `whole-v1 restoreStream()` now enforces actual buffered-read and decompression limits, but it is still a bounded in-memory compatibility path rather than a true streaming surface.
 - **Vault Contention**: Concurrent vault updates in high-frequency CI environments require robust CAS retry logic.
 - **KDF Compatibility Window**: New passphrase defaults are stronger now, but legacy encrypted metadata still rides through a bounded compatibility policy instead of a hard migration cutoff.
-- **Restore Coupling**: The restore/file boundary is safer now, but the service
-  and file-publication seams still need a cleaner named contract.
+- **Decomposition Order**: The extraction order is now explicit, but restore
+  work still depends on solving the remaining platform dependency leaks first.
 
 ## Next Target
 
-The immediate focus is **platform dependency leaks, service decomposition, and
-restore-boundary cleanup** now that the two queued up-next CLI cards are
-cleared and the AES-GCM adapter-boundary debt is closed.
+The immediate focus is **platform dependency leaks first, then bounded
+`CasService` extraction in the published order** now that the queued CLI cards,
+restore-boundary cleanup, and the main encryption-boundary debts are closed.

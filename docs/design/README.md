@@ -35,6 +35,7 @@ process in [docs/method/process.md](../method/process.md).
 - [0041-restorefile-service-internal-coupling — restorefile-service-internal-coupling](./0041-restorefile-service-internal-coupling/restorefile-service-internal-coupling.md)
 - [0042-store-write-failure-surface — store-write-failure-surface](./0042-store-write-failure-surface/store-write-failure-surface.md)
 - [0043-vault-retry-abstraction — vault-retry-abstraction](./0043-vault-retry-abstraction/vault-retry-abstraction.md)
+- [0044-casservice-decomposition-plan — casservice-decomposition-plan](./0044-casservice-decomposition-plan/casservice-decomposition-plan.md)
 
 ## Landed METHOD Cycles
 

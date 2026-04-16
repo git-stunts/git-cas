@@ -36,5 +36,4 @@ not use numeric IDs.
 
 ### `bad-code/`
 
-- [TR — CasService Decomposition Plan](./bad-code/TR_casservice-decomposition-plan.md)
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)
