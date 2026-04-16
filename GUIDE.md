@@ -37,7 +37,7 @@ Learn the long-form mechanics of vault management and multi-recipient encryption
 ## Orientation Checklist
 
 - [ ] **I am storing local build artifacts**: Use `git-cas store` with `--tree`.
-- [ ] **I need to encrypt sensitive data**: Use `--vault-passphrase` or `--recipient`.
+- [ ] **I need to encrypt sensitive data**: Use `--vault-passphrase`, `--os-keychain-target`, or `--recipient`.
 - [ ] **I am debugging blob reachability**: Run `git-cas doctor`.
 - [ ] **I am contributing to git-cas**: Read `METHOD.md` and `BEARING.md`.
 

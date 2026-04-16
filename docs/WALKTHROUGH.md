@@ -1185,11 +1185,18 @@ git cas store ./vacation.jpg --slug photos/vacation --tree --vault-passphrase "s
 
 # Restore using vault slug
 git cas restore --slug photos/vacation --out ./restored.jpg --vault-passphrase "secret"
+
+# Or pull the passphrase from the OS keychain
+git cas restore --slug photos/vacation --out ./restored.jpg --os-keychain-target photos/passphrase
 ```
 
 The vault stores the KDF policy (algorithm, salt, iterations). The actual
 encryption is still per-entry AES-256-GCM via the existing `store()`/`restore()`
 paths -- the vault just provides the key-derivation policy.
+
+`--os-keychain-target` is a human CLI convenience implemented through
+`@git-stunts/vault`. It keeps the passphrase in OS-native secure storage while
+leaving the library API unchanged.
 
 ### CLI Vault Commands
 
@@ -1197,6 +1204,7 @@ paths -- the vault just provides the key-derivation policy.
 # Initialize vault (optionally with encryption)
 git cas vault init
 git cas vault init --vault-passphrase "secret" --algorithm pbkdf2
+git cas vault init --os-keychain-target photos/passphrase
 
 # List all vault entries (tab-separated slug + tree OID)
 git cas vault list

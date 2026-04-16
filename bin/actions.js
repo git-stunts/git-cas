@@ -7,7 +7,8 @@
 /** @type {Readonly<Record<string, string>>} */
 const HINTS = {
   INVALID_INPUT: 'Check the agent command name and required input fields',
-  MISSING_KEY: 'Provide --key-file or --vault-passphrase',
+  MISSING_KEY:
+    'Provide --key-file, --vault-passphrase, --vault-passphrase-file, or --os-keychain-target',
   MANIFEST_NOT_FOUND: 'Verify the tree OID contains a manifest',
   VAULT_ENTRY_NOT_FOUND: "Run 'git cas vault list' to see available entries",
   VAULT_ENTRY_EXISTS: 'Use --force to overwrite',

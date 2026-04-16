@@ -22,7 +22,13 @@ import { runAction } from './actions.js';
 import { runAgentCli } from './agent/cli.js';
 import { flushStdioAndExit, installBrokenPipeHandlers } from './io.js';
 import { filterEntries, formatTable, formatTabSeparated } from './ui/vault-list.js';
-import { readPassphraseFile, promptPassphrase } from './ui/passphrase-prompt.js';
+import { readPassphraseFile } from './ui/passphrase-prompt.js';
+import {
+  hasExplicitPassphraseSource,
+  hasPassphraseSource,
+  resolvePassphrase,
+  validatePassphraseSources,
+} from './passphrase-source.js';
 import { loadConfig, mergeConfig } from './config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -102,74 +108,15 @@ async function deriveVaultKey(cas, metadata, passphrase) {
 }
 
 /**
- * Returns true when a non-interactive passphrase source exists (flag or env).
- * Does NOT trigger prompts or consume stdin.
- *
- * @param {Record<string, any>} opts
- * @returns {boolean}
- */
-function hasPassphraseSource(opts) {
-  return Boolean(
-    opts.vaultPassphraseFile || opts.vaultPassphrase || process.env.GIT_CAS_PASSPHRASE
-  );
-}
-
-/**
- * Returns true when an explicit non-interactive passphrase source exists on the CLI.
- * Does not consider ambient environment variables.
- *
- * @param {Record<string, any>} opts
- * @returns {boolean}
- */
-function hasExplicitPassphraseSource(opts) {
-  return opts.vaultPassphraseFile !== undefined || opts.vaultPassphrase !== undefined;
-}
-
-/**
  * Validate human CLI credential sources so explicit-but-empty values still count as provided.
  *
  * @param {Record<string, any>} opts
  */
 function validateCredentialSources(opts) {
-  if (opts.vaultPassphrase !== undefined && opts.vaultPassphraseFile !== undefined) {
-    throw new Error('Provide --vault-passphrase or --vault-passphrase-file, not both');
-  }
+  validatePassphraseSources(opts);
   if (opts.keyFile !== undefined && hasExplicitPassphraseSource(opts)) {
     throw new Error('Provide --key-file or a vault passphrase source, not both');
   }
-}
-
-/**
- * Resolve passphrase from (in priority order):
- * 1. --vault-passphrase-file <path>
- * 2. --vault-passphrase <pass>
- * 3. GIT_CAS_PASSPHRASE env var
- * 4. Interactive TTY prompt (if stdin is a TTY)
- *
- * @param {Record<string, any>} opts
- * @param {{ confirm?: boolean }} [extra]
- * @returns {Promise<string | undefined>}
- */
-async function resolvePassphrase(opts, extra = {}) {
-  if (opts.vaultPassphraseFile !== undefined) {
-    return await readPassphraseFile(opts.vaultPassphraseFile);
-  }
-  if (opts.vaultPassphrase !== undefined) {
-    if (!opts.vaultPassphrase.trim()) {
-      throw new Error('Passphrase must not be empty');
-    }
-    return opts.vaultPassphrase;
-  }
-  if (process.env.GIT_CAS_PASSPHRASE) {
-    if (!process.env.GIT_CAS_PASSPHRASE.trim()) {
-      throw new Error('Passphrase must not be empty');
-    }
-    return process.env.GIT_CAS_PASSPHRASE;
-  }
-  if (process.stdin.isTTY) {
-    return await promptPassphrase({ confirm: extra.confirm || false });
-  }
-  return undefined;
 }
 
 /**
@@ -294,6 +241,14 @@ program
     'Vault-level passphrase for encryption (prefer GIT_CAS_PASSPHRASE env var)'
   )
   .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
+  .option(
+    '--os-keychain-target <target>',
+    'Read vault passphrase from OS keychain target via @git-stunts/vault'
+  )
+  .option(
+    '--os-keychain-account <account>',
+    'OS keychain account namespace for --os-keychain-target (default: git-cas)'
+  )
   .option('--gzip', 'Enable gzip compression')
   .addOption(new Option('--strategy <type>', 'Chunking strategy').choices(['fixed', 'cdc']))
   .option('--chunk-size <n>', 'Chunk size in bytes', parseIntFlag)
@@ -309,7 +264,7 @@ program
       validateCredentialSources(opts);
       if (opts.recipient && (opts.keyFile || hasExplicitPassphraseSource(opts))) {
         throw new Error(
-          'Provide --key-file or a vault passphrase source (--vault-passphrase, --vault-passphrase-file, GIT_CAS_PASSPHRASE), or --recipient — not both'
+          'Provide --key-file or a vault passphrase source (--vault-passphrase, --vault-passphrase-file, --os-keychain-target, GIT_CAS_PASSPHRASE), or --recipient — not both'
         );
       }
       if (opts.force && !opts.tree) {
@@ -415,6 +370,14 @@ program
     'Vault-level passphrase for decryption (prefer GIT_CAS_PASSPHRASE env var)'
   )
   .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
+  .option(
+    '--os-keychain-target <target>',
+    'Read vault passphrase from OS keychain target via @git-stunts/vault'
+  )
+  .option(
+    '--os-keychain-account <account>',
+    'OS keychain account namespace for --os-keychain-target (default: git-cas)'
+  )
   .option('--concurrency <n>', 'Parallel chunk I/O operations', parseIntFlag)
   .option(
     '--max-restore-buffer <n>',
@@ -539,6 +502,14 @@ vault
     'Passphrase for vault-level encryption (prefer GIT_CAS_PASSPHRASE env var)'
   )
   .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
+  .option(
+    '--os-keychain-target <target>',
+    'Read vault passphrase from OS keychain target via @git-stunts/vault'
+  )
+  .option(
+    '--os-keychain-account <account>',
+    'OS keychain account namespace for --os-keychain-target (default: git-cas)'
+  )
   .addOption(new Option('--algorithm <alg>', 'KDF algorithm').choices(['pbkdf2', 'scrypt']))
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
@@ -550,7 +521,7 @@ vault
       const passphrase = await resolvePassphrase(opts, { confirm: true });
       if (!passphrase && opts.algorithm !== undefined) {
         throw new Error(
-          'Provide --vault-passphrase or --vault-passphrase-file when using --algorithm'
+          'Provide --vault-passphrase, --vault-passphrase-file, or --os-keychain-target when using --algorithm'
         );
       }
       if (passphrase) {

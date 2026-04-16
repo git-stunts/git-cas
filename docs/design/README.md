@@ -15,6 +15,7 @@ process in [docs/method/process.md](../method/process.md).
 - [0021-store-write-backpressure — enforce-store-backpressure](./0021-store-write-backpressure/enforce-store-backpressure.md)
 - [0022-git-persistence-read-blob-stream — add-read-blob-stream](./0022-git-persistence-read-blob-stream/add-read-blob-stream.md)
 - [0023-casservice-read-blob-stream-integration — use-read-blob-stream-in-restore](./0023-casservice-read-blob-stream-integration/use-read-blob-stream-in-restore.md)
+- [0024-cli-os-keychain-passphrase — cli-os-keychain-passphrase](./0024-cli-os-keychain-passphrase/cli-os-keychain-passphrase.md)
 
 ## Landed METHOD Cycles
 

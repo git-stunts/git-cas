@@ -21,7 +21,9 @@ describe('writeError — text mode', () => {
   it('appends hint for known codes', () => {
     const err = Object.assign(new Error('key required'), { code: 'MISSING_KEY' });
     writeError(err, false);
-    expect(stderrSpy).toHaveBeenCalledWith('hint: Provide --key-file or --vault-passphrase\n');
+    expect(stderrSpy).toHaveBeenCalledWith(
+      'hint: Provide --key-file, --vault-passphrase, --vault-passphrase-file, or --os-keychain-target\n'
+    );
   });
 
   it('no hint for unknown codes', () => {

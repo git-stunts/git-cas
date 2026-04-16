@@ -27,6 +27,7 @@ not use numeric IDs.
 
 - [TR — Streaming Encrypted Restore](./up-next/TR_streaming-encrypted-restore.md)
 - [TR — Platform-Agnostic CLI Plan](./up-next/TR_platform-agnostic-cli-plan.md)
+- [TR — Agent CLI OS-Keychain Passphrase](./up-next/TR_agent-cli-os-keychain-passphrase.md)
 
 ### `cool-ideas/`
 
