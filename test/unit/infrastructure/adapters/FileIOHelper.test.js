@@ -201,6 +201,7 @@ describe('FileIOHelper – restoreFile bounded whole-v1 encrypted path', () => {
       slug: 'whole-v1-large',
       filename: 'whole-v1-large.bin',
       encryptionKey: key,
+      encryption: { scheme: 'whole-v1' },
     });
 
     await expectRestoreStreamTooLarge(service, manifest, key);
@@ -228,6 +229,7 @@ describe('FileIOHelper – restoreFile bounded whole-v1 compressed path', () => 
       slug: 'whole-v1-compressed-large',
       filename: 'whole-v1-compressed-large.bin',
       encryptionKey: key,
+      encryption: { scheme: 'whole-v1' },
       compression: { algorithm: 'gzip' },
     });
 
@@ -257,6 +259,7 @@ describe('FileIOHelper – restoreFile bounded whole-v1 auth cleanup', () => {
       slug: 'whole-v1-auth-failure',
       filename: 'whole-v1-auth-failure.bin',
       encryptionKey: key,
+      encryption: { scheme: 'whole-v1' },
     });
 
     const outputPath = path.join(getTmpDir(), 'whole-v1-auth-failure.bin');

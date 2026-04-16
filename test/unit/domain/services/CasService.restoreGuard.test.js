@@ -137,7 +137,9 @@ describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
     async function* source() { yield Buffer.alloc(8192, 0xaa); }
     const manifest = await service.store({
       source: source(), slug: 'bomb', filename: 'bomb.bin',
-      encryptionKey: key, compression: { algorithm: 'gzip' },
+      encryptionKey: key,
+      encryption: { scheme: 'whole-v1' },
+      compression: { algorithm: 'gzip' },
     });
 
     // Wire readBlob to return the stored blobs

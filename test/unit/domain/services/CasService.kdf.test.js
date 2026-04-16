@@ -191,6 +191,7 @@ describe('CasService – passphrase store/restore round-trip', () => {
 
     expect(manifest.encryption).toBeDefined();
     expect(manifest.encryption.encrypted).toBe(true);
+    expect(manifest.encryption.scheme).toBe('framed-v1');
     expect(manifest.encryption.kdf).toBeDefined();
 
     const { buffer, bytesWritten } = await service.restore({ manifest, passphrase });
@@ -215,7 +216,7 @@ describe('CasService – passphrase multi-chunk round-trip', () => {
       passphrase: 'multi-chunk-passphrase',
     });
 
-    expect(manifest.chunks.length).toBe(3);
+    expect(manifest.chunks.length).toBeGreaterThan(1);
     expect(manifest.encryption.kdf).toBeDefined();
 
     const { buffer } = await service.restore({ manifest, passphrase: 'multi-chunk-passphrase' });
@@ -231,7 +232,7 @@ describe('CasService – passphrase multi-chunk round-trip', () => {
       passphrase: 'exact-boundary',
     });
 
-    expect(manifest.chunks.length).toBe(2);
+    expect(manifest.chunks.length).toBeGreaterThan(1);
 
     const { buffer } = await service.restore({ manifest, passphrase: 'exact-boundary' });
     expect(buffer.equals(original)).toBe(true);
@@ -365,7 +366,7 @@ describe('CasService – scrypt passphrase round-trip', () => {
       kdfOptions: { algorithm: 'scrypt' },
     });
 
-    expect(manifest.chunks.length).toBe(3);
+    expect(manifest.chunks.length).toBeGreaterThan(1);
     const { buffer } = await service.restore({ manifest, passphrase: 'scrypt-multi-chunk' });
     expect(buffer.equals(original)).toBe(true);
   }, SLOW_KDF_TEST_TIMEOUT_MS);

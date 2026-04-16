@@ -37,4 +37,6 @@ timeline
 
 ## Next Target
 
-The immediate focus is **framed-v1-by-default ergonomics and service decomposition** now that the Web Crypto buffered-decrypt boundary is explicit and the manifest encryption boundary is tighter.
+The immediate focus is **agent CLI parity, platform-agnostic CLI structure, and
+service decomposition** now that new encrypted stores default to `framed-v1`
+and the remaining whole-object boundaries are explicit.

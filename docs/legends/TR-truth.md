@@ -14,7 +14,6 @@ and what tradeoffs it makes.
 
 - none currently in `asap/`
 - [TR — Agent CLI OS-Keychain Passphrase](../method/backlog/up-next/TR_agent-cli-os-keychain-passphrase.md)
-- [TR — Framed-v1 Default Encrypted Store](../method/backlog/up-next/TR_framed-v1-default-encrypted-store.md)
 - [TR — Platform-Agnostic CLI Plan](../method/backlog/up-next/TR_platform-agnostic-cli-plan.md)
 - [TR — AES-GCM Metadata Enforcement](../method/backlog/bad-code/TR_aes-gcm-metadata-enforcement.md)
 - [TR — CasService Decomposition Plan](../method/backlog/bad-code/TR_casservice-decomposition-plan.md)

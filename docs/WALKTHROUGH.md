@@ -424,6 +424,30 @@ const manifest = await cas.storeFile({
   filePath: './vacation.jpg',
   slug: 'photos/vacation',
   encryptionKey,
+});
+
+console.log(manifest.encryption);
+// {
+//   scheme: 'framed-v1',
+//   algorithm: 'aes-256-gcm',
+//   frameBytes: 65536,
+//   encrypted: true
+// }
+```
+
+New encrypted writes now default to `framed-v1`, which authenticates each
+stored frame independently. The nonce and tag live inside the serialized
+payload rather than as top-level manifest fields, so the manifest records
+`frameBytes` instead.
+
+If you need the older compatibility whole-object format, opt into `whole-v1`
+explicitly:
+
+```js
+const manifest = await cas.storeFile({
+  filePath: './vacation.jpg',
+  slug: 'photos/vacation-whole',
+  encryptionKey,
   encryption: { scheme: 'whole-v1' },
 });
 
@@ -437,35 +461,8 @@ console.log(manifest.encryption);
 // }
 ```
 
-The manifest now carries an explicit payload `scheme`. `whole-v1` records the
-algorithm, a base64-encoded nonce, a base64-encoded authentication tag, and a
-flag indicating the content is encrypted. The nonce and tag are generated fresh
-for every store operation.
-
-For authenticated streaming restore, opt into `framed-v1`:
-
-```js
-const manifest = await cas.storeFile({
-  filePath: './vacation.jpg',
-  slug: 'photos/vacation-streaming',
-  encryptionKey,
-  encryption: { scheme: 'framed-v1', frameBytes: 64 * 1024 },
-});
-
-console.log(manifest.encryption);
-// {
-//   scheme: 'framed-v1',
-//   algorithm: 'aes-256-gcm',
-//   frameBytes: 65536,
-//   encrypted: true
-// }
-```
-
-`framed-v1` authenticates each stored frame independently. The nonce and tag
-live inside the serialized payload rather than as top-level manifest fields, so
-the manifest records `frameBytes` instead. Legacy encrypted manifests without a
-`scheme` field are still treated as implicit `whole-v1` during restore for
-backward compatibility.
+Legacy encrypted manifests without a `scheme` field are still treated as
+implicit `whole-v1` during restore for backward compatibility.
 
 ### Encrypted Restore
 

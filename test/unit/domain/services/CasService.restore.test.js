@@ -20,6 +20,7 @@ async function storeBuffer(svc, buf, opts = {}) {
     slug: opts.slug || 'test',
     filename: opts.filename || 'test.bin',
     encryptionKey: opts.encryptionKey,
+    encryption: opts.encryption,
   });
 }
 
@@ -243,7 +244,10 @@ describe('CasService.restore() – encrypted manifest scheme routing', () => {
   it('restores legacy encrypted manifests with no scheme as implicit whole-v1', async () => {
     const key = randomBytes(32);
     const original = Buffer.from('legacy encrypted manifest without scheme');
-    const manifest = await storeBuffer(service, original, { encryptionKey: key });
+    const manifest = await storeBuffer(service, original, {
+      encryptionKey: key,
+      encryption: { scheme: 'whole-v1' },
+    });
 
     const legacyManifest = {
       ...manifest.toJSON(),

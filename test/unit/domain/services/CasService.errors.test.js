@@ -292,6 +292,7 @@ describe('CasService – verifyIntegrity (whole-v1 metadata tampering)', () => {
     const manifest = await storeStringManifest(service, 'encrypted verify detects tag tamper', {
       slug: 'encrypted-verify-tag',
       encryptionKey: key,
+      encryption: { scheme: 'whole-v1' },
     });
 
     const tamperedManifest = new Manifest({

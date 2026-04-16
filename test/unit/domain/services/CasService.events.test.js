@@ -8,6 +8,7 @@ import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserv
 import CasError from '../../../../src/domain/errors/CasError.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 
 function setup() {
   const crypto = testCrypto;
@@ -47,6 +48,7 @@ async function storeBuffer(svc, buf, opts = {}) {
     slug: opts.slug || 'test',
     filename: opts.filename || 'test.bin',
     encryptionKey: opts.encryptionKey,
+    encryption: opts.encryption,
   });
 }
 
@@ -164,6 +166,7 @@ describe('CasService events – integrity:fail', () => {
     const key = randomBytes(32);
     const manifest = await storeBuffer(service, Buffer.from('encrypted auth mismatch'), {
       encryptionKey: key,
+      encryption: { scheme: 'whole-v1' },
     });
 
     const onFail = vi.fn();
@@ -173,7 +176,7 @@ describe('CasService events – integrity:fail', () => {
       ...manifest.toJSON(),
       encryption: {
         ...manifest.encryption,
-        tag: Buffer.from('tampered-tag').toString('base64'),
+        tag: base64Bytes(16, 0x44),
       },
     }, { encryptionKey: key });
 

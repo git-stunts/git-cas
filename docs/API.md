@@ -126,8 +126,8 @@ Stores content from an async iterable source.
 - `filename` (required): `string` - Original filename
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase (alternative to `encryptionKey`)
-- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores
-- `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - `whole-v1` is the compatibility whole-object AES-GCM format; `framed-v1` stores independently authenticated frames so restore can stream verified plaintext incrementally
+- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed-v1`
+- `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - `whole-v1` is the explicit compatibility whole-object AES-GCM format; `framed-v1` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode
 - `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed-v1 record (default `65536`)
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`). New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
@@ -156,7 +156,6 @@ const manifest = await cas.store({
   slug: 'my-asset',
   filename: 'file.txt',
   encryptionKey: key,
-  encryption: { scheme: 'whole-v1' },
 });
 ```
 
@@ -184,8 +183,8 @@ Convenience method that opens a file and stores it.
 - `filename` (optional): `string` - Filename (defaults to basename of filePath)
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase
-- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores
-- `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - `whole-v1` is the compatibility whole-object AES-GCM format; `framed-v1` stores independently authenticated frames so restore can stream verified plaintext incrementally
+- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed-v1`
+- `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - `whole-v1` is the explicit compatibility whole-object AES-GCM format; `framed-v1` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode
 - `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed-v1 record (default `65536`)
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase`. New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
@@ -201,7 +200,6 @@ const manifest = await cas.storeFile({
   filePath: '/path/to/file.txt',
   slug: 'my-asset',
   encryptionKey: key,
-  encryption: { scheme: 'whole-v1' },
 });
 ```
 

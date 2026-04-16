@@ -52,7 +52,7 @@ const treeOid = await cas.createTree({ manifest });
 
 | Surface | Streaming API? | Non-streaming API? | Notes |
 |---|---|---|---|
-| Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. `whole-v1` writes through the crypto stream path; `framed-v1` writes framed records incrementally and stays bounded by `frameBytes`. |
+| Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. New encrypted stores now default to `framed-v1`, which writes framed records incrementally and stays bounded by `frameBytes`. `whole-v1` remains available as an explicit compatibility opt-out. |
 | Read: plaintext | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True chunk-by-chunk streaming restore. |
 | Read: encrypted `whole-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is still the buffered compatibility path. `restoreFile()` now uses a bounded temp-file path: it verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption, and renames into place only after auth succeeds. On Web Crypto runtimes this decrypt step is still one-shot internally, but it is now bounded by `maxDecryptionBufferSize` instead of collecting ciphertext without a limit. |
 | Read: encrypted `framed-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True authenticated streaming restore. Plaintext is yielded frame-by-frame after each frame is verified. |

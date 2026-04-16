@@ -27,7 +27,6 @@ not use numeric IDs.
 
 - [TR — Platform-Agnostic CLI Plan](./up-next/TR_platform-agnostic-cli-plan.md)
 - [TR — Agent CLI OS-Keychain Passphrase](./up-next/TR_agent-cli-os-keychain-passphrase.md)
-- [TR — Framed-v1 Default Encrypted Store](./up-next/TR_framed-v1-default-encrypted-store.md)
 
 ### `cool-ideas/`
 

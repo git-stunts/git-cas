@@ -16,10 +16,11 @@
 - The human CLI and TUI are real and materially shipped.
 - The machine-facing `git cas agent` surface exists, but parity and
   portability are still partial.
-- `framed-v1` now provides an authenticated streaming encrypted restore path;
-  `whole-v1` remains the compatibility whole-object mode for `restoreStream()`,
-  while `restoreFile()` now has a bounded temp-file restore path for
-  `whole-v1` and buffered compression modes.
+- New encrypted stores now default to `framed-v1`, which provides an
+  authenticated streaming encrypted restore path. `whole-v1` remains the
+  explicit compatibility whole-object mode for `restoreStream()`, while
+  `restoreFile()` now has a bounded temp-file restore path for `whole-v1` and
+  buffered compression modes.
 - Buffered `restoreStream()` / `restore()` now enforce `maxRestoreBufferSize`
   against streamed gunzip output and, on stream-native blob adapters, against
   actual blob reads instead of only manifest-estimated sizes.
@@ -38,7 +39,7 @@
 ## Active Queue Snapshot
 
 - [TR — Platform-Agnostic CLI Plan](./docs/method/backlog/up-next/TR_platform-agnostic-cli-plan.md)
-- [TR — Framed-v1 Default Encrypted Store](./docs/method/backlog/up-next/TR_framed-v1-default-encrypted-store.md)
+- [TR — Agent CLI OS-Keychain Passphrase](./docs/method/backlog/up-next/TR_agent-cli-os-keychain-passphrase.md)
 - [TR — CasService Decomposition Plan](./docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md)
 
 ## Read Next

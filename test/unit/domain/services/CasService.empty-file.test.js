@@ -101,9 +101,11 @@ describe('CasService – empty file store encrypted', () => {
     expect(manifest.slug).toBe('enc-empty');
     expect(manifest.filename).toBe('empty-enc.bin');
     expect(manifest.encryption).toBeDefined();
+    expect(manifest.encryption.scheme).toBe('framed-v1');
     expect(manifest.encryption.algorithm).toBe('aes-256-gcm');
-    expect(manifest.encryption.nonce).toEqual(expect.any(String));
-    expect(manifest.encryption.tag).toEqual(expect.any(String));
+    expect(manifest.encryption.frameBytes).toBeDefined();
+    expect(manifest.encryption.nonce).toBeUndefined();
+    expect(manifest.encryption.tag).toBeUndefined();
     expect(manifest.encryption.encrypted).toBe(true);
 
     // Every chunk (if any) must still pass schema validation.

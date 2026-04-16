@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`framed-v1` default encrypted writes** — new encrypted stores now default to `framed-v1` instead of `whole-v1`, `encryption.frameBytes` implies framed mode even when `scheme` is omitted, and `whole-v1` is now the explicit compatibility opt-out for callers that still need whole-object AES-GCM metadata.
 - **KDF policy hardening** — passphrase-bearing store, restore, vault init, and vault rotation now default to PBKDF2 `600000` or scrypt `N=131072`, reject out-of-policy KDF metadata with `KDF_POLICY_VIOLATION`, and keep a bounded compatibility window for older stored metadata instead of trusting arbitrary repository-controlled parameters.
 - **Encrypted manifest schema hardening** — manifest parsing now only accepts legacy/explicit `whole-v1` and explicit `framed-v1` AES-256-GCM metadata, rejects `encrypted: false`, rejects malformed nonce/tag values and framed manifests without `frameBytes`, and applies the same validation through both JSON and CBOR `readManifest()` paths.
 - **Web Crypto decrypt guard** — `WebCryptoAdapter` now accepts `maxDecryptionBufferSize` and rejects oversized whole-object decrypt buffers with `DECRYPTION_BUFFER_EXCEEDED`, making the Deno/browser-class `whole-v1` restore path bounded instead of silently unbounded.

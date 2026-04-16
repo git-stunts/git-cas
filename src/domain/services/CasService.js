@@ -321,11 +321,11 @@ export default class CasService {
       return undefined;
     }
 
-    if (!scheme || scheme === 'whole-v1') {
+    if (scheme === 'whole-v1') {
       return { scheme: 'whole-v1' };
     }
 
-    if (scheme === 'framed-v1') {
+    if (!scheme || scheme === 'framed-v1') {
       return this._resolveFramedStoreEncryptionConfig(frameBytes);
     }
 
@@ -350,9 +350,9 @@ export default class CasService {
       );
     }
 
-    if (frameBytes !== undefined && scheme !== 'framed-v1') {
+    if (frameBytes !== undefined && scheme === 'whole-v1') {
       throw new CasError(
-        'encryption.frameBytes requires encryption.scheme="framed-v1"',
+        'encryption.frameBytes is only supported for framed-v1 stores',
         'INVALID_OPTIONS',
         { scheme, frameBytes },
       );
@@ -1441,15 +1441,26 @@ export default class CasService {
   async *_decompressStreaming(source) {
     const gunzipStream = createGunzip();
     const input = Readable.from(source);
-    const decompressed = input.pipe(gunzipStream);
+    const forwardInputError = (err) => {
+      const error = err instanceof Error ? err : new Error(String(err));
+      gunzipStream.destroy(error);
+    };
+    input.on('error', forwardInputError);
+    input.pipe(gunzipStream);
 
     try {
-      for await (const chunk of decompressed) {
+      for await (const chunk of gunzipStream) {
         yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       }
     } catch (err) {
       if (err instanceof CasError) { throw err; }
       throw new CasError(`Decompression failed: ${err.message}`, 'INTEGRITY_ERROR', { originalError: err });
+    } finally {
+      input.removeListener('error', forwardInputError);
+      input.destroy();
+      if (!gunzipStream.destroyed) {
+        gunzipStream.destroy();
+      }
     }
   }
 

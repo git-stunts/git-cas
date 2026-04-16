@@ -25,6 +25,7 @@ process in [docs/method/process.md](../method/process.md).
 - [0031-empty-state-phrasing-consistency — empty-state-phrasing-consistency](./0031-empty-state-phrasing-consistency/empty-state-phrasing-consistency.md)
 - [0032-encryption-metadata-schema-hardening — encryption-metadata-schema-hardening](./0032-encryption-metadata-schema-hardening/encryption-metadata-schema-hardening.md)
 - [0033-webcrypto-streaming-parity — webcrypto-streaming-parity](./0033-webcrypto-streaming-parity/webcrypto-streaming-parity.md)
+- [0034-framed-v1-default-encrypted-store — framed-v1-default-encrypted-store](./0034-framed-v1-default-encrypted-store/framed-v1-default-encrypted-store.md)
 
 ## Landed METHOD Cycles
 
