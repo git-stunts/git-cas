@@ -249,6 +249,23 @@ describe('readState – missing kdf.keyLength', () => {
   });
 });
 
+describe('initVault – KDF policy', () => {
+  it('rejects out-of-policy explicit KDF parameters before deriveKey', async () => {
+    const ref = mockRef();
+    setupNoVault(ref);
+    const crypto = mockCrypto();
+    const vault = createVault({ ref, crypto });
+
+    await expect(vault.initVault({
+      passphrase: 'vault-passphrase',
+      kdfOptions: { algorithm: 'pbkdf2', iterations: 99_999 },
+    })).rejects.toSatisfy(
+      (e) => e instanceof CasError && e.code === 'KDF_POLICY_VIOLATION',
+    );
+    expect(crypto.deriveKey).not.toHaveBeenCalled();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // addToVault – first entry
 // ---------------------------------------------------------------------------

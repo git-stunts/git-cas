@@ -34,12 +34,31 @@ git-cas tracks encryption operations via `encryptionCount` in vault metadata. Wh
 
 When using passphrase-based encryption, git-cas derives keys using PBKDF2 or scrypt.
 
-| Algorithm | Recommended Parameters         | Notes                     |
-| --------- | ------------------------------ | ------------------------- |
-| PBKDF2    | iterations ≥ 600,000 (SHA-256) | OWASP 2024 recommendation |
-| scrypt    | N=2^17, r=8, p=1               | ~128 MiB memory           |
+| Algorithm | Default Parameters           | Notes                                 |
+| --------- | ---------------------------- | ------------------------------------- |
+| PBKDF2    | 600,000 iterations (SHA-512) | Stronger default, broadly portable    |
+| scrypt    | N=2^17, r=8, p=1             | ~128 MiB memory, stronger GPU posture |
 
 Higher iteration counts / cost parameters increase resistance to brute-force attacks but also increase the time to derive a key. Choose parameters based on your threat model and latency tolerance.
+
+git-cas now also applies a bounded KDF policy to passphrase-bearing store,
+restore, vault init, and vault rotation flows:
+
+- new writes default to PBKDF2 `600000` or scrypt `N=131072`
+- stored manifest and vault metadata are accepted only within a bounded
+  compatibility window
+- out-of-policy KDF metadata fails with `KDF_POLICY_VIOLATION` before derive
+  work begins
+
+Current acceptance window:
+
+| Field | Accepted Range |
+| ----- | -------------- |
+| PBKDF2 `iterations` | `100000` to `2000000` |
+| scrypt `cost` (`N`) | `16384` to `1048576`, power of two |
+| scrypt `blockSize` (`r`) | `8` to `32` |
+| scrypt `parallelization` (`p`) | `1` to `16` |
+| `keyLength` | exactly `32` |
 
 ### Passphrase Entropy Recommendations
 
@@ -624,6 +643,31 @@ throw new CasError('Chunk 2 integrity check failed', 'INTEGRITY_ERROR', {
 
 - If this occurs during `restore()`, the file is corrupted and cannot be recovered without a backup.
 - If this occurs during `verifyIntegrity()`, investigate storage hardware or Git repository health.
+
+### `KDF_POLICY_VIOLATION`
+
+**Thrown when**:
+
+- Requested KDF parameters for a new passphrase-encrypted write are outside the accepted policy.
+- Stored manifest or vault KDF metadata requests parameters outside the accepted policy window.
+
+**Example**:
+
+```javascript
+throw new CasError('manifest KDF field "iterations" must be between 100000 and 2000000', 'KDF_POLICY_VIOLATION', {
+  source: 'manifest',
+  field: 'iterations',
+  value: 20000000,
+  min: 100000,
+  max: 2000000,
+});
+```
+
+**Recommended action**:
+
+- If this occurs on new writes, choose a supported KDF parameter set.
+- If this occurs on restore or vault operations, treat the stored metadata as
+  invalid or hostile and inspect repository provenance before proceeding.
 
 ### `INVALID_KEY_LENGTH`
 

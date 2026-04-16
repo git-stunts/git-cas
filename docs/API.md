@@ -129,7 +129,7 @@ Stores content from an async iterable source.
 - `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores
 - `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - `whole-v1` is the compatibility whole-object AES-GCM format; `framed-v1` stores independently authenticated frames so restore can stream verified plaintext incrementally
 - `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed-v1 record (default `65536`)
-- `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`)
+- `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`). New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
 
 **Returns:** `Promise<Manifest>`
@@ -187,7 +187,7 @@ Convenience method that opens a file and stores it.
 - `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores
 - `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - `whole-v1` is the compatibility whole-object AES-GCM format; `framed-v1` stores independently authenticated frames so restore can stream verified plaintext incrementally
 - `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed-v1 record (default `65536`)
-- `kdfOptions` (optional): `Object` - KDF options when using `passphrase`
+- `kdfOptions` (optional): `Object` - KDF options when using `passphrase`. New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
 
 **Returns:** `Promise<Manifest>`
@@ -402,8 +402,8 @@ Derives an encryption key from a passphrase using PBKDF2 or scrypt.
 - `options.passphrase` (required): `string` - The passphrase
 - `options.salt` (optional): `Buffer` - Salt (random if omitted)
 - `options.algorithm` (optional): `'pbkdf2' | 'scrypt'` - KDF algorithm (default: `'pbkdf2'`)
-- `options.iterations` (optional): `number` - PBKDF2 iterations (default: 100000)
-- `options.cost` (optional): `number` - scrypt cost parameter N (default: 16384)
+- `options.iterations` (optional): `number` - PBKDF2 iterations (default: 600000)
+- `options.cost` (optional): `number` - scrypt cost parameter N (default: 131072)
 - `options.blockSize` (optional): `number` - scrypt block size r (default: 8)
 - `options.parallelization` (optional): `number` - scrypt parallelization p (default: 1)
 - `options.keyLength` (optional): `number` - Derived key length (default: 32)
@@ -420,7 +420,7 @@ Derives an encryption key from a passphrase using PBKDF2 or scrypt.
 const { key, salt, params } = await cas.deriveKey({
   passphrase: 'my secret passphrase',
   algorithm: 'pbkdf2',
-  iterations: 200000,
+  iterations: 600000,
 });
 
 // Use the derived key for encryption
@@ -566,7 +566,7 @@ Rotates the vault-level encryption passphrase. Re-wraps every envelope-encrypted
 
 - `oldPassphrase` (required): `string` - Current vault passphrase
 - `newPassphrase` (required): `string` - New vault passphrase
-- `kdfOptions` (optional): `Object` - KDF options for new passphrase (e.g., `{ algorithm: 'scrypt' }`)
+- `kdfOptions` (optional): `Object` - KDF options for new passphrase (e.g., `{ algorithm: 'scrypt' }`). Defaults use PBKDF2 `600000` or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 
 **Returns:** `Promise<{ commitOid: string, rotatedSlugs: string[], skippedSlugs: string[] }>`
 
@@ -574,6 +574,7 @@ Rotates the vault-level encryption passphrase. Re-wraps every envelope-encrypted
 
 - `CasError` with code `VAULT_METADATA_INVALID` if vault is not encrypted
 - `CasError` with code `DEK_UNWRAP_FAILED` or `NO_MATCHING_RECIPIENT` if old passphrase is wrong
+- `CasError` with code `KDF_POLICY_VIOLATION` if stored or requested KDF parameters fall outside policy
 - `CasError` with code `VAULT_CONFLICT` if concurrent vault updates exhaust retries
 
 **Example:**
@@ -662,13 +663,14 @@ Initializes the vault. Optionally configures vault-level encryption with a passp
 **Parameters:**
 
 - `passphrase` (optional): `string` - Passphrase for vault-level key derivation
-- `kdfOptions` (optional): `Object` - KDF options (`{ algorithm, iterations, cost, ... }`)
+- `kdfOptions` (optional): `Object` - KDF options (`{ algorithm, iterations, cost, ... }`). Defaults use PBKDF2 `600000` or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 
 **Returns:** `Promise<{ commitOid: string }>`
 
 **Throws:**
 
 - `CasError` with code `VAULT_ENCRYPTION_ALREADY_CONFIGURED` if vault already has encryption
+- `CasError` with code `KDF_POLICY_VIOLATION` if requested KDF parameters fall outside policy
 
 **Example:**
 
@@ -1466,11 +1468,15 @@ Derives an encryption key from a passphrase using PBKDF2 or scrypt.
 - `options.passphrase`: `string` - The passphrase
 - `options.salt` (optional): `Buffer` - Salt (random if omitted)
 - `options.algorithm` (optional): `'pbkdf2' | 'scrypt'` - KDF algorithm (default: `'pbkdf2'`)
-- `options.iterations` (optional): `number` - PBKDF2 iterations
-- `options.cost` (optional): `number` - scrypt cost N
+- `options.iterations` (optional): `number` - PBKDF2 iterations (default: `600000`)
+- `options.cost` (optional): `number` - scrypt cost N (default: `131072`)
 - `options.blockSize` (optional): `number` - scrypt block size r
 - `options.parallelization` (optional): `number` - scrypt parallelization p
 - `options.keyLength` (optional): `number` - Derived key length (default: 32)
+
+`deriveKey()` is the raw derivation primitive. Policy enforcement for persisted
+KDF metadata happens in `store()`, `restore()`, `initVault()`, and
+`rotateVaultPassphrase()`.
 
 **Returns:** `Promise<{ key: Buffer, salt: Buffer, params: Object }>`
 
@@ -1574,6 +1580,7 @@ new CasError(message, code, meta);
 | `INVALID_KEY_LENGTH`                  | Encryption key must be exactly 32 bytes                                    | `encrypt()`, `decrypt()`, `store()`, `restore()`                              |
 | `MISSING_KEY`                         | Encryption key required to restore encrypted content but none was provided | `restore()`                                                                   |
 | `INTEGRITY_ERROR`                     | Chunk digest verification failed or decryption authentication failed       | `restore()`, `verifyIntegrity()`, `decrypt()`                                 |
+| `KDF_POLICY_VIOLATION`               | KDF parameters fell outside the accepted policy window                     | `store()`, `restore()`, `initVault()`, `rotateVaultPassphrase()`, `readState()` |
 | `STREAM_ERROR`                        | Stream error occurred during store operation                               | `store()`                                                                     |
 | `MANIFEST_NOT_FOUND`                  | No manifest entry found in the Git tree                                    | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()`                     |
 | `GIT_ERROR`                           | Underlying Git plumbing command failed                                     | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()`                     |

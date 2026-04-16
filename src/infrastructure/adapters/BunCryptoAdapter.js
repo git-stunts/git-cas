@@ -7,6 +7,10 @@ import CasError from '../../domain/errors/CasError.js';
 import { createCipheriv, createDecipheriv, pbkdf2, scrypt } from 'node:crypto';
 import { promisify } from 'node:util';
 
+function scryptMaxmem({ cost, blockSize, parallelization, keyLength }) {
+  return (128 * cost * blockSize) + (256 * blockSize * parallelization) + keyLength + (1024 * 1024);
+}
+
 function wrapDecryptError(err) {
   if (err instanceof CasError) {
     throw err;
@@ -172,6 +176,7 @@ export default class BunCryptoAdapter extends CryptoPort {
       N: cost,
       r: blockSize,
       p: parallelization,
+      maxmem: scryptMaxmem({ cost, blockSize, parallelization, keyLength }),
     });
   }
 }

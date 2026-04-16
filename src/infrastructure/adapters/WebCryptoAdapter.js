@@ -250,7 +250,13 @@ export default class WebCryptoAdapter extends CryptoPort {
     }
     // @ts-ignore -- promisify(scrypt) accepts options as 4th arg at runtime
     return promisifyFn(scryptCb)(passphrase, saltBuf, params.keyLength, {
-      N: params.cost, r: params.blockSize, p: params.parallelization,
+      N: params.cost,
+      r: params.blockSize,
+      p: params.parallelization,
+      maxmem: (128 * params.cost * params.blockSize) +
+        (256 * params.blockSize * params.parallelization) +
+        params.keyLength +
+        (1024 * 1024),
     });
   }
 

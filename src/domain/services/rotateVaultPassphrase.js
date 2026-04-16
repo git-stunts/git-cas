@@ -1,5 +1,6 @@
 import CasError from '../errors/CasError.js';
 import buildKdfMetadata from '../helpers/buildKdfMetadata.js';
+import { prepareKdfOptions, prepareStoredKdfOptions } from '../../helpers/kdfPolicy.js';
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_BASE_MS = 50;
@@ -13,15 +14,11 @@ const DEFAULT_RETRY_BASE_MS = 50;
  * @returns {Promise<Buffer>} The derived KEK.
  */
 async function deriveKekFromKdf(service, passphrase, kdf) {
+  const params = prepareStoredKdfOptions(kdf, { source: 'vault-metadata' });
   const { key } = await service.deriveKey({
     passphrase,
     salt: Buffer.from(kdf.salt, 'base64'),
-    algorithm: kdf.algorithm,
-    iterations: kdf.iterations,
-    cost: kdf.cost,
-    blockSize: kdf.blockSize,
-    parallelization: kdf.parallelization,
-    keyLength: kdf.keyLength,
+    ...params,
   });
   return key;
 }
@@ -115,8 +112,13 @@ export default async function rotateVaultPassphrase(
 
     const { kdf } = state.metadata.encryption;
     const oldKek = await deriveKekFromKdf(service, oldPassphrase, kdf);
+    const nextKdfOptions = prepareKdfOptions(
+      { ...kdfOptions, algorithm: kdfOptions?.algorithm || kdf.algorithm },
+      { source: 'vault-rotation' },
+    );
     const { key: newKek, salt: newSalt, params: newParams } = await service.deriveKey({
-      passphrase: newPassphrase, ...kdfOptions, algorithm: kdfOptions?.algorithm || kdf.algorithm,
+      passphrase: newPassphrase,
+      ...nextKdfOptions,
     });
 
     const result = await rotateEntries({ service, entries: state.entries, oldKek, newKek });

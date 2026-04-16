@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import KeyResolver from '../../../../src/domain/services/KeyResolver.js';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 
@@ -108,7 +108,7 @@ describe('KeyResolver.resolveForDecryption — envelope & passphrase', () => {
 
   it('passphrase + KDF → derived key', async () => {
     const passphrase = 'test-passphrase';
-    const derived = await crypto.deriveKey({ passphrase, iterations: 1000 });
+    const derived = await crypto.deriveKey({ passphrase, iterations: 100_000 });
     const manifest = {
       encryption: { encrypted: true, kdf: derived.params },
     };
@@ -126,7 +126,7 @@ describe('KeyResolver.resolveForDecryption — envelope & passphrase', () => {
 describe('KeyResolver.resolveForDecryption — keyLength', () => {
   it('forwards stored keyLength to deriveKey', async () => {
     const passphrase = 'test-passphrase';
-    const derived = await crypto.deriveKey({ passphrase, iterations: 1000, keyLength: 32 });
+    const derived = await crypto.deriveKey({ passphrase, iterations: 100_000, keyLength: 32 });
     expect(derived.params.keyLength).toBe(32);
     const manifest = {
       encryption: { encrypted: true, kdf: derived.params },
@@ -144,7 +144,7 @@ describe('KeyResolver.resolveForStore', () => {
   });
 
   it('with passphrase → returns derived key and kdf encExtra', async () => {
-    const result = await resolver.resolveForStore(undefined, 'secret', { iterations: 1000 });
+    const result = await resolver.resolveForStore(undefined, 'secret', { iterations: 100_000 });
     expect(result.key).toHaveLength(32);
     expect(result.encExtra).toHaveProperty('kdf');
     expect(result.encExtra.kdf).toHaveProperty('algorithm', 'pbkdf2');
@@ -155,6 +155,32 @@ describe('KeyResolver.resolveForStore', () => {
     const result = await resolver.resolveForStore(undefined, undefined, undefined);
     expect(result.key).toBeUndefined();
     expect(result.encExtra).toEqual({});
+  });
+});
+
+describe('KeyResolver KDF policy', () => {
+  it('rejects out-of-policy manifest KDF metadata before deriveKey', async () => {
+    const cryptoStub = {
+      deriveKey: vi.fn(),
+      _validateKey: vi.fn(),
+    };
+    const localResolver = new KeyResolver(cryptoStub);
+    const manifest = {
+      encryption: {
+        encrypted: true,
+        kdf: {
+          algorithm: 'pbkdf2',
+          salt: Buffer.alloc(32, 7).toString('base64'),
+          iterations: 20_000_000,
+          keyLength: 32,
+        },
+      },
+    };
+
+    await expect(
+      localResolver.resolveForDecryption(manifest, undefined, 'test-passphrase'),
+    ).rejects.toThrow(expect.objectContaining({ code: 'KDF_POLICY_VIOLATION' }));
+    expect(cryptoStub.deriveKey).not.toHaveBeenCalled();
   });
 });
 

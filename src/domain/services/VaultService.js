@@ -3,6 +3,7 @@
  */
 import CasError from '../errors/CasError.js';
 import buildKdfMetadata from '../helpers/buildKdfMetadata.js';
+import { prepareKdfOptions, prepareStoredKdfOptions } from '../../helpers/kdfPolicy.js';
 
 const VAULT_REF = 'refs/cas/vault';
 const MAX_CAS_RETRIES = 3;
@@ -160,6 +161,7 @@ export default class VaultService {
         { metadata },
       );
     }
+    prepareStoredKdfOptions(kdf, { source: 'vault-metadata' });
   }
 
   /**
@@ -362,7 +364,8 @@ export default class VaultService {
     /** @type {VaultMetadata} */
     const metadata = { version: 1 };
     if (passphrase) {
-      const { salt, params } = await this.crypto.deriveKey({ passphrase, ...kdfOptions });
+      const options = prepareKdfOptions(kdfOptions, { source: 'vault-init' });
+      const { salt, params } = await this.crypto.deriveKey({ passphrase, ...options });
       metadata.encryption = VaultService.#buildEncryptionMeta(salt, params);
     }
 

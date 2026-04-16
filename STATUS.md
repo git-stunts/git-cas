@@ -23,13 +23,16 @@
 - Buffered `restoreStream()` / `restore()` now enforce `maxRestoreBufferSize`
   against streamed gunzip output and, on stream-native blob adapters, against
   actual blob reads instead of only manifest-estimated sizes.
+- Passphrase-bearing store, restore, vault init, and vault rotation now use
+  stronger KDF defaults and reject out-of-policy stored metadata before derive
+  work begins.
 - Fresh work is now organized through METHOD backlog lanes and numbered cycle
   directories.
 
 ## Active Queue Snapshot
 
 - [TR — Empty-State Phrasing Consistency](./docs/method/backlog/asap/TR_empty-state-phrasing-consistency.md)
-- [TR — KDF Parameter Bounds And Policy](./docs/method/backlog/asap/TR_kdf-parameter-bounds-and-policy.md)
+- [TR — Encryption Metadata Schema Hardening](./docs/method/backlog/asap/TR_encryption-metadata-schema-hardening.md)
 - [TR — Platform-Agnostic CLI Plan](./docs/method/backlog/up-next/TR_platform-agnostic-cli-plan.md)
 - [TR — CasService Decomposition Plan](./docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md)
 

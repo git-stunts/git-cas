@@ -5,6 +5,7 @@
  * resolving encryption keys from passphrases, and envelope recipient management.
  */
 import CasError from '../errors/CasError.js';
+import { prepareKdfOptions, prepareStoredKdfOptions } from '../../helpers/kdfPolicy.js';
 
 /**
  * Resolves encryption keys for store and restore operations.
@@ -122,7 +123,8 @@ export default class KeyResolver {
   async resolveForStore(encryptionKey, passphrase, kdfOptions) {
     let kdfParams;
     if (passphrase) {
-      const derived = await this.#crypto.deriveKey({ passphrase, ...kdfOptions });
+      const options = prepareKdfOptions(kdfOptions, { source: 'store' });
+      const derived = await this.#crypto.deriveKey({ passphrase, ...options });
       encryptionKey = derived.key;
       kdfParams = derived.params;
     }
@@ -205,15 +207,11 @@ export default class KeyResolver {
    * @returns {Promise<Buffer>}
    */
   async #resolveKeyFromPassphrase(passphrase, kdf) {
+    const params = prepareStoredKdfOptions(kdf, { source: 'manifest' });
     const { key } = await this.#crypto.deriveKey({
       passphrase,
       salt: Buffer.from(kdf.salt, 'base64'),
-      algorithm: kdf.algorithm,
-      iterations: kdf.iterations,
-      cost: kdf.cost,
-      blockSize: kdf.blockSize,
-      parallelization: kdf.parallelization,
-      keyLength: kdf.keyLength,
+      ...params,
     });
     return key;
   }

@@ -99,7 +99,7 @@ describe('CryptoPort.deriveKey() – pbkdf2', () => {
 
     expect(port._doDeriveKey).toHaveBeenCalledWith('test', salt, {
       algorithm: 'pbkdf2',
-      iterations: 100_000,
+      iterations: 600_000,
       cost: 16384,
       blockSize: 8,
       parallelization: 1,
@@ -111,7 +111,7 @@ describe('CryptoPort.deriveKey() – pbkdf2', () => {
       algorithm: 'pbkdf2',
       salt: Buffer.from(salt).toString('base64'),
       keyLength: 32,
-      iterations: 100_000,
+      iterations: 600_000,
     });
   });
 });
@@ -127,13 +127,12 @@ describe('CryptoPort.deriveKey() – scrypt', () => {
     const result = await port.deriveKey({
       passphrase: 'test',
       algorithm: 'scrypt',
-      cost: 8192,
     });
 
     expect(port._doDeriveKey).toHaveBeenCalledWith('test', salt, {
       algorithm: 'scrypt',
-      iterations: 100_000,
-      cost: 8192,
+      iterations: 600_000,
+      cost: 131_072,
       blockSize: 8,
       parallelization: 1,
       keyLength: 32,
@@ -142,7 +141,7 @@ describe('CryptoPort.deriveKey() – scrypt', () => {
       algorithm: 'scrypt',
       salt: Buffer.from(salt).toString('base64'),
       keyLength: 32,
-      cost: 8192,
+      cost: 131_072,
       blockSize: 8,
       parallelization: 1,
     });

@@ -12,6 +12,10 @@ function wrapDecryptError(err) {
   });
 }
 
+function scryptMaxmem({ cost, blockSize, parallelization, keyLength }) {
+  return (128 * cost * blockSize) + (256 * blockSize * parallelization) + keyLength + (1024 * 1024);
+}
+
 /**
  * Node.js implementation of CryptoPort using node:crypto.
  */
@@ -163,6 +167,7 @@ export default class NodeCryptoAdapter extends CryptoPort {
       N: cost,
       r: blockSize,
       p: parallelization,
+      maxmem: scryptMaxmem({ cost, blockSize, parallelization, keyLength }),
     });
   }
 }

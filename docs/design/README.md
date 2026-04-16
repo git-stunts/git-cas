@@ -21,6 +21,7 @@ process in [docs/method/process.md](../method/process.md).
 - [0027-framed-v1-streaming-restore — framed-v1-streaming-restore](./0027-framed-v1-streaming-restore/framed-v1-streaming-restore.md)
 - [0028-whole-v1-bounded-file-restore — whole-v1-bounded-file-restore](./0028-whole-v1-bounded-file-restore/whole-v1-bounded-file-restore.md)
 - [0029-restore-buffer-hard-limits — restore-buffer-hard-limits](./0029-restore-buffer-hard-limits/restore-buffer-hard-limits.md)
+- [0030-kdf-parameter-bounds-and-policy — kdf-parameter-bounds-and-policy](./0030-kdf-parameter-bounds-and-policy/kdf-parameter-bounds-and-policy.md)
 
 ## Landed METHOD Cycles
 

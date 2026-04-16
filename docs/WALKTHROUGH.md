@@ -948,7 +948,7 @@ console.log(manifest.encryption.kdf);
 // {
 //   algorithm: 'pbkdf2',
 //   salt: 'base64-encoded-salt',
-//   iterations: 100000,
+//   iterations: 600000,
 //   keyLength: 32
 // }
 ```
@@ -982,7 +982,7 @@ const manifest = await cas.storeFile({
   filePath: './secret.bin',
   slug: 'vault',
   passphrase: 'strong passphrase',
-  kdfOptions: { algorithm: 'scrypt', cost: 16384 },
+  kdfOptions: { algorithm: 'scrypt', cost: 131072 },
 });
 ```
 
@@ -994,7 +994,7 @@ For advanced workflows, derive the key yourself:
 const { key, salt, params } = await cas.deriveKey({
   passphrase: 'my secret passphrase',
   algorithm: 'pbkdf2',
-  iterations: 200000,
+  iterations: 600000,
 });
 
 // Use the derived key directly
@@ -1009,8 +1009,18 @@ const manifest = await cas.storeFile({
 
 | Algorithm          | Default Params              | Notes                                     |
 | ------------------ | --------------------------- | ----------------------------------------- |
-| `pbkdf2` (default) | 100,000 iterations, SHA-512 | Widely supported, good baseline           |
-| `scrypt`           | N=16384, r=8, p=1           | Memory-hard, stronger against GPU attacks |
+| `pbkdf2` (default) | 600,000 iterations, SHA-512 | Stronger default, broadly portable        |
+| `scrypt`           | N=131072, r=8, p=1          | Memory-hard, stronger against GPU attacks |
+
+Passphrase-bearing store, restore, vault init, and vault rotation now enforce
+a bounded KDF policy:
+
+- new writes default to PBKDF2 `600000` or scrypt `N=131072`
+- stored manifest and vault metadata are accepted within a bounded
+  compatibility window instead of trusting arbitrary repository-controlled
+  values
+- out-of-policy values fail with `KDF_POLICY_VIOLATION` before expensive derive
+  work begins
 
 ---
 
@@ -1566,6 +1576,7 @@ All errors thrown by `git-cas` are instances of `CasError`, which extends
 | `INVALID_KEY_LENGTH` | Encryption key is not 32 bytes                   | `{ expected: 32, actual: N }`                             |
 | `MISSING_KEY`        | Encrypted content restored without a key         | --                                                        |
 | `INTEGRITY_ERROR`    | Chunk digest mismatch or decryption auth failure | `{ chunkIndex, expected, actual }` or `{ originalError }` |
+| `KDF_POLICY_VIOLATION` | KDF parameters fell outside the accepted policy | `{ source, field, value, min?, max?, expected? }`         |
 | `STREAM_ERROR`       | Error reading from source stream during store    | `{ chunksWritten, originalError }`                        |
 | `TREE_PARSE_ERROR`   | Malformed `ls-tree` output from Git              | `{ rawEntry }`                                            |
 

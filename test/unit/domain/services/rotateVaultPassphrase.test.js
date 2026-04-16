@@ -44,6 +44,18 @@ async function* bufferSource(buf) {
   yield buf;
 }
 
+function makeVaultState(kdf) {
+  return {
+    entries: new Map(),
+    parentCommitOid: null,
+    metadata: {
+      encryption: {
+        kdf,
+      },
+    },
+  };
+}
+
 async function storeEnvelope({ service, vault, slug, data, passphrase }) {
   const metadata = (await vault.readState()).metadata;
   const { key } = await service.deriveKey({
@@ -78,7 +90,7 @@ describe('rotateVaultPassphrase – 3 envelope entries', () => {
   it('rotates all entries and returns correct slugs', async () => {
     const oldPass = 'old-pass';
     const newPass = 'new-pass';
-    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 100_000 } });
 
     const originals = {};
     for (const name of ['alpha', 'beta', 'gamma']) {
@@ -128,7 +140,7 @@ describe('rotateVaultPassphrase – mixed entries', () => {
   it('2 envelope + 1 non-envelope → 2 rotated, 1 skipped', async () => {
     const oldPass = 'old-pass';
     const newPass = 'new-pass';
-    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 100_000 } });
 
     await storeEnvelope({ service, vault, slug: 'env1', data: randomBytes(128), passphrase: oldPass });
     await storeEnvelope({ service, vault, slug: 'env2', data: randomBytes(128), passphrase: oldPass });
@@ -171,7 +183,7 @@ describe('rotateVaultPassphrase – error cases', () => {
 
   it('wrong old passphrase → error', async () => {
     const oldPass = 'old-pass';
-    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 100_000 } });
     await storeEnvelope({ service, vault, slug: 'asset', data: randomBytes(128), passphrase: oldPass });
 
     await expect(
@@ -207,7 +219,7 @@ describe('rotateVaultPassphrase – KDF options', () => {
   it('kdfOptions.algorithm overrides existing algorithm', async () => {
     const oldPass = 'old-pass';
     const newPass = 'new-pass';
-    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 100_000 } });
     await storeEnvelope({ service, vault, slug: 'asset', data: randomBytes(128), passphrase: oldPass });
 
     const oldState = await vault.readState();
@@ -225,7 +237,7 @@ describe('rotateVaultPassphrase – KDF options', () => {
   it('metadata updated with new KDF salt', async () => {
     const oldPass = 'old-pass';
     const newPass = 'new-pass';
-    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 100_000 } });
     await storeEnvelope({ service, vault, slug: 'asset', data: randomBytes(128), passphrase: oldPass });
 
     const oldState = await vault.readState();
@@ -259,7 +271,7 @@ describe('rotateVaultPassphrase – retry success', () => {
   it('retries on VAULT_CONFLICT and succeeds within maxRetries', async () => {
     const oldPass = 'old-pass';
     const newPass = 'new-pass';
-    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 100_000 } });
     await storeEnvelope({ service, vault, slug: 'a', data: randomBytes(128), passphrase: oldPass });
 
     let calls = 0;
@@ -295,7 +307,7 @@ describe('rotateVaultPassphrase – maxRetries exhausted', () => {
 
   it('fails after exactly maxRetries attempts', async () => {
     const oldPass = 'old-pass';
-    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 100_000 } });
     await storeEnvelope({ service, vault, slug: 'a', data: randomBytes(128), passphrase: oldPass });
 
     let calls = 0;
@@ -330,7 +342,7 @@ describe('rotateVaultPassphrase – default retry count', () => {
 
   it('maxRetries defaults to 3 when not specified', async () => {
     const oldPass = 'old-pass';
-    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 100_000 } });
     await storeEnvelope({ service, vault, slug: 'a', data: randomBytes(128), passphrase: oldPass });
 
     let calls = 0;
@@ -347,4 +359,54 @@ describe('rotateVaultPassphrase – default retry count', () => {
     ).rejects.toMatchObject({ code: 'VAULT_CONFLICT' });
     expect(calls).toBe(3);
   }, LONG_TEST_TIMEOUT_MS);
+});
+
+describe('rotateVaultPassphrase – KDF policy', () => {
+  it('rejects out-of-policy stored vault KDF metadata before deriveKey', async () => {
+    const service = { deriveKey: vi.fn() };
+    const vault = {
+      readState: vi.fn().mockResolvedValue(makeVaultState({
+        algorithm: 'pbkdf2',
+        salt: Buffer.alloc(32, 9).toString('base64'),
+        iterations: 20_000_000,
+        keyLength: 32,
+      })),
+    };
+
+    await expect(
+      rotateVaultPassphrase(
+        { service, vault },
+        { oldPassphrase: 'old-pass', newPassphrase: 'new-pass' },
+      ),
+    ).rejects.toThrow(expect.objectContaining({ code: 'KDF_POLICY_VIOLATION' }));
+    expect(service.deriveKey).not.toHaveBeenCalled();
+  });
+
+  it('rejects out-of-policy new vault KDF options before deriving the replacement KEK', async () => {
+    const service = {
+      deriveKey: vi.fn().mockResolvedValue({
+        key: Buffer.alloc(32, 1),
+      }),
+    };
+    const vault = {
+      readState: vi.fn().mockResolvedValue(makeVaultState({
+        algorithm: 'pbkdf2',
+        salt: Buffer.alloc(32, 5).toString('base64'),
+        iterations: 100_000,
+        keyLength: 32,
+      })),
+    };
+
+    await expect(
+      rotateVaultPassphrase(
+        { service, vault },
+        {
+          oldPassphrase: 'old-pass',
+          newPassphrase: 'new-pass',
+          kdfOptions: { iterations: 99_999 },
+        },
+      ),
+    ).rejects.toThrow(expect.objectContaining({ code: 'KDF_POLICY_VIOLATION' }));
+    expect(service.deriveKey).toHaveBeenCalledTimes(1);
+  });
 });

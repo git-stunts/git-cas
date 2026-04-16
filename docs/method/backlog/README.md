@@ -22,7 +22,6 @@ not use numeric IDs.
 ### `asap/`
 
 - [TR — Empty-State Phrasing Consistency](./asap/TR_empty-state-phrasing-consistency.md)
-- [TR — KDF Parameter Bounds And Policy](./asap/TR_kdf-parameter-bounds-and-policy.md)
 - [TR — Encryption Metadata Schema Hardening](./asap/TR_encryption-metadata-schema-hardening.md)
 
 ### `up-next/`
@@ -43,3 +42,4 @@ not use numeric IDs.
 - [TR — AES-GCM Metadata Enforcement](./bad-code/TR_aes-gcm-metadata-enforcement.md)
 - [TR — RestoreFile Service Internal Coupling](./bad-code/TR_restorefile-service-internal-coupling.md)
 - [TR — Buffered Restore ReadBlob Fallback](./bad-code/TR_buffered-restore-readblob-fallback.md)
+- [TR — Scrypt Maxmem Budget Dedup](./bad-code/TR_scrypt-maxmem-budget-dedup.md)

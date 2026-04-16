@@ -1,4 +1,5 @@
 import CasError from '../domain/errors/CasError.js';
+import { normalizeKdfOptions } from '../helpers/kdfPolicy.js';
 
 /**
  * Encryption metadata returned by AES-256-GCM operations.
@@ -110,8 +111,8 @@ export default class CryptoPort {
    * @param {string} options.passphrase - The passphrase to derive a key from.
    * @param {Buffer|Uint8Array} [options.salt] - Salt for the KDF (random if omitted).
    * @param {'pbkdf2'|'scrypt'} [options.algorithm='pbkdf2'] - KDF algorithm.
-   * @param {number} [options.iterations=100000] - PBKDF2 iteration count.
-   * @param {number} [options.cost=16384] - scrypt cost parameter (N).
+   * @param {number} [options.iterations=600000] - PBKDF2 iteration count.
+   * @param {number} [options.cost=131072] - scrypt cost parameter (N).
    * @param {number} [options.blockSize=8] - scrypt block size (r).
    * @param {number} [options.parallelization=1] - scrypt parallelization (p).
    * @param {number} [options.keyLength=32] - Derived key length in bytes.
@@ -121,38 +122,46 @@ export default class CryptoPort {
     passphrase,
     salt,
     algorithm = 'pbkdf2',
-    iterations = 100_000,
-    cost = 16384,
-    blockSize = 8,
-    parallelization = 1,
-    keyLength = 32,
+    iterations,
+    cost,
+    blockSize,
+    parallelization,
+    keyLength,
   }) {
-    const saltBuf = salt || this.randomBytes(32);
-
-    /** @type {KdfParamSet} */
-    const params = {
-      algorithm,
-      salt: Buffer.from(saltBuf).toString('base64'),
-      keyLength,
-    };
-
-    if (algorithm === 'pbkdf2') {
-      params.iterations = iterations;
-    } else if (algorithm === 'scrypt') {
-      params.cost = cost;
-      params.blockSize = blockSize;
-      params.parallelization = parallelization;
-    } else {
-      throw new Error(`Unsupported KDF algorithm: ${algorithm}`);
-    }
-
-    const key = await this._doDeriveKey(passphrase, saltBuf, {
+    const normalized = normalizeKdfOptions({
       algorithm,
       iterations,
       cost,
       blockSize,
       parallelization,
       keyLength,
+    });
+    const saltBuf = salt || this.randomBytes(32);
+
+    /** @type {KdfParamSet} */
+    const params = {
+      algorithm: normalized.algorithm,
+      salt: Buffer.from(saltBuf).toString('base64'),
+      keyLength: normalized.keyLength,
+    };
+
+    if (normalized.algorithm === 'pbkdf2') {
+      params.iterations = normalized.iterations;
+    } else if (normalized.algorithm === 'scrypt') {
+      params.cost = normalized.cost;
+      params.blockSize = normalized.blockSize;
+      params.parallelization = normalized.parallelization;
+    } else {
+      throw new Error(`Unsupported KDF algorithm: ${normalized.algorithm}`);
+    }
+
+    const key = await this._doDeriveKey(passphrase, saltBuf, {
+      algorithm: normalized.algorithm,
+      iterations: normalized.iterations,
+      cost: normalized.cost,
+      blockSize: normalized.blockSize,
+      parallelization: normalized.parallelization,
+      keyLength: normalized.keyLength,
     });
 
     return { key: Buffer.from(key), salt: Buffer.from(saltBuf), params };

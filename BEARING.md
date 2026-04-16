@@ -32,7 +32,8 @@ timeline
 - **Runtime Parity**: Node and Bun now have stronger whole-object restore mechanics than the Web Crypto adapter, so the streaming story is still not runtime-identical.
 - **Buffer Limits**: `whole-v1 restoreStream()` now enforces actual buffered-read and decompression limits, but it is still a bounded in-memory compatibility path rather than a true streaming surface.
 - **Vault Contention**: Concurrent vault updates in high-frequency CI environments require robust CAS retry logic.
+- **KDF Compatibility Window**: New passphrase defaults are stronger now, but legacy encrypted metadata still rides through a bounded compatibility policy instead of a hard migration cutoff.
 
 ## Next Target
 
-The immediate focus is **KDF policy and encryption-metadata hardening** now that the buffered restore boundary is tighter and `framed-v1` covers the authenticated streaming restore path.
+The immediate focus is **encryption-metadata hardening and Web Crypto parity** now that the KDF policy boundary is explicit and the buffered restore boundary is tighter.
