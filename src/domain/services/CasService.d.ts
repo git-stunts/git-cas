@@ -19,6 +19,9 @@ export interface CryptoPort {
     encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
     finalize: () => EncryptionMeta;
   };
+  createDecryptionStream(key: Buffer, meta: EncryptionMeta): {
+    decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
+  };
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }
 

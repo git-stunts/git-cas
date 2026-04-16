@@ -450,6 +450,9 @@ let buffer = Buffer.concat(chunks);
 **Workaround**:
 
 - Prefer `framed-v1` for large encrypted assets that need authenticated streaming restore.
+- If the consumer is restoring to disk, prefer `restoreFile()`. `whole-v1`
+  file restores now use a bounded temp-file path instead of buffering the full
+  decrypted payload before publication.
 - If large encrypted files are required, implement application-level chunking (e.g., split a 10GB file into 10 separate 1GB files before storing).
 
 ### 2. Whole-v1 Has No Streaming Decryption
@@ -464,8 +467,11 @@ let buffer = Buffer.concat(chunks);
 `framed-v1` is the current streaming answer: each frame is authenticated
 independently, so restore can emit verified plaintext incrementally.
 
-**Future improvement**: Decide whether `whole-v1` needs a bounded temp-file
-restore path or should stay compatibility-only.
+`restoreFile()` now provides the bounded operational path for `whole-v1`: it
+streams tentative plaintext into a temp file and only renames into place after
+final authentication succeeds. The generic `restoreStream()` API remains
+compatibility-only for `whole-v1` because yielding plaintext to arbitrary
+callers before final auth would weaken the contract.
 
 ### 3. Key Rotation (v5.2.0+)
 

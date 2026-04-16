@@ -537,6 +537,22 @@ export default class CasService {
   }
 
   /**
+   * Resolves the decryption key for restore-style operations.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} [encryptionKey]
+   * @param {string} [passphrase]
+   * @returns {Promise<Buffer|undefined>}
+   */
+  async _resolveRestoreKey(manifest, encryptionKey, passphrase) {
+    return await this.#keyResolver.resolveForDecryption(
+      manifest,
+      encryptionKey,
+      passphrase,
+    );
+  }
+
+  /**
    * Resolves a verification key for encrypted content without throwing on
    * auth-style failures.
    * @private
@@ -1046,7 +1062,7 @@ export default class CasService {
    */
   async *restoreStream({ manifest, encryptionKey, passphrase }) {
     const encryptionMeta = this._validatedEncryptionMeta(manifest);
-    const key = await this.#keyResolver.resolveForDecryption(manifest, encryptionKey, passphrase);
+    const key = await this._resolveRestoreKey(manifest, encryptionKey, passphrase);
 
     if (manifest.chunks.length === 0 && !encryptionMeta && !manifest.compression) {
       this.observability.metric('file', {

@@ -313,11 +313,15 @@ specified output path.
 For plaintext assets, this uses `restoreStream()` and writes chunk-by-chunk with
 bounded memory. When the persistence adapter supports `readBlobStream()`, the
 plaintext chunk path prefers that stream-native read seam before falling back
-to `readBlob()` for compatibility. For encrypted assets, `whole-v1` still
-buffers after chunk verification so it can authenticate the full ciphertext as
-one unit, while `framed-v1` restores authenticated plaintext incrementally. If
-compression is combined with `framed-v1`, restore streams through gunzip after
-frame-by-frame decryption.
+to `readBlob()` for compatibility. For `whole-v1` and compression-buffered
+modes, `restoreFile()` now writes through a bounded temp-file path: verified
+bytes flow into whole-object decryption and optional gunzip, then the
+destination is renamed into place only after the pipeline succeeds. For
+generic async byte consumers, `restoreStream()` is still the compatibility
+truth surface: `whole-v1` buffers after chunk verification so it can
+authenticate the full ciphertext as one unit, while `framed-v1` restores
+authenticated plaintext incrementally. If compression is combined with
+`framed-v1`, restore streams through gunzip after frame-by-frame decryption.
 
 ```js
 await cas.restoreFile({

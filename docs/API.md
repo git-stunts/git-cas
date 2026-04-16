@@ -249,6 +249,13 @@ await cas.restoreFile({ manifest, encryptionKey, passphrase, outputPath });
 
 Restores content from a manifest and writes it to a file.
 
+For plaintext and `framed-v1`, this writes from the streaming restore path.
+For `whole-v1` and compression-buffered modes, `restoreFile()` now uses a
+bounded temp-file path: bytes are verified, decrypted, and optionally gunzipped
+into a temporary sibling path, then renamed into place only after the pipeline
+completes successfully. This improves file restores without changing the
+contract of `restoreStream()`, which remains buffered for `whole-v1`.
+
 **Parameters:**
 
 - `manifest` (required): `Manifest` - Manifest object

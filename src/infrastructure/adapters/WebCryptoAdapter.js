@@ -136,6 +136,27 @@ export default class WebCryptoAdapter extends CryptoPort {
   }
 
   /**
+   * @override
+   * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @param {import('../../ports/CryptoPort.js').EncryptionMeta} meta - Encryption metadata.
+   * @returns {{ decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer> }}
+   */
+  createDecryptionStream(key, meta) {
+    this._validateKey(key);
+
+    return {
+      decrypt: async function* (source) {
+        /** @type {Buffer[]} */
+        const chunks = [];
+        for await (const chunk of source) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        yield await this.decryptBuffer(Buffer.concat(chunks), key, meta);
+      }.bind(this),
+    };
+  }
+
+  /**
    * Builds the encrypt async generator for createEncryptionStream.
    *
    * A static method is used (rather than closures) because `async function*`

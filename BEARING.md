@@ -29,7 +29,7 @@ timeline
 ## Tensions
 
 - **Encryption vs. Dedupe**: AES-256-GCM removes the benefits of CDC; we need clearer documentation on this tradeoff for operators.
-- **Buffer Limits**: `whole-v1` restores are still limited by `maxRestoreBufferSize`; `framed-v1` now streams authenticated plaintext, so the remaining question is whether `whole-v1` needs a bounded temp-file path or should stay compatibility-only.
+- **Buffer Limits**: `whole-v1 restoreStream()` is still limited by `maxRestoreBufferSize`; `restoreFile()` now has a bounded temp-file path, so the remaining question is how far to push hard limits and stream-native safeguards below the file surface.
 - **Vault Contention**: Concurrent vault updates in high-frequency CI environments require robust CAS retry logic.
 
 ## Next Target

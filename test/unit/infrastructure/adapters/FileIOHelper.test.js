@@ -1,8 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdtempSync, rmSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import CasService from '../../../../src/domain/services/CasService.js';
+import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
+import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
+import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 import { storeFile, restoreFile } from '../../../../src/infrastructure/adapters/FileIOHelper.js';
+
+const testCrypto = await getTestCryptoAdapter();
 
 function createStoreCaptureService(capture) {
   return {
@@ -26,6 +32,68 @@ function createDrainStoreService(capture) {
       return {};
     },
   };
+}
+
+function createBlobBackedService({ chunkSize = 1024, maxRestoreBufferSize } = {}) {
+  const blobStore = new Map();
+  const service = new CasService({
+    persistence: {
+      writeBlob: async (content) => {
+        const buf = Buffer.isBuffer(content) ? content : Buffer.from(content);
+        const oid = await testCrypto.sha256(buf);
+        blobStore.set(oid, buf);
+        return oid;
+      },
+      writeTree: async () => 'mock-tree-oid',
+      readBlob: async (oid) => blobStore.get(oid),
+      readBlobStream: async (oid) => (async function* blobSource() {
+        const buf = blobStore.get(oid);
+        if (buf) {
+          yield buf;
+        }
+      })(),
+      readTree: async () => [],
+    },
+    crypto: testCrypto,
+    codec: new JsonCodec(),
+    chunkSize,
+    maxRestoreBufferSize,
+    observability: new SilentObserver(),
+  });
+
+  return { service, blobStore };
+}
+
+async function collectStream(stream) {
+  const chunks = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+function useTempDir(prefix) {
+  let tmpDir;
+  beforeEach(() => { tmpDir = mkdtempSync(path.join(os.tmpdir(), prefix)); });
+  afterEach(() => { if (tmpDir) { rmSync(tmpDir, { recursive: true, force: true }); } });
+  return () => tmpDir;
+}
+
+async function storeBufferManifest(service, plaintext, options) {
+  async function* source() {
+    yield plaintext;
+  }
+
+  return await service.store({
+    source: source(),
+    ...options,
+  });
+}
+
+async function expectRestoreStreamTooLarge(service, manifest, encryptionKey) {
+  await expect(
+    collectStream(service.restoreStream({ manifest, encryptionKey })),
+  ).rejects.toMatchObject({ code: 'RESTORE_TOO_LARGE' });
 }
 
 describe('FileIOHelper – storeFile stream forwarding', () => {
@@ -119,5 +187,88 @@ describe('FileIOHelper – restoreFile', () => {
     expect(bytesWritten).toBe(11);
     const written = readFileSync(outputPath);
     expect(written.toString()).toBe('hello world');
+  });
+});
+
+describe('FileIOHelper – restoreFile bounded whole-v1 encrypted path', () => {
+  const getTmpDir = useTempDir('fio-bounded-restore-');
+
+  it('restores large whole-v1 encrypted content to a file even when restoreStream() is buffer-limited', async () => {
+    const { service } = createBlobBackedService({ chunkSize: 1024, maxRestoreBufferSize: 1024 });
+    const key = Buffer.alloc(32, 0xab);
+    const plaintext = Buffer.alloc(4096, 'z');
+    const manifest = await storeBufferManifest(service, plaintext, {
+      slug: 'whole-v1-large',
+      filename: 'whole-v1-large.bin',
+      encryptionKey: key,
+    });
+
+    await expectRestoreStreamTooLarge(service, manifest, key);
+
+    const outputPath = path.join(getTmpDir(), 'whole-v1-large.bin');
+    const { bytesWritten } = await restoreFile(service, {
+      manifest,
+      encryptionKey: key,
+      outputPath,
+    });
+
+    expect(bytesWritten).toBe(plaintext.length);
+    expect(readFileSync(outputPath).equals(plaintext)).toBe(true);
+  });
+});
+
+describe('FileIOHelper – restoreFile bounded whole-v1 compressed path', () => {
+  const getTmpDir = useTempDir('fio-bounded-restore-');
+
+  it('restores large whole-v1 encrypted + compressed content to a file even when restoreStream() is buffer-limited', async () => {
+    const { service } = createBlobBackedService({ chunkSize: 1024, maxRestoreBufferSize: 1024 });
+    const key = Buffer.alloc(32, 0xcd);
+    const plaintext = Buffer.alloc(8192, 'A');
+    const manifest = await storeBufferManifest(service, plaintext, {
+      slug: 'whole-v1-compressed-large',
+      filename: 'whole-v1-compressed-large.bin',
+      encryptionKey: key,
+      compression: { algorithm: 'gzip' },
+    });
+
+    await expectRestoreStreamTooLarge(service, manifest, key);
+
+    const outputPath = path.join(getTmpDir(), 'whole-v1-compressed-large.bin');
+    const { bytesWritten } = await restoreFile(service, {
+      manifest,
+      encryptionKey: key,
+      outputPath,
+    });
+
+    expect(bytesWritten).toBe(plaintext.length);
+    expect(readFileSync(outputPath).equals(plaintext)).toBe(true);
+  });
+});
+
+describe('FileIOHelper – restoreFile bounded whole-v1 auth cleanup', () => {
+  const getTmpDir = useTempDir('fio-bounded-restore-');
+
+  it('does not publish a partial destination file when whole-v1 decryption fails', async () => {
+    const { service } = createBlobBackedService({ chunkSize: 1024, maxRestoreBufferSize: 1024 });
+    const key = Buffer.alloc(32, 0xef);
+    const wrongKey = Buffer.alloc(32, 0x11);
+    const plaintext = Buffer.from('whole-v1 auth boundary');
+    const manifest = await storeBufferManifest(service, plaintext, {
+      slug: 'whole-v1-auth-failure',
+      filename: 'whole-v1-auth-failure.bin',
+      encryptionKey: key,
+    });
+
+    const outputPath = path.join(getTmpDir(), 'whole-v1-auth-failure.bin');
+    await expect(
+      restoreFile(service, {
+        manifest,
+        encryptionKey: wrongKey,
+        outputPath,
+      }),
+    ).rejects.toMatchObject({ code: 'INTEGRITY_ERROR' });
+
+    expect(existsSync(outputPath)).toBe(false);
+    expect(readdirSync(getTmpDir()).filter((name) => name.startsWith('.git-cas-restore-'))).toEqual([]);
   });
 });

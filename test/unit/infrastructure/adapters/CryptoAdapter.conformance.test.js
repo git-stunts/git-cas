@@ -20,6 +20,24 @@ if (typeof globalThis.Bun !== 'undefined') {
   adapters.push(['BunCryptoAdapter', new BunCryptoAdapter()]);
 }
 
+async function expectStreamDecryptRoundTrip(adapter, key) {
+  const plaintext = Buffer.from('stream me back');
+  const { buf, meta } = await adapter.encryptBuffer(plaintext, key);
+  const { decrypt } = adapter.createDecryptionStream(key, meta);
+  const chunks = [];
+
+  async function* source() {
+    yield buf.subarray(0, 4);
+    yield buf.subarray(4);
+  }
+
+  for await (const chunk of decrypt(source())) {
+    chunks.push(chunk);
+  }
+
+  expect(Buffer.concat(chunks).equals(plaintext)).toBe(true);
+}
+
 describe.each(adapters)('%s conformance', (_name, adapter) => {
   const key = Buffer.alloc(32, 0xab);
 
@@ -51,5 +69,9 @@ describe.each(adapters)('%s conformance', (_name, adapter) => {
     expect(() => finalize()).toThrow(
       expect.objectContaining({ code: 'STREAM_NOT_CONSUMED' }),
     );
+  });
+
+  it('createDecryptionStream round-trips streamed ciphertext', async () => {
+    await expectStreamDecryptRoundTrip(adapter, key);
   });
 });

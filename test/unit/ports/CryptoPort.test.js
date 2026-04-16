@@ -25,6 +25,10 @@ describe('CryptoPort – abstract methods', () => {
     expect(() => port.createEncryptionStream(Buffer.alloc(32))).toThrow('Not implemented');
   });
 
+  it('createDecryptionStream() throws Not implemented', () => {
+    expect(() => port.createDecryptionStream(Buffer.alloc(32), {})).toThrow('Not implemented');
+  });
+
   it('_doDeriveKey() throws Not implemented', async () => {
     await expect(port._doDeriveKey('pass', Buffer.alloc(32), {})).rejects.toThrow('Not implemented');
   });

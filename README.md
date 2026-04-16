@@ -54,9 +54,10 @@ const treeOid = await cas.createTree({ manifest });
 |---|---|---|---|
 | Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. `whole-v1` writes through the crypto stream path; `framed-v1` writes framed records incrementally and stays bounded by `frameBytes`. |
 | Read: plaintext | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True chunk-by-chunk streaming restore. |
-| Read: encrypted `whole-v1` | `restoreStream(...)`, `restoreFile(...)` exist, but buffer internally | `restore(...)` | Compatibility mode. The API can look streaming, but restore still authenticates and decrypts the full ciphertext as one unit. |
+| Read: encrypted `whole-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is still the buffered compatibility path. `restoreFile()` now uses a bounded temp-file path: it verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption, and renames into place only after auth succeeds. |
 | Read: encrypted `framed-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True authenticated streaming restore. Plaintext is yielded frame-by-frame after each frame is verified. |
-| Read: compressed + `whole-v1` | `restoreStream(...)`, `restoreFile(...)` exist, but buffer internally | `restore(...)` | Still buffered because it stays on the whole-object decrypt path. |
+| Read: compressed-only | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` still buffers gzip restore today. `restoreFile()` now uses a bounded temp-file path and streams gunzip output into place. |
+| Read: compressed + `whole-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is still buffered because auth completes at the end of whole-object AES-GCM. `restoreFile()` now decrypts and gunzips through the same bounded temp-file path. |
 | Read: compressed + `framed-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Streaming decrypt, then streaming gunzip. |
 | Verify | No streaming verify surface | `verifyIntegrity(manifest, options?)` | Verifies chunk digests for all content. `whole-v1` auth-checks the full ciphertext; `framed-v1` parses and auth-checks every frame. |
 

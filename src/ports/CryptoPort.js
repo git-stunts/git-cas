@@ -88,6 +88,19 @@ export default class CryptoPort {
   }
 
   /**
+   * Creates a streaming decryption context.
+   * The returned stream may yield tentative plaintext before final auth
+   * succeeds, so callers must control publication semantics themselves.
+   *
+   * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
+   * @param {EncryptionMeta} _meta - Encryption metadata from the encrypt operation.
+   * @returns {{ decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer> }}
+   */
+  createDecryptionStream(_key, _meta) {
+    throw new Error('Not implemented');
+  }
+
+  /**
    * Derives an encryption key from a passphrase using a KDF.
    *
    * Normalizes parameters (defaults, salt generation), then delegates to the

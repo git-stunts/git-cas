@@ -7,6 +7,15 @@ import CasError from '../../domain/errors/CasError.js';
 import { createCipheriv, createDecipheriv, pbkdf2, scrypt } from 'node:crypto';
 import { promisify } from 'node:util';
 
+function wrapDecryptError(err) {
+  if (err instanceof CasError) {
+    throw err;
+  }
+  throw new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', {
+    originalError: err,
+  });
+}
+
 /**
  * Bun-native {@link CryptoPort} implementation.
  *
@@ -63,7 +72,9 @@ export default class BunCryptoAdapter extends CryptoPort {
     this._validateKey(key);
     const nonce = Buffer.from(meta.nonce, 'base64');
     const tag = Buffer.from(meta.tag, 'base64');
-    const decipher = createDecipheriv('aes-256-gcm', key, nonce);
+    const decipher = createDecipheriv('aes-256-gcm', key, nonce, {
+      authTagLength: tag.length,
+    });
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(buffer), decipher.final()]);
   }
@@ -106,6 +117,43 @@ export default class BunCryptoAdapter extends CryptoPort {
     };
 
     return { encrypt, finalize };
+  }
+
+  /**
+   * @override
+   * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @param {import('../../ports/CryptoPort.js').EncryptionMeta} meta - Encryption metadata.
+   * @returns {{ decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer> }}
+   */
+  createDecryptionStream(key, meta) {
+    this._validateKey(key);
+    const nonce = Buffer.from(meta.nonce, 'base64');
+    const tag = Buffer.from(meta.tag, 'base64');
+
+    return {
+      decrypt: async function* (source) {
+        try {
+          const decipher = createDecipheriv('aes-256-gcm', key, nonce, {
+            authTagLength: tag.length,
+          });
+          decipher.setAuthTag(tag);
+
+          for await (const chunk of source) {
+            const decrypted = decipher.update(chunk);
+            if (decrypted.length > 0) {
+              yield decrypted;
+            }
+          }
+
+          const final = decipher.final();
+          if (final.length > 0) {
+            yield final;
+          }
+        } catch (err) {
+          wrapDecryptError(err);
+        }
+      },
+    };
   }
 
   /**
