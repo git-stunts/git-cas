@@ -255,6 +255,10 @@ bounded temp-file path: bytes are verified, decrypted, and optionally gunzipped
 into a temporary sibling path, then renamed into place only after the pipeline
 completes successfully. This improves file restores without changing the
 contract of `restoreStream()`, which remains buffered for `whole-v1`.
+On Web Crypto runtimes, the whole-object decrypt step is still internally
+one-shot; the parity improvement is that this path now stays bounded by the
+adapter's decryption buffer limit instead of collecting ciphertext without a
+guard.
 
 **Parameters:**
 
@@ -1580,6 +1584,7 @@ new CasError(message, code, meta);
 | `INVALID_KEY_LENGTH`                  | Encryption key must be exactly 32 bytes                                    | `encrypt()`, `decrypt()`, `store()`, `restore()`                              |
 | `MISSING_KEY`                         | Encryption key required to restore encrypted content but none was provided | `restore()`                                                                   |
 | `INTEGRITY_ERROR`                     | Chunk digest verification failed or decryption authentication failed       | `restore()`, `verifyIntegrity()`, `decrypt()`                                 |
+| `DECRYPTION_BUFFER_EXCEEDED`          | Web Crypto whole-object decrypt exceeded the configured buffer limit       | `createDecryptionStream()` via Web Crypto restore paths                       |
 | `KDF_POLICY_VIOLATION`               | KDF parameters fell outside the accepted policy window                     | `store()`, `restore()`, `initVault()`, `rotateVaultPassphrase()`, `readState()` |
 | `STREAM_ERROR`                        | Stream error occurred during store operation                               | `store()`                                                                     |
 | `MANIFEST_NOT_FOUND`                  | No manifest entry found in the Git tree                                    | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()`                     |

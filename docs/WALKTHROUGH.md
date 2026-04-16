@@ -327,6 +327,8 @@ truth surface: `whole-v1` buffers after chunk verification so it can
 authenticate the full ciphertext as one unit, while `framed-v1` restores
 authenticated plaintext incrementally. If compression is combined with
 `framed-v1`, restore streams through gunzip after frame-by-frame decryption.
+On Web Crypto runtimes, that `whole-v1` decrypt step is still internally
+one-shot. The improvement is bounded behavior, not true whole-object streaming.
 
 ```js
 await cas.restoreFile({
@@ -1688,6 +1690,11 @@ appropriate crypto adapter:
 - **Node.js**: `NodeCryptoAdapter` (uses `node:crypto`)
 - **Bun**: `BunCryptoAdapter` (uses `Bun.CryptoHasher`)
 - **Deno**: `WebCryptoAdapter` (uses `crypto.subtle`)
+
+Runtime truth: `framed-v1` is the streaming-encrypted mode across all of these.
+For `whole-v1`, Node and Bun provide the stronger low-memory file-restore path,
+while Deno/Web Crypto remains bounded-buffer because AES-GCM decrypt is still a
+one-shot operation there.
 
 ### Q: How do I commit a tree OID?
 

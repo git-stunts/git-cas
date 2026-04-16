@@ -24,6 +24,7 @@ process in [docs/method/process.md](../method/process.md).
 - [0030-kdf-parameter-bounds-and-policy — kdf-parameter-bounds-and-policy](./0030-kdf-parameter-bounds-and-policy/kdf-parameter-bounds-and-policy.md)
 - [0031-empty-state-phrasing-consistency — empty-state-phrasing-consistency](./0031-empty-state-phrasing-consistency/empty-state-phrasing-consistency.md)
 - [0032-encryption-metadata-schema-hardening — encryption-metadata-schema-hardening](./0032-encryption-metadata-schema-hardening/encryption-metadata-schema-hardening.md)
+- [0033-webcrypto-streaming-parity — webcrypto-streaming-parity](./0033-webcrypto-streaming-parity/webcrypto-streaming-parity.md)
 
 ## Landed METHOD Cycles
 

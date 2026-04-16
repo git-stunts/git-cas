@@ -481,6 +481,9 @@ let buffer = Buffer.concat(chunks);
 - If the consumer is restoring to disk, prefer `restoreFile()`. `whole-v1`
   file restores now use a bounded temp-file path instead of buffering the full
   decrypted payload before publication.
+- On Web Crypto runtimes, the whole-object decrypt step is still one-shot.
+  The parity improvement is bounded buffering via `maxDecryptionBufferSize`,
+  not true whole-object streaming.
 - `restoreStream()` / `restore()` now enforce `maxRestoreBufferSize` against
   streamed gunzip output and, on stream-native persistence adapters, against
   actual blob reads in the buffered path. They still fundamentally require a
@@ -801,14 +804,52 @@ throw new CasError(
 
 **Possible causes**:
 
-- Large chunks combined with `WebCryptoAdapter` (used in Bun/Deno).
-- `NodeCryptoAdapter` uses true streaming and is not affected by this limit.
+- Large plaintext inputs combined with `WebCryptoAdapter` (used by Deno and
+  browser-class runtimes).
+- `NodeCryptoAdapter` and `BunCryptoAdapter` use true streaming encryption and
+  are not affected by this limit.
 
 **Recommended action**:
 
 - Increase `maxEncryptionBufferSize` in the `WebCryptoAdapter` constructor.
 - Switch to `NodeCryptoAdapter` if streaming encryption is needed.
 - Split the asset before storing, or store without encryption on the Web Crypto path for very large files.
+
+---
+
+### `DECRYPTION_BUFFER_EXCEEDED`
+
+**Thrown when**:
+
+- Web Crypto AES-GCM whole-object decryption is attempted on ciphertext
+  exceeding the configured `maxDecryptionBufferSize`.
+- Web Crypto decrypt is still one-shot, so `whole-v1` ciphertext must fit
+  within the configured bounded buffer on that runtime path.
+
+**Example**:
+
+```javascript
+throw new CasError(
+  'Streaming decryption buffered 1073741824 bytes (limit: 536870912)...',
+  'DECRYPTION_BUFFER_EXCEEDED',
+  { accumulated: 1073741824, limit: 536870912 }
+);
+```
+
+**Possible causes**:
+
+- Large `whole-v1` encrypted restores on Deno or browser-class runtimes using
+  `WebCryptoAdapter`.
+- Assuming `restoreFile()` implies identical whole-object decrypt mechanics on
+  Node/Bun and Web Crypto.
+
+**Recommended action**:
+
+- Prefer `framed-v1` for large encrypted restores that need bounded,
+  authenticated streaming across runtimes.
+- Increase `maxDecryptionBufferSize` in the `WebCryptoAdapter` constructor if
+  the runtime has enough headroom.
+- Use Node.js or Bun when large `whole-v1` file restores are required.
 
 ---
 

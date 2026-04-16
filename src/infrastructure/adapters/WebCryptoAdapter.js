@@ -11,17 +11,27 @@ import CasError from '../../domain/errors/CasError.js';
 export default class WebCryptoAdapter extends CryptoPort {
   /** @type {number} */
   #maxEncryptionBufferSize;
+  /** @type {number} */
+  #maxDecryptionBufferSize;
 
   /**
    * @param {Object} [options]
    * @param {number} [options.maxEncryptionBufferSize=536870912] - Max bytes to buffer during streaming encryption (default 512 MiB).
+   * @param {number} [options.maxDecryptionBufferSize=536870912] - Max bytes to buffer during streaming decryption (default 512 MiB).
    */
-  constructor({ maxEncryptionBufferSize = 512 * 1024 * 1024 } = {}) {
+  constructor({
+    maxEncryptionBufferSize = 512 * 1024 * 1024,
+    maxDecryptionBufferSize = 512 * 1024 * 1024,
+  } = {}) {
     super();
     if (!Number.isFinite(maxEncryptionBufferSize) || maxEncryptionBufferSize <= 0) {
       throw new RangeError('maxEncryptionBufferSize must be a finite positive number');
     }
+    if (!Number.isFinite(maxDecryptionBufferSize) || maxDecryptionBufferSize <= 0) {
+      throw new RangeError('maxDecryptionBufferSize must be a finite positive number');
+    }
     this.#maxEncryptionBufferSize = maxEncryptionBufferSize;
+    this.#maxDecryptionBufferSize = maxDecryptionBufferSize;
   }
 
   /**
@@ -143,13 +153,25 @@ export default class WebCryptoAdapter extends CryptoPort {
    */
   createDecryptionStream(key, meta) {
     this._validateKey(key);
+    const maxBuf = this.#maxDecryptionBufferSize;
 
     return {
       decrypt: async function* (source) {
         /** @type {Buffer[]} */
         const chunks = [];
+        let accumulatedBytes = 0;
         for await (const chunk of source) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          accumulatedBytes += buf.length;
+          if (accumulatedBytes > maxBuf) {
+            throw new CasError(
+              `Streaming decryption buffered ${accumulatedBytes} bytes (limit: ${maxBuf}). ` +
+              'Web Crypto AES-GCM decrypt is one-shot. Use Node.js/Bun or framed-v1 for large encrypted restores.',
+              'DECRYPTION_BUFFER_EXCEEDED',
+              { accumulated: accumulatedBytes, limit: maxBuf },
+            );
+          }
+          chunks.push(buf);
         }
         yield await this.decryptBuffer(Buffer.concat(chunks), key, meta);
       }.bind(this),

@@ -29,7 +29,7 @@ timeline
 ## Tensions
 
 - **Encryption vs. Dedupe**: AES-256-GCM removes the benefits of CDC; we need clearer documentation on this tradeoff for operators.
-- **Runtime Parity**: Node and Bun now have stronger whole-object restore mechanics than the Web Crypto adapter, so the streaming story is still not runtime-identical.
+- **Runtime Parity**: Web Crypto whole-object restore is now bounded instead of unbounded, but it is still not mechanically identical to the stronger Node/Bun path.
 - **Buffer Limits**: `whole-v1 restoreStream()` now enforces actual buffered-read and decompression limits, but it is still a bounded in-memory compatibility path rather than a true streaming surface.
 - **Vault Contention**: Concurrent vault updates in high-frequency CI environments require robust CAS retry logic.
 - **KDF Compatibility Window**: New passphrase defaults are stronger now, but legacy encrypted metadata still rides through a bounded compatibility policy instead of a hard migration cutoff.
@@ -37,4 +37,4 @@ timeline
 
 ## Next Target
 
-The immediate focus is **Web Crypto parity and framed-v1-by-default ergonomics** now that the manifest encryption boundary is explicit and the buffered restore boundary is tighter.
+The immediate focus is **framed-v1-by-default ergonomics and service decomposition** now that the Web Crypto buffered-decrypt boundary is explicit and the manifest encryption boundary is tighter.

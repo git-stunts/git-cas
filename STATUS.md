@@ -29,13 +29,16 @@
 - Manifest parsing now rejects unsupported encryption schemes,
   `encrypted: false`, malformed AES-GCM nonce/tag values, and framed manifests
   that omit `frameBytes`, across both JSON and CBOR manifest codecs.
+- Web Crypto whole-object decrypt paths are now explicitly bounded by
+  `maxDecryptionBufferSize` instead of collecting ciphertext without a guard.
+  `framed-v1` remains the actual cross-runtime streaming-encrypted mode.
 - Fresh work is now organized through METHOD backlog lanes and numbered cycle
   directories.
 
 ## Active Queue Snapshot
 
 - [TR — Platform-Agnostic CLI Plan](./docs/method/backlog/up-next/TR_platform-agnostic-cli-plan.md)
-- [TR — Web Crypto Streaming Parity](./docs/method/backlog/up-next/TR_webcrypto-streaming-parity.md)
+- [TR — Framed-v1 Default Encrypted Store](./docs/method/backlog/up-next/TR_framed-v1-default-encrypted-store.md)
 - [TR — CasService Decomposition Plan](./docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md)
 
 ## Read Next
