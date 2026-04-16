@@ -18,6 +18,14 @@ function streamFromBuffers(buffers) {
   };
 }
 
+function enableReadBlobStream(mockPersistence, buffers) {
+  let idx = 0;
+  mockPersistence.readBlobStream = vi.fn().mockImplementation(async () => {
+    const buffer = buffers[idx++] || Buffer.alloc(0);
+    return streamFromBuffers([buffer]);
+  });
+}
+
 async function collectChunks(iterable) {
   const chunks = [];
   for await (const chunk of iterable) {
@@ -107,6 +115,33 @@ describe('CasService — RESTORE_TOO_LARGE succeeds within limit', () => {
   });
 });
 
+describe('CasService — buffered restore adapter capability', () => {
+  it('requires readBlobStream() for hard-limited buffered restore modes', async () => {
+    const { service, mockPersistence } = setup({ maxRestoreBufferSize: 4096 });
+    const key = Buffer.alloc(32, 0xab);
+
+    async function* source() { yield Buffer.alloc(512, 0xaa); }
+    const manifest = await service.store({
+      source: source(),
+      slug: 'capability',
+      filename: 'capability.bin',
+      encryptionKey: key,
+      encryption: { scheme: 'whole-v1' },
+    });
+
+    await expect(
+      service.restoreStream({ manifest, encryptionKey: key }).next(),
+    ).rejects.toMatchObject({
+      code: 'PERSISTENCE_CAPABILITY_REQUIRED',
+      meta: expect.objectContaining({
+        capability: 'readBlobStream',
+        mode: 'buffered-restore',
+      }),
+    });
+    expect(mockPersistence.readBlob).not.toHaveBeenCalled();
+  });
+});
+
 describe('CasService — RESTORE_TOO_LARGE defaults and meta', () => {
   it('default maxRestoreBufferSize is 512 MiB', () => {
     const { service } = setup();
@@ -146,6 +181,7 @@ describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
     const storedBlobs = mockPersistence.writeBlob.mock.calls.map((c) => c[0]);
     let idx = 0;
     mockPersistence.readBlob.mockImplementation(() => Promise.resolve(storedBlobs[idx++] || Buffer.alloc(0)));
+    enableReadBlobStream(mockPersistence, storedBlobs);
 
     await expect(
       collectChunks(service.restoreStream({ manifest, encryptionKey: key })),
@@ -168,6 +204,7 @@ describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
     const storedBlobs = mockPersistence.writeBlob.mock.calls.map((c) => c[0]);
     let idx = 0;
     mockPersistence.readBlob.mockImplementation(() => Promise.resolve(storedBlobs[idx++] || Buffer.alloc(0)));
+    enableReadBlobStream(mockPersistence, storedBlobs);
 
     await expect(
       service.restoreStream({ manifest }).next(),

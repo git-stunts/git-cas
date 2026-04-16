@@ -11,6 +11,7 @@ import CasError from '../errors/CasError.js';
 import Semaphore from './Semaphore.js';
 import FixedChunker from '../../infrastructure/chunkers/FixedChunker.js';
 import KeyResolver from './KeyResolver.js';
+import GitPersistencePort from '../../ports/GitPersistencePort.js';
 
 const gunzipAsync = promisify(gunzip);
 const DEFAULT_FRAMED_FRAME_BYTES = 64 * 1024;
@@ -988,7 +989,14 @@ export default class CasService {
    * @returns {Promise<Buffer>}
    */
   async _readChunkBlob(oid, { maxBytes } = {}) {
-    if (typeof this.persistence.readBlobStream !== 'function') {
+    if (!this._supportsReadBlobStream()) {
+      if (maxBytes !== undefined) {
+        throw new CasError(
+          'Buffered restore safety requires persistence.readBlobStream()',
+          'PERSISTENCE_CAPABILITY_REQUIRED',
+          { capability: 'readBlobStream', mode: 'buffered-restore', oid },
+        );
+      }
       const blob = await this.persistence.readBlob(oid);
       this._assertBufferedReadLimit({ size: blob.length, limit: maxBytes, oid });
       return blob;
@@ -1002,6 +1010,17 @@ export default class CasService {
       chunks.push(buf);
     }
     return Buffer.concat(chunks);
+  }
+
+  /**
+   * Whether the persistence adapter exposes a concrete readBlobStream()
+   * implementation instead of the abstract port stub.
+   * @private
+   * @returns {boolean}
+   */
+  _supportsReadBlobStream() {
+    return typeof this.persistence.readBlobStream === 'function'
+      && this.persistence.readBlobStream !== GitPersistencePort.prototype.readBlobStream;
   }
 
   /**

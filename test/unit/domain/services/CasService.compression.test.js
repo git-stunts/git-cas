@@ -16,6 +16,14 @@ async function* bufferSource(buf) {
   yield buf;
 }
 
+function streamOneBuffer(buf) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield buf;
+    },
+  };
+}
+
 async function storeBuffer(svc, buf, opts = {}) {
   return svc.store({
     source: bufferSource(buf),
@@ -65,6 +73,11 @@ function setup() {
       const buf = blobStore.get(oid);
       if (!buf) { throw new Error(`Blob not found: ${oid}`); }
       return buf;
+    }),
+    readBlobStream: vi.fn().mockImplementation(async (oid) => {
+      const buf = blobStore.get(oid);
+      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
+      return streamOneBuffer(buf);
     }),
   };
 

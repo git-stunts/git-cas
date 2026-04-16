@@ -32,6 +32,8 @@ export default class GitPersistencePort {
 
   /**
    * Reads a Git blob by its OID as an async byte stream.
+   * Required for hard-limited buffered restore modes. `readBlob()` remains a
+   * compatibility fallback for plaintext restore only.
    * @param {string} _oid - Git object ID.
    * @returns {Promise<AsyncIterable<Buffer>>} The blob byte stream.
    */

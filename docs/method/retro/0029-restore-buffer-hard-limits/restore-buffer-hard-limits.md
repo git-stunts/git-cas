@@ -30,8 +30,8 @@
 
 ## Debt
 
-- Logged the `readBlob()` fallback gap as
-  `docs/method/backlog/bad-code/TR_buffered-restore-readblob-fallback.md`.
+- The `readBlob()` fallback gap is now closed in
+  [0039-buffered-restore-readblob-fallback](../../../design/0039-buffered-restore-readblob-fallback/buffered-restore-readblob-fallback.md).
 - The immediate next security-hardening slices are still KDF bounds and
   metadata schema tightening.
 

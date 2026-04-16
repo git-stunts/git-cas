@@ -10,6 +10,14 @@ import ChunkingPort from '../../../../src/ports/ChunkingPort.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
+function streamOneBuffer(buf) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield buf;
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -30,6 +38,11 @@ function makeContentStore() {
       const buf = blobStore.get(oid);
       if (!buf) { throw new Error(`Blob not found: ${oid}`); }
       return buf;
+    }),
+    readBlobStream: vi.fn().mockImplementation(async (oid) => {
+      const buf = blobStore.get(oid);
+      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
+      return streamOneBuffer(buf);
     }),
   };
 

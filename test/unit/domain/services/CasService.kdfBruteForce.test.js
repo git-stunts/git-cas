@@ -10,6 +10,14 @@ const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 const CHUNK_DATA = Buffer.alloc(128, 0xaa);
 const CHUNK_DIGEST = await testCrypto.sha256(CHUNK_DATA);
 
+function streamOneBuffer(buf) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield buf;
+    },
+  };
+}
+
 function setup() {
   const observability = {
     metric: vi.fn(),
@@ -20,6 +28,7 @@ function setup() {
     writeBlob: vi.fn(),
     writeTree: vi.fn(),
     readBlob: vi.fn().mockResolvedValue(CHUNK_DATA),
+    readBlobStream: vi.fn().mockResolvedValue(streamOneBuffer(CHUNK_DATA)),
     readTree: vi.fn(),
   };
   const service = new CasService({

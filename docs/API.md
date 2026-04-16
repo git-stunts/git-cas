@@ -1267,6 +1267,11 @@ await port.readBlobStream(oid);
 
 Reads a Git blob as an async stream of `Buffer` chunks.
 
+For custom persistence adapters, this method is required for hard-limited
+buffered restore modes such as `whole-v1` encrypted restore and buffered
+compression restore. `readBlob()` remains a compatibility fallback for
+plaintext restore only.
+
 **Parameters:**
 
 - `oid`: `string` - Git blob OID
@@ -1590,6 +1595,7 @@ new CasError(message, code, meta);
 | `INVALID_KEY_LENGTH`                  | Encryption key must be exactly 32 bytes                                    | `encrypt()`, `decrypt()`, `store()`, `restore()`                              |
 | `MISSING_KEY`                         | Encryption key required to restore encrypted content but none was provided | `restore()`                                                                   |
 | `INTEGRITY_ERROR`                     | Chunk digest verification failed or decryption authentication failed       | `restore()`, `verifyIntegrity()`, `decrypt()`                                 |
+| `PERSISTENCE_CAPABILITY_REQUIRED`     | Buffered restore mode requires `readBlobStream()` on the persistence adapter | `restore()`, `restoreStream()`                                              |
 | `DECRYPTION_BUFFER_EXCEEDED`          | Web Crypto whole-object decrypt exceeded the configured buffer limit       | `createDecryptionStream()` via Web Crypto restore paths                       |
 | `KDF_POLICY_VIOLATION`               | KDF parameters fell outside the accepted policy window                     | `store()`, `restore()`, `initVault()`, `rotateVaultPassphrase()`, `readState()` |
 | `STREAM_ERROR`                        | Stream error occurred during store operation                               | `store()`                                                                     |

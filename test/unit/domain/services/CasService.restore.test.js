@@ -10,6 +10,14 @@ import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserv
 const testCrypto = await getTestCryptoAdapter();
 const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 
+function streamOneBuffer(buf) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield buf;
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Module-level helper: store content via async iterable, return manifest
 // ---------------------------------------------------------------------------
@@ -44,6 +52,11 @@ function setup() {
       const buf = blobStore.get(oid);
       if (!buf) { throw new Error(`Blob not found: ${oid}`); }
       return buf;
+    }),
+    readBlobStream: vi.fn().mockImplementation(async (oid) => {
+      const buf = blobStore.get(oid);
+      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
+      return streamOneBuffer(buf);
     }),
   };
 

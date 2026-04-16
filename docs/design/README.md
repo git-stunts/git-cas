@@ -30,6 +30,7 @@ process in [docs/method/process.md](../method/process.md).
 - [0036-platform-agnostic-cli-plan — platform-agnostic-cli-plan](./0036-platform-agnostic-cli-plan/platform-agnostic-cli-plan.md)
 - [0037-scrypt-maxmem-budget-dedup — scrypt-maxmem-budget-dedup](./0037-scrypt-maxmem-budget-dedup/scrypt-maxmem-budget-dedup.md)
 - [0038-aes-gcm-metadata-enforcement — aes-gcm-metadata-enforcement](./0038-aes-gcm-metadata-enforcement/aes-gcm-metadata-enforcement.md)
+- [0039-buffered-restore-readblob-fallback — buffered-restore-readblob-fallback](./0039-buffered-restore-readblob-fallback/buffered-restore-readblob-fallback.md)
 
 ## Landed METHOD Cycles
 

@@ -1580,6 +1580,7 @@ All errors thrown by `git-cas` are instances of `CasError`, which extends
 | `INVALID_KEY_LENGTH` | Encryption key is not 32 bytes                   | `{ expected: 32, actual: N }`                             |
 | `MISSING_KEY`        | Encrypted content restored without a key         | --                                                        |
 | `INTEGRITY_ERROR`    | Chunk digest mismatch or decryption auth failure | `{ chunkIndex, expected, actual }` or `{ originalError }` |
+| `PERSISTENCE_CAPABILITY_REQUIRED` | Buffered restore requires `readBlobStream()` support | `{ capability, mode, oid }` |
 | `KDF_POLICY_VIOLATION` | KDF parameters fell outside the accepted policy | `{ source, field, value, min?, max?, expected? }`         |
 | `STREAM_ERROR`       | Error reading from source stream during store    | `{ chunksWritten, originalError }`                        |
 | `TREE_PARSE_ERROR`   | Malformed `ls-tree` output from Git              | `{ rawEntry }`                                            |
@@ -1714,7 +1715,10 @@ chunk blobs can be read through `readBlobStream()` instead of forcing an early
 adapter-level `Buffer` materialization. Encrypted or compressed restore
 currently buffers and is bounded by `maxRestoreBufferSize` (default 512 MiB).
 On stream-native persistence adapters, that bound now applies to actual blob
-reads and streamed gunzip output rather than only manifest estimates.
+reads and streamed gunzip output rather than only manifest estimates. Custom
+persistence adapters must implement `readBlobStream()` to get that hard-limited
+buffered restore guarantee; the older `readBlob()` fallback remains plaintext
+compatibility only.
 
 ### Q: I get "Chunk size must be an integer >= 1024 bytes"
 

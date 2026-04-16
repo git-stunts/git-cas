@@ -8,6 +8,14 @@ import EventEmitterObserver from '../../../../src/infrastructure/adapters/EventE
 
 const testCrypto = await getTestCryptoAdapter();
 
+function streamOneBuffer(buf) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield buf;
+    },
+  };
+}
+
 function setup(opts = {}) {
   const crypto = testCrypto;
   const blobStore = new Map();
@@ -24,6 +32,11 @@ function setup(opts = {}) {
       const buf = blobStore.get(oid);
       if (!buf) { throw new Error(`Blob not found: ${oid}`); }
       return buf;
+    }),
+    readBlobStream: vi.fn().mockImplementation(async (oid) => {
+      const buf = blobStore.get(oid);
+      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
+      return streamOneBuffer(buf);
     }),
   };
 
@@ -81,6 +94,15 @@ function createBlobBackedPersistence(crypto, blobStore, { gate, readCountRef }) 
       const buf = blobStore.get(oid);
       if (!buf) { throw new Error(`Blob not found: ${oid}`); }
       return buf;
+    }),
+    readBlobStream: vi.fn().mockImplementation(async (oid) => {
+      readCountRef.count += 1;
+      if (readCountRef.count === 3) {
+        await gate.promise;
+      }
+      const buf = blobStore.get(oid);
+      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
+      return streamOneBuffer(buf);
     }),
   };
 }

@@ -25,6 +25,9 @@
 - Buffered `restoreStream()` / `restore()` now enforce `maxRestoreBufferSize`
   against streamed gunzip output and, on stream-native blob adapters, against
   actual blob reads instead of only manifest-estimated sizes.
+- Custom persistence adapters must now provide `readBlobStream()` for those
+  hard-limited buffered restore modes; `readBlob()` remains a plaintext
+  compatibility fallback only.
 - Passphrase-bearing store, restore, vault init, and vault rotation now use
   stronger KDF defaults and reject out-of-policy stored metadata before derive
   work begins.
