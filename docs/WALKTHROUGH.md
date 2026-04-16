@@ -176,6 +176,7 @@ When encryption is used, the manifest gains an additional `encryption` field:
   "size": 524288,
   "chunks": [ ... ],
   "encryption": {
+    "scheme": "whole-v1",
     "algorithm": "aes-256-gcm",
     "nonce": "base64-encoded-nonce",
     "tag": "base64-encoded-auth-tag",
@@ -409,10 +410,12 @@ const manifest = await cas.storeFile({
   filePath: './vacation.jpg',
   slug: 'photos/vacation',
   encryptionKey,
+  encryption: { scheme: 'whole-v1' },
 });
 
 console.log(manifest.encryption);
 // {
+//   scheme: 'whole-v1',
 //   algorithm: 'aes-256-gcm',
 //   nonce: 'dGhpcyBpcyBhIG5vbmNl',
 //   tag: 'YXV0aGVudGljYXRpb24gdGFn',
@@ -420,10 +423,13 @@ console.log(manifest.encryption);
 // }
 ```
 
-The manifest now carries an `encryption` field containing the algorithm,
-a base64-encoded nonce, a base64-encoded authentication tag, and a flag
-indicating the content is encrypted. The nonce and tag are generated fresh
-for every store operation.
+The manifest now carries an `encryption` field containing the explicit
+payload `scheme`, the algorithm, a base64-encoded nonce, a base64-encoded
+authentication tag, and a flag indicating the content is encrypted. The
+current explicit scheme is `whole-v1`, which names the existing whole-object
+AES-256-GCM format. The nonce and tag are generated fresh for every store
+operation. Legacy encrypted manifests without a `scheme` field are still
+treated as implicit `whole-v1` during restore for backward compatibility.
 
 ### Encrypted Restore
 

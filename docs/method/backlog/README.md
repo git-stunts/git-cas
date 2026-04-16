@@ -28,6 +28,7 @@ not use numeric IDs.
 
 ### `up-next/`
 
+- [TR — Framed V1 Authenticated Encryption](./up-next/TR_framed-v1-authenticated-encryption.md)
 - [TR — Streaming Encrypted Restore](./up-next/TR_streaming-encrypted-restore.md)
 - [TR — Platform-Agnostic CLI Plan](./up-next/TR_platform-agnostic-cli-plan.md)
 - [TR — Agent CLI OS-Keychain Passphrase](./up-next/TR_agent-cli-os-keychain-passphrase.md)

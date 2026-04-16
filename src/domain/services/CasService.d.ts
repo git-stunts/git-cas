@@ -4,7 +4,7 @@
  */
 
 import Manifest from "../value-objects/Manifest.js";
-import type { EncryptionMeta, CompressionMeta, KdfParams } from "../value-objects/Manifest.js";
+import type { EncryptionMeta, CompressionMeta, KdfParams, EncryptionScheme } from "../value-objects/Manifest.js";
 
 /** Port interface for cryptographic operations (hashing, encryption, random bytes). */
 export interface CryptoPort {
@@ -91,6 +91,10 @@ export interface VerifyIntegrityOptions {
   passphrase?: string;
 }
 
+export interface StoreEncryptionOptions {
+  scheme?: EncryptionScheme;
+}
+
 /**
  * Domain service for Content Addressable Storage operations.
  *
@@ -126,6 +130,7 @@ export default class CasService {
     filename: string;
     encryptionKey?: Buffer;
     passphrase?: string;
+    encryption?: StoreEncryptionOptions;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
     recipients?: Array<{ label: string; key: Buffer }>;

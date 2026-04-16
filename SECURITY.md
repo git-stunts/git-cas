@@ -83,6 +83,7 @@ details behind that boundary.
 git-cas uses **AES-256-GCM** (Galois/Counter Mode) for authenticated encryption:
 
 - **Algorithm**: `aes-256-gcm` via runtime-specific adapters (Node.js `node:crypto`, Bun `CryptoHasher` + `node:crypto`, Deno/Web `crypto.subtle`)
+- **Current payload scheme**: `whole-v1` (whole-object authenticated ciphertext)
 - **Key size**: 256 bits (32 bytes)
 - **Nonce size**: 96 bits (12 bytes), cryptographically random
 - **Authentication tag**: 128 bits (16 bytes)
@@ -127,6 +128,11 @@ This means:
 - **Encrypted chunks are not individually authenticated**: The entire ciphertext is authenticated as a single unit by the GCM tag.
 - **Chunk digests are computed on ciphertext**: The SHA-256 digest stored in each chunk entry is the hash of the encrypted data, not the plaintext.
 - **Chunking is deterministic**: Given the same plaintext and key/nonce, the encrypted chunks will be identical (because nonce is fixed at encryption time).
+
+In manifest metadata, this current format is named explicitly as
+`encryption.scheme = 'whole-v1'`. Older encrypted manifests without a `scheme`
+field are still interpreted as the same whole-object format for backward
+compatibility.
 
 ---
 

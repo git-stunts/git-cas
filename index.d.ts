@@ -4,7 +4,7 @@
  */
 
 import Manifest from "./src/domain/value-objects/Manifest.js";
-import type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry } from "./src/domain/value-objects/Manifest.js";
+import type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, EncryptionScheme } from "./src/domain/value-objects/Manifest.js";
 import Chunk from "./src/domain/value-objects/Chunk.js";
 import CasService from "./src/domain/services/CasService.js";
 import type {
@@ -15,11 +15,12 @@ import type {
   CasServiceOptions,
   DeriveKeyOptions,
   DeriveKeyResult,
+  StoreEncryptionOptions,
   VerifyIntegrityOptions,
 } from "./src/domain/services/CasService.js";
 
 export { CasService, Manifest, Chunk };
-export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, VerifyIntegrityOptions };
+export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, EncryptionScheme, CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, StoreEncryptionOptions, VerifyIntegrityOptions };
 
 /** Abstract port for splitting a byte stream into chunks. */
 export declare class ChunkingPort {
@@ -306,6 +307,7 @@ export default class ContentAddressableStore {
     filename?: string;
     encryptionKey?: Buffer;
     passphrase?: string;
+    encryption?: StoreEncryptionOptions;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
     recipients?: Array<{ label: string; key: Buffer }>;
@@ -317,6 +319,7 @@ export default class ContentAddressableStore {
     filename: string;
     encryptionKey?: Buffer;
     passphrase?: string;
+    encryption?: StoreEncryptionOptions;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
     recipients?: Array<{ label: string; key: Buffer }>;

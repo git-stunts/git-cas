@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { randomBytes } from 'node:crypto';
 import { writeFileSync, mkdtempSync, rmSync, createReadStream } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -83,6 +84,41 @@ describe('CasService – store', () => {
     expect(manifest.size).toBe(2048);
 
     rmSync(tempDir, { recursive: true, force: true });
+  });
+});
+
+describe('CasService – store encryption schemes', () => {
+  let service;
+
+  beforeEach(() => {
+    ({ service } = setup());
+  });
+
+  it('persists whole-v1 as the explicit scheme for new encrypted stores', async () => {
+    async function* source() { yield Buffer.from('encrypted data'); }
+    const manifest = await service.store({
+      source: source(),
+      slug: 'encrypted-slug',
+      filename: 'encrypted.bin',
+      encryptionKey: randomBytes(32),
+      encryption: { scheme: 'whole-v1' },
+    });
+
+    expect(manifest.encryption.scheme).toBe('whole-v1');
+  });
+
+  it('rejects unsupported requested encryption schemes', async () => {
+    async function* source() { yield Buffer.from('encrypted data'); }
+
+    await expect(service.store({
+      source: source(),
+      slug: 'encrypted-slug',
+      filename: 'encrypted.bin',
+      encryptionKey: randomBytes(32),
+      encryption: { scheme: 'framed-v1' },
+    })).rejects.toMatchObject({
+      code: 'INVALID_OPTIONS',
+    });
   });
 });
 

@@ -301,16 +301,59 @@ export default class CasService {
   }
 
   /**
+   * Resolves the requested store encryption scheme.
+   * @private
+   * @param {{ scheme?: string }} [encryption]
+   * @param {boolean} hasEncryptionKey
+   * @returns {'whole-v1'|undefined}
+   */
+  _resolveStoreEncryptionScheme(encryption, hasEncryptionKey) {
+    const scheme = encryption?.scheme;
+    if (!hasEncryptionKey) {
+      if (scheme) {
+        throw new CasError(
+          'encryption.scheme requires encryptionKey, passphrase, or recipients',
+          'INVALID_OPTIONS',
+          { scheme },
+        );
+      }
+      return undefined;
+    }
+    if (!scheme || scheme === 'whole-v1') {
+      return 'whole-v1';
+    }
+    if (scheme === 'framed-v1') {
+      throw new CasError(
+        'Encryption scheme framed-v1 is not implemented yet',
+        'INVALID_OPTIONS',
+        { scheme },
+      );
+    }
+    throw new CasError(
+      `Unsupported encryption scheme: ${scheme}`,
+      'INVALID_OPTIONS',
+      { scheme },
+    );
+  }
+
+  /**
    * Treats manifest encryption metadata as security-critical when present.
    * @private
-   * @param {{ slug?: string, encryption?: { encrypted?: boolean, algorithm?: string } }} manifest
-   * @returns {undefined|{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
+   * @param {{ slug?: string, encryption?: { scheme?: string, encrypted?: boolean, algorithm?: string } }} manifest
+   * @returns {undefined|{ scheme: 'whole-v1', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
    * @throws {CasError} INTEGRITY_ERROR if encryption metadata was downgraded or tampered.
    */
   _validatedEncryptionMeta(manifest) {
     const meta = manifest.encryption;
     if (!meta) {
       return undefined;
+    }
+    if (meta.scheme !== undefined && meta.scheme !== 'whole-v1') {
+      throw new CasError(
+        `Encrypted manifest uses unknown scheme: ${meta.scheme}`,
+        'INTEGRITY_ERROR',
+        { slug: manifest.slug, reason: 'manifest-encryption-scheme', scheme: meta.scheme },
+      );
     }
     if (meta.encrypted !== true) {
       throw new CasError(
@@ -326,7 +369,10 @@ export default class CasService {
         { slug: manifest.slug, reason: 'manifest-encryption-algorithm', algorithm: meta.algorithm },
       );
     }
-    return /** @type {{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }} */ (meta);
+    return /** @type {{ scheme: 'whole-v1', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }} */ ({
+      ...meta,
+      scheme: 'whole-v1',
+    });
   }
 
   /**
@@ -348,7 +394,7 @@ export default class CasService {
    * integrity-style manifest failures without throwing.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @returns {false|undefined|{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
+   * @returns {false|undefined|{ scheme: 'whole-v1', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
    */
   _getVerifyEncryptionMeta(manifest) {
     try {
@@ -494,12 +540,13 @@ export default class CasService {
    * @param {string} options.filename
    * @param {Buffer} [options.encryptionKey]
    * @param {string} [options.passphrase] - Derive encryption key from passphrase instead.
+   * @param {{ scheme?: 'whole-v1'|'framed-v1' }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
-  async store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression, recipients }) {
+  async store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients }) {
     if (recipients && (encryptionKey || passphrase)) {
       throw new CasError('Provide recipients or encryptionKey/passphrase, not both', 'INVALID_OPTIONS');
     }
@@ -509,6 +556,7 @@ export default class CasService {
     const keyInfo = recipients
       ? await this.#keyResolver.resolveRecipients(recipients)
       : await this.#keyResolver.resolveForStore(encryptionKey, passphrase, kdfOptions);
+    const encryptionScheme = this._resolveStoreEncryptionScheme(encryption, !!keyInfo.key);
 
     const manifestData = this._buildManifestData(slug, filename, compression);
     const processedSource = compression ? this._compressStream(source) : source;
@@ -523,7 +571,7 @@ export default class CasService {
     if (keyInfo.key) {
       const { encrypt, finalize } = this.crypto.createEncryptionStream(keyInfo.key);
       await this._chunkAndStore(encrypt(processedSource), manifestData);
-      manifestData.encryption = { ...finalize(), ...keyInfo.encExtra };
+      manifestData.encryption = { ...finalize(), scheme: encryptionScheme, ...keyInfo.encExtra };
     } else {
       await this._chunkAndStore(processedSource, manifestData);
     }

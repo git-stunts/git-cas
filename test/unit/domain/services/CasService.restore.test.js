@@ -232,6 +232,51 @@ describe('CasService.restore() – encrypted manifest boundary', () => {
   });
 });
 
+describe('CasService.restore() – encrypted manifest scheme routing', () => {
+  let service;
+
+  beforeEach(() => {
+    ({ service } = setup());
+  });
+
+  it('restores legacy encrypted manifests with no scheme as implicit whole-v1', async () => {
+    const key = randomBytes(32);
+    const original = Buffer.from('legacy encrypted manifest without scheme');
+    const manifest = await storeBuffer(service, original, { encryptionKey: key });
+
+    const legacyManifest = {
+      ...manifest.toJSON(),
+      encryption: Object.fromEntries(
+        Object.entries(manifest.encryption).filter(([k]) => k !== 'scheme'),
+      ),
+    };
+
+    const { buffer } = await service.restore({
+      manifest: legacyManifest,
+      encryptionKey: key,
+    });
+
+    expect(buffer.equals(original)).toBe(true);
+  });
+
+  it('rejects encrypted manifests with an unknown encryption scheme', async () => {
+    const key = randomBytes(32);
+    const original = Buffer.from('encrypted payload with tampered scheme');
+    const manifest = await storeBuffer(service, original, { encryptionKey: key });
+
+    const tamperedManifest = {
+      ...manifest.toJSON(),
+      encryption: { ...manifest.encryption, scheme: 'mystery-v9' },
+    };
+
+    await expect(
+      service.restore({ manifest: tamperedManifest, encryptionKey: key }),
+    ).rejects.toMatchObject({
+      code: 'INTEGRITY_ERROR',
+    });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Corrupted chunk
 // ---------------------------------------------------------------------------

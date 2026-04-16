@@ -21,8 +21,11 @@ export interface RecipientEntry {
   keyVersion?: number;
 }
 
+export type EncryptionScheme = "whole-v1" | "framed-v1";
+
 /** AES-256-GCM encryption metadata attached to an encrypted manifest. */
 export interface EncryptionMeta {
+  scheme?: EncryptionScheme | (string & {});
   algorithm: string;
   nonce: string;
   tag: string;

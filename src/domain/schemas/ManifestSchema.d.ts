@@ -36,6 +36,7 @@ export declare const RecipientSchema: z.ZodObject<{
 
 /** Validates the encryption metadata attached to an encrypted manifest. */
 export declare const EncryptionSchema: z.ZodObject<{
+  scheme: z.ZodOptional<z.ZodString>;
   algorithm: z.ZodString;
   nonce: z.ZodString;
   tag: z.ZodString;

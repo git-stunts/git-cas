@@ -39,6 +39,7 @@ describe('Manifest – creation', () => {
     const data = {
       ...validManifestData(),
       encryption: {
+        scheme: 'whole-v1',
         algorithm: 'aes-256-gcm',
         nonce: 'bm9uY2U=',
         tag: 'dGFn',

@@ -36,6 +36,7 @@ export const RecipientSchema = z.object({
 
 /** Validates the encryption metadata attached to an encrypted manifest. */
 export const EncryptionSchema = z.object({
+  scheme: z.string().optional(),
   algorithm: z.string(),
   nonce: z.string(),
   tag: z.string(),

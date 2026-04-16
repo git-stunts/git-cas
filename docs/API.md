@@ -114,7 +114,7 @@ const service = await cas.getService();
 #### store
 
 ```javascript
-await cas.store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression });
+await cas.store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression });
 ```
 
 Stores content from an async iterable source.
@@ -126,6 +126,8 @@ Stores content from an async iterable source.
 - `filename` (required): `string` - Original filename
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase (alternative to `encryptionKey`)
+- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores
+- `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - Current whole-object mode or future framed mode. Only `'whole-v1'` is implemented today.
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`)
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
 
@@ -137,18 +139,23 @@ Stores content from an async iterable source.
 - `CasError` with code `INVALID_KEY_LENGTH` if encryptionKey is not 32 bytes
 - `CasError` with code `STREAM_ERROR` if the source stream fails
 - `CasError` with code `INVALID_OPTIONS` if both `passphrase` and `encryptionKey` are provided
+- `CasError` with code `INVALID_OPTIONS` if an unsupported encryption scheme is specified
 - `CasError` with code `INVALID_OPTIONS` if an unsupported compression algorithm is specified
 
 **Example:**
 
 ```javascript
 import { createReadStream } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 
 const stream = createReadStream('/path/to/file.txt');
+const key = randomBytes(32);
 const manifest = await cas.store({
   source: stream,
   slug: 'my-asset',
   filename: 'file.txt',
+  encryptionKey: key,
+  encryption: { scheme: 'whole-v1' },
 });
 ```
 
@@ -161,6 +168,7 @@ await cas.storeFile({
   filename,
   encryptionKey,
   passphrase,
+  encryption,
   kdfOptions,
   compression,
 });
@@ -175,6 +183,8 @@ Convenience method that opens a file and stores it.
 - `filename` (optional): `string` - Filename (defaults to basename of filePath)
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase
+- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores
+- `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - Current whole-object mode or future framed mode. Only `'whole-v1'` is implemented today.
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
 
@@ -188,6 +198,8 @@ Convenience method that opens a file and stores it.
 const manifest = await cas.storeFile({
   filePath: '/path/to/file.txt',
   slug: 'my-asset',
+  encryptionKey: key,
+  encryption: { scheme: 'whole-v1' },
 });
 ```
 
