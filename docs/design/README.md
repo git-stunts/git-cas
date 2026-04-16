@@ -14,6 +14,7 @@ process in [docs/method/process.md](../method/process.md).
 - [0020-method-adoption — adopt-method](./0020-method-adoption/adopt-method.md)
 - [0021-store-write-backpressure — enforce-store-backpressure](./0021-store-write-backpressure/enforce-store-backpressure.md)
 - [0022-git-persistence-read-blob-stream — add-read-blob-stream](./0022-git-persistence-read-blob-stream/add-read-blob-stream.md)
+- [0023-casservice-read-blob-stream-integration — use-read-blob-stream-in-restore](./0023-casservice-read-blob-stream-integration/use-read-blob-stream-in-restore.md)
 
 ## Landed METHOD Cycles
 

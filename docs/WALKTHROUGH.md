@@ -309,9 +309,11 @@ Given a manifest, `restoreFile()` restores the asset and writes it to the
 specified output path.
 
 For plaintext assets, this uses `restoreStream()` and writes chunk-by-chunk with
-bounded memory. For encrypted or compressed assets, the current implementation
-still buffers after chunk verification so it can decrypt and/or decompress
-safely before yielding output.
+bounded memory. When the persistence adapter supports `readBlobStream()`, the
+plaintext chunk path prefers that stream-native read seam before falling back
+to `readBlob()` for compatibility. For encrypted or compressed assets, the
+current implementation still buffers after chunk verification so it can decrypt
+and/or decompress safely before yielding output.
 
 ```js
 await cas.restoreFile({
@@ -1632,9 +1634,11 @@ There is no hard limit imposed by `git-cas`. The practical limit is determined
 by your Git repository's object database and available memory.
 
 Plaintext restore can stream chunk-by-chunk, so memory usage is close to
-`chunkSize` plus normal I/O overhead. Encrypted or compressed restore currently
-buffers and is bounded by `maxRestoreBufferSize` (default 512 MiB) unless you
-raise that limit explicitly.
+`chunkSize` plus normal I/O overhead. On modern persistence adapters that means
+chunk blobs can be read through `readBlobStream()` instead of forcing an early
+adapter-level `Buffer` materialization. Encrypted or compressed restore
+currently buffers and is bounded by `maxRestoreBufferSize` (default 512 MiB)
+unless you raise that limit explicitly.
 
 ### Q: I get "Chunk size must be an integer >= 1024 bytes"
 

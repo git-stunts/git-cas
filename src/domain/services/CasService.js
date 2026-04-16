@@ -521,7 +521,7 @@ export default class CasService {
    * @throws {CasError} INTEGRITY_ERROR if the chunk digest does not match.
    */
   async _readAndVerifyChunk(chunk) {
-    const blob = await this.persistence.readBlob(chunk.blob);
+    const blob = await this._readChunkBlob(chunk.blob);
     const digest = await this._sha256(blob);
     if (digest !== chunk.digest) {
       const err = new CasError(
@@ -533,6 +533,25 @@ export default class CasService {
       throw err;
     }
     return blob;
+  }
+
+  /**
+   * Reads a chunk blob, preferring stream-native reads when supported.
+   * Falls back to readBlob() for compatibility with older adapters and mocks.
+   *
+   * @private
+   * @param {string} oid - Chunk blob OID.
+   * @returns {Promise<Buffer>}
+   */
+  async _readChunkBlob(oid) {
+    if (typeof this.persistence.readBlobStream !== 'function') {
+      return await this.persistence.readBlob(oid);
+    }
+    const chunks = [];
+    for await (const chunk of await this.persistence.readBlobStream(oid)) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 
   /**
