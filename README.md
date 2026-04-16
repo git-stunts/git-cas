@@ -48,6 +48,18 @@ const manifest = await cas.storeFile({ filePath: './asset.bin', slug: 'app/asset
 const treeOid = await cas.createTree({ manifest });
 ```
 
+## Streaming Surface
+
+| Surface | Streaming API? | Non-streaming API? | Notes |
+|---|---|---|---|
+| Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. `whole-v1` writes through the crypto stream path; `framed-v1` writes framed records incrementally and stays bounded by `frameBytes`. |
+| Read: plaintext | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True chunk-by-chunk streaming restore. |
+| Read: encrypted `whole-v1` | `restoreStream(...)`, `restoreFile(...)` exist, but buffer internally | `restore(...)` | Compatibility mode. The API can look streaming, but restore still authenticates and decrypts the full ciphertext as one unit. |
+| Read: encrypted `framed-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True authenticated streaming restore. Plaintext is yielded frame-by-frame after each frame is verified. |
+| Read: compressed + `whole-v1` | `restoreStream(...)`, `restoreFile(...)` exist, but buffer internally | `restore(...)` | Still buffered because it stays on the whole-object decrypt path. |
+| Read: compressed + `framed-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Streaming decrypt, then streaming gunzip. |
+| Verify | No streaming verify surface | `verifyIntegrity(manifest, options?)` | Verifies chunk digests for all content. `whole-v1` auth-checks the full ciphertext; `framed-v1` parses and auth-checks every frame. |
+
 ## Documentation
 
 - **[Guide](./docs/GUIDE.md)**: Orientation, long-form walkthrough, and vault management.
