@@ -1582,7 +1582,8 @@ All errors thrown by `git-cas` are instances of `CasError`, which extends
 | `INTEGRITY_ERROR`    | Chunk digest mismatch or decryption auth failure | `{ chunkIndex, expected, actual }` or `{ originalError }` |
 | `PERSISTENCE_CAPABILITY_REQUIRED` | Buffered restore requires `readBlobStream()` support | `{ capability, mode, oid }` |
 | `KDF_POLICY_VIOLATION` | KDF parameters fell outside the accepted policy | `{ source, field, value, min?, max?, expected? }`         |
-| `STREAM_ERROR`       | Error reading from source stream during store    | `{ chunksWritten, originalError }`                        |
+| `STREAM_ERROR`       | Error reading from source stream during store    | `{ chunksDispatched, orphanedBlobs, originalError }`      |
+| `STORE_ERROR`        | Error writing a dispatched chunk during store    | `{ chunksDispatched, orphanedBlobs, failedIndex, originalError }` |
 | `TREE_PARSE_ERROR`   | Malformed `ls-tree` output from Git              | `{ rawEntry }`                                            |
 
 ### Catching and Handling Errors
@@ -1621,7 +1622,9 @@ function handleCasError(err) {
     case 'INTEGRITY_ERROR':
       return { status: 500, message: 'Data integrity check failed' };
     case 'STREAM_ERROR':
-      return { status: 502, message: `Stream failed after ${err.meta.chunksWritten} chunks` };
+      return { status: 502, message: `Stream failed after ${err.meta.chunksDispatched} dispatched chunks` };
+    case 'STORE_ERROR':
+      return { status: 502, message: `Chunk write failed after ${err.meta.chunksDispatched} dispatched chunks` };
     case 'TREE_PARSE_ERROR':
       return { status: 500, message: 'Corrupted Git tree' };
     default:

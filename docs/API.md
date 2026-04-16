@@ -1599,6 +1599,7 @@ new CasError(message, code, meta);
 | `DECRYPTION_BUFFER_EXCEEDED`          | Web Crypto whole-object decrypt exceeded the configured buffer limit       | `createDecryptionStream()` via Web Crypto restore paths                       |
 | `KDF_POLICY_VIOLATION`               | KDF parameters fell outside the accepted policy window                     | `store()`, `restore()`, `initVault()`, `rotateVaultPassphrase()`, `readState()` |
 | `STREAM_ERROR`                        | Stream error occurred during store operation                               | `store()`                                                                     |
+| `STORE_ERROR`                         | Chunk write failed during store after dispatch                             | `store()`                                                                     |
 | `MANIFEST_NOT_FOUND`                  | No manifest entry found in the Git tree                                    | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()`                     |
 | `GIT_ERROR`                           | Underlying Git plumbing command failed                                     | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()`                     |
 | `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value            | `store()`, `restore()`                                                        |
@@ -1682,7 +1683,19 @@ Different error codes include different metadata:
 
 ```javascript
 {
-  chunksWritten: <number>,
+  chunksDispatched: <number>,
+  orphanedBlobs: <string[]>,
+  originalError: <Error>
+}
+```
+
+**STORE_ERROR:**
+
+```javascript
+{
+  chunksDispatched: <number>,
+  orphanedBlobs: <string[]>,
+  failedIndex: <number>,
   originalError: <Error>
 }
 ```

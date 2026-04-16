@@ -138,7 +138,7 @@ export default class CasService {
     const results = [];
     const inFlight = new Set();
     const orphanedBlobs = [];
-    const state = { nextIndex: 0, writeError: null };
+    const state = { nextIndex: 0, writeError: null, failedIndex: null };
 
     while (true) {
       // Acquire capacity before pulling the next chunk so slow writes apply
@@ -165,7 +165,7 @@ export default class CasService {
       });
     }
 
-    await this._awaitChunkWrites({ inFlight, state });
+    await this._awaitChunkWrites({ inFlight, state, orphanedBlobs });
     this._appendChunkEntries(manifestData, results);
   }
 
@@ -184,6 +184,7 @@ export default class CasService {
       }
     })().catch((err) => {
       state.writeError ??= err;
+      state.failedIndex ??= idx;
       throw err;
     });
 
@@ -213,14 +214,24 @@ export default class CasService {
    * Finalizes in-flight writes and rethrows the first write failure, if any.
    * @private
    */
-  async _awaitChunkWrites({ inFlight, state }) {
+  async _awaitChunkWrites({ inFlight, state, orphanedBlobs }) {
     const settled = await Promise.allSettled(inFlight);
     if (state.writeError) {
-      throw state.writeError;
+      throw this._buildStoreWriteError({
+        err: state.writeError,
+        nextIndex: state.nextIndex,
+        orphanedBlobs,
+        failedIndex: state.failedIndex,
+      });
     }
     for (const result of settled) {
       if (result.status !== 'fulfilled') {
-        throw result.reason;
+        throw this._buildStoreWriteError({
+          err: result.reason,
+          nextIndex: state.nextIndex,
+          orphanedBlobs,
+          failedIndex: state.failedIndex,
+        });
       }
     }
   }
@@ -269,6 +280,36 @@ export default class CasService {
     this.observability.metric('error', {
       code: casErr.code, message: casErr.message,
       orphanedBlobs: orphanedBlobs.length,
+    });
+    return casErr;
+  }
+
+  /**
+   * Normalizes chunk-write failures and annotates them with write-phase state.
+   * @private
+   */
+  _buildStoreWriteError({ err, nextIndex, orphanedBlobs, failedIndex }) {
+    const writeMeta = {
+      chunksDispatched: nextIndex,
+      orphanedBlobs,
+      ...(failedIndex === null ? {} : { failedIndex }),
+    };
+
+    if (err instanceof CasError) {
+      err.meta = { ...err.meta, ...writeMeta };
+      return err;
+    }
+
+    const casErr = new CasError(
+      `Store write failed: ${err.message}`,
+      'STORE_ERROR',
+      { ...writeMeta, originalError: err },
+    );
+    this.observability.metric('error', {
+      code: casErr.code,
+      message: casErr.message,
+      orphanedBlobs: orphanedBlobs.length,
+      ...(failedIndex === null ? {} : { failedIndex }),
     });
     return casErr;
   }
