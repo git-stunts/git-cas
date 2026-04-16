@@ -8,6 +8,7 @@ import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 
 /** Deterministic SHA-256 hex digest for a given string. */
 const sha256 = (str) => createHash('sha256').update(str).digest('hex');
@@ -152,7 +153,10 @@ describe('CasService – restore – mutual exclusion', () => {
     const manifest = new Manifest({
       slug: 'test', filename: 'test.bin', size: 0, chunks: [],
       encryption: {
-        algorithm: 'aes-256-gcm', nonce: 'abc', tag: 'def', encrypted: true,
+        algorithm: 'aes-256-gcm',
+        nonce: base64Bytes(12, 1),
+        tag: base64Bytes(16, 2),
+        encrypted: true,
         kdf: { algorithm: 'pbkdf2', salt: 'c2FsdA==', iterations: 1000, keyLength: 32 },
       },
     });
@@ -164,7 +168,12 @@ describe('CasService – restore – mutual exclusion', () => {
   it('rejects passphrase when manifest has no KDF metadata', async () => {
     const manifest = new Manifest({
       slug: 'test', filename: 'test.bin', size: 0, chunks: [],
-      encryption: { algorithm: 'aes-256-gcm', nonce: 'abc', tag: 'def', encrypted: true },
+      encryption: {
+        algorithm: 'aes-256-gcm',
+        nonce: base64Bytes(12, 3),
+        tag: base64Bytes(16, 4),
+        encrypted: true,
+      },
     });
     await expect(
       service.restore({ manifest, passphrase: 'secret' }),
@@ -289,7 +298,7 @@ describe('CasService – verifyIntegrity (whole-v1 metadata tampering)', () => {
       ...manifest.toJSON(),
       encryption: {
         ...manifest.encryption,
-        tag: Buffer.from('tampered-tag').toString('base64'),
+        tag: base64Bytes(16, 9),
       },
     });
 
@@ -326,7 +335,7 @@ describe('CasService – verifyIntegrity (framed-v1 ciphertext tampering)', () =
 });
 
 describe('CasService – verifyIntegrity (encrypted scheme routing)', () => {
-  it('returns false when encrypted manifest scheme is unknown', async () => {
+  it('rejects unknown encrypted manifest schemes at construction time', async () => {
     const key = Buffer.alloc(32, 0x33);
     const blobStore = new Map();
     const crypto = testCrypto;
@@ -355,15 +364,10 @@ describe('CasService – verifyIntegrity (encrypted scheme routing)', () => {
       encryptionKey: key,
     });
 
-    await expect(
-      service.verifyIntegrity(
-        new Manifest({
-          ...manifest.toJSON(),
-          encryption: { ...manifest.encryption, scheme: 'mystery-v9' },
-        }),
-        { encryptionKey: key },
-      ),
-    ).resolves.toBe(false);
+    expect(() => new Manifest({
+      ...manifest.toJSON(),
+      encryption: { ...manifest.encryption, scheme: 'mystery-v9' },
+    })).toThrow(/Invalid manifest data/);
   });
 });
 

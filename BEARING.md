@@ -19,7 +19,7 @@ timeline
 
 ### 2. Operational Truth
 - Refinement of the "Doctor" diagnostic engine to surface integrity issues.
-- Alignment of empty-state phrasing across all CLI and TUI surfaces.
+- Keeping the documented streaming and encryption boundaries honest for operators.
 - Maturation of the machine-facing agent CLI for full parity with human commands.
 
 ### 3. Architectural Decomposition
@@ -33,7 +33,8 @@ timeline
 - **Buffer Limits**: `whole-v1 restoreStream()` now enforces actual buffered-read and decompression limits, but it is still a bounded in-memory compatibility path rather than a true streaming surface.
 - **Vault Contention**: Concurrent vault updates in high-frequency CI environments require robust CAS retry logic.
 - **KDF Compatibility Window**: New passphrase defaults are stronger now, but legacy encrypted metadata still rides through a bounded compatibility policy instead of a hard migration cutoff.
+- **Schema vs. Crypto Policy**: Encrypted manifest shapes are stricter now, but KDF salt shape is still looser than the rest of the crypto metadata contract.
 
 ## Next Target
 
-The immediate focus is **encryption-metadata hardening and Web Crypto parity** now that the KDF policy boundary is explicit and the buffered restore boundary is tighter.
+The immediate focus is **Web Crypto parity and framed-v1-by-default ergonomics** now that the manifest encryption boundary is explicit and the buffered restore boundary is tighter.

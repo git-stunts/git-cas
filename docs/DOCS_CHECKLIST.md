@@ -25,7 +25,7 @@ truth and discoverability failures that keep surfacing late in review.
   indexes in the same change.
 - Empty-state wording:
   If an index or legend now has an empty list, use the documented house style
-  already present in the planning surface instead of inventing a new phrase.
+  `- none currently` instead of inventing a new phrase.
 - Canonical wording drift:
   If a summary doc repeats claims that are already maintained elsewhere, reduce
   it to a short summary plus a link instead of maintaining two full narratives.

@@ -154,6 +154,15 @@ In manifest metadata, this current format is named explicitly as
 field are still interpreted as the same whole-object format for backward
 compatibility.
 
+Manifest validation now accepts only two encrypted payload shapes:
+
+- legacy or explicit `whole-v1`
+- explicit `framed-v1`
+
+For `whole-v1`, manifest-level nonce and tag fields must be canonical base64
+and decode to the expected AES-GCM sizes. For `framed-v1`, the manifest must
+carry `frameBytes` and must not carry top-level nonce/tag fields.
+
 For `framed-v1`, git-cas first splits plaintext into fixed-size frames, then
 encrypts each frame independently and serializes records as:
 

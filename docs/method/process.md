@@ -100,6 +100,12 @@ Pulling a backlog item into a cycle means:
 The promoted backlog file does not go back. Follow-on work re-enters the
 backlog as a new file if the cycle pivots or ends partial.
 
+### Empty-State Style
+
+For planning surfaces and legend summaries, the house empty-state phrasing is:
+
+- `none currently`
+
 ## Legends
 
 Legends are reference frames, not work queues.

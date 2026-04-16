@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 
+const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
+
 /** Deterministic SHA-256 hex digest for a given string. */
 const sha256 = (str) => createHash('sha256').update(str).digest('hex');
 
@@ -24,7 +26,7 @@ const validManifestData = () => ({
 // ---------------------------------------------------------------------------
 // Creation (happy path + toJSON)
 // ---------------------------------------------------------------------------
-describe('Manifest – creation', () => {
+describe('Manifest – creation', () => { // eslint-disable-line max-lines-per-function
   it('creates a frozen object from valid data', () => {
     const m = new Manifest(validManifestData());
 
@@ -41,8 +43,8 @@ describe('Manifest – creation', () => {
       encryption: {
         scheme: 'whole-v1',
         algorithm: 'aes-256-gcm',
-        nonce: 'bm9uY2U=',
-        tag: 'dGFn',
+        nonce: base64Bytes(12, 1),
+        tag: base64Bytes(16, 2),
         encrypted: true,
       },
     };
@@ -58,6 +60,24 @@ describe('Manifest – creation', () => {
     expect(json.filename).toBe(data.filename);
     expect(json.size).toBe(data.size);
     expect(json.chunks).toHaveLength(data.chunks.length);
+  });
+
+  it('creates a manifest with framed-v1 encryption metadata', () => {
+    const data = {
+      ...validManifestData(),
+      encryption: {
+        scheme: 'framed-v1',
+        algorithm: 'aes-256-gcm',
+        encrypted: true,
+        frameBytes: 32768,
+      },
+    };
+
+    const manifest = new Manifest(data);
+    expect(manifest.encryption.scheme).toBe('framed-v1');
+    expect(manifest.encryption.frameBytes).toBe(32768);
+    expect(manifest.encryption.nonce).toBeUndefined();
+    expect(manifest.encryption.tag).toBeUndefined();
   });
 });
 
@@ -166,8 +186,8 @@ describe('Manifest – backward compatibility (chunking)', () => { // eslint-dis
       ...validManifestData(),
       encryption: {
         algorithm: 'aes-256-gcm',
-        nonce: 'bm9uY2U=',
-        tag: 'dGFn',
+        nonce: base64Bytes(12, 3),
+        tag: base64Bytes(16, 4),
         encrypted: true,
       },
       compression: { algorithm: 'gzip' },
@@ -183,13 +203,16 @@ describe('Manifest – backward compatibility (chunking)', () => { // eslint-dis
 // ---------------------------------------------------------------------------
 // Recipients field – creation and serialization
 // ---------------------------------------------------------------------------
-describe('Manifest – recipients (creation)', () => {
+describe('Manifest – recipients (creation)', () => { // eslint-disable-line max-lines-per-function
   it('validates manifest with recipients in encryption', () => {
     const data = {
       ...validManifestData(),
       encryption: {
-        algorithm: 'aes-256-gcm', nonce: 'bm9uY2U=', tag: 'dGFn', encrypted: true,
-        recipients: [{ label: 'alice', wrappedDek: 'AAAA', nonce: 'BBBB', tag: 'CCCC' }],
+        algorithm: 'aes-256-gcm',
+        nonce: base64Bytes(12, 5),
+        tag: base64Bytes(16, 6),
+        encrypted: true,
+        recipients: [{ label: 'alice', wrappedDek: base64Bytes(32, 7), nonce: base64Bytes(12, 8), tag: base64Bytes(16, 9) }],
       },
     };
     const m = new Manifest(data);
@@ -201,10 +224,10 @@ describe('Manifest – recipients (creation)', () => {
     const data = {
       ...validManifestData(),
       encryption: {
-        algorithm: 'aes-256-gcm', nonce: 'bm9uY2U=', tag: 'dGFn', encrypted: true,
+        algorithm: 'aes-256-gcm', nonce: base64Bytes(12, 5), tag: base64Bytes(16, 6), encrypted: true,
         recipients: [
-          { label: 'alice', wrappedDek: 'AAAA', nonce: 'BBBB', tag: 'CCCC' },
-          { label: 'bob', wrappedDek: 'DDDD', nonce: 'EEEE', tag: 'FFFF' },
+          { label: 'alice', wrappedDek: base64Bytes(32, 7), nonce: base64Bytes(12, 8), tag: base64Bytes(16, 9) },
+          { label: 'bob', wrappedDek: base64Bytes(32, 10), nonce: base64Bytes(12, 11), tag: base64Bytes(16, 12) },
         ],
       },
     };
@@ -216,9 +239,23 @@ describe('Manifest – recipients (creation)', () => {
   it('allows encryption without recipients (backward compat)', () => {
     const data = {
       ...validManifestData(),
-      encryption: { algorithm: 'aes-256-gcm', nonce: 'bm9uY2U=', tag: 'dGFn', encrypted: true },
+      encryption: { algorithm: 'aes-256-gcm', nonce: base64Bytes(12, 5), tag: base64Bytes(16, 6), encrypted: true },
     };
     expect(new Manifest(data).encryption.recipients).toBeUndefined();
+  });
+
+  it('throws on malformed whole-v1 encryption metadata at construction time', () => {
+    const data = {
+      ...validManifestData(),
+      encryption: {
+        algorithm: 'aes-256-gcm',
+        nonce: 'not-valid-base64',
+        tag: base64Bytes(16, 6),
+        encrypted: true,
+      },
+    };
+
+    expect(() => new Manifest(data)).toThrow(/Invalid manifest data/);
   });
 });
 
@@ -227,11 +264,11 @@ describe('Manifest – recipients (creation)', () => {
 // ---------------------------------------------------------------------------
 describe('Manifest – recipients (deep-copy)', () => {
   it('deep-copies recipients so source mutation does not affect manifest', () => {
-    const recipients = [{ label: 'alice', wrappedDek: 'AAAA', nonce: 'BBBB', tag: 'CCCC' }];
+    const recipients = [{ label: 'alice', wrappedDek: base64Bytes(32, 7), nonce: base64Bytes(12, 8), tag: base64Bytes(16, 9) }];
     const data = {
       ...validManifestData(),
       encryption: {
-        algorithm: 'aes-256-gcm', nonce: 'bm9uY2U=', tag: 'dGFn', encrypted: true,
+        algorithm: 'aes-256-gcm', nonce: base64Bytes(12, 5), tag: base64Bytes(16, 6), encrypted: true,
         recipients,
       },
     };

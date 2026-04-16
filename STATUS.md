@@ -26,14 +26,16 @@
 - Passphrase-bearing store, restore, vault init, and vault rotation now use
   stronger KDF defaults and reject out-of-policy stored metadata before derive
   work begins.
+- Manifest parsing now rejects unsupported encryption schemes,
+  `encrypted: false`, malformed AES-GCM nonce/tag values, and framed manifests
+  that omit `frameBytes`, across both JSON and CBOR manifest codecs.
 - Fresh work is now organized through METHOD backlog lanes and numbered cycle
   directories.
 
 ## Active Queue Snapshot
 
-- [TR — Empty-State Phrasing Consistency](./docs/method/backlog/asap/TR_empty-state-phrasing-consistency.md)
-- [TR — Encryption Metadata Schema Hardening](./docs/method/backlog/asap/TR_encryption-metadata-schema-hardening.md)
 - [TR — Platform-Agnostic CLI Plan](./docs/method/backlog/up-next/TR_platform-agnostic-cli-plan.md)
+- [TR — Web Crypto Streaming Parity](./docs/method/backlog/up-next/TR_webcrypto-streaming-parity.md)
 - [TR — CasService Decomposition Plan](./docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md)
 
 ## Read Next

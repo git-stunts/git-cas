@@ -8,6 +8,7 @@ import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 
 // ---------------------------------------------------------------------------
 // Module-level helper: store content via async iterable, return manifest
@@ -329,7 +330,12 @@ describe('CasService.restore() – key validation', () => {
       filename: 'x.bin',
       size: 0,
       chunks: [],
-      encryption: { algorithm: 'aes-256-gcm', nonce: 'x', tag: 'x', encrypted: true },
+      encryption: {
+        algorithm: 'aes-256-gcm',
+        nonce: base64Bytes(12, 1),
+        tag: base64Bytes(16, 2),
+        encrypted: true,
+      },
     });
 
     await expect(

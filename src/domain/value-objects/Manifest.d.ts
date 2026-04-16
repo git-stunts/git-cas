@@ -23,18 +23,32 @@ export interface RecipientEntry {
 
 export type EncryptionScheme = "whole-v1" | "framed-v1";
 
-/** AES-256-GCM encryption metadata attached to an encrypted manifest. */
-export interface EncryptionMeta {
-  scheme?: EncryptionScheme | (string & {});
-  algorithm: string;
-  nonce?: string;
-  tag?: string;
-  frameBytes?: number;
-  encrypted: boolean;
+export interface WholeEncryptionMeta {
+  scheme?: "whole-v1";
+  algorithm: "aes-256-gcm";
+  nonce: string;
+  tag: string;
+  frameBytes?: never;
+  encrypted: true;
   kdf?: KdfParams;
   recipients?: RecipientEntry[];
   keyVersion?: number;
 }
+
+export interface FramedEncryptionMeta {
+  scheme: "framed-v1";
+  algorithm: "aes-256-gcm";
+  nonce?: never;
+  tag?: never;
+  frameBytes: number;
+  encrypted: true;
+  kdf?: KdfParams;
+  recipients?: RecipientEntry[];
+  keyVersion?: number;
+}
+
+/** AES-256-GCM encryption metadata attached to an encrypted manifest. */
+export type EncryptionMeta = WholeEncryptionMeta | FramedEncryptionMeta;
 
 /** Compression metadata. */
 export interface CompressionMeta {

@@ -3,7 +3,25 @@
  * @fileoverview Zod schemas for validating CAS manifest and chunk data.
  */
 
+import { Buffer } from 'node:buffer';
 import z from 'zod';
+
+const CANONICAL_BASE64_RE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+
+function isCanonicalBase64(value) {
+  return CANONICAL_BASE64_RE.test(value) && Buffer.from(value, 'base64').toString('base64') === value;
+}
+
+function base64BytesSchema(field, byteLength) {
+  return z.string()
+    .min(1)
+    .refine((value) => isCanonicalBase64(value), {
+      message: `${field} must be canonical base64`,
+    })
+    .refine((value) => Buffer.from(value, 'base64').length === byteLength, {
+      message: `${field} must decode to ${byteLength} bytes`,
+    });
+}
 
 /** Validates a single chunk entry within a manifest. */
 export const ChunkSchema = z.object({
@@ -27,25 +45,42 @@ export const KdfSchema = z.object({
 /** Validates a single recipient entry in an envelope-encrypted manifest. */
 export const RecipientSchema = z.object({
   label: z.string().min(1),
-  wrappedDek: z.string().min(1),
-  nonce: z.string().min(1),
-  tag: z.string().min(1),
+  wrappedDek: base64BytesSchema('wrappedDek', 32),
+  nonce: base64BytesSchema('nonce', 12),
+  tag: base64BytesSchema('tag', 16),
   kekType: z.string().optional(),
   keyVersion: z.number().int().min(0).optional(),
 });
 
 /** Validates the encryption metadata attached to an encrypted manifest. */
-export const EncryptionSchema = z.object({
-  scheme: z.string().optional(),
-  algorithm: z.string(),
-  nonce: z.string().optional(),
-  tag: z.string().optional(),
-  frameBytes: z.number().int().positive().optional(),
-  encrypted: z.boolean().default(true),
+const EncryptionBaseSchema = {
+  algorithm: z.literal('aes-256-gcm'),
+  encrypted: z.literal(true).default(true),
   kdf: KdfSchema.optional(),
   recipients: z.array(RecipientSchema).min(1).optional(),
   keyVersion: z.number().int().min(0).optional(),
+};
+
+const WholeEncryptionSchema = z.object({
+  scheme: z.literal('whole-v1').optional(),
+  ...EncryptionBaseSchema,
+  nonce: base64BytesSchema('nonce', 12),
+  tag: base64BytesSchema('tag', 16),
+  frameBytes: z.undefined().optional(),
 });
+
+const FramedEncryptionSchema = z.object({
+  scheme: z.literal('framed-v1'),
+  ...EncryptionBaseSchema,
+  frameBytes: z.number().int().positive(),
+  nonce: z.undefined().optional(),
+  tag: z.undefined().optional(),
+});
+
+export const EncryptionSchema = z.union([
+  WholeEncryptionSchema,
+  FramedEncryptionSchema,
+]);
 
 /** Validates compression metadata. */
 export const CompressionSchema = z.object({

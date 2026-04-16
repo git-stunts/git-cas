@@ -7,6 +7,7 @@ import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 
 /**
  * Helper to create deterministic 64-char SHA-256 digests for test data.
@@ -334,8 +335,8 @@ describe('CasService.deleteAsset() – encrypted manifest', () => {
       ],
       encryption: {
         algorithm: 'aes-256-gcm',
-        nonce: 'abcd1234',
-        tag: 'efgh5678',
+        nonce: base64Bytes(12, 1),
+        tag: base64Bytes(16, 2),
         encrypted: true,
       },
     };

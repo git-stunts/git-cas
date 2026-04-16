@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
+import CborCodec from '../../../../src/infrastructure/codecs/CborCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
@@ -26,15 +27,13 @@ function validManifestData(overrides = {}) {
   };
 }
 
-function setup() {
+function setup(codec = new JsonCodec()) {
   const mockPersistence = {
     writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
     writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
     readBlob: vi.fn(),
     readTree: vi.fn(),
   };
-
-  const codec = new JsonCodec();
 
   const service = new CasService({
     persistence: mockPersistence,
@@ -181,7 +180,7 @@ describe('CasService.readManifest – manifest not found (wrong name)', () => {
 // ---------------------------------------------------------------------------
 // Corrupt data handling
 // ---------------------------------------------------------------------------
-describe('CasService.readManifest – corrupt data handling', () => {
+describe('CasService.readManifest – corrupt data handling', () => { // eslint-disable-line max-lines-per-function
   let service;
   let mockPersistence;
   let codec;
@@ -207,6 +206,28 @@ describe('CasService.readManifest – corrupt data handling', () => {
     mockPersistence.readBlob.mockResolvedValue(
       Buffer.from(codec.encode({ foo: 'bar' })),
     );
+
+    await expect(service.readManifest({ treeOid: 'tree-oid' })).rejects.toThrow(
+      /Invalid manifest data/,
+    );
+  });
+
+  it.each([
+    ['json', () => new JsonCodec()],
+    ['cbor', () => new CborCodec()],
+  ])('rejects invalid encrypted metadata through the %s codec', async (_name, makeCodec) => {
+    ({ service, mockPersistence, codec } = setup(makeCodec()));
+
+    mockPersistence.readTree.mockResolvedValue([
+      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: `manifest.${codec.extension}` },
+    ]);
+    mockPersistence.readBlob.mockResolvedValue(Buffer.from(codec.encode(validManifestData({
+      encryption: {
+        scheme: 'framed-v1',
+        algorithm: 'aes-256-gcm',
+        encrypted: true,
+      },
+    }))));
 
     await expect(service.readManifest({ treeOid: 'tree-oid' })).rejects.toThrow(
       /Invalid manifest data/,

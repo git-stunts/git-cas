@@ -167,6 +167,11 @@ Manifests are immutable value objects validated by a Zod schema at
 construction time. If you try to create a `Manifest` with missing or
 malformed fields, an error is thrown immediately.
 
+For encrypted manifests, that validation is intentionally strict: only
+legacy/explicit `whole-v1` and explicit `framed-v1` AES-256-GCM metadata are
+accepted, and malformed nonce/tag or missing `frameBytes` values are rejected
+before restore-time service logic runs.
+
 When encryption is used, the manifest gains an additional `encryption` field.
 For `whole-v1`, it looks like this:
 

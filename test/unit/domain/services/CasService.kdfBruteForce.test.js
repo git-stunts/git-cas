@@ -5,6 +5,7 @@ import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 
 const CHUNK_DATA = Buffer.alloc(128, 0xaa);
 const CHUNK_DIGEST = await testCrypto.sha256(CHUNK_DATA);
@@ -41,8 +42,8 @@ function encryptedManifest(slug) {
     ],
     encryption: {
       algorithm: 'aes-256-gcm',
-      nonce: 'deadbeef',
-      tag: 'cafebabe',
+      nonce: base64Bytes(12, 1),
+      tag: base64Bytes(16, 2),
       encrypted: true,
     },
   });

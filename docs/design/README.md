@@ -22,6 +22,8 @@ process in [docs/method/process.md](../method/process.md).
 - [0028-whole-v1-bounded-file-restore — whole-v1-bounded-file-restore](./0028-whole-v1-bounded-file-restore/whole-v1-bounded-file-restore.md)
 - [0029-restore-buffer-hard-limits — restore-buffer-hard-limits](./0029-restore-buffer-hard-limits/restore-buffer-hard-limits.md)
 - [0030-kdf-parameter-bounds-and-policy — kdf-parameter-bounds-and-policy](./0030-kdf-parameter-bounds-and-policy/kdf-parameter-bounds-and-policy.md)
+- [0031-empty-state-phrasing-consistency — empty-state-phrasing-consistency](./0031-empty-state-phrasing-consistency/empty-state-phrasing-consistency.md)
+- [0032-encryption-metadata-schema-hardening — encryption-metadata-schema-hardening](./0032-encryption-metadata-schema-hardening/encryption-metadata-schema-hardening.md)
 
 ## Landed METHOD Cycles
 

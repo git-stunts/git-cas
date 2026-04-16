@@ -21,8 +21,7 @@ not use numeric IDs.
 
 ### `asap/`
 
-- [TR — Empty-State Phrasing Consistency](./asap/TR_empty-state-phrasing-consistency.md)
-- [TR — Encryption Metadata Schema Hardening](./asap/TR_encryption-metadata-schema-hardening.md)
+- none currently
 
 ### `up-next/`
 
@@ -34,12 +33,18 @@ not use numeric IDs.
 ### `cool-ideas/`
 
 - [TR — Dual Encryption Modes](./cool-ideas/TR_dual-encryption-modes.md)
+- [TR — Manifest Signing](./cool-ideas/TR_manifest-signing.md)
+- [TR — Streaming Decryption](./cool-ideas/TR_streaming-decryption.md)
+- [TR — Vault Privacy Mode](./cool-ideas/TR_vault-privacy-mode.md)
 
 ### `bad-code/`
 
 - [TR — CasService Decomposition Plan](./bad-code/TR_casservice-decomposition-plan.md)
 - [TR — Store Write Failure Surface](./bad-code/TR_store-write-failure-surface.md)
 - [TR — AES-GCM Metadata Enforcement](./bad-code/TR_aes-gcm-metadata-enforcement.md)
+- [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)
 - [TR — RestoreFile Service Internal Coupling](./bad-code/TR_restorefile-service-internal-coupling.md)
 - [TR — Buffered Restore ReadBlob Fallback](./bad-code/TR_buffered-restore-readblob-fallback.md)
 - [TR — Scrypt Maxmem Budget Dedup](./bad-code/TR_scrypt-maxmem-budget-dedup.md)
+- [TR — KDF Salt Schema Hardening](./bad-code/TR_kdf-salt-schema-hardening.md)
+- [TR — Vault Retry Abstraction](./bad-code/TR_vault-retry-abstraction.md)

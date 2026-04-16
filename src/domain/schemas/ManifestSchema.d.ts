@@ -35,17 +35,32 @@ export declare const RecipientSchema: z.ZodObject<{
 }>;
 
 /** Validates the encryption metadata attached to an encrypted manifest. */
-export declare const EncryptionSchema: z.ZodObject<{
-  scheme: z.ZodOptional<z.ZodString>;
-  algorithm: z.ZodString;
-  nonce: z.ZodOptional<z.ZodString>;
-  tag: z.ZodOptional<z.ZodString>;
-  frameBytes: z.ZodOptional<z.ZodNumber>;
-  encrypted: z.ZodDefault<z.ZodBoolean>;
-  kdf: z.ZodOptional<typeof KdfSchema>;
-  recipients: z.ZodOptional<z.ZodArray<typeof RecipientSchema>>;
-  keyVersion: z.ZodOptional<z.ZodNumber>;
-}>;
+export declare const EncryptionSchema: z.ZodUnion<
+  [
+    z.ZodObject<{
+      scheme: z.ZodOptional<z.ZodLiteral<"whole-v1">>;
+      algorithm: z.ZodLiteral<"aes-256-gcm">;
+      encrypted: z.ZodDefault<z.ZodLiteral<true>>;
+      kdf: z.ZodOptional<typeof KdfSchema>;
+      recipients: z.ZodOptional<z.ZodArray<typeof RecipientSchema>>;
+      keyVersion: z.ZodOptional<z.ZodNumber>;
+      nonce: z.ZodString;
+      tag: z.ZodString;
+      frameBytes: z.ZodOptional<z.ZodUndefined>;
+    }>,
+    z.ZodObject<{
+      scheme: z.ZodLiteral<"framed-v1">;
+      algorithm: z.ZodLiteral<"aes-256-gcm">;
+      encrypted: z.ZodDefault<z.ZodLiteral<true>>;
+      kdf: z.ZodOptional<typeof KdfSchema>;
+      recipients: z.ZodOptional<z.ZodArray<typeof RecipientSchema>>;
+      keyVersion: z.ZodOptional<z.ZodNumber>;
+      frameBytes: z.ZodNumber;
+      nonce: z.ZodOptional<z.ZodUndefined>;
+      tag: z.ZodOptional<z.ZodUndefined>;
+    }>
+  ]
+>;
 
 /** Validates compression metadata. */
 export declare const CompressionSchema: z.ZodObject<{

@@ -21,20 +21,20 @@ export default class Manifest {
    */
   constructor(data) {
     try {
-      ManifestSchema.parse(data);
-      this.version = data.version || 1;
-      this.slug = data.slug;
-      this.filename = data.filename;
-      this.size = data.size;
-      this.chunks = data.chunks.map((c) => new Chunk(c));
-      this.encryption = data.encryption
-        ? { ...data.encryption, recipients: data.encryption.recipients?.map((r) => ({ ...r })) }
+      const parsed = ManifestSchema.parse(data);
+      this.version = parsed.version;
+      this.slug = parsed.slug;
+      this.filename = parsed.filename;
+      this.size = parsed.size;
+      this.chunks = parsed.chunks.map((c) => new Chunk(c));
+      this.encryption = parsed.encryption
+        ? { ...parsed.encryption, recipients: parsed.encryption.recipients?.map((r) => ({ ...r })) }
         : undefined;
-      this.compression = data.compression ? { ...data.compression } : undefined;
-      this.chunking = data.chunking
-        ? { strategy: data.chunking.strategy, params: { ...data.chunking.params } }
+      this.compression = parsed.compression ? { ...parsed.compression } : undefined;
+      this.chunking = parsed.chunking
+        ? { strategy: parsed.chunking.strategy, params: { ...parsed.chunking.params } }
         : undefined;
-      this.subManifests = data.subManifests ? data.subManifests.map((s) => ({ ...s })) : undefined;
+      this.subManifests = parsed.subManifests ? parsed.subManifests.map((s) => ({ ...s })) : undefined;
       Object.freeze(this);
     } catch (error) {
       if (error instanceof ZodError) {
