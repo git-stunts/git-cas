@@ -34,9 +34,10 @@ not use numeric IDs.
 
 ### `cool-ideas/`
 
-- none currently
+- [TR — Dual Encryption Modes](./cool-ideas/TR_dual-encryption-modes.md)
 
 ### `bad-code/`
 
 - [TR — CasService Decomposition Plan](./bad-code/TR_casservice-decomposition-plan.md)
 - [TR — Store Write Failure Surface](./bad-code/TR_store-write-failure-surface.md)
+- [TR — AES-GCM Metadata Enforcement](./bad-code/TR_aes-gcm-metadata-enforcement.md)
