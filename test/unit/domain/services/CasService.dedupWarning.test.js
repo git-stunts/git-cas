@@ -17,7 +17,7 @@ function makeObserver() {
 
 function makeService(chunker, observability) {
   return new CasService({
-    persistence: { writeBlob: vi.fn().mockResolvedValue('oid'), writeTree: vi.fn(), readBlob: vi.fn() },
+    persistence: { writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)), writeTree: vi.fn(), readBlob: vi.fn() },
     crypto: testCrypto,
     codec: new JsonCodec(),
     chunkSize: 1024,

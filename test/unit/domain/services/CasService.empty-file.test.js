@@ -25,8 +25,8 @@ function emptyFile(tempDir, name = 'empty.bin') {
  */
 function setup() {
   const mockPersistence = {
-    writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
+    writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
     readBlob: vi.fn().mockResolvedValue(Buffer.alloc(0)),
   };
   const service = new CasService({

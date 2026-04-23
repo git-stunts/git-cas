@@ -9,6 +9,9 @@ import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserv
 const testCrypto = await getTestCryptoAdapter();
 const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 
+/** Generate a valid 40-char hex OID for a given index. */
+const blobOid = (i) => `${'abcdef'[i % 6]}`.repeat(40);
+
 /**
  * Helper to create deterministic 64-char SHA-256 digests for test data.
  */
@@ -55,8 +58,8 @@ describe('CasService.deleteAsset() – golden path (multi-chunk)', () => {
       filename: 'photo.jpg',
       size: 2048,
       chunks: [
-        { index: 0, size: 1024, digest: sha256Digest('chunk0'), blob: 'blob-oid-1' },
-        { index: 1, size: 1024, digest: sha256Digest('chunk1'), blob: 'blob-oid-2' },
+        { index: 0, size: 1024, digest: sha256Digest('chunk0'), blob: blobOid(0) },
+        { index: 1, size: 1024, digest: sha256Digest('chunk1'), blob: blobOid(1) },
       ],
     };
 
@@ -65,8 +68,8 @@ describe('CasService.deleteAsset() – golden path (multi-chunk)', () => {
 
     mockPersistence.readTree.mockResolvedValue([
       { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
-      { mode: '100644', type: 'blob', oid: 'blob-oid-1', name: sha256Digest('chunk0') },
-      { mode: '100644', type: 'blob', oid: 'blob-oid-2', name: sha256Digest('chunk1') },
+      { mode: '100644', type: 'blob', oid: blobOid(0), name: sha256Digest('chunk0') },
+      { mode: '100644', type: 'blob', oid: blobOid(1), name: sha256Digest('chunk1') },
     ]);
 
     mockPersistence.readBlob.mockResolvedValue(manifestBlob);
@@ -100,7 +103,7 @@ describe('CasService.deleteAsset() – golden path (single-chunk)', () => {
       filename: 'tiny.txt',
       size: 512,
       chunks: [
-        { index: 0, size: 512, digest: sha256Digest('only-chunk'), blob: 'blob-single' },
+        { index: 0, size: 512, digest: sha256Digest('only-chunk'), blob: blobOid(0) },
       ],
     };
 
@@ -109,7 +112,7 @@ describe('CasService.deleteAsset() – golden path (single-chunk)', () => {
 
     mockPersistence.readTree.mockResolvedValue([
       { mode: '100644', type: 'blob', oid: 'manifest-oid-2', name: 'manifest.json' },
-      { mode: '100644', type: 'blob', oid: 'blob-single', name: sha256Digest('only-chunk') },
+      { mode: '100644', type: 'blob', oid: blobOid(0), name: sha256Digest('only-chunk') },
     ]);
 
     mockPersistence.readBlob.mockResolvedValue(manifestBlob);
@@ -141,7 +144,7 @@ describe('CasService.deleteAsset() – golden path (large manifest)', () => {
         index: i,
         size: 1024,
         digest: sha256Digest(`chunk${i}`),
-        blob: `blob-oid-${i}`,
+        blob: blobOid(i),
       });
     }
 
@@ -330,8 +333,8 @@ describe('CasService.deleteAsset() – encrypted manifest', () => {
       filename: 'secret.dat',
       size: 1536,
       chunks: [
-        { index: 0, size: 1024, digest: sha256Digest('enc-chunk0'), blob: 'enc-blob-1' },
-        { index: 1, size: 512, digest: sha256Digest('enc-chunk1'), blob: 'enc-blob-2' },
+        { index: 0, size: 1024, digest: sha256Digest('enc-chunk0'), blob: blobOid(0) },
+        { index: 1, size: 512, digest: sha256Digest('enc-chunk1'), blob: blobOid(1) },
       ],
       encryption: {
         algorithm: 'aes-256-gcm',
@@ -346,8 +349,8 @@ describe('CasService.deleteAsset() – encrypted manifest', () => {
 
     mockPersistence.readTree.mockResolvedValue([
       { mode: '100644', type: 'blob', oid: 'enc-manifest-oid', name: 'manifest.json' },
-      { mode: '100644', type: 'blob', oid: 'enc-blob-1', name: sha256Digest('enc-chunk0') },
-      { mode: '100644', type: 'blob', oid: 'enc-blob-2', name: sha256Digest('enc-chunk1') },
+      { mode: '100644', type: 'blob', oid: blobOid(0), name: sha256Digest('enc-chunk0') },
+      { mode: '100644', type: 'blob', oid: blobOid(1), name: sha256Digest('enc-chunk1') },
     ]);
 
     mockPersistence.readBlob.mockResolvedValue(manifestBlob);
@@ -378,7 +381,7 @@ describe('CasService.deleteAsset() – slug with special characters', () => {
       filename: 'data.bin',
       size: 1024,
       chunks: [
-        { index: 0, size: 1024, digest: sha256Digest('x'), blob: 'blob-x' },
+        { index: 0, size: 1024, digest: sha256Digest('x'), blob: blobOid(0) },
       ],
     };
 
@@ -415,7 +418,7 @@ describe('CasService.deleteAsset() – very long slug', () => {
       filename: 'long.txt',
       size: 100,
       chunks: [
-        { index: 0, size: 100, digest: sha256Digest('long'), blob: 'blob-long' },
+        { index: 0, size: 100, digest: sha256Digest('long'), blob: blobOid(0) },
       ],
     };
 

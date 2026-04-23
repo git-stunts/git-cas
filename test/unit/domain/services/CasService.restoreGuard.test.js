@@ -36,8 +36,8 @@ async function collectChunks(iterable) {
 
 function setup({ maxRestoreBufferSize } = {}) {
   const mockPersistence = {
-    writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
+    writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
     readBlob: vi.fn().mockResolvedValue(Buffer.alloc(1024, 0xaa)),
     readTree: vi.fn(),
   };
@@ -55,12 +55,15 @@ function setup({ maxRestoreBufferSize } = {}) {
   return { mockPersistence, service };
 }
 
+/** Generate a valid 40-char hex OID for a given index. */
+const blobOid = (i) => `${'abcdef'[i % 6]}`.repeat(40);
+
 function makeEncryptedManifest(chunkSizes) {
   const chunks = chunkSizes.map((size, i) => ({
     index: i,
     size,
     digest: 'a'.repeat(64),
-    blob: `blob-${i}`,
+    blob: blobOid(i),
   }));
   return new Manifest({
     slug: 'test',
@@ -261,8 +264,8 @@ describe('CasService — RESTORE_TOO_LARGE does not affect streaming', () => {
       filename: 'plain.bin',
       size: 2048,
       chunks: [
-        { index: 0, size: 1024, digest: 'a'.repeat(64), blob: 'blob-0' },
-        { index: 1, size: 1024, digest: 'a'.repeat(64), blob: 'blob-1' },
+        { index: 0, size: 1024, digest: 'a'.repeat(64), blob: blobOid(0) },
+        { index: 1, size: 1024, digest: 'a'.repeat(64), blob: blobOid(1) },
       ],
     });
 

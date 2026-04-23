@@ -14,14 +14,18 @@ function digestOf(seed) {
   return createHash('sha256').update(seed).digest('hex');
 }
 
+/** Valid 40-char hex OIDs for blob fields. */
+const BLOB_0 = 'a'.repeat(40);
+const BLOB_1 = 'b'.repeat(40);
+
 function validManifestData(overrides = {}) {
   return {
     slug: 'test-asset',
     filename: 'test.bin',
     size: 2048,
     chunks: [
-      { index: 0, size: 1024, digest: digestOf('chunk-0'), blob: 'blob-oid-0' },
-      { index: 1, size: 1024, digest: digestOf('chunk-1'), blob: 'blob-oid-1' },
+      { index: 0, size: 1024, digest: digestOf('chunk-0'), blob: BLOB_0 },
+      { index: 1, size: 1024, digest: digestOf('chunk-1'), blob: BLOB_1 },
     ],
     ...overrides,
   };

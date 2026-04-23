@@ -18,12 +18,18 @@ function base64BytesSchema(field, byteLength) {
     });
 }
 
+/** Matches a lowercase hex Git OID — SHA-1 (40 chars) or SHA-256 (64 chars). */
+const gitOidSchema = z.string().regex(
+  /^[0-9a-f]{40}([0-9a-f]{24})?$/,
+  'must be a 40- or 64-character lowercase hex Git OID',
+);
+
 /** Validates a single chunk entry within a manifest. */
 export const ChunkSchema = z.object({
   index: z.number().int().min(0),
   size: z.number().int().positive(),
-  digest: z.string().length(64), // SHA-256
-  blob: z.string().min(1),       // Git OID
+  digest: z.string().regex(/^[0-9a-f]{64}$/, 'digest must be a 64-character lowercase hex string'),
+  blob: gitOidSchema,
 });
 
 /** Validates KDF parameters stored alongside encryption metadata. */
@@ -112,7 +118,7 @@ export const ChunkingSchema = z.discriminatedUnion('strategy', [
 
 /** Validates a sub-manifest reference in a v2 Merkle manifest. */
 export const SubManifestRefSchema = z.object({
-  oid: z.string().min(1),
+  oid: gitOidSchema,
   chunkCount: z.number().int().positive(),
   startIndex: z.number().int().min(0),
 });

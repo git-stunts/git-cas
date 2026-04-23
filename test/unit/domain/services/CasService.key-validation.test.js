@@ -23,8 +23,8 @@ function createService(mockPersistence) {
 
 function createMockPersistence() {
   return {
-    writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
+    writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
     readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
   };
 }

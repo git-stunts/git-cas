@@ -7,11 +7,14 @@ const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 /** Deterministic SHA-256 hex digest for a given string. */
 const sha256 = (str) => createHash('sha256').update(str).digest('hex');
 
+/** Valid 40-char hex OID for blob fields. */
+const VALID_BLOB = 'a'.repeat(40);
+
 /** Reusable valid chunk entry. */
 const validChunk = (index = 0) => ({
   index,
   size: 128,
-  blob: 'abc123',
+  blob: VALID_BLOB,
   digest: sha256(`chunk-${index}`),
 });
 
@@ -174,7 +177,7 @@ describe('Manifest – backward compatibility (chunking)', () => { // eslint-dis
       ...validManifestData(),
       version: 2,
       chunking: { strategy: 'cdc', params: { target: 262144, min: 65536, max: 1048576 } },
-      subManifests: [{ oid: 'abc123', chunkCount: 5, startIndex: 0 }],
+      subManifests: [{ oid: 'b'.repeat(40), chunkCount: 5, startIndex: 0 }],
     };
     const m = new Manifest(data);
     expect(m.chunking.strategy).toBe('cdc');

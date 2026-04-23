@@ -5,11 +5,14 @@ import Chunk from '../../../../src/domain/value-objects/Chunk.js';
 /** Deterministic SHA-256 hex digest (always 64 hex chars). */
 const sha256 = (str) => createHash('sha256').update(str).digest('hex');
 
+/** Valid 40-char hex OID for blob fields. */
+const VALID_BLOB = 'a'.repeat(40);
+
 /** Reusable minimal valid chunk data. */
 const validChunkData = () => ({
   index: 0,
   size: 256,
-  blob: 'abc123',
+  blob: VALID_BLOB,
   digest: sha256('test-chunk-0'),
 });
 
@@ -22,7 +25,7 @@ describe('Chunk – creation', () => {
 
     expect(c.index).toBe(0);
     expect(c.size).toBe(256);
-    expect(c.blob).toBe('abc123');
+    expect(c.blob).toBe(VALID_BLOB);
     expect(c.digest).toBe(sha256('test-chunk-0'));
     expect(Object.isFrozen(c)).toBe(true);
   });

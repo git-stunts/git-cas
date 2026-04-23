@@ -47,7 +47,7 @@ function encryptedManifest(slug) {
     filename: `${slug}.bin`,
     size: 128,
     chunks: [
-      { index: 0, size: 128, digest: CHUNK_DIGEST, blob: 'blob-0' },
+      { index: 0, size: 128, digest: CHUNK_DIGEST, blob: 'a'.repeat(40) },
     ],
     encryption: {
       algorithm: 'aes-256-gcm',

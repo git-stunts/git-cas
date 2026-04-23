@@ -10,6 +10,9 @@ import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserv
 const testCrypto = await getTestCryptoAdapter();
 const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 
+/** Valid 40-char hex OID for blob fields. */
+const VALID_BLOB = 'a'.repeat(40);
+
 /** Deterministic SHA-256 hex digest for a given string. */
 const sha256 = (str) => createHash('sha256').update(str).digest('hex');
 
@@ -61,7 +64,7 @@ describe('CasService – constructor – chunkSize validation', () => {
 
   beforeEach(() => {
     mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+      writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
       writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
       readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
     };
@@ -97,7 +100,7 @@ describe('CasService – store – mutual exclusion and validation', () => {
   beforeEach(() => {
     service = new CasService({
       persistence: {
-        writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+        writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
         writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
         readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
       },
@@ -138,7 +141,7 @@ describe('CasService – restore – mutual exclusion', () => {
   beforeEach(() => {
     service = new CasService({
       persistence: {
-        writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+        writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
         writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
         readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
       },
@@ -186,7 +189,7 @@ describe('CasService – store', () => {
 
   beforeEach(() => {
     mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+      writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
       writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
       readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
     };
@@ -216,7 +219,7 @@ describe('CasService – verifyIntegrity (plain)', () => {
 
   beforeEach(() => {
     mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+      writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
       writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
       readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
     };
@@ -247,7 +250,7 @@ describe('CasService – verifyIntegrity (plain)', () => {
         {
           index: 0,
           size: originalData.length,
-          blob: 'blob-oid-1',
+          blob: VALID_BLOB,
           digest: correctDigest,
         },
       ],
@@ -263,7 +266,7 @@ describe('CasService – verifyIntegrity (encrypted without credentials)', () =>
     const key = Buffer.alloc(32, 0x11);
     const service = new CasService({
       persistence: {
-        writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+        writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
         writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
         readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
       },
@@ -377,7 +380,7 @@ describe('CasService – createTree', () => {
 
   beforeEach(() => {
     mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+      writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
       writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
       readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
     };

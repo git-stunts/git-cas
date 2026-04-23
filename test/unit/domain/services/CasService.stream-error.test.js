@@ -33,8 +33,8 @@ function failingSource(chunksBeforeError, chunkSize = 1024) {
  */
 function setup() {
   const mockPersistence = {
-    writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
+    writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
     readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
   };
   const service = new CasService({

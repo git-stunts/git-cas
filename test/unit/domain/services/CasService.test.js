@@ -12,14 +12,19 @@ import { digestOf } from '../../../helpers/crypto.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
+/** Valid 40-char hex OIDs for test fixtures. */
+const BLOB_OID = 'a'.repeat(40);
+const B1 = 'b'.repeat(40);
+const B2 = 'c'.repeat(40);
+
 /**
  * Shared factory: builds the standard test fixtures.
  */
 function setup() {
   const mockPersistence = {
-    writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
-    readBlob: vi.fn().mockImplementation((oid) => Promise.resolve(Buffer.from(oid === 'b1' ? 'chunk1' : 'chunk2'))),
+    writeBlob: vi.fn().mockResolvedValue(BLOB_OID),
+    writeTree: vi.fn().mockResolvedValue('d'.repeat(40)),
+    readBlob: vi.fn().mockImplementation((oid) => Promise.resolve(Buffer.from(oid === B1 ? 'chunk1' : 'chunk2'))),
   };
   const service = new CasService({
     persistence: mockPersistence,
@@ -188,14 +193,14 @@ describe('CasService – createTree', () => {
       filename: 'test.txt',
       size: 100,
       chunks: [
-        { index: 0, size: 10, blob: 'b1', digest: digestOf('chunk-a') },
-        { index: 1, size: 10, blob: 'b2', digest: digestOf('chunk-b') }
+        { index: 0, size: 10, blob: B1, digest: digestOf('chunk-a') },
+        { index: 1, size: 10, blob: B2, digest: digestOf('chunk-b') }
       ]
     });
 
     const treeOid = await service.createTree({ manifest });
 
-    expect(treeOid).toBe('mock-tree-oid');
+    expect(treeOid).toBe('d'.repeat(40));
     expect(mockPersistence.writeBlob).toHaveBeenCalled(); // For the manifest.json
     expect(mockPersistence.writeTree).toHaveBeenCalledWith(expect.arrayContaining([
       expect.stringContaining('manifest.json'),
@@ -221,9 +226,9 @@ describe('CasService – createTree dedupe', () => {
       filename: 'repeat.txt',
       size: 120,
       chunks: [
-        { index: 0, size: 40, blob: 'b1', digest: duplicateDigest },
-        { index: 1, size: 40, blob: 'b1', digest: duplicateDigest },
-        { index: 2, size: 40, blob: 'b2', digest: uniqueDigest }
+        { index: 0, size: 40, blob: B1, digest: duplicateDigest },
+        { index: 1, size: 40, blob: B1, digest: duplicateDigest },
+        { index: 2, size: 40, blob: B2, digest: uniqueDigest }
       ]
     });
 
@@ -233,8 +238,8 @@ describe('CasService – createTree dedupe', () => {
     const chunkEntries = treeEntries.filter((entry) => !entry.includes('manifest.json'));
 
     expect(chunkEntries).toEqual([
-      `100644 blob b1\t${duplicateDigest}`,
-      `100644 blob b2\t${uniqueDigest}`
+      `100644 blob ${B1}\t${duplicateDigest}`,
+      `100644 blob ${B2}\t${uniqueDigest}`
     ]);
     expect(new Set(chunkEntries.map((entry) => entry.split('\t')[1])).size).toBe(chunkEntries.length);
   });
@@ -259,8 +264,8 @@ describe('CasService – verifyIntegrity', () => {
       filename: 't.txt',
       size: 12,
       chunks: [
-        { index: 0, size: 6, blob: 'b1', digest: await sha('chunk1') },
-        { index: 1, size: 6, blob: 'b2', digest: await sha('chunk2') }
+        { index: 0, size: 6, blob: B1, digest: await sha('chunk1') },
+        { index: 1, size: 6, blob: B2, digest: await sha('chunk2') }
       ]
     });
 
