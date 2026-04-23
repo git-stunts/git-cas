@@ -506,15 +506,15 @@ describe('CasService Merkle – fuzz round-trip across various chunk counts', ()
 // ---------------------------------------------------------------------------
 describe('CasService Merkle – merkleThreshold validation', () => {
   it('rejects merkleThreshold of 0', () => {
-    expect(() => setup(0)).toThrow('Merkle threshold must be a positive integer');
+    expect(() => setup(0)).toThrow(/merkleThreshold must be an integer in/i);
   });
 
   it('rejects negative merkleThreshold', () => {
-    expect(() => setup(-1)).toThrow('Merkle threshold must be a positive integer');
+    expect(() => setup(-1)).toThrow(/merkleThreshold must be an integer in/i);
   });
 
   it('rejects non-integer merkleThreshold', () => {
-    expect(() => setup(1.5)).toThrow('Merkle threshold must be a positive integer');
+    expect(() => setup(1.5)).toThrow(/merkleThreshold must be an integer in/i);
   });
 });
 

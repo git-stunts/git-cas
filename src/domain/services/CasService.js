@@ -66,23 +66,17 @@ export default class CasService {
    * Validates constructor numeric arguments.
    * @private
    */
+  static #assertIntRange({ value, min, max, label }) {
+    if (!Number.isInteger(value) || value < min || value > max) {
+      throw new Error(`${label} must be an integer in [${min}, ${max}]`);
+    }
+  }
+
   static #validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize }) {
-    if (!Number.isInteger(chunkSize) || chunkSize < 1024) {
-      throw new Error('Chunk size must be an integer >= 1024 bytes');
-    }
-    const MAX_CHUNK_SIZE = 100 * 1024 * 1024;
-    if (chunkSize > MAX_CHUNK_SIZE) {
-      throw new Error(`Chunk size must not exceed ${MAX_CHUNK_SIZE} bytes (100 MiB)`);
-    }
-    if (!Number.isInteger(merkleThreshold) || merkleThreshold < 1) {
-      throw new Error('Merkle threshold must be a positive integer');
-    }
-    if (!Number.isInteger(concurrency) || concurrency < 1) {
-      throw new Error('Concurrency must be a positive integer');
-    }
-    if (!Number.isInteger(maxRestoreBufferSize) || maxRestoreBufferSize < 1024) {
-      throw new Error('maxRestoreBufferSize must be a positive integer >= 1024');
-    }
+    CasService.#assertIntRange({ value: chunkSize, min: 1024, max: 100 * 1024 * 1024, label: 'chunkSize' });
+    CasService.#assertIntRange({ value: merkleThreshold, min: 1, max: Number.MAX_SAFE_INTEGER, label: 'merkleThreshold' });
+    CasService.#assertIntRange({ value: concurrency, min: 1, max: 64, label: 'concurrency' });
+    CasService.#assertIntRange({ value: maxRestoreBufferSize, min: 1024, max: Number.MAX_SAFE_INTEGER, label: 'maxRestoreBufferSize' });
   }
 
   /**

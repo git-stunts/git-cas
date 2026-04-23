@@ -43,4 +43,5 @@ not use numeric IDs.
 - [SEC — encodeSlug Control Chars](./bad-code/SEC_encode-slug-control-chars.md)
 - [SEC — KDF Salt Min Length](./bad-code/SEC_kdf-salt-min-length.md)
 - [SEC — frameBytes Upper Bound](./bad-code/SEC_framebytes-upper-bound.md)
+- [SEC — Concurrency Upper Bound](./bad-code/SEC_concurrency-upper-bound.md)
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)

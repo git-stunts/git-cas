@@ -20,7 +20,7 @@ function makeService(chunkSize, observability) {
 
 describe('CasService — chunk size upper bound', () => {
   it('throws when chunkSize > 100 MiB', () => {
-    expect(() => makeService(100 * MiB + 1)).toThrow(/must not exceed/i);
+    expect(() => makeService(100 * MiB + 1)).toThrow(/chunkSize must be an integer in/i);
   });
 
   it('accepts exactly 100 MiB', () => {

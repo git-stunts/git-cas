@@ -73,13 +73,13 @@ describe('CasService – constructor – chunkSize validation', () => {
   it('throws when chunkSize is 0', () => {
     expect(
       () => new CasService({ persistence: mockPersistence, crypto: testCrypto, codec: new JsonCodec(), chunkSize: 0, observability: new SilentObserver() }),
-    ).toThrow('Chunk size must be an integer >= 1024 bytes');
+    ).toThrow(/chunkSize must be an integer in/i);
   });
 
   it('throws when chunkSize is 512', () => {
     expect(
       () => new CasService({ persistence: mockPersistence, crypto: testCrypto, codec: new JsonCodec(), chunkSize: 512, observability: new SilentObserver() }),
-    ).toThrow('Chunk size must be an integer >= 1024 bytes');
+    ).toThrow(/chunkSize must be an integer in/i);
   });
 
   it('accepts chunkSize of exactly 1024', () => {

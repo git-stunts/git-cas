@@ -248,10 +248,10 @@ describe('Parallel I/O – stream error', () => {
 
 describe('Parallel I/O – validation', () => {
   it('invalid concurrency: 0 throws', () => {
-    expect(() => setup(0)).toThrow('Concurrency must be a positive integer');
+    expect(() => setup(0)).toThrow(/concurrency must be an integer in/i);
   });
 
   it('invalid concurrency: -1 throws', () => {
-    expect(() => setup(-1)).toThrow('Concurrency must be a positive integer');
+    expect(() => setup(-1)).toThrow(/concurrency must be an integer in/i);
   });
 });
