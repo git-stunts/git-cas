@@ -133,5 +133,5 @@ export const ManifestSchema = z.object({
   encryption: EncryptionSchema.optional(),
   compression: CompressionSchema.optional(),
   chunking: ChunkingSchema.optional(),
-  subManifests: z.array(SubManifestRefSchema).optional(),
+  subManifests: z.array(SubManifestRefSchema).max(10_000).optional(),
 });
