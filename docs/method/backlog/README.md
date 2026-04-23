@@ -46,4 +46,5 @@ not use numeric IDs.
 - [SEC — Concurrency Upper Bound](./bad-code/SEC_concurrency-upper-bound.md)
 - [SEC — Sub-Manifest chunkCount Integrity](./bad-code/SEC_submanifest-chunkcount-integrity.md)
 - [SEC — Recipient Timing Oracle](./bad-code/SEC_recipient-timing-oracle.md)
+- [SEC — Store Source Validation](./bad-code/SEC_store-source-validation.md)
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)

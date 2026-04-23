@@ -750,6 +750,9 @@ export default class CasService {
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
   async store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients }) {
+    if (!source || typeof source[Symbol.asyncIterator] !== 'function') {
+      throw new CasError('source must be an async iterable', 'INVALID_OPTIONS', { sourceType: typeof source });
+    }
     if (recipients && (encryptionKey || passphrase)) {
       throw new CasError('Provide recipients or encryptionKey/passphrase, not both', 'INVALID_OPTIONS');
     }
