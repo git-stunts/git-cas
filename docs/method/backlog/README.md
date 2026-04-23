@@ -41,4 +41,5 @@ not use numeric IDs.
 - [SEC — Scrypt Memory Budget](./bad-code/SEC_scrypt-memory-budget.md)
 - [SEC — Sub-Manifest Array Limit](./bad-code/SEC_submanifest-array-limit.md)
 - [SEC — encodeSlug Control Chars](./bad-code/SEC_encode-slug-control-chars.md)
+- [SEC — KDF Salt Min Length](./bad-code/SEC_kdf-salt-min-length.md)
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)

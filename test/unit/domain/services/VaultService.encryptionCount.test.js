@@ -9,7 +9,7 @@ function encryptedMetadata(overrides = {}) {
     version: 1,
     encryption: {
       cipher: 'aes-256-gcm',
-      kdf: { algorithm: 'pbkdf2', salt: 'c2FsdA==', iterations: 100000, keyLength: 32 },
+      kdf: { algorithm: 'pbkdf2', salt: 'qqqqqqqqqqqqqqqqqqqqqg==', iterations: 100000, keyLength: 32 },
     },
     ...overrides,
   };

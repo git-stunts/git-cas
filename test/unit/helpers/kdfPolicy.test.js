@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assertKdfPolicy } from '../../../src/helpers/kdfPolicy.js';
+import { assertKdfPolicy, prepareStoredKdfOptions } from '../../../src/helpers/kdfPolicy.js';
 
 const SOURCE = 'test';
 
@@ -42,5 +42,33 @@ describe('kdfPolicy – scrypt memory cap (rejected)', () => {
 
   it('rejects N=524288 with r=32 (2 GiB)', () => {
     expect(() => assertKdfPolicy(scryptParams(524_288, 32), { source: SOURCE })).toThrow(/memory/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// KDF salt minimum byte-length
+// ---------------------------------------------------------------------------
+describe('kdfPolicy – salt minimum length', () => {
+  const validKdf = (saltBytes) => ({
+    algorithm: 'pbkdf2',
+    salt: Buffer.alloc(saltBytes, 0xaa).toString('base64'),
+    iterations: 600_000,
+    keyLength: 32,
+  });
+
+  it('accepts a 32-byte salt', () => {
+    expect(() => prepareStoredKdfOptions(validKdf(32), { source: SOURCE })).not.toThrow();
+  });
+
+  it('accepts a 16-byte salt (minimum)', () => {
+    expect(() => prepareStoredKdfOptions(validKdf(16), { source: SOURCE })).not.toThrow();
+  });
+
+  it('rejects a 1-byte salt', () => {
+    expect(() => prepareStoredKdfOptions(validKdf(1), { source: SOURCE })).toThrow(/salt/i);
+  });
+
+  it('rejects a 15-byte salt', () => {
+    expect(() => prepareStoredKdfOptions(validKdf(15), { source: SOURCE })).toThrow(/salt/i);
   });
 });

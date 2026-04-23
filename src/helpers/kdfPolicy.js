@@ -165,8 +165,17 @@ export function prepareKdfOptions(kdfOptions, { source }) {
   return normalized;
 }
 
+const MIN_SALT_BYTES = 16;
+
 export function prepareStoredKdfOptions(kdf, { source }) {
   assertCanonicalBase64(kdf.salt, 'salt', source);
+  const saltBytes = Buffer.from(kdf.salt, 'base64').length;
+  if (saltBytes < MIN_SALT_BYTES) {
+    buildPolicyError(
+      `${source} KDF salt must be at least ${MIN_SALT_BYTES} bytes, got ${saltBytes}`,
+      { source, field: 'salt', saltBytes, minSaltBytes: MIN_SALT_BYTES },
+    );
+  }
   const params = {
     algorithm: kdf.algorithm,
     iterations: kdf.iterations,
