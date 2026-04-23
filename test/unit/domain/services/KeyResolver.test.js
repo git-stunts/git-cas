@@ -280,4 +280,28 @@ describe('KeyResolver.resolveKeyForRecipients', () => {
     const result = await resolver.resolveKeyForRecipients(manifest, key);
     expect(Buffer.from(result)).toEqual(key);
   });
+
+});
+
+describe('KeyResolver.resolveKeyForRecipients – constant-time iteration', () => {
+  it('tries all recipients even when first matches', async () => {
+    const dek = crypto.randomBytes(32);
+    const wrapped1 = await resolver.wrapDek(dek, key);
+    const otherKey = crypto.randomBytes(32);
+    const wrapped2 = await resolver.wrapDek(dek, otherKey);
+
+    const manifest = {
+      encryption: {
+        recipients: [
+          { label: 'alice', ...wrapped1 },
+          { label: 'bob', ...wrapped2 },
+        ],
+      },
+    };
+
+    const spy = vi.spyOn(resolver, 'unwrapDek');
+    await resolver.resolveKeyForRecipients(manifest, key);
+    expect(spy).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
+  });
 });

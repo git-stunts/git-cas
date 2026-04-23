@@ -168,19 +168,24 @@ export default class KeyResolver {
       return key;
     }
 
+    // Iterate all recipients to avoid leaking which index matched via timing.
+    let result = null;
     for (const entry of recipients) {
       try {
-        return await this.unwrapDek(entry, key);
+        const dek = await this.unwrapDek(entry, key);
+        if (!result) { result = dek; }
       } catch (err) {
         if (!(err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED')) { throw err; }
-        // Not this recipient's KEK, try next
       }
     }
 
-    throw new CasError(
-      'No recipient entry could be unwrapped with the provided key',
-      'NO_MATCHING_RECIPIENT',
-    );
+    if (!result) {
+      throw new CasError(
+        'No recipient entry could be unwrapped with the provided key',
+        'NO_MATCHING_RECIPIENT',
+      );
+    }
+    return result;
   }
 
   /**
