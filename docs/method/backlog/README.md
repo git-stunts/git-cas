@@ -40,4 +40,5 @@ not use numeric IDs.
 - [SEC — Schema Hex Validation](./bad-code/SEC_schema-hex-validation.md)
 - [SEC — Scrypt Memory Budget](./bad-code/SEC_scrypt-memory-budget.md)
 - [SEC — Sub-Manifest Array Limit](./bad-code/SEC_submanifest-array-limit.md)
+- [SEC — encodeSlug Control Chars](./bad-code/SEC_encode-slug-control-chars.md)
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)

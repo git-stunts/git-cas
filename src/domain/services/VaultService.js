@@ -38,6 +38,13 @@ const CAS_RETRY_BASE_MS = 50;
  * @returns {string}
  */
 function encodeSlug(slug) {
+  if (hasControlChars(slug)) {
+    throw new CasError(
+      'Slug contains control characters — refusing to encode for mktree',
+      'INVALID_SLUG',
+      { slug },
+    );
+  }
   return slug.replaceAll('%', '%25').replaceAll('/', '%2F');
 }
 
