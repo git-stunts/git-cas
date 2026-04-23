@@ -110,3 +110,37 @@ describe('Chunk – missing fields', () => {
     expect(() => new Chunk()).toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Property stripping (security: extra properties must not leak through)
+// ---------------------------------------------------------------------------
+describe('Chunk – extra property stripping', () => {
+  it('does not copy unknown properties from input data', () => {
+    const data = { ...validChunkData(), malicious: 'payload' };
+    const c = new Chunk(data);
+
+    expect(c).not.toHaveProperty('malicious');
+    expect(Object.keys(c).sort()).toEqual(['blob', 'digest', 'index', 'size']);
+  });
+
+  it('does not allow __proto__ pollution via input data', () => {
+    const data = Object.assign(Object.create(null), validChunkData(), {
+      __proto__: { polluted: true },
+    });
+    const c = new Chunk(data);
+
+    expect(c).not.toHaveProperty('polluted');
+  });
+
+  it('does not allow overriding built-in methods via input data', () => {
+    const evil = () => 'pwned';
+    const data = { ...validChunkData(), hasOwnProperty: evil, toString: evil };
+    const c = new Chunk(data);
+
+    // Extra properties must not become own properties on the Chunk
+    expect(Object.getOwnPropertyDescriptor(c, 'hasOwnProperty')).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptor(c, 'toString')).toBeUndefined();
+    // Inherited methods must still work normally
+    expect(c.toString()).not.toBe('pwned');
+  });
+});

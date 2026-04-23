@@ -23,8 +23,7 @@ export default class Chunk {
    */
   constructor(data) {
     try {
-      ChunkSchema.parse(data);
-      Object.assign(this, data);
+      Object.assign(this, ChunkSchema.parse(data));
       Object.freeze(this);
     } catch (error) {
       if (error instanceof ZodError) {
