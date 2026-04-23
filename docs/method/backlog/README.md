@@ -44,4 +44,5 @@ not use numeric IDs.
 - [SEC — KDF Salt Min Length](./bad-code/SEC_kdf-salt-min-length.md)
 - [SEC — frameBytes Upper Bound](./bad-code/SEC_framebytes-upper-bound.md)
 - [SEC — Concurrency Upper Bound](./bad-code/SEC_concurrency-upper-bound.md)
+- [SEC — Sub-Manifest chunkCount Integrity](./bad-code/SEC_submanifest-chunkcount-integrity.md)
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)

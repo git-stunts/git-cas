@@ -1666,6 +1666,13 @@ export default class CasService {
     for (const ref of subManifests) {
       const subBlob = await this._readSubManifestBlob(ref.oid, treeOid);
       const subDecoded = this.codec.decode(subBlob);
+      if (subDecoded.chunks.length !== ref.chunkCount) {
+        throw new CasError(
+          `Sub-manifest ${ref.oid} declares chunkCount ${ref.chunkCount} but contains ${subDecoded.chunks.length} chunks`,
+          'MANIFEST_INTEGRITY_ERROR',
+          { subManifestOid: ref.oid, declaredCount: ref.chunkCount, actualCount: subDecoded.chunks.length, treeOid },
+        );
+      }
       allChunks.push(...subDecoded.chunks);
     }
     return allChunks;
