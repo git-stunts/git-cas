@@ -42,4 +42,5 @@ not use numeric IDs.
 - [SEC — Sub-Manifest Array Limit](./bad-code/SEC_submanifest-array-limit.md)
 - [SEC — encodeSlug Control Chars](./bad-code/SEC_encode-slug-control-chars.md)
 - [SEC — KDF Salt Min Length](./bad-code/SEC_kdf-salt-min-length.md)
+- [SEC — frameBytes Upper Bound](./bad-code/SEC_framebytes-upper-bound.md)
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)

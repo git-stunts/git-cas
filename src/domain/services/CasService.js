@@ -15,6 +15,7 @@ import GitPersistencePort from '../../ports/GitPersistencePort.js';
 
 const gunzipAsync = promisify(gunzip);
 const DEFAULT_FRAMED_FRAME_BYTES = 64 * 1024;
+const MAX_FRAMED_FRAME_BYTES = 64 * 1024 * 1024;
 const FRAMED_LENGTH_BYTES = 4;
 const GCM_NONCE_BYTES = 12;
 const GCM_TAG_BYTES = 16;
@@ -414,6 +415,13 @@ export default class CasService {
         'encryption.frameBytes must be a positive integer',
         'INVALID_OPTIONS',
         { frameBytes: normalizedFrameBytes },
+      );
+    }
+    if (normalizedFrameBytes > MAX_FRAMED_FRAME_BYTES) {
+      throw new CasError(
+        `encryption.frameBytes must not exceed ${MAX_FRAMED_FRAME_BYTES} bytes (64 MiB), got ${normalizedFrameBytes}`,
+        'INVALID_OPTIONS',
+        { frameBytes: normalizedFrameBytes, max: MAX_FRAMED_FRAME_BYTES },
       );
     }
 
