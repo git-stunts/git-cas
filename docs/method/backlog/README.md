@@ -37,4 +37,6 @@ not use numeric IDs.
 ### `bad-code/`
 
 - [SEC — Chunk Constructor Property Leak](./bad-code/SEC_chunk-constructor-property-leak.md)
+- [SEC — Schema Hex Validation](./bad-code/SEC_schema-hex-validation.md)
+- [SEC — Scrypt Memory Budget](./bad-code/SEC_scrypt-memory-budget.md)
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md)

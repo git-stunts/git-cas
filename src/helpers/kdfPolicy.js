@@ -17,6 +17,9 @@ const MAX_SCRYPT_BLOCK_SIZE = 32;
 const MIN_SCRYPT_PARALLELIZATION = 1;
 const MAX_SCRYPT_PARALLELIZATION = 16;
 
+/** Maximum combined scrypt memory budget: 1 GiB (128 * cost * blockSize). */
+const MAX_SCRYPT_MEMORY = 1024 * 1024 * 1024;
+
 function buildPolicyError(message, meta) {
   throw new CasError(message, 'KDF_POLICY_VIOLATION', meta);
 }
@@ -143,6 +146,14 @@ export function assertKdfPolicy(params, { source }) {
       },
     );
     assertKeyLength(params.keyLength, source);
+
+    const memoryBytes = 128 * params.cost * params.blockSize;
+    if (memoryBytes > MAX_SCRYPT_MEMORY) {
+      buildPolicyError(
+        `${source} scrypt memory budget exceeds ${MAX_SCRYPT_MEMORY} bytes (128 × ${params.cost} × ${params.blockSize} = ${memoryBytes})`,
+        { source, field: 'memory', cost: params.cost, blockSize: params.blockSize, memoryBytes },
+      );
+    }
     return;
   }
   assertSupportedAlgorithm(params.algorithm);
