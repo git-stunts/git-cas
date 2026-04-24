@@ -78,7 +78,7 @@ describe('CasService – envelope encryption (single recipient)', () => {
     });
 
     expect(manifest.encryption).toBeDefined();
-    expect(manifest.encryption.scheme).toBe('framed-v1');
+    expect(manifest.encryption.scheme).toBe('framed-v2');
     expect(manifest.encryption.recipients).toHaveLength(1);
     expect(manifest.encryption.recipients[0].label).toBe('alice');
 
@@ -281,7 +281,7 @@ describe('CasService – envelope encryption (edge cases)', () => { // eslint-di
     ).rejects.toThrow(/Duplicate recipient labels/);
   });
 
-  it('envelope manifest includes framed-v1 metadata by default', async () => {
+  it('envelope manifest includes framed-v2 metadata by default', async () => {
     const kek = randomBytes(32);
 
     const manifest = await service.store({
@@ -292,7 +292,7 @@ describe('CasService – envelope encryption (edge cases)', () => { // eslint-di
     });
 
     expect(manifest.encryption.algorithm).toBe('aes-256-gcm');
-    expect(manifest.encryption.scheme).toBe('framed-v1');
+    expect(manifest.encryption.scheme).toBe('framed-v2');
     expect(manifest.encryption.frameBytes).toBeDefined();
     expect(manifest.encryption.nonce).toBeUndefined();
     expect(manifest.encryption.tag).toBeUndefined();

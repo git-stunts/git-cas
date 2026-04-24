@@ -52,18 +52,18 @@ const treeOid = await cas.createTree({ manifest });
 
 | Surface | Streaming API? | Non-streaming API? | Notes |
 |---|---|---|---|
-| Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. New encrypted stores now default to `framed-v1`, which writes framed records incrementally and stays bounded by `frameBytes`. `whole-v1` remains available as an explicit compatibility opt-out. |
+| Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. New encrypted stores now default to `framed-v2`, which writes framed records with per-frame AAD binding and stays bounded by `frameBytes`. `whole-v1`/`framed-v1` remain available as explicit compatibility opt-outs. |
 | Read: plaintext | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True chunk-by-chunk streaming restore. |
 | Read: encrypted `whole-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is still the buffered compatibility path. `restoreFile()` now uses a bounded temp-file path: it verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption, and renames into place only after auth succeeds. On Web Crypto runtimes this decrypt step is still one-shot internally, but it is now bounded by `maxDecryptionBufferSize` instead of collecting ciphertext without a limit. |
-| Read: encrypted `framed-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True authenticated streaming restore. Plaintext is yielded frame-by-frame after each frame is verified. |
+| Read: encrypted `framed-v1`/`framed-v2` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True authenticated streaming restore. Plaintext is yielded frame-by-frame after each frame is verified. `framed-v2` additionally binds per-frame AAD. |
 | Read: compressed-only | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` still buffers gzip restore today. `restoreFile()` now uses a bounded temp-file path and streams gunzip output into place. |
 | Read: compressed + `whole-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is still buffered because auth completes at the end of whole-object AES-GCM. `restoreFile()` now decrypts and gunzips through the same bounded temp-file path. |
 | Read: compressed + `framed-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Streaming decrypt, then streaming gunzip. |
-| Verify | No streaming verify surface | `verifyIntegrity(manifest, options?)` | Verifies chunk digests for all content. `whole-v1` auth-checks the full ciphertext; `framed-v1` parses and auth-checks every frame. |
+| Verify | No streaming verify surface | `verifyIntegrity(manifest, options?)` | Verifies chunk digests for all content. `whole-v1`/`whole-v2` auth-checks the full ciphertext; `framed-v1`/`framed-v2` parses and auth-checks every frame. |
 
-Runtime note: `framed-v1` is the honest cross-runtime streaming answer. On
-Node and Bun, `whole-v1 restoreFile()` has the stronger low-memory path; on
-Web Crypto runtimes such as Deno, `whole-v1` remains bounded-buffer rather
+Runtime note: `framed-v2` is the honest cross-runtime streaming answer. On
+Node and Bun, `whole-v2 restoreFile()` has the stronger low-memory path; on
+Web Crypto runtimes such as Deno, `whole-v2` remains bounded-buffer rather
 than true streaming.
 
 ## Documentation

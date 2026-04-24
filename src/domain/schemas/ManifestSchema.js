@@ -67,7 +67,7 @@ const EncryptionBaseSchema = {
 };
 
 const WholeEncryptionSchema = z.object({
-  scheme: z.literal('whole-v1').optional(),
+  scheme: z.enum(['whole-v1', 'whole-v2']).optional(),
   ...EncryptionBaseSchema,
   nonce: base64BytesSchema('nonce', 12),
   tag: base64BytesSchema('tag', 16),
@@ -75,7 +75,7 @@ const WholeEncryptionSchema = z.object({
 });
 
 const FramedEncryptionSchema = z.object({
-  scheme: z.literal('framed-v1'),
+  scheme: z.enum(['framed-v1', 'framed-v2']),
   ...EncryptionBaseSchema,
   frameBytes: z.number().int().positive(),
   nonce: z.undefined().optional(),

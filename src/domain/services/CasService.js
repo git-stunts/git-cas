@@ -15,6 +15,31 @@ import KeyResolver from './KeyResolver.js';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 
 const gunzipAsync = promisify(gunzip);
+
+/**
+ * Builds AAD for whole-v2 encryption: UTF-8 bytes of the slug.
+ * @param {string} slug
+ * @returns {Buffer}
+ */
+function buildWholeAad(slug) {
+  return Buffer.from(slug, 'utf8');
+}
+
+/**
+ * Builds AAD for framed-v2 encryption: UTF-8 slug + NUL + 4-byte BE frame index.
+ * @param {string} slug
+ * @param {number} frameIndex
+ * @returns {Buffer}
+ */
+function buildFramedAad(slug, frameIndex) {
+  const slugLen = Buffer.byteLength(slug, 'utf8');
+  const buf = Buffer.allocUnsafe(slugLen + 5);
+  buf.write(slug, 0, 'utf8');
+  buf[slugLen] = 0; // NUL separator
+  buf.writeUInt32BE(frameIndex, slugLen + 1);
+  return buf;
+}
+
 const DEFAULT_FRAMED_FRAME_BYTES = 64 * 1024;
 const MAX_FRAMED_FRAME_BYTES = 64 * 1024 * 1024;
 const FRAMED_LENGTH_BYTES = 4;
@@ -344,11 +369,34 @@ export default class CasService {
   }
 
   /**
+   * Decrypts a buffer with optional AAD. Used internally for v2 schemes.
+   * @private
+   * @param {Object} options
+   * @param {Buffer} options.buffer - Ciphertext to decrypt.
+   * @param {Buffer} options.key - 32-byte encryption key.
+   * @param {{ encrypted: boolean, algorithm: string, nonce: string, tag: string }} options.meta - Encryption metadata.
+   * @param {Buffer} [options.aad] - Optional additional authenticated data.
+   * @returns {Promise<Buffer>} Decrypted plaintext.
+   * @throws {CasError} INTEGRITY_ERROR if authentication tag verification fails.
+   */
+  async _decryptWithAad({ buffer, key, meta, aad }) {
+    if (!meta?.encrypted) {
+      return buffer;
+    }
+    try {
+      return await this.crypto.decryptBuffer(buffer, key, meta, aad);
+    } catch (err) {
+      if (err instanceof CasError) {throw err;}
+      throw new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
+    }
+  }
+
+  /**
    * Resolves the requested store encryption config.
    * @private
    * @param {{ scheme?: string, frameBytes?: number }} [encryption]
    * @param {boolean} hasEncryptionKey
-   * @returns {undefined|{ scheme: 'whole-v1' }|{ scheme: 'framed-v1', frameBytes: number }}
+   * @returns {undefined|{ scheme: 'whole-v1'|'whole-v2' }|{ scheme: 'framed-v1'|'framed-v2', frameBytes: number }}
    */
   _resolveStoreEncryptionConfig(encryption, hasEncryptionKey) {
     const scheme = encryption?.scheme;
@@ -359,12 +407,12 @@ export default class CasService {
       return undefined;
     }
 
-    if (scheme === 'whole-v1') {
-      return { scheme: 'whole-v1' };
+    if (scheme === 'whole-v1' || scheme === 'whole-v2') {
+      return { scheme };
     }
 
-    if (!scheme || scheme === 'framed-v1') {
-      return this._resolveFramedStoreEncryptionConfig(frameBytes);
+    if (!scheme || scheme === 'framed-v1' || scheme === 'framed-v2') {
+      return this._resolveFramedStoreEncryptionConfig(frameBytes, scheme);
     }
 
     throw new CasError(
@@ -388,9 +436,9 @@ export default class CasService {
       );
     }
 
-    if (frameBytes !== undefined && scheme === 'whole-v1') {
+    if (frameBytes !== undefined && (scheme === 'whole-v1' || scheme === 'whole-v2')) {
       throw new CasError(
-        'encryption.frameBytes is only supported for framed-v1 stores',
+        `encryption.frameBytes is not supported for ${scheme} stores`,
         'INVALID_OPTIONS',
         { scheme, frameBytes },
       );
@@ -398,12 +446,13 @@ export default class CasService {
   }
 
   /**
-   * Normalizes framed-v1 store config.
+   * Normalizes framed store config.
    * @private
    * @param {number|undefined} frameBytes
-   * @returns {{ scheme: 'framed-v1', frameBytes: number }}
+   * @param {'framed-v1'|'framed-v2'|undefined} [scheme] - Defaults to 'framed-v2'.
+   * @returns {{ scheme: 'framed-v1'|'framed-v2', frameBytes: number }}
    */
-  _resolveFramedStoreEncryptionConfig(frameBytes) {
+  _resolveFramedStoreEncryptionConfig(frameBytes, scheme) {
     const normalizedFrameBytes = frameBytes ?? DEFAULT_FRAMED_FRAME_BYTES;
     if (!Number.isInteger(normalizedFrameBytes) || normalizedFrameBytes < 1) {
       throw new CasError(
@@ -421,7 +470,7 @@ export default class CasService {
     }
 
     return {
-      scheme: 'framed-v1',
+      scheme: scheme || 'framed-v2',
       frameBytes: normalizedFrameBytes,
     };
   }
@@ -440,11 +489,11 @@ export default class CasService {
     }
     this._validateCommonEncryptedManifestMeta(manifest, meta);
 
-    if (meta.scheme === undefined || meta.scheme === 'whole-v1') {
+    if (meta.scheme === undefined || meta.scheme === 'whole-v1' || meta.scheme === 'whole-v2') {
       return this._validateWholeEncryptionMeta(manifest, meta);
     }
 
-    if (meta.scheme === 'framed-v1') {
+    if (meta.scheme === 'framed-v1' || meta.scheme === 'framed-v2') {
       return this._validateFramedEncryptionMeta(manifest, meta);
     }
 
@@ -495,9 +544,9 @@ export default class CasService {
       );
     }
 
-    return /** @type {{ scheme: 'whole-v1', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }} */ ({
+    return /** @type {{ scheme: 'whole-v1'|'whole-v2', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }} */ ({
       ...meta,
-      scheme: 'whole-v1',
+      scheme: meta.scheme || 'whole-v1',
     });
   }
 
@@ -517,9 +566,9 @@ export default class CasService {
       );
     }
 
-    return /** @type {{ scheme: 'framed-v1', encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} */ ({
+    return /** @type {{ scheme: 'framed-v1'|'framed-v2', encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} */ ({
       ...meta,
-      scheme: 'framed-v1',
+      scheme: meta.scheme,
       frameBytes: meta.frameBytes,
     });
   }
@@ -632,10 +681,12 @@ export default class CasService {
    */
   async _verifyEncryptedAuth({ manifest, encryptionMeta, key, buffers }) {
     try {
-      await this.decrypt({
+      const aad = encryptionMeta.scheme === 'whole-v2' ? buildWholeAad(manifest.slug) : undefined;
+      await this._decryptWithAad({
         buffer: Buffer.concat(buffers),
         key,
         meta: encryptionMeta,
+        aad,
       });
       return true;
     } catch (err) {
@@ -664,12 +715,16 @@ export default class CasService {
         }
       })();
 
+      let frameIndex = 0;
       for await (const record of this._parseFramedRecords(source, encryptionMeta.frameBytes)) {
-        await this.decrypt({
+        const aad = encryptionMeta.scheme === 'framed-v2' ? buildFramedAad(manifest.slug, frameIndex) : undefined;
+        await this._decryptWithAad({
           buffer: record.ciphertext,
           key,
           meta: record.meta,
+          aad,
         });
+        frameIndex++;
       }
 
       return true;
@@ -744,7 +799,7 @@ export default class CasService {
    * @param {string} options.filename
    * @param {Buffer} [options.encryptionKey]
    * @param {string} [options.passphrase] - Derive encryption key from passphrase instead.
-   * @param {{ scheme?: 'whole-v1'|'framed-v1', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
+   * @param {{ scheme?: 'whole-v1'|'whole-v2'|'framed-v1'|'framed-v2', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
@@ -810,13 +865,17 @@ export default class CasService {
    * @param {{ processedSource: AsyncIterable<Buffer>, manifestData: { encryption?: object }, key: Buffer, encryptionConfig: { scheme: 'whole-v1' }|{ scheme: 'framed-v1', frameBytes: number }, encExtra: Record<string, unknown> }} options
    */
   async _storeEncryptedSource({ processedSource, manifestData, key, encryptionConfig, encExtra }) {
-    if (encryptionConfig.scheme === 'framed-v1') {
+    if (encryptionConfig.scheme === 'framed-v1' || encryptionConfig.scheme === 'framed-v2') {
       await this._chunkAndStore(
-        this._encryptFramed(processedSource, key, encryptionConfig.frameBytes),
+        this._encryptFramed(processedSource, key, {
+          frameBytes: encryptionConfig.frameBytes,
+          slug: manifestData.slug,
+          scheme: encryptionConfig.scheme,
+        }),
         manifestData,
       );
       manifestData.encryption = {
-        scheme: 'framed-v1',
+        scheme: encryptionConfig.scheme,
         algorithm: 'aes-256-gcm',
         encrypted: true,
         frameBytes: encryptionConfig.frameBytes,
@@ -825,7 +884,8 @@ export default class CasService {
       return;
     }
 
-    const { encrypt, finalize } = this.crypto.createEncryptionStream(key);
+    const aad = encryptionConfig.scheme === 'whole-v2' ? buildWholeAad(manifestData.slug) : undefined;
+    const { encrypt, finalize } = this.crypto.createEncryptionStream(key, aad);
     await this._chunkAndStore(encrypt(processedSource), manifestData);
     manifestData.encryption = {
       ...finalize(),
@@ -848,17 +908,30 @@ export default class CasService {
   }
 
   /**
-   * Encrypts plaintext frames independently and serializes them into framed-v1
+   * Builds optional AAD for the current frame when using framed-v2.
+   * @private
+   * @param {'framed-v1'|'framed-v2'} scheme
+   * @param {string} slug
+   * @param {number} frameIndex
+   * @returns {Buffer|undefined}
+   */
+  _buildFrameAad(scheme, slug, frameIndex) {
+    return scheme === 'framed-v2' ? buildFramedAad(slug, frameIndex) : undefined;
+  }
+
+  /**
+   * Encrypts plaintext frames independently and serializes them into framed
    * records.
    * @private
    * @param {AsyncIterable<Buffer>} source
    * @param {Buffer} key
-   * @param {number} frameBytes
+   * @param {{ frameBytes: number, slug: string, scheme: 'framed-v1'|'framed-v2' }} opts
    * @returns {AsyncIterable<Buffer>}
    */
-  async *_encryptFramed(source, key, frameBytes) {
+  async *_encryptFramed(source, key, { frameBytes, slug, scheme }) {
     let pending = Buffer.alloc(0);
     let sawPlaintext = false;
+    let frameIndex = 0;
 
     for await (const chunk of source) {
       const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
@@ -872,29 +945,31 @@ export default class CasService {
       while (pending.length >= frameBytes) {
         const frame = pending.subarray(0, frameBytes);
         pending = pending.subarray(frameBytes);
-        yield await this._serializeFramedRecord(frame, key);
+        yield await this._serializeFramedRecord(frame, key, this._buildFrameAad(scheme, slug, frameIndex));
+        frameIndex++;
       }
     }
 
     if (pending.length > 0) {
-      yield await this._serializeFramedRecord(pending, key);
+      yield await this._serializeFramedRecord(pending, key, this._buildFrameAad(scheme, slug, frameIndex));
       return;
     }
 
     if (!sawPlaintext) {
-      yield await this._serializeFramedRecord(Buffer.alloc(0), key);
+      yield await this._serializeFramedRecord(Buffer.alloc(0), key, this._buildFrameAad(scheme, slug, frameIndex));
     }
   }
 
   /**
-   * Serializes one framed-v1 record.
+   * Serializes one framed record.
    * @private
    * @param {Buffer} frame
    * @param {Buffer} key
+   * @param {Buffer} [aad] - Optional AAD for framed-v2.
    * @returns {Promise<Buffer>}
    */
-  async _serializeFramedRecord(frame, key) {
-    const { buf, meta } = await this.crypto.encryptBuffer(frame, key);
+  async _serializeFramedRecord(frame, key, aad) {
+    const { buf, meta } = await this.crypto.encryptBuffer(frame, key, aad);
     const nonce = Buffer.from(meta.nonce, 'base64');
     const tag = Buffer.from(meta.tag, 'base64');
     const header = Buffer.alloc(FRAMED_RECORD_HEADER_BYTES);
@@ -1218,12 +1293,24 @@ export default class CasService {
       return;
     }
 
-    if (encryptionMeta?.scheme === 'framed-v1') {
-      if (manifest.compression) {
-        yield* this._restoreFramedCompressedStreaming(manifest, key, encryptionMeta);
-      } else {
-        yield* this._restoreFramedStreaming(manifest, key, encryptionMeta);
-      }
+    yield* this._dispatchRestore(manifest, key, encryptionMeta);
+  }
+
+  /**
+   * Routes to the correct restore strategy based on encryption metadata.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer|undefined} key
+   * @param {undefined|object} encryptionMeta
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_dispatchRestore(manifest, key, encryptionMeta) {
+    const isFramed = encryptionMeta?.scheme === 'framed-v1' || encryptionMeta?.scheme === 'framed-v2';
+
+    if (isFramed && manifest.compression) {
+      yield* this._restoreFramedCompressedStreaming(manifest, key, encryptionMeta);
+    } else if (isFramed) {
+      yield* this._restoreFramedStreaming(manifest, key, encryptionMeta);
     } else if (encryptionMeta || manifest.compression) {
       yield* this._restoreBuffered(manifest, key, encryptionMeta);
     } else {
@@ -1239,7 +1326,7 @@ export default class CasService {
    * @returns {boolean}
    */
   _shouldUseBufferedFileRestore(manifest, encryptionMeta) {
-    return encryptionMeta?.scheme === 'whole-v1' || (!encryptionMeta && !!manifest.compression);
+    return encryptionMeta?.scheme === 'whole-v1' || encryptionMeta?.scheme === 'whole-v2' || (!encryptionMeta && !!manifest.compression);
   }
 
   /**
@@ -1258,7 +1345,8 @@ export default class CasService {
 
     if (encryptionMeta) {
       const key = await this._resolveRestoreKey(manifest, encryptionKey, passphrase);
-      source = this.crypto.createDecryptionStream(key, encryptionMeta).decrypt(source);
+      const aad = encryptionMeta.scheme === 'whole-v2' ? buildWholeAad(manifest.slug) : undefined;
+      source = this.crypto.createDecryptionStream(key, encryptionMeta, aad).decrypt(source);
     }
 
     if (manifest.compression) {
@@ -1289,7 +1377,8 @@ export default class CasService {
 
     if (encryptionMeta) {
       try {
-        buffer = await this.decrypt({ buffer, key, meta: encryptionMeta });
+        const aad = encryptionMeta.scheme === 'whole-v2' ? buildWholeAad(manifest.slug) : undefined;
+        buffer = await this._decryptWithAad({ buffer, key, meta: encryptionMeta, aad });
       } catch (err) {
         if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
           this.observability.metric('error', { action: 'decryption_failed', slug: manifest.slug });
@@ -1458,16 +1547,19 @@ export default class CasService {
    * @returns {AsyncIterable<Buffer>}
    */
   async *_decryptFramedSource(manifest, key, encryptionMeta) {
+    let frameIndex = 0;
     for await (const record of this._parseFramedRecords(
       this._iterVerifiedChunkBlobs(manifest),
       encryptionMeta.frameBytes,
     )) {
       let plaintext;
       try {
-        plaintext = await this.decrypt({
+        const aad = encryptionMeta.scheme === 'framed-v2' ? buildFramedAad(manifest.slug, frameIndex) : undefined;
+        plaintext = await this._decryptWithAad({
           buffer: record.ciphertext,
           key,
           meta: record.meta,
+          aad,
         });
       } catch (err) {
         if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
@@ -1476,6 +1568,7 @@ export default class CasService {
         throw err;
       }
 
+      frameIndex++;
       if (plaintext.length > 0) {
         yield plaintext;
       }
@@ -2015,7 +2108,7 @@ export default class CasService {
       if (key === false) {
         return false;
       }
-      const authOk = encryptionMeta.scheme === 'framed-v1'
+      const authOk = (encryptionMeta.scheme === 'framed-v1' || encryptionMeta.scheme === 'framed-v2')
         ? await this._verifyFramedAuth({ manifest, encryptionMeta, key, buffers })
         : await this._verifyEncryptedAuth({ manifest, encryptionMeta, key, buffers });
       if (!authOk) {
