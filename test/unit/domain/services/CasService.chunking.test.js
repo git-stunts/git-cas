@@ -201,6 +201,7 @@ describe('CasService – CdcChunker manifest metadata', () => {
       target: cdcOpts.targetChunkSize,
       min: cdcOpts.minChunkSize,
       max: cdcOpts.maxChunkSize,
+      normalized: true,
     });
   });
 

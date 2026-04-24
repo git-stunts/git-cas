@@ -17,3 +17,12 @@ near-target-size regions.
   measure chunk count / average size / dedup ratio
 - The Buzhash table and rolling hash are already there — it's mainly a mask
   selection change in `scanBoundary()`
+
+## Status
+
+- [x] Implemented — `security/audit-fixes` branch
+- `normalized` option (default `true`) on CdcChunker
+- `hardMask` (bits+1) below target, `easyMask` (bits-1) above target
+- Schema updated with optional `normalized` field in CDC params
+- resolveChunker threads `normalized` through
+- 5 new tests (params, variance comparison, data integrity)

@@ -107,6 +107,7 @@ export const CdcChunkingSchema = z.object({
     target: z.number().int().positive(),
     min: z.number().int().positive(),
     max: z.number().int().positive(),
+    normalized: z.boolean().optional(),
   }),
 });
 

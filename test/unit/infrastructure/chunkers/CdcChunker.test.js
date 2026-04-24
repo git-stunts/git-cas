@@ -23,6 +23,7 @@ describe('CdcChunker – ChunkingPort compliance', () => {
       target: 262144,
       min: 65536,
       max: 1048576,
+      normalized: true,
     });
   });
 
@@ -36,6 +37,7 @@ describe('CdcChunker – ChunkingPort compliance', () => {
       target: 128000,
       min: 32000,
       max: 512000,
+      normalized: true,
     });
   });
 });

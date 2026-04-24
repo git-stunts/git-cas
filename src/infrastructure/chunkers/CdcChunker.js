@@ -77,7 +77,11 @@ const WINDOW_MASK = WINDOW_SIZE - 1; // 63, for fast modulo
  * @property {number} chunkLen   - Bytes written to chunkBuf so far.
  * @property {number} minSize    - Minimum chunk size.
  * @property {number} maxSize    - Maximum chunk size.
- * @property {number} mask       - Boundary detection mask.
+ * @property {number} mask       - Boundary detection mask (single-mask mode).
+ * @property {number} hardMask   - Stricter mask for below-target (normalized mode).
+ * @property {number} easyMask   - Looser mask for above-target (normalized mode).
+ * @property {number} targetSize - Target chunk size (normalized mode).
+ * @property {boolean} normalized - Whether dual-mask normalization is active.
  */
 
 /**
@@ -164,7 +168,7 @@ function feedPreMin(st, buf, srcPos) {
  * @returns {{ srcPos: number, found: boolean }}
  */
 function scanBoundary(st, buf, srcPos) {
-  const { mask, maxSize } = st;
+  const { maxSize, normalized, hardMask, easyMask, targetSize, mask } = st;
   const table = BUZ_TABLE;
   const limit = buf.length < (srcPos + maxSize - st.chunkLen)
     ? buf.length
@@ -183,7 +187,8 @@ function scanBoundary(st, buf, srcPos) {
     chunkBuf[cl++] = byte;
     srcPos++;
 
-    if ((h & mask) === 0) {
+    const m = normalized ? (cl < targetSize ? hardMask : easyMask) : mask;
+    if ((h & m) === 0) {
       st.hash = h;
       st.winPos = wp;
       st.chunkLen = cl;
@@ -246,17 +251,26 @@ function processBuf(st, buf) {
  * @property {number} [minChunkSize=65536]   - Minimum chunk size in bytes (64 KiB).
  * @property {number} [maxChunkSize=1048576] - Maximum chunk size in bytes (1 MiB).
  * @property {number} [targetChunkSize=262144] - Target (average) chunk size in bytes (256 KiB).
+ * @property {boolean} [normalized=true] - Enable FastCDC dual-mask normalization.
  */
 
 /**
  * CDC chunker that uses a Buzhash rolling hash to find content-defined
  * chunk boundaries within an async byte stream.
+ *
+ * When `normalized` is true (the default), a dual-mask strategy is used:
+ * a stricter mask below the target size and a looser mask above it. This
+ * concentrates the chunk size distribution around the target, improving
+ * deduplication efficiency.
  */
 export default class CdcChunker extends ChunkingPort {
   /** @type {number} */ #minChunkSize;
   /** @type {number} */ #maxChunkSize;
   /** @type {number} */ #targetChunkSize;
   /** @type {number} */ #mask;
+  /** @type {number} */ #hardMask;
+  /** @type {number} */ #easyMask;
+  /** @type {boolean} */ #normalized;
 
   /**
    * @param {CdcChunkerOptions} [options]
@@ -265,6 +279,7 @@ export default class CdcChunker extends ChunkingPort {
     minChunkSize = 65_536,
     maxChunkSize = 1_048_576,
     targetChunkSize = 262_144,
+    normalized = true,
   } = {}) {
     super();
     if (minChunkSize > maxChunkSize) {
@@ -286,11 +301,18 @@ export default class CdcChunker extends ChunkingPort {
     this.#minChunkSize = minChunkSize;
     this.#maxChunkSize = maxChunkSize;
     this.#targetChunkSize = targetChunkSize;
+    this.#normalized = normalized;
 
     // Mask: nearest power-of-2 minus 1 that is <= targetChunkSize.
     // E.g. target 262144 (2^18) -> mask 0x3FFFF (2^18 - 1).
     const bits = Math.floor(Math.log2(targetChunkSize));
     this.#mask = ((1 << bits) - 1) >>> 0;
+
+    // Dual-mask for normalized mode (FastCDC):
+    // hardMask: more bits → less likely to match (below target)
+    // easyMask: fewer bits → more likely to match (above target)
+    this.#hardMask = ((1 << Math.min(bits + 1, 31)) - 1) >>> 0;
+    this.#easyMask = ((1 << Math.max(bits - 1, 1)) - 1) >>> 0;
   }
 
   /** @override */
@@ -304,6 +326,7 @@ export default class CdcChunker extends ChunkingPort {
       target: this.#targetChunkSize,
       min: this.#minChunkSize,
       max: this.#maxChunkSize,
+      normalized: this.#normalized,
     };
   }
 
@@ -329,6 +352,10 @@ export default class CdcChunker extends ChunkingPort {
       minSize: this.#minChunkSize,
       maxSize: this.#maxChunkSize,
       mask: this.#mask,
+      hardMask: this.#hardMask,
+      easyMask: this.#easyMask,
+      targetSize: this.#targetChunkSize,
+      normalized: this.#normalized,
     };
 
     for await (const buf of source) {

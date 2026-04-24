@@ -30,6 +30,7 @@ export default function resolveChunker({ chunker, chunking } = {}) {
         targetChunkSize: chunking.targetChunkSize,
         minChunkSize: chunking.minChunkSize,
         maxChunkSize: chunking.maxChunkSize,
+        normalized: chunking.normalized,
       });
     }
     // 'fixed' or unrecognized — fall through to default (FixedChunker via CasService)
