@@ -19,3 +19,10 @@ manifest or chunk position.
   avoid breaking backward compatibility
 - The crypto port already has the plumbing — just needs the AAD parameter wired
   through from CasService
+
+## Status
+
+- [x] Implemented — `security/audit-fixes` branch
+- New schemes: `whole-v2` (AAD = slug), `framed-v2` (AAD = slug + NUL + frame index)
+- Default for new stores changed to v2; v1 remains for backward compat
+- 33 new tests (20 crypto layer + 13 CasService round-trip/tamper)
