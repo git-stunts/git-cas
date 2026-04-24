@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import CasError from '../domain/errors/CasError.js';
 import { normalizeKdfOptions } from '../helpers/kdfPolicy.js';
 
@@ -181,6 +182,20 @@ export default class CryptoPort {
    */
   async _doDeriveKey(_passphrase, _saltBuf, _params) {
     throw new Error('Not implemented');
+  }
+
+  /**
+   * Computes HMAC-SHA256 of the given data with the given key.
+   *
+   * Concrete method — uses `node:crypto.createHmac` which works across
+   * Node.js, Bun, and Deno (all support the `node:crypto` built-in).
+   *
+   * @param {Buffer|Uint8Array} key - HMAC key.
+   * @param {Buffer|Uint8Array|string} data - Data to authenticate.
+   * @returns {Buffer} 32-byte HMAC digest.
+   */
+  hmacSha256(key, data) {
+    return createHmac('sha256', key).update(data).digest();
   }
 
   /**
