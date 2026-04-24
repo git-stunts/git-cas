@@ -17,3 +17,12 @@ Extract compression and stream handling into a dedicated `StreamPort` and `Compr
 ## Effort
 
 Medium — requires defining the new ports and refactoring the store/restore pipelines to use them.
+
+## Status
+
+- [x] Resolved — `security/audit-fixes` branch
+- `CompressionPort` abstract port with 4 methods (compressBuffer, decompressBuffer, compressStream, decompressStream)
+- `NodeCompressionAdapter` implements CompressionPort using node:zlib
+- CasService no longer imports node:zlib, node:stream, or node:util
+- Separate StreamPort was unnecessary — CompressionPort accepts async iterables directly
+- 15 new tests for port and adapter
