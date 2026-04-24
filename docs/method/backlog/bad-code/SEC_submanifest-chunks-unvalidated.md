@@ -17,3 +17,13 @@ but the chunks are still trusted at decode time without schema validation.
 
 Consider running each sub-manifest chunk through `ChunkSchema.parse()` immediately
 after decoding, before pushing into the aggregate array.
+
+## Status
+
+- [x] Resolved — `security/audit-fixes` branch
+- Each sub-manifest chunk is now parsed through `ChunkSchema.parse()` before
+  pushing into the aggregate array
+- Malformed chunks throw `MANIFEST_INTEGRITY_ERROR` with the sub-manifest OID
+  in error meta, rather than a generic Manifest validation error
+- Extra properties are stripped at the sub-manifest boundary, not deferred to
+  Manifest construction

@@ -7,6 +7,7 @@ import { gunzip, createGzip, createGunzip } from 'node:zlib';
 import { Readable } from 'node:stream';
 import { promisify } from 'node:util';
 import Manifest from '../value-objects/Manifest.js';
+import { ChunkSchema } from '../schemas/ManifestSchema.js';
 import CasError from '../errors/CasError.js';
 import Semaphore from './Semaphore.js';
 import FixedChunker from '../../infrastructure/chunkers/FixedChunker.js';
@@ -1676,7 +1677,15 @@ export default class CasService {
           { subManifestOid: ref.oid, declaredCount: ref.chunkCount, actualCount: subDecoded.chunks.length, treeOid },
         );
       }
-      allChunks.push(...subDecoded.chunks);
+      try {
+        allChunks.push(...subDecoded.chunks.map((c) => ChunkSchema.parse(c)));
+      } catch (err) {
+        throw new CasError(
+          `Sub-manifest ${ref.oid} contains invalid chunk data: ${err.message}`,
+          'MANIFEST_INTEGRITY_ERROR',
+          { subManifestOid: ref.oid, treeOid, originalError: err },
+        );
+      }
     }
     return allChunks;
   }

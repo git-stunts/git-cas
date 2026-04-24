@@ -63,6 +63,46 @@ describe('sub-manifest chunkCount – mismatch rejected', () => {
   });
 });
 
+describe('sub-manifest chunk schema validation – malformed rejected', () => {
+  let service;
+  let mockPersistence;
+  beforeEach(() => { ({ service, mockPersistence } = setup()); });
+
+  it('rejects non-hex digest with MANIFEST_INTEGRITY_ERROR citing sub-manifest OID', async () => {
+    const subOid = sha1('sub-0');
+    const badChunk = { index: 0, size: 1024, digest: 'ZZZZ'.repeat(16), blob: sha1('b0') };
+    mockV2Manifest({ mockPersistence, rootManifest: makeRootManifest(subOid, 1), subManifestOid: subOid, subData: { chunks: [badChunk] } });
+    try {
+      await service.readManifest({ treeOid: 'a'.repeat(40) });
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      expect(err.code).toBe('MANIFEST_INTEGRITY_ERROR');
+      expect(err.meta.subManifestOid).toBe(subOid);
+    }
+  });
+
+  it('rejects non-hex blob with MANIFEST_INTEGRITY_ERROR citing sub-manifest OID', async () => {
+    const subOid = sha1('sub-0');
+    const badChunk = { index: 0, size: 1024, digest: sha256('c0'), blob: 'not-a-hex-oid' };
+    mockV2Manifest({ mockPersistence, rootManifest: makeRootManifest(subOid, 1), subManifestOid: subOid, subData: { chunks: [badChunk] } });
+    try {
+      await service.readManifest({ treeOid: 'a'.repeat(40) });
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      expect(err.code).toBe('MANIFEST_INTEGRITY_ERROR');
+      expect(err.meta.subManifestOid).toBe(subOid);
+    }
+  });
+
+  it('strips extra properties from sub-manifest chunks via schema parse', async () => {
+    const subOid = sha1('sub-0');
+    const chunk = { ...makeChunk(0), malicious: 'payload' };
+    mockV2Manifest({ mockPersistence, rootManifest: makeRootManifest(subOid, 1), subManifestOid: subOid, subData: { chunks: [chunk] } });
+    const result = await service.readManifest({ treeOid: 'a'.repeat(40) });
+    expect(result.chunks[0]).not.toHaveProperty('malicious');
+  });
+});
+
 describe('sub-manifest chunkCount – match accepted', () => {
   let service;
   let mockPersistence;
