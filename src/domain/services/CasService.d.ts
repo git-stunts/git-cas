@@ -57,6 +57,14 @@ export interface ChunkingPort {
   readonly params: Record<string, unknown>;
 }
 
+/** Port interface for compression and decompression of buffers and streams. */
+export interface CompressionPort {
+  compressBuffer(buffer: Buffer): Promise<Buffer>;
+  decompressBuffer(buffer: Buffer): Promise<Buffer>;
+  compressStream(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
+  decompressStream(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
+}
+
 /** Constructor options for {@link CasService}. */
 export interface CasServiceOptions {
   persistence: GitPersistencePort;
@@ -68,6 +76,7 @@ export interface CasServiceOptions {
   concurrency?: number;
   chunker?: ChunkingPort;
   maxRestoreBufferSize?: number;
+  compressionAdapter?: CompressionPort;
 }
 
 /** Options for key derivation. */

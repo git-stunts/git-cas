@@ -17,6 +17,7 @@ import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
 import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
 import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
+import NodeCompressionAdapter from './src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 // ---------------------------------------------------------------------------
 // Re-exports — modules used in the class body
@@ -44,6 +45,8 @@ export { default as EventEmitterObserver } from './src/infrastructure/adapters/E
 export { default as StatsCollector } from './src/infrastructure/adapters/StatsCollector.js';
 export { default as FixedChunker } from './src/infrastructure/chunkers/FixedChunker.js';
 export { default as CdcChunker } from './src/infrastructure/chunkers/CdcChunker.js';
+export { default as CompressionPort } from './src/ports/CompressionPort.js';
+export { default as NodeCompressionAdapter } from './src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 /**
  * High-level facade for the Content Addressable Store library.
@@ -65,14 +68,15 @@ export default class ContentAddressableStore {
    * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance (advanced).
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes for encrypted/compressed restores (default 512 MiB).
+   * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter (default NodeCompressionAdapter).
    */
-  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize }) {
-    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize };
+  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, compressionAdapter }) {
+    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, compressionAdapter };
     this.service = null;
     this.#servicePromise = null;
   }
 
-  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number }} */
+  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, compressionAdapter?: * }} */
   #config;
   /** @type {VaultService|null} */
   #vault = null;
@@ -113,6 +117,7 @@ export default class ContentAddressableStore {
       concurrency: cfg.concurrency,
       chunker,
       maxRestoreBufferSize: cfg.maxRestoreBufferSize,
+      compressionAdapter: cfg.compressionAdapter || new NodeCompressionAdapter(),
     });
 
     const ref = new GitRefAdapter({

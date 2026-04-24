@@ -3,9 +3,6 @@
  * @fileoverview Domain service for Content Addressable Storage operations.
  * @module
  */
-import { gunzip, createGzip, createGunzip } from 'node:zlib';
-import { Readable } from 'node:stream';
-import { promisify } from 'node:util';
 import Manifest from '../value-objects/Manifest.js';
 import { ChunkSchema } from '../schemas/ManifestSchema.js';
 import CasError from '../errors/CasError.js';
@@ -13,8 +10,7 @@ import Semaphore from './Semaphore.js';
 import FixedChunker from '../../infrastructure/chunkers/FixedChunker.js';
 import KeyResolver from './KeyResolver.js';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
-
-const gunzipAsync = promisify(gunzip);
+import NodeCompressionAdapter from '../../infrastructure/adapters/NodeCompressionAdapter.js';
 
 /**
  * Builds AAD for whole-v2 encryption: UTF-8 bytes of the slug.
@@ -84,8 +80,9 @@ export default class CasService {
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
    * @param {import('../../ports/ChunkingPort.js').default} [options.chunker] - Chunking strategy (default FixedChunker).
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max bytes for buffered restore (default 512 MiB).
+   * @param {import('../../ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter (default NodeCompressionAdapter).
    */
-  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024 }) {
+  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024, compressionAdapter }) {
     CasService._validateObservability(observability);
     CasService.#validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize });
     this.persistence = persistence;
@@ -98,6 +95,8 @@ export default class CasService {
     }
     /** @type {import('../../ports/ChunkingPort.js').default} */
     this.chunker = chunker || new FixedChunker({ chunkSize });
+    /** @type {import('../../ports/CompressionPort.js').default} */
+    this.compressionAdapter = compressionAdapter || new NodeCompressionAdapter();
     this.merkleThreshold = merkleThreshold;
     this.concurrency = concurrency;
     this.maxRestoreBufferSize = maxRestoreBufferSize;
@@ -764,12 +763,7 @@ export default class CasService {
    * @returns {AsyncIterable<Buffer>}
    */
   async *_compressStream(source) {
-    const gz = createGzip();
-    const input = Readable.from(source);
-    const compressed = input.pipe(gz);
-    for await (const chunk of compressed) {
-      yield chunk;
-    }
+    yield* this.compressionAdapter.compressStream(source);
   }
 
   /**
@@ -1648,7 +1642,7 @@ export default class CasService {
    */
   async _decompress(buffer) {
     try {
-      return await gunzipAsync(buffer);
+      return await this.compressionAdapter.decompressBuffer(buffer);
     } catch (err) {
       if (err instanceof CasError) { throw err; }
       throw new CasError(`Decompression failed: ${err.message}`, 'INTEGRITY_ERROR', { originalError: err });
@@ -1693,28 +1687,13 @@ export default class CasService {
    * @returns {AsyncIterable<Buffer>}
    */
   async *_decompressStreaming(source) {
-    const gunzipStream = createGunzip();
-    const input = Readable.from(source);
-    const forwardInputError = (err) => {
-      const error = err instanceof Error ? err : new Error(String(err));
-      gunzipStream.destroy(error);
-    };
-    input.on('error', forwardInputError);
-    input.pipe(gunzipStream);
-
     try {
-      for await (const chunk of gunzipStream) {
-        yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      for await (const chunk of this.compressionAdapter.decompressStream(source)) {
+        yield chunk;
       }
     } catch (err) {
       if (err instanceof CasError) { throw err; }
       throw new CasError(`Decompression failed: ${err.message}`, 'INTEGRITY_ERROR', { originalError: err });
-    } finally {
-      input.removeListener('error', forwardInputError);
-      input.destroy();
-      if (!gunzipStream.destroyed) {
-        gunzipStream.destroy();
-      }
     }
   }
 

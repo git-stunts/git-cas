@@ -20,7 +20,18 @@ import type {
 } from "./src/domain/services/CasService.js";
 
 export { CasService, Manifest, Chunk };
-export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, EncryptionScheme, CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, StoreEncryptionOptions, VerifyIntegrityOptions };
+export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, EncryptionScheme, CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CompressionPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, StoreEncryptionOptions, VerifyIntegrityOptions };
+
+/** Abstract port for compression and decompression of buffers and streams. */
+export declare class CompressionPortBase {
+  compressBuffer(buffer: Buffer): Promise<Buffer>;
+  decompressBuffer(buffer: Buffer): Promise<Buffer>;
+  compressStream(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
+  decompressStream(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
+}
+
+/** Node.js compression adapter using node:zlib (gzip/gunzip). */
+export declare class NodeCompressionAdapter extends CompressionPortBase {}
 
 /** Abstract port for splitting a byte stream into chunks. */
 export declare class ChunkingPort {

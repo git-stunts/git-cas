@@ -32,9 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`git cas vault stats`** — new vault summary command reports logical size, chunk references, dedupe ratio, encryption coverage, compression usage, and chunking strategy breakdowns.
 - **`git cas doctor`** — new diagnostics command scans `refs/cas/vault`, validates every referenced manifest, and exits non-zero with structured issue output when it finds broken entries or a missing vault ref.
 - **Deterministic property-based envelope coverage** — added a `fast-check`-backed property suite for envelope-encrypted store/restore round-trips and tamper rejection across empty, boundary-adjacent, and multi-chunk payload sizes.
+- **`CompressionPort`** — new abstract port (`src/ports/CompressionPort.js`) for buffer and streaming compression/decompression. Follows the same abstract-port pattern as `ChunkingPort` and `CryptoPort`.
+- **`NodeCompressionAdapter`** — new adapter (`src/infrastructure/adapters/NodeCompressionAdapter.js`) implementing `CompressionPort` via `node:zlib` gzip/gunzip. Both buffer and async-iterable streaming interfaces.
 
 ### Changed
 
+- **CompressionPort extraction** — `CasService` no longer imports `node:zlib`, `node:stream`, or `node:util` directly. Compression is now delegated through a `CompressionPort` abstract port with a `NodeCompressionAdapter` default implementation. The `CasService` constructor accepts an optional `compressionAdapter` parameter for injecting alternative implementations. Public API unchanged; internal refactor only.
 - **AES-GCM adapter enforcement** — Node, Bun, and Web Crypto decrypt paths now all reject malformed AES-256-GCM metadata at the adapter boundary, enforce the declared algorithm before decrypting, and reject short or malformed nonce/tag fields before any runtime-specific decrypt call runs.
 - **Buffered restore adapter contract** — hard-limited buffered restore modes now require `readBlobStream()` on the persistence adapter instead of silently degrading to whole-blob `readBlob()` fallback behavior. Plaintext restore keeps the compatibility fallback.
 - **KDF salt shape hardening** — stored KDF salt metadata now rejects malformed base64 at both the manifest schema layer and the runtime stored-KDF policy path, keeping vault metadata and passphrase-restore behavior aligned before derive work starts.
