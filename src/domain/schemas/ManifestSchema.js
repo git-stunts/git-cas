@@ -127,6 +127,7 @@ export const SubManifestRefSchema = z.object({
 /** Validates a complete file manifest. */
 export const ManifestSchema = z.object({
   version: z.number().int().min(1).max(2).default(1),
+  manifestHash: z.string().regex(/^[0-9a-f]{64}$/, 'manifestHash must be a 64-char hex string').optional(),
   slug: z.string().min(1),
   filename: z.string().min(1),
   size: z.number().int().min(0),

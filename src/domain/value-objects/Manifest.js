@@ -35,6 +35,7 @@ export default class Manifest {
         ? { strategy: parsed.chunking.strategy, params: { ...parsed.chunking.params } }
         : undefined;
       this.subManifests = parsed.subManifests ? parsed.subManifests.map((s) => ({ ...s })) : undefined;
+      this.manifestHash = parsed.manifestHash;
       Object.freeze(this);
     } catch (error) {
       if (error instanceof ZodError) {
@@ -59,6 +60,7 @@ export default class Manifest {
       compression: this.compression,
       chunking: this.chunking,
       subManifests: this.subManifests,
+      manifestHash: this.manifestHash,
     };
   }
 }

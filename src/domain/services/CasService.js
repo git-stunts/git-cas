@@ -40,6 +40,22 @@ function buildFramedAad(slug, frameIndex) {
   return buf;
 }
 
+/**
+ * Strips `manifestHash` and `undefined` values, then returns codec-encoded bytes.
+ * @param {Object} data - Manifest data object.
+ * @param {{ encode: Function }} codec - Codec instance.
+ * @returns {Buffer|string} Encoded bytes (without manifestHash).
+ */
+function encodeForHash(data, codec) {
+  const copy = { ...data };
+  delete copy.manifestHash;
+  // Remove undefined values to match codec round-trip
+  for (const key of Object.keys(copy)) {
+    if (copy[key] === undefined) { delete copy[key]; }
+  }
+  return codec.encode(copy);
+}
+
 const DEFAULT_FRAMED_FRAME_BYTES = 64 * 1024;
 const MAX_FRAMED_FRAME_BYTES = 64 * 1024 * 1024;
 const FRAMED_LENGTH_BYTES = 4;
@@ -1022,7 +1038,10 @@ export default class CasService {
       return await this._createMerkleTree({ manifest });
     }
 
-    const serializedManifest = this.codec.encode(manifest.toJSON());
+    const manifestData = manifest.toJSON();
+    const hashableBytes = encodeForHash(manifestData, this.codec);
+    manifestData.manifestHash = await this.crypto.sha256(Buffer.from(hashableBytes));
+    const serializedManifest = this.codec.encode(manifestData);
     const manifestOid = await this.persistence.writeBlob(serializedManifest);
 
     const treeEntries = [
@@ -1063,6 +1082,8 @@ export default class CasService {
       chunks: [],
       subManifests: subManifestRefs,
     };
+    const rootHashableBytes = encodeForHash(rootManifestData, this.codec);
+    rootManifestData.manifestHash = await this.crypto.sha256(Buffer.from(rootHashableBytes));
 
     const serializedRoot = this.codec.encode(rootManifestData);
     const rootOid = await this.persistence.writeBlob(serializedRoot);
@@ -1744,6 +1765,8 @@ export default class CasService {
 
     const decoded = this.codec.decode(blob);
 
+    await this._verifyManifestHash(decoded, treeOid);
+
     if (decoded.version === 2 && decoded.subManifests?.length > 0) {
       decoded.chunks = await this._resolveSubManifests(decoded.subManifests, treeOid);
     }
@@ -1758,6 +1781,25 @@ export default class CasService {
    * @param {string} treeOid - Parent tree OID (for error context).
    * @returns {Promise<Array>} Flattened chunk entries.
    */
+  /**
+   * Verifies the manifest integrity hash if present.
+   * @private
+   * @param {Object} decoded - Decoded manifest data.
+   * @param {string} treeOid - Tree OID (for error context).
+   */
+  async _verifyManifestHash(decoded, treeOid) {
+    if (!decoded.manifestHash) { return; }
+    const hashableBytes = encodeForHash(decoded, this.codec);
+    const computed = await this.crypto.sha256(Buffer.from(hashableBytes));
+    if (computed !== decoded.manifestHash) {
+      throw new CasError(
+        'Manifest integrity check failed: hash mismatch',
+        'MANIFEST_INTEGRITY_ERROR',
+        { treeOid, slug: decoded.slug, expected: decoded.manifestHash, actual: computed },
+      );
+    }
+  }
+
   async _resolveSubManifests(subManifests, treeOid) {
     const allChunks = [];
     for (const ref of subManifests) {

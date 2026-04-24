@@ -19,3 +19,11 @@ catches accidental corruption.
 - Could catch codec round-trip bugs (JSON → CBOR migration edge cases)
 - Cheap: one SHA-256 on a few KB of JSON/CBOR
 - Backward compatible: old manifests without the field just skip the check
+
+## Status
+
+- [x] Implemented — `security/audit-fixes` branch
+- SHA-256 of codec-encoded manifest (minus hash field) stored as `manifestHash`
+- Verified on read; MANIFEST_INTEGRITY_ERROR on mismatch
+- Both flat and Merkle trees include the hash
+- Old manifests without the field skip verification (backward compat)
