@@ -17,3 +17,13 @@ Add an optional "Privacy Mode" to the vault. When enabled, slugs are HMAC-hashed
 ## Effort
 
 Medium — requires adding the HMAC logic to VaultService and updating the vault-initialization flow to manage the privacy secret.
+
+## Status
+
+- [x] Implemented — `security/audit-fixes` branch
+- Privacy key derived via HMAC-SHA256(vaultKey, "git-cas-privacy-v1")
+- Tree entry names become HMAC-SHA256(privacyKey, slug) (64-char hex)
+- Encrypted `.privacy-index` blob maps slug→hash for listing
+- Privacy mode requires vault encryption; opt-in via initVault
+- CryptoPort.hmacSha256 added for cross-runtime HMAC support
+- 12 new tests covering all operations and error paths
