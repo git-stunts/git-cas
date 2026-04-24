@@ -66,17 +66,24 @@ export default class WebCryptoAdapter extends CryptoPort {
    * @override
    * @param {Buffer|Uint8Array} buffer - Plaintext to encrypt.
    * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @param {Buffer|Uint8Array} [aad] - Optional additional authenticated data (AAD).
    * @returns {Promise<{ buf: Buffer, meta: import('../../ports/CryptoPort.js').EncryptionMeta }>}
    */
-  async encryptBuffer(buffer, key) {
+  async encryptBuffer(buffer, key, aad) {
     this._validateKey(key);
     const nonce = this.randomBytes(12);
     const cryptoKey = await this.#importKey(key);
 
+    /** @type {AesGcmParams} */
+    const algoParams = { name: 'AES-GCM', iv: /** @type {Uint8Array} */ (nonce) };
+    if (aad) {
+      algoParams.additionalData = aad;
+    }
+
     // AES-GCM in Web Crypto includes the tag at the end of the ciphertext
     const encrypted = await globalThis.crypto.subtle.encrypt(
       // @ts-ignore -- Uint8Array satisfies BufferSource at runtime
-      { name: 'AES-GCM', iv: /** @type {Uint8Array} */ (nonce) },
+      algoParams,
       cryptoKey,
       buffer
     );
@@ -97,9 +104,10 @@ export default class WebCryptoAdapter extends CryptoPort {
    * @param {Buffer|Uint8Array} buffer - Ciphertext to decrypt.
    * @param {Buffer|Uint8Array} key - 32-byte encryption key.
    * @param {import('../../ports/CryptoPort.js').EncryptionMeta} meta - Encryption metadata.
+   * @param {Buffer|Uint8Array} [aad] - Optional additional authenticated data (AAD).
    * @returns {Promise<Buffer>}
    */
-  async decryptBuffer(buffer, key, meta) {
+  async decryptBuffer(buffer, key, meta, aad) { // eslint-disable-line max-params
     this._validateKey(key);
     const { nonce, tag } = validateAesGcmMeta(meta);
     const cryptoKey = await this.#importKey(key);
@@ -109,10 +117,16 @@ export default class WebCryptoAdapter extends CryptoPort {
     combined.set(new Uint8Array(buffer));
     combined.set(tag, buffer.length);
 
+    /** @type {AesGcmParams} */
+    const algoParams = { name: 'AES-GCM', iv: /** @type {Uint8Array} */ (nonce) };
+    if (aad) {
+      algoParams.additionalData = aad;
+    }
+
     try {
       const decrypted = await globalThis.crypto.subtle.decrypt(
         // @ts-ignore -- Uint8Array satisfies BufferSource at runtime
-        { name: 'AES-GCM', iv: /** @type {Uint8Array} */ (nonce) },
+        algoParams,
         cryptoKey,
         combined
       );
@@ -125,16 +139,17 @@ export default class WebCryptoAdapter extends CryptoPort {
   /**
    * @override
    * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @param {Buffer|Uint8Array} [aad] - Optional additional authenticated data (AAD).
    * @returns {{ encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>, finalize: () => import('../../ports/CryptoPort.js').EncryptionMeta }}
    */
-  createEncryptionStream(key) {
+  createEncryptionStream(key, aad) {
     this._validateKey(key);
     const nonce = this.randomBytes(12);
     const cryptoKeyPromise = this.#importKey(key);
     const maxBuf = this.#maxEncryptionBufferSize;
     const state = { /** @type {Uint8Array|null} */ tag: null, consumed: false };
 
-    const encrypt = WebCryptoAdapter.#makeEncryptGenerator({ cryptoKeyPromise, nonce, maxBuf, state });
+    const encrypt = WebCryptoAdapter.#makeEncryptGenerator({ cryptoKeyPromise, nonce, maxBuf, state, aad });
 
     const finalize = () => {
       if (!state.consumed) {
@@ -150,9 +165,10 @@ export default class WebCryptoAdapter extends CryptoPort {
    * @override
    * @param {Buffer|Uint8Array} key - 32-byte encryption key.
    * @param {import('../../ports/CryptoPort.js').EncryptionMeta} meta - Encryption metadata.
+   * @param {Buffer|Uint8Array} [aad] - Optional additional authenticated data (AAD).
    * @returns {{ decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer> }}
    */
-  createDecryptionStream(key, meta) {
+  createDecryptionStream(key, meta, aad) {
     this._validateKey(key);
     validateAesGcmMeta(meta);
     const maxBuf = this.#maxDecryptionBufferSize;
@@ -175,7 +191,7 @@ export default class WebCryptoAdapter extends CryptoPort {
           }
           chunks.push(buf);
         }
-        yield await this.decryptBuffer(Buffer.concat(chunks), key, meta);
+        yield await this.decryptBuffer(Buffer.concat(chunks), key, meta, aad);
       }.bind(this),
     };
   }
@@ -187,10 +203,10 @@ export default class WebCryptoAdapter extends CryptoPort {
    * cannot be an arrow function — `this` binding would be lost. The `state`
    * object bridges mutable data between the generator and `finalize()`.
    *
-   * @param {{ cryptoKeyPromise: Promise<CryptoKey>, nonce: Buffer|Uint8Array, maxBuf: number, state: { tag: Uint8Array|null, consumed: boolean } }} ctx
+   * @param {{ cryptoKeyPromise: Promise<CryptoKey>, nonce: Buffer|Uint8Array, maxBuf: number, state: { tag: Uint8Array|null, consumed: boolean }, aad?: Buffer|Uint8Array }} ctx
    * @returns {(source: AsyncIterable<Buffer>) => AsyncGenerator<Buffer>}
    */
-  static #makeEncryptGenerator({ cryptoKeyPromise, nonce, maxBuf, state }) {
+  static #makeEncryptGenerator({ cryptoKeyPromise, nonce, maxBuf, state, aad }) {
     return async function* (source) {
       /** @type {Buffer[]} */
       const chunks = [];
@@ -209,9 +225,14 @@ export default class WebCryptoAdapter extends CryptoPort {
       }
       const buffer = Buffer.concat(chunks);
       const cryptoKey = await cryptoKeyPromise;
+      /** @type {AesGcmParams} */
+      const algoParams = { name: 'AES-GCM', iv: /** @type {Uint8Array} */ (nonce) };
+      if (aad) {
+        algoParams.additionalData = aad;
+      }
       const encrypted = await globalThis.crypto.subtle.encrypt(
         // @ts-ignore -- Uint8Array satisfies BufferSource at runtime
-        { name: 'AES-GCM', iv: /** @type {Uint8Array} */ (nonce) },
+        algoParams,
         cryptoKey, buffer,
       );
       const fullBuffer = new Uint8Array(encrypted);

@@ -49,12 +49,16 @@ export default class BunCryptoAdapter extends CryptoPort {
    * @override
    * @param {Buffer|Uint8Array} buffer - Plaintext to encrypt.
    * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @param {Buffer|Uint8Array} [aad] - Optional additional authenticated data (AAD).
    * @returns {Promise<{ buf: Buffer, meta: import('../../ports/CryptoPort.js').EncryptionMeta }>}
    */
-  async encryptBuffer(buffer, key) {
+  async encryptBuffer(buffer, key, aad) {
     this._validateKey(key);
     const nonce = this.randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, nonce);
+    if (aad) {
+      cipher.setAAD(aad);
+    }
     const enc = Buffer.concat([cipher.update(buffer), cipher.final()]);
     const tag = cipher.getAuthTag();
     return {
@@ -68,27 +72,35 @@ export default class BunCryptoAdapter extends CryptoPort {
    * @param {Buffer|Uint8Array} buffer - Ciphertext to decrypt.
    * @param {Buffer|Uint8Array} key - 32-byte encryption key.
    * @param {import('../../ports/CryptoPort.js').EncryptionMeta} meta - Encryption metadata.
+   * @param {Buffer|Uint8Array} [aad] - Optional additional authenticated data (AAD).
    * @returns {Promise<Buffer>}
    */
-  async decryptBuffer(buffer, key, meta) {
+  async decryptBuffer(buffer, key, meta, aad) { // eslint-disable-line max-params
     this._validateKey(key);
     const { nonce, tag } = validateAesGcmMeta(meta);
     const decipher = createDecipheriv(AES_GCM_ALGORITHM, key, nonce, {
       authTagLength: AES_GCM_TAG_BYTES,
     });
     decipher.setAuthTag(tag);
+    if (aad) {
+      decipher.setAAD(aad);
+    }
     return Buffer.concat([decipher.update(buffer), decipher.final()]);
   }
 
   /**
    * @override
    * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @param {Buffer|Uint8Array} [aad] - Optional additional authenticated data (AAD).
    * @returns {{ encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>, finalize: () => import('../../ports/CryptoPort.js').EncryptionMeta }}
    */
-  createEncryptionStream(key) {
+  createEncryptionStream(key, aad) {
     this._validateKey(key);
     const nonce = this.randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, nonce);
+    if (aad) {
+      cipher.setAAD(aad);
+    }
     let streamFinalized = false;
 
     /** @param {AsyncIterable<Buffer>} source */
@@ -124,9 +136,10 @@ export default class BunCryptoAdapter extends CryptoPort {
    * @override
    * @param {Buffer|Uint8Array} key - 32-byte encryption key.
    * @param {import('../../ports/CryptoPort.js').EncryptionMeta} meta - Encryption metadata.
+   * @param {Buffer|Uint8Array} [aad] - Optional additional authenticated data (AAD).
    * @returns {{ decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer> }}
    */
-  createDecryptionStream(key, meta) {
+  createDecryptionStream(key, meta, aad) {
     this._validateKey(key);
     const { nonce, tag } = validateAesGcmMeta(meta);
 
@@ -137,6 +150,9 @@ export default class BunCryptoAdapter extends CryptoPort {
             authTagLength: AES_GCM_TAG_BYTES,
           });
           decipher.setAuthTag(tag);
+          if (aad) {
+            decipher.setAAD(aad);
+          }
 
           for await (const chunk of source) {
             const decrypted = decipher.update(chunk);

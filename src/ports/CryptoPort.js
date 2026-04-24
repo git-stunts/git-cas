@@ -61,9 +61,10 @@ export default class CryptoPort {
    * Encrypts a buffer using AES-256-GCM.
    * @param {Buffer|Uint8Array} _buffer - Plaintext to encrypt.
    * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
+   * @param {Buffer|Uint8Array} [_aad] - Optional additional authenticated data (AAD).
    * @returns {{ buf: Buffer, meta: EncryptionMeta }|Promise<{ buf: Buffer, meta: EncryptionMeta }>}
    */
-  encryptBuffer(_buffer, _key) {
+  encryptBuffer(_buffer, _key, _aad) {
     throw new Error('Not implemented');
   }
 
@@ -72,19 +73,21 @@ export default class CryptoPort {
    * @param {Buffer|Uint8Array} _buffer - Ciphertext to decrypt.
    * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
    * @param {EncryptionMeta} _meta - Encryption metadata from the encrypt operation.
+   * @param {Buffer|Uint8Array} [_aad] - Optional additional authenticated data (AAD). Must match the AAD used during encryption.
    * @returns {Buffer|Promise<Buffer>}
    * @throws on authentication failure.
    */
-  decryptBuffer(_buffer, _key, _meta) {
+  decryptBuffer(_buffer, _key, _meta, _aad) { // eslint-disable-line max-params
     throw new Error('Not implemented');
   }
 
   /**
    * Creates a streaming encryption context.
    * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
+   * @param {Buffer|Uint8Array} [_aad] - Optional additional authenticated data (AAD).
    * @returns {{ encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>, finalize: () => EncryptionMeta }}
    */
-  createEncryptionStream(_key) {
+  createEncryptionStream(_key, _aad) {
     throw new Error('Not implemented');
   }
 
@@ -95,9 +98,10 @@ export default class CryptoPort {
    *
    * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
    * @param {EncryptionMeta} _meta - Encryption metadata from the encrypt operation.
+   * @param {Buffer|Uint8Array} [_aad] - Optional additional authenticated data (AAD). Must match the AAD used during encryption.
    * @returns {{ decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer> }}
    */
-  createDecryptionStream(_key, _meta) {
+  createDecryptionStream(_key, _meta, _aad) {
     throw new Error('Not implemented');
   }
 
@@ -205,11 +209,12 @@ export default class CryptoPort {
    * Builds the encryption metadata object from base64-encoded nonce and tag.
    * @param {string} nonce64 - Base64-encoded 12-byte AES-GCM nonce.
    * @param {string} tag64 - Base64-encoded 16-byte GCM authentication tag.
+   * @param {string} [scheme='whole-v1'] - Payload framing scheme identifier.
    * @returns {EncryptionMeta}
    */
-  _buildMeta(nonce64, tag64) {
+  _buildMeta(nonce64, tag64, scheme = 'whole-v1') {
     return {
-      scheme: 'whole-v1',
+      scheme,
       algorithm: 'aes-256-gcm',
       nonce: nonce64,
       tag: tag64,
