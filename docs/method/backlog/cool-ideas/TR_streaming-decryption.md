@@ -17,3 +17,11 @@ Implement true streaming decryption and decompression in `CasService`. This requ
 ## Effort
 
 Medium-Large — requires architectural changes to the restore pipeline and potentially the manifest schema to support per-chunk encryption metadata.
+
+## Status
+
+- [x] Resolved — `security/audit-fixes` branch
+- `framed-v1`/`framed-v2` schemes provide per-frame AEAD streaming restore
+- `CryptoPort.createEncryptionStream`/`createDecryptionStream` support streaming AEAD
+- Bounded memory: frame size controls peak allocation (default 64 KiB, max 64 MiB)
+- Files of any size can be restored without buffering entire content

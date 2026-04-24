@@ -17,3 +17,11 @@ Allow manifests to be sealed with an optional Ed25519 cryptographic signature. T
 ## Effort
 
 Medium — requires adding signing logic to the store path and verification logic to the restore/verify paths.
+
+## Status
+
+- [x] Resolved (lighter variant) — `security/audit-fixes` branch
+- `manifestHash` (SHA-256 of codec-encoded manifest) catches corruption and tampering
+- No key management required — checksum-based, not signature-based
+- Ed25519 signing remains a future option if cryptographic non-repudiation is needed,
+  but the integrity goal of this card is met by the hash approach

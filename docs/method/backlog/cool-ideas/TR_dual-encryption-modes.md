@@ -45,3 +45,10 @@ language.
   backlog note
 - keep any future design explicit about integrity semantics, not just
   throughput and memory
+
+## Status
+
+- [x] Resolved — `security/audit-fixes` branch
+- `whole-v1` and `framed-v1` implemented with explicit scheme metadata
+- `whole-v2` and `framed-v2` add AAD binding for cross-manifest tamper detection
+- Default for new stores is `framed-v2`; operators can explicitly choose any scheme
