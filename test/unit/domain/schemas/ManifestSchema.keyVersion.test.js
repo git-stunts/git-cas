@@ -12,7 +12,7 @@ const validRecipient = (overrides = {}) => ({
 });
 
 const baseEncryption = (overrides = {}) => ({
-  scheme: 'whole-v1',
+  scheme: 'whole',
   algorithm: 'aes-256-gcm',
   nonce: base64Bytes(12, 4),
   tag: base64Bytes(16, 5),
@@ -109,7 +109,7 @@ describe('ManifestSchema — keyVersion round-trip', () => {
     expect(result.data.encryption.recipients[1].keyVersion).toBe(3);
   });
 
-  it('accepts framed-v1 keyVersion without whole-object nonce/tag fields', () => {
+  it('accepts framed keyVersion without whole-object nonce/tag fields', () => {
     const manifest = {
       version: 1,
       slug: 'framed-test',
@@ -117,7 +117,7 @@ describe('ManifestSchema — keyVersion round-trip', () => {
       size: 1024,
       chunks: [{ index: 0, size: 1024, digest: 'a'.repeat(64), blob: 'b'.repeat(40) }],
       encryption: {
-        scheme: 'framed-v1',
+        scheme: 'framed',
         algorithm: 'aes-256-gcm',
         encrypted: true,
         frameBytes: 32768,

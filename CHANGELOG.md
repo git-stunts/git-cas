@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [5.3.3] — Unreleased
 
+### Changed
+
+- **BREAKING: Encryption scheme identifiers simplified** — `whole-v1`/`whole-v2` collapsed to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1` collapsed to `convergent`. Legacy v1/v2 scheme strings in stored manifests now throw `LEGACY_SCHEME` at `readManifest()` time with migration guidance. The `scheme` field in `ManifestSchema` is now required for all encryption metadata (previously optional for backward-compatible schemeless whole manifests).
+- **AAD is always on** — `whole` and `framed` encryption always bind slug-based AAD into the GCM tag. The v1 no-AAD path is removed.
+- **Plaintext+compressed restore is now streaming** — compressed unencrypted data uses `_restoreCompressedStreaming` instead of the buffered path, eliminating the `maxRestoreBufferSize` constraint for this case.
+- **`formatVersion` stamped into new manifests** — new manifests include a `formatVersion` field carrying the package semver at store time. The field is optional on read for backward compatibility with older manifests.
+- **`CryptoPort._buildMeta` default scheme** — changed from `'whole-v1'` to `'whole'`.
+
 ### Added
 
 - **Convergent encryption (`convergent-v1`)** — new per-chunk encryption scheme that preserves CDC deduplication across encrypted stores. Each chunk is encrypted with a deterministic key and nonce derived from its plaintext content hash via HMAC-SHA256, so identical plaintext chunks always produce identical ciphertext blobs that Git deduplicates at the object level. The scheme is the default when CDC chunking and encryption are both active. Opt out with `encryption: { convergent: false }`. Force it on any chunker with `encryption: { scheme: 'convergent-v1' }` or `encryption: { convergent: true }`. Manifests record `{ scheme: 'convergent-v1', algorithm: 'aes-256-gcm', encrypted: true }` with no per-chunk nonce or tag fields — those are derived from the existing `digest` field at restore time. The 16-byte GCM auth tag is appended to each blob.

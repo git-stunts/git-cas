@@ -103,7 +103,7 @@ describe('CasService – store encryption defaults', () => {
     ({ service } = setup());
   });
 
-  it('defaults new encrypted stores to framed-v2 when scheme is omitted', async () => {
+  it('defaults new encrypted stores to framed when scheme is omitted', async () => {
     async function* source() { yield Buffer.from('encrypted data'); }
     const manifest = await service.store({
       source: source(),
@@ -112,24 +112,24 @@ describe('CasService – store encryption defaults', () => {
       encryptionKey: randomBytes(32),
     });
 
-    expect(manifest.encryption.scheme).toBe('framed-v2');
+    expect(manifest.encryption.scheme).toBe('framed');
     expect(manifest.encryption.frameBytes).toBe(64 * 1024);
   });
 
-  it('persists whole-v1 only when it is requested explicitly', async () => {
+  it('persists whole only when it is requested explicitly', async () => {
     async function* source() { yield Buffer.from('encrypted data'); }
     const manifest = await service.store({
       source: source(),
       slug: 'encrypted-slug',
       filename: 'encrypted.bin',
       encryptionKey: randomBytes(32),
-      encryption: { scheme: 'whole-v1' },
+      encryption: { scheme: 'whole' },
     });
 
-    expect(manifest.encryption.scheme).toBe('whole-v1');
+    expect(manifest.encryption.scheme).toBe('whole');
   });
 
-  it('treats frameBytes without an explicit scheme as framed-v2', async () => {
+  it('treats frameBytes without an explicit scheme as framed', async () => {
     async function* source() { yield Buffer.from('encrypted data'); }
     const manifest = await service.store({
       source: source(),
@@ -139,7 +139,7 @@ describe('CasService – store encryption defaults', () => {
       encryption: { frameBytes: 32 },
     });
 
-    expect(manifest.encryption.scheme).toBe('framed-v2');
+    expect(manifest.encryption.scheme).toBe('framed');
     expect(manifest.encryption.frameBytes).toBe(32);
   });
 });
@@ -151,17 +151,17 @@ describe('CasService – store encryption scheme validation', () => {
     ({ service } = setup());
   });
 
-  it('stores framed-v1 manifests with explicit frameBytes metadata', async () => {
+  it('stores framed manifests with explicit frameBytes metadata', async () => {
     async function* source() { yield Buffer.from('encrypted data'); }
     const manifest = await service.store({
       source: source(),
       slug: 'encrypted-slug',
       filename: 'encrypted.bin',
       encryptionKey: randomBytes(32),
-      encryption: { scheme: 'framed-v1', frameBytes: 32 },
+      encryption: { scheme: 'framed', frameBytes: 32 },
     });
 
-    expect(manifest.encryption.scheme).toBe('framed-v1');
+    expect(manifest.encryption.scheme).toBe('framed');
     expect(manifest.encryption.frameBytes).toBe(32);
   });
 

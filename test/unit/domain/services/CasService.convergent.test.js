@@ -103,14 +103,14 @@ async function storeAndRestore(service, data, storeOpts = {}) {
 // 1. Convergent round-trip
 // ---------------------------------------------------------------------------
 describe('CasService convergent encryption — round-trip', () => {
-  it('stores with CDC + encryption and produces convergent-v1 scheme', async () => {
+  it('stores with CDC + encryption and produces convergent scheme', async () => {
     const { service } = setupCdc();
     const key = randomBytes(32);
     const data = randomBytes(4096);
 
     const { manifest, buffer } = await storeAndRestore(service, data, { encryptionKey: key });
 
-    expect(manifest.encryption.scheme).toBe('convergent-v1');
+    expect(manifest.encryption.scheme).toBe('convergent');
     expect(manifest.encryption.algorithm).toBe('aes-256-gcm');
     expect(manifest.encryption.encrypted).toBe(true);
     expect(buffer.equals(data)).toBe(true);
@@ -123,7 +123,7 @@ describe('CasService convergent encryption — round-trip', () => {
 
     const { manifest, buffer } = await storeAndRestore(service, data, { encryptionKey: key });
 
-    expect(manifest.encryption.scheme).toBe('convergent-v1');
+    expect(manifest.encryption.scheme).toBe('convergent');
     expect(buffer.equals(data)).toBe(true);
   });
 
@@ -134,7 +134,7 @@ describe('CasService convergent encryption — round-trip', () => {
 
     const { manifest, buffer } = await storeAndRestore(service, data, { encryptionKey: key });
 
-    expect(manifest.encryption.scheme).toBe('convergent-v1');
+    expect(manifest.encryption.scheme).toBe('convergent');
     expect(buffer.equals(data)).toBe(true);
   });
 });
@@ -223,7 +223,7 @@ describe('CasService convergent encryption — wrong key', () => {
 // 5. Default behavior
 // ---------------------------------------------------------------------------
 describe('CasService convergent encryption — default behavior', () => {
-  it('CDC + encryption defaults to convergent-v1', async () => {
+  it('CDC + encryption defaults to convergent', async () => {
     const { service } = setupCdc();
     const key = randomBytes(32);
     const data = randomBytes(2048);
@@ -233,7 +233,7 @@ describe('CasService convergent encryption — default behavior', () => {
       source: source(), slug: 'default-cdc', filename: 'f.bin', encryptionKey: key,
     });
 
-    expect(manifest.encryption.scheme).toBe('convergent-v1');
+    expect(manifest.encryption.scheme).toBe('convergent');
   });
 
   it('does not emit CDC dedup warning for convergent stores', async () => {
@@ -259,7 +259,7 @@ describe('CasService convergent encryption — default behavior', () => {
 // 6. Opt-out
 // ---------------------------------------------------------------------------
 describe('CasService convergent encryption — opt-out', () => {
-  it('convergent: false uses framed-v2 with CDC', async () => {
+  it('convergent: false uses framed with CDC', async () => {
     const { service } = setupCdc();
     const key = randomBytes(32);
     const data = randomBytes(2048);
@@ -271,10 +271,10 @@ describe('CasService convergent encryption — opt-out', () => {
       encryption: { convergent: false },
     });
 
-    expect(manifest.encryption.scheme).toBe('framed-v2');
+    expect(manifest.encryption.scheme).toBe('framed');
   });
 
-  it('explicit framed-v2 overrides convergent default', async () => {
+  it('explicit framed overrides convergent default', async () => {
     const { service } = setupCdc();
     const key = randomBytes(32);
     const data = randomBytes(2048);
@@ -283,10 +283,10 @@ describe('CasService convergent encryption — opt-out', () => {
     const manifest = await service.store({
       source: source(), slug: 'explicit-framed', filename: 'f.bin',
       encryptionKey: key,
-      encryption: { scheme: 'framed-v2' },
+      encryption: { scheme: 'framed' },
     });
 
-    expect(manifest.encryption.scheme).toBe('framed-v2');
+    expect(manifest.encryption.scheme).toBe('framed');
   });
 });
 
@@ -294,7 +294,7 @@ describe('CasService convergent encryption — opt-out', () => {
 // 7. Fixed chunking
 // ---------------------------------------------------------------------------
 describe('CasService convergent encryption — fixed chunking', () => {
-  it('fixed + encryption defaults to framed-v2 (not convergent)', async () => {
+  it('fixed + encryption defaults to framed (not convergent)', async () => {
     const { service } = setupFixed();
     const key = randomBytes(32);
     const data = randomBytes(2048);
@@ -304,10 +304,10 @@ describe('CasService convergent encryption — fixed chunking', () => {
       source: source(), slug: 'fixed-enc', filename: 'f.bin', encryptionKey: key,
     });
 
-    expect(manifest.encryption.scheme).toBe('framed-v2');
+    expect(manifest.encryption.scheme).toBe('framed');
   });
 
-  it('fixed + convergent: true forces convergent-v1', async () => {
+  it('fixed + convergent: true forces convergent', async () => {
     const { service } = setupFixed();
     const key = randomBytes(32);
     const data = randomBytes(2048);
@@ -317,7 +317,7 @@ describe('CasService convergent encryption — fixed chunking', () => {
       encryption: { convergent: true },
     });
 
-    expect(manifest.encryption.scheme).toBe('convergent-v1');
+    expect(manifest.encryption.scheme).toBe('convergent');
     expect(buffer.equals(data)).toBe(true);
   });
 });
@@ -326,31 +326,31 @@ describe('CasService convergent encryption — fixed chunking', () => {
 // 8. Backward compat
 // ---------------------------------------------------------------------------
 describe('CasService convergent encryption — backward compatibility', () => {
-  it('framed-v2 manifests still restore correctly', async () => {
+  it('framed manifests still restore correctly', async () => {
     const { service } = setupFixed();
     const key = randomBytes(32);
     const data = randomBytes(2048);
 
     const { manifest, buffer } = await storeAndRestore(service, data, {
       encryptionKey: key,
-      encryption: { scheme: 'framed-v2' },
+      encryption: { scheme: 'framed' },
     });
 
-    expect(manifest.encryption.scheme).toBe('framed-v2');
+    expect(manifest.encryption.scheme).toBe('framed');
     expect(buffer.equals(data)).toBe(true);
   });
 
-  it('whole-v2 manifests still restore correctly', async () => {
+  it('whole manifests still restore correctly', async () => {
     const { service } = setupFixed();
     const key = randomBytes(32);
     const data = randomBytes(512);
 
     const { manifest, buffer } = await storeAndRestore(service, data, {
       encryptionKey: key,
-      encryption: { scheme: 'whole-v2' },
+      encryption: { scheme: 'whole' },
     });
 
-    expect(manifest.encryption.scheme).toBe('whole-v2');
+    expect(manifest.encryption.scheme).toBe('whole');
     expect(buffer.equals(data)).toBe(true);
   });
 });
@@ -371,7 +371,7 @@ describe('CasService convergent encryption — compression', () => {
       encryptionKey: key, compression: { algorithm: 'gzip' },
     });
 
-    expect(manifest.encryption.scheme).toBe('convergent-v1');
+    expect(manifest.encryption.scheme).toBe('convergent');
     expect(manifest.compression.algorithm).toBe('gzip');
 
     const { buffer } = await service.restore({
@@ -395,7 +395,7 @@ describe('CasService convergent encryption — passphrase', () => {
       passphrase: 'test-passphrase-123',
     });
 
-    expect(manifest.encryption.scheme).toBe('convergent-v1');
+    expect(manifest.encryption.scheme).toBe('convergent');
 
     const { buffer } = await service.restore({
       manifest, passphrase: 'test-passphrase-123',
@@ -459,20 +459,20 @@ describe('CasService convergent encryption — verifyIntegrity', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 12. Explicit convergent-v1 scheme
+// 12. Explicit convergent scheme
 // ---------------------------------------------------------------------------
 describe('CasService convergent encryption — explicit scheme', () => {
-  it('explicit scheme: convergent-v1 works with any chunker', async () => {
+  it('explicit scheme: convergent works with any chunker', async () => {
     const { service } = setupFixed();
     const key = randomBytes(32);
     const data = randomBytes(2048);
 
     const { manifest, buffer } = await storeAndRestore(service, data, {
       encryptionKey: key,
-      encryption: { scheme: 'convergent-v1' },
+      encryption: { scheme: 'convergent' },
     });
 
-    expect(manifest.encryption.scheme).toBe('convergent-v1');
+    expect(manifest.encryption.scheme).toBe('convergent');
     expect(buffer.equals(data)).toBe(true);
   });
 });

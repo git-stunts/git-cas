@@ -143,7 +143,7 @@ describe('CasService – store – mutual exclusion and validation', () => {
   });
 });
 
-describe('CasService – restore – mutual exclusion', () => {
+describe('CasService – restore – mutual exclusion', () => { // eslint-disable-line max-lines-per-function
   let service;
 
   beforeEach(() => {
@@ -166,6 +166,7 @@ describe('CasService – restore – mutual exclusion', () => {
     const manifest = new Manifest({
       slug: 'test', filename: 'test.bin', size: 0, chunks: [],
       encryption: {
+        scheme: 'whole',
         algorithm: 'aes-256-gcm',
         nonce: base64Bytes(12, 1),
         tag: base64Bytes(16, 2),
@@ -182,6 +183,7 @@ describe('CasService – restore – mutual exclusion', () => {
     const manifest = new Manifest({
       slug: 'test', filename: 'test.bin', size: 0, chunks: [],
       encryption: {
+        scheme: 'whole',
         algorithm: 'aes-256-gcm',
         nonce: base64Bytes(12, 3),
         tag: base64Bytes(16, 4),
@@ -304,14 +306,14 @@ describe('CasService – verifyIntegrity (encrypted without credentials)', () =>
   });
 });
 
-describe('CasService – verifyIntegrity (whole-v1 metadata tampering)', () => {
+describe('CasService – verifyIntegrity (whole metadata tampering)', () => {
   it('returns false when encrypted manifest auth metadata is tampered', async () => {
     const key = Buffer.alloc(32, 0x22);
     const { service } = createBlobBackedService();
     const manifest = await storeStringManifest(service, 'encrypted verify detects tag tamper', {
       slug: 'encrypted-verify-tag',
       encryptionKey: key,
-      encryption: { scheme: 'whole-v1' },
+      encryption: { scheme: 'whole' },
     });
 
     const tamperedManifest = new Manifest({
@@ -328,14 +330,14 @@ describe('CasService – verifyIntegrity (whole-v1 metadata tampering)', () => {
   });
 });
 
-describe('CasService – verifyIntegrity (framed-v1 ciphertext tampering)', () => {
-  it('returns false when framed-v1 ciphertext is tampered even if chunk digests are updated', async () => {
+describe('CasService – verifyIntegrity (framed ciphertext tampering)', () => {
+  it('returns false when framed ciphertext is tampered even if chunk digests are updated', async () => {
     const key = Buffer.alloc(32, 0x24);
     const { service, blobStore, crypto } = createBlobBackedService();
     const manifest = await storeStringManifest(service, 'framed ciphertext auth still matters '.repeat(80), {
       slug: 'framed-verify-ciphertext',
       encryptionKey: key,
-      encryption: { scheme: 'framed-v1', frameBytes: 128 },
+      encryption: { scheme: 'framed', frameBytes: 128 },
     });
 
     const originalChunk = blobStore.get(manifest.chunks[0].blob);

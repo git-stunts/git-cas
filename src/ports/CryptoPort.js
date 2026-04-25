@@ -4,7 +4,7 @@ import { normalizeKdfOptions } from '../helpers/kdfPolicy.js';
 /**
  * Encryption metadata returned by AES-256-GCM operations.
  * @typedef {Object} EncryptionMeta
- * @property {string} [scheme] - Payload framing scheme identifier (e.g. `'whole-v1'`).
+ * @property {string} [scheme] - Payload framing scheme identifier (e.g. `'whole'`).
  * @property {string} algorithm - Cipher algorithm identifier (e.g. `'aes-256-gcm'`).
  * @property {string} nonce - Base64-encoded 12-byte nonce.
  * @property {string} tag - Base64-encoded 16-byte GCM authentication tag.
@@ -255,10 +255,10 @@ export default class CryptoPort {
    * Builds the encryption metadata object from base64-encoded nonce and tag.
    * @param {string} nonce64 - Base64-encoded 12-byte AES-GCM nonce.
    * @param {string} tag64 - Base64-encoded 16-byte GCM authentication tag.
-   * @param {string} [scheme='whole-v1'] - Payload framing scheme identifier.
+   * @param {string} [scheme='whole'] - Payload framing scheme identifier.
    * @returns {EncryptionMeta}
    */
-  _buildMeta(nonce64, tag64, scheme = 'whole-v1') {
+  _buildMeta(nonce64, tag64, scheme = 'whole') {
     return {
       scheme,
       algorithm: 'aes-256-gcm',

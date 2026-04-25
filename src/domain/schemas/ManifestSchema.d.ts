@@ -38,7 +38,7 @@ export declare const RecipientSchema: z.ZodObject<{
 export declare const EncryptionSchema: z.ZodUnion<
   [
     z.ZodObject<{
-      scheme: z.ZodOptional<z.ZodLiteral<"whole-v1">>;
+      scheme: z.ZodLiteral<"whole">;
       algorithm: z.ZodLiteral<"aes-256-gcm">;
       encrypted: z.ZodDefault<z.ZodLiteral<true>>;
       kdf: z.ZodOptional<typeof KdfSchema>;
@@ -49,7 +49,7 @@ export declare const EncryptionSchema: z.ZodUnion<
       frameBytes: z.ZodOptional<z.ZodUndefined>;
     }>,
     z.ZodObject<{
-      scheme: z.ZodLiteral<"framed-v1">;
+      scheme: z.ZodLiteral<"framed">;
       algorithm: z.ZodLiteral<"aes-256-gcm">;
       encrypted: z.ZodDefault<z.ZodLiteral<true>>;
       kdf: z.ZodOptional<typeof KdfSchema>;
@@ -58,6 +58,17 @@ export declare const EncryptionSchema: z.ZodUnion<
       frameBytes: z.ZodNumber;
       nonce: z.ZodOptional<z.ZodUndefined>;
       tag: z.ZodOptional<z.ZodUndefined>;
+    }>,
+    z.ZodObject<{
+      scheme: z.ZodLiteral<"convergent">;
+      algorithm: z.ZodLiteral<"aes-256-gcm">;
+      encrypted: z.ZodDefault<z.ZodLiteral<true>>;
+      kdf: z.ZodOptional<typeof KdfSchema>;
+      recipients: z.ZodOptional<z.ZodArray<typeof RecipientSchema>>;
+      keyVersion: z.ZodOptional<z.ZodNumber>;
+      nonce: z.ZodOptional<z.ZodUndefined>;
+      tag: z.ZodOptional<z.ZodUndefined>;
+      frameBytes: z.ZodOptional<z.ZodUndefined>;
     }>
   ]
 >;
@@ -101,6 +112,7 @@ export declare const SubManifestRefSchema: z.ZodObject<{
 /** Validates a complete file manifest. */
 export declare const ManifestSchema: z.ZodObject<{
   version: z.ZodDefault<z.ZodNumber>;
+  formatVersion: z.ZodOptional<z.ZodString>;
   slug: z.ZodString;
   filename: z.ZodString;
   size: z.ZodNumber;

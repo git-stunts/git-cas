@@ -86,7 +86,7 @@ describe('CryptoPort._buildMeta()', () => {
     const meta = port._buildMeta(nonce64, tag64);
 
     expect(meta).toEqual({
-      scheme: 'whole-v1',
+      scheme: 'whole',
       algorithm: 'aes-256-gcm',
       nonce: nonce64,
       tag: tag64,

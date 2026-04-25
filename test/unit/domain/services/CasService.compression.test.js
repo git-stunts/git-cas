@@ -166,14 +166,14 @@ describe('CasService compression – compression + encryption round-trip', () =>
     expect(bytesWritten).toBe(original.length);
   });
 
-  it('round-trips data stored with compression and framed-v1 encryption', async () => {
+  it('round-trips data stored with compression and framed encryption', async () => {
     const { original, manifest, buffer, bytesWritten } = await expectCompressedEncryptedRoundTrip(service, {
-      scheme: 'framed-v1',
+      scheme: 'framed',
       frameBytes: 128,
     });
 
     expect(manifest.compression).toBeDefined();
-    expect(manifest.encryption.scheme).toBe('framed-v1');
+    expect(manifest.encryption.scheme).toBe('framed');
     expect(buffer.equals(original)).toBe(true);
     expect(bytesWritten).toBe(original.length);
   });

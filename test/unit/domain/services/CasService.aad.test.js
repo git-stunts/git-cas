@@ -81,10 +81,10 @@ describe('CasService AAD – whole-v2 round-trip', () => {
     const original = Buffer.from('hello aad world');
     const manifest = await storeBuffer(service, original, {
       encryptionKey: key,
-      encryption: { scheme: 'whole-v2' },
+      encryption: { scheme: 'whole' },
     });
 
-    expect(manifest.encryption.scheme).toBe('whole-v2');
+    expect(manifest.encryption.scheme).toBe('whole');
   });
 
   it('round-trips whole-v2 encrypted content', async () => {
@@ -92,7 +92,7 @@ describe('CasService AAD – whole-v2 round-trip', () => {
     const original = Buffer.from('hello aad world');
     const manifest = await storeBuffer(service, original, {
       encryptionKey: key,
-      encryption: { scheme: 'whole-v2' },
+      encryption: { scheme: 'whole' },
     });
 
     const { buffer } = await service.restore({ manifest, encryptionKey: key });
@@ -104,10 +104,10 @@ describe('CasService AAD – whole-v2 round-trip', () => {
     const original = randomBytes(3 * 1024);
     const manifest = await storeBuffer(service, original, {
       encryptionKey: key,
-      encryption: { scheme: 'whole-v2' },
+      encryption: { scheme: 'whole' },
     });
 
-    expect(manifest.encryption.scheme).toBe('whole-v2');
+    expect(manifest.encryption.scheme).toBe('whole');
     const { buffer } = await service.restore({ manifest, encryptionKey: key });
     expect(buffer.equals(original)).toBe(true);
   });
@@ -129,7 +129,7 @@ describe('CasService AAD – whole-v2 tamper detection', () => {
     const manifest = await storeBuffer(service, original, {
       encryptionKey: key,
       slug: 'original-slug',
-      encryption: { scheme: 'whole-v2' },
+      encryption: { scheme: 'whole' },
     });
 
     // Tamper with the slug in the manifest
@@ -158,10 +158,10 @@ describe('CasService AAD – framed-v2 round-trip', () => {
     const original = randomBytes(3 * 1024);
     const manifest = await storeBuffer(service, original, {
       encryptionKey: key,
-      encryption: { scheme: 'framed-v2', frameBytes: 512 },
+      encryption: { scheme: 'framed', frameBytes: 512 },
     });
 
-    expect(manifest.encryption.scheme).toBe('framed-v2');
+    expect(manifest.encryption.scheme).toBe('framed');
   });
 
   it('round-trips framed-v2 encrypted content', async () => {
@@ -169,7 +169,7 @@ describe('CasService AAD – framed-v2 round-trip', () => {
     const original = randomBytes(3 * 1024);
     const manifest = await storeBuffer(service, original, {
       encryptionKey: key,
-      encryption: { scheme: 'framed-v2', frameBytes: 512 },
+      encryption: { scheme: 'framed', frameBytes: 512 },
     });
 
     const { buffer } = await service.restore({ manifest, encryptionKey: key });
@@ -193,7 +193,7 @@ describe('CasService AAD – framed-v2 tamper detection', () => {
     const manifest = await storeBuffer(service, original, {
       encryptionKey: key,
       slug: 'correct-slug',
-      encryption: { scheme: 'framed-v2', frameBytes: 512 },
+      encryption: { scheme: 'framed', frameBytes: 512 },
     });
 
     const json = manifest.toJSON();
@@ -207,70 +207,35 @@ describe('CasService AAD – framed-v2 tamper detection', () => {
 });
 
 // ---------------------------------------------------------------------------
-// whole-v1 backward compatibility
+// Legacy scheme rejection
 // ---------------------------------------------------------------------------
-describe('CasService AAD – whole-v1 backward compat', () => {
+describe('CasService AAD – legacy scheme rejection', () => {
   let service;
 
   beforeEach(() => {
     ({ service } = setup());
   });
 
-  it('stores with explicit whole-v1 scheme (no AAD)', async () => {
+  it('rejects whole-v1 scheme at store time', async () => {
     const key = randomBytes(32);
     const original = Buffer.from('legacy content');
-    const manifest = await storeBuffer(service, original, {
-      encryptionKey: key,
-      encryption: { scheme: 'whole-v1' },
-    });
-
-    expect(manifest.encryption.scheme).toBe('whole-v1');
+    await expect(
+      storeBuffer(service, original, {
+        encryptionKey: key,
+        encryption: { scheme: 'whole-v1' },
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
   });
 
-  it('round-trips whole-v1 content', async () => {
-    const key = randomBytes(32);
-    const original = Buffer.from('legacy content');
-    const manifest = await storeBuffer(service, original, {
-      encryptionKey: key,
-      encryption: { scheme: 'whole-v1' },
-    });
-
-    const { buffer } = await service.restore({ manifest, encryptionKey: key });
-    expect(buffer.equals(original)).toBe(true);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// framed-v1 backward compatibility
-// ---------------------------------------------------------------------------
-describe('CasService AAD – framed-v1 backward compat', () => {
-  let service;
-
-  beforeEach(() => {
-    ({ service } = setup());
-  });
-
-  it('stores with explicit framed-v1 scheme (no AAD)', async () => {
+  it('rejects framed-v1 scheme at store time', async () => {
     const key = randomBytes(32);
     const original = randomBytes(3 * 1024);
-    const manifest = await storeBuffer(service, original, {
-      encryptionKey: key,
-      encryption: { scheme: 'framed-v1', frameBytes: 512 },
-    });
-
-    expect(manifest.encryption.scheme).toBe('framed-v1');
-  });
-
-  it('round-trips framed-v1 content', async () => {
-    const key = randomBytes(32);
-    const original = randomBytes(3 * 1024);
-    const manifest = await storeBuffer(service, original, {
-      encryptionKey: key,
-      encryption: { scheme: 'framed-v1', frameBytes: 512 },
-    });
-
-    const { buffer } = await service.restore({ manifest, encryptionKey: key });
-    expect(buffer.equals(original)).toBe(true);
+    await expect(
+      storeBuffer(service, original, {
+        encryptionKey: key,
+        encryption: { scheme: 'framed-v1', frameBytes: 512 },
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
   });
 });
 
@@ -284,17 +249,17 @@ describe('CasService AAD – default scheme selection', () => {
     ({ service } = setup());
   });
 
-  it('defaults to framed-v2 when no scheme is specified', async () => {
+  it('defaults to framed when no scheme is specified', async () => {
     const key = randomBytes(32);
     const original = Buffer.from('default scheme test');
     const manifest = await storeBuffer(service, original, {
       encryptionKey: key,
     });
 
-    expect(manifest.encryption.scheme).toBe('framed-v2');
+    expect(manifest.encryption.scheme).toBe('framed');
   });
 
-  it('defaults framed stores with explicit frameBytes to framed-v2', async () => {
+  it('defaults framed stores with explicit frameBytes to framed', async () => {
     const key = randomBytes(32);
     const original = randomBytes(3 * 1024);
     const manifest = await storeBuffer(service, original, {
@@ -302,6 +267,6 @@ describe('CasService AAD – default scheme selection', () => {
       encryption: { frameBytes: 512 },
     });
 
-    expect(manifest.encryption.scheme).toBe('framed-v2');
+    expect(manifest.encryption.scheme).toBe('framed');
   });
 });

@@ -258,12 +258,12 @@ describe('CasService.restore() – encrypted manifest scheme routing', () => {
     ({ service } = setup());
   });
 
-  it('restores legacy encrypted manifests with no scheme as implicit whole-v1', async () => {
+  it('rejects legacy encrypted manifests without a scheme field', async () => {
     const key = randomBytes(32);
     const original = Buffer.from('legacy encrypted manifest without scheme');
     const manifest = await storeBuffer(service, original, {
       encryptionKey: key,
-      encryption: { scheme: 'whole-v1' },
+      encryption: { scheme: 'whole' },
     });
 
     const legacyManifest = {
@@ -273,12 +273,10 @@ describe('CasService.restore() – encrypted manifest scheme routing', () => {
       ),
     };
 
-    const { buffer } = await service.restore({
-      manifest: legacyManifest,
-      encryptionKey: key,
-    });
-
-    expect(buffer.equals(original)).toBe(true);
+    // Constructing a Manifest with no scheme now fails validation
+    expect(() => {
+      new Manifest(legacyManifest);
+    }).toThrow(/Invalid manifest data/);
   });
 
   it('rejects encrypted manifests with an unknown encryption scheme', async () => {
@@ -352,6 +350,7 @@ describe('CasService.restore() – key validation', () => {
       size: 0,
       chunks: [],
       encryption: {
+        scheme: 'whole',
         algorithm: 'aes-256-gcm',
         nonce: base64Bytes(12, 1),
         tag: base64Bytes(16, 2),

@@ -54,6 +54,7 @@ function encryptedManifest(slug) {
       { index: 0, size: 128, digest: CHUNK_DIGEST, blob: 'a'.repeat(40) },
     ],
     encryption: {
+      scheme: 'whole',
       algorithm: 'aes-256-gcm',
       nonce: base64Bytes(12, 1),
       tag: base64Bytes(16, 2),

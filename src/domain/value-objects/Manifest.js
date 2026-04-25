@@ -23,6 +23,7 @@ export default class Manifest {
     try {
       const parsed = ManifestSchema.parse(data);
       this.version = parsed.version;
+      this.formatVersion = parsed.formatVersion;
       this.slug = parsed.slug;
       this.filename = parsed.filename;
       this.size = parsed.size;
@@ -52,6 +53,7 @@ export default class Manifest {
   toJSON() {
     return {
       version: this.version,
+      formatVersion: this.formatVersion,
       slug: this.slug,
       filename: this.filename,
       size: this.size,

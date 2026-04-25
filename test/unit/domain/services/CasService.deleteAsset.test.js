@@ -341,6 +341,7 @@ describe('CasService.deleteAsset() – encrypted manifest', () => {
         { index: 1, size: 512, digest: sha256Digest('enc-chunk1'), blob: blobOid(1) },
       ],
       encryption: {
+        scheme: 'whole',
         algorithm: 'aes-256-gcm',
         nonce: base64Bytes(12, 1),
         tag: base64Bytes(16, 2),

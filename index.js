@@ -6,6 +6,7 @@
 // ---------------------------------------------------------------------------
 // Imports used in the class body
 // ---------------------------------------------------------------------------
+import { createRequire } from 'node:module';
 import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
 import rotateVaultPassphrase from './src/domain/services/rotateVaultPassphrase.js';
@@ -19,6 +20,9 @@ import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
 import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
 import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
 import NodeCompressionAdapter from './src/infrastructure/adapters/NodeCompressionAdapter.js';
+
+const require = createRequire(import.meta.url);
+const { version: PKG_VERSION } = require('./package.json');
 
 // ---------------------------------------------------------------------------
 // Re-exports — modules used in the class body
@@ -122,6 +126,7 @@ export default class ContentAddressableStore {
       chunker,
       maxRestoreBufferSize: cfg.maxRestoreBufferSize,
       compressionAdapter: cfg.compressionAdapter || new NodeCompressionAdapter(),
+      formatVersion: PKG_VERSION,
     });
 
     const ref = new GitRefAdapter({
@@ -224,7 +229,7 @@ export default class ContentAddressableStore {
    * @param {string} [options.filename] - Override filename (defaults to basename of filePath).
    * @param {Buffer} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
    * @param {string} [options.passphrase] - Derive encryption key from passphrase.
-   * @param {{ scheme?: 'whole-v1'|'framed-v1', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
+   * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
@@ -243,7 +248,7 @@ export default class ContentAddressableStore {
    * @param {string} options.filename - Filename for the manifest.
    * @param {Buffer} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
    * @param {string} [options.passphrase] - Derive encryption key from passphrase.
-   * @param {{ scheme?: 'whole-v1'|'framed-v1', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
+   * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).

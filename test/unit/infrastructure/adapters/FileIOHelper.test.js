@@ -156,10 +156,10 @@ describe('FileIOHelper – storeFile option forwarding', () => {
     await storeFile(mockService, {
       filePath,
       slug: 's',
-      encryption: { scheme: 'framed-v1', frameBytes: 32 },
+      encryption: { scheme: 'framed', frameBytes: 32 },
     });
 
-    expect(capturedEncryption).toEqual({ scheme: 'framed-v1', frameBytes: 32 });
+    expect(capturedEncryption).toEqual({ scheme: 'framed', frameBytes: 32 });
   });
 });
 
@@ -224,23 +224,23 @@ describe('FileIOHelper – restoreFile bounded publication seam', () => {
   });
 });
 
-describe('FileIOHelper – restoreFile bounded whole-v1 encrypted path', () => {
+describe('FileIOHelper – restoreFile bounded whole encrypted path', () => {
   const getTmpDir = useTempDir('fio-bounded-restore-');
 
-  it('restores large whole-v1 encrypted content to a file even when restoreStream() is buffer-limited', async () => {
+  it('restores large whole encrypted content to a file even when restoreStream() is buffer-limited', async () => {
     const { service } = createBlobBackedService({ chunkSize: 1024, maxRestoreBufferSize: 1024 });
     const key = Buffer.alloc(32, 0xab);
     const plaintext = Buffer.alloc(4096, 'z');
     const manifest = await storeBufferManifest(service, plaintext, {
-      slug: 'whole-v1-large',
-      filename: 'whole-v1-large.bin',
+      slug: 'whole-large',
+      filename: 'whole-large.bin',
       encryptionKey: key,
-      encryption: { scheme: 'whole-v1' },
+      encryption: { scheme: 'whole' },
     });
 
     await expectRestoreStreamTooLarge(service, manifest, key);
 
-    const outputPath = path.join(getTmpDir(), 'whole-v1-large.bin');
+    const outputPath = path.join(getTmpDir(), 'whole-large.bin');
     const { bytesWritten } = await restoreFile(service, {
       manifest,
       encryptionKey: key,
@@ -252,24 +252,24 @@ describe('FileIOHelper – restoreFile bounded whole-v1 encrypted path', () => {
   });
 });
 
-describe('FileIOHelper – restoreFile bounded whole-v1 compressed path', () => {
+describe('FileIOHelper – restoreFile bounded whole compressed path', () => {
   const getTmpDir = useTempDir('fio-bounded-restore-');
 
-  it('restores large whole-v1 encrypted + compressed content to a file even when restoreStream() is buffer-limited', async () => {
+  it('restores large whole encrypted + compressed content to a file even when restoreStream() is buffer-limited', async () => {
     const { service } = createBlobBackedService({ chunkSize: 1024, maxRestoreBufferSize: 1024 });
     const key = Buffer.alloc(32, 0xcd);
     const plaintext = Buffer.alloc(8192, 'A');
     const manifest = await storeBufferManifest(service, plaintext, {
-      slug: 'whole-v1-compressed-large',
-      filename: 'whole-v1-compressed-large.bin',
+      slug: 'whole-compressed-large',
+      filename: 'whole-compressed-large.bin',
       encryptionKey: key,
-      encryption: { scheme: 'whole-v1' },
+      encryption: { scheme: 'whole' },
       compression: { algorithm: 'gzip' },
     });
 
     await expectRestoreStreamTooLarge(service, manifest, key);
 
-    const outputPath = path.join(getTmpDir(), 'whole-v1-compressed-large.bin');
+    const outputPath = path.join(getTmpDir(), 'whole-compressed-large.bin');
     const { bytesWritten } = await restoreFile(service, {
       manifest,
       encryptionKey: key,
@@ -281,22 +281,22 @@ describe('FileIOHelper – restoreFile bounded whole-v1 compressed path', () => 
   });
 });
 
-describe('FileIOHelper – restoreFile bounded whole-v1 auth cleanup', () => {
+describe('FileIOHelper – restoreFile bounded whole auth cleanup', () => {
   const getTmpDir = useTempDir('fio-bounded-restore-');
 
-  it('does not publish a partial destination file when whole-v1 decryption fails', async () => {
+  it('does not publish a partial destination file when whole decryption fails', async () => {
     const { service } = createBlobBackedService({ chunkSize: 1024, maxRestoreBufferSize: 1024 });
     const key = Buffer.alloc(32, 0xef);
     const wrongKey = Buffer.alloc(32, 0x11);
-    const plaintext = Buffer.from('whole-v1 auth boundary');
+    const plaintext = Buffer.from('whole auth boundary');
     const manifest = await storeBufferManifest(service, plaintext, {
-      slug: 'whole-v1-auth-failure',
-      filename: 'whole-v1-auth-failure.bin',
+      slug: 'whole-auth-failure',
+      filename: 'whole-auth-failure.bin',
       encryptionKey: key,
-      encryption: { scheme: 'whole-v1' },
+      encryption: { scheme: 'whole' },
     });
 
-    const outputPath = path.join(getTmpDir(), 'whole-v1-auth-failure.bin');
+    const outputPath = path.join(getTmpDir(), 'whole-auth-failure.bin');
     await expect(
       restoreFile(service, {
         manifest,

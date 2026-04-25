@@ -75,6 +75,7 @@ function makeEncryptedManifest(chunkSizes) {
     size: chunkSizes.reduce((a, b) => a + b, 0),
     chunks,
     encryption: {
+      scheme: 'whole',
       algorithm: 'aes-256-gcm',
       nonce: Buffer.alloc(12).toString('base64'),
       tag: Buffer.alloc(16).toString('base64'),
@@ -133,7 +134,7 @@ describe('CasService — buffered restore adapter capability', () => {
       slug: 'capability',
       filename: 'capability.bin',
       encryptionKey: key,
-      encryption: { scheme: 'whole-v1' },
+      encryption: { scheme: 'whole' },
     });
 
     await expect(
@@ -170,7 +171,7 @@ describe('CasService — RESTORE_TOO_LARGE defaults and meta', () => {
   });
 });
 
-describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
+describe('CasService — RESTORE_TOO_LARGE after decompression', () => { // eslint-disable-line max-lines-per-function
   it('throws when decompressed size exceeds limit', async () => {
     const { service, mockPersistence } = setup({ maxRestoreBufferSize: 4096 });
     const key = Buffer.alloc(32, 0xab);
@@ -180,7 +181,7 @@ describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
     const manifest = await service.store({
       source: source(), slug: 'bomb', filename: 'bomb.bin',
       encryptionKey: key,
-      encryption: { scheme: 'whole-v1' },
+      encryption: { scheme: 'whole' },
       compression: { algorithm: 'gzip' },
     });
 
@@ -195,7 +196,7 @@ describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
     ).rejects.toMatchObject({ code: 'RESTORE_TOO_LARGE' });
   });
 
-  it('uses the streaming decompression limit instead of full-buffer gunzip', async () => {
+  it('streams compressed data without buffering — no RESTORE_TOO_LARGE', async () => {
     const { service, mockPersistence } = setup({ maxRestoreBufferSize: 1024 });
     const plaintext = Buffer.alloc(8192, 0xaa);
 
@@ -212,11 +213,14 @@ describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
     mockPersistence.readBlob.mockImplementation(() => Promise.resolve(storedBlobs[idx++] || Buffer.alloc(0)));
     enableReadBlobStream(mockPersistence, storedBlobs);
 
-    // Streaming restore enforces the limit via _decompressBufferedWithLimit,
-    // not a one-shot decompress — the error surfaces as RESTORE_TOO_LARGE.
-    await expect(
-      service.restoreStream({ manifest }).next(),
-    ).rejects.toMatchObject({ code: 'RESTORE_TOO_LARGE' });
+    // Compressed plaintext now uses streaming decompression, so it no longer
+    // buffers the full payload — restoreStream succeeds even when the
+    // decompressed size exceeds maxRestoreBufferSize.
+    const chunks = [];
+    for await (const chunk of service.restoreStream({ manifest })) {
+      chunks.push(chunk);
+    }
+    expect(Buffer.concat(chunks).equals(plaintext)).toBe(true);
   });
 });
 

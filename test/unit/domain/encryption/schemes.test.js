@@ -45,7 +45,7 @@ describe('assertCurrentScheme', () => {
 describe('isLegacyScheme', () => {
   it('returns true for legacy schemes', () => {
     expect(isLegacyScheme('whole-v1')).toBe(true);
-    expect(isLegacyScheme('framed-v2')).toBe(true);
+    expect(isLegacyScheme('framed-v1')).toBe(true);
   });
 
   it('returns false for current schemes', () => {

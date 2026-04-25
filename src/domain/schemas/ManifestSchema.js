@@ -66,7 +66,7 @@ const EncryptionBaseSchema = {
 };
 
 const WholeEncryptionSchema = z.object({
-  scheme: z.enum(['whole-v1', 'whole-v2']).optional(),
+  scheme: z.literal('whole'),
   ...EncryptionBaseSchema,
   nonce: base64BytesSchema('nonce', 12),
   tag: base64BytesSchema('tag', 16),
@@ -74,7 +74,7 @@ const WholeEncryptionSchema = z.object({
 });
 
 const FramedEncryptionSchema = z.object({
-  scheme: z.enum(['framed-v1', 'framed-v2']),
+  scheme: z.literal('framed'),
   ...EncryptionBaseSchema,
   frameBytes: z.number().int().positive(),
   nonce: z.undefined().optional(),
@@ -82,7 +82,7 @@ const FramedEncryptionSchema = z.object({
 });
 
 const ConvergentEncryptionSchema = z.object({
-  scheme: z.literal('convergent-v1'),
+  scheme: z.literal('convergent'),
   ...EncryptionBaseSchema,
   nonce: z.undefined().optional(),
   tag: z.undefined().optional(),
@@ -135,6 +135,7 @@ export const SubManifestRefSchema = z.object({
 /** Validates a complete file manifest. */
 export const ManifestSchema = z.object({
   version: z.number().int().min(1).max(2).default(1),
+  formatVersion: z.string().regex(/^\d+\.\d+\.\d+$/).optional(),
   manifestHash: z.string().regex(/^[0-9a-f]{64}$/, 'manifestHash must be a 64-char hex string').optional(),
   slug: z.string().min(1),
   filename: z.string().min(1),

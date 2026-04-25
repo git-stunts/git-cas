@@ -57,33 +57,32 @@ describe('RecipientSchema — rejections', () => {
 // ---------------------------------------------------------------------------
 describe('EncryptionSchema — recipients', () => { // eslint-disable-line max-lines-per-function
   const baseEncryption = () => ({
-    scheme: 'whole-v1',
+    scheme: 'whole',
     algorithm: 'aes-256-gcm',
     nonce: base64Bytes(12, 4),
     tag: base64Bytes(16, 5),
     encrypted: true,
   });
 
-  it('backward compat: legacy whole-v1 without scheme is valid', () => {
+  it('rejects encryption metadata without a scheme field', () => {
     const result = EncryptionSchema.safeParse({
       algorithm: 'aes-256-gcm',
       nonce: base64Bytes(12, 4),
       tag: base64Bytes(16, 5),
       encrypted: true,
     });
-    expect(result.success).toBe(true);
-    expect(result.data.recipients).toBeUndefined();
+    expect(result.success).toBe(false);
   });
 
-  it('accepts explicit whole-v1 metadata', () => {
+  it('accepts explicit whole metadata', () => {
     const result = EncryptionSchema.safeParse(baseEncryption());
     expect(result.success).toBe(true);
-    expect(result.data.scheme).toBe('whole-v1');
+    expect(result.data.scheme).toBe('whole');
   });
 
-  it('accepts framed-v1 metadata with frameBytes and no nonce/tag', () => {
+  it('accepts framed metadata with frameBytes and no nonce/tag', () => {
     const result = EncryptionSchema.safeParse({
-      scheme: 'framed-v1',
+      scheme: 'framed',
       algorithm: 'aes-256-gcm',
       encrypted: true,
       frameBytes: 65536,
@@ -130,25 +129,25 @@ describe('EncryptionSchema — recipients', () => { // eslint-disable-line max-l
     expect(EncryptionSchema.safeParse({ ...baseEncryption(), algorithm: 'aes-128-cbc' }).success).toBe(false);
   });
 
-  it('rejects wrong whole-v1 nonce byte length', () => {
+  it('rejects wrong whole nonce byte length', () => {
     expect(EncryptionSchema.safeParse({ ...baseEncryption(), nonce: base64Bytes(11, 6) }).success).toBe(false);
   });
 
-  it('rejects wrong whole-v1 tag byte length', () => {
+  it('rejects wrong whole tag byte length', () => {
     expect(EncryptionSchema.safeParse({ ...baseEncryption(), tag: base64Bytes(15, 7) }).success).toBe(false);
   });
 
-  it('rejects framed-v1 without frameBytes', () => {
+  it('rejects framed without frameBytes', () => {
     expect(EncryptionSchema.safeParse({
-      scheme: 'framed-v1',
+      scheme: 'framed',
       algorithm: 'aes-256-gcm',
       encrypted: true,
     }).success).toBe(false);
   });
 
-  it('rejects framed-v1 when manifest-level nonce/tag are present', () => {
+  it('rejects framed when manifest-level nonce/tag are present', () => {
     expect(EncryptionSchema.safeParse({
-      scheme: 'framed-v1',
+      scheme: 'framed',
       algorithm: 'aes-256-gcm',
       encrypted: true,
       frameBytes: 128,

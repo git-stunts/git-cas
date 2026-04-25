@@ -170,7 +170,7 @@ describe('CasService events – integrity:fail', () => {
     const key = randomBytes(32);
     const manifest = await storeBuffer(service, Buffer.from('encrypted auth mismatch'), {
       encryptionKey: key,
-      encryption: { scheme: 'whole-v1' },
+      encryption: { scheme: 'whole' },
     });
 
     const onFail = vi.fn();

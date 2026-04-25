@@ -231,7 +231,7 @@ describe('CasService.readManifest – corrupt data handling', () => { // eslint-
     ]);
     mockPersistence.readBlob.mockResolvedValue(Buffer.from(codec.encode(validManifestData({
       encryption: {
-        scheme: 'framed-v1',
+        scheme: 'framed',
         algorithm: 'aes-256-gcm',
         encrypted: true,
       },

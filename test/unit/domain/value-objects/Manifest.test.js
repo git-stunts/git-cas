@@ -44,7 +44,7 @@ describe('Manifest – creation', () => { // eslint-disable-line max-lines-per-f
     const data = {
       ...validManifestData(),
       encryption: {
-        scheme: 'whole-v1',
+        scheme: 'whole',
         algorithm: 'aes-256-gcm',
         nonce: base64Bytes(12, 1),
         tag: base64Bytes(16, 2),
@@ -65,11 +65,11 @@ describe('Manifest – creation', () => { // eslint-disable-line max-lines-per-f
     expect(json.chunks).toHaveLength(data.chunks.length);
   });
 
-  it('creates a manifest with framed-v1 encryption metadata', () => {
+  it('creates a manifest with framed encryption metadata', () => {
     const data = {
       ...validManifestData(),
       encryption: {
-        scheme: 'framed-v1',
+        scheme: 'framed',
         algorithm: 'aes-256-gcm',
         encrypted: true,
         frameBytes: 32768,
@@ -77,7 +77,7 @@ describe('Manifest – creation', () => { // eslint-disable-line max-lines-per-f
     };
 
     const manifest = new Manifest(data);
-    expect(manifest.encryption.scheme).toBe('framed-v1');
+    expect(manifest.encryption.scheme).toBe('framed');
     expect(manifest.encryption.frameBytes).toBe(32768);
     expect(manifest.encryption.nonce).toBeUndefined();
     expect(manifest.encryption.tag).toBeUndefined();
@@ -188,6 +188,7 @@ describe('Manifest – backward compatibility (chunking)', () => { // eslint-dis
     const data = {
       ...validManifestData(),
       encryption: {
+        scheme: 'whole',
         algorithm: 'aes-256-gcm',
         nonce: base64Bytes(12, 3),
         tag: base64Bytes(16, 4),
@@ -211,6 +212,7 @@ describe('Manifest – recipients (creation)', () => { // eslint-disable-line ma
     const data = {
       ...validManifestData(),
       encryption: {
+        scheme: 'whole',
         algorithm: 'aes-256-gcm',
         nonce: base64Bytes(12, 5),
         tag: base64Bytes(16, 6),
@@ -227,7 +229,7 @@ describe('Manifest – recipients (creation)', () => { // eslint-disable-line ma
     const data = {
       ...validManifestData(),
       encryption: {
-        algorithm: 'aes-256-gcm', nonce: base64Bytes(12, 5), tag: base64Bytes(16, 6), encrypted: true,
+        scheme: 'whole', algorithm: 'aes-256-gcm', nonce: base64Bytes(12, 5), tag: base64Bytes(16, 6), encrypted: true,
         recipients: [
           { label: 'alice', wrappedDek: base64Bytes(32, 7), nonce: base64Bytes(12, 8), tag: base64Bytes(16, 9) },
           { label: 'bob', wrappedDek: base64Bytes(32, 10), nonce: base64Bytes(12, 11), tag: base64Bytes(16, 12) },
@@ -239,18 +241,19 @@ describe('Manifest – recipients (creation)', () => { // eslint-disable-line ma
     expect(json.encryption.recipients[0].label).toBe('alice');
   });
 
-  it('allows encryption without recipients (backward compat)', () => {
+  it('allows encryption without recipients', () => {
     const data = {
       ...validManifestData(),
-      encryption: { algorithm: 'aes-256-gcm', nonce: base64Bytes(12, 5), tag: base64Bytes(16, 6), encrypted: true },
+      encryption: { scheme: 'whole', algorithm: 'aes-256-gcm', nonce: base64Bytes(12, 5), tag: base64Bytes(16, 6), encrypted: true },
     };
     expect(new Manifest(data).encryption.recipients).toBeUndefined();
   });
 
-  it('throws on malformed whole-v1 encryption metadata at construction time', () => {
+  it('throws on malformed whole encryption metadata at construction time', () => {
     const data = {
       ...validManifestData(),
       encryption: {
+        scheme: 'whole',
         algorithm: 'aes-256-gcm',
         nonce: 'not-valid-base64',
         tag: base64Bytes(16, 6),
@@ -265,6 +268,7 @@ describe('Manifest – recipients (creation)', () => { // eslint-disable-line ma
     const data = {
       ...validManifestData(),
       encryption: {
+        scheme: 'whole',
         algorithm: 'aes-256-gcm',
         nonce: base64Bytes(12, 5),
         tag: base64Bytes(16, 6),
@@ -291,7 +295,7 @@ describe('Manifest – recipients (deep-copy)', () => {
     const data = {
       ...validManifestData(),
       encryption: {
-        algorithm: 'aes-256-gcm', nonce: base64Bytes(12, 5), tag: base64Bytes(16, 6), encrypted: true,
+        scheme: 'whole', algorithm: 'aes-256-gcm', nonce: base64Bytes(12, 5), tag: base64Bytes(16, 6), encrypted: true,
         recipients,
       },
     };

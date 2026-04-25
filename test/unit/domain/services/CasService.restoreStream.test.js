@@ -154,13 +154,13 @@ describe('restoreStream – encrypted / compressed', () => {
     expect(restored.equals(original)).toBe(true);
   });
 
-  it('round-trips framed-v1 encrypted file', async () => {
+  it('round-trips framed encrypted file', async () => {
     const { service } = setup();
     const original = randomBytes(3072);
     const key = randomBytes(32);
     const manifest = await storeBuffer(service, original, {
       encryptionKey: key,
-      encryption: { scheme: 'framed-v1', frameBytes: 128 },
+      encryption: { scheme: 'framed', frameBytes: 128 },
     });
 
     const restored = await collectStream(service.restoreStream({ manifest, encryptionKey: key }));
@@ -225,7 +225,7 @@ describe('restoreStream – consistency with restore()', () => {
   });
 });
 
-describe('restoreStream – framed-v1 streaming behavior', () => {
+describe('restoreStream – framed streaming behavior', () => {
   it('yields authenticated plaintext before reading the full encrypted asset', async () => {
     const crypto = testCrypto;
     const blobStore = new Map();
@@ -247,7 +247,7 @@ describe('restoreStream – framed-v1 streaming behavior', () => {
 
     const manifest = await storeBuffer(service, original, {
       encryptionKey: key,
-      encryption: { scheme: 'framed-v1', frameBytes: 256 },
+      encryption: { scheme: 'framed', frameBytes: 256 },
     });
     const iterator = service.restoreStream({
       manifest,

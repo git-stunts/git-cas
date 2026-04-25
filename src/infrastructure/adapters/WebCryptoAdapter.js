@@ -185,7 +185,7 @@ export default class WebCryptoAdapter extends CryptoPort {
           if (accumulatedBytes > maxBuf) {
             throw new CasError(
               `Streaming decryption buffered ${accumulatedBytes} bytes (limit: ${maxBuf}). ` +
-              'Web Crypto AES-GCM decrypt is one-shot. Use Node.js/Bun or framed-v1 for large encrypted restores.',
+              'Web Crypto AES-GCM decrypt is one-shot. Use Node.js/Bun or framed encryption for large encrypted restores.',
               'DECRYPTION_BUFFER_EXCEEDED',
               { accumulated: accumulatedBytes, limit: maxBuf },
             );

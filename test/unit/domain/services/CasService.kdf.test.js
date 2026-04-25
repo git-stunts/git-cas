@@ -195,7 +195,7 @@ describe('CasService – passphrase store/restore round-trip', () => {
 
     expect(manifest.encryption).toBeDefined();
     expect(manifest.encryption.encrypted).toBe(true);
-    expect(manifest.encryption.scheme).toBe('framed-v2');
+    expect(manifest.encryption.scheme).toBe('framed');
     expect(manifest.encryption.kdf).toBeDefined();
 
     const { buffer, bytesWritten } = await service.restore({ manifest, passphrase });
