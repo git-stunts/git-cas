@@ -3,7 +3,6 @@
  * @fileoverview Zod schemas for validating CAS manifest and chunk data.
  */
 
-import { Buffer } from 'node:buffer';
 import z from 'zod';
 import { isCanonicalBase64 } from '../../helpers/canonicalBase64.js';
 

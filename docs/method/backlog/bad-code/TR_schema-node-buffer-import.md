@@ -15,3 +15,7 @@ would fail even though `Buffer` could be polyfilled globally.
 
 Remove `import { Buffer } from 'node:buffer'` and rely on the global `Buffer`.
 If browser support is needed later, the polyfill can provide the global.
+
+## Status
+
+- [x] Resolved — `security/audit-fixes` branch
