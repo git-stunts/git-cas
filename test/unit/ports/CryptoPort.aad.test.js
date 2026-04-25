@@ -54,21 +54,21 @@ describe.each(adapters)('%s – AAD encryptBuffer/decryptBuffer', (_name, adapte
     const { buf, meta } = await adapter.encryptBuffer(plaintext, key, aad);
     await expect(
       Promise.resolve().then(() => adapter.decryptBuffer(buf, key, meta, wrongAad)),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/auth|tag|decrypt|Unsupported/i);
   });
 
   it('encrypt with AAD -> decrypt with no AAD -> fails', async () => {
     const { buf, meta } = await adapter.encryptBuffer(plaintext, key, aad);
     await expect(
       Promise.resolve().then(() => adapter.decryptBuffer(buf, key, meta)),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/auth|tag|decrypt|Unsupported/i);
   });
 
   it('encrypt with no AAD -> decrypt with AAD -> fails', async () => {
     const { buf, meta } = await adapter.encryptBuffer(plaintext, key);
     await expect(
       Promise.resolve().then(() => adapter.decryptBuffer(buf, key, meta, aad)),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/auth|tag|decrypt|Unsupported/i);
   });
 
   it('encrypt with no AAD -> decrypt with no AAD -> succeeds (backward compat)', async () => {
@@ -95,7 +95,7 @@ describe.each(adapters)('%s – AAD createEncryptionStream/createDecryptionStrea
     const meta = finalize();
 
     const { decrypt } = adapter.createDecryptionStream(key, meta, wrongAad);
-    await expect(collect(decrypt(toStream(ciphertext)))).rejects.toThrow();
+    await expect(collect(decrypt(toStream(ciphertext)))).rejects.toThrow(/auth|tag|decrypt|Unsupported/i);
   });
 
   it('stream encrypt with AAD -> stream decrypt with no AAD -> fails', async () => {
@@ -104,7 +104,7 @@ describe.each(adapters)('%s – AAD createEncryptionStream/createDecryptionStrea
     const meta = finalize();
 
     const { decrypt } = adapter.createDecryptionStream(key, meta);
-    await expect(collect(decrypt(toStream(ciphertext)))).rejects.toThrow();
+    await expect(collect(decrypt(toStream(ciphertext)))).rejects.toThrow(/auth|tag|decrypt|Unsupported/i);
   });
 
   it('stream encrypt with no AAD -> stream decrypt with AAD -> fails', async () => {
@@ -113,7 +113,7 @@ describe.each(adapters)('%s – AAD createEncryptionStream/createDecryptionStrea
     const meta = finalize();
 
     const { decrypt } = adapter.createDecryptionStream(key, meta, aad);
-    await expect(collect(decrypt(toStream(ciphertext)))).rejects.toThrow();
+    await expect(collect(decrypt(toStream(ciphertext)))).rejects.toThrow(/auth|tag|decrypt|Unsupported/i);
   });
 
   it('stream encrypt with no AAD -> stream decrypt with no AAD -> succeeds (backward compat)', async () => {

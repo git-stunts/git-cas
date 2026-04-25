@@ -475,7 +475,10 @@ export default class VaultService {
         }
         : undefined,
       privacy: metadata.privacy
-        ? { ...metadata.privacy }
+        ? {
+          ...metadata.privacy,
+          indexMeta: metadata.privacy.indexMeta ? { ...metadata.privacy.indexMeta } : undefined,
+        }
         : undefined,
     };
   }

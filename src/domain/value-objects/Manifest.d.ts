@@ -85,6 +85,7 @@ export interface ManifestData {
   encryption?: EncryptionMeta;
   compression?: CompressionMeta;
   subManifests?: SubManifestRef[];
+  manifestHash?: string;
 }
 
 /**
@@ -100,6 +101,7 @@ export default class Manifest {
   readonly encryption?: EncryptionMeta;
   readonly compression?: CompressionMeta;
   readonly subManifests?: readonly SubManifestRef[];
+  readonly manifestHash?: string;
 
   constructor(data: ManifestData);
 

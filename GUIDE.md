@@ -366,8 +366,8 @@ Implement the `CompressionPort` interface to use a different algorithm:
 import { CompressionPort } from '@git-stunts/git-cas';
 
 class BrotliAdapter extends CompressionPort {
-  async compress(buffer) { /* ... */ }
-  async decompress(buffer) { /* ... */ }
+  async compressBuffer(buffer) { /* ... */ }
+  async decompressBuffer(buffer) { /* ... */ }
 }
 
 const cas = new ContentAddressableStore({
@@ -385,10 +385,7 @@ Compare two manifests to find added, removed, and unchanged chunks. This is a pu
 ### Library
 
 ```js
-// Static method (also callable on instances)
-const diff = cas.diffManifests(oldManifest, newManifest);
-
-// Static method (no CasService instance needed)
+// Static method (requires class, not an instance)
 import { CasService } from '@git-stunts/git-cas/service';
 const diff = CasService.diffManifests(oldManifest, newManifest);
 

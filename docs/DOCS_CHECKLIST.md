@@ -42,7 +42,7 @@ changes:
 - [SECURITY.md](../SECURITY.md)
 - [docs/API.md](./API.md)
 - [docs/THREAT_MODEL.md](./THREAT_MODEL.md)
-- [docs/BENCHMARKS.md](./BENCHMARKS.md)
+- [ADVANCED_GUIDE.md](../ADVANCED_GUIDE.md)
 - planning indexes under [`docs/method/backlog/`](./method/backlog/README.md),
   [`docs/design/`](./design/README.md),
   [`docs/archive/BACKLOG/`](./archive/BACKLOG/README.md), and
@@ -100,7 +100,7 @@ This checklist is most useful when a change touches files like:
 - [SECURITY.md](../SECURITY.md)
 - [docs/API.md](./API.md)
 - [docs/THREAT_MODEL.md](./THREAT_MODEL.md)
-- [docs/BENCHMARKS.md](./BENCHMARKS.md)
+- [ADVANCED_GUIDE.md](../ADVANCED_GUIDE.md)
 - planning indexes under [`docs/method/backlog/`](./method/backlog/README.md),
   [`docs/design/`](./design/README.md),
   [`docs/archive/BACKLOG/`](./archive/BACKLOG/README.md), and

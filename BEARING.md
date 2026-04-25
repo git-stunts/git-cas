@@ -125,7 +125,7 @@ directions — not commitments.
   enforcement, and key derivation paths.
 - **Performance optimization.** Profiling large-asset store/restore paths,
   particularly CDC chunking throughput, convergent encryption overhead, and
-  PrefetchWindow tuning. The benchmarks baseline exists in `docs/BENCHMARKS.md`.
+  PrefetchWindow tuning. The benchmarks baseline exists in `ADVANCED_GUIDE.md`.
 - **Adaptive frame sizing.** Investigate dynamic `frameBytes` selection based on
   payload characteristics to reduce per-frame overhead for small assets while
   maintaining streaming properties for large ones.

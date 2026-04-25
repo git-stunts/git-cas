@@ -113,6 +113,7 @@ export declare const SubManifestRefSchema: z.ZodObject<{
 export declare const ManifestSchema: z.ZodObject<{
   version: z.ZodDefault<z.ZodNumber>;
   formatVersion: z.ZodOptional<z.ZodString>;
+  manifestHash: z.ZodOptional<z.ZodString>;
   slug: z.ZodString;
   filename: z.ZodString;
   size: z.ZodNumber;

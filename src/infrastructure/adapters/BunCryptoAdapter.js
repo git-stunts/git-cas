@@ -166,7 +166,7 @@ export default class BunCryptoAdapter extends CryptoPort {
             yield final;
           }
         } catch (err) {
-          wrapDecryptError(err);
+          throw wrapDecryptError(err);
         }
       },
     };

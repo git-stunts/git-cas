@@ -931,4 +931,4 @@ git-cas provides strong at-rest encryption and integrity guarantees through AES-
 - **Metadata is not encrypted**. File structure and sizes are visible to anyone with repository access.
 - **Logical deletion does not physically remove data**. Use `git gc` to prune unreferenced objects.
 
-For questions or security concerns, please review the [ROADMAP](../ROADMAP.md) or file an issue.
+For questions or security concerns, please review the [ROADMAP](./ROADMAP.md) or file an issue.

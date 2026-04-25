@@ -157,7 +157,7 @@ export default class NodeCryptoAdapter extends CryptoPort {
             yield final;
           }
         } catch (err) {
-          wrapDecryptError(err);
+          throw wrapDecryptError(err);
         }
       },
     };

@@ -25,6 +25,6 @@ describe('ManifestSchema – subManifests array limit', () => {
   });
 
   it('rejects a manifest with an excessive number of sub-manifests', () => {
-    expect(() => ManifestSchema.parse(validManifest(10_001))).toThrow();
+    expect(() => ManifestSchema.parse(validManifest(10_001))).toThrow(/too_big|array|maximum/i);
   });
 });

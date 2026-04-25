@@ -53,8 +53,8 @@ local-only surfaces.
   `docs/`.
 - [docs/THREAT_MODEL.md](./THREAT_MODEL.md): `KEEP` — canonical threat model;
   belongs under `docs/`.
-- [docs/BENCHMARKS.md](./BENCHMARKS.md): `KEEP` — benchmark guidance and
-  published baselines belong under `docs/`.
+- [ADVANCED_GUIDE.md](../ADVANCED_GUIDE.md): `KEEP` — benchmark guidance and
+  published baselines in the advanced guide.
 - [docs/RELEASE.md](./RELEASE.md): `KEEP` — docs-level release signpost belongs
   under `docs/`.
 - [docs/DOCS_CHECKLIST.md](./DOCS_CHECKLIST.md): `KEEP` — maintainer-facing docs

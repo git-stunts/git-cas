@@ -480,9 +480,9 @@ export default class ContentAddressableStore {
   }
 
   /** @see VaultService#listVault */
-  async listVault() {
+  async listVault(options) {
     const vault = await this.#getVault();
-    return vault.listVault();
+    return vault.listVault(options);
   }
 
   /** @see VaultService#removeFromVault */

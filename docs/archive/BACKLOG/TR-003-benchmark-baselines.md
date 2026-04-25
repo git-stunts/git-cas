@@ -11,7 +11,7 @@ yet publish stable benchmark guidance that helps users choose among them.
 
 ## Target Outcome
 
-Add [docs/BENCHMARKS.md](../../BENCHMARKS.md) with baseline results and enough
+Add [ADVANCED_GUIDE.md](../../../ADVANCED_GUIDE.md) with baseline results and enough
 methodology detail that maintainers can refresh it intentionally.
 
 ## Human Value

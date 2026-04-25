@@ -56,9 +56,10 @@ export declare class CdcChunker extends ChunkingPort {
     minChunkSize?: number;
     maxChunkSize?: number;
     targetChunkSize?: number;
+    normalized?: boolean;
   });
   get strategy(): "cdc";
-  get params(): { target: number; min: number; max: number };
+  get params(): { target: number; min: number; max: number; normalized: boolean };
 }
 
 /** Abstract port for cryptographic operations. */
@@ -233,6 +234,12 @@ export interface VaultMetadata {
       keyLength: number;
     };
   };
+  /** Privacy mode configuration. When enabled, vault slugs are HMAC-masked in the Git tree. */
+  privacy?: {
+    enabled: boolean;
+    /** Encryption metadata for the privacy index blob. */
+    indexMeta?: { nonce: string; tag: string };
+  };
 }
 
 /** Internal vault state returned by VaultService.readState(). */
@@ -259,7 +266,10 @@ export declare class VaultService {
   validateSlug(slug: string): void;
 
   /** Reads the current vault state from refs/cas/vault. */
-  readState(): Promise<VaultState>;
+  readState(options?: {
+    /** Vault encryption key (required when privacy mode is enabled). */
+    encryptionKey?: Buffer;
+  }): Promise<VaultState>;
 
   /** Writes a new vault commit and updates the ref atomically. */
   writeCommit(options: {
@@ -267,12 +277,16 @@ export declare class VaultService {
     metadata: VaultMetadata;
     parentCommitOid: string | null;
     message: string;
+    /** Vault encryption key (required when privacy mode is enabled). */
+    encryptionKey?: Buffer;
   }): Promise<{ commitOid: string }>;
 
-  /** Initializes the vault, optionally with encryption. */
+  /** Initializes the vault, optionally with encryption and privacy mode. */
   initVault(options?: {
     passphrase?: string;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
+    /** Enable privacy mode (requires passphrase/encryption). */
+    privacy?: boolean;
   }): Promise<{ commitOid: string }>;
 
   /** Adds or updates an entry in the vault. */
@@ -280,18 +294,29 @@ export declare class VaultService {
     slug: string;
     treeOid: string;
     force?: boolean;
+    /** Vault encryption key (required when privacy mode is enabled). */
+    encryptionKey?: Buffer;
   }): Promise<{ commitOid: string }>;
 
   /** Lists all vault entries sorted by slug. */
-  listVault(): Promise<VaultEntry[]>;
+  listVault(options?: {
+    /** Vault encryption key (required when privacy mode is enabled). */
+    encryptionKey?: Buffer;
+  }): Promise<VaultEntry[]>;
 
   /** Removes an entry from the vault. */
   removeFromVault(options: {
     slug: string;
+    /** Vault encryption key (required when privacy mode is enabled). */
+    encryptionKey?: Buffer;
   }): Promise<{ commitOid: string; removedTreeOid: string }>;
 
   /** Resolves a vault entry slug to its tree OID. */
-  resolveVaultEntry(options: { slug: string }): Promise<string>;
+  resolveVaultEntry(options: {
+    slug: string;
+    /** Vault encryption key (required when privacy mode is enabled). */
+    encryptionKey?: Buffer;
+  }): Promise<string>;
 
   /** Returns the vault metadata, or null if no vault exists. */
   getVaultMetadata(): Promise<VaultMetadata | null>;
@@ -451,21 +476,34 @@ export default class ContentAddressableStore {
   initVault(options?: {
     passphrase?: string;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
+    /** Enable privacy mode (requires passphrase/encryption). */
+    privacy?: boolean;
   }): Promise<{ commitOid: string }>;
 
   addToVault(options: {
     slug: string;
     treeOid: string;
     force?: boolean;
+    /** Vault encryption key (required when privacy mode is enabled). */
+    encryptionKey?: Buffer;
   }): Promise<{ commitOid: string }>;
 
-  listVault(): Promise<VaultEntry[]>;
+  listVault(options?: {
+    /** Vault encryption key (required when privacy mode is enabled). */
+    encryptionKey?: Buffer;
+  }): Promise<VaultEntry[]>;
 
   removeFromVault(options: {
     slug: string;
+    /** Vault encryption key (required when privacy mode is enabled). */
+    encryptionKey?: Buffer;
   }): Promise<{ commitOid: string; removedTreeOid: string }>;
 
-  resolveVaultEntry(options: { slug: string }): Promise<string>;
+  resolveVaultEntry(options: {
+    slug: string;
+    /** Vault encryption key (required when privacy mode is enabled). */
+    encryptionKey?: Buffer;
+  }): Promise<string>;
 
   getVaultMetadata(): Promise<VaultMetadata | null>;
 

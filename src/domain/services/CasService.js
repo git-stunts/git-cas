@@ -1236,7 +1236,6 @@ export default class CasService {
         );
       }
       const blob = await this.persistence.readBlob(oid);
-      this._assertBufferedReadLimit({ size: blob.length, limit: maxBytes, oid });
       return blob;
     }
     let total = 0;
@@ -1605,14 +1604,6 @@ export default class CasService {
   }
 
   /**
-   * Streaming restore path for convergent encrypted content.
-   * Decrypts each chunk individually using the convergent master key.
-   * @private
-   * @param {import('../value-objects/Manifest.js').default} manifest
-   * @param {Buffer} key - Convergent master key.
-   * @returns {AsyncIterable<Buffer>}
-   */
-  /**
    * Reads and decrypts convergent-encrypted chunks, prefetching when concurrency > 1.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
@@ -1973,13 +1964,6 @@ export default class CasService {
   }
 
   /**
-   * Reads and flattens sub-manifest blobs into a single chunk array.
-   * @private
-   * @param {Array<{ oid: string }>} subManifests - Sub-manifest references.
-   * @param {string} treeOid - Parent tree OID (for error context).
-   * @returns {Promise<Array>} Flattened chunk entries.
-   */
-  /**
    * Verifies the manifest integrity hash if present.
    * @private
    * @param {Object} decoded - Decoded manifest data.
@@ -1998,6 +1982,13 @@ export default class CasService {
     }
   }
 
+  /**
+   * Reads and flattens sub-manifest blobs into a single chunk array.
+   * @private
+   * @param {Array<{ oid: string }>} subManifests - Sub-manifest references.
+   * @param {string} treeOid - Parent tree OID (for error context).
+   * @returns {Promise<Array>} Flattened chunk entries.
+   */
   async _resolveSubManifests(subManifests, treeOid) {
     const allChunks = [];
     for (const ref of subManifests) {
