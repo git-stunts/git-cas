@@ -15,7 +15,7 @@ An industrial-grade Content-Addressable Storage (CAS) engine backed by Git's obj
 Unlike traditional LFS which moves files to external servers, `git-cas` treats the Git object database as a first-class storage substrate.
 
 - **Deduplication by Default**: Content-defined chunking (CDC) with Buzhash rolling hash identifies repeated patterns across files and versions, minimizing repository growth.
-- **Cryptographic Trust**: Every chunk is verified against a SHA-256 digest. Optional AES-256-GCM encryption with multi-recipient envelope support ensures privacy at rest, and `framed-v2` binds per-frame AAD to prevent cross-manifest blob swaps.
+- **Cryptographic Trust**: Every chunk is verified against a SHA-256 digest. Optional AES-256-GCM encryption with multi-recipient envelope support ensures privacy at rest, and `framed` binds per-frame AAD to prevent cross-manifest blob swaps.
 - **GC-Safe Vault**: Named assets are indexed through a stable ref (`refs/cas/vault`) with optimistic concurrency, preventing Git garbage collection from reclaiming referenced blobs.
 - **Key Lifecycle**: Envelope encryption separates DEKs from KEKs. Rotate passphrases across an entire vault without re-encrypting data blobs. Privacy mode HMAC-hashes slug names to prevent metadata discovery.
 - **Runtime-Adaptive**: A single core supports Node.js 22+, Bun, and Deno through a strict hexagonal port architecture with runtime-specific crypto adapters.
@@ -60,7 +60,7 @@ const treeOid = await cas.createTree({ manifest });
 
 ### Content-Addressed Storage
 
-Every piece of stored content is broken into chunks and addressed by its SHA-256 digest. Identical content always produces the same address, giving you deduplication for free. Manifests record the ordered list of chunk digests so content can be reassembled faithfully, and every chunk is integrity-verified on read.
+Every piece of stored content is broken into chunks and addressed by its SHA-256 digest. Identical content always produces the same address, giving you deduplication for free. Manifests record the ordered list of chunk digests so content can be reassembled faithfully, and every chunk is integrity-verified on read. New manifests are stamped with a `formatVersion` (semver from package.json) for forward-compatible schema evolution.
 
 ### Chunking
 
@@ -77,15 +77,15 @@ CDC is the default for deduplication workloads. **FastCDC dual-mask normalizatio
 
 All encryption uses **AES-256-GCM** with 12-byte random nonces and 16-byte authentication tags.
 
-Five encryption schemes are supported:
+Three encryption schemes are supported:
 
 | Scheme | Framing | AAD Binding | Notes |
 |---|---|---|---|
-| `whole-v1` | Single ciphertext blob | None | Legacy compatibility |
-| `whole-v2` | Single ciphertext blob | Slug + frame index | Prevents cross-manifest blob swaps |
-| `framed-v1` | Bounded frames | None | Streaming decrypt, legacy |
-| `framed-v2` | Bounded frames | Slug + frame index | Default for fixed-chunk stores — streaming decrypt with AAD binding |
-| `convergent-v1` | Per-chunk deterministic | Derived from content hash | **Default for CDC + encryption** — preserves deduplication across encrypted stores |
+| `whole` | Single ciphertext blob | Slug + frame index | AAD always bound to prevent cross-manifest blob swaps |
+| `framed` | Bounded frames | Slug + frame index | Default for fixed-chunk encrypted stores — streaming decrypt with per-frame AAD binding |
+| `convergent` | Per-chunk deterministic | Derived from content hash | **Default for CDC + encryption** — preserves deduplication across encrypted stores. Implemented as a standalone `ConvergentEncryption` service. |
+
+Legacy schemes (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) are no longer accepted and throw a `LEGACY_SCHEME` error pointing to `scripts/migrate-encryption.js` for migration.
 
 **Envelope encryption** wraps a random Data Encryption Key (DEK) with one or more Key Encryption Keys (KEKs). Each recipient is labeled, enabling multi-recipient access to the same encrypted content. Key rotation replaces the KEK wrapping without re-encrypting data blobs.
 
@@ -102,7 +102,7 @@ All KDF operations enforce a minimum 16-byte salt. Iteration counts and scrypt p
 
 ### Compression
 
-Content can be gzip-compressed before storage through the `CompressionPort` abstraction. The shipped `NodeCompressionAdapter` handles Node.js; other runtimes can plug in their own adapter. Compression composes cleanly with encryption — content is compressed, then encrypted.
+Content can be gzip-compressed before storage through the `CompressionPort` abstraction. The shipped `NodeCompressionAdapter` handles Node.js; other runtimes can plug in their own adapter. Compression composes cleanly with encryption — content is compressed, then encrypted. Plaintext + gzip restores now stream instead of buffering.
 
 ### Manifests
 
@@ -112,6 +112,8 @@ Two manifest versions handle assets of any size:
 - **Version 2**: A Merkle-style manifest that splits the chunk list into sub-manifests, each independently addressable and schema-validated. Automatically engaged when chunk count exceeds 1,000. Sub-manifest arrays are capped at 10,000 entries.
 
 Every manifest carries an **integrity hash** — the SHA-256 of the codec-encoded content — verified on every read to detect corruption or tampering. Two codecs are available: **JSON** (human-readable, default) and **CBOR** (binary, compact).
+
+Manifest diffing is available via `diffManifests()` for comparing two manifests and identifying changed, added, or removed chunks.
 
 ### Vault
 
@@ -132,9 +134,9 @@ Three restore surfaces cover different memory and latency profiles:
 |---|---|---|
 | `restore()` | Buffered reassembly to memory | Yes — capped by `maxRestoreBufferSize` |
 | `restoreFile()` | Atomic temp-file write with auth-then-rename | Yes — streams through disk |
-| `restoreStream()` | Async iterable yielding chunks | Yes — frame-by-frame for framed schemes |
+| `restoreStream()` | Async iterable yielding chunks | Yes — frame-by-frame for framed scheme |
 
-`restoreFile()` writes tentative plaintext to a temporary file, verifies authentication, and renames into place only after verification succeeds. For `framed-v1`/`framed-v2`, all three surfaces provide true streaming restore with per-frame authentication.
+`restoreFile()` writes tentative plaintext to a temporary file, verifies authentication, and renames into place only after verification succeeds. For `framed`, all three surfaces provide true streaming restore with per-frame authentication. Parallel chunk restore is supported via a prefetch window (`PrefetchWindow`) when concurrency is greater than 1, enabling ordered parallel reads for faster restores.
 
 ### CLI
 
@@ -167,24 +169,24 @@ Beyond the core encryption primitives, `git-cas` enforces a set of defensive lim
 - **Source validation**: Async iterables passed to `store()` are validated before processing begins.
 - **Salt enforcement**: KDF salts must be at least 16 bytes.
 - **Nonce rotation**: Encryption count tracking warns before nonce reuse becomes a concern.
+- **Legacy scheme rejection**: Attempting to use a legacy encryption scheme (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) throws a `LEGACY_SCHEME` error with migration guidance.
 
 ## Streaming Surface
 
 | Surface | Streaming API? | Non-streaming API? | Notes |
 |---|---|---|---|
-| Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. CDC + encryption defaults to `convergent-v1` (per-chunk deterministic encryption preserving dedup). Fixed + encryption defaults to `framed-v2`. `whole-v1`/`framed-v1` remain available as explicit compatibility opt-outs. |
+| Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. CDC + encryption defaults to `convergent` (per-chunk deterministic encryption preserving dedup). Fixed + encryption defaults to `framed`. |
 | Read: plaintext | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True chunk-by-chunk streaming restore. |
-| Read: encrypted `whole-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is the buffered compatibility path. `restoreFile()` uses a bounded temp-file path: verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption, and renames into place only after auth succeeds. On Web Crypto runtimes this decrypt step is still one-shot internally, bounded by `maxDecryptionBufferSize`. |
-| Read: encrypted `whole-v2` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Same as `whole-v1` with additional AAD binding (slug + frame index). On Node and Bun, `restoreFile()` has the stronger low-memory path; on Web Crypto runtimes such as Deno, remains bounded-buffer. |
-| Read: encrypted `framed-v1`/`framed-v2` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True authenticated streaming restore. Plaintext is yielded frame-by-frame after each frame is verified. `framed-v2` additionally binds per-frame AAD. |
-| Read: compressed-only | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` still buffers gzip restore today. `restoreFile()` streams gunzip output through a bounded temp-file path. |
-| Read: compressed + `whole-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is buffered because auth completes at the end of whole-object AES-GCM. `restoreFile()` decrypts and gunzips through the bounded temp-file path. |
-| Read: compressed + `framed-v1`/`framed-v2` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Streaming decrypt, then streaming gunzip. |
-| Read: encrypted `convergent-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True per-chunk streaming restore. Each chunk is decrypted individually using a key derived from its content hash. |
-| Read: compressed + `convergent-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Per-chunk convergent decrypt, then streaming gunzip. |
-| Verify | No streaming verify surface | `verifyIntegrity(manifest, options?)` | Verifies chunk digests for all content. `whole-v1`/`whole-v2` auth-checks the full ciphertext; `framed-v1`/`framed-v2` parses and auth-checks every frame; `convergent-v1` decrypts each chunk and verifies plaintext digests. |
+| Read: encrypted `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is the buffered compatibility path. `restoreFile()` uses a bounded temp-file path: verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption, and renames into place only after auth succeeds. AAD (slug + frame index) is always bound. On Web Crypto runtimes this decrypt step is still one-shot internally, bounded by `maxDecryptionBufferSize`. |
+| Read: encrypted `framed` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True authenticated streaming restore. Plaintext is yielded frame-by-frame after each frame is verified. Per-frame AAD is always bound. |
+| Read: compressed-only | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Plaintext + gzip now streams end-to-end. `restoreFile()` streams gunzip output through a bounded temp-file path. |
+| Read: compressed + `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is buffered because auth completes at the end of whole-object AES-GCM. `restoreFile()` decrypts and gunzips through the bounded temp-file path. |
+| Read: compressed + `framed` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Streaming decrypt, then streaming gunzip. |
+| Read: encrypted `convergent` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True per-chunk streaming restore. Each chunk is decrypted individually using a key derived from its content hash. Parallel chunk restore via prefetch window when concurrency > 1. |
+| Read: compressed + `convergent` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Per-chunk convergent decrypt, then streaming gunzip. |
+| Verify | No streaming verify surface | `verifyIntegrity(manifest, options?)` | Verifies chunk digests for all content. `whole` auth-checks the full ciphertext; `framed` parses and auth-checks every frame; `convergent` decrypts each chunk and verifies plaintext digests. |
 
-Runtime note: `framed-v2` is the honest cross-runtime streaming answer. On Node and Bun, `whole-v2 restoreFile()` has the stronger low-memory path; on Web Crypto runtimes such as Deno, `whole-v2` remains bounded-buffer rather than true streaming.
+Runtime note: `framed` is the honest cross-runtime streaming answer. On Node and Bun, `whole restoreFile()` has the stronger low-memory path; on Web Crypto runtimes such as Deno, `whole` remains bounded-buffer rather than true streaming.
 
 ## Architecture
 
@@ -223,7 +225,7 @@ Runtime note: `framed-v2` is the honest cross-runtime streaming answer. On Node 
 |---|---|---|---|
 | **Node.js** | 22+ | `node:crypto` | Primary — full streaming support |
 | **Bun** | Latest | `node:crypto` compat | Tested via Docker |
-| **Deno** | Latest | Web Crypto API | Tested via Docker; `whole-v*` decrypt is bounded-buffer |
+| **Deno** | Latest | Web Crypto API | Tested via Docker; `whole` decrypt is bounded-buffer |
 
 All three runtimes are tested in CI on every push. The hexagonal architecture isolates runtime differences behind the `CryptoPort` boundary, so the domain core is runtime-agnostic.
 

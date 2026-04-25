@@ -144,12 +144,17 @@ All store and restore methods accept encryption options. Encryption is AES-256-G
 
 | Scheme | Description | Default When |
 |---|---|---|
-| `framed-v2` | Streaming framed encryption with per-frame AAD binding to slug | Default for all new encrypted stores |
-| `framed-v1` | Streaming framed encryption (no AAD) | Legacy |
-| `whole-v2` | Whole-object encryption with AAD binding to slug | N/A (explicit only) |
-| `whole-v1` | Whole-object encryption (no AAD) | Legacy |
+| `convergent` | Per-chunk encryption keyed by content hash; preserves CDC deduplication across encrypted stores | CDC chunking + encryption |
+| `framed` | Streaming framed encryption with per-frame AAD binding to slug | Non-CDC encrypted stores |
+| `whole` | Whole-object encryption with AAD binding to slug | Explicit only |
 
-Framed encryption is the default. It encrypts each frame independently, enabling streaming restore without buffering the entire file. The `frameBytes` parameter controls frame size (default 64 KiB, max 64 MiB).
+AAD (Additional Authenticated Data) is always on for `whole` and `framed` schemes, binding ciphertext to the asset slug.
+
+**Convergent encryption** is the default when CDC chunking is active and an encryption key is provided. It encrypts each chunk independently using a key derived from the chunk content, so identical plaintext chunks produce identical ciphertext -- preserving deduplication. For non-CDC stores, the default is `framed`.
+
+#### Legacy Schemes
+
+The v1/v2 scheme identifiers (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) are no longer supported. Attempting to restore a manifest with a legacy scheme throws a `LEGACY_SCHEME` error. Run `scripts/migrate-encryption.js` to upgrade old manifests to current scheme names. See [Migration](#migrating-legacy-encryption-schemes) below.
 
 ### Raw Key Encryption
 
@@ -258,19 +263,38 @@ const rotated = await cas.rotateKey({
 
 ### Explicit Scheme Selection
 
-Override the default framed-v2 scheme:
+Override the default scheme:
 
 ```js
+// Force framed encryption (even with CDC chunking)
 const manifest = await cas.storeFile({
   filePath: './large-video.mp4',
   slug: 'media/video',
   encryptionKey: key,
   encryption: {
-    scheme: 'framed-v2',       // 'whole-v1', 'whole-v2', 'framed-v1', or 'framed-v2'
-    frameBytes: 128 * 1024,    // 128 KiB frames (framed schemes only)
+    scheme: 'framed',          // 'whole', 'framed', or 'convergent'
+    frameBytes: 128 * 1024,    // 128 KiB frames (framed scheme only)
   },
 });
+
+// Force whole-object encryption
+const manifest = await cas.storeFile({
+  filePath: './small-config.json',
+  slug: 'config/app',
+  encryptionKey: key,
+  encryption: { scheme: 'whole' },
+});
 ```
+
+### Migrating Legacy Encryption Schemes
+
+Manifests created with earlier versions may use v1/v2 scheme identifiers (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`). These are no longer supported in the main codebase. The migration script decrypts using the legacy logic and re-stores using current scheme names with AAD always on.
+
+```sh
+node scripts/migrate-encryption.js --repo /path/to/repo --passphrase <pass>
+```
+
+The migration script is the **only** place legacy decode logic lives. The main `src/` codebase throws `LEGACY_SCHEME` if it encounters a v1/v2 identifier.
 
 ---
 
@@ -313,13 +337,13 @@ CDC parameters:
 | `minChunkSize` | Minimum chunk size (never split smaller) |
 | `maxChunkSize` | Maximum chunk size (force split at this boundary) |
 
-> **Note**: CDC deduplication is ineffective with encryption. Ciphertext is pseudorandom, so identical plaintext produces different ciphertext chunks. A warning is emitted if you combine CDC with encryption.
+> **Note**: CDC deduplication is ineffective with standard encryption (`whole` or `framed`), since ciphertext is pseudorandom. Use the `convergent` scheme (the default for CDC + encryption) to preserve deduplication.
 
 ---
 
 ## Compression
 
-Enable gzip compression to reduce storage size. Compression runs before encryption (compress-then-encrypt).
+Enable gzip compression to reduce storage size. Compression runs before encryption (compress-then-encrypt). Plaintext and gzip-compressed content both stream during store and restore, so memory usage stays low regardless of file size.
 
 ### Library
 
@@ -350,6 +374,36 @@ const cas = new ContentAddressableStore({
   plumbing,
   compressionAdapter: new BrotliAdapter(),
 });
+```
+
+---
+
+## Manifest Diffing
+
+Compare two manifests to find added, removed, and unchanged chunks. This is a pure function with no I/O -- useful for incremental backup, sync, and deduplication analysis.
+
+### Library
+
+```js
+// Instance method
+const diff = cas.diffManifests(oldManifest, newManifest);
+
+// Static method (no CasService instance needed)
+import { CasService } from '@git-stunts/git-cas/service';
+const diff = CasService.diffManifests(oldManifest, newManifest);
+
+// Standalone function
+import { diffManifests } from '@git-stunts/git-cas';
+const diff = diffManifests(oldManifest, newManifest);
+
+console.log(diff.summary);
+// => {
+//   addedCount: 3, removedCount: 1, unchangedCount: 42,
+//   addedBytes: 196608, removedBytes: 65536, unchangedBytes: 2752512,
+// }
+console.log(diff.added);     // Chunk[] -- new chunks in newManifest
+console.log(diff.removed);   // Chunk[] -- chunks only in oldManifest
+console.log(diff.unchanged); // Chunk[] -- chunks in both (by digest)
 ```
 
 ---
@@ -447,12 +501,14 @@ await cas.initVault({
 
 ## Manifest Features
 
-### Manifest Versions
+### Manifest Versions and Format Version
 
 Manifests are versioned value objects that describe a stored asset:
 
 - **v1**: Flat chunk list with SHA-256 integrity hashes.
 - **v2**: Merkle sub-manifest support for large files. Activated when chunk count exceeds `merkleThreshold` (default 1000).
+
+Each manifest also carries an optional `formatVersion` field -- a semver string (e.g. `"5.2.0"`) stamped by the library version that created it. This enables forward-compatible tooling to detect which features a manifest may use.
 
 ### Reading a Manifest
 
@@ -465,6 +521,7 @@ console.log(manifest.size);          // total bytes
 console.log(manifest.chunks.length); // number of chunks
 console.log(manifest.encryption);    // encryption metadata or undefined
 console.log(manifest.compression);   // compression metadata or undefined
+console.log(manifest.formatVersion); // '5.2.0' or undefined (older manifests)
 ```
 
 ### Inspecting an Asset
@@ -491,7 +548,7 @@ if (!ok) {
 
 ## Restore Modes
 
-Three restore modes serve different use cases:
+Three restore modes serve different use cases. When `concurrency` is greater than 1, chunk reads are parallelized for faster restore.
 
 ### `restore({ manifest })` -- Buffered to Memory
 
@@ -575,6 +632,8 @@ All commands support `--json` for machine-readable output and `--quiet` to suppr
 | `--os-keychain-target <target>` | Read passphrase from OS keychain via `@git-stunts/vault` |
 | `--os-keychain-account <account>` | Keychain account namespace (default: `git-cas`) |
 | `--gzip` | Enable gzip compression |
+| `--scheme <whole\|framed\|convergent>` | Encryption scheme (default: `convergent` for CDC, `framed` otherwise) |
+| `--frame-bytes <n>` | Frame size for framed encryption (default 64 KiB) |
 | `--strategy <fixed\|cdc>` | Chunking strategy |
 | `--chunk-size <n>` | Chunk size in bytes |
 | `--target-chunk-size <n>` | CDC target chunk size |
@@ -671,11 +730,19 @@ Machine-facing commands for CI/CD and agentic workflows. Run `git-cas agent --he
 | `observability` | `ObservabilityPort` | `SilentObserver` | Metrics, logs, spans |
 | `policy` | `Policy` | None | `@git-stunts/alfred` resilience policy |
 | `merkleThreshold` | `number` | `1000` | Chunk count above which Merkle sub-manifests are used |
-| `concurrency` | `number` | `1` | Parallel chunk I/O operations (max 64) |
+| `concurrency` | `number` | `1` | Parallel chunk I/O operations (max 64); values > 1 enable parallel chunk restore |
 | `chunking` | `object` | None | Chunking strategy config (see below) |
 | `chunker` | `ChunkingPort` | `FixedChunker` | Pre-built chunker instance (advanced) |
 | `maxRestoreBufferSize` | `number` | `536870912` (512 MiB) | Max bytes for buffered restore |
 | `compressionAdapter` | `CompressionPort` | `NodeCompressionAdapter` | Compression adapter |
+| `formatVersion` | `string` | Package version | Semver string stamped into new manifests |
+
+### Encryption Options (Store)
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `scheme` | `'whole' \| 'framed' \| 'convergent'` | `convergent` (CDC) / `framed` (fixed) | Encryption scheme |
+| `frameBytes` | `number` | `65536` (64 KiB) | Frame size for `framed` scheme (max 64 MiB) |
 
 ### Chunking Config Object
 
