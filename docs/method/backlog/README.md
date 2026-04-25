@@ -49,13 +49,6 @@ Resolved — `security/audit-fixes` branch:
 
 ### `bad-code/`
 
-Active:
-
-- [TR — Dead _decompress() Method](./bad-code/TR_dead-decompress-method.md)
-- [TR — Domain Imports Infrastructure](./bad-code/TR_domain-imports-infrastructure.md)
-- [TR — CryptoPort node:crypto Import](./bad-code/TR_cryptoport-node-import.md)
-- [TR — ManifestSchema node:buffer Import](./bad-code/TR_schema-node-buffer-import.md)
-
 Resolved — `security/audit-fixes` branch:
 
 - [SEC — Chunk Constructor Property Leak](./bad-code/SEC_chunk-constructor-property-leak.md) ✅
@@ -71,3 +64,7 @@ Resolved — `security/audit-fixes` branch:
 - [SEC — Store Source Validation](./bad-code/SEC_store-source-validation.md) ✅
 - [SEC — Sub-Manifest Chunks Unvalidated](./bad-code/SEC_submanifest-chunks-unvalidated.md) ✅
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md) ✅
+- [TR — Dead _decompress() Method](./bad-code/TR_dead-decompress-method.md) ✅
+- [TR — Domain Imports Infrastructure](./bad-code/TR_domain-imports-infrastructure.md) ✅
+- [TR — CryptoPort node:crypto Import](./bad-code/TR_cryptoport-node-import.md) ✅
+- [TR — ManifestSchema node:buffer Import](./bad-code/TR_schema-node-buffer-import.md) ✅
