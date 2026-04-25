@@ -201,6 +201,9 @@ export default class BunCryptoAdapter extends CryptoPort {
    */
   encryptBufferWithNonce(buffer, key, nonce) {
     this._validateKey(key);
+    if (nonce.length !== 12) {
+      throw new CasError('Nonce must be 12 bytes', 'INVALID_NONCE_LENGTH', { actual: nonce.length });
+    }
     const cipher = createCipheriv('aes-256-gcm', key, nonce);
     const encrypted = Buffer.concat([cipher.update(buffer), cipher.final()]);
     const tag = cipher.getAuthTag();
@@ -217,11 +220,21 @@ export default class BunCryptoAdapter extends CryptoPort {
    */
   decryptBufferWithNonceTag(buffer, key, nonce, tag) { // eslint-disable-line max-params
     this._validateKey(key);
-    const decipher = createDecipheriv(AES_GCM_ALGORITHM, key, nonce, {
-      authTagLength: AES_GCM_TAG_BYTES,
-    });
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(buffer), decipher.final()]);
+    if (nonce.length !== 12) {
+      throw new CasError('Nonce must be 12 bytes', 'INVALID_NONCE_LENGTH', { actual: nonce.length });
+    }
+    if (tag.length !== 16) {
+      throw new CasError('Tag must be 16 bytes', 'INVALID_TAG_LENGTH', { actual: tag.length });
+    }
+    try {
+      const decipher = createDecipheriv(AES_GCM_ALGORITHM, key, nonce, {
+        authTagLength: AES_GCM_TAG_BYTES,
+      });
+      decipher.setAuthTag(tag);
+      return Buffer.concat([decipher.update(buffer), decipher.final()]);
+    } catch (err) {
+      throw wrapDecryptError(err);
+    }
   }
 
   /** @override */

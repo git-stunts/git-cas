@@ -41,12 +41,11 @@ if (process.argv[1]?.endsWith('migrate-encryption.js')) {
     console.log(`  ${legacy} → ${current}`);
   }
   console.log('');
-  console.log('Migration decrypts content using legacy logic (v1: no AAD,');
-  console.log('v2: slug-based AAD) and re-stores using current scheme names');
-  console.log('with AAD always enabled.');
+  console.log('When fully implemented, migration will decrypt content using');
+  console.log('legacy logic (v1: no AAD, v2: slug-based AAD) and re-store');
+  console.log('using current scheme names with AAD always enabled.');
   console.log('');
-  console.log('Full migration support requires integration with the git-cas');
-  console.log('CLI. Run: git-cas migrate --help');
+  console.log('Full migration CLI is not yet available.');
   console.log('');
   console.log('For programmatic use, import mapLegacyScheme from this module.');
 }

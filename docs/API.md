@@ -126,9 +126,9 @@ Stores content from an async iterable source.
 - `filename` (required): `string` - Original filename
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase (alternative to `encryptionKey`)
-- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed-v1`
-- `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - `whole-v1` is the explicit compatibility whole-object AES-GCM format; `framed-v1` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode
-- `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed-v1 record (default `65536`)
+- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed`
+- `encryption.scheme` (optional): `'whole' | 'framed'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode
+- `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed record (default `65536`)
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`). New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
 
@@ -183,9 +183,9 @@ Convenience method that opens a file and stores it.
 - `filename` (optional): `string` - Filename (defaults to basename of filePath)
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase
-- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed-v1`
-- `encryption.scheme` (optional): `'whole-v1' | 'framed-v1'` - `whole-v1` is the explicit compatibility whole-object AES-GCM format; `framed-v1` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode
-- `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed-v1 record (default `65536`)
+- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed`
+- `encryption.scheme` (optional): `'whole' | 'framed'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode
+- `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed record (default `65536`)
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase`. New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
 
@@ -211,8 +211,8 @@ await cas.restore({ manifest, encryptionKey, passphrase });
 
 Restores content from a manifest and returns the buffer.
 
-For encrypted content, `whole-v1` still buffers the full ciphertext before
-authenticating and decrypting. `framed-v1` restores authenticated plaintext
+For encrypted content, `whole` still buffers the full ciphertext before
+authenticating and decrypting. `framed` restores authenticated plaintext
 frame-by-frame and only the final `restore()` collector buffers the result.
 
 **Parameters:**
@@ -247,12 +247,12 @@ await cas.restoreFile({ manifest, encryptionKey, passphrase, outputPath });
 
 Restores content from a manifest and writes it to a file.
 
-For plaintext and `framed-v1`, this writes from the streaming restore path.
-For `whole-v1` and compression-buffered modes, `restoreFile()` now uses a
+For plaintext and `framed`, this writes from the streaming restore path.
+For `whole` and compression-buffered modes, `restoreFile()` now uses a
 bounded temp-file path: bytes are verified, decrypted, and optionally gunzipped
 into a temporary sibling path, then renamed into place only after the pipeline
 completes successfully. This improves file restores without changing the
-contract of `restoreStream()`, which remains buffered for `whole-v1`.
+contract of `restoreStream()`, which remains buffered for `whole`.
 On Web Crypto runtimes, the whole-object decrypt step is still internally
 one-shot; the parity improvement is that this path now stays bounded by the
 adapter's decryption buffer limit instead of collecting ciphertext without a
@@ -306,8 +306,8 @@ await cas.verifyIntegrity(manifest);
 
 Verifies the integrity of stored content by re-hashing all chunks. For
 encrypted manifests, pass the same decryption credentials you would use for
-`restore()` so the ciphertext is also authenticated. `whole-v1` authenticates
-the full ciphertext as one unit; `framed-v1` authenticates every stored frame.
+`restore()` so the ciphertext is also authenticated. `whole` authenticates
+the full ciphertext as one unit; `framed` authenticates every stored frame.
 
 **Parameters:**
 
@@ -926,7 +926,7 @@ Domain service for vault operations. Requires three ports:
 - `crypto` (`CryptoPort`) — KDF for vault-level encryption
 
 ```javascript
-import { VaultService } from '@git-stunts/cas'; // or via facade
+import { VaultService } from '@git-stunts/git-cas'; // or via facade
 const vault = await cas.getVaultService();
 ```
 
@@ -1268,7 +1268,7 @@ await port.readBlobStream(oid);
 Reads a Git blob as an async stream of `Buffer` chunks.
 
 For custom persistence adapters, this method is required for hard-limited
-buffered restore modes such as `whole-v1` encrypted restore and buffered
+buffered restore modes such as `whole` encrypted restore and buffered
 compression restore. `readBlob()` remains a compatibility fallback for
 plaintext restore only.
 

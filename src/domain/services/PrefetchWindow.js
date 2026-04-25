@@ -29,16 +29,20 @@ export default async function* prefetchChunks(chunks, fetchFn, concurrency) {
   }
 
   // Yield in order, sliding the window forward
-  while (yieldCursor < chunks.length) {
-    const slot = yieldCursor % concurrency;
-    yield await window[slot];
+  try {
+    while (yieldCursor < chunks.length) {
+      const slot = yieldCursor % concurrency;
+      yield await window[slot];
 
-    yieldCursor++;
+      yieldCursor++;
 
-    // Start the next fetch if there are more chunks
-    if (fetchCursor < chunks.length) {
-      window[slot] = fetchFn(chunks[fetchCursor]);
-      fetchCursor++;
+      // Start the next fetch if there are more chunks
+      if (fetchCursor < chunks.length) {
+        window[slot] = fetchFn(chunks[fetchCursor]);
+        fetchCursor++;
+      }
     }
+  } finally {
+    await Promise.allSettled(window.filter(Boolean));
   }
 }

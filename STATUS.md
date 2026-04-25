@@ -17,10 +17,10 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- New encrypted stores now default to `framed-v1`, which provides an
-  authenticated streaming encrypted restore path. `whole-v1` remains the
+- New encrypted stores now default to `framed`, which provides an
+  authenticated streaming encrypted restore path. `whole` remains the
   explicit compatibility whole-object mode for `restoreStream()`, while
-  `restoreFile()` now has a bounded temp-file restore path for `whole-v1` and
+  `restoreFile()` now has a bounded temp-file restore path for `whole` and
   buffered compression modes.
 - Buffered `restoreStream()` / `restore()` now enforce `maxRestoreBufferSize`
   against streamed gunzip output and, on stream-native blob adapters, against
@@ -42,7 +42,7 @@
   rejected before runtime-specific decrypt calls run.
 - Web Crypto whole-object decrypt paths are now explicitly bounded by
   `maxDecryptionBufferSize` instead of collecting ciphertext without a guard.
-  `framed-v1` remains the actual cross-runtime streaming-encrypted mode.
+  `framed` remains the actual cross-runtime streaming-encrypted mode.
 - Fresh work is now organized through METHOD backlog lanes and numbered cycle
   directories.
 

@@ -80,6 +80,13 @@ export default class ConvergentEncryption {
    * @throws {CasError} INTEGRITY_ERROR on decryption failure or digest mismatch.
    */
   async decryptAndVerifyChunk({ blob, masterKey, expectedDigest, chunkIndex }) {
+    if (blob.length < GCM_TAG_BYTES) {
+      throw new CasError(
+        `Convergent blob too short (${blob.length} bytes) — must contain at least ${GCM_TAG_BYTES}-byte GCM tag`,
+        'INTEGRITY_ERROR',
+        { chunkIndex, blobLength: blob.length, minLength: GCM_TAG_BYTES },
+      );
+    }
     const ciphertext = blob.subarray(0, -GCM_TAG_BYTES);
     const tag = blob.subarray(-GCM_TAG_BYTES);
     const key = this.deriveChunkKey(masterKey, expectedDigest);

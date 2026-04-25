@@ -68,27 +68,27 @@ export declare class CryptoPortBase {
   encryptBuffer(
     buffer: Buffer,
     key: Buffer,
-    aad?: Buffer,
+    aad?: Buffer | Uint8Array,
   ): { buf: Buffer; meta: EncryptionMeta } | Promise<{ buf: Buffer; meta: EncryptionMeta }>;
-  decryptBuffer(buffer: Buffer, key: Buffer, meta: EncryptionMeta, aad?: Buffer): Buffer | Promise<Buffer>;
-  createEncryptionStream(key: Buffer, aad?: Buffer): {
+  decryptBuffer(buffer: Buffer, key: Buffer, meta: EncryptionMeta, aad?: Buffer | Uint8Array): Buffer | Promise<Buffer>;
+  createEncryptionStream(key: Buffer, aad?: Buffer | Uint8Array): {
     encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
     finalize: () => EncryptionMeta;
   };
-  createDecryptionStream(key: Buffer, meta: EncryptionMeta, aad?: Buffer): {
+  createDecryptionStream(key: Buffer, meta: EncryptionMeta, aad?: Buffer | Uint8Array): {
     decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
   };
-  hmacSha256(key: Buffer, data: Buffer | string): Buffer;
+  hmacSha256(key: Buffer | Uint8Array, data: Buffer | Uint8Array | string): Buffer;
   encryptBufferWithNonce(
-    buffer: Buffer,
-    key: Buffer,
-    nonce: Buffer,
+    buffer: Buffer | Uint8Array,
+    key: Buffer | Uint8Array,
+    nonce: Buffer | Uint8Array,
   ): { buf: Buffer; tag: Buffer } | Promise<{ buf: Buffer; tag: Buffer }>;
   decryptBufferWithNonceTag(
-    buffer: Buffer,
-    key: Buffer,
-    nonce: Buffer,
-    tag: Buffer,
+    buffer: Buffer | Uint8Array,
+    key: Buffer | Uint8Array,
+    nonce: Buffer | Uint8Array,
+    tag: Buffer | Uint8Array,
   ): Buffer | Promise<Buffer>;
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }

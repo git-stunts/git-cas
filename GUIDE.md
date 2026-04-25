@@ -288,13 +288,13 @@ const manifest = await cas.storeFile({
 
 ### Migrating Legacy Encryption Schemes
 
-Manifests created with earlier versions may use v1/v2 scheme identifiers (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`). These are no longer supported in the main codebase. The migration script decrypts using the legacy logic and re-stores using current scheme names with AAD always on.
+Manifests created with earlier versions may use v1/v2 scheme identifiers (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`). These are no longer supported in the main codebase. The migration script decrypts using the legacy logic and re-stores using current scheme names with AAD always on.
 
 ```sh
-node scripts/migrate-encryption.js --repo /path/to/repo --passphrase <pass>
+node scripts/migrate-encryption.js
 ```
 
-The migration script is the **only** place legacy decode logic lives. The main `src/` codebase throws `LEGACY_SCHEME` if it encounters a v1/v2 identifier.
+The migration script exports the canonical legacy-to-current scheme mapping. Full migration orchestration is not yet implemented. The main `src/` codebase throws `LEGACY_SCHEME` if it encounters a v1/v2 identifier.
 
 ---
 
@@ -385,7 +385,7 @@ Compare two manifests to find added, removed, and unchanged chunks. This is a pu
 ### Library
 
 ```js
-// Static method
+// Static method (also callable on instances)
 const diff = cas.diffManifests(oldManifest, newManifest);
 
 // Static method (no CasService instance needed)
