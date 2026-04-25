@@ -8,6 +8,7 @@ import { ChunkSchema } from '../schemas/ManifestSchema.js';
 import CasError from '../errors/CasError.js';
 import Semaphore from './Semaphore.js';
 import KeyResolver from './KeyResolver.js';
+import ConvergentEncryption from './ConvergentEncryption.js';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 
 /**
@@ -32,28 +33,6 @@ function buildFramedAad(slug, frameIndex) {
   buf[slugLen] = 0; // NUL separator
   buf.writeUInt32BE(frameIndex, slugLen + 1);
   return buf;
-}
-
-/**
- * Derives a per-chunk encryption key for convergent encryption.
- * @param {Buffer} masterKey - The convergent master key.
- * @param {string} digest - Hex SHA-256 digest of the plaintext chunk.
- * @param {import('../../ports/CryptoPort.js').default} crypto - Crypto adapter.
- * @returns {Buffer} 32-byte derived key.
- */
-function deriveConvergentKey(masterKey, digest, crypto) {
-  return crypto.hmacSha256(masterKey, `git-cas-convergent-key:${digest}`).subarray(0, 32);
-}
-
-/**
- * Derives a per-chunk nonce for convergent encryption.
- * @param {Buffer} masterKey - The convergent master key.
- * @param {string} digest - Hex SHA-256 digest of the plaintext chunk.
- * @param {import('../../ports/CryptoPort.js').default} crypto - Crypto adapter.
- * @returns {Buffer} 12-byte derived nonce.
- */
-function deriveConvergentNonce(masterKey, digest, crypto) {
-  return crypto.hmacSha256(masterKey, `git-cas-convergent-nonce:${digest}`).subarray(0, 12);
 }
 
 /**
@@ -88,6 +67,7 @@ const FRAMED_RECORD_HEADER_BYTES = FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES + GCM_T
 export default class CasService {
   /** @type {KeyResolver} */
   #keyResolver;
+  #convergent;
 
   /**
    * @param {Object} options
@@ -127,6 +107,7 @@ export default class CasService {
     this.concurrency = concurrency;
     this.maxRestoreBufferSize = maxRestoreBufferSize;
     this.#keyResolver = new KeyResolver(crypto);
+    this.#convergent = new ConvergentEncryption(crypto);
   }
 
   /**
@@ -187,15 +168,9 @@ export default class CasService {
    */
   async _storeChunk(buf, index, convergentKey) {
     const digest = await this._sha256(buf);
-    let blobData = buf;
-    if (convergentKey) {
-      const chunkKey = deriveConvergentKey(convergentKey, digest, this.crypto);
-      const chunkNonce = deriveConvergentNonce(convergentKey, digest, this.crypto);
-      const { buf: encrypted, tag } = await Promise.resolve(
-        this.crypto.encryptBufferWithNonce(buf, chunkKey, chunkNonce),
-      );
-      blobData = Buffer.concat([encrypted, tag]);
-    }
+    const blobData = convergentKey
+      ? await this.#convergent.encryptChunk(buf, convergentKey, digest)
+      : buf;
     const blob = await this.persistence.writeBlob(blobData);
     this.observability.metric('chunk', { action: 'stored', index, size: buf.length, digest, blob });
     return { index, size: buf.length, digest, blob };
@@ -1218,7 +1193,9 @@ export default class CasService {
     const rawBlob = await this._readChunkBlob(chunk.blob, { maxBytes });
 
     if (convergentKey) {
-      return this._decryptAndVerifyConvergentChunk(rawBlob, chunk, convergentKey);
+      return this.#convergent.decryptAndVerifyChunk({
+        blob: rawBlob, masterKey: convergentKey, expectedDigest: chunk.digest, chunkIndex: chunk.index,
+      });
     }
 
     const digest = await this._sha256(rawBlob);
@@ -1232,49 +1209,6 @@ export default class CasService {
       throw err;
     }
     return rawBlob;
-  }
-
-  /**
-   * Decrypts a convergent-encrypted chunk and verifies its plaintext digest.
-   * @private
-   * @param {Buffer} rawBlob - Encrypted blob (ciphertext || 16-byte tag).
-   * @param {{ index: number, digest: string }} chunk - Chunk metadata.
-   * @param {Buffer} convergentKey - Convergent master key.
-   * @returns {Promise<Buffer>} Decrypted plaintext.
-   */
-  async _decryptAndVerifyConvergentChunk(rawBlob, chunk, convergentKey) {
-    const ciphertext = rawBlob.subarray(0, -GCM_TAG_BYTES);
-    const tag = rawBlob.subarray(-GCM_TAG_BYTES);
-    const chunkKey = deriveConvergentKey(convergentKey, chunk.digest, this.crypto);
-    const chunkNonce = deriveConvergentNonce(convergentKey, chunk.digest, this.crypto);
-
-    let plaintext;
-    try {
-      plaintext = await Promise.resolve(
-        this.crypto.decryptBufferWithNonceTag(ciphertext, chunkKey, chunkNonce, tag),
-      );
-    } catch (err) {
-      if (err instanceof CasError) { throw err; }
-      const casErr = new CasError(
-        `Chunk ${chunk.index} convergent decryption failed`,
-        'INTEGRITY_ERROR',
-        { chunkIndex: chunk.index, expected: chunk.digest, originalError: err },
-      );
-      this.observability.metric('error', { code: casErr.code, message: casErr.message });
-      throw casErr;
-    }
-
-    const digest = await this._sha256(plaintext);
-    if (digest !== chunk.digest) {
-      const err = new CasError(
-        `Chunk ${chunk.index} integrity check failed after convergent decryption`,
-        'INTEGRITY_ERROR',
-        { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
-      );
-      this.observability.metric('error', { code: err.code, message: err.message });
-      throw err;
-    }
-    return plaintext;
   }
 
   /**
