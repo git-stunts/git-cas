@@ -93,6 +93,7 @@ export declare const CdcChunkingSchema: z.ZodObject<{
     target: z.ZodNumber;
     min: z.ZodNumber;
     max: z.ZodNumber;
+    normalized: z.ZodOptional<z.ZodBoolean>;
   }>;
 }>;
 

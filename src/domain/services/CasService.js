@@ -2032,15 +2032,6 @@ export default class CasService {
   }
 
   /**
-   * Reads a manifest from a Git tree and returns inspection metadata.
-   * Does not perform any destructive Git operations.
-   *
-   * @param {Object} options
-   * @param {string} options.treeOid - Git tree OID of the asset
-   * @returns {Promise<{ chunksOrphaned: number, slug: string }>}
-   * @throws {CasError} MANIFEST_NOT_FOUND if the tree has no manifest
-   */
-  /**
    * Compares two manifests by chunk digest to find added, removed, and unchanged chunks.
    *
    * Pure function — no I/O. Works with any pair of Manifest instances.
@@ -2053,6 +2044,15 @@ export default class CasService {
     return diffManifests(oldManifest, newManifest);
   }
 
+  /**
+   * Reads a manifest from a Git tree and returns inspection metadata.
+   * Does not perform any destructive Git operations.
+   *
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID of the asset
+   * @returns {Promise<{ chunksOrphaned: number, slug: string }>}
+   * @throws {CasError} MANIFEST_NOT_FOUND if the tree has no manifest
+   */
   async inspectAsset({ treeOid }) {
     const manifest = await this.readManifest({ treeOid });
     return {

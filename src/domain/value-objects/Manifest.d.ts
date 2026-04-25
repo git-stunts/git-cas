@@ -84,6 +84,7 @@ export interface ManifestData {
   chunks: Array<{ index: number; size: number; digest: string; blob: string }>;
   encryption?: EncryptionMeta;
   compression?: CompressionMeta;
+  chunking?: { strategy: "fixed"; params: { chunkSize: number } } | { strategy: "cdc"; params: { target: number; min: number; max: number; normalized?: boolean } };
   subManifests?: SubManifestRef[];
   manifestHash?: string;
 }
@@ -100,6 +101,7 @@ export default class Manifest {
   readonly chunks: readonly Chunk[];
   readonly encryption?: EncryptionMeta;
   readonly compression?: CompressionMeta;
+  readonly chunking?: ManifestData["chunking"];
   readonly subManifests?: readonly SubManifestRef[];
   readonly manifestHash?: string;
 

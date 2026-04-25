@@ -11,9 +11,9 @@ import { promisify } from 'node:util';
 
 function wrapDecryptError(err) {
   if (err instanceof CasError) {
-    throw err;
+    return err;
   }
-  throw new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', {
+  return new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', {
     originalError: err,
   });
 }

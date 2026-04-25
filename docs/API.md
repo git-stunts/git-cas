@@ -127,7 +127,7 @@ Stores content from an async iterable source.
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase (alternative to `encryptionKey`)
 - `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed`
-- `encryption.scheme` (optional): `'whole' | 'framed'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode
+- `encryption.scheme` (optional): `'whole' | 'framed' | 'convergent'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode; `convergent` derives per-chunk keys from content, enabling deduplication across encrypted stores and is the default when using CDC chunking with encryption
 - `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed record (default `65536`)
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`). New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
@@ -184,7 +184,7 @@ Convenience method that opens a file and stores it.
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase
 - `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed`
-- `encryption.scheme` (optional): `'whole' | 'framed'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode
+- `encryption.scheme` (optional): `'whole' | 'framed' | 'convergent'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode; `convergent` derives per-chunk keys from content, enabling deduplication across encrypted stores and is the default when using CDC chunking with encryption
 - `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed record (default `65536`)
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase`. New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
@@ -364,7 +364,200 @@ console.log(manifest.slug); // "photos/vacation"
 console.log(manifest.chunks); // array of Chunk objects
 ```
 
+#### restoreStream
+
+```javascript
+const stream = cas.restoreStream({ manifest, encryptionKey, passphrase });
+```
+
+Restores content from a manifest as an async iterable of Buffer chunks.
+
+For unencrypted, uncompressed files this is true per-chunk streaming with O(chunkSize) memory. `whole` encrypted paths still collect internally before yielding, while `framed` encrypted payloads authenticate and emit plaintext incrementally.
+
+**Parameters:**
+
+- `manifest` (required): `Manifest` - Manifest object
+- `encryptionKey` (optional): `Buffer` - 32-byte encryption key (required if content is encrypted)
+- `passphrase` (optional): `string` - Passphrase for KDF-based decryption (alternative to `encryptionKey`)
+
+**Returns:** `AsyncIterable<Buffer>`
+
+**Throws:**
+
+- `CasError` with code `MISSING_KEY` if content is encrypted but no key provided
+- `CasError` with code `INTEGRITY_ERROR` if chunk verification or decryption fails
+
+**Example:**
+
+```javascript
+for await (const chunk of cas.restoreStream({ manifest })) {
+  process.stdout.write(chunk);
+}
+```
+
+#### inspectAsset
+
+```javascript
+await cas.inspectAsset({ treeOid });
+```
+
+Reads a manifest from a Git tree and returns inspection metadata. Does not perform any destructive Git operations.
+
+**Parameters:**
+
+- `treeOid` (required): `string` - Git tree OID of the asset
+
+**Returns:** `Promise<{ slug: string, chunksOrphaned: number }>`
+
+**Throws:**
+
+- `CasError` with code `MANIFEST_NOT_FOUND` if the tree has no manifest
+- `CasError` with code `GIT_ERROR` if the underlying Git command fails
+
+**Example:**
+
+```javascript
+const { slug, chunksOrphaned } = await cas.inspectAsset({ treeOid });
+console.log(`Asset "${slug}" has ${chunksOrphaned} chunks`);
+```
+
+#### diffManifests (static)
+
+```javascript
+ContentAddressableStore.diffManifests(oldManifest, newManifest);
+```
+
+Compares two manifests by chunk digest to find added, removed, and unchanged chunks. Pure function — no I/O. Does not require initialization.
+
+**Parameters:**
+
+- `oldManifest` (required): `Manifest` - Previous manifest
+- `newManifest` (required): `Manifest` - Updated manifest
+
+**Returns:** `ManifestDiffResult` — object with `added`, `removed`, and `unchanged` chunk arrays
+
+**Example:**
+
+```javascript
+const diff = ContentAddressableStore.diffManifests(oldManifest, newManifest);
+console.log(`Added: ${diff.added.length}, Removed: ${diff.removed.length}`);
+```
+
+#### addRecipient
+
+```javascript
+await cas.addRecipient({ manifest, existingKey, newRecipientKey, label });
+```
+
+Adds a recipient to an envelope-encrypted manifest. Unwraps the DEK using `existingKey`, then re-wraps it with `newRecipientKey` for the new recipient.
+
+**Parameters:**
+
+- `manifest` (required): `Manifest` - Envelope-encrypted manifest
+- `existingKey` (required): `Buffer` - KEK of an existing recipient (used to unwrap the DEK)
+- `newRecipientKey` (required): `Buffer` - KEK for the new recipient
+- `label` (required): `string` - Label for the new recipient
+
+**Returns:** `Promise<Manifest>` - Updated manifest with the new recipient entry
+
+**Throws:**
+
+- `CasError` with code `INVALID_OPTIONS` if manifest has no recipients
+- `CasError` with code `RECIPIENT_ALREADY_EXISTS` if label is a duplicate
+- `CasError` with code `DEK_UNWRAP_FAILED` if existingKey doesn't match any recipient
+
+**Example:**
+
+```javascript
+const updated = await cas.addRecipient({
+  manifest,
+  existingKey: aliceKey,
+  newRecipientKey: bobKey,
+  label: 'bob',
+});
+```
+
+#### removeRecipient
+
+```javascript
+await cas.removeRecipient({ manifest, label });
+```
+
+Removes a recipient from an envelope-encrypted manifest.
+
+**Parameters:**
+
+- `manifest` (required): `Manifest` - Envelope-encrypted manifest
+- `label` (required): `string` - Label of the recipient to remove
+
+**Returns:** `Promise<Manifest>` - Updated manifest without the removed recipient
+
+**Throws:**
+
+- `CasError` with code `RECIPIENT_NOT_FOUND` if label doesn't exist
+- `CasError` with code `CANNOT_REMOVE_LAST_RECIPIENT` if only one recipient remains
+
+**Example:**
+
+```javascript
+const updated = await cas.removeRecipient({ manifest, label: 'bob' });
+```
+
+#### listRecipients
+
+```javascript
+await cas.listRecipients(manifest);
+```
+
+Lists recipient labels from an envelope-encrypted manifest.
+
+**Parameters:**
+
+- `manifest` (required): `Manifest` - Manifest to inspect
+
+**Returns:** `Promise<string[]>` - Recipient labels, or empty array if not envelope-encrypted
+
+**Example:**
+
+```javascript
+const labels = await cas.listRecipients(manifest);
+console.log('Recipients:', labels.join(', '));
+```
+
+#### collectReferencedChunks
+
+```javascript
+await cas.collectReferencedChunks({ treeOids });
+```
+
+Aggregates referenced chunk blob OIDs across multiple stored assets. Analysis only — does not delete or modify anything.
+
+**Parameters:**
+
+- `treeOids` (required): `Array<string>` - Git tree OIDs to analyze
+
+**Returns:** `Promise<{ referenced: Set<string>, total: number }>`
+
+- `referenced` — deduplicated Set of all chunk blob OIDs across the given trees
+- `total` — total number of chunk references (before deduplication)
+
+**Throws:**
+
+- `CasError` with code `MANIFEST_NOT_FOUND` if any `treeOid` lacks a manifest (fail closed)
+- `CasError` with code `GIT_ERROR` if the underlying Git command fails
+
+**Example:**
+
+```javascript
+const { referenced, total } = await cas.collectReferencedChunks({
+  treeOids: [treeOid1, treeOid2, treeOid3],
+});
+console.log(`${referenced.size} unique blobs across ${total} total chunk references`);
+```
+
 #### deleteAsset
+
+> **Deprecated.** Use [`inspectAsset`](#inspectasset) instead.
 
 ```javascript
 await cas.deleteAsset({ treeOid });
@@ -434,6 +627,8 @@ const manifest = await cas.storeFile({
 ```
 
 #### findOrphanedChunks
+
+> **Deprecated.** Use [`collectReferencedChunks`](#collectreferencedchunks) instead.
 
 ```javascript
 await cas.findOrphanedChunks({ treeOids });
