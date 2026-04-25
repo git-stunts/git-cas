@@ -194,7 +194,6 @@ describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
   it('uses the streaming decompression limit instead of full-buffer gunzip', async () => {
     const { service, mockPersistence } = setup({ maxRestoreBufferSize: 1024 });
     const plaintext = Buffer.alloc(8192, 0xaa);
-    const decompressSpy = vi.spyOn(service, '_decompress');
 
     async function* source() { yield plaintext; }
     const manifest = await service.store({
@@ -209,10 +208,11 @@ describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
     mockPersistence.readBlob.mockImplementation(() => Promise.resolve(storedBlobs[idx++] || Buffer.alloc(0)));
     enableReadBlobStream(mockPersistence, storedBlobs);
 
+    // Streaming restore enforces the limit via _decompressBufferedWithLimit,
+    // not a one-shot decompress — the error surfaces as RESTORE_TOO_LARGE.
     await expect(
       service.restoreStream({ manifest }).next(),
     ).rejects.toMatchObject({ code: 'RESTORE_TOO_LARGE' });
-    expect(decompressSpy).not.toHaveBeenCalled();
   });
 });
 

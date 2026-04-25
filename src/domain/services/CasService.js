@@ -1637,19 +1637,6 @@ export default class CasService {
   }
 
   /**
-   * Decompresses a gzip buffer.
-   * @private
-   */
-  async _decompress(buffer) {
-    try {
-      return await this.compressionAdapter.decompressBuffer(buffer);
-    } catch (err) {
-      if (err instanceof CasError) { throw err; }
-      throw new CasError(`Decompression failed: ${err.message}`, 'INTEGRITY_ERROR', { originalError: err });
-    }
-  }
-
-  /**
    * Decompresses a gzip buffer while enforcing an output-size limit during
    * collection rather than after full materialization.
    * @private

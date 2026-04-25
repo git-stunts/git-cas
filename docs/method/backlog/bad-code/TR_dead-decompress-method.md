@@ -14,3 +14,7 @@ were introduced.
 ## Fix
 
 Delete the dead method.
+
+## Status
+
+- [x] Resolved — `security/audit-fixes` branch
