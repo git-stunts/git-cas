@@ -11,6 +11,8 @@ mindmap
             CDC & Fixed Chunks
             FastCDC Dual-Mask Normalization
             Manifest Integrity Hash
+            Manifest Diffing
+            formatVersion Capability Tracking
         Git-Native
             Object Database Substrate
             GC-Safe Vault Refs
@@ -19,11 +21,13 @@ mindmap
         Cryptographic Trust
             AES-256-GCM
             AAD Binding
-                whole-v2
-                framed-v2
+                whole
+                framed
+                convergent
             Envelope Encryption
             Key Rotation
             KDF Policy Enforcement
+            Convergent Encryption
         Privacy
             Vault Privacy Mode
             HMAC Slug Masking
@@ -40,6 +44,9 @@ mindmap
             CodecPort
             CompressionPort
             ObservabilityPort
+        Performance
+            PrefetchWindow Parallel Restore
+            Incremental Sync via Manifest Diff
         Agent-Human Parity
             JSONL Agent CLI
             Human TUI Cockpit
@@ -55,7 +62,7 @@ Git is not just for source code. Its object database is a world-class, replicate
 Every byte stored is verified against a SHA-256 manifest. Corruption is detected at the chunk level, and re-assembly is a deterministic process governed by immutable receipts.
 
 ### 3. Privacy by Design
-Encryption is a first-class citizen, not an addon. Envelope encryption allows for flexible multi-party access control and rotation without re-encrypting the underlying data bedrock. Vault privacy mode and HMAC slug masking ensure that even metadata leaks nothing.
+Encryption is a first-class citizen, not an addon. Three encryption schemes — whole, framed, and convergent — cover every use case from single-blob encryption to dedup-safe multi-chunk storage. Envelope encryption allows for flexible multi-party access control and rotation without re-encrypting the underlying data bedrock. Convergent encryption resolves the fundamental tension between encryption and deduplication: identical plaintext always produces identical ciphertext, enabling chunk-level dedup even across encrypted stores. Vault privacy mode and HMAC slug masking ensure that even metadata leaks nothing.
 
 ### 4. Machine-First, Human-Enhanced
 The system is built for automation. Agentic CLI surfaces and JSONL protocols ensure that `git-cas` can be a reliable part of a high-fidelity CI/CD or agentic workflow.
