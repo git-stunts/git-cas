@@ -29,7 +29,15 @@ not use numeric IDs.
 
 ### `cool-ideas/`
 
-All resolved — `security/audit-fixes` branch:
+Active:
+
+- [TR — Convergent Encryption](./cool-ideas/TR_convergent-encryption.md)
+- [TR — Browser Compression Adapter](./cool-ideas/TR_browser-compression-adapter.md)
+- [TR — Manifest Diffing](./cool-ideas/TR_manifest-diffing.md)
+- [TR — Parallel Chunk Restore](./cool-ideas/TR_parallel-chunk-restore.md)
+- [TR — Content-Aware Chunking](./cool-ideas/TR_content-aware-chunking.md)
+
+Resolved — `security/audit-fixes` branch:
 
 - [TR — Dual Encryption Modes](./cool-ideas/TR_dual-encryption-modes.md) ✅
 - [TR — Manifest Signing](./cool-ideas/TR_manifest-signing.md) ✅
@@ -41,7 +49,14 @@ All resolved — `security/audit-fixes` branch:
 
 ### `bad-code/`
 
-All resolved — `security/audit-fixes` branch:
+Active:
+
+- [TR — Dead _decompress() Method](./bad-code/TR_dead-decompress-method.md)
+- [TR — Domain Imports Infrastructure](./bad-code/TR_domain-imports-infrastructure.md)
+- [TR — CryptoPort node:crypto Import](./bad-code/TR_cryptoport-node-import.md)
+- [TR — ManifestSchema node:buffer Import](./bad-code/TR_schema-node-buffer-import.md)
+
+Resolved — `security/audit-fixes` branch:
 
 - [SEC — Chunk Constructor Property Leak](./bad-code/SEC_chunk-constructor-property-leak.md) ✅
 - [SEC — Schema Hex Validation](./bad-code/SEC_schema-hex-validation.md) ✅
