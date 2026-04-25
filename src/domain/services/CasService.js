@@ -35,6 +35,28 @@ function buildFramedAad(slug, frameIndex) {
 }
 
 /**
+ * Derives a per-chunk encryption key for convergent encryption.
+ * @param {Buffer} masterKey - The convergent master key.
+ * @param {string} digest - Hex SHA-256 digest of the plaintext chunk.
+ * @param {import('../../ports/CryptoPort.js').default} crypto - Crypto adapter.
+ * @returns {Buffer} 32-byte derived key.
+ */
+function deriveConvergentKey(masterKey, digest, crypto) {
+  return crypto.hmacSha256(masterKey, `git-cas-convergent-key:${digest}`).subarray(0, 32);
+}
+
+/**
+ * Derives a per-chunk nonce for convergent encryption.
+ * @param {Buffer} masterKey - The convergent master key.
+ * @param {string} digest - Hex SHA-256 digest of the plaintext chunk.
+ * @param {import('../../ports/CryptoPort.js').default} crypto - Crypto adapter.
+ * @returns {Buffer} 12-byte derived nonce.
+ */
+function deriveConvergentNonce(masterKey, digest, crypto) {
+  return crypto.hmacSha256(masterKey, `git-cas-convergent-nonce:${digest}`).subarray(0, 12);
+}
+
+/**
  * Strips `manifestHash` and `undefined` values, then returns codec-encoded bytes.
  * @param {Object} data - Manifest data object.
  * @param {{ encode: Function }} codec - Codec instance.
@@ -152,14 +174,29 @@ export default class CasService {
 
   /**
    * Stores a single buffer chunk in Git, returning its metadata.
+   *
+   * When `convergentKey` is provided, the chunk is encrypted per-chunk
+   * using deterministic key/nonce derived from its content hash, enabling
+   * deduplication of identical plaintext across encrypted stores.
+   *
    * @private
    * @param {Buffer} buf - The chunk data to store.
    * @param {number} index - Chunk index.
+   * @param {Buffer} [convergentKey] - Convergent encryption master key.
    * @returns {Promise<{ index: number, size: number, digest: string, blob: string }>}
    */
-  async _storeChunk(buf, index) {
+  async _storeChunk(buf, index, convergentKey) {
     const digest = await this._sha256(buf);
-    const blob = await this.persistence.writeBlob(buf);
+    let blobData = buf;
+    if (convergentKey) {
+      const chunkKey = deriveConvergentKey(convergentKey, digest, this.crypto);
+      const chunkNonce = deriveConvergentNonce(convergentKey, digest, this.crypto);
+      const { buf: encrypted, tag } = await Promise.resolve(
+        this.crypto.encryptBufferWithNonce(buf, chunkKey, chunkNonce),
+      );
+      blobData = Buffer.concat([encrypted, tag]);
+    }
+    const blob = await this.persistence.writeBlob(blobData);
     this.observability.metric('chunk', { action: 'stored', index, size: buf.length, digest, blob });
     return { index, size: buf.length, digest, blob };
   }
@@ -170,9 +207,10 @@ export default class CasService {
    * @private
    * @param {AsyncIterable<Buffer>} source - The data source to chunk.
    * @param {Object} manifestData - Mutable manifest accumulator.
+   * @param {{ convergentKey?: Buffer }} [options] - Optional encryption options.
    * @throws {CasError} STREAM_ERROR if the source stream fails.
    */
-  async _chunkAndStore(source, manifestData) {
+  async _chunkAndStore(source, manifestData, { convergentKey } = {}) {
     const sem = new Semaphore(this.concurrency);
     const iterator = this.chunker.chunk(source)[Symbol.asyncIterator]();
     const results = [];
@@ -201,7 +239,7 @@ export default class CasService {
       }
 
       this._launchChunkWrite({
-        buf: step.value, idx: state.nextIndex++, sem, results, orphanedBlobs, inFlight, state,
+        buf: step.value, idx: state.nextIndex++, sem, results, orphanedBlobs, inFlight, state, convergentKey,
       });
     }
 
@@ -213,10 +251,10 @@ export default class CasService {
    * Starts one bounded chunk write and tracks its lifecycle.
    * @private
    */
-  _launchChunkWrite({ buf, idx, sem, results, orphanedBlobs, inFlight, state }) {
+  _launchChunkWrite({ buf, idx, sem, results, orphanedBlobs, inFlight, state, convergentKey }) {
     const task = (async () => {
       try {
-        const entry = await this._storeChunk(buf, idx);
+        const entry = await this._storeChunk(buf, idx, convergentKey);
         results[idx] = entry;
         orphanedBlobs.push(entry.blob);
       } finally {
@@ -413,9 +451,9 @@ export default class CasService {
   /**
    * Resolves the requested store encryption config.
    * @private
-   * @param {{ scheme?: string, frameBytes?: number }} [encryption]
+   * @param {{ scheme?: string, frameBytes?: number, convergent?: boolean }} [encryption]
    * @param {boolean} hasEncryptionKey
-   * @returns {undefined|{ scheme: 'whole-v1'|'whole-v2' }|{ scheme: 'framed-v1'|'framed-v2', frameBytes: number }}
+   * @returns {undefined|{ scheme: 'whole-v1'|'whole-v2' }|{ scheme: 'framed-v1'|'framed-v2', frameBytes: number }|{ scheme: 'convergent-v1' }}
    */
   _resolveStoreEncryptionConfig(encryption, hasEncryptionKey) {
     const scheme = encryption?.scheme;
@@ -426,12 +464,20 @@ export default class CasService {
       return undefined;
     }
 
+    if (scheme === 'convergent-v1') {
+      return { scheme: 'convergent-v1' };
+    }
+
     if (scheme === 'whole-v1' || scheme === 'whole-v2') {
       return { scheme };
     }
 
-    if (!scheme || scheme === 'framed-v1' || scheme === 'framed-v2') {
+    if (scheme === 'framed-v1' || scheme === 'framed-v2') {
       return this._resolveFramedStoreEncryptionConfig(frameBytes, scheme);
+    }
+
+    if (!scheme) {
+      return this._resolveAutoEncryptionScheme(encryption, frameBytes);
     }
 
     throw new CasError(
@@ -439,6 +485,23 @@ export default class CasService {
       'INVALID_OPTIONS',
       { scheme },
     );
+  }
+
+  /**
+   * Auto-selects encryption scheme when none is explicitly requested.
+   * Defaults to convergent-v1 for CDC chunking (unless opted out),
+   * otherwise framed-v2.
+   * @private
+   * @param {{ convergent?: boolean }} [encryption]
+   * @param {number|undefined} frameBytes
+   * @returns {{ scheme: 'convergent-v1' }|{ scheme: 'framed-v2', frameBytes: number }}
+   */
+  _resolveAutoEncryptionScheme(encryption, frameBytes) {
+    const convergentExplicit = encryption?.convergent;
+    if (convergentExplicit === true || (convergentExplicit !== false && this.chunker.strategy === 'cdc')) {
+      return { scheme: 'convergent-v1' };
+    }
+    return this._resolveFramedStoreEncryptionConfig(frameBytes, undefined);
   }
 
   /**
@@ -516,6 +579,10 @@ export default class CasService {
       return this._validateFramedEncryptionMeta(manifest, meta);
     }
 
+    if (meta.scheme === 'convergent-v1') {
+      return this._validateConvergentEncryptionMeta(manifest, meta);
+    }
+
     throw new CasError(
       `Encrypted manifest uses unknown scheme: ${meta.scheme}`,
       'INTEGRITY_ERROR',
@@ -589,6 +656,20 @@ export default class CasService {
       ...meta,
       scheme: meta.scheme,
       frameBytes: meta.frameBytes,
+    });
+  }
+
+  /**
+   * Validates convergent-v1 manifest metadata.
+   * @private
+   * @param {{ slug?: string }} manifest
+   * @param {{ scheme: 'convergent-v1' }} meta
+   * @returns {{ scheme: 'convergent-v1', encrypted: true, algorithm: 'aes-256-gcm' }}
+   */
+  _validateConvergentEncryptionMeta(_manifest, meta) {
+    return /** @type {{ scheme: 'convergent-v1', encrypted: true, algorithm: 'aes-256-gcm' }} */ ({
+      ...meta,
+      scheme: 'convergent-v1',
     });
   }
 
@@ -837,24 +918,51 @@ export default class CasService {
     const manifestData = this._buildManifestData(slug, filename, compression);
     const processedSource = compression ? this._compressStream(source) : source;
 
-    if (keyInfo.key) {
-      this._warnEncryptedCdc();
-      await this._storeEncryptedSource({
-        processedSource,
-        manifestData,
-        key: keyInfo.key,
-        encryptionConfig,
-        encExtra: keyInfo.encExtra,
-      });
-    } else {
-      await this._chunkAndStore(processedSource, manifestData);
-    }
+    await this._dispatchStore({ processedSource, manifestData, keyInfo, encryptionConfig });
 
     const manifest = new Manifest(manifestData);
     this.observability.metric('file', {
       action: 'stored', slug, size: manifest.size, chunkCount: manifest.chunks.length, encrypted: !!keyInfo.key,
     });
     return manifest;
+  }
+
+  /**
+   * Routes to the correct store strategy based on encryption config.
+   * @private
+   * @param {{ processedSource: AsyncIterable<Buffer>, manifestData: Object, keyInfo: { key?: Buffer, encExtra: Object }, encryptionConfig?: Object }} options
+   */
+  async _dispatchStore({ processedSource, manifestData, keyInfo, encryptionConfig }) {
+    if (keyInfo.key && encryptionConfig?.scheme === 'convergent-v1') {
+      await this._storeConvergentSource(processedSource, manifestData, keyInfo);
+      return;
+    }
+    if (keyInfo.key) {
+      this._warnEncryptedCdc();
+      await this._storeEncryptedSource({
+        processedSource, manifestData, key: keyInfo.key,
+        encryptionConfig, encExtra: keyInfo.encExtra,
+      });
+      return;
+    }
+    await this._chunkAndStore(processedSource, manifestData);
+  }
+
+  /**
+   * Stores content using convergent-v1 per-chunk encryption.
+   * @private
+   * @param {AsyncIterable<Buffer>} processedSource
+   * @param {Object} manifestData
+   * @param {{ key: Buffer, encExtra: Object }} keyInfo
+   */
+  async _storeConvergentSource(processedSource, manifestData, keyInfo) {
+    await this._chunkAndStore(processedSource, manifestData, { convergentKey: keyInfo.key });
+    manifestData.encryption = {
+      scheme: 'convergent-v1',
+      algorithm: 'aes-256-gcm',
+      encrypted: true,
+      ...keyInfo.encExtra,
+    };
   }
 
   /**
@@ -1106,9 +1214,14 @@ export default class CasService {
    * @returns {Promise<Buffer>} Verified chunk buffer.
    * @throws {CasError} INTEGRITY_ERROR if the chunk digest does not match.
    */
-  async _readAndVerifyChunk(chunk, { maxBytes } = {}) {
-    const blob = await this._readChunkBlob(chunk.blob, { maxBytes });
-    const digest = await this._sha256(blob);
+  async _readAndVerifyChunk(chunk, { maxBytes, convergentKey } = {}) {
+    const rawBlob = await this._readChunkBlob(chunk.blob, { maxBytes });
+
+    if (convergentKey) {
+      return this._decryptAndVerifyConvergentChunk(rawBlob, chunk, convergentKey);
+    }
+
+    const digest = await this._sha256(rawBlob);
     if (digest !== chunk.digest) {
       const err = new CasError(
         `Chunk ${chunk.index} integrity check failed`,
@@ -1118,7 +1231,50 @@ export default class CasService {
       this.observability.metric('error', { code: err.code, message: err.message });
       throw err;
     }
-    return blob;
+    return rawBlob;
+  }
+
+  /**
+   * Decrypts a convergent-encrypted chunk and verifies its plaintext digest.
+   * @private
+   * @param {Buffer} rawBlob - Encrypted blob (ciphertext || 16-byte tag).
+   * @param {{ index: number, digest: string }} chunk - Chunk metadata.
+   * @param {Buffer} convergentKey - Convergent master key.
+   * @returns {Promise<Buffer>} Decrypted plaintext.
+   */
+  async _decryptAndVerifyConvergentChunk(rawBlob, chunk, convergentKey) {
+    const ciphertext = rawBlob.subarray(0, -GCM_TAG_BYTES);
+    const tag = rawBlob.subarray(-GCM_TAG_BYTES);
+    const chunkKey = deriveConvergentKey(convergentKey, chunk.digest, this.crypto);
+    const chunkNonce = deriveConvergentNonce(convergentKey, chunk.digest, this.crypto);
+
+    let plaintext;
+    try {
+      plaintext = await Promise.resolve(
+        this.crypto.decryptBufferWithNonceTag(ciphertext, chunkKey, chunkNonce, tag),
+      );
+    } catch (err) {
+      if (err instanceof CasError) { throw err; }
+      const casErr = new CasError(
+        `Chunk ${chunk.index} convergent decryption failed`,
+        'INTEGRITY_ERROR',
+        { chunkIndex: chunk.index, expected: chunk.digest, originalError: err },
+      );
+      this.observability.metric('error', { code: casErr.code, message: casErr.message });
+      throw casErr;
+    }
+
+    const digest = await this._sha256(plaintext);
+    if (digest !== chunk.digest) {
+      const err = new CasError(
+        `Chunk ${chunk.index} integrity check failed after convergent decryption`,
+        'INTEGRITY_ERROR',
+        { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
+      );
+      this.observability.metric('error', { code: err.code, message: err.message });
+      throw err;
+    }
+    return plaintext;
   }
 
   /**
@@ -1324,16 +1480,43 @@ export default class CasService {
    * @returns {AsyncIterable<Buffer>}
    */
   async *_dispatchRestore(manifest, key, encryptionMeta) {
-    const isFramed = encryptionMeta?.scheme === 'framed-v1' || encryptionMeta?.scheme === 'framed-v2';
+    const scheme = encryptionMeta?.scheme;
+    const strategy = this._classifyRestoreStrategy(scheme, manifest);
+    yield* this._executeRestoreStrategy(strategy, { manifest, key, encryptionMeta });
+  }
 
-    if (isFramed && manifest.compression) {
-      yield* this._restoreFramedCompressedStreaming(manifest, key, encryptionMeta);
-    } else if (isFramed) {
-      yield* this._restoreFramedStreaming(manifest, key, encryptionMeta);
-    } else if (encryptionMeta || manifest.compression) {
-      yield* this._restoreBuffered(manifest, key, encryptionMeta);
-    } else {
-      yield* this._restoreStreaming(manifest);
+  /**
+   * Classifies which restore strategy to use based on scheme and compression.
+   * @private
+   * @param {string|undefined} scheme
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {'convergent'|'convergent-compressed'|'framed-compressed'|'framed'|'buffered'|'streaming'}
+   */
+  _classifyRestoreStrategy(scheme, manifest) {
+    if (scheme === 'convergent-v1') {
+      return manifest.compression ? 'convergent-compressed' : 'convergent';
+    }
+    const isFramed = scheme === 'framed-v1' || scheme === 'framed-v2';
+    if (isFramed && manifest.compression) { return 'framed-compressed'; }
+    if (isFramed) { return 'framed'; }
+    if (scheme || manifest.compression) { return 'buffered'; }
+    return 'streaming';
+  }
+
+  /**
+   * Executes the classified restore strategy.
+   * @private
+   * @param {string} strategy
+   * @param {{ manifest: import('../value-objects/Manifest.js').default, key?: Buffer, encryptionMeta?: Object }} ctx
+   */
+  async *_executeRestoreStrategy(strategy, { manifest, key, encryptionMeta }) {
+    switch (strategy) {
+      case 'convergent': yield* this._restoreConvergentStreaming(manifest, key); break;
+      case 'convergent-compressed': yield* this._restoreConvergentCompressed(manifest, key); break;
+      case 'framed-compressed': yield* this._restoreFramedCompressedStreaming(manifest, key, encryptionMeta); break;
+      case 'framed': yield* this._restoreFramedStreaming(manifest, key, encryptionMeta); break;
+      case 'buffered': yield* this._restoreBuffered(manifest, key, encryptionMeta); break;
+      default: yield* this._restoreStreaming(manifest); break;
     }
   }
 
@@ -1345,6 +1528,10 @@ export default class CasService {
    * @returns {boolean}
    */
   _shouldUseBufferedFileRestore(manifest, encryptionMeta) {
+    // Convergent-v1 decrypts per-chunk — no buffering needed
+    if (encryptionMeta?.scheme === 'convergent-v1') {
+      return false;
+    }
     return encryptionMeta?.scheme === 'whole-v1' || encryptionMeta?.scheme === 'whole-v2' || (!encryptionMeta && !!manifest.compression);
   }
 
@@ -1452,6 +1639,56 @@ export default class CasService {
 
     this.observability.metric('file', {
       action: 'restored', slug: manifest.slug, size: totalSize, chunkCount: chunks.length,
+    });
+  }
+
+  /**
+   * Streaming restore path for convergent-v1 encrypted content.
+   * Decrypts each chunk individually using the convergent master key.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} key - Convergent master key.
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_restoreConvergentStreaming(manifest, key) {
+    let totalSize = 0;
+    for (const chunk of manifest.chunks) {
+      const plaintext = await this._readAndVerifyChunk(chunk, { convergentKey: key });
+      this.observability.metric('chunk', { action: 'restored', index: chunk.index, size: plaintext.length, digest: chunk.digest });
+      totalSize += plaintext.length;
+      yield plaintext;
+    }
+
+    this.observability.metric('file', {
+      action: 'restored', slug: manifest.slug, size: totalSize, chunkCount: manifest.chunks.length,
+    });
+  }
+
+  /**
+   * Streaming restore path for convergent-v1 encrypted + compressed content.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} key - Convergent master key.
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_restoreConvergentCompressed(manifest, key) {
+    const self = this;
+    const decryptedSource = (async function* convergentSource() {
+      for (const chunk of manifest.chunks) {
+        const plaintext = await self._readAndVerifyChunk(chunk, { convergentKey: key });
+        self.observability.metric('chunk', { action: 'restored', index: chunk.index, size: plaintext.length, digest: chunk.digest });
+        yield plaintext;
+      }
+    })();
+
+    let totalSize = 0;
+    for await (const chunk of this._decompressStreaming(decryptedSource)) {
+      totalSize += chunk.length;
+      yield chunk;
+    }
+
+    this.observability.metric('file', {
+      action: 'restored', slug: manifest.slug, size: totalSize, chunkCount: manifest.chunks.length,
     });
   }
 
@@ -2110,6 +2347,18 @@ export default class CasService {
       return false;
     }
 
+    if (encryptionMeta?.scheme === 'convergent-v1') {
+      return this._verifyConvergentIntegrity(manifest, encryptionMeta, options);
+    }
+
+    return this._verifyNonConvergentIntegrity(manifest, encryptionMeta, options);
+  }
+
+  /**
+   * Verifies integrity for non-convergent schemes (whole, framed, unencrypted).
+   * @private
+   */
+  async _verifyNonConvergentIntegrity(manifest, encryptionMeta, options) {
     const buffers = await this._verifyChunkDigests(manifest);
     if (buffers === false) {
       return false;
@@ -2126,6 +2375,37 @@ export default class CasService {
       if (!authOk) {
         return false;
       }
+    }
+
+    this.observability.metric('integrity', { action: 'pass', slug: manifest.slug });
+    return true;
+  }
+
+  /**
+   * Verifies integrity of convergent-v1 encrypted content by decrypting
+   * each chunk and checking plaintext digests.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {{ scheme: 'convergent-v1' }} _encryptionMeta
+   * @param {{ encryptionKey?: Buffer, passphrase?: string }} options
+   * @returns {Promise<boolean>}
+   */
+  async _verifyConvergentIntegrity(manifest, _encryptionMeta, options) {
+    const key = await this._resolveVerifyKey(manifest, options);
+    if (key === false) {
+      return false;
+    }
+
+    try {
+      for (const chunk of manifest.chunks) {
+        await this._readAndVerifyChunk(chunk, { convergentKey: key });
+      }
+    } catch (err) {
+      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+        this._emitIntegrityFail(manifest, err.meta);
+        return false;
+      }
+      throw err;
     }
 
     this.observability.metric('integrity', { action: 'pass', slug: manifest.slug });

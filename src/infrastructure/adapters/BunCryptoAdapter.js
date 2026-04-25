@@ -192,6 +192,38 @@ export default class BunCryptoAdapter extends CryptoPort {
     });
   }
 
+  /**
+   * @override
+   * @param {Buffer|Uint8Array} buffer - Plaintext to encrypt.
+   * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @param {Buffer|Uint8Array} nonce - 12-byte nonce (IV).
+   * @returns {{ buf: Buffer, tag: Buffer }}
+   */
+  encryptBufferWithNonce(buffer, key, nonce) {
+    this._validateKey(key);
+    const cipher = createCipheriv('aes-256-gcm', key, nonce);
+    const encrypted = Buffer.concat([cipher.update(buffer), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return { buf: encrypted, tag };
+  }
+
+  /**
+   * @override
+   * @param {Buffer|Uint8Array} buffer - Ciphertext to decrypt.
+   * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @param {Buffer|Uint8Array} nonce - 12-byte nonce (IV).
+   * @param {Buffer|Uint8Array} tag - 16-byte GCM authentication tag.
+   * @returns {Buffer}
+   */
+  decryptBufferWithNonceTag(buffer, key, nonce, tag) { // eslint-disable-line max-params
+    this._validateKey(key);
+    const decipher = createDecipheriv(AES_GCM_ALGORITHM, key, nonce, {
+      authTagLength: AES_GCM_TAG_BYTES,
+    });
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(buffer), decipher.final()]);
+  }
+
   /** @override */
   hmacSha256(key, data) {
     return createHmac('sha256', key).update(data).digest();

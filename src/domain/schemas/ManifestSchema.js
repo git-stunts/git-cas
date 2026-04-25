@@ -81,9 +81,18 @@ const FramedEncryptionSchema = z.object({
   tag: z.undefined().optional(),
 });
 
+const ConvergentEncryptionSchema = z.object({
+  scheme: z.literal('convergent-v1'),
+  ...EncryptionBaseSchema,
+  nonce: z.undefined().optional(),
+  tag: z.undefined().optional(),
+  frameBytes: z.undefined().optional(),
+});
+
 export const EncryptionSchema = z.union([
   WholeEncryptionSchema,
   FramedEncryptionSchema,
+  ConvergentEncryptionSchema,
 ]);
 
 /** Validates compression metadata. */

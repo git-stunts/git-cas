@@ -32,6 +32,14 @@ describe('CryptoPort – abstract methods', () => {
   it('_doDeriveKey() throws Not implemented', async () => {
     await expect(port._doDeriveKey('pass', Buffer.alloc(32), {})).rejects.toThrow('Not implemented');
   });
+
+  it('encryptBufferWithNonce() throws Not implemented', () => {
+    expect(() => port.encryptBufferWithNonce(Buffer.alloc(0), Buffer.alloc(32), Buffer.alloc(12))).toThrow('Not implemented');
+  });
+
+  it('decryptBufferWithNonceTag() throws Not implemented', () => {
+    expect(() => port.decryptBufferWithNonceTag(Buffer.alloc(0), Buffer.alloc(32), Buffer.alloc(12), Buffer.alloc(16))).toThrow('Not implemented');
+  });
 });
 
 describe('CryptoPort._validateKey()', () => {

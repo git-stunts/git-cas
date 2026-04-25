@@ -96,6 +96,55 @@ function registerStreamingTests(adapter, key) {
   });
 }
 
+function registerDeterministicNonceTests(adapter, key) {
+  it('encryptBufferWithNonce round-trips with decryptBufferWithNonceTag', async () => {
+    const plaintext = Buffer.from('convergent round-trip');
+    const nonce = Buffer.alloc(12, 0x42);
+    const { buf, tag } = await Promise.resolve(adapter.encryptBufferWithNonce(plaintext, key, nonce));
+    expect(buf).toBeInstanceOf(Buffer);
+    expect(tag).toBeInstanceOf(Buffer);
+    expect(tag.length).toBe(16);
+    const decrypted = await Promise.resolve(adapter.decryptBufferWithNonceTag(buf, key, nonce, tag));
+    expect(decrypted.equals(plaintext)).toBe(true);
+  });
+
+  it('encryptBufferWithNonce produces deterministic ciphertext', async () => {
+    const plaintext = Buffer.from('same input twice');
+    const nonce = Buffer.alloc(12, 0x99);
+    const r1 = await Promise.resolve(adapter.encryptBufferWithNonce(plaintext, key, nonce));
+    const r2 = await Promise.resolve(adapter.encryptBufferWithNonce(plaintext, key, nonce));
+    expect(r1.buf.equals(r2.buf)).toBe(true);
+    expect(r1.tag.equals(r2.tag)).toBe(true);
+  });
+
+  it('decryptBufferWithNonceTag rejects wrong key', async () => {
+    const plaintext = Buffer.from('wrong key test');
+    const nonce = Buffer.alloc(12, 0x11);
+    const { buf, tag } = await Promise.resolve(adapter.encryptBufferWithNonce(plaintext, key, nonce));
+    const wrongKey = Buffer.alloc(32, 0xff);
+    await expect(
+      Promise.resolve().then(() => adapter.decryptBufferWithNonceTag(buf, wrongKey, nonce, tag)),
+    ).rejects.toThrow();
+  });
+
+  it('decryptBufferWithNonceTag rejects tampered ciphertext', async () => {
+    const plaintext = Buffer.from('tamper test');
+    const nonce = Buffer.alloc(12, 0x22);
+    const { buf, tag } = await Promise.resolve(adapter.encryptBufferWithNonce(plaintext, key, nonce));
+    const tampered = Buffer.from(buf);
+    tampered[0] ^= 0xff;
+    await expect(
+      Promise.resolve().then(() => adapter.decryptBufferWithNonceTag(tampered, key, nonce, tag)),
+    ).rejects.toThrow();
+  });
+
+  it('encryptBufferWithNonce validates key', async () => {
+    await expect(
+      Promise.resolve().then(() => adapter.encryptBufferWithNonce(Buffer.from('x'), Buffer.alloc(16), Buffer.alloc(12))),
+    ).rejects.toMatchObject({ code: 'INVALID_KEY_LENGTH' });
+  });
+}
+
 function registerInvalidMetaTests(adapter, key) {
   it('decryptBuffer rejects a non-AES-GCM algorithm at the adapter boundary', async () => {
     await expectInvalidDecryptMeta(adapter, key, (meta) => ({
@@ -124,5 +173,6 @@ describe.each(adapters)('%s conformance', (_name, adapter) => {
 
   registerKeyValidationTests(adapter, key);
   registerStreamingTests(adapter, key);
+  registerDeterministicNonceTests(adapter, key);
   registerInvalidMetaTests(adapter, key);
 });

@@ -196,6 +196,40 @@ export default class CryptoPort {
   }
 
   /**
+   * Encrypts a buffer using AES-256-GCM with a caller-provided nonce.
+   *
+   * Used by convergent encryption where the nonce must be deterministic
+   * (derived from content hash) to enable deduplication.
+   *
+   * @abstract
+   * @param {Buffer|Uint8Array} _buffer - Plaintext to encrypt.
+   * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
+   * @param {Buffer|Uint8Array} _nonce - 12-byte nonce (IV).
+   * @returns {{ buf: Buffer, tag: Buffer }|Promise<{ buf: Buffer, tag: Buffer }>}
+   */
+  encryptBufferWithNonce(_buffer, _key, _nonce) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Decrypts a buffer using AES-256-GCM with explicit nonce and tag.
+   *
+   * Used by convergent encryption to decrypt per-chunk ciphertext
+   * where the nonce and tag are stored/derived externally.
+   *
+   * @abstract
+   * @param {Buffer|Uint8Array} _buffer - Ciphertext to decrypt.
+   * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
+   * @param {Buffer|Uint8Array} _nonce - 12-byte nonce (IV).
+   * @param {Buffer|Uint8Array} _tag - 16-byte GCM authentication tag.
+   * @returns {Buffer|Promise<Buffer>}
+   * @throws on authentication failure.
+   */
+  decryptBufferWithNonceTag(_buffer, _key, _nonce, _tag) { // eslint-disable-line max-params
+    throw new Error('Not implemented');
+  }
+
+  /**
    * Validates that a key is a 32-byte Buffer or Uint8Array.
    * @param {Buffer|Uint8Array} key - Key to validate.
    * @throws {CasError} INVALID_KEY_TYPE if key is not a Buffer or Uint8Array.

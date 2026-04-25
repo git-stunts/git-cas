@@ -29,13 +29,25 @@ function makeService(chunker, observability) {
 }
 
 describe('CasService — CDC + encryption dedup warning', () => {
-  it('emits warning when encryption + CDC', async () => {
+  it('does NOT warn for CDC + encryption when convergent is active (default)', async () => {
     const obs = makeObserver();
     const service = makeService(new CdcChunker({ minChunkSize: 1024, targetChunkSize: 2048, maxChunkSize: 4096 }), obs);
     const key = Buffer.alloc(32, 0xab);
 
     async function* source() { yield Buffer.alloc(2048, 0xcc); }
     await service.store({ source: source(), slug: 'enc-cdc', filename: 'f.bin', encryptionKey: key });
+
+    const warnCalls = obs.log.mock.calls.filter((c) => c[0] === 'warn' && c[1].includes('CDC deduplication'));
+    expect(warnCalls).toHaveLength(0);
+  });
+
+  it('emits warning when encryption + CDC with convergent disabled', async () => {
+    const obs = makeObserver();
+    const service = makeService(new CdcChunker({ minChunkSize: 1024, targetChunkSize: 2048, maxChunkSize: 4096 }), obs);
+    const key = Buffer.alloc(32, 0xab);
+
+    async function* source() { yield Buffer.alloc(2048, 0xcc); }
+    await service.store({ source: source(), slug: 'enc-cdc', filename: 'f.bin', encryptionKey: key, encryption: { convergent: false } });
 
     const warnCalls = obs.log.mock.calls.filter((c) => c[0] === 'warn' && c[1].includes('CDC deduplication'));
     expect(warnCalls).toHaveLength(1);

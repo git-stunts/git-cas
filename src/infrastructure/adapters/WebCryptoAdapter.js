@@ -331,6 +331,57 @@ export default class WebCryptoAdapter extends CryptoPort {
     return globalThis.btoa(String.fromCharCode(...new Uint8Array(buf)));
   }
 
+  /**
+   * @override
+   * @param {Buffer|Uint8Array} buffer - Plaintext to encrypt.
+   * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @param {Buffer|Uint8Array} nonce - 12-byte nonce (IV).
+   * @returns {Promise<{ buf: Buffer, tag: Buffer }>}
+   */
+  async encryptBufferWithNonce(buffer, key, nonce) {
+    this._validateKey(key);
+    const cryptoKey = await this.#importKey(key);
+    const encrypted = await globalThis.crypto.subtle.encrypt(
+      // @ts-ignore -- Uint8Array satisfies BufferSource at runtime
+      { name: 'AES-GCM', iv: /** @type {Uint8Array} */ (nonce) },
+      cryptoKey,
+      buffer,
+    );
+    const fullBuffer = new Uint8Array(encrypted);
+    const tagLength = 16;
+    return {
+      buf: Buffer.from(fullBuffer.slice(0, -tagLength)),
+      tag: Buffer.from(fullBuffer.slice(-tagLength)),
+    };
+  }
+
+  /**
+   * @override
+   * @param {Buffer|Uint8Array} buffer - Ciphertext to decrypt.
+   * @param {Buffer|Uint8Array} key - 32-byte encryption key.
+   * @param {Buffer|Uint8Array} nonce - 12-byte nonce (IV).
+   * @param {Buffer|Uint8Array} tag - 16-byte GCM authentication tag.
+   * @returns {Promise<Buffer>}
+   */
+  async decryptBufferWithNonceTag(buffer, key, nonce, tag) { // eslint-disable-line max-params
+    this._validateKey(key);
+    const cryptoKey = await this.#importKey(key);
+    const combined = new Uint8Array(buffer.length + tag.length);
+    combined.set(new Uint8Array(buffer));
+    combined.set(new Uint8Array(tag), buffer.length);
+    try {
+      const decrypted = await globalThis.crypto.subtle.decrypt(
+        // @ts-ignore -- Uint8Array satisfies BufferSource at runtime
+        { name: 'AES-GCM', iv: /** @type {Uint8Array} */ (nonce) },
+        cryptoKey,
+        combined,
+      );
+      return Buffer.from(decrypted);
+    } catch (err) {
+      throw new CasError('Decryption failed', 'INTEGRITY_ERROR', { originalError: err });
+    }
+  }
+
   /** @override */
   hmacSha256(key, data) {
     return createHmac('sha256', key).update(data).digest();

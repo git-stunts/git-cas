@@ -77,14 +77,15 @@ CDC is the default for deduplication workloads. **FastCDC dual-mask normalizatio
 
 All encryption uses **AES-256-GCM** with 12-byte random nonces and 16-byte authentication tags.
 
-Four encryption schemes are supported:
+Five encryption schemes are supported:
 
 | Scheme | Framing | AAD Binding | Notes |
 |---|---|---|---|
 | `whole-v1` | Single ciphertext blob | None | Legacy compatibility |
 | `whole-v2` | Single ciphertext blob | Slug + frame index | Prevents cross-manifest blob swaps |
 | `framed-v1` | Bounded frames | None | Streaming decrypt, legacy |
-| `framed-v2` | Bounded frames | Slug + frame index | **Default for new stores** — streaming decrypt with AAD binding |
+| `framed-v2` | Bounded frames | Slug + frame index | Default for fixed-chunk stores — streaming decrypt with AAD binding |
+| `convergent-v1` | Per-chunk deterministic | Derived from content hash | **Default for CDC + encryption** — preserves deduplication across encrypted stores |
 
 **Envelope encryption** wraps a random Data Encryption Key (DEK) with one or more Key Encryption Keys (KEKs). Each recipient is labeled, enabling multi-recipient access to the same encrypted content. Key rotation replaces the KEK wrapping without re-encrypting data blobs.
 
@@ -171,7 +172,7 @@ Beyond the core encryption primitives, `git-cas` enforces a set of defensive lim
 
 | Surface | Streaming API? | Non-streaming API? | Notes |
 |---|---|---|---|
-| Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. New encrypted stores default to `framed-v2`, which writes framed records with per-frame AAD binding and stays bounded by `frameBytes`. `whole-v1`/`framed-v1` remain available as explicit compatibility opt-outs. |
+| Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. CDC + encryption defaults to `convergent-v1` (per-chunk deterministic encryption preserving dedup). Fixed + encryption defaults to `framed-v2`. `whole-v1`/`framed-v1` remain available as explicit compatibility opt-outs. |
 | Read: plaintext | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True chunk-by-chunk streaming restore. |
 | Read: encrypted `whole-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is the buffered compatibility path. `restoreFile()` uses a bounded temp-file path: verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption, and renames into place only after auth succeeds. On Web Crypto runtimes this decrypt step is still one-shot internally, bounded by `maxDecryptionBufferSize`. |
 | Read: encrypted `whole-v2` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Same as `whole-v1` with additional AAD binding (slug + frame index). On Node and Bun, `restoreFile()` has the stronger low-memory path; on Web Crypto runtimes such as Deno, remains bounded-buffer. |
@@ -179,7 +180,9 @@ Beyond the core encryption primitives, `git-cas` enforces a set of defensive lim
 | Read: compressed-only | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` still buffers gzip restore today. `restoreFile()` streams gunzip output through a bounded temp-file path. |
 | Read: compressed + `whole-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is buffered because auth completes at the end of whole-object AES-GCM. `restoreFile()` decrypts and gunzips through the bounded temp-file path. |
 | Read: compressed + `framed-v1`/`framed-v2` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Streaming decrypt, then streaming gunzip. |
-| Verify | No streaming verify surface | `verifyIntegrity(manifest, options?)` | Verifies chunk digests for all content. `whole-v1`/`whole-v2` auth-checks the full ciphertext; `framed-v1`/`framed-v2` parses and auth-checks every frame. |
+| Read: encrypted `convergent-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True per-chunk streaming restore. Each chunk is decrypted individually using a key derived from its content hash. |
+| Read: compressed + `convergent-v1` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Per-chunk convergent decrypt, then streaming gunzip. |
+| Verify | No streaming verify surface | `verifyIntegrity(manifest, options?)` | Verifies chunk digests for all content. `whole-v1`/`whole-v2` auth-checks the full ciphertext; `framed-v1`/`framed-v2` parses and auth-checks every frame; `convergent-v1` decrypts each chunk and verifies plaintext digests. |
 
 Runtime note: `framed-v2` is the honest cross-runtime streaming answer. On Node and Bun, `whole-v2 restoreFile()` has the stronger low-memory path; on Web Crypto runtimes such as Deno, `whole-v2` remains bounded-buffer rather than true streaming.
 
