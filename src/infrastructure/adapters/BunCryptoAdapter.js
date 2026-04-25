@@ -6,7 +6,7 @@ import scryptMaxmem from '../../domain/helpers/scryptMaxmem.js';
 import validateAesGcmMeta, { AES_GCM_ALGORITHM, AES_GCM_TAG_BYTES } from '../../helpers/aesGcmMeta.js';
 // We still use node:crypto for AES-GCM because Bun's native implementation
 // is heavily optimized for these specific Node APIs.
-import { createCipheriv, createDecipheriv, pbkdf2, scrypt } from 'node:crypto';
+import { createHmac, createCipheriv, createDecipheriv, pbkdf2, scrypt } from 'node:crypto';
 import { promisify } from 'node:util';
 
 function wrapDecryptError(err) {
@@ -190,5 +190,10 @@ export default class BunCryptoAdapter extends CryptoPort {
       p: parallelization,
       maxmem: scryptMaxmem({ cost, blockSize, parallelization, keyLength }),
     });
+  }
+
+  /** @override */
+  hmacSha256(key, data) {
+    return createHmac('sha256', key).update(data).digest();
   }
 }

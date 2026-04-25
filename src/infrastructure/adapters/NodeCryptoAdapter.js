@@ -1,4 +1,4 @@
-import { createHash, createCipheriv, createDecipheriv, randomBytes, pbkdf2, scrypt } from 'node:crypto';
+import { createHash, createHmac, createCipheriv, createDecipheriv, randomBytes, pbkdf2, scrypt } from 'node:crypto';
 import { promisify } from 'node:util';
 import CryptoPort from '../../ports/CryptoPort.js';
 import CasError from '../../domain/errors/CasError.js';
@@ -181,5 +181,10 @@ export default class NodeCryptoAdapter extends CryptoPort {
       p: parallelization,
       maxmem: scryptMaxmem({ cost, blockSize, parallelization, keyLength }),
     });
+  }
+
+  /** @override */
+  hmacSha256(key, data) {
+    return createHmac('sha256', key).update(data).digest();
   }
 }

@@ -20,3 +20,9 @@ architectural contract and would break in a browser environment.
 2. Implement in `NodeCryptoAdapter`, `BunCryptoAdapter`, and `WebCryptoAdapter`
 3. WebCrypto adapter uses `crypto.subtle.sign('HMAC', ...)` with imported key
 4. Remove `node:crypto` import from CryptoPort
+
+## Status
+
+- [x] Resolved — `security/audit-fixes` branch
+- Note: WebCryptoAdapter uses node:crypto createHmac (sync) since Deno supports
+  it. A true browser adapter would need async HMAC via crypto.subtle.sign.

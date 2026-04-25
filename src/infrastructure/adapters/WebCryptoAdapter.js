@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import CryptoPort from '../../ports/CryptoPort.js';
 import CasError from '../../domain/errors/CasError.js';
 import scryptMaxmem from '../../domain/helpers/scryptMaxmem.js';
@@ -330,4 +331,8 @@ export default class WebCryptoAdapter extends CryptoPort {
     return globalThis.btoa(String.fromCharCode(...new Uint8Array(buf)));
   }
 
+  /** @override */
+  hmacSha256(key, data) {
+    return createHmac('sha256', key).update(data).digest();
+  }
 }
