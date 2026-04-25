@@ -3,6 +3,7 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
@@ -42,6 +43,7 @@ function buildService(writeBlobImpl) {
     chunkSize: 1024,
     concurrency: 1,
     chunker: createPassthroughChunker(),
+    compressionAdapter: new NodeCompressionAdapter(),
     observability,
   });
 

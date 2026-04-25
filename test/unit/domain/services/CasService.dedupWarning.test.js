@@ -4,6 +4,7 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CdcChunker from '../../../../src/infrastructure/chunkers/CdcChunker.js';
 import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
@@ -23,6 +24,7 @@ function makeService(chunker, observability) {
     chunkSize: 1024,
     observability,
     chunker,
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 }
 

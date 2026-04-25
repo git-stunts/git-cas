@@ -3,6 +3,8 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
@@ -15,12 +17,22 @@ function makeService(chunkSize, observability) {
     codec: new JsonCodec(),
     chunkSize,
     observability: observability || new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 }
 
 describe('CasService — chunk size upper bound', () => {
   it('throws when chunkSize > 100 MiB', () => {
-    expect(() => makeService(100 * MiB + 1)).toThrow(/chunkSize must be an integer in/i);
+    expect(() => new CasService({
+      persistence: { writeBlob: vi.fn(), writeTree: vi.fn(), readBlob: vi.fn() },
+      crypto: testCrypto,
+      codec: new JsonCodec(),
+      chunkSize: 100 * MiB + 1,
+      observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 256 * 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
+    })).toThrow(/chunkSize must be an integer in/i);
   });
 
   it('accepts exactly 100 MiB', () => {

@@ -5,6 +5,8 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
@@ -34,6 +36,8 @@ function setup(concurrency = 1) {
     observability: new SilentObserver(),
     chunkSize: 1024,
     concurrency,
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 
   return { crypto, blobStore, mockPersistence, service };
@@ -129,6 +133,7 @@ function setupBackpressureHarness() {
     chunkSize: 1024,
     concurrency: 2,
     chunker: createPassthroughChunker(),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 
   return { service, source, mockPersistence, releasePendingWrites, getPulledCount };

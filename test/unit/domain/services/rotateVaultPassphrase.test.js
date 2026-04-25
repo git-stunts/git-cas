@@ -13,6 +13,8 @@ import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserv
 import { createGitPlumbing } from '../../../../src/infrastructure/createGitPlumbing.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import rotateVaultPassphrase from '../../../../src/domain/services/rotateVaultPassphrase.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 
 const LONG_TEST_TIMEOUT_MS = 60000;
@@ -35,6 +37,7 @@ async function createDeps(repoDir) {
   const ref = new GitRefAdapter({ plumbing });
   const service = new CasService({
     persistence, codec: new JsonCodec(), crypto, observability: new SilentObserver(), chunkSize: 1024,
+    chunker: new FixedChunker({ chunkSize: 1024 }), compressionAdapter: new NodeCompressionAdapter(),
   });
   const vault = new VaultService({ persistence, ref, crypto, observability: new SilentObserver() });
   return { service, vault };

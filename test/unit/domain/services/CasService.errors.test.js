@@ -6,6 +6,8 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
@@ -34,6 +36,8 @@ function createBlobBackedService() {
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 
   return { service, blobStore, crypto };
@@ -89,6 +93,8 @@ describe('CasService – constructor – chunkSize validation', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
     expect(service.chunkSize).toBe(1024);
   });
@@ -108,6 +114,8 @@ describe('CasService – store – mutual exclusion and validation', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
   });
 
@@ -149,6 +157,8 @@ describe('CasService – restore – mutual exclusion', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
   });
 
@@ -202,6 +212,8 @@ describe('CasService – store', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
 
     await expect(
@@ -240,6 +252,8 @@ describe('CasService – verifyIntegrity (plain)', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
 
     const manifest = new Manifest({
@@ -274,6 +288,8 @@ describe('CasService – verifyIntegrity (encrypted without credentials)', () =>
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
 
     async function* source() { yield Buffer.from('encrypted verify requires auth'); }
@@ -358,6 +374,8 @@ describe('CasService – verifyIntegrity (encrypted scheme routing)', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
 
     async function* source() { yield Buffer.from('encrypted verify detects unknown scheme'); }
@@ -393,6 +411,8 @@ describe('CasService – createTree', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
 
     // A plain object that lacks .toJSON() and .chunks
@@ -408,6 +428,8 @@ describe('CasService – createTree', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
 
     const badManifest = { toJSON: 'not-a-function', chunks: [] };

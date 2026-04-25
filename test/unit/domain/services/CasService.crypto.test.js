@@ -4,29 +4,37 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
+
+function createCryptoTestFixtures() {
+  const mockPersistence = {
+    writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
+  };
+  const service = new CasService({
+    persistence: mockPersistence,
+    crypto: testCrypto,
+    codec: new JsonCodec(),
+    chunkSize: 1024,
+    observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
+  });
+  return { mockPersistence, service };
+}
 
 // ---------------------------------------------------------------------------
 // 1. Round-trip golden path
 // ---------------------------------------------------------------------------
 describe('CasService encryption – round-trip golden path', () => {
   let service;
-  let mockPersistence;
 
   beforeEach(() => {
-    mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-      writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
-      readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
-    };
-    service = new CasService({
-      persistence: mockPersistence,
-      crypto: testCrypto,
-      codec: new JsonCodec(),
-      chunkSize: 1024,
-      observability: new SilentObserver(),
-    });
+    ({ service } = createCryptoTestFixtures());
   });
 
   const key = randomBytes(32);
@@ -65,21 +73,9 @@ describe('CasService encryption – round-trip golden path', () => {
 // ---------------------------------------------------------------------------
 describe('CasService encryption – wrong key and tampered ciphertext', () => {
   let service;
-  let mockPersistence;
 
   beforeEach(() => {
-    mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-      writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
-      readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
-    };
-    service = new CasService({
-      persistence: mockPersistence,
-      crypto: testCrypto,
-      codec: new JsonCodec(),
-      chunkSize: 1024,
-      observability: new SilentObserver(),
-    });
+    ({ service } = createCryptoTestFixtures());
   });
 
   it('throws INTEGRITY_ERROR when decrypting with a different key', async () => {
@@ -114,21 +110,9 @@ describe('CasService encryption – wrong key and tampered ciphertext', () => {
 // ---------------------------------------------------------------------------
 describe('CasService encryption – tampered auth tag', () => {
   let service;
-  let mockPersistence;
 
   beforeEach(() => {
-    mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-      writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
-      readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
-    };
-    service = new CasService({
-      persistence: mockPersistence,
-      crypto: testCrypto,
-      codec: new JsonCodec(),
-      chunkSize: 1024,
-      observability: new SilentObserver(),
-    });
+    ({ service } = createCryptoTestFixtures());
   });
 
   it('throws INTEGRITY_ERROR when the auth tag is modified', async () => {
@@ -152,21 +136,9 @@ describe('CasService encryption – tampered auth tag', () => {
 // ---------------------------------------------------------------------------
 describe('CasService encryption – tampered nonce', () => {
   let service;
-  let mockPersistence;
 
   beforeEach(() => {
-    mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-      writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
-      readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
-    };
-    service = new CasService({
-      persistence: mockPersistence,
-      crypto: testCrypto,
-      codec: new JsonCodec(),
-      chunkSize: 1024,
-      observability: new SilentObserver(),
-    });
+    ({ service } = createCryptoTestFixtures());
   });
 
   it('throws INTEGRITY_ERROR when the nonce is modified', async () => {
@@ -190,21 +162,9 @@ describe('CasService encryption – tampered nonce', () => {
 // ---------------------------------------------------------------------------
 describe('CasService encryption – passthrough', () => {
   let service;
-  let mockPersistence;
 
   beforeEach(() => {
-    mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-      writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
-      readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
-    };
-    service = new CasService({
-      persistence: mockPersistence,
-      crypto: testCrypto,
-      codec: new JsonCodec(),
-      chunkSize: 1024,
-      observability: new SilentObserver(),
-    });
+    ({ service } = createCryptoTestFixtures());
   });
 
   it('returns buffer unchanged when meta.encrypted is false', async () => {
@@ -225,21 +185,9 @@ describe('CasService encryption – passthrough', () => {
 // ---------------------------------------------------------------------------
 describe('CasService encryption – fuzz round-trip', () => {
   let service;
-  let mockPersistence;
 
   beforeEach(() => {
-    mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-      writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
-      readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
-    };
-    service = new CasService({
-      persistence: mockPersistence,
-      crypto: testCrypto,
-      codec: new JsonCodec(),
-      chunkSize: 1024,
-      observability: new SilentObserver(),
-    });
+    ({ service } = createCryptoTestFixtures());
   });
 
   const key = randomBytes(32);
@@ -265,21 +213,9 @@ describe('CasService encryption – fuzz round-trip', () => {
 // ---------------------------------------------------------------------------
 describe('CasService encryption – fuzz tamper', () => {
   let service;
-  let mockPersistence;
 
   beforeEach(() => {
-    mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-      writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
-      readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
-    };
-    service = new CasService({
-      persistence: mockPersistence,
-      crypto: testCrypto,
-      codec: new JsonCodec(),
-      chunkSize: 1024,
-      observability: new SilentObserver(),
-    });
+    ({ service } = createCryptoTestFixtures());
   });
 
   const key = randomBytes(32);

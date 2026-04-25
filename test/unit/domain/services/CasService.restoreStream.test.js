@@ -5,6 +5,8 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
 import EventEmitterObserver from '../../../../src/infrastructure/adapters/EventEmitterObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
@@ -46,6 +48,8 @@ function setup(opts = {}) {
     codec: new JsonCodec(),
     observability: opts.observability || new SilentObserver(),
     chunkSize: 1024,
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 
   return { crypto, blobStore, mockPersistence, service };
@@ -237,6 +241,8 @@ describe('restoreStream – framed-v1 streaming behavior', () => {
       codec: new JsonCodec(),
       observability: new SilentObserver(),
       chunkSize: 1024,
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
 
     const manifest = await storeBuffer(service, original, {

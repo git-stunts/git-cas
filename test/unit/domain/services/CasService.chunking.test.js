@@ -7,6 +7,7 @@ import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserv
 import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
 import CdcChunker from '../../../../src/infrastructure/chunkers/CdcChunker.js';
 import ChunkingPort from '../../../../src/ports/ChunkingPort.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
@@ -51,14 +52,16 @@ function makeContentStore() {
 
 function setup(opts = {}) {
   const { crypto, blobStore, mockPersistence } = makeContentStore();
+  const chunkSize = opts.chunkSize || 1024;
   const service = new CasService({
     persistence: mockPersistence,
     crypto,
     codec: new JsonCodec(),
     observability: new SilentObserver(),
-    chunkSize: opts.chunkSize || 1024,
+    chunkSize,
     concurrency: opts.concurrency || 1,
-    chunker: opts.chunker,
+    chunker: opts.chunker || new FixedChunker({ chunkSize }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
   return { crypto, blobStore, mockPersistence, service };
 }

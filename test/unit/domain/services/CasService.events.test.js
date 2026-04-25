@@ -5,6 +5,8 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import EventEmitterObserver from '../../../../src/infrastructure/adapters/EventEmitterObserver.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 
 const testCrypto = await getTestCryptoAdapter();
@@ -36,6 +38,8 @@ function setup() {
     codec: new JsonCodec(),
     observability: observer,
     chunkSize: 1024,
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 
   return { crypto, blobStore, mockPersistence, service, observer };
@@ -227,6 +231,8 @@ function setupSilent() {
   return new CasService({
     persistence: mockPersistence, crypto, codec: new JsonCodec(),
     observability: new SilentObserver(), chunkSize: 1024,
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 }
 

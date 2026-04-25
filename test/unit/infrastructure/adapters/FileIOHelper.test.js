@@ -6,6 +6,8 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 import { storeFile, restoreFile } from '../../../../src/infrastructure/adapters/FileIOHelper.js';
 
 const testCrypto = await getTestCryptoAdapter();
@@ -59,6 +61,8 @@ function createBlobBackedService({ chunkSize = 1024, maxRestoreBufferSize } = {}
     chunkSize,
     maxRestoreBufferSize,
     observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 
   return { service, blobStore };

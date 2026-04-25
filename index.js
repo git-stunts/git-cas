@@ -17,6 +17,7 @@ import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
 import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
 import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
+import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
 import NodeCompressionAdapter from './src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 // ---------------------------------------------------------------------------
@@ -106,10 +107,12 @@ export default class ContentAddressableStore {
       policy: cfg.policy,
     });
     const crypto = cfg.crypto || await createCryptoAdapter();
-    const chunker = resolveChunker({ chunker: cfg.chunker, chunking: cfg.chunking });
+    const chunkSize = cfg.chunkSize || 256 * 1024;
+    const chunker = resolveChunker({ chunker: cfg.chunker, chunking: cfg.chunking })
+      || new FixedChunker({ chunkSize });
     this.service = new CasService({
       persistence,
-      chunkSize: cfg.chunkSize,
+      chunkSize,
       codec: cfg.codec || new JsonCodec(),
       crypto,
       observability: cfg.observability || new SilentObserver(),

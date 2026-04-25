@@ -19,3 +19,7 @@ not hard-coded in the domain service.
 1. Make `chunker` and `compressionAdapter` required constructor params (no defaults)
 2. Move the default wiring to `ContentAddressableStore` facade in `index.js`
 3. Remove the infrastructure imports from CasService
+
+## Status
+
+- [x] Resolved — `security/audit-fixes` branch

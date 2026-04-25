@@ -7,10 +7,8 @@ import Manifest from '../value-objects/Manifest.js';
 import { ChunkSchema } from '../schemas/ManifestSchema.js';
 import CasError from '../errors/CasError.js';
 import Semaphore from './Semaphore.js';
-import FixedChunker from '../../infrastructure/chunkers/FixedChunker.js';
 import KeyResolver from './KeyResolver.js';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
-import NodeCompressionAdapter from '../../infrastructure/adapters/NodeCompressionAdapter.js';
 
 /**
  * Builds AAD for whole-v2 encryption: UTF-8 bytes of the slug.
@@ -93,10 +91,16 @@ export default class CasService {
     if (chunkSize > 10 * 1024 * 1024) {
       observability.log('warn', `Chunk size ${chunkSize} exceeds 10 MiB — consider a smaller value`, { chunkSize });
     }
+    if (!chunker) {
+      throw new Error('chunker is required — inject a ChunkingPort instance');
+    }
+    if (!compressionAdapter) {
+      throw new Error('compressionAdapter is required — inject a CompressionPort instance');
+    }
     /** @type {import('../../ports/ChunkingPort.js').default} */
-    this.chunker = chunker || new FixedChunker({ chunkSize });
+    this.chunker = chunker;
     /** @type {import('../../ports/CompressionPort.js').default} */
-    this.compressionAdapter = compressionAdapter || new NodeCompressionAdapter();
+    this.compressionAdapter = compressionAdapter;
     this.merkleThreshold = merkleThreshold;
     this.concurrency = concurrency;
     this.maxRestoreBufferSize = maxRestoreBufferSize;
