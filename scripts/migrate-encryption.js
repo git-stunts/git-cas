@@ -1,17 +1,15 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
 /**
- * @fileoverview Migration script for legacy encryption schemes.
+ * @fileoverview Legacy encryption scheme mapping — stub/library module.
  *
- * Reads manifests with v1/v2 scheme identifiers, decrypts using legacy
- * logic (no AAD for v1, slug-based AAD for v2), and re-stores using
- * current scheme names with AAD always on.
+ * Exports the canonical mapping from legacy v1/v2 scheme identifiers to
+ * their current simplified names. This is the ONLY place legacy scheme
+ * strings are enumerated outside of tests.
  *
- * Usage:
- *   node scripts/migrate-encryption.js --repo <path> --passphrase <pass>
- *
- * This is the ONLY place legacy decode logic lives. The main src/ codebase
- * throws LEGACY_SCHEME if it encounters v1/v2 identifiers.
+ * Full migration orchestration (reading manifests, decrypting with legacy
+ * logic, and re-storing under current schemes) is not yet implemented.
+ * See the CLI entry point below for usage notes.
  */
 
 const LEGACY_SCHEME_MAP = {

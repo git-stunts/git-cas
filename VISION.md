@@ -71,4 +71,4 @@ The system is built for automation. Agentic CLI surfaces and JSONL protocols ens
 No single mechanism is trusted to stand alone. Chunk integrity guards the data. Manifest hashes guard the structure. AAD binding guards the cryptographic context. KDF policy enforcement guards the key material. Schema validation guards the protocol boundary. Timing oracle elimination guards the side channels. Every layer assumes the others have already failed.
 
 ---
-**The goal is inevitably. Git, freebased: pure CAS that stays in your repository.**
+**The goal is inevitability. Git, freebased: pure CAS that stays in your repository.**

@@ -296,6 +296,16 @@ export default class VaultService {
         entries.set(slug, oid);
       }
     }
+
+    if (entries.size < parsed.entries.size) {
+      const unmatchedCount = parsed.entries.size - entries.size;
+      this.observability.log(
+        'warn',
+        `Privacy index resolution: ${unmatchedCount} tree entries had no matching slug — potential corruption`,
+        { unmatchedCount, treeEntryCount: parsed.entries.size, resolvedCount: entries.size },
+      );
+    }
+
     return entries;
   }
 
@@ -554,7 +564,7 @@ export default class VaultService {
    * Encrypts the privacy index (slug→hmacName mapping).
    * @param {Map<string, string>} slugToHmac - Slug→HMAC name mapping.
    * @param {Buffer} encryptionKey - 32-byte vault encryption key.
-   * @returns {Promise<{ blob: Buffer, meta: import('../../ports/CryptoPort.js').EncryptionMeta }>}
+   * @returns {Promise<{ buf: Buffer, meta: import('../../ports/CryptoPort.js').EncryptionMeta }>}
    */
   async #encryptPrivacyIndex(slugToHmac, encryptionKey) {
     const json = JSON.stringify(Object.fromEntries(slugToHmac));

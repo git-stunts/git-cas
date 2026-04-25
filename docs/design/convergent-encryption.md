@@ -1,3 +1,7 @@
+> **Note**: This design doc predates the scheme simplification. The scheme was
+> shipped as `convergent`, not `convergent-v1` as proposed here. See
+> `docs/design/scheme-simplification.md` for the final naming.
+
 # Design: Convergent Encryption
 
 ## Problem

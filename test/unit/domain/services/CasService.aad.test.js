@@ -67,16 +67,16 @@ function setup() {
 }
 
 // ---------------------------------------------------------------------------
-// whole-v2 round-trip
+// whole round-trip
 // ---------------------------------------------------------------------------
-describe('CasService AAD – whole-v2 round-trip', () => {
+describe('CasService AAD – whole round-trip', () => {
   let service;
 
   beforeEach(() => {
     ({ service } = setup());
   });
 
-  it('defaults to whole-v2 scheme for new encrypted stores', async () => {
+  it('defaults to whole scheme for new encrypted stores', async () => {
     const key = randomBytes(32);
     const original = Buffer.from('hello aad world');
     const manifest = await storeBuffer(service, original, {
@@ -87,7 +87,7 @@ describe('CasService AAD – whole-v2 round-trip', () => {
     expect(manifest.encryption.scheme).toBe('whole');
   });
 
-  it('round-trips whole-v2 encrypted content', async () => {
+  it('round-trips whole encrypted content', async () => {
     const key = randomBytes(32);
     const original = Buffer.from('hello aad world');
     const manifest = await storeBuffer(service, original, {
@@ -99,7 +99,7 @@ describe('CasService AAD – whole-v2 round-trip', () => {
     expect(buffer.equals(original)).toBe(true);
   });
 
-  it('round-trips multi-chunk whole-v2 content', async () => {
+  it('round-trips multi-chunk whole content', async () => {
     const key = randomBytes(32);
     const original = randomBytes(3 * 1024);
     const manifest = await storeBuffer(service, original, {
@@ -114,9 +114,9 @@ describe('CasService AAD – whole-v2 round-trip', () => {
 });
 
 // ---------------------------------------------------------------------------
-// whole-v2 tamper detection — slug AAD mismatch
+// whole tamper detection — slug AAD mismatch
 // ---------------------------------------------------------------------------
-describe('CasService AAD – whole-v2 tamper detection', () => {
+describe('CasService AAD – whole tamper detection', () => {
   let service;
 
   beforeEach(() => {
@@ -144,16 +144,16 @@ describe('CasService AAD – whole-v2 tamper detection', () => {
 });
 
 // ---------------------------------------------------------------------------
-// framed-v2 round-trip
+// framed round-trip
 // ---------------------------------------------------------------------------
-describe('CasService AAD – framed-v2 round-trip', () => {
+describe('CasService AAD – framed round-trip', () => {
   let service;
 
   beforeEach(() => {
     ({ service } = setup());
   });
 
-  it('stores with framed-v2 scheme', async () => {
+  it('stores with framed scheme', async () => {
     const key = randomBytes(32);
     const original = randomBytes(3 * 1024);
     const manifest = await storeBuffer(service, original, {
@@ -164,7 +164,7 @@ describe('CasService AAD – framed-v2 round-trip', () => {
     expect(manifest.encryption.scheme).toBe('framed');
   });
 
-  it('round-trips framed-v2 encrypted content', async () => {
+  it('round-trips framed encrypted content', async () => {
     const key = randomBytes(32);
     const original = randomBytes(3 * 1024);
     const manifest = await storeBuffer(service, original, {
@@ -178,9 +178,9 @@ describe('CasService AAD – framed-v2 round-trip', () => {
 });
 
 // ---------------------------------------------------------------------------
-// framed-v2 tamper detection — slug AAD mismatch
+// framed tamper detection — slug AAD mismatch
 // ---------------------------------------------------------------------------
-describe('CasService AAD – framed-v2 tamper detection', () => {
+describe('CasService AAD – framed tamper detection', () => {
   let service;
 
   beforeEach(() => {

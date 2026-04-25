@@ -385,7 +385,7 @@ Compare two manifests to find added, removed, and unchanged chunks. This is a pu
 ### Library
 
 ```js
-// Instance method
+// Static method
 const diff = cas.diffManifests(oldManifest, newManifest);
 
 // Static method (no CasService instance needed)
@@ -530,7 +530,7 @@ Returns metadata without performing a full restore:
 
 ```js
 const info = await cas.inspectAsset({ treeOid });
-// => { slug: 'photos/vacation', chunksOrphaned: 0 }
+// => { slug: 'photos/vacation', chunksOrphaned: 4 }
 ```
 
 ### Integrity Verification
@@ -735,7 +735,7 @@ Machine-facing commands for CI/CD and agentic workflows. Run `git-cas agent --he
 | `chunker` | `ChunkingPort` | `FixedChunker` | Pre-built chunker instance (advanced) |
 | `maxRestoreBufferSize` | `number` | `536870912` (512 MiB) | Max bytes for buffered restore |
 | `compressionAdapter` | `CompressionPort` | `NodeCompressionAdapter` | Compression adapter |
-| `formatVersion` | `string` | Package version | Semver string stamped into new manifests |
+| `formatVersion` | `string` | Package version | Semver string stamped into new manifests. Auto-set from package.json when using the facade. Only configurable via CasService directly. |
 
 ### Encryption Options (Store)
 

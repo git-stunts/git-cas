@@ -414,7 +414,7 @@ I/O, no ports, and no state -- just set algebra over chunk arrays.
 ### Example
 
 ```js
-import { CasService } from '@git-stunts/cas/service';
+import { CasService } from '@git-stunts/git-cas/service';
 
 const oldManifest = await cas.readManifest({ treeOid: oldOid });
 const newManifest = await cas.readManifest({ treeOid: newOid });

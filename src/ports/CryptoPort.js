@@ -1,5 +1,5 @@
 import CasError from '../domain/errors/CasError.js';
-import { normalizeKdfOptions } from '../helpers/kdfPolicy.js';
+import { normalizeKdfOptions, assertKdfPolicy } from '../helpers/kdfPolicy.js';
 
 /**
  * Encryption metadata returned by AES-256-GCM operations.
@@ -140,6 +140,7 @@ export default class CryptoPort {
       parallelization,
       keyLength,
     });
+    assertKdfPolicy(normalized, { source: 'deriveKey' });
     const saltBuf = salt || this.randomBytes(32);
 
     /** @type {KdfParamSet} */

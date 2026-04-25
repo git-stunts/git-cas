@@ -20,7 +20,10 @@ import type {
 } from "./src/domain/services/CasService.js";
 
 export { CasService, Manifest, Chunk };
-export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, EncryptionScheme, CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CompressionPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, StoreEncryptionOptions, VerifyIntegrityOptions };
+/** Type alias mapping the runtime `CompressionPort` export to its base class declaration. */
+export type CompressionPort = CompressionPortBase;
+
+export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, EncryptionScheme, CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, StoreEncryptionOptions, VerifyIntegrityOptions };
 
 /** Abstract port for compression and decompression of buffers and streams. */
 export declare class CompressionPortBase {
@@ -65,12 +68,28 @@ export declare class CryptoPortBase {
   encryptBuffer(
     buffer: Buffer,
     key: Buffer,
+    aad?: Buffer,
   ): { buf: Buffer; meta: EncryptionMeta } | Promise<{ buf: Buffer; meta: EncryptionMeta }>;
-  decryptBuffer(buffer: Buffer, key: Buffer, meta: EncryptionMeta): Buffer | Promise<Buffer>;
-  createEncryptionStream(key: Buffer): {
+  decryptBuffer(buffer: Buffer, key: Buffer, meta: EncryptionMeta, aad?: Buffer): Buffer | Promise<Buffer>;
+  createEncryptionStream(key: Buffer, aad?: Buffer): {
     encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
     finalize: () => EncryptionMeta;
   };
+  createDecryptionStream(key: Buffer, meta: EncryptionMeta, aad?: Buffer): {
+    decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
+  };
+  hmacSha256(key: Buffer, data: Buffer | string): Buffer;
+  encryptBufferWithNonce(
+    buffer: Buffer,
+    key: Buffer,
+    nonce: Buffer,
+  ): { buf: Buffer; tag: Buffer } | Promise<{ buf: Buffer; tag: Buffer }>;
+  decryptBufferWithNonceTag(
+    buffer: Buffer,
+    key: Buffer,
+    nonce: Buffer,
+    tag: Buffer,
+  ): Buffer | Promise<Buffer>;
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }
 
@@ -79,6 +98,7 @@ export declare class GitPersistencePortBase {
   writeBlob(content: Buffer | string): Promise<string>;
   writeTree(entries: string[]): Promise<string>;
   readBlob(oid: string): Promise<Buffer>;
+  readBlobStream(oid: string): Promise<AsyncIterable<Buffer>>;
   readTree(
     treeOid: string,
   ): Promise<Array<{ mode: string; type: string; oid: string; name: string }>>;
@@ -184,6 +204,8 @@ export interface ContentAddressableStoreOptions {
   concurrency?: number;
   chunking?: ChunkingConfig;
   chunker?: ChunkingPort;
+  /** Compression adapter (default NodeCompressionAdapter). */
+  compressionAdapter?: CompressionPortBase;
   /** Maximum bytes to buffer during encrypted/compressed restore. @default 536870912 (512 MiB) */
   maxRestoreBufferSize?: number;
 }
@@ -275,6 +297,24 @@ export declare class VaultService {
   getVaultMetadata(): Promise<VaultMetadata | null>;
 }
 
+/** Result of comparing two manifests by chunk digest. */
+export interface ManifestDiffResult {
+  added: Chunk[];
+  removed: Chunk[];
+  unchanged: Chunk[];
+  summary: {
+    addedCount: number;
+    removedCount: number;
+    unchangedCount: number;
+    addedBytes: number;
+    removedBytes: number;
+    unchangedBytes: number;
+  };
+}
+
+/** Compares two manifests by chunk digest, returning added/removed/unchanged chunks. */
+export function diffManifests(oldManifest: Manifest, newManifest: Manifest): ManifestDiffResult;
+
 /**
  * High-level facade for the Content Addressable Store library.
  *
@@ -300,6 +340,8 @@ export default class ContentAddressableStore {
     chunkSize?: number;
     policy?: unknown;
   }): ContentAddressableStore;
+
+  static diffManifests(oldManifest: Manifest, newManifest: Manifest): ManifestDiffResult;
 
   encrypt(options: {
     buffer: Buffer;

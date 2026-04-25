@@ -117,6 +117,15 @@ describe('diffManifests – summary', () => {
 // Duplicate digests within a manifest
 // ---------------------------------------------------------------------------
 describe('diffManifests – duplicate digests', () => {
+  it('handles repeated chunks in old manifest', () => {
+    const old = manifest([chunk(0, 'a'), chunk(1, 'a')]);
+    const now = manifest([chunk(0, 'b')]);
+    const diff = diffManifests(old, now);
+    expect(diff.removed).toHaveLength(2);
+    expect(diff.added).toHaveLength(1);
+    expect(diff.unchanged).toHaveLength(0);
+  });
+
   it('handles repeated chunks in new manifest', () => {
     const old = manifest([chunk(0, 'a')]);
     const now = manifest([chunk(0, 'a'), chunk(1, 'a')]);

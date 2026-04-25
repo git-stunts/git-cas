@@ -37,6 +37,7 @@ export default class Manifest {
         : undefined;
       this.subManifests = parsed.subManifests ? parsed.subManifests.map((s) => ({ ...s })) : undefined;
       this.manifestHash = parsed.manifestHash;
+      Manifest.#deepFreeze(this);
       Object.freeze(this);
     } catch (error) {
       if (error instanceof ZodError) {
@@ -47,22 +48,58 @@ export default class Manifest {
   }
 
   /**
-   * Serializes the manifest to a plain object suitable for JSON/CBOR encoding.
+   * Deep-freezes nested mutable objects on a Manifest instance.
+   * Called before the top-level `Object.freeze(this)`.
+   * @param {Manifest} manifest
+   */
+  static #deepFreeze(manifest) {
+    if (manifest.encryption) {
+      if (manifest.encryption.kdf) { Object.freeze(manifest.encryption.kdf); }
+      if (manifest.encryption.recipients) {
+        manifest.encryption.recipients.forEach((r) => Object.freeze(r));
+        Object.freeze(manifest.encryption.recipients);
+      }
+      Object.freeze(manifest.encryption);
+    }
+    if (manifest.compression) { Object.freeze(manifest.compression); }
+    if (manifest.chunking) {
+      if (manifest.chunking.params) { Object.freeze(manifest.chunking.params); }
+      Object.freeze(manifest.chunking);
+    }
+    if (manifest.subManifests) {
+      manifest.subManifests.forEach((s) => Object.freeze(s));
+      Object.freeze(manifest.subManifests);
+    }
+    if (manifest.chunks) { Object.freeze(manifest.chunks); }
+  }
+
+  /**
+   * Serializes the manifest to a mutable plain object suitable for JSON/CBOR encoding.
+   * Returns deep copies of nested objects so callers can freely mutate the result.
    * @returns {{ slug: string, filename: string, size: number, chunks: Array, encryption?: Object }}
    */
   toJSON() {
-    return {
+    const obj = {
       version: this.version,
       formatVersion: this.formatVersion,
       slug: this.slug,
       filename: this.filename,
       size: this.size,
-      chunks: this.chunks,
-      encryption: this.encryption,
-      compression: this.compression,
-      chunking: this.chunking,
-      subManifests: this.subManifests,
+      chunks: this.chunks.map((c) => ({ ...c })),
+      encryption: this.encryption
+        ? { ...this.encryption, recipients: this.encryption.recipients?.map((r) => ({ ...r })) }
+        : undefined,
+      compression: this.compression ? { ...this.compression } : undefined,
+      chunking: this.chunking
+        ? { ...this.chunking, params: { ...this.chunking.params } }
+        : undefined,
+      subManifests: this.subManifests ? this.subManifests.map((s) => ({ ...s })) : undefined,
       manifestHash: this.manifestHash,
     };
+    // Remove undefined values for CBOR codec compatibility
+    for (const key of Object.keys(obj)) {
+      if (obj[key] === undefined) { delete obj[key]; }
+    }
+    return obj;
   }
 }

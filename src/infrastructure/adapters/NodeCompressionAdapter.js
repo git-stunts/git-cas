@@ -27,9 +27,14 @@ export default class NodeCompressionAdapter extends CompressionPort {
   async *compressStream(source) {
     const gz = createGzip();
     const input = Readable.from(source);
-    const compressed = input.pipe(gz);
-    for await (const chunk of compressed) {
-      yield chunk;
+    input.on('error', (error) => { gz.destroy(error); });
+    input.pipe(gz);
+    try {
+      for await (const chunk of gz) {
+        yield chunk;
+      }
+    } finally {
+      if (!gz.destroyed) { gz.destroy(); }
     }
   }
 

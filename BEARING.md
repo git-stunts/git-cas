@@ -103,8 +103,8 @@ These were the active tensions from the previous bearing. All resolved.
   AES-256-GCM primitives through well-tested runtime APIs, but the framing
   protocol, AAD binding scheme, convergent derivation, and KDF policy have not
   been formally audited by a third party.
-- **Framed encryption overhead.** Per-frame AES-GCM authentication adds 28
-  bytes (12-byte nonce + 16-byte tag) per frame. For small `frameBytes` values
+- **Framed encryption overhead.** Per-frame AES-GCM authentication adds 32
+  bytes (4-byte length + 12-byte nonce + 16-byte tag) per frame. For small `frameBytes` values
   this overhead is non-trivial. There is no adaptive frame sizing.
 
 ## Next Horizon

@@ -340,6 +340,9 @@ export default class WebCryptoAdapter extends CryptoPort {
    */
   async encryptBufferWithNonce(buffer, key, nonce) {
     this._validateKey(key);
+    if (nonce.length !== 12) {
+      throw new CasError('Nonce must be 12 bytes', 'INVALID_NONCE_LENGTH', { actual: nonce.length });
+    }
     const cryptoKey = await this.#importKey(key);
     const encrypted = await globalThis.crypto.subtle.encrypt(
       // @ts-ignore -- Uint8Array satisfies BufferSource at runtime
@@ -365,6 +368,12 @@ export default class WebCryptoAdapter extends CryptoPort {
    */
   async decryptBufferWithNonceTag(buffer, key, nonce, tag) { // eslint-disable-line max-params
     this._validateKey(key);
+    if (nonce.length !== 12) {
+      throw new CasError('Nonce must be 12 bytes', 'INVALID_NONCE_LENGTH', { actual: nonce.length });
+    }
+    if (tag.length !== 16) {
+      throw new CasError('Tag must be 16 bytes', 'INVALID_TAG_LENGTH', { actual: tag.length });
+    }
     const cryptoKey = await this.#importKey(key);
     const combined = new Uint8Array(buffer.length + tag.length);
     combined.set(new Uint8Array(buffer));

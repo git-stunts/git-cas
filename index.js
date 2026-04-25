@@ -78,12 +78,14 @@ export default class ContentAddressableStore {
    */
   constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, compressionAdapter }) {
     this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, compressionAdapter };
-    this.service = null;
+    this.#service = null;
     this.#servicePromise = null;
   }
 
   /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, compressionAdapter?: * }} */
   #config;
+  /** @type {CasService|null} */
+  #service = null;
   /** @type {VaultService|null} */
   #vault = null;
   #servicePromise = null;
@@ -115,7 +117,7 @@ export default class ContentAddressableStore {
     const chunkSize = cfg.chunkSize || 256 * 1024;
     const chunker = resolveChunker({ chunker: cfg.chunker, chunking: cfg.chunking })
       || new FixedChunker({ chunkSize });
-    this.service = new CasService({
+    this.#service = new CasService({
       persistence,
       chunkSize,
       codec: cfg.codec || new JsonCodec(),
@@ -133,9 +135,9 @@ export default class ContentAddressableStore {
       plumbing: cfg.plumbing,
       policy: cfg.policy,
     });
-    this.#vault = new VaultService({ persistence, ref, crypto, observability: this.service.observability });
+    this.#vault = new VaultService({ persistence, ref, crypto, observability: this.#service.observability });
 
-    return this.service;
+    return this.#service;
   }
 
   /**
@@ -193,7 +195,7 @@ export default class ContentAddressableStore {
    * @returns {number}
    */
   get chunkSize() {
-    return this.service?.chunkSize || this.#config.chunkSize || 256 * 1024;
+    return this.#service?.chunkSize || this.#config.chunkSize || 256 * 1024;
   }
 
   /**
@@ -333,12 +335,6 @@ export default class ContentAddressableStore {
   }
 
   /**
-   * Reads a manifest from a Git tree and returns inspection metadata.
-   * @param {Object} options
-   * @param {string} options.treeOid - Git tree OID of the asset.
-   * @returns {Promise<{ slug: string, chunksOrphaned: number }>}
-   */
-  /**
    * Compares two manifests by chunk digest.
    * Pure function — no I/O needed. Does not require initialization.
    * @param {import('./src/domain/value-objects/Manifest.js').default} oldManifest
@@ -349,6 +345,12 @@ export default class ContentAddressableStore {
     return CasService.diffManifests(oldManifest, newManifest);
   }
 
+  /**
+   * Reads a manifest from a Git tree and returns inspection metadata.
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID of the asset.
+   * @returns {Promise<{ slug: string, chunksOrphaned: number }>}
+   */
   async inspectAsset(options) {
     const service = await this.#getService();
     return await service.inspectAsset(options);

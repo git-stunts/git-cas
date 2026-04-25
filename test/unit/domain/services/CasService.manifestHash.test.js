@@ -91,8 +91,12 @@ describe('manifest integrity hash – read verifies hash', () => {
     ]);
     mockPersistence.readBlob.mockResolvedValue(Buffer.from(codec.encode(manifestData)));
 
-    await expect(service.readManifest({ treeOid: 'a'.repeat(40) }))
-      .rejects.toThrow(/integrity/i);
+    try {
+      await service.readManifest({ treeOid: 'a'.repeat(40) });
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      expect(err.code).toBe('MANIFEST_INTEGRITY_ERROR');
+    }
   });
 
   it('accepts a manifest without manifestHash (backward compat)', async () => {

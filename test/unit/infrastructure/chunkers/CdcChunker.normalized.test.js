@@ -47,7 +47,7 @@ describe('CdcChunker – normalized distribution', () => {
     targetChunkSize: 2048,
   };
 
-  // Generate deterministic pseudo-random data
+  // Generate random test data
   const data = randomBytes(256 * 1024); // 256 KiB
 
   it('normalized chunks have smaller size variance than non-normalized', async () => {
