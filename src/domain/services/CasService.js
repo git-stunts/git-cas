@@ -10,6 +10,7 @@ import Semaphore from './Semaphore.js';
 import KeyResolver from './KeyResolver.js';
 import ConvergentEncryption from './ConvergentEncryption.js';
 import diffManifests from './ManifestDiff.js';
+import prefetchChunks from './PrefetchWindow.js';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 
 /**
@@ -1585,11 +1586,32 @@ export default class CasService {
    * @param {Buffer} key - Convergent master key.
    * @returns {AsyncIterable<Buffer>}
    */
-  async *_restoreConvergentStreaming(manifest, key) {
-    let totalSize = 0;
-    for (const chunk of manifest.chunks) {
+  /**
+   * Reads and decrypts convergent-encrypted chunks, prefetching when concurrency > 1.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} key - Convergent master key.
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_iterConvergentChunks(manifest, key) {
+    const fetchFn = async (chunk) => {
       const plaintext = await this._readAndVerifyChunk(chunk, { convergentKey: key });
       this.observability.metric('chunk', { action: 'restored', index: chunk.index, size: plaintext.length, digest: chunk.digest });
+      return plaintext;
+    };
+
+    if (this.concurrency > 1) {
+      yield* prefetchChunks(manifest.chunks, fetchFn, this.concurrency);
+    } else {
+      for (const chunk of manifest.chunks) {
+        yield await fetchFn(chunk);
+      }
+    }
+  }
+
+  async *_restoreConvergentStreaming(manifest, key) {
+    let totalSize = 0;
+    for await (const plaintext of this._iterConvergentChunks(manifest, key)) {
       totalSize += plaintext.length;
       yield plaintext;
     }
@@ -1607,14 +1629,7 @@ export default class CasService {
    * @returns {AsyncIterable<Buffer>}
    */
   async *_restoreConvergentCompressed(manifest, key) {
-    const self = this;
-    const decryptedSource = (async function* convergentSource() {
-      for (const chunk of manifest.chunks) {
-        const plaintext = await self._readAndVerifyChunk(chunk, { convergentKey: key });
-        self.observability.metric('chunk', { action: 'restored', index: chunk.index, size: plaintext.length, digest: chunk.digest });
-        yield plaintext;
-      }
-    })();
+    const decryptedSource = this._iterConvergentChunks(manifest, key);
 
     let totalSize = 0;
     for await (const chunk of this._decompressStreaming(decryptedSource)) {
@@ -1628,21 +1643,24 @@ export default class CasService {
   }
 
   /**
-   * Sequentially reads and verifies stored chunk blobs.
+   * Reads and verifies stored chunk blobs, prefetching when concurrency > 1.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
    * @returns {AsyncIterable<Buffer>}
    */
   async *_iterVerifiedChunkBlobs(manifest) {
-    for (const chunk of manifest.chunks) {
+    const fetchFn = async (chunk) => {
       const blob = await this._readAndVerifyChunk(chunk);
-      this.observability.metric('chunk', {
-        action: 'restored',
-        index: chunk.index,
-        size: blob.length,
-        digest: chunk.digest,
-      });
-      yield blob;
+      this.observability.metric('chunk', { action: 'restored', index: chunk.index, size: blob.length, digest: chunk.digest });
+      return blob;
+    };
+
+    if (this.concurrency > 1) {
+      yield* prefetchChunks(manifest.chunks, fetchFn, this.concurrency);
+    } else {
+      for (const chunk of manifest.chunks) {
+        yield await fetchFn(chunk);
+      }
     }
   }
 

@@ -29,3 +29,13 @@ Fetch chunks concurrently during restore using the same Semaphore pattern.
 - Encrypted restore: framed-v1/v2 decryption is sequential (frame N depends
   on frame N-1 for nonce continuity). Parallel fetch still helps — you can
   prefetch frames ahead of decryption.
+
+## Status
+
+- [x] Implemented — `security/audit-fixes` branch
+- `PrefetchWindow.js`: 42-line async generator, sliding window, zero deps
+- Activates automatically when `concurrency > 1` on restore
+- Integrated into `_iterVerifiedChunkBlobs` (all restore paths) and
+  `_iterConvergentChunks` (convergent restore paths)
+- NOT a Semaphore — purpose-built for ordered output with bounded lookahead
+- 7 new tests (ordering, concurrency bounds, errors, data integrity)
