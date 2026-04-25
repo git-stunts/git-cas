@@ -103,49 +103,67 @@ const chunker = new CdcChunker({ targetChunkSize: 262144, normalized: false });
 
 ### Encryption Penalty
 
-CDC deduplication is **ineffective** when encryption is enabled. Ciphertext is
-pseudorandom, so there are no structural byte patterns for the rolling hash to
-latch onto. `CasService` emits a warning when CDC is combined with encryption.
-If you need both encryption and efficient storage of versioned assets, encrypt
-at the application layer and use fixed-size chunking, or accept that each
-encrypted version is stored independently.
+CDC deduplication is **ineffective** when using `whole` or `framed` encryption.
+Ciphertext is pseudorandom, so there are no structural byte patterns for the
+rolling hash to latch onto. `CasService` emits a warning when CDC is combined
+with these schemes. Use **convergent encryption** (`convergent` scheme) to
+preserve deduplication across encrypted versions -- see the
+[Convergent Encryption](#convergent-encryption) section below.
 
 ---
 
 ## Encryption Schemes
 
-`git-cas` supports four AES-256-GCM encryption schemes. All use 256-bit keys,
-96-bit random nonces, and 128-bit authentication tags.
+`git-cas` supports three AES-256-GCM encryption schemes. All use 256-bit keys,
+96-bit random nonces, and 128-bit authentication tags. AAD (Additional
+Authenticated Data) binding is always active -- there are no non-AAD variants.
 
-### whole-v1 (legacy)
+The single source of truth for scheme identifiers is
+`src/domain/encryption/schemes.js`.
+
+### Legacy Scheme Rejection
+
+The v1/v2 suffixed schemes (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`,
+`convergent-v1`) are no longer accepted. Any manifest referencing a legacy
+scheme is rejected at runtime with a `LEGACY_SCHEME` error that directs the
+user to the migration script:
+
+```
+scripts/migrate-encryption.js
+```
+
+The migration script re-encrypts manifests in-place, upgrading them to the
+current scheme identifiers.
+
+### whole
 
 Single AES-256-GCM envelope over the entire chunked ciphertext stream. The
 nonce and authentication tag are stored in the manifest's `encryption` object.
 
 - Store: plaintext source -> streaming encrypt -> chunk -> store blobs
 - Restore: read blobs -> concatenate -> single-shot decrypt -> verify tag
-- Manifest fields: `scheme: "whole-v1"`, `nonce`, `tag`
+- AAD: `Buffer.from(slug, 'utf8')` -- prevents cross-manifest blob
+  substitution by binding the ciphertext to the manifest slug
+- Manifest fields: `scheme: "whole"`, `nonce`, `tag`
 
 Limitations: the full ciphertext must fit in memory during restore (bounded by
 `maxRestoreBufferSize`, default 512 MiB). No incremental authentication.
 
-### whole-v2
-
-Same as `whole-v1`, plus **AAD binding**: the UTF-8 bytes of the manifest slug
-are passed as Additional Authenticated Data during encryption. Decryption
-fails if the slug is altered after encryption, preventing cross-manifest blob
-substitution attacks where an attacker swaps ciphertext between manifests
-with different slugs.
-
-- AAD: `Buffer.from(slug, 'utf8')`
-- Manifest fields: `scheme: "whole-v2"`, `nonce`, `tag`
-
-### framed-v1
+### framed (default for new encrypted stores)
 
 Per-frame authenticated encryption with independently verifiable records.
 Plaintext is split into fixed-size frames (default 64 KiB, max 64 MiB),
 each encrypted separately. Restore can authenticate and emit plaintext
 incrementally without buffering the full payload.
+
+**Per-frame AAD binding**:
+
+```
+AAD = slug (UTF-8) + NUL byte (0x00) + frame index (4 bytes, big-endian)
+```
+
+This prevents both slug tampering and frame reordering or deletion attacks.
+Each frame's authentication tag commits to its position within the stream.
 
 **Binary record layout** (one record per frame):
 
@@ -166,21 +184,16 @@ incrementally without buffering the full payload.
 
 Total header overhead per frame: **32 bytes**.
 
-- Manifest fields: `scheme: "framed-v1"`, `frameBytes` (no top-level nonce/tag)
+- Manifest fields: `scheme: "framed"`, `frameBytes`
 
-### framed-v2 (default for new encrypted stores)
+### convergent
 
-Same binary layout as `framed-v1`, plus **per-frame AAD binding**:
+Per-chunk deterministic encryption that preserves deduplication. Identical
+plaintext chunks always produce identical ciphertext, so CDC deduplication
+works even when encryption is enabled. See the dedicated
+[Convergent Encryption](#convergent-encryption) section below.
 
-```
-AAD = slug (UTF-8) + NUL byte (0x00) + frame index (4 bytes, big-endian)
-```
-
-This prevents both slug tampering (same as `whole-v2`) and frame reordering
-or deletion attacks. Each frame's authentication tag commits to its position
-within the stream.
-
-- Manifest fields: `scheme: "framed-v2"`, `frameBytes`
+- Manifest fields: `scheme: "convergent"`
 
 ### Why AAD Matters
 
@@ -192,17 +205,76 @@ Without AAD, an attacker with write access to the repository can:
 2. For framed schemes, reorder or remove individual frame records within the
    ciphertext stream.
 
-AAD binds the encryption to the manifest identity and (for framed-v2) the
+AAD binds the encryption to the manifest identity and (for framed) the
 frame sequence, so any such tampering causes GCM authentication failure.
 
 ### Scheme Selection
 
 | Scenario | Recommended Scheme |
 | :--- | :--- |
-| New encrypted stores | `framed-v2` (default) |
-| Large assets needing streaming restore | `framed-v1` or `framed-v2` |
-| Legacy compatibility | `whole-v1` (explicit opt-in) |
-| Slug-bound whole-object auth | `whole-v2` |
+| New encrypted stores | `framed` (default) |
+| Large assets needing streaming restore | `framed` |
+| CDC with encryption (dedup-preserving) | `convergent` |
+| Single-envelope simplicity | `whole` |
+
+### Auto-Selection
+
+When an encryption key is provided without an explicit scheme, `CasService`
+selects the scheme automatically:
+
+- If the chunker strategy is `cdc`, the `convergent` scheme is selected
+  (preserving dedup).
+- Otherwise, `framed` is selected.
+
+This can be overridden by passing `encryption.convergent: false` or by
+setting an explicit `encryption.scheme`.
+
+---
+
+## Convergent Encryption
+
+Convergent encryption is extracted as its own service
+(`src/domain/services/ConvergentEncryption.js`) and encapsulates per-chunk
+deterministic encryption where the key and nonce are derived from the
+plaintext content hash.
+
+### Key Derivation
+
+For each chunk, the master encryption key and the chunk's SHA-256 digest are
+used to derive a unique key and nonce:
+
+```
+chunkKey   = HMAC-SHA256(masterKey, "git-cas-convergent-key:<digest>")[0..31]
+chunkNonce = HMAC-SHA256(masterKey, "git-cas-convergent-nonce:<digest>")[0..11]
+```
+
+Because the derivation is deterministic, identical plaintext chunks (same
+digest) always produce the same ciphertext, preserving content-addressed
+deduplication.
+
+### Blob Format
+
+Each encrypted chunk blob is stored as:
+
+```
+ciphertext || 16-byte GCM authentication tag
+```
+
+### Restore Verification
+
+On restore, each chunk is decrypted and its plaintext SHA-256 is recomputed.
+If the recomputed digest does not match the expected digest from the manifest,
+an `INTEGRITY_ERROR` is thrown. This catches both decryption failures and
+post-decryption corruption.
+
+### Trade-offs
+
+- Deduplication is preserved across encrypted versions of the same asset.
+- Deterministic encryption means identical plaintext always yields identical
+  ciphertext, which leaks equality information. If this is a concern, use
+  `framed` or `whole` instead.
+- Convergent encryption operates post-chunk (after CDC or fixed chunking),
+  unlike `whole` and `framed` which encrypt pre-chunk.
 
 ---
 
@@ -286,6 +358,111 @@ On `readManifest()`, if the decoded manifest contains a `manifestHash` field:
 
 Old manifests without a `manifestHash` field skip verification silently. The
 field is optional in the schema and only enforced when present.
+
+---
+
+## Format Version
+
+Manifests may carry a `formatVersion` field -- a semver string (e.g.,
+`"1.0.0"`) stamped by `CasService` when the instance is constructed with a
+`formatVersion` option. This is distinct from the structural `version: 1|2`
+field that distinguishes flat manifests from Merkle manifests.
+
+```js
+const cas = new CasService({
+  persistence, codec, crypto, observability,
+  formatVersion: '6.0.0',
+});
+```
+
+When present, `formatVersion` records which release of `git-cas` produced
+the manifest. It is validated against the regex `/^\d+\.\d+\.\d+$/` by the
+manifest schema. The field is optional and omitted when `formatVersion` is
+not configured on the service.
+
+---
+
+## Manifest Diffing
+
+`CasService.diffManifests(oldManifest, newManifest)` is a static method that
+compares two manifests by chunk digest. It is a pure domain function with no
+I/O, no ports, and no state -- just set algebra over chunk arrays.
+
+### Return Value
+
+```js
+{
+  added,      // Chunks in newManifest not in oldManifest
+  removed,    // Chunks in oldManifest not in newManifest
+  unchanged,  // Chunks in both (by digest), taken from newManifest
+  summary: {
+    addedCount, removedCount, unchangedCount,
+    addedBytes, removedBytes, unchangedBytes,
+  },
+}
+```
+
+### Use Cases
+
+- **Incremental sync**: determine which chunks need to be transferred when
+  updating a previously stored asset.
+- **Storage audit**: measure how much deduplication CDC achieves across
+  versions by inspecting `unchangedBytes / totalBytes`.
+- **Garbage collection**: identify chunks that are no longer referenced after
+  an asset is updated.
+
+### Example
+
+```js
+import { CasService } from '@git-stunts/cas/service';
+
+const oldManifest = await cas.readManifest({ treeOid: oldOid });
+const newManifest = await cas.readManifest({ treeOid: newOid });
+const diff = CasService.diffManifests(oldManifest, newManifest);
+
+console.log(diff.summary);
+// { addedCount: 3, removedCount: 1, unchangedCount: 397, ... }
+```
+
+---
+
+## Parallel Chunk Restore
+
+`git-cas` uses a **PrefetchWindow** sliding window to restore chunks in
+parallel with bounded concurrency while preserving strict output ordering.
+
+### How It Works
+
+The `prefetchChunks` async generator maintains a ring buffer of
+`concurrency` in-flight fetch promises:
+
+1. **Initial fill**: the first `concurrency` chunks are fetched immediately,
+   populating the ring buffer.
+2. **Yield in order**: the yield cursor advances through the ring buffer
+   sequentially. Each slot is `await`-ed before yielding.
+3. **Slide forward**: after a slot is yielded, it is immediately refilled
+   with the next chunk fetch (if any remain), keeping the pipeline saturated.
+
+This guarantees that:
+
+- At most `concurrency` fetches are in-flight at any time (bounded memory).
+- Output order matches manifest order (no reordering).
+- Throughput scales with concurrency when I/O is the bottleneck.
+
+### Configuration
+
+Set `concurrency` on the `CasService` constructor:
+
+```js
+const cas = new CasService({
+  persistence, codec, crypto, observability,
+  concurrency: 8,  // up to 8 parallel chunk reads
+});
+```
+
+The `concurrency` option accepts an integer in `[1, 64]`. The default is `1`
+(sequential reads). Higher values benefit network-backed or high-latency
+persistence adapters.
 
 ---
 
@@ -452,6 +629,23 @@ unreachable (e.g., via history rewrite + `git gc`).
 
 ---
 
+## Streaming Decompression
+
+Plaintext and gzip-compressed restores use **streaming decompression** for all
+code paths. Compressed data is piped through the compression adapter's
+`decompressStream()` method, which processes data incrementally without
+buffering the full decompressed payload in memory. This applies to:
+
+- Plain compressed restores (no encryption)
+- Framed-encrypted + compressed restores
+- Whole-encrypted + compressed restores
+- Convergent-encrypted + compressed restores
+
+The streaming approach keeps memory usage proportional to the chunk/frame size
+rather than the total asset size.
+
+---
+
 ## CompressionPort Architecture
 
 Compression in `git-cas` is fully abstracted behind the `CompressionPort`
@@ -495,9 +689,8 @@ or browser compression adapters without changing `CasService`.
 
 ## Security Hardening Summary
 
-The following security fixes have been applied across the `v5.x` release line.
-Each row describes the fix, what it prevents, and the version that introduced
-it.
+The following security fixes have been applied across the release line. Each
+row describes the fix and what it prevents.
 
 | # | Fix | Prevents |
 | :--- | :--- | :--- |
@@ -511,13 +704,15 @@ it.
 | 8 | Manifest integrity hash (`manifestHash` field) | Silent manifest corruption or codec round-trip bugs |
 | 9 | CDC + encryption dedup warning | False confidence in dedup savings when ciphertext is pseudorandom |
 | 10 | Orphaned blob tracking on `STREAM_ERROR` / `STORE_ERROR` | Lost blob OIDs after partial store failures |
-| 11 | AAD binding (`whole-v2`, `framed-v2`) | Cross-manifest blob substitution and frame reordering attacks |
+| 11 | AAD binding (always active on all schemes) | Cross-manifest blob substitution and frame reordering attacks |
+| 12 | Legacy scheme rejection at runtime | Downgrade to weaker v1/v2 scheme variants |
+| 13 | Convergent encryption post-decrypt digest verification | Chunk substitution or corruption after decryption |
 
 ---
 
 ## Performance Baselines
 
-The following baselines are published for the current release line (`v5.3.x`).
+The following baselines are published for the current release line.
 
 | Strategy | Asset Size | Total Chunks | Store (ms) | Restore (ms) | Dedupe (%) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -533,11 +728,15 @@ The following baselines are published for the current release line (`v5.3.x`).
   does not materially affect throughput. The hash computation cost is the same;
   only the mask comparison changes. The dedup benefit comes from more
   predictable chunk sizes across versions.
-- Encryption adds per-chunk (framed) or per-stream (whole) AES-GCM overhead.
-  On hardware with AES-NI, the throughput impact is typically < 10%.
+- Encryption adds per-chunk (framed/convergent) or per-stream (whole)
+  AES-GCM overhead. On hardware with AES-NI, the throughput impact is
+  typically < 10%.
 - Compression (gzip) can significantly reduce stored size but adds CPU cost
-  proportional to the data volume. Streaming compression/decompression avoids
-  full-payload buffering for framed-encrypted or unencrypted paths.
+  proportional to the data volume. Streaming decompression avoids
+  full-payload buffering for all restore paths.
+- Parallel chunk restore (`concurrency > 1`) reduces wall-clock restore time
+  when the persistence adapter has I/O latency. Throughput scales linearly
+  up to the point where the adapter saturates.
 
 ---
 
@@ -553,10 +752,11 @@ All `CasService` constructor options with types, defaults, and bounds.
 | `observability` | `ObservabilityPort` | *required* | Must implement `metric()`, `log()`, `span()` | Metrics, logging, tracing |
 | `chunkSize` | `number` | `262144` (256 KiB) | Integer in `[1024, 104857600]` (1 KiB -- 100 MiB) | Chunk size for fixed chunking; warning above 10 MiB |
 | `merkleThreshold` | `number` | `1000` | Integer >= 1 | Chunk count above which Merkle manifests are used |
-| `concurrency` | `number` | `1` | Integer in `[1, 64]` | Max parallel chunk I/O operations |
+| `concurrency` | `number` | `1` | Integer in `[1, 64]` | Max parallel chunk I/O operations (PrefetchWindow size) |
 | `chunker` | `ChunkingPort` | `FixedChunker` | -- | Chunking strategy instance (`FixedChunker` or `CdcChunker`) |
 | `maxRestoreBufferSize` | `number` | `536870912` (512 MiB) | Integer >= 1024 | Max bytes for buffered restore (encrypted/compressed) |
 | `compressionAdapter` | `CompressionPort` | `NodeCompressionAdapter` | -- | Compression implementation |
+| `formatVersion` | `string` | -- | Semver (`/^\d+\.\d+\.\d+$/`) | Version stamp for new manifests (distinct from structural `version`) |
 
 ### store() Options
 
@@ -567,9 +767,10 @@ All `CasService` constructor options with types, defaults, and bounds.
 | `filename` | `string` | *required* | Original filename |
 | `encryptionKey` | `Buffer` | -- | 32-byte key (mutually exclusive with `passphrase` and `recipients`) |
 | `passphrase` | `string` | -- | Derive key via KDF (mutually exclusive with `encryptionKey` and `recipients`) |
-| `encryption` | `object` | -- | `{ scheme?, frameBytes? }` |
-| `encryption.scheme` | `string` | `'framed-v2'` | `'whole-v1'`, `'whole-v2'`, `'framed-v1'`, or `'framed-v2'` |
-| `encryption.frameBytes` | `number` | `65536` (64 KiB) | Frame size for framed schemes; max 64 MiB |
+| `encryption` | `object` | -- | `{ scheme?, frameBytes?, convergent? }` |
+| `encryption.scheme` | `string` | `'framed'` | `'whole'`, `'framed'`, or `'convergent'` |
+| `encryption.frameBytes` | `number` | `65536` (64 KiB) | Frame size for the `framed` scheme; max 64 MiB |
+| `encryption.convergent` | `boolean` | -- | Explicit convergent opt-in/opt-out (auto-selected for CDC chunkers) |
 | `kdfOptions` | `object` | -- | `{ algorithm?, iterations?, cost?, blockSize?, parallelization? }` |
 | `compression` | `object` | -- | `{ algorithm: 'gzip' }` |
 | `recipients` | `Array<{label, key}>` | -- | Envelope recipients (mutually exclusive with key/passphrase) |
