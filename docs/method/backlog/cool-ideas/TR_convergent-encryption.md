@@ -39,3 +39,14 @@ ciphertext = AES-256-GCM(chunkKey, nonce, plaintext)
 - Tahoe-LAFS: convergent encryption for distributed storage
 - Bitcasa: content-defined encryption keys (discontinued)
 - SDFS: dedup-aware encrypted filesystem
+
+## Status
+
+- [x] Implemented — `security/audit-fixes` branch
+- `convergent-v1` scheme: per-chunk AES-256-GCM with content-derived keys
+- Key = HMAC-SHA256(masterKey, "git-cas-convergent-key:" + digest)
+- Nonce = first 12 bytes of HMAC-SHA256(masterKey, "git-cas-convergent-nonce:" + digest)
+- Default on when CDC + encryption combined; opt-out via `convergent: false`
+- GCM tag appended to blob (16 bytes); ChunkSchema unchanged
+- CryptoPort extended with encryptBufferWithNonce / decryptBufferWithNonceTag
+- 21 new tests + 7 adapter conformance tests
