@@ -48,6 +48,7 @@ export { default as FixedChunker } from './src/infrastructure/chunkers/FixedChun
 export { default as CdcChunker } from './src/infrastructure/chunkers/CdcChunker.js';
 export { default as CompressionPort } from './src/ports/CompressionPort.js';
 export { default as NodeCompressionAdapter } from './src/infrastructure/adapters/NodeCompressionAdapter.js';
+export { default as diffManifests } from './src/domain/services/ManifestDiff.js';
 
 /**
  * High-level facade for the Content Addressable Store library.
@@ -332,6 +333,17 @@ export default class ContentAddressableStore {
    * @param {string} options.treeOid - Git tree OID of the asset.
    * @returns {Promise<{ slug: string, chunksOrphaned: number }>}
    */
+  /**
+   * Compares two manifests by chunk digest.
+   * Pure function — no I/O needed. Does not require initialization.
+   * @param {import('./src/domain/value-objects/Manifest.js').default} oldManifest
+   * @param {import('./src/domain/value-objects/Manifest.js').default} newManifest
+   * @returns {import('./src/domain/services/ManifestDiff.js').ManifestDiffResult}
+   */
+  static diffManifests(oldManifest, newManifest) {
+    return CasService.diffManifests(oldManifest, newManifest);
+  }
+
   async inspectAsset(options) {
     const service = await this.#getService();
     return await service.inspectAsset(options);

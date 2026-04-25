@@ -9,6 +9,7 @@ import CasError from '../errors/CasError.js';
 import Semaphore from './Semaphore.js';
 import KeyResolver from './KeyResolver.js';
 import ConvergentEncryption from './ConvergentEncryption.js';
+import diffManifests from './ManifestDiff.js';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 
 /**
@@ -1992,6 +1993,19 @@ export default class CasService {
    * @returns {Promise<{ chunksOrphaned: number, slug: string }>}
    * @throws {CasError} MANIFEST_NOT_FOUND if the tree has no manifest
    */
+  /**
+   * Compares two manifests by chunk digest to find added, removed, and unchanged chunks.
+   *
+   * Pure function — no I/O. Works with any pair of Manifest instances.
+   *
+   * @param {import('../value-objects/Manifest.js').default} oldManifest
+   * @param {import('../value-objects/Manifest.js').default} newManifest
+   * @returns {import('./ManifestDiff.js').ManifestDiffResult}
+   */
+  static diffManifests(oldManifest, newManifest) {
+    return diffManifests(oldManifest, newManifest);
+  }
+
   async inspectAsset({ treeOid }) {
     const manifest = await this.readManifest({ treeOid });
     return {

@@ -33,7 +33,7 @@ Active:
 
 - [TR — Convergent Encryption](./cool-ideas/TR_convergent-encryption.md) ✅
 - [TR — Browser Compression Adapter](./cool-ideas/TR_browser-compression-adapter.md)
-- [TR — Manifest Diffing](./cool-ideas/TR_manifest-diffing.md)
+- [TR — Manifest Diffing](./cool-ideas/TR_manifest-diffing.md) ✅
 - [TR — Parallel Chunk Restore](./cool-ideas/TR_parallel-chunk-restore.md)
 - [TR — Content-Aware Chunking](./cool-ideas/TR_content-aware-chunking.md)
 

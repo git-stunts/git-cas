@@ -36,3 +36,12 @@ diffManifests(oldManifest, newManifest) → {
 
 CDC makes this powerful — small edits only affect nearby chunks, so most
 chunks survive across versions.
+
+## Status
+
+- [x] Implemented — `security/audit-fixes` branch
+- Pure domain function in `src/domain/services/ManifestDiff.js`
+- Returns `{ added, removed, unchanged, summary }` with byte counts
+- Exposed as `CasService.diffManifests()` (static) and `ContentAddressableStore.diffManifests()` (static)
+- Also exported standalone as `diffManifests` from package root
+- 8 tests covering identical, disjoint, partial, empty, duplicate, and summary cases
