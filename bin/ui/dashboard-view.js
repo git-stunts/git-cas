@@ -8,6 +8,7 @@ import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.j
 import { inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
 import { renderDoctorReport, renderVaultStats } from './vault-report.js';
 import { renderManifestView } from './manifest-view.js';
+import { renderWizardSurface } from './store-wizard.js';
 
 /**
  * @typedef {import('./dashboard.js').DashModel} DashModel
@@ -1278,6 +1279,27 @@ function renderDagOverlay(model, deps, options) {
 }
 
 /**
+ * Render the store wizard overlay if active.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ top: number, height: number, screen: Surface }} options
+ */
+function renderWizardOverlay(model, deps, options) {
+  if (!model.storeWizard) {
+    return;
+  }
+  const wizard = renderWizardSurface(model.storeWizard, {
+    width: options.screen.width,
+    height: options.height,
+    ctx: deps.ctx,
+  });
+  const wx = Math.max(0, Math.floor((options.screen.width - wizard.width) / 2));
+  const wy = options.top + Math.max(0, Math.floor((options.height - wizard.height) / 3));
+  options.screen.blit(wizard, wx, wy);
+}
+
+/**
  * @param {DashModel} model
  * @param {DashDeps} deps
  * @param {{ top: number, height: number, screen: Surface }} options
@@ -1294,6 +1316,7 @@ function renderOverlays(model, deps, options) {
   }
 
   renderDagOverlay(model, deps, options);
+  renderWizardOverlay(model, deps, options);
 
   const palette = renderPaletteSurface(model, {
     width: options.screen.width,

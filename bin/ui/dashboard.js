@@ -18,6 +18,7 @@ import { createCliTuiContext, detectCliTuiMode } from './context.js';
 import { renderDashboard } from './dashboard-view.js';
 import { renderManifestView, buildManifestSections } from './manifest-view.js';
 import { buildDagSource } from './merkle-dag.js';
+import { createWizardState, wizardHandleKey } from './store-wizard.js';
 
 /**
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
@@ -30,6 +31,7 @@ import { buildDagSource } from './merkle-dag.js';
  * @typedef {import('@flyingrobots/bijou-tui').PagerState} PagerState
  * @typedef {import('@flyingrobots/bijou-tui').AccordionState} AccordionState
  * @typedef {import('@flyingrobots/bijou-tui').DagPaneState} DagPaneState
+ * @typedef {import('./store-wizard.js').StoreWizardState} StoreWizardState
  * @typedef {import('../../index.js').default} ContentAddressableStore
  * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
  * @typedef {import('./dashboard-cmds.js').TreemapScope} TreemapScope
@@ -63,6 +65,7 @@ import { buildDagSource } from './merkle-dag.js';
  *   | { type: 'toggle-help' }
  *   | { type: 'accordion-toggle' }
  *   | { type: 'open-merkle-dag' }
+ *   | { type: 'open-store-wizard' }
  *   | { type: 'dag-select-parent' }
  *   | { type: 'dag-select-child' }
  *   | { type: 'dag-select-left' }
@@ -138,6 +141,7 @@ import { buildDagSource } from './merkle-dag.js';
  * @property {string | null} gitBranch
  * @property {AccordionState | null} detailAccordion
  * @property {DagPaneState | null} dagPane
+ * @property {StoreWizardState | null} storeWizard
  */
 
 /**
@@ -189,7 +193,8 @@ export function createKeyBindings() {
       .bind('shift+j', 'Scroll down', { type: 'scroll-detail', delta: 3 })
       .bind('shift+k', 'Scroll up', { type: 'scroll-detail', delta: -3 })
       .bind('space', 'Toggle section', { type: 'accordion-toggle' })
-      .bind('m', 'Merkle DAG', { type: 'open-merkle-dag' }));
+      .bind('m', 'Merkle DAG', { type: 'open-merkle-dag' })
+      .bind('n', 'Store', { type: 'open-store-wizard' }));
 }
 
 const TABLE_COLUMNS = [
@@ -755,6 +760,7 @@ function createInitModel(ctx, source) {
     detailPager: null,
     detailAccordion: null,
     dagPane: null,
+    storeWizard: null,
     error: null,
     table: createInitTable(rows),
     refsTable: createInitRefsTable(rows),
@@ -1467,6 +1473,54 @@ function handleDagAction(action, model, deps) {
 }
 
 /**
+ * Handle raw key events when the store wizard is active.
+ *
+ * @param {KeyMsg} msg
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleWizardKey(msg, model, deps) {
+  const next = wizardHandleKey(model.storeWizard, msg.key);
+  if (next.step === 'error') {
+    return [{ ...model, storeWizard: null }, []];
+  }
+  if (next.step === 'storing') {
+    return [{ ...model, storeWizard: next }, [executeStoreCmd(next, deps)]];
+  }
+  if (next.step === 'done') {
+    return [{ ...model, storeWizard: null }, [loadEntriesCmd(deps.cas, model.source)]];
+  }
+  return [{ ...model, storeWizard: next }, []];
+}
+
+/**
+ * Create a command that executes the store operation.
+ *
+ * @param {StoreWizardState} wizard
+ * @param {DashDeps} deps
+ * @returns {DashCmd}
+ */
+function executeStoreCmd(wizard, deps) {
+  return async (/** @type {(msg: DashMsg) => void} */ dispatch) => {
+    try {
+      const { createReadStream } = await import('node:fs');
+      const stream = createReadStream(wizard.filePath);
+      /** @type {Record<string, any>} */
+      const opts = { slug: wizard.slug };
+      if (wizard.compression) { opts.gzip = true; }
+      if (wizard.chunking === 'cdc') { opts.strategy = 'cdc'; }
+      if (wizard.chunking === 'fixed') { opts.strategy = 'fixed'; }
+      if (wizard.encryption === 'convergent') { opts.convergent = true; }
+      await deps.cas.store(stream, opts);
+      dispatch({ type: 'wizard-store-done', slug: wizard.slug });
+    } catch (/** @type {any} */ err) {
+      dispatch({ type: 'wizard-store-error', error: err.message ?? String(err) });
+    }
+  };
+}
+
+/**
  * Handle raw key events when the DAG pane is active.
  *
  * @param {KeyMsg} msg
@@ -1509,6 +1563,9 @@ function closeOverlay(model) {
   }
   if (model.palette) {
     return [{ ...model, palette: null }, []];
+  }
+  if (model.storeWizard) {
+    return [{ ...model, storeWizard: null }, []];
   }
   if (model.dagPane) {
     return [{ ...model, dagPane: null }, []];
@@ -1755,6 +1812,7 @@ function handleOverlayAction(action, model, deps) {
     'treemap-drill-out': () => handleTreemapDrillOut(model, deps),
     'toggle-help': () => [{ ...model, showHelp: !model.showHelp }, []],
     'open-merkle-dag': () => openMerkleDag(model, deps),
+    'open-store-wizard': () => [{ ...model, storeWizard: createWizardState(), palette: null }, []],
     'overlay-close': () => closeOverlay(model),
   };
   return action.type in handlers ? handlers[action.type]() : null;
@@ -2045,8 +2103,51 @@ function handleAppMsg(msg, model, deps) {
     const notifications = tickNotifications(model.notifications, Date.now());
     return [{ ...model, notifications }, notificationTickCmds(notifications)];
   }
+  if (msg.type === 'wizard-store-done') { return handleWizardDone(msg, model, deps); }
+  if (msg.type === 'wizard-store-error') { return handleWizardError(msg, model); }
   if (msg.type === 'load-error') { return handleLoadError(msg, model); }
   return handleLoadedReport(msg, model);
+}
+
+/**
+ * Handle a successful store wizard completion.
+ *
+ * @param {{ type: 'wizard-store-done', slug: string }} msg
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleWizardDone(msg, model, deps) {
+  const notifications = pushNotification(model.notifications, {
+    body: `Stored ${msg.slug}`,
+    variant: 'success',
+    dismissAfterMs: 4000,
+  });
+  return [{
+    ...model,
+    storeWizard: null,
+    notifications,
+  }, [loadEntriesCmd(deps.cas, model.source), ...notificationTickCmds(notifications)]];
+}
+
+/**
+ * Handle a store wizard error.
+ *
+ * @param {{ type: 'wizard-store-error', error: string }} msg
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleWizardError(msg, model) {
+  const notifications = pushNotification(model.notifications, {
+    body: `Store failed: ${msg.error}`,
+    variant: 'error',
+    dismissAfterMs: 6000,
+  });
+  return [{
+    ...model,
+    storeWizard: null,
+    notifications,
+  }, notificationTickCmds(notifications)];
 }
 
 /**
@@ -2094,6 +2195,9 @@ function handleKeyMsg(msg, model, deps) {
   }
   if (model.filtering) {
     return handleFilterKey(msg, model);
+  }
+  if (model.storeWizard) {
+    return handleWizardKey(msg, model, deps);
   }
   if (model.dagPane) {
     return handleDagKey(msg, model, deps);
