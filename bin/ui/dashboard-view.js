@@ -3,7 +3,7 @@
  */
 
 import { badge, boxSurface, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
-import { commandPalette, dagPane, hasNotifications, helpView, hstackSurface, interactiveAccordion, navigableTable, pagerSurface, renderNotificationStack, statusBarSurface, vstackSurface } from '@flyingrobots/bijou-tui';
+import { clipToWidth, commandPalette, dagPane, hasNotifications, helpView, hstackSurface, interactiveAccordion, navigableTable, pagerSurface, renderNotificationStack, statusBarSurface, vstackSurface } from '@flyingrobots/bijou-tui';
 import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
 import { inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
 import { renderDoctorReport, renderVaultStats } from './vault-report.js';
@@ -17,15 +17,6 @@ import { renderWizardSurface } from './store-wizard.js';
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
  * @typedef {import('@flyingrobots/bijou').Surface} Surface
  */
-
-/**
- * Safely clip text to a pane width.
- *
- * @returns {string}
- */
-function clip(text, width) {
-  return width > 0 ? text.slice(0, width) : '';
-}
 
 /**
  * Clip long paths from the left so the most specific suffix stays visible.
@@ -42,7 +33,7 @@ function tailClip(text, width) {
     return text;
   }
   if (width <= 3) {
-    return clip(text, width);
+    return clipToWidth(text, width);
   }
   return `...${text.slice(text.length - (width - 3))}`;
 }
@@ -218,7 +209,7 @@ function limitWrappedLines(lines, width, maxLines) {
     return lines;
   }
   const capped = lines.slice(0, maxLines);
-  capped[maxLines - 1] = `${clip(capped[maxLines - 1], Math.max(1, width - 1))}…`;
+  capped[maxLines - 1] = `${clipToWidth(capped[maxLines - 1], Math.max(1, width - 1))}…`;
   return capped;
 }
 
@@ -636,8 +627,8 @@ function renderListPane(model, opts) {
   const innerWidth = Math.max(1, opts.width - 2);
   const innerHeight = Math.max(1, opts.height - 2);
   const metaLines = [
-    themeText(opts.ctx, clip(model.filtering ? `filter /${model.filterText}\u2588` : model.filterText ? `filter ${model.filterText}` : 'filter all', innerWidth), { tone: 'accent' }),
-    themeText(opts.ctx, clip(`${model.filtered.length} assets  focus row ${model.table.rows.length ? model.table.focusRow + 1 : 0}`, innerWidth), { tone: 'subdued' }),
+    themeText(opts.ctx, clipToWidth(model.filtering ? `filter /${model.filterText}\u2588` : model.filterText ? `filter ${model.filterText}` : 'filter all', innerWidth), { tone: 'accent' }),
+    themeText(opts.ctx, clipToWidth(`${model.filtered.length} assets  focus row ${model.table.rows.length ? model.table.focusRow + 1 : 0}`, innerWidth), { tone: 'subdued' }),
   ];
   const tableHeight = Math.max(1, innerHeight - metaLines.length);
 
