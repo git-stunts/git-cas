@@ -106,6 +106,11 @@ const app = {
     if (msg.type === 'key' && (msg.key === 'q' || msg.ctrl && msg.key === 'c')) {
       return [model, [quit()]];
     }
+    if (msg.type === 'key' && msg.key === '?') {
+      return [{ ...model, showHelp: !model.showHelp }, []];
+    }
+    if (model.showHelp) return [model, []];
+    
     if (msg.type === 'key' && (msg.key === 'j' || msg.key === 'down')) {
       return [{ ...model, selectedIndex: Math.min(model.selectedIndex + 1, ENTRIES.length - 1) }, []];
     }
@@ -135,4 +140,6 @@ const app = {
 };
 
 console.log('Starting git-cas V6 Mock-up...');
+await run(app, { ctx });
+nsole.log('Starting git-cas V6 Mock-up...');
 await run(app, { ctx });

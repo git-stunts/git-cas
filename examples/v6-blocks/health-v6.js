@@ -71,12 +71,17 @@ const ctx = initDefaultContext();
 
 const app = {
   init() {
-    return [{}, []];
+    return [{ showHelp: false }, []];
   },
   update(msg, model) {
     if (msg.type === 'key' && (msg.key === 'q' || msg.ctrl && msg.key === 'c')) {
       return [model, [quit()]];
     }
+    if (msg.type === 'key' && msg.key === '?') {
+      return [{ ...model, showHelp: !model.showHelp }, []];
+    }
+    if (model.showHelp) return [model, []];
+    
     return [model, []];
   },
   view(model) {
@@ -88,8 +93,14 @@ const app = {
     
     const bodyHeight = height - header.height;
     const body = HealthReportBlock({ ctx, width, height: bodyHeight });
+    const screen = vstackSurface(header, body);
+    
+    if (model.showHelp) {
+      const help = HelpOverlay({ ctx });
+      screen.blit(help, Math.max(0, Math.floor((width - help.width) / 2)), Math.max(0, Math.floor((height - help.height) / 2)));
+    }
 
-    return vstackSurface(header, body);
+    return screen;
   }
 };
 

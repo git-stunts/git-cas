@@ -66,18 +66,40 @@ function MerkleLensBlock({ mode, ctx, width, height }) {
 }
 
 /**
+ * BLOCK: Help Overlay
+ */
+function HelpOverlay({ ctx }) {
+  const lines = [
+    text(ctx.style.bold('Keybindings Reference'), ctx),
+    createSurface(1, 1),
+    text('  [?]        Toggle this help menu', ctx),
+    text('  [q]        Quit application', ctx),
+    text('  [Tab]      Toggle mode (TABLE/TREE/DAG)', ctx),
+  ];
+  const content = vstackSurface(...lines);
+  const bg = createSurface(content.width + 4, content.height + 2);
+  bg.blit(content, 2, 1);
+  return boxSurface(bg, { title: 'Controls', width: bg.width, height: bg.height, ctx });
+}
+
+/**
  * MAIN APP
  */
 const ctx = initDefaultContext();
 
 const app = {
   init() {
-    return [{ mode: 'DAG' }, []];
+    return [{ mode: 'DAG', showHelp: false }, []];
   },
   update(msg, model) {
     if (msg.type === 'key' && (msg.key === 'q' || msg.ctrl && msg.key === 'c')) {
       return [model, [quit()]];
     }
+    if (msg.type === 'key' && msg.key === '?') {
+      return [{ ...model, showHelp: !model.showHelp }, []];
+    }
+    if (model.showHelp) return [model, []];
+    
     if (msg.type === 'key' && msg.key === 'tab') {
       const modes = ['TABLE', 'TREE', 'DAG'];
       const nextIdx = (modes.indexOf(model.mode) + 1) % modes.length;
@@ -102,17 +124,6 @@ const app = {
     }
 
     return screen;
-  }
-};
-
-console.log('Starting Merkle Lens Mock-up... (Press Tab to toggle mode)');
-await run(app, { ctx });
-t header = text(headerStr, ctx);
-    
-    const bodyHeight = height - header.height;
-    const body = MerkleLensBlock({ mode: model.mode, ctx, width, height: bodyHeight });
-
-    return vstackSurface(header, body);
   }
 };
 
