@@ -10,11 +10,14 @@ import {
   createNotificationState, pushNotification, dismissNotification, tickNotifications, notificationsNeedTick, hasNotifications,
   createPagerState, pagerScrollBy, pagerPageDown, pagerPageUp,
   createAccordionState, focusNext as accordionFocusNext, focusPrev as accordionFocusPrev, toggleFocused as accordionToggleFocused,
+  createDagPaneState, dagPaneSelectChild, dagPaneSelectParent, dagPaneSelectLeft, dagPaneSelectRight,
+  dagPaneScrollBy, dagPanePageDown, dagPanePageUp, dagPaneScrollByX,
 } from '@flyingrobots/bijou-tui';
 import { loadEntriesCmd, loadManifestCmd, loadRefsCmd, loadStatsCmd, loadDoctorCmd, loadTreemapCmd, loadBranchCmd, readSourceEntries } from './dashboard-cmds.js';
 import { createCliTuiContext, detectCliTuiMode } from './context.js';
 import { renderDashboard } from './dashboard-view.js';
 import { renderManifestView, buildManifestSections } from './manifest-view.js';
+import { buildDagSource } from './merkle-dag.js';
 
 /**
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
@@ -26,6 +29,7 @@ import { renderManifestView, buildManifestSections } from './manifest-view.js';
  * @typedef {import('@flyingrobots/bijou-tui').CommandPaletteState} CommandPaletteState
  * @typedef {import('@flyingrobots/bijou-tui').PagerState} PagerState
  * @typedef {import('@flyingrobots/bijou-tui').AccordionState} AccordionState
+ * @typedef {import('@flyingrobots/bijou-tui').DagPaneState} DagPaneState
  * @typedef {import('../../index.js').default} ContentAddressableStore
  * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
  * @typedef {import('./dashboard-cmds.js').TreemapScope} TreemapScope
@@ -58,6 +62,14 @@ import { renderManifestView, buildManifestSections } from './manifest-view.js';
  *   | { type: 'treemap-drill-out' }
  *   | { type: 'toggle-help' }
  *   | { type: 'accordion-toggle' }
+ *   | { type: 'open-merkle-dag' }
+ *   | { type: 'dag-select-parent' }
+ *   | { type: 'dag-select-child' }
+ *   | { type: 'dag-select-left' }
+ *   | { type: 'dag-select-right' }
+ *   | { type: 'dag-scroll', delta: number }
+ *   | { type: 'dag-scroll-x', delta: number }
+ *   | { type: 'dag-page', delta: number }
  *   | { type: 'overlay-close' }
  * } DashAction
  */
@@ -125,6 +137,7 @@ import { renderManifestView, buildManifestSections } from './manifest-view.js';
  * @property {import('@flyingrobots/bijou-tui').NotificationState<DashMsg>} notifications
  * @property {string | null} gitBranch
  * @property {AccordionState | null} detailAccordion
+ * @property {DagPaneState | null} dagPane
  */
 
 /**
@@ -175,7 +188,8 @@ export function createKeyBindings() {
     .group('Detail', (g) => g
       .bind('shift+j', 'Scroll down', { type: 'scroll-detail', delta: 3 })
       .bind('shift+k', 'Scroll up', { type: 'scroll-detail', delta: -3 })
-      .bind('space', 'Toggle section', { type: 'accordion-toggle' }));
+      .bind('space', 'Toggle section', { type: 'accordion-toggle' })
+      .bind('m', 'Merkle DAG', { type: 'open-merkle-dag' }));
 }
 
 const TABLE_COLUMNS = [
@@ -740,6 +754,7 @@ function createInitModel(ctx, source) {
     loadingSlug: null,
     detailPager: null,
     detailAccordion: null,
+    dagPane: null,
     error: null,
     table: createInitTable(rows),
     refsTable: createInitRefsTable(rows),
@@ -1393,6 +1408,96 @@ function toggleTreemapWorktreeMode(model, deps) {
 }
 
 /**
+ * Open the Merkle DAG viewer for the currently selected manifest.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function openMerkleDag(model, deps) {
+  const entry = model.filtered[model.table.focusRow];
+  if (!entry) {
+    return [model, []];
+  }
+  const manifest = model.manifestCache.get(entry.slug);
+  if (!manifest) {
+    return [model, []];
+  }
+  const m = manifest.toJSON ? manifest.toJSON() : manifest;
+  const source = buildDagSource(m);
+  const state = createDagPaneState({
+    source,
+    width: Math.max(1, model.columns - 2),
+    height: Math.max(1, model.rows - 6),
+    selectedId: 'root',
+    ctx: deps.ctx,
+  });
+  return [{ ...model, dagPane: state, palette: null }, []];
+}
+
+/**
+ * Handle DAG pane navigation actions.
+ *
+ * @param {DashAction} action
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]] | null}
+ */
+function handleDagAction(action, model, deps) {
+  if (!model.dagPane) {
+    return null;
+  }
+  const ctx = deps.ctx;
+  const handlers = {
+    'dag-select-parent': () => ({ ...model, dagPane: dagPaneSelectParent(model.dagPane, ctx) }),
+    'dag-select-child': () => ({ ...model, dagPane: dagPaneSelectChild(model.dagPane, ctx) }),
+    'dag-select-left': () => ({ ...model, dagPane: dagPaneSelectLeft(model.dagPane, ctx) }),
+    'dag-select-right': () => ({ ...model, dagPane: dagPaneSelectRight(model.dagPane, ctx) }),
+    'dag-scroll': () => ({ ...model, dagPane: dagPaneScrollBy(model.dagPane, action.delta) }),
+    'dag-scroll-x': () => ({ ...model, dagPane: dagPaneScrollByX(model.dagPane, action.delta) }),
+    'dag-page': () => {
+      const pager = action.delta > 0 ? dagPanePageDown : dagPanePageUp;
+      return { ...model, dagPane: pager(model.dagPane) };
+    },
+  };
+  if (action.type in handlers) {
+    return [handlers[action.type](), []];
+  }
+  return null;
+}
+
+/**
+ * Handle raw key events when the DAG pane is active.
+ *
+ * @param {KeyMsg} msg
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleDagKey(msg, model, deps) {
+  /** @type {Record<string, DashAction>} */
+  const keyActions = {
+    up: { type: 'dag-select-parent' },
+    down: { type: 'dag-select-child' },
+    left: { type: 'dag-select-left' },
+    right: { type: 'dag-select-right' },
+    j: { type: 'dag-scroll', delta: 3 },
+    k: { type: 'dag-scroll', delta: -3 },
+    h: { type: 'dag-scroll-x', delta: -5 },
+    l: { type: 'dag-scroll-x', delta: 5 },
+    d: { type: 'dag-page', delta: 1 },
+    u: { type: 'dag-page', delta: -1 },
+    escape: { type: 'overlay-close' },
+    q: { type: 'overlay-close' },
+  };
+  const action = keyActions[msg.key];
+  if (action) {
+    return handleAction(action, model, deps);
+  }
+  return [model, []];
+}
+
+/**
  * Close the command palette or active view, whichever is visible.
  *
  * @param {DashModel} model
@@ -1404,6 +1509,9 @@ function closeOverlay(model) {
   }
   if (model.palette) {
     return [{ ...model, palette: null }, []];
+  }
+  if (model.dagPane) {
+    return [{ ...model, dagPane: null }, []];
   }
   if (model.activeDrawer) {
     return [{ ...model, activeDrawer: null }, []];
@@ -1646,6 +1754,7 @@ function handleOverlayAction(action, model, deps) {
     'treemap-drill-in': () => handleTreemapDrillIn(model, deps),
     'treemap-drill-out': () => handleTreemapDrillOut(model, deps),
     'toggle-help': () => [{ ...model, showHelp: !model.showHelp }, []],
+    'open-merkle-dag': () => openMerkleDag(model, deps),
     'overlay-close': () => closeOverlay(model),
   };
   return action.type in handlers ? handlers[action.type]() : null;
@@ -1766,6 +1875,10 @@ function handleDetailPaneAction(action, model) {
 }
 
 function handleAction(action, model, deps) {
+  const dagResult = handleDagAction(action, model, deps);
+  if (dagResult) {
+    return dagResult;
+  }
   const refsResult = handleRefsViewAction(action, model, deps);
   if (refsResult) {
     return refsResult;
@@ -1967,17 +2080,32 @@ function runtimeSymbolAction(msg) {
  * @param {DashDeps} deps
  * @returns {[DashModel, DashCmd[]]}
  */
-function handleUpdate(msg, model, deps) {
-  if (msg.type === 'key' && model.palette) {
+/**
+ * Route key messages to the correct handler based on active mode.
+ *
+ * @param {KeyMsg} msg
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleKeyMsg(msg, model, deps) {
+  if (model.palette) {
     return handlePaletteKey(msg, model, deps);
   }
-  if (msg.type === 'key' && model.filtering) {
+  if (model.filtering) {
     return handleFilterKey(msg, model);
   }
+  if (model.dagPane) {
+    return handleDagKey(msg, model, deps);
+  }
+  const action = runtimeSymbolAction(msg) ?? deps.keyMap.handle(msg);
+  if (action) { return handleAction(action, model, deps); }
+  return [model, []];
+}
+
+function handleUpdate(msg, model, deps) {
   if (msg.type === 'key') {
-    const action = runtimeSymbolAction(msg) ?? deps.keyMap.handle(msg);
-    if (action) { return handleAction(action, model, deps); }
-    return [model, []];
+    return handleKeyMsg(msg, model, deps);
   }
   if (msg.type === 'resize') {
     return handleResize(msg, model);

@@ -3,7 +3,7 @@
  */
 
 import { badge, boxSurface, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
-import { commandPalette, hasNotifications, helpView, interactiveAccordion, navigableTable, pagerSurface, renderNotificationStack, statusBarSurface } from '@flyingrobots/bijou-tui';
+import { commandPalette, dagPane, hasNotifications, helpView, interactiveAccordion, navigableTable, pagerSurface, renderNotificationStack, statusBarSurface } from '@flyingrobots/bijou-tui';
 import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
 import { inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
 import { renderDoctorReport, renderVaultStats } from './vault-report.js';
@@ -1294,6 +1294,35 @@ function renderHelpSurface(model, deps, opts) {
  * @param {{ top: number, height: number, screen: Surface }} options
  * @returns {void}
  */
+/**
+ * Render the Merkle DAG overlay if active.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ top: number, height: number, screen: Surface }} options
+ */
+function renderDagOverlay(model, deps, options) {
+  if (!model.dagPane) {
+    return;
+  }
+  const dagSurface = dagPane(model.dagPane, { ctx: deps.ctx });
+  const dagBox = boxSurface(dagSurface, {
+    ctx: deps.ctx,
+    title: 'Merkle DAG',
+    width: Math.min(options.screen.width, dagSurface.width + 2),
+    height: Math.min(options.height, dagSurface.height + 2),
+  });
+  const dx = Math.max(0, Math.floor((options.screen.width - dagBox.width) / 2));
+  const dy = options.top + Math.max(0, Math.floor((options.height - dagBox.height) / 3));
+  options.screen.blit(dagBox, dx, dy);
+}
+
+/**
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ top: number, height: number, screen: Surface }} options
+ * @returns {void}
+ */
 function renderOverlays(model, deps, options) {
   const drawer = renderDrawerSurface(model, {
     width: options.screen.width,
@@ -1303,6 +1332,8 @@ function renderOverlays(model, deps, options) {
   if (drawer) {
     options.screen.blit(drawer, Math.max(0, options.screen.width - drawer.width), options.top);
   }
+
+  renderDagOverlay(model, deps, options);
 
   const palette = renderPaletteSurface(model, {
     width: options.screen.width,
@@ -1325,22 +1356,34 @@ function renderOverlays(model, deps, options) {
     options.screen.blit(help, hx, hy);
   }
 
-  if (hasNotifications(model.notifications)) {
-    const notificationOverlays = renderNotificationStack(model.notifications, {
-      screenWidth: options.screen.width,
-      screenHeight: options.screen.height,
-      region: { col: 0, row: options.top, width: options.screen.width, height: options.height },
-      ctx: deps.ctx,
-      margin: 1,
-      gap: 1,
-    });
-    for (const overlay of notificationOverlays) {
-      if (overlay.surface) {
-        options.screen.blit(overlay.surface, overlay.col, overlay.row);
-      } else {
-        const overlaySurface = textSurface(overlay.content, options.screen.width, options.screen.height);
-        options.screen.blit(overlaySurface, overlay.col, overlay.row);
-      }
+  renderNotifications(model, deps, options);
+}
+
+/**
+ * Render notification overlays if any are active.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ top: number, height: number, screen: Surface }} options
+ */
+function renderNotifications(model, deps, options) {
+  if (!hasNotifications(model.notifications)) {
+    return;
+  }
+  const notificationOverlays = renderNotificationStack(model.notifications, {
+    screenWidth: options.screen.width,
+    screenHeight: options.screen.height,
+    region: { col: 0, row: options.top, width: options.screen.width, height: options.height },
+    ctx: deps.ctx,
+    margin: 1,
+    gap: 1,
+  });
+  for (const overlay of notificationOverlays) {
+    if (overlay.surface) {
+      options.screen.blit(overlay.surface, overlay.col, overlay.row);
+    } else {
+      const overlaySurface = textSurface(overlay.content, options.screen.width, options.screen.height);
+      options.screen.blit(overlaySurface, overlay.col, overlay.row);
     }
   }
 }
