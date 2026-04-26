@@ -3,7 +3,7 @@
  */
 
 import { badge, boxSurface, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
-import { commandPalette, hasNotifications, helpView, interactiveAccordion, navigableTable, pagerSurface, renderNotificationStack, splitPaneLayout, statusBarSurface } from '@flyingrobots/bijou-tui';
+import { commandPalette, hasNotifications, helpView, interactiveAccordion, navigableTable, pagerSurface, renderNotificationStack, statusBarSurface } from '@flyingrobots/bijou-tui';
 import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
 import { inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
 import { renderDoctorReport, renderVaultStats } from './vault-report.js';
@@ -16,11 +16,6 @@ import { renderManifestView } from './manifest-view.js';
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
  * @typedef {import('@flyingrobots/bijou').Surface} Surface
  */
-
-const SPLIT_MIN_LIST_WIDTH = 28;
-const SPLIT_MIN_DETAIL_WIDTH = 32;
-const SPLIT_DIVIDER_SIZE = 1;
-
 
 /**
  * Safely clip text to a pane width.
@@ -109,7 +104,7 @@ function headerParts(model, ctx) {
   } else if (model.activeDrawer === 'refs') {
     parts.push(badge('ref index', { variant: 'brand', ctx }));
   } else {
-    parts.push(badge(model.splitPane.focused === 'a' ? 'entries ledger' : 'manifest inspector', { variant: 'brand', ctx }));
+    parts.push(badge(model.viewMode === 'list' ? 'entries ledger' : 'manifest inspector', { variant: 'brand', ctx }));
   }
   appendSelectionBadges(parts, model, ctx);
   return parts;
@@ -687,14 +682,14 @@ function renderListPane(model, opts) {
   } else {
     const tableText = navigableTable(tableViewState(model, { width: innerWidth, height: tableHeight }), {
       ctx: opts.ctx,
-      focusIndicator: model.splitPane.focused === 'a' ? '▸' : '·',
+      focusIndicator: '▸',
     });
     metaLines.push(tableText);
   }
 
   return boxSurface(textSurface(metaLines.join('\n'), innerWidth, innerHeight), {
     ctx: opts.ctx,
-    title: model.splitPane.focused === 'a' ? 'Entries Ledger *' : 'Entries Ledger',
+    title: 'Entries Ledger',
     width: opts.width,
   });
 }
@@ -705,8 +700,8 @@ function renderListPane(model, opts) {
  * @param {DashModel} model
  * @returns {string}
  */
-function inspectorTitle(model) {
-  return model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector';
+function inspectorTitle() {
+  return 'Manifest Inspector';
 }
 
 /**
@@ -724,7 +719,7 @@ function renderDetailPane(model, opts) {
 
   if (!entry) {
     content.blit(textSurface('Select an entry to inspect it.', innerWidth, innerHeight), 0, 0);
-    return boxSurface(content, { ctx: opts.ctx, title: inspectorTitle(model), width: opts.width });
+    return boxSurface(content, { ctx: opts.ctx, title: inspectorTitle(), width: opts.width });
   }
 
   const manifest = model.manifestCache.get(entry.slug);
@@ -739,7 +734,7 @@ function renderDetailPane(model, opts) {
       ? themeText(opts.ctx, 'Loading manifest...', { tone: 'info' })
       : themeText(opts.ctx, 'Manifest not loaded yet.', { tone: 'subdued' });
     content.blit(textSurface(loadingText, innerWidth, Math.max(1, innerHeight - 3)), 0, 3);
-    return boxSurface(content, { ctx: opts.ctx, title: inspectorTitle(model), width: opts.width });
+    return boxSurface(content, { ctx: opts.ctx, title: inspectorTitle(), width: opts.width });
   }
 
   const manifestBody = model.detailAccordion
@@ -758,7 +753,7 @@ function renderDetailPane(model, opts) {
     content.blit(manifestSurface, 0, bodyTop, 0, 0, innerWidth, bodyHeight);
   }
 
-  return boxSurface(content, { ctx: opts.ctx, title: inspectorTitle(model), width: opts.width });
+  return boxSurface(content, { ctx: opts.ctx, title: inspectorTitle(), width: opts.width });
 }
 
 /**
@@ -1150,7 +1145,7 @@ function viewModeLabel(model) {
   if (model.activeDrawer === 'refs') {
     return 'refs';
   }
-  return model.splitPane.focused === 'b' ? 'entries:inspector' : 'entries:ledger';
+  return model.viewMode === 'detail' ? 'entries:inspector' : 'entries:ledger';
 }
 
 /**
@@ -1162,11 +1157,16 @@ function viewModeLabel(model) {
  */
 function statusBarLeft(model, ctx) {
   const parts = [];
-  parts.push(themeText(ctx, model.metadata?.encryption ? 'encrypted' : 'plain', { tone: model.metadata?.encryption ? 'warning' : 'subdued' }));
-  parts.push(themeText(ctx, `${model.entries.length} entries`, { tone: 'secondary' }));
   const selected = selectedEntry(model);
-  if (selected && model.activeDrawer !== 'treemap' && model.activeDrawer !== 'refs') {
-    parts.push(themeText(ctx, selected.slug, { tone: 'accent' }));
+  if (model.viewMode === 'detail' && selected) {
+    parts.push(themeText(ctx, `inspecting ${selected.slug}`, { tone: 'accent' }));
+    parts.push(themeText(ctx, `tree ${selected.treeOid.slice(0, 12)}`, { tone: 'secondary' }));
+  } else {
+    parts.push(themeText(ctx, model.metadata?.encryption ? 'encrypted' : 'plain', { tone: model.metadata?.encryption ? 'warning' : 'subdued' }));
+    parts.push(themeText(ctx, `${model.entries.length} entries`, { tone: 'secondary' }));
+    if (selected && model.activeDrawer !== 'treemap' && model.activeDrawer !== 'refs') {
+      parts.push(themeText(ctx, selected.slug, { tone: 'accent' }));
+    }
   }
   return parts.join(themeText(ctx, ' | ', { tone: 'subdued' }));
 }
@@ -1201,10 +1201,10 @@ function footerHints(model, ctx) {
   if (model.activeDrawer === 'refs') {
     return `${kbd('j/k', { ctx })} move  ${kbd('enter', { ctx })} switch  ${kbd('esc', { ctx })} back  ${kbd('?', { ctx })} help  ${kbd('q', { ctx })} quit`;
   }
-  if (model.splitPane.focused === 'b' && model.detailAccordion) {
-    return `${kbd('j/k', { ctx })} section  ${kbd('space', { ctx })} toggle  ${kbd('tab', { ctx })} pane  ${kbd('ctrl+p', { ctx })} palette  ${kbd('?', { ctx })} help  ${kbd('q', { ctx })} quit`;
+  if (model.viewMode === 'detail') {
+    return `${kbd('j/k', { ctx })} section  ${kbd('space', { ctx })} toggle  ${kbd('esc', { ctx })} back  ${kbd('?', { ctx })} help  ${kbd('q', { ctx })} quit`;
   }
-  return `${kbd('j/k', { ctx })} move  ${kbd('tab', { ctx })} pane  ${kbd('/', { ctx })} filter  ${kbd('ctrl+p', { ctx })} palette  ${kbd('?', { ctx })} help  ${kbd('q', { ctx })} quit`;
+  return `${kbd('j/k', { ctx })} move  ${kbd('enter', { ctx })} inspect  ${kbd('/', { ctx })} filter  ${kbd('t', { ctx })} treemap  ${kbd('?', { ctx })} help  ${kbd('q', { ctx })} quit`;
 }
 
 /**
@@ -1248,19 +1248,13 @@ function renderBody(model, deps, options) {
     renderRefsView(model, deps, options);
     return;
   }
-  const layout = splitPaneLayout(model.splitPane, {
-    direction: 'row',
-    width: model.columns,
-    height: options.height,
-    minA: SPLIT_MIN_LIST_WIDTH,
-    minB: SPLIT_MIN_DETAIL_WIDTH,
-    dividerSize: SPLIT_DIVIDER_SIZE,
-  });
-  const listPane = renderListPane(model, { width: layout.paneA.width, height: layout.paneA.height, ctx: deps.ctx });
-  const detailPane = renderDetailPane(model, { width: layout.paneB.width, height: layout.paneB.height, ctx: deps.ctx });
-  options.screen.blit(listPane, layout.paneA.col, options.top + layout.paneA.row);
-  options.screen.blit(renderDividerSurface(layout.divider.height), layout.divider.col, options.top + layout.divider.row);
-  options.screen.blit(detailPane, layout.paneB.col, options.top + layout.paneB.row);
+  if (model.viewMode === 'detail') {
+    const detailPane = renderDetailPane(model, { width: model.columns, height: options.height, ctx: deps.ctx });
+    options.screen.blit(detailPane, 0, options.top);
+    return;
+  }
+  const listPane = renderListPane(model, { width: model.columns, height: options.height, ctx: deps.ctx });
+  options.screen.blit(listPane, 0, options.top);
 }
 
 /**

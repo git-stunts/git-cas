@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { surfaceToString } from '@flyingrobots/bijou';
-import { createAccordionState, createNavigableTableState, createNotificationState, createPagerState, createSplitPaneState, pushNotification, tickNotifications } from '@flyingrobots/bijou-tui';
+import { createAccordionState, createNavigableTableState, createNotificationState, createPagerState, pushNotification, tickNotifications } from '@flyingrobots/bijou-tui';
 import { makeCtx } from './_testContext.js';
 
 vi.mock('../../../bin/ui/context.js', () => ({
@@ -97,7 +97,7 @@ function makeModel(overrides = {}) {
     table: makeTable(filtered, { rows, manifestCache }),
     refsTable: makeRefsTable(refsItems, rows),
     refsItems,
-    splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
+    viewMode: 'list',
     palette: null,
     showHelp: false,
     activeDrawer: null,
@@ -320,7 +320,7 @@ describe('dashboard initialization', () => {
     const [model, cmds] = app.init();
     expect(model.status).toBe('loading');
     expect(cmds).toHaveLength(2);
-    expect(model.splitPane.focused).toBe('a');
+    expect(model.viewMode).toBe('list');
   });
 });
 
@@ -372,36 +372,36 @@ describe('dashboard detail pager navigation', () => {
     expect(next.detailPager.scroll.y).toBeGreaterThan(0);
   });
 
-  it('j/k scrolls detail pager when pane b is focused', () => {
+  it('j/k scrolls detail pager when in detail view mode', () => {
     const app = createDashboardApp(makeDeps());
     const pager = createPagerState({ content: 'a\nb\nc\nd\ne\nf\ng\nh\ni\nj', width: 40, height: 4 });
     const model = makeModel({
       detailPager: pager,
-      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+      viewMode: 'detail',
     });
     const [next] = app.update(keyMsg('j'), model);
     expect(next.detailPager.scroll.y).toBeGreaterThan(0);
   });
 
-  it('d/u pages detail pager when pane b is focused', () => {
+  it('d/u pages detail pager when in detail view mode', () => {
     const app = createDashboardApp(makeDeps());
     const pager = createPagerState({ content: Array.from({ length: 30 }, (_, i) => `line ${i}`).join('\n'), width: 40, height: 4 });
     const model = makeModel({
       detailPager: pager,
-      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+      viewMode: 'detail',
     });
     const [next] = app.update(keyMsg('d'), model);
     expect(next.detailPager.scroll.y).toBeGreaterThan(0);
   });
 
-  it('j/k moves table rows when pane a is focused', () => {
+  it('j/k moves table rows when in list view mode', () => {
     const app = createDashboardApp(makeDeps());
     const pager = createPagerState({ content: 'a\nb\nc\nd\ne', width: 40, height: 4 });
     const model = makeModel({
       detailPager: pager,
       filtered: entries,
       entries,
-      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
+      viewMode: 'list',
     });
     const [next] = app.update(keyMsg('j'), model);
     expect(next.table.focusRow).toBe(1);
@@ -418,12 +418,12 @@ describe('dashboard detail accordion navigation', () => {
     ]);
   }
 
-  it('j/k navigates accordion sections when pane b is focused', () => {
+  it('j/k navigates accordion sections when in detail view mode', () => {
     const app = createDashboardApp(makeDeps());
     const acc = makeAccordion();
     const model = makeModel({
       detailAccordion: acc,
-      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+      viewMode: 'detail',
     });
     expect(model.detailAccordion.focusIndex).toBe(0);
     const [next] = app.update(keyMsg('j'), model);
@@ -434,7 +434,7 @@ describe('dashboard detail accordion navigation', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({
       detailAccordion: { ...makeAccordion(), focusIndex: 2 },
-      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+      viewMode: 'detail',
     });
     const [next] = app.update(keyMsg('k'), model);
     expect(next.detailAccordion.focusIndex).toBe(1);
@@ -444,7 +444,7 @@ describe('dashboard detail accordion navigation', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({
       detailAccordion: { ...makeAccordion(), focusIndex: 2 },
-      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+      viewMode: 'detail',
     });
     const [next] = app.update(keyMsg('j'), model);
     expect(next.detailAccordion.focusIndex).toBe(0);
@@ -464,18 +464,18 @@ describe('dashboard detail accordion toggle', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({
       detailAccordion: makeAccordion(),
-      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+      viewMode: 'detail',
     });
     expect(model.detailAccordion.sections[0].expanded).toBe(true);
     const [next] = app.update(keyMsg('space'), model);
     expect(next.detailAccordion.sections[0].expanded).toBe(false);
   });
 
-  it('enter toggles the focused accordion section', () => {
+  it('enter toggles the focused accordion section in detail mode', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({
       detailAccordion: { ...makeAccordion(), focusIndex: 1 },
-      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+      viewMode: 'detail',
     });
     expect(model.detailAccordion.sections[1].expanded).toBeFalsy();
     const [next] = app.update(keyMsg('enter'), model);
@@ -487,13 +487,13 @@ describe('dashboard detail accordion toggle', () => {
     expect(model.detailAccordion).toBeNull();
   });
 
-  it('j/k moves table rows instead of accordion when pane a is focused', () => {
+  it('j/k moves table rows instead of accordion when in list view mode', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({
       detailAccordion: makeAccordion(),
       filtered: entries,
       entries,
-      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
+      viewMode: 'list',
     });
     const [next] = app.update(keyMsg('j'), model);
     expect(next.table.focusRow).toBe(1);
@@ -501,7 +501,7 @@ describe('dashboard detail accordion toggle', () => {
   });
 });
 
-describe('dashboard pane controls', () => {
+describe('dashboard resize', () => {
   it('resize updates dimensions', () => {
     const app = createDashboardApp(makeDeps());
     const [next] = app.update({ type: 'resize', columns: 120, rows: 40 }, makeModel());
@@ -509,17 +509,67 @@ describe('dashboard pane controls', () => {
     expect(next.rows).toBe(40);
     expect(next.table.height).toBe(29);
   });
+});
 
-  it('tab toggles the focused pane', () => {
+describe('dashboard view mode transitions', () => {
+  it('enter in list mode switches to detail view mode', () => {
     const app = createDashboardApp(makeDeps());
-    const [next] = app.update(keyMsg('tab'), makeModel());
-    expect(next.splitPane.focused).toBe('b');
+    const manifest = { slug: 'alpha', size: 100, chunks: [] };
+    const model = makeModel({
+      entries,
+      filtered: entries,
+      manifestCache: new Map([['alpha', manifest]]),
+      viewMode: 'list',
+    });
+    const [next] = app.update(keyMsg('enter'), model);
+    expect(next.viewMode).toBe('detail');
   });
 
-  it('shift+l widens the focused pane', () => {
+  it('l in list mode switches to detail view mode', () => {
     const app = createDashboardApp(makeDeps());
-    const [next] = app.update(keyMsg('l', { shift: true }), makeModel());
-    expect(next.splitPane.ratio).toBeGreaterThan(0.37);
+    const manifest = { slug: 'alpha', size: 100, chunks: [] };
+    const model = makeModel({
+      entries,
+      filtered: entries,
+      manifestCache: new Map([['alpha', manifest]]),
+      viewMode: 'list',
+    });
+    const [next] = app.update(keyMsg('l'), model);
+    expect(next.viewMode).toBe('detail');
+  });
+
+  it('escape in detail mode switches back to list view mode', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({ viewMode: 'detail' });
+    const [next] = app.update(keyMsg('escape'), model);
+    expect(next.viewMode).toBe('list');
+  });
+
+  it('h in detail mode switches back to list view mode', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({ viewMode: 'detail' });
+    const [next] = app.update(keyMsg('h'), model);
+    expect(next.viewMode).toBe('list');
+  });
+});
+
+describe('dashboard view mode navigation routing', () => {
+  it('j/k in list mode moves table cursor', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({ filtered: entries, entries, viewMode: 'list' });
+    const [next] = app.update(keyMsg('j'), model);
+    expect(next.table.focusRow).toBe(1);
+  });
+
+  it('j/k in detail mode navigates accordion', () => {
+    const app = createDashboardApp(makeDeps());
+    const acc = createAccordionState([
+      { title: 'A', content: 'a', expanded: true },
+      { title: 'B', content: 'b' },
+    ]);
+    const model = makeModel({ detailAccordion: acc, viewMode: 'detail' });
+    const [next] = app.update(keyMsg('j'), model);
+    expect(next.detailAccordion.focusIndex).toBe(1);
   });
 });
 
@@ -949,7 +999,7 @@ describe('dashboard loading edge cases', () => {
     const model = makeModel({ entries, filtered: entries });
     const [next, cmds] = app.update(keyMsg('enter'), model);
     expect(next.loadingSlug).toBe('alpha');
-    expect(next.splitPane.focused).toBe('b');
+    expect(next.viewMode).toBe('detail');
     expect(cmds).toHaveLength(1);
   });
 });
@@ -967,7 +1017,6 @@ describe('dashboard view rendering', () => {
     expect(rendered).toContain('cwd /tmp/git-cas-fixture');
     expect(rendered).toContain('source vault refs/cas/vault');
     expect(rendered).toContain('Entries');
-    expect(rendered).toContain('Manifest Inspector');
   });
 
   it('renders entry list when entries exist', () => {
@@ -1005,9 +1054,9 @@ describe('dashboard footer rendering', () => {
     const model = makeModel({ columns: 140 });
     const rendered = renderView(app.view(model), deps.ctx);
     expect(rendered).toContain('move');
-    expect(rendered).toContain('pane');
+    expect(rendered).toContain('inspect');
     expect(rendered).toContain('filter');
-    expect(rendered).toContain('palette');
+    expect(rendered).toContain('treemap');
     expect(rendered).toContain('help');
     expect(rendered).toContain('quit');
   });
@@ -1029,7 +1078,7 @@ describe('dashboard footer rendering', () => {
 });
 
 describe('dashboard inspector rendering', () => {
-  it('renders selected asset summary in the inspector pane', () => {
+  it('renders selected asset summary in the detail view', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
     const manifest = { slug: 'alpha', size: 1536, chunks: [{ index: 0, size: 1536, digest: 'abcd1234efgh5678' }] };
@@ -1037,18 +1086,26 @@ describe('dashboard inspector rendering', () => {
       entries,
       filtered: entries,
       manifestCache: new Map([['alpha', manifest]]),
+      viewMode: 'detail',
     });
     const rendered = renderView(app.view(model), deps.ctx);
     expect(rendered).toContain('asset alpha');
     expect(rendered).toContain('chunks    1');
   });
 
-  it('renders inspector focus chrome when pane b is active', () => {
+  it('renders manifest inspector in detail view mode', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
-    const model = makeModel({ splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }) });
+    const manifest = { slug: 'alpha', size: 1536, chunks: [{ index: 0, size: 1536, digest: 'abcd1234efgh5678' }] };
+    const model = makeModel({
+      entries,
+      filtered: entries,
+      manifestCache: new Map([['alpha', manifest]]),
+      viewMode: 'detail',
+    });
     const rendered = renderView(app.view(model), deps.ctx);
-    expect(rendered).toContain('Manifest Inspector *');
+    expect(rendered).toContain('Manifest Inspector');
+    expect(rendered).toContain('asset alpha');
   });
 });
 
@@ -1176,7 +1233,7 @@ describe('dashboard palette rendering', () => {
     const app = createDashboardApp(deps);
     const [withPalette] = app.update(keyMsg('p', { ctrl: true }), makeModel());
     const rendered = renderView(app.view(withPalette), deps.ctx);
-    expect(rendered).toContain('palette');
+    expect(rendered).toContain('command deck');
     expect(rendered).toContain('Command Deck');
     expect(rendered).toContain('Open Repo Treemap');
     expect(rendered).toContain('Open Source Stats');

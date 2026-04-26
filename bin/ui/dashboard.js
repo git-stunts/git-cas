@@ -6,7 +6,6 @@ import { startApp } from '@flyingrobots/bijou-node';
 import {
   quit, tick, createKeyMap,
   createNavigableTableState, navTableFocusNext, navTableFocusPrev, navTablePageDown, navTablePageUp,
-  createSplitPaneState, splitPaneFocusNext, splitPaneResizeBy,
   createCommandPaletteState, cpFilter, cpFocusNext, cpFocusPrev, cpPageDown, cpPageUp, cpSelectedItem, commandPaletteKeyMap,
   createNotificationState, pushNotification, dismissNotification, tickNotifications, notificationsNeedTick, hasNotifications,
   createPagerState, pagerScrollBy, pagerPageDown, pagerPageUp,
@@ -24,7 +23,6 @@ import { renderManifestView, buildManifestSections } from './manifest-view.js';
  * @typedef {import('@flyingrobots/bijou-tui').Cmd<DashMsg>} DashCmd
  * @typedef {import('@flyingrobots/bijou-tui').KeyMap<DashAction>} DashKeyMap
  * @typedef {import('@flyingrobots/bijou-tui').NavigableTableState} NavigableTableState
- * @typedef {import('@flyingrobots/bijou-tui').SplitPaneState} SplitPaneState
  * @typedef {import('@flyingrobots/bijou-tui').CommandPaletteState} CommandPaletteState
  * @typedef {import('@flyingrobots/bijou-tui').PagerState} PagerState
  * @typedef {import('@flyingrobots/bijou-tui').AccordionState} AccordionState
@@ -49,8 +47,6 @@ import { renderManifestView, buildManifestSections } from './manifest-view.js';
  *   | { type: 'filter-start' }
  *   | { type: 'scroll-detail', delta: number }
  *   | { type: 'page-detail', delta: number }
- *   | { type: 'split-focus' }
- *   | { type: 'split-resize', delta: number }
  *   | { type: 'open-palette' }
  *   | { type: 'open-stats' }
  *   | { type: 'open-doctor' }
@@ -107,7 +103,7 @@ import { renderManifestView, buildManifestSections } from './manifest-view.js';
  * @property {NavigableTableState} table
  * @property {NavigableTableState} refsTable
  * @property {RefInventoryItem[]} refsItems
- * @property {SplitPaneState} splitPane
+ * @property {'list' | 'detail'} viewMode
  * @property {CommandPaletteState | null} palette
  * @property {boolean} showHelp
  * @property {'stats' | 'doctor' | 'treemap' | 'refs' | null} activeDrawer
@@ -159,11 +155,10 @@ export function createKeyBindings() {
       .bind('u', 'Page up', { type: 'page', delta: -1 })
       .bind('pageup', 'Page up', { type: 'page', delta: -1 })
       .bind('enter', 'Load', { type: 'select' })
+      .bind('l', 'Load', { type: 'select' })
+      .bind('h', 'Back', { type: 'overlay-close' })
       .bind('/', 'Filter', { type: 'filter-start' }))
     .group('Layout', (g) => g
-      .bind('tab', 'Focus pane', { type: 'split-focus' })
-      .bind('shift+h', 'Narrow pane', { type: 'split-resize', delta: -4 })
-      .bind('shift+l', 'Widen pane', { type: 'split-resize', delta: 4 })
       .bind('ctrl+p', 'Palette', { type: 'open-palette' })
       .bind(':', 'Palette', { type: 'open-palette' })
       .bind('escape', 'Close overlay', { type: 'overlay-close' }))
@@ -196,9 +191,6 @@ const DASH_HEADER_ROWS = 4;
 const DASH_FOOTER_ROWS = 3;
 const PANE_BORDER_ROWS = 2;
 const LIST_META_ROWS = 2;
-const SPLIT_MIN_LIST_WIDTH = 28;
-const SPLIT_MIN_DETAIL_WIDTH = 32;
-const SPLIT_DIVIDER_SIZE = 1;
 const NOTIFICATION_TICK_MS = 50;
 const DETAIL_BODY_TOP = 3;
 
@@ -295,19 +287,6 @@ const PALETTE_ITEMS = [
     description: 'Health summary and vault issues',
     category: 'View',
     shortcut: 'g',
-  },
-  {
-    id: 'focus-entries',
-    label: 'Focus Entries Pane',
-    description: 'Move focus back to the explorer table',
-    category: 'Pane',
-    shortcut: 'tab',
-  },
-  {
-    id: 'focus-inspector',
-    label: 'Focus Inspector Pane',
-    description: 'Move focus to the manifest inspector',
-    category: 'Pane',
   },
   {
     id: 'close-drawer',
@@ -765,7 +744,7 @@ function createInitModel(ctx, source) {
     table: createInitTable(rows),
     refsTable: createInitRefsTable(rows),
     refsItems: [],
-    splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
+    viewMode: 'list',
     palette: null,
     showHelp: false,
     activeDrawer: null,
@@ -1109,6 +1088,9 @@ function handleFilterKey(msg, model) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function handleSelect(model, deps) {
+  if (model.viewMode === 'detail') {
+    return handleDetailAccordionAction({ type: 'accordion-toggle' }, model) ?? [model, []];
+  }
   const entry = model.filtered[model.table.focusRow];
   if (!entry) {
     return [model, []];
@@ -1117,7 +1099,7 @@ function handleSelect(model, deps) {
     const manifest = model.manifestCache.get(entry.slug);
     const detailPager = buildDetailPager(manifest, deps.ctx, model.rows);
     const detailAccordion = buildDetailAccordion(manifest, deps.ctx);
-    return [{ ...model, splitPane: { ...model.splitPane, focused: 'b' }, detailPager, detailAccordion }, []];
+    return [{ ...model, viewMode: 'detail', detailPager, detailAccordion }, []];
   }
   const cmd = /** @type {DashCmd} */ (loadManifestCmd(deps.cas, {
     slug: entry.slug,
@@ -1126,10 +1108,10 @@ function handleSelect(model, deps) {
   }));
   return [{
     ...model,
+    viewMode: 'detail',
     loadingSlug: entry.slug,
     detailPager: null,
     detailAccordion: null,
-    splitPane: { ...model.splitPane, focused: 'b' },
   }, [cmd]];
 }
 
@@ -1306,7 +1288,7 @@ function buildSourceSwitchModel(model, source) {
     detailAccordion: null,
     error: null,
     table: clearedTable,
-    splitPane: { ...model.splitPane, focused: 'a' },
+    viewMode: 'list',
     statsStatus: 'idle',
     statsReport: null,
     statsError: null,
@@ -1405,6 +1387,9 @@ function closeOverlay(model) {
   if (model.activeDrawer) {
     return [{ ...model, activeDrawer: null }, []];
   }
+  if (model.viewMode === 'detail') {
+    return [{ ...model, viewMode: 'list' }, []];
+  }
   if (hasNotifications(model.notifications)) {
     const topItem = model.notifications.items[0];
     if (topItem) {
@@ -1413,21 +1398,6 @@ function closeOverlay(model) {
     }
   }
   return [model, []];
-}
-
-/**
- * Focus a specific split pane from the command palette.
- *
- * @param {DashModel} model
- * @param {'a' | 'b'} pane
- * @returns {[DashModel, DashCmd[]]}
- */
-function focusPane(model, pane) {
-  return [{
-    ...model,
-    palette: null,
-    splitPane: { ...model.splitPane, focused: pane },
-  }, []];
 }
 
 /**
@@ -1530,8 +1500,6 @@ function handlePaletteSelect(model, deps) {
     'treemap-drill-out': () => handleTreemapDrillOut(model, deps),
     stats: () => openStatsDrawer(model, deps),
     doctor: () => openDoctorDrawer(model, deps),
-    'focus-entries': () => focusPane(model, 'a'),
-    'focus-inspector': () => focusPane(model, 'b'),
     'close-drawer': () => closeDrawerFromPalette(model),
   };
   if (item.id in handlers) {
@@ -1638,24 +1606,6 @@ function startFilter(model) {
 }
 
 /**
- * Resize the currently focused split pane.
- *
- * @param {DashModel} model
- * @param {number} delta
- * @returns {[DashModel, DashCmd[]]}
- */
-function resizeSplitPane(model, delta) {
-  const signedDelta = model.splitPane.focused === 'a' ? delta : -delta;
-  const splitPane = splitPaneResizeBy(model.splitPane, signedDelta, {
-    total: model.columns,
-    minA: SPLIT_MIN_LIST_WIDTH,
-    minB: SPLIT_MIN_DETAIL_WIDTH,
-    dividerSize: SPLIT_DIVIDER_SIZE,
-  });
-  return [{ ...model, splitPane }, []];
-}
-
-/**
  * Handle overlay-related actions.
  *
  * @param {DashAction} action
@@ -1704,12 +1654,6 @@ function handleLayoutAction(action, model) {
     const pager = action.delta > 0 ? pagerPageDown(model.detailPager) : pagerPageUp(model.detailPager);
     return [{ ...model, detailPager: pager }, []];
   }
-  if (action.type === 'split-focus') {
-    return [{ ...model, splitPane: splitPaneFocusNext(model.splitPane) }, []];
-  }
-  if (action.type === 'split-resize') {
-    return resizeSplitPane(model, action.delta);
-  }
   return null;
 }
 
@@ -1725,9 +1669,7 @@ function isBlockedByTreemapView(action) {
     || action.type === 'select'
     || action.type === 'filter-start'
     || action.type === 'scroll-detail'
-    || action.type === 'page-detail'
-    || action.type === 'split-focus'
-    || action.type === 'split-resize';
+    || action.type === 'page-detail';
 }
 
 /**
@@ -1786,7 +1728,7 @@ function handleDetailAccordionAction(action, model) {
 }
 
 function handleDetailPaneAction(action, model) {
-  if (model.activeDrawer || model.splitPane.focused !== 'b') {
+  if (model.activeDrawer || model.viewMode !== 'detail') {
     return null;
   }
   const accordionResult = handleDetailAccordionAction(action, model);
