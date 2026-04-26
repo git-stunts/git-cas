@@ -1079,7 +1079,7 @@ function defineVaultRotateValidationTest() {
       type: 'error',
       data: {
         code: 'INVALID_INPUT',
-        message: 'Provide --old-passphrase <pass> or --old-passphrase-file <path>',
+        message: 'Provide --old-passphrase <pass>, --old-passphrase-file <path>, or --old-os-keychain-target <target>',
       },
     });
   });
@@ -1202,7 +1202,7 @@ function defineVaultInitValidationTest() {
       type: 'error',
       data: {
         code: 'INVALID_INPUT',
-        message: 'Provide --passphrase <pass> or --passphrase-file <path> when using --algorithm',
+        message: 'Provide --passphrase <pass>, --passphrase-file <path>, or --os-keychain-target <target> when using --algorithm',
       },
     });
 
@@ -1549,7 +1549,7 @@ function defineEncryptedStoreConflictingPassphraseSourcesTest() {
       type: 'error',
       data: {
         code: 'INVALID_INPUT',
-        message: 'Provide --vault-passphrase or --vault-passphrase-file, not both',
+        message: 'Provide exactly one vault passphrase source: --vault-passphrase, --vault-passphrase-file, or --os-keychain-target',
       },
     });
 
@@ -1778,7 +1778,7 @@ function defineVaultInitEmptyInlineAndFileConflictTest() {
       type: 'error',
       data: {
         code: 'INVALID_INPUT',
-        message: 'Provide --passphrase or --passphrase-file, not both',
+        message: 'Provide exactly one passphrase source: --passphrase, --passphrase-file, or --os-keychain-target',
       },
     });
 
@@ -1899,7 +1899,7 @@ function defineVaultRotateEmptyInlineAndFileConflictTest() {
       type: 'error',
       data: {
         code: 'INVALID_INPUT',
-        message: 'Provide --old-passphrase or --old-passphrase-file, not both',
+        message: 'Provide exactly one old passphrase source: --old-passphrase, --old-passphrase-file, or --old-os-keychain-target',
       },
     });
 

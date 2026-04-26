@@ -78,14 +78,12 @@ export default class ContentAddressableStore {
    */
   constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, compressionAdapter }) {
     this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, compressionAdapter };
-    this.#service = null;
+    this.service = null;
     this.#servicePromise = null;
   }
 
   /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, compressionAdapter?: * }} */
   #config;
-  /** @type {CasService|null} */
-  #service = null;
   /** @type {VaultService|null} */
   #vault = null;
   #servicePromise = null;
@@ -117,7 +115,7 @@ export default class ContentAddressableStore {
     const chunkSize = cfg.chunkSize || 256 * 1024;
     const chunker = resolveChunker({ chunker: cfg.chunker, chunking: cfg.chunking })
       || new FixedChunker({ chunkSize });
-    this.#service = new CasService({
+    this.service = new CasService({
       persistence,
       chunkSize,
       codec: cfg.codec || new JsonCodec(),
@@ -135,9 +133,9 @@ export default class ContentAddressableStore {
       plumbing: cfg.plumbing,
       policy: cfg.policy,
     });
-    this.#vault = new VaultService({ persistence, ref, crypto, observability: this.#service.observability });
+    this.#vault = new VaultService({ persistence, ref, crypto, observability: this.service.observability });
 
-    return this.#service;
+    return this.service;
   }
 
   /**
@@ -195,7 +193,7 @@ export default class ContentAddressableStore {
    * @returns {number}
    */
   get chunkSize() {
-    return this.#service?.chunkSize || this.#config.chunkSize || 256 * 1024;
+    return this.service?.chunkSize || this.#config.chunkSize || 256 * 1024;
   }
 
   /**
