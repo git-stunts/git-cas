@@ -1,8 +1,12 @@
 node_modules/
 .DS_Store
+._*
+.Spotlight-V100
+.Trashes
 .vite/
 coverage/
 .claude/
+.obsidian/
 .codex/
 lastchat.txt
 AGENTS.md

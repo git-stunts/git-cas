@@ -1,7 +1,7 @@
 import js from "@eslint/js";
 
 export default [
-  { ignores: ["examples/"] },
+  { ignores: ["examples/", ".obsidian/", "docs/"] },
   {
     files: ["scripts/**/*.js"],
     rules: {

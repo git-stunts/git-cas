@@ -1,0 +1,216 @@
+{
+  "main": {
+    "id": "89a0af0d18165f04",
+    "type": "split",
+    "children": [
+      {
+        "id": "a2724a9cee8b4822",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "7f4030d6907b6836",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "docs/audit/2026-04-26_bijou-bigbro-audit.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "2026-04-26_bijou-bigbro-audit"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "59a8c9583a52a59e",
+    "type": "split",
+    "children": [
+      {
+        "id": "620e722d1276d90f",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "f89a74e03083c747",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "54b70115fd0d4a9a",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "42349ab6c5b61c59",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "ed08a0310d39f8e8",
+    "type": "split",
+    "children": [
+      {
+        "id": "3ab205b1e2b460a9",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "1f22efc86631f175",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "docs/audit/2026-04-26_bijou-bigbro-audit.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for 2026-04-26_bijou-bigbro-audit"
+            }
+          },
+          {
+            "id": "21f1633526d3ea17",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "docs/audit/2026-04-26_bijou-bigbro-audit.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from 2026-04-26_bijou-bigbro-audit"
+            }
+          },
+          {
+            "id": "39ad6cd302a26d90",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "331a8f42051473e7",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "67a74b1b9892fc2a",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "docs/audit/2026-04-26_bijou-bigbro-audit.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of 2026-04-26_bijou-bigbro-audit"
+            }
+          },
+          {
+            "id": "712a30b39c611635",
+            "type": "leaf",
+            "state": {
+              "type": "chronology-calendar-view",
+              "state": {},
+              "icon": "clock",
+              "title": "Chronology"
+            }
+          }
+        ],
+        "currentTab": 5
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false,
+      "chronology:Open Chronology": false
+    }
+  },
+  "active": "f89a74e03083c747",
+  "lastOpenFiles": [
+    "docs/method/backlog/v6.0.0-polish/POL-011_wizard-string-geometry.md",
+    "docs/method/backlog/v6.0.0-polish/POL-010_heatmap-grid-math.md",
+    "docs/method/backlog/v6.0.0-polish/POL-009_transition-shaders.md",
+    "docs/method/backlog/v6.0.0-polish/POL-008_manual-clipping.md",
+    "docs/method/backlog/v6.0.0-polish/POL-007_view-state-leakage.md",
+    "docs/method/backlog/v6.0.0-polish/POL-006_magic-numbers-rhythm.md",
+    "docs/method/backlog/v6.0.0-polish/POL-005_raw-ansi-progress.md",
+    "docs/method/backlog/v6.0.0-polish/POL-004_boundary-violation-history-timeline.md",
+    "docs/method/backlog/v6.0.0-polish/POL-003_string-sludge-encryption-card.md",
+    "docs/method/backlog/v6.0.0-polish/POL-002_string-sludge-vault-report.md",
+    "docs/method/backlog/v6.0.0-polish/POL-001_string-sludge-manifest-view.md",
+    "docs/method/backlog/v6.0.0-polish",
+    "docs/audit/DETAILED-SCREEN-BREAKDOWN.md",
+    "docs/audit/2026-04-26_bijou-bigbro-audit.md",
+    "docs/audit/SCORECARD-AND-HOMEWORK.md",
+    "docs/design/V6-TUI-SYSTEM-DESIGN.md"
+  ]
+}
