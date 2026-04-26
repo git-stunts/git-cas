@@ -18,6 +18,43 @@ import { renderWizardSurface } from './store-wizard.js';
  * @typedef {import('@flyingrobots/bijou').Surface} Surface
  */
 
+// ── Layout Constants ─────────────────────────────────────────────────
+const DRAWER_MIN_WIDTH = 32;
+const DRAWER_MAX_WIDTH = 56;
+const DRAWER_MARGIN = 2;
+const PALETTE_MIN_WIDTH = 32;
+const PALETTE_MAX_WIDTH = 72;
+const PALETTE_MARGIN = 8;
+const HELP_MIN_WIDTH = 36;
+const HELP_MAX_WIDTH = 60;
+const HELP_MARGIN = 4;
+const REFS_SIDEBAR_RATIO = 0.35;
+const TREEMAP_SIDEBAR_RATIO = 0.32;
+const OVERLAY_V_OFFSET = 3; // Overlay positioned at 1/3 from top
+
+/**
+ * Center an overlay horizontally within a container.
+ *
+ * @param {number} containerWidth
+ * @param {number} overlayWidth
+ * @returns {number}
+ */
+function centerX(containerWidth, overlayWidth) {
+  return Math.max(0, Math.floor((containerWidth - overlayWidth) / 2));
+}
+
+/**
+ * Position an overlay vertically at 1/3 from the top.
+ *
+ * @param {number} top
+ * @param {number} containerHeight
+ * @param {number} overlayHeight
+ * @returns {number}
+ */
+function topThirdY(top, containerHeight, overlayHeight) {
+  return top + Math.max(0, Math.floor((containerHeight - overlayHeight) / OVERLAY_V_OFFSET));
+}
+
 /**
  * Clip long paths from the left so the most specific suffix stays visible.
  *
@@ -449,7 +486,7 @@ function renderStatsDrawer(model, opts) {
   return renderOverlayPanel({
     title: 'Vault Metrics',
     body: statsDrawerBody(model, opts.ctx),
-    width: Math.max(32, Math.min(56, opts.width - 2)),
+    width: Math.max(DRAWER_MIN_WIDTH, Math.min(DRAWER_MAX_WIDTH, opts.width - DRAWER_MARGIN)),
     height: Math.max(8, opts.height),
     ctx: opts.ctx,
   });
@@ -466,7 +503,7 @@ function renderDoctorDrawer(model, opts) {
   return renderOverlayPanel({
     title: 'Vault Doctor',
     body: doctorDrawerBody(model, opts.ctx),
-    width: Math.max(32, Math.min(56, opts.width - 2)),
+    width: Math.max(DRAWER_MIN_WIDTH, Math.min(DRAWER_MAX_WIDTH, opts.width - DRAWER_MARGIN)),
     height: Math.max(8, opts.height),
     ctx: opts.ctx,
   });
@@ -515,7 +552,7 @@ function renderPaletteSurface(model, opts) {
   if (!model.palette) {
     return null;
   }
-  const width = Math.max(32, Math.min(72, opts.width - 8));
+  const width = Math.max(PALETTE_MIN_WIDTH, Math.min(PALETTE_MAX_WIDTH, opts.width - PALETTE_MARGIN));
   const body = commandPalette(model.palette, {
     width: Math.max(16, width - 2),
     ctx: opts.ctx,
@@ -967,7 +1004,7 @@ function renderRefsDetailBody(model, ctx, width) {
  */
 function renderRefsView(model, deps, options) {
   const maxSidebarWidth = Math.max(22, options.screen.width - 25);
-  const sidebarWidth = Math.min(maxSidebarWidth, Math.max(30, Math.min(46, Math.floor(options.screen.width * 0.35))));
+  const sidebarWidth = Math.min(maxSidebarWidth, Math.max(30, Math.min(46, Math.floor(options.screen.width * REFS_SIDEBAR_RATIO))));
   const listWidth = Math.max(18, options.screen.width - sidebarWidth - 1);
   const viewHeight = options.height;
   const listPanel = renderPanel({
@@ -1062,7 +1099,7 @@ function renderTreemapSidebarText(options) {
  */
 function renderTreemapView(model, deps, options) {
   const maxSidebarWidth = Math.max(18, options.screen.width - 17);
-  const sidebarWidth = Math.min(maxSidebarWidth, Math.max(24, Math.min(42, Math.floor(options.screen.width * 0.32))));
+  const sidebarWidth = Math.min(maxSidebarWidth, Math.max(24, Math.min(42, Math.floor(options.screen.width * TREEMAP_SIDEBAR_RATIO))));
   const mapWidth = Math.max(16, options.screen.width - sidebarWidth - 1);
   const mapHeight = options.height;
   const sidebarHeight = options.height;
@@ -1253,7 +1290,7 @@ function renderHelpSurface(model, deps, opts) {
     return null;
   }
   const body = helpView(deps.keyMap, { title: 'Keybindings Reference' });
-  const panelWidth = Math.max(36, Math.min(60, opts.width - 4));
+  const panelWidth = Math.max(HELP_MIN_WIDTH, Math.min(HELP_MAX_WIDTH, opts.width - HELP_MARGIN));
   const lines = body.split('\n');
   const panelHeight = Math.max(8, Math.min(lines.length + 2, opts.height));
   return renderOverlayPanel({
@@ -1291,8 +1328,8 @@ function renderDagOverlay(model, deps, options) {
     width: Math.min(options.screen.width, dagSurface.width + 2),
     height: Math.min(options.height, dagSurface.height + 2),
   });
-  const dx = Math.max(0, Math.floor((options.screen.width - dagBox.width) / 2));
-  const dy = options.top + Math.max(0, Math.floor((options.height - dagBox.height) / 3));
+  const dx = centerX(options.screen.width, dagBox.width);
+  const dy = topThirdY(options.top, options.height, dagBox.height);
   options.screen.blit(dagBox, dx, dy);
 }
 
@@ -1312,8 +1349,8 @@ function renderWizardOverlay(model, deps, options) {
     height: options.height,
     ctx: deps.ctx,
   });
-  const wx = Math.max(0, Math.floor((options.screen.width - wizard.width) / 2));
-  const wy = options.top + Math.max(0, Math.floor((options.height - wizard.height) / 3));
+  const wx = centerX(options.screen.width, wizard.width);
+  const wy = topThirdY(options.top, options.height, wizard.height);
   options.screen.blit(wizard, wx, wy);
 }
 
@@ -1342,8 +1379,8 @@ function renderOverlays(model, deps, options) {
     ctx: deps.ctx,
   });
   if (palette) {
-    const x = Math.max(0, Math.floor((options.screen.width - palette.width) / 2));
-    const y = options.top + Math.max(0, Math.floor((options.height - palette.height) / 3));
+    const x = centerX(options.screen.width, palette.width);
+    const y = topThirdY(options.top, options.height, palette.height);
     options.screen.blit(palette, x, y);
   }
 
@@ -1352,8 +1389,8 @@ function renderOverlays(model, deps, options) {
     height: options.height,
   });
   if (help) {
-    const hx = Math.max(0, Math.floor((options.screen.width - help.width) / 2));
-    const hy = options.top + Math.max(0, Math.floor((options.height - help.height) / 3));
+    const hx = centerX(options.screen.width, help.width);
+    const hy = topThirdY(options.top, options.height, help.height);
     options.screen.blit(help, hx, hy);
   }
 
