@@ -2,7 +2,7 @@
  * Pure render functions for the vault dashboard.
  */
 
-import { boxV3, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
+import { boxSurface, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
 import { commandPalette, navigableTable, splitPaneLayout } from '@flyingrobots/bijou-tui';
 import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
 import { GIT_CAS_PALETTE, chipSurface, inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
@@ -239,7 +239,7 @@ function renderHeaderSurface(model, deps) {
 function renderOverlayPanel(options) {
   const innerWidth = Math.max(1, options.width - 2);
   const innerHeight = Math.max(1, options.height - 2);
-  return boxV3(textSurface(options.body, innerWidth, innerHeight), {
+  return boxSurface(textSurface(options.body, innerWidth, innerHeight), {
     ctx: options.ctx,
     title: options.title,
     width: options.width,
@@ -678,7 +678,7 @@ function renderDoctorDrawer(model, opts) {
  * @returns {Surface}
  */
 function renderPanel(options) {
-  return boxV3(textSurface(options.body, Math.max(1, options.width - 2), Math.max(1, options.height - 2)), {
+  return boxSurface(textSurface(options.body, Math.max(1, options.width - 2), Math.max(1, options.height - 2)), {
     ctx: options.ctx,
     title: options.title,
     width: options.width,
@@ -871,7 +871,7 @@ function renderListPane(model, opts) {
     metaLines.push(tableText);
   }
 
-  return boxV3(textSurface(metaLines.join('\n'), innerWidth, innerHeight), {
+  return boxSurface(textSurface(metaLines.join('\n'), innerWidth, innerHeight), {
     ctx: opts.ctx,
     title: model.splitPane.focused === 'a' ? 'Entries Ledger *' : 'Entries Ledger',
     width: opts.width,
@@ -893,7 +893,7 @@ function renderDetailPane(model, opts) {
 
   if (!entry) {
     content.blit(textSurface('Select an entry to inspect it.', innerWidth, innerHeight), 0, 0);
-    return boxV3(content, {
+    return boxSurface(content, {
       ctx: opts.ctx,
       title: model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector',
       width: opts.width,
@@ -912,7 +912,7 @@ function renderDetailPane(model, opts) {
       ? themeText(opts.ctx, 'Loading manifest...', { tone: 'info' })
       : themeText(opts.ctx, 'Manifest not loaded yet.', { tone: 'subdued' });
     content.blit(textSurface(loadingText, innerWidth, Math.max(1, innerHeight - 3)), 0, 3);
-    return boxV3(content, {
+    return boxSurface(content, {
       ctx: opts.ctx,
       title: model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector',
       width: opts.width,
@@ -926,7 +926,7 @@ function renderDetailPane(model, opts) {
   const bodyHeight = Math.max(1, innerHeight - bodyTop);
   content.blit(manifestSurface, 0, bodyTop, 0, model.detailScroll, innerWidth, bodyHeight);
 
-  return boxV3(content, {
+  return boxSurface(content, {
     ctx: opts.ctx,
     title: model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector',
     width: opts.width,
