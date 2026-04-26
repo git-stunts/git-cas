@@ -2,10 +2,10 @@
  * Pure render functions for the vault dashboard.
  */
 
-import { boxSurface, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
-import { commandPalette, navigableTable, splitPaneLayout } from '@flyingrobots/bijou-tui';
+import { badge, boxSurface, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
+import { commandPalette, hasNotifications, navigableTable, pagerSurface, renderNotificationStack, splitPaneLayout } from '@flyingrobots/bijou-tui';
 import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
-import { GIT_CAS_PALETTE, chipSurface, inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
+import { inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
 import { renderDoctorReport, renderVaultStats } from './vault-report.js';
 import { renderManifestView } from './manifest-view.js';
 
@@ -20,12 +20,7 @@ import { renderManifestView } from './manifest-view.js';
 const SPLIT_MIN_LIST_WIDTH = 28;
 const SPLIT_MIN_DETAIL_WIDTH = 32;
 const SPLIT_DIVIDER_SIZE = 1;
-const TOAST_THEME = {
-  error: { label: 'Error', bg: GIT_CAS_PALETTE.wine, fg: GIT_CAS_PALETTE.ivory },
-  warning: { label: 'Warning', bg: [148, 82, 23], fg: GIT_CAS_PALETTE.ivory },
-  info: { label: 'Info', bg: GIT_CAS_PALETTE.indigo, fg: GIT_CAS_PALETTE.ivory },
-  success: { label: 'Success', bg: GIT_CAS_PALETTE.moss, fg: GIT_CAS_PALETTE.ivory },
-};
+
 
 /**
  * Safely clip text to a pane width.
@@ -101,20 +96,20 @@ function blitInline(target, options) {
  */
 function headerParts(model, ctx) {
   const parts = [
-    chipSurface(ctx, `${model.filtered.length}/${model.entries.length || model.filtered.length} visible`, 'info'),
+    badge(`${model.filtered.length}/${model.entries.length || model.filtered.length} visible`, { variant: 'info', ctx }),
   ];
   if (model.metadata?.encryption) {
-    parts.push(chipSurface(ctx, 'encrypted', 'warning'));
+    parts.push(badge('encrypted', { variant: 'warning', ctx }));
   }
   if (model.filtering || model.filterText) {
-    parts.push(chipSurface(ctx, model.filtering ? 'filtering' : `filter ${model.filterText}`, 'accent'));
+    parts.push(badge(model.filtering ? 'filtering' : `filter ${model.filterText}`, { variant: 'accent', ctx }));
   }
   if (model.activeDrawer === 'treemap') {
-    parts.push(chipSurface(ctx, 'atlas view', 'brand'));
+    parts.push(badge('atlas view', { variant: 'brand', ctx }));
   } else if (model.activeDrawer === 'refs') {
-    parts.push(chipSurface(ctx, 'ref index', 'brand'));
+    parts.push(badge('ref index', { variant: 'brand', ctx }));
   } else {
-    parts.push(chipSurface(ctx, model.splitPane.focused === 'a' ? 'entries ledger' : 'manifest inspector', 'brand'));
+    parts.push(badge(model.splitPane.focused === 'a' ? 'entries ledger' : 'manifest inspector', { variant: 'brand', ctx }));
   }
   appendSelectionBadges(parts, model, ctx);
   return parts;
@@ -130,27 +125,27 @@ function headerParts(model, ctx) {
 function appendSelectionBadges(parts, model, ctx) {
   const selected = model.filtered[model.table.focusRow];
   if (selected && model.activeDrawer !== 'treemap') {
-    parts.push(chipSurface(ctx, `selected ${selected.slug}`, 'accent'));
+    parts.push(badge(`selected ${selected.slug}`, { variant: 'accent', ctx }));
   }
-  if (model.toasts.length > 0) {
-    parts.push(chipSurface(ctx, `alerts ${model.toasts.length}`, 'warning'));
+  if (hasNotifications(model.notifications)) {
+    parts.push(badge(`alerts ${model.notifications.items.length}`, { variant: 'warning', ctx }));
   }
   if (model.activeDrawer === 'treemap') {
-    parts.push(chipSurface(ctx, `scope ${model.treemapScope}`, 'brand'));
+    parts.push(badge(`scope ${model.treemapScope}`, { variant: 'brand', ctx }));
     if (model.treemapScope === 'repository') {
-      parts.push(chipSurface(ctx, `files ${model.treemapWorktreeMode}`, 'accent'));
+      parts.push(badge(`files ${model.treemapWorktreeMode}`, { variant: 'accent', ctx }));
     }
-    parts.push(chipSurface(ctx, `level ${treemapLevelLabel(model)}`, 'info'));
+    parts.push(badge(`level ${treemapLevelLabel(model)}`, { variant: 'info', ctx }));
     const tile = selectedTreemapTile(model);
     if (tile) {
-      parts.push(chipSurface(ctx, `focus ${tile.label}`, 'warning'));
+      parts.push(badge(`focus ${tile.label}`, { variant: 'warning', ctx }));
     }
   }
   if (model.activeDrawer && model.activeDrawer !== 'treemap') {
-    parts.push(chipSurface(ctx, `${model.activeDrawer} drawer`, 'info'));
+    parts.push(badge(`${model.activeDrawer} drawer`, { variant: 'info', ctx }));
   }
   if (model.palette) {
-    parts.push(chipSurface(ctx, 'command deck', 'warning'));
+    parts.push(badge('command deck', { variant: 'warning', ctx }));
   }
 }
 
@@ -244,17 +239,6 @@ function renderOverlayPanel(options) {
     title: options.title,
     width: options.width,
   });
-}
-
-/**
- * Pad or clip text to a fixed width.
- *
- * @param {string} text
- * @param {number} width
- * @returns {string}
- */
-function padToWidth(text, width) {
-  return text.length >= width ? text.slice(0, width) : `${text}${' '.repeat(width - text.length)}`;
 }
 
 /**
@@ -428,91 +412,7 @@ function wrapWhitespaceText(text, width) {
     .flatMap((part) => wrapWhitespaceParagraph(part, Math.max(1, width)));
 }
 
-/**
- * Measure an appropriate toast width for its title and message.
- *
- * @param {{ level: 'error' | 'warning' | 'info' | 'success', title: string, message: string }} toast
- * @param {number} maxWidth
- * @returns {number}
- */
-function measureToastWidth(toast, maxWidth) {
-  const theme = TOAST_THEME[toast.level] ?? TOAST_THEME.info;
-  const titleLength = `${theme.label.toUpperCase()} // ${toast.title}`.length;
-  const messageLength = toast.message
-    .split('\n')
-    .reduce((longest, line) => Math.max(longest, line.length), 0);
-  const preferredInnerWidth = Math.max(26, Math.min(maxWidth - 2, Math.max(titleLength, messageLength + 4)));
-  return Math.max(28, Math.min(maxWidth, preferredInnerWidth + 2));
-}
 
-/**
- * Wrap toast copy while preferring whitespace boundaries.
- *
- * @param {string} text
- * @param {number} width
- * @param {number} maxLines
- * @returns {string[]}
- */
-function wrapToastText(text, width, maxLines) {
-  const lines = wrapWhitespaceText(text, width);
-  return limitWrappedLines(lines, width, maxLines);
-}
-
-/**
- * Style a single toast content line.
- *
- * @param {{ text: string, theme: { bg: [number, number, number], fg: [number, number, number] }, ctx: BijouContext, width: number }} options
- * @returns {string}
- */
-function styleToastLine(options) {
-  return options.ctx.style.bgRgb(
-    options.theme.bg[0],
-    options.theme.bg[1],
-    options.theme.bg[2],
-    options.ctx.style.rgb(
-      options.theme.fg[0],
-      options.theme.fg[1],
-      options.theme.fg[2],
-      padToWidth(options.text, options.width),
-    ),
-  );
-}
-
-/**
- * Ease toast entry with a small overshoot so it pops into place.
- *
- * @param {number} progress
- * @returns {number}
- */
-function easeOutBack(progress) {
-  const clamped = Math.max(0, Math.min(1, progress));
-  const overshoot = 1.70158;
-  const shifted = clamped - 1;
-  return 1 + ((overshoot + 1) * shifted * shifted * shifted) + (overshoot * shifted * shifted);
-}
-
-/**
- * Visible body line budget for the current toast animation phase.
- *
- * @param {{ phase?: 'entering' | 'steady' | 'exiting', progress?: number }} toast
- * @returns {number}
- */
-function toastBodyLineBudget(toast) {
-  if (toast.phase !== 'exiting') {
-    return 3;
-  }
-  const progress = Math.max(0, Math.min(1, toast.progress ?? 1));
-  if (progress > 0.66) {
-    return 3;
-  }
-  if (progress > 0.36) {
-    return 2;
-  }
-  if (progress > 0.16) {
-    return 1;
-  }
-  return 0;
-}
 
 /**
  * Width of the toast for the current motion phase.
@@ -521,13 +421,6 @@ function toastBodyLineBudget(toast) {
  * @param {number} baseWidth
  * @returns {number}
  */
-function visibleToastWidth(toast, baseWidth) {
-  if (toast.phase !== 'exiting') {
-    return baseWidth;
-  }
-  const progress = Math.max(0, Math.min(1, toast.progress ?? 1));
-  return Math.max(24, Math.min(baseWidth, Math.round(baseWidth * (0.56 + (progress * 0.44)))));
-}
 
 /**
  * Render one toast box surface.
@@ -536,36 +429,6 @@ function visibleToastWidth(toast, baseWidth) {
  * @param {{ width: number, ctx: BijouContext }} opts
  * @returns {Surface}
  */
-function renderToastSurface(toast, opts) {
-  const theme = TOAST_THEME[toast.level] ?? TOAST_THEME.info;
-  const baseWidth = measureToastWidth(toast, Math.max(32, Math.min(48, opts.width)));
-  const width = visibleToastWidth(toast, baseWidth);
-  const innerWidth = Math.max(1, width - 2);
-  const bodyWidth = Math.max(1, innerWidth - 3);
-  const bodyLineBudget = toastBodyLineBudget(toast);
-  const bodyLines = wrapToastText(toast.message, bodyWidth, bodyLineBudget).map((line) => styleToastLine({
-    text: line,
-    theme,
-    ctx: opts.ctx,
-    width: bodyWidth,
-  }));
-  const titleText = padToWidth(`${theme.label.toUpperCase()} // ${toast.title}`, innerWidth);
-  const chrome = opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╔'));
-  const border = opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'));
-  const bottom = opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╚'));
-  const topLine = `${chrome}${opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '═'.repeat(innerWidth))}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╗'))}`;
-  const titleLine = `${border}${styleToastLine({ text: titleText, theme, ctx: opts.ctx, width: innerWidth })}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'))}`;
-  const dividerLine = `${border}${opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '─'.repeat(innerWidth))}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'))}`;
-  const contentLines = bodyLines.map((line) => {
-    const rail = opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '▌'));
-    return `${border}${rail} ${line} ${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'))}`;
-  });
-  const bottomLine = `${bottom}${opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '═'.repeat(innerWidth))}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╝'))}`;
-  const lines = contentLines.length > 0
-    ? [topLine, titleLine, dividerLine, ...contentLines, bottomLine]
-    : [topLine, titleLine, bottomLine];
-  return textSurface(lines.join('\n'), width, lines.length);
-}
 
 /**
  * Render a soft drop shadow behind a toast.
@@ -575,10 +438,6 @@ function renderToastSurface(toast, opts) {
  * @param {BijouContext} ctx
  * @returns {Surface}
  */
-function renderToastShadow(width, height, ctx) {
-  const line = ctx.style.rgb(32, 38, 52, '░'.repeat(Math.max(1, width)));
-  return textSurface(Array.from({ length: Math.max(1, height) }, () => line).join('\n'), width, height);
-}
 
 /**
  * Compute horizontal slide for toast motion.
@@ -586,16 +445,6 @@ function renderToastShadow(width, height, ctx) {
  * @param {{ progress?: number }} toast
  * @returns {number}
  */
-function toastSlideOffset(toast) {
-  const progress = Math.max(0, Math.min(1, toast.progress ?? 1));
-  if (toast.phase === 'entering') {
-    return Math.round((1 - easeOutBack(progress)) * 18);
-  }
-  if (toast.phase === 'exiting') {
-    return Math.round((1 - progress) * 24);
-  }
-  return 0;
-}
 
 /**
  * Build drawer copy for the stats overlay.
@@ -701,35 +550,7 @@ function renderDrawerSurface(model, opts) {
     : renderDoctorDrawer(model, opts);
 }
 
-/**
- * Render stacked toast notifications in the lower-right corner.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ top: number, height: number, screen: Surface }} options
- */
-function renderToastStack(model, deps, options) {
-  const marginTop = 1;
-  const marginRight = 4;
-  let cursorY = options.top + marginTop;
-  for (const toast of model.toasts) {
-    const surface = renderToastSurface(toast, {
-      width: Math.min(52, Math.max(40, Math.floor(options.screen.width * 0.44))),
-      ctx: deps.ctx,
-    });
-    if (cursorY + surface.height > options.top + options.height) {
-      break;
-    }
-    const slideOffset = toastSlideOffset(toast);
-    const x = Math.max(0, options.screen.width - surface.width - marginRight + slideOffset);
-    const shadow = renderToastShadow(surface.width, surface.height, deps.ctx);
-    const shadowX = Math.max(0, x + 2);
-    const shadowY = Math.min(options.top + options.height - shadow.height, cursorY + 1);
-    options.screen.blit(shadow, shadowX, shadowY);
-    options.screen.blit(surface, x, cursorY);
-    cursorY += surface.height + 1;
-  }
-}
+
 
 /**
  * Render the command palette overlay.
@@ -879,6 +700,16 @@ function renderListPane(model, opts) {
 }
 
 /**
+ * Inspector pane title with focus indicator.
+ *
+ * @param {DashModel} model
+ * @returns {string}
+ */
+function inspectorTitle(model) {
+  return model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector';
+}
+
+/**
  * Render the explorer detail pane.
  *
  * @param {DashModel} model
@@ -893,11 +724,7 @@ function renderDetailPane(model, opts) {
 
   if (!entry) {
     content.blit(textSurface('Select an entry to inspect it.', innerWidth, innerHeight), 0, 0);
-    return boxSurface(content, {
-      ctx: opts.ctx,
-      title: model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector',
-      width: opts.width,
-    });
+    return boxSurface(content, { ctx: opts.ctx, title: inspectorTitle(model), width: opts.width });
   }
 
   const manifest = model.manifestCache.get(entry.slug);
@@ -912,11 +739,7 @@ function renderDetailPane(model, opts) {
       ? themeText(opts.ctx, 'Loading manifest...', { tone: 'info' })
       : themeText(opts.ctx, 'Manifest not loaded yet.', { tone: 'subdued' });
     content.blit(textSurface(loadingText, innerWidth, Math.max(1, innerHeight - 3)), 0, 3);
-    return boxSurface(content, {
-      ctx: opts.ctx,
-      title: model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector',
-      width: opts.width,
-    });
+    return boxSurface(content, { ctx: opts.ctx, title: inspectorTitle(model), width: opts.width });
   }
 
   const manifestBody = renderManifestView({ manifest, ctx: opts.ctx });
@@ -924,13 +747,16 @@ function renderDetailPane(model, opts) {
   const manifestSurface = parseAnsiToSurface(manifestBody, innerWidth, manifestLines);
   const bodyTop = 3;
   const bodyHeight = Math.max(1, innerHeight - bodyTop);
-  content.blit(manifestSurface, 0, bodyTop, 0, model.detailScroll, innerWidth, bodyHeight);
 
-  return boxSurface(content, {
-    ctx: opts.ctx,
-    title: model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector',
-    width: opts.width,
-  });
+  if (model.detailPager && manifestLines > bodyHeight) {
+    const pagerState = { ...model.detailPager, width: innerWidth, height: bodyHeight };
+    const paged = pagerSurface(manifestSurface, pagerState, { showScrollbar: true, scrollbarMode: 'overlay', showStatus: true });
+    content.blit(paged, 0, bodyTop);
+  } else {
+    content.blit(manifestSurface, 0, bodyTop, 0, 0, innerWidth, bodyHeight);
+  }
+
+  return boxSurface(content, { ctx: opts.ctx, title: inspectorTitle(model), width: opts.width });
 }
 
 /**
@@ -1332,12 +1158,19 @@ function renderFooterSurface(model, ctx, width) {
         `${themeText(ctx, 'inspect', { tone: 'brand' })}  ${kbd('t', { ctx })} treemap  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('ctrl+p', { ctx })} palette`,
         `${themeText(ctx, 'shell', { tone: 'warning' })}  ${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
       ]
+      : model.splitPane.focused === 'b'
+      ? [
+        shellRule(ctx, width),
+        `${themeText(ctx, 'detail', { tone: 'accent' })}  ${kbd('j/k', { ctx })} scroll  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} fast  ${kbd('enter', { ctx })} inspect`,
+        `${themeText(ctx, 'shell', { tone: 'brand' })}  ${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
+        `${themeText(ctx, 'ops', { tone: 'warning' })}  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('r', { ctx })} refs  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
+      ]
       : [
-      shellRule(ctx, width),
-      `${themeText(ctx, 'browse', { tone: 'accent' })}  ${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
-      `${themeText(ctx, 'shell', { tone: 'brand' })}  ${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
-      `${themeText(ctx, 'ops', { tone: 'warning' })}  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('r', { ctx })} refs  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
-    ];
+        shellRule(ctx, width),
+        `${themeText(ctx, 'browse', { tone: 'accent' })}  ${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
+        `${themeText(ctx, 'shell', { tone: 'brand' })}  ${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
+        `${themeText(ctx, 'ops', { tone: 'warning' })}  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('r', { ctx })} refs  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
+      ];
   return textSurface(lines.join('\n'), width, 4);
 }
 
@@ -1401,7 +1234,24 @@ function renderOverlays(model, deps, options) {
     options.screen.blit(palette, x, y);
   }
 
-  renderToastStack(model, deps, options);
+  if (hasNotifications(model.notifications)) {
+    const notificationOverlays = renderNotificationStack(model.notifications, {
+      screenWidth: options.screen.width,
+      screenHeight: options.screen.height,
+      region: { col: 0, row: options.top, width: options.screen.width, height: options.height },
+      ctx: deps.ctx,
+      margin: 1,
+      gap: 1,
+    });
+    for (const overlay of notificationOverlays) {
+      if (overlay.surface) {
+        options.screen.blit(overlay.surface, overlay.col, overlay.row);
+      } else {
+        const overlaySurface = textSurface(overlay.content, options.screen.width, options.screen.height);
+        options.screen.blit(overlaySurface, overlay.col, overlay.row);
+      }
+    }
+  }
 }
 
 /**

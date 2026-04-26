@@ -67,16 +67,6 @@ const TEXT_TONES = {
   danger: { fg: GIT_CAS_PALETTE.ruby, bold: true },
 };
 
-const CHIP_TONES = {
-  brand: { fg: GIT_CAS_PALETTE.ivory, bg: GIT_CAS_PALETTE.ember, bold: true },
-  info: { fg: GIT_CAS_PALETTE.ivory, bg: GIT_CAS_PALETTE.deepTeal, bold: true },
-  accent: { fg: GIT_CAS_PALETTE.ivory, bg: GIT_CAS_PALETTE.plum, bold: true },
-  warning: { fg: GIT_CAS_PALETTE.ivory, bg: [148, 82, 23], bold: true },
-  success: { fg: GIT_CAS_PALETTE.ivory, bg: GIT_CAS_PALETTE.moss, bold: true },
-  danger: { fg: GIT_CAS_PALETTE.ivory, bg: GIT_CAS_PALETTE.wine, bold: true },
-  neutral: { fg: GIT_CAS_PALETTE.ivory, bg: [51, 65, 85], bold: true },
-};
-
 /**
  * Apply semantic git-cas styling to one text fragment.
  *
@@ -104,34 +94,6 @@ export function themeText(ctx, text, options = {}) {
  */
 export function inlineSurface(ctx, text, options = {}) {
   return parseAnsiToSurface(themeText(ctx, text, options), Math.max(1, text.length), 1);
-}
-
-/**
- * Create a compact filled chip surface.
- *
- * @param {import('@flyingrobots/bijou').BijouContext} ctx
- * @param {string} label
- * @param {keyof typeof CHIP_TONES} [tone]
- * @returns {import('@flyingrobots/bijou').Surface}
- */
-export function chipSurface(ctx, label, tone = 'neutral') {
-  const text = ` ${label} `;
-  const spec = CHIP_TONES[tone] ?? CHIP_TONES.neutral;
-  return inlineSurface(ctx, text, spec);
-}
-
-/**
- * Create a compact filled chip as ANSI text for string-based renderers.
- *
- * @param {import('@flyingrobots/bijou').BijouContext} ctx
- * @param {string} label
- * @param {keyof typeof CHIP_TONES} [tone]
- * @returns {string}
- */
-export function chipText(ctx, label, tone = 'neutral') {
-  const text = ` ${label} `;
-  const spec = CHIP_TONES[tone] ?? CHIP_TONES.neutral;
-  return themeText(ctx, text, spec);
 }
 
 /**

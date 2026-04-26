@@ -8,11 +8,13 @@ import {
   createNavigableTableState, navTableFocusNext, navTableFocusPrev, navTablePageDown, navTablePageUp,
   createSplitPaneState, splitPaneFocusNext, splitPaneResizeBy,
   createCommandPaletteState, cpFilter, cpFocusNext, cpFocusPrev, cpPageDown, cpPageUp, cpSelectedItem, commandPaletteKeyMap,
-  animate,
+  createNotificationState, pushNotification, dismissNotification, tickNotifications, notificationsNeedTick, hasNotifications,
+  createPagerState, pagerScrollBy, pagerPageDown, pagerPageUp,
 } from '@flyingrobots/bijou-tui';
 import { loadEntriesCmd, loadManifestCmd, loadRefsCmd, loadStatsCmd, loadDoctorCmd, loadTreemapCmd, readSourceEntries } from './dashboard-cmds.js';
 import { createCliTuiContext, detectCliTuiMode } from './context.js';
 import { renderDashboard } from './dashboard-view.js';
+import { renderManifestView } from './manifest-view.js';
 
 /**
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
@@ -23,6 +25,7 @@ import { renderDashboard } from './dashboard-view.js';
  * @typedef {import('@flyingrobots/bijou-tui').NavigableTableState} NavigableTableState
  * @typedef {import('@flyingrobots/bijou-tui').SplitPaneState} SplitPaneState
  * @typedef {import('@flyingrobots/bijou-tui').CommandPaletteState} CommandPaletteState
+ * @typedef {import('@flyingrobots/bijou-tui').PagerState} PagerState
  * @typedef {import('../../index.js').default} ContentAddressableStore
  * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
  * @typedef {import('./dashboard-cmds.js').TreemapScope} TreemapScope
@@ -32,9 +35,6 @@ import { renderDashboard } from './dashboard-view.js';
  * @typedef {import('./dashboard-cmds.js').RefInventory} RefInventory
  * @typedef {import('./dashboard-cmds.js').RefInventoryItem} RefInventoryItem
  * @typedef {{ slug: string, treeOid: string }} VaultEntry
- * @typedef {'error' | 'warning' | 'info' | 'success'} ToastLevel
- * @typedef {'entering' | 'steady' | 'exiting'} ToastPhase
- * @typedef {{ id: number, level: ToastLevel, title: string, message: string, phase: ToastPhase, progress: number }} ToastRecord
  * @typedef {{ type: 'vault' } | { type: 'ref', ref: string } | { type: 'oid', treeOid: string }} DashSource
  * @typedef {'idle' | 'loading' | 'ready' | 'error'} LoadState
  */
@@ -46,6 +46,7 @@ import { renderDashboard } from './dashboard-view.js';
  *   | { type: 'select' }
  *   | { type: 'filter-start' }
  *   | { type: 'scroll-detail', delta: number }
+ *   | { type: 'page-detail', delta: number }
  *   | { type: 'split-focus' }
  *   | { type: 'split-resize', delta: number }
  *   | { type: 'open-palette' }
@@ -78,9 +79,7 @@ import { renderDashboard } from './dashboard-view.js';
  *   | { type: 'loaded-stats', stats: any, source: DashSource }
  *   | { type: 'loaded-doctor', report: any, source: DashSource }
  *   | { type: 'loaded-treemap', report: any }
- *   | { type: 'toast-progress', id: number, progress: number }
- *   | { type: 'toast-expire', id: number }
- *   | { type: 'dismiss-toast', id: number }
+ *   | { type: 'notification-tick' }
  *   | { type: 'load-error', source: string, slug?: string, forSource?: DashSource, scopeId?: TreemapScope, worktreeMode?: TreemapWorktreeMode, drillPath?: TreemapPathNode[], error: string }
  * } DashMsg
  */
@@ -98,7 +97,7 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {any} metadata
  * @property {Map<string, Manifest>} manifestCache
  * @property {string | null} loadingSlug
- * @property {number} detailScroll
+ * @property {PagerState | null} detailPager
  * @property {string | null} error
  * @property {NavigableTableState} table
  * @property {NavigableTableState} refsTable
@@ -121,8 +120,7 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {LoadState} treemapStatus
  * @property {any | null} treemapReport
  * @property {string | null} treemapError
- * @property {ToastRecord[]} toasts
- * @property {number} nextToastId
+ * @property {import('@flyingrobots/bijou-tui').NotificationState<DashMsg>} notifications
  */
 
 /**
@@ -186,10 +184,33 @@ const LIST_META_ROWS = 2;
 const SPLIT_MIN_LIST_WIDTH = 28;
 const SPLIT_MIN_DETAIL_WIDTH = 32;
 const SPLIT_DIVIDER_SIZE = 1;
-const TOAST_LIMIT = 4;
-const TOAST_TTL_MS = 6000;
-const TOAST_ENTER_MS = 180;
-const TOAST_EXIT_MS = 180;
+const NOTIFICATION_TICK_MS = 50;
+const DETAIL_BODY_TOP = 3;
+
+/**
+ * Estimate the pager viewport height for the detail pane.
+ *
+ * @param {number} termRows
+ * @returns {number}
+ */
+function detailPagerHeight(termRows) {
+  const bodyHeight = Math.max(1, termRows - DASH_HEADER_ROWS - DASH_FOOTER_ROWS);
+  const innerHeight = Math.max(1, bodyHeight - PANE_BORDER_ROWS);
+  return Math.max(1, innerHeight - DETAIL_BODY_TOP);
+}
+
+/**
+ * Build a detail pager from manifest content.
+ *
+ * @param {import('../../src/domain/value-objects/Manifest.js').default} manifest
+ * @param {BijouContext} ctx
+ * @param {number} termRows
+ * @returns {PagerState}
+ */
+function buildDetailPager(manifest, ctx, termRows) {
+  const content = renderManifestView({ manifest, ctx });
+  return createPagerState({ content, width: 1, height: detailPagerHeight(termRows) });
+}
 
 const PALETTE_ITEMS = [
   {
@@ -515,102 +536,44 @@ function setPalette(model, palette) {
   return [{ ...model, palette }, []];
 }
 
+/** @type {Record<string, import('@flyingrobots/bijou-tui').NotificationTone>} */
+const LEVEL_TO_TONE = {
+  error: 'ERROR',
+  warning: 'WARNING',
+  info: 'INFO',
+  success: 'SUCCESS',
+};
+
 /**
- * Add a toast notification and schedule its dismissal.
+ * Schedule a notification tick command when animations are in progress.
+ *
+ * @param {import('@flyingrobots/bijou-tui').NotificationState<DashMsg>} notifications
+ * @returns {DashCmd[]}
+ */
+function notificationTickCmds(notifications) {
+  if (notificationsNeedTick(notifications)) {
+    return [/** @type {DashCmd} */ (tick(NOTIFICATION_TICK_MS, { type: 'notification-tick' }))];
+  }
+  return [];
+}
+
+/**
+ * Add a toast notification via Bijou's notification system.
  *
  * @param {DashModel} model
- * @param {{ level: ToastLevel, title: string, message: string }} toastSpec
+ * @param {{ level: string, title: string, message: string }} toastSpec
  * @returns {[DashModel, DashCmd[]]}
  */
 function addToast(model, toastSpec) {
-  const id = model.nextToastId;
-  const toast = { id, ...toastSpec, phase: 'entering', progress: 0 };
-  return [{
-    ...model,
-    nextToastId: id + 1,
-    toasts: [toast, ...model.toasts].slice(0, TOAST_LIMIT),
-  }, [
-    animateToast(id, 0, 1),
-    /** @type {DashCmd} */ (tick(TOAST_TTL_MS, { type: 'toast-expire', id })),
-  ]];
-}
-
-/**
- * Dismiss a toast by id.
- *
- * @param {DashModel} model
- * @param {number} id
- * @returns {[DashModel, DashCmd[]]}
- */
-function dismissToast(model, id) {
-  return [{
-    ...model,
-    toasts: model.toasts.filter((toast) => toast.id !== id),
-  }, []];
-}
-
-/**
- * Animate one toast progress value.
- *
- * @param {number} id
- * @param {number} from
- * @param {number} to
- * @returns {DashCmd}
- */
-function animateToast(id, from, to) {
-  const duration = from < to ? TOAST_ENTER_MS : TOAST_EXIT_MS;
-  return /** @type {DashCmd} */ (animate({
-    type: 'tween',
-    from,
-    to,
-    duration,
-    onFrame: (progress) => ({ type: 'toast-progress', id, progress }),
-  }));
-}
-
-/**
- * Update one toast record by id.
- *
- * @param {DashModel} model
- * @param {number} id
- * @param {(toast: ToastRecord) => ToastRecord} updater
- * @returns {DashModel}
- */
-function updateToast(model, id, updater) {
-  let changed = false;
-  const toasts = model.toasts.map((toast) => {
-    if (toast.id !== id) {
-      return toast;
-    }
-    changed = true;
-    return updater(toast);
-  });
-  return changed ? { ...model, toasts } : model;
-}
-
-/**
- * Begin toast exit animation when a toast is dismissed or expires.
- *
- * @param {DashModel} model
- * @param {number} id
- * @returns {[DashModel, DashCmd[]]}
- */
-function startToastExit(model, id) {
-  const toast = model.toasts.find((entry) => entry.id === id);
-  if (!toast) {
-    return [model, []];
-  }
-  if (toast.phase === 'exiting') {
-    return [model, []];
-  }
-  const nextModel = updateToast(model, id, (entry) => ({
-    ...entry,
-    phase: 'exiting',
-  }));
-  return [nextModel, [
-    animateToast(id, toast.progress, 0),
-    /** @type {DashCmd} */ (tick(TOAST_EXIT_MS + 16, { type: 'dismiss-toast', id })),
-  ]];
+  const notifications = pushNotification(model.notifications, {
+    title: toastSpec.title,
+    message: toastSpec.message,
+    tone: LEVEL_TO_TONE[toastSpec.level] ?? 'INFO',
+    variant: 'TOAST',
+    placement: 'LOWER_RIGHT',
+    durationMs: 6000,
+  }, Date.now());
+  return [{ ...model, notifications }, notificationTickCmds(notifications)];
 }
 
 /**
@@ -769,7 +732,7 @@ function createInitModel(ctx, source) {
     metadata: null,
     manifestCache: new Map(),
     loadingSlug: null,
-    detailScroll: 0,
+    detailPager: null,
     error: null,
     table: createInitTable(rows),
     refsTable: createInitRefsTable(rows),
@@ -792,8 +755,7 @@ function createInitModel(ctx, source) {
     treemapStatus: 'idle',
     treemapReport: null,
     treemapError: null,
-    toasts: [],
-    nextToastId: 1,
+    notifications: createNotificationState(),
   };
 }
 
@@ -1008,9 +970,10 @@ function handleLoadedEntries(msg, model, cas) {
  *
  * @param {DashMsg & { type: 'loaded-manifest' }} msg
  * @param {DashModel} model
+ * @param {BijouContext} ctx
  * @returns {[DashModel, DashCmd[]]}
  */
-function handleLoadedManifest(msg, model) {
+function handleLoadedManifest(msg, model, ctx) {
   if (!sourceEquals(msg.source, model.source)) {
     return [model, []];
   }
@@ -1021,11 +984,16 @@ function handleLoadedManifest(msg, model) {
     manifestCache: cache,
     rows: model.rows,
   });
+  const selectedSlug = model.filtered[model.table.focusRow]?.slug;
+  const detailPager = selectedSlug === msg.slug
+    ? buildDetailPager(msg.manifest, ctx, model.rows)
+    : model.detailPager;
   return [{
     ...model,
     manifestCache: cache,
     loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug,
     table,
+    detailPager,
   }, []];
 }
 
@@ -1038,7 +1006,7 @@ function handleLoadedManifest(msg, model) {
  */
 function handleMove(msg, model) {
   const table = msg.delta > 0 ? navTableFocusNext(model.table) : navTableFocusPrev(model.table);
-  return [{ ...model, table, detailScroll: 0 }, []];
+  return [{ ...model, table, detailPager: null }, []];
 }
 
 /**
@@ -1050,7 +1018,7 @@ function handleMove(msg, model) {
  */
 function handlePage(msg, model) {
   const table = msg.delta > 0 ? navTablePageDown(model.table) : navTablePageUp(model.table);
-  return [{ ...model, table, detailScroll: 0 }, []];
+  return [{ ...model, table, detailPager: null }, []];
 }
 
 /**
@@ -1104,7 +1072,9 @@ function handleSelect(model, deps) {
     return [model, []];
   }
   if (model.manifestCache.has(entry.slug)) {
-    return [{ ...model, splitPane: { ...model.splitPane, focused: 'b' } }, []];
+    const manifest = model.manifestCache.get(entry.slug);
+    const detailPager = buildDetailPager(manifest, deps.ctx, model.rows);
+    return [{ ...model, splitPane: { ...model.splitPane, focused: 'b' }, detailPager }, []];
   }
   const cmd = /** @type {DashCmd} */ (loadManifestCmd(deps.cas, {
     slug: entry.slug,
@@ -1114,6 +1084,7 @@ function handleSelect(model, deps) {
   return [{
     ...model,
     loadingSlug: entry.slug,
+    detailPager: null,
     splitPane: { ...model.splitPane, focused: 'b' },
   }, [cmd]];
 }
@@ -1287,7 +1258,7 @@ function buildSourceSwitchModel(model, source) {
     metadata: null,
     manifestCache: new Map(),
     loadingSlug: null,
-    detailScroll: 0,
+    detailPager: null,
     error: null,
     table: clearedTable,
     splitPane: { ...model.splitPane, focused: 'a' },
@@ -1386,8 +1357,12 @@ function closeOverlay(model) {
   if (model.activeDrawer) {
     return [{ ...model, activeDrawer: null }, []];
   }
-  if (model.toasts.length > 0) {
-    return startToastExit(model, model.toasts[0].id);
+  if (hasNotifications(model.notifications)) {
+    const topItem = model.notifications.items[0];
+    if (topItem) {
+      const notifications = dismissNotification(model.notifications, topItem.id, Date.now());
+      return [{ ...model, notifications }, notificationTickCmds(notifications)];
+    }
   }
   return [model, []];
 }
@@ -1668,8 +1643,17 @@ function handleLayoutAction(action, model) {
     return startFilter(model);
   }
   if (action.type === 'scroll-detail') {
-    const scroll = Math.max(0, model.detailScroll + action.delta);
-    return [{ ...model, detailScroll: scroll }, []];
+    if (!model.detailPager) {
+      return [model, []];
+    }
+    return [{ ...model, detailPager: pagerScrollBy(model.detailPager, action.delta) }, []];
+  }
+  if (action.type === 'page-detail') {
+    if (!model.detailPager) {
+      return [model, []];
+    }
+    const pager = action.delta > 0 ? pagerPageDown(model.detailPager) : pagerPageUp(model.detailPager);
+    return [{ ...model, detailPager: pager }, []];
   }
   if (action.type === 'split-focus') {
     return [{ ...model, splitPane: splitPaneFocusNext(model.splitPane) }, []];
@@ -1692,6 +1676,7 @@ function isBlockedByTreemapView(action) {
     || action.type === 'select'
     || action.type === 'filter-start'
     || action.type === 'scroll-detail'
+    || action.type === 'page-detail'
     || action.type === 'split-focus'
     || action.type === 'split-resize';
 }
@@ -1728,6 +1713,19 @@ function handlePrimaryAction(action, model, deps) {
  * @param {DashDeps} deps
  * @returns {[DashModel, DashCmd[]]}
  */
+function handleDetailPaneAction(action, model) {
+  if (model.activeDrawer || model.splitPane.focused !== 'b') {
+    return null;
+  }
+  if (action.type === 'move') {
+    return handleLayoutAction({ type: 'scroll-detail', delta: action.delta }, model) ?? [model, []];
+  }
+  if (action.type === 'page') {
+    return handleLayoutAction({ type: 'page-detail', delta: action.delta }, model) ?? [model, []];
+  }
+  return null;
+}
+
 function handleAction(action, model, deps) {
   const refsResult = handleRefsViewAction(action, model, deps);
   if (refsResult) {
@@ -1739,6 +1737,10 @@ function handleAction(action, model, deps) {
   }
   if (model.activeDrawer === 'treemap' && isBlockedByTreemapView(action)) {
     return [model, []];
+  }
+  const detailResult = handleDetailPaneAction(action, model);
+  if (detailResult) {
+    return detailResult;
   }
   const primaryResult = handlePrimaryAction(action, model, deps);
   if (primaryResult) {
@@ -1880,23 +1882,16 @@ function handleLoadError(msg, model) {
  *
  * @param {DashMsg} msg
  * @param {DashModel} model
- * @param {ContentAddressableStore} cas
+ * @param {DashDeps} deps
  * @returns {[DashModel, DashCmd[]]}
  */
-function handleAppMsg(msg, model, cas) {
-  if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, cas); }
-  if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model); }
-  if (msg.type === 'toast-progress') {
-    return [updateToast(model, msg.id, (toast) => ({
-      ...toast,
-      progress: Math.max(0, Math.min(1, msg.progress)),
-      phase: msg.progress >= 1 && toast.phase === 'entering' ? 'steady' : toast.phase,
-    })), []];
+function handleAppMsg(msg, model, deps) {
+  if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, deps.cas); }
+  if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model, deps.ctx); }
+  if (msg.type === 'notification-tick') {
+    const notifications = tickNotifications(model.notifications, Date.now());
+    return [{ ...model, notifications }, notificationTickCmds(notifications)];
   }
-  if (msg.type === 'toast-expire') {
-    return startToastExit(model, msg.id);
-  }
-  if (msg.type === 'dismiss-toast') { return dismissToast(model, msg.id); }
   if (msg.type === 'load-error') { return handleLoadError(msg, model); }
   return handleLoadedReport(msg, model);
 }
@@ -1945,24 +1940,38 @@ function handleUpdate(msg, model, deps) {
     return [model, []];
   }
   if (msg.type === 'resize') {
-    const table = syncTable(model.table, {
-      entries: model.filtered,
-      manifestCache: model.manifestCache,
-      rows: msg.rows,
-    });
-    const refsTable = syncRefsTable(model.refsTable, {
-      refs: model.refsItems,
-      rows: msg.rows,
-    });
-    const palette = model.palette
-      ? {
-        ...model.palette,
-        height: paletteHeight(msg.rows),
-      }
-      : null;
-    return [{ ...model, columns: msg.columns, rows: msg.rows, table, refsTable, palette }, []];
+    return handleResize(msg, model);
   }
-  return handleAppMsg(/** @type {DashMsg} */ (msg), model, deps.cas);
+  return handleAppMsg(/** @type {DashMsg} */ (msg), model, deps);
+}
+
+/**
+ * Handle terminal resize events.
+ *
+ * @param {ResizeMsg} msg
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleResize(msg, model) {
+  const table = syncTable(model.table, {
+    entries: model.filtered,
+    manifestCache: model.manifestCache,
+    rows: msg.rows,
+  });
+  const refsTable = syncRefsTable(model.refsTable, {
+    refs: model.refsItems,
+    rows: msg.rows,
+  });
+  const palette = model.palette
+    ? {
+      ...model.palette,
+      height: paletteHeight(msg.rows),
+    }
+    : null;
+  const detailPager = model.detailPager
+    ? { ...model.detailPager, height: detailPagerHeight(msg.rows) }
+    : null;
+  return [{ ...model, columns: msg.columns, rows: msg.rows, table, refsTable, palette, detailPager }, []];
 }
 
 /**

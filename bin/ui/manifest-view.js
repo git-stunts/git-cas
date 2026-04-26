@@ -2,9 +2,9 @@
  * Manifest anatomy view — rich visual breakdown of a manifest.
  */
 
-import { box, table, tree } from '@flyingrobots/bijou';
+import { badge, box, surfaceToString, table, tree } from '@flyingrobots/bijou';
 import { getCliContext } from './context.js';
-import { chipText, sectionHeading, themeText } from './theme.js';
+import { sectionHeading, themeText } from './theme.js';
 
 /**
  * @typedef {import('../../src/domain/value-objects/Manifest.js').ManifestData} ManifestData
@@ -38,7 +38,7 @@ function formatBytes(bytes) {
  * @returns {string}
  */
 function renderBadges(m, ctx) {
-  const renderBadge = (label, tone = 'neutral') => chipText(ctx, label, tone);
+  const renderBadge = (label, variant = 'neutral') => surfaceToString(badge(label, { variant, ctx }), ctx.style);
   const badges = [];
   if (Number.isFinite(m.version)) {
     badges.push(renderBadge(`v${m.version}`, 'brand'));

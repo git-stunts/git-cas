@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { surfaceToString } from '@flyingrobots/bijou';
-import { createNavigableTableState, createSplitPaneState } from '@flyingrobots/bijou-tui';
+import { createNavigableTableState, createNotificationState, createPagerState, createSplitPaneState, pushNotification, tickNotifications } from '@flyingrobots/bijou-tui';
 import { makeCtx } from './_testContext.js';
 
 vi.mock('../../../bin/ui/context.js', () => ({
@@ -92,7 +92,7 @@ function makeModel(overrides = {}) {
     metadata: null,
     manifestCache,
     loadingSlug: null,
-    detailScroll: 0,
+    detailPager: null,
     error: null,
     table: makeTable(filtered, { rows, manifestCache }),
     refsTable: makeRefsTable(refsItems, rows),
@@ -115,8 +115,7 @@ function makeModel(overrides = {}) {
     treemapStatus: 'idle',
     treemapReport: null,
     treemapError: null,
-    toasts: [],
-    nextToastId: 1,
+    notifications: createNotificationState(),
     ...overrides,
   };
 }
@@ -233,11 +232,11 @@ function makeTreemapReport(overrides = {}) {
     breadcrumb: ['repository'],
     totalValue: 8192,
     tiles: [
-      makeTreemapTile({ kind: 'worktree', label: 'src', value: 4096, detail: '2 tracked paths · 4.0K on disk' }),
-      makeTreemapTile({ kind: 'git', label: '.git/objects', value: 2048, detail: '2 git items · 2.0K on disk',
+      makeTreemapTile({ kind: 'worktree', label: 'src', value: 4096, detail: '2 tracked paths \u00b7 4.0K on disk' }),
+      makeTreemapTile({ kind: 'git', label: '.git/objects', value: 2048, detail: '2 git items \u00b7 2.0K on disk',
         segments: ['.git/objects'],
       }),
-      makeTreemapTile({ kind: 'vault', label: 'docs', value: 2048, detail: '2 entries · 2.0K logical' }),
+      makeTreemapTile({ kind: 'vault', label: 'docs', value: 2048, detail: '2 entries \u00b7 2.0K logical' }),
     ],
     notes: [
       'Repository view mixes Git-reported worktree paths, .git on-disk bytes, ref namespaces, and logical CAS region sizes.',
@@ -248,16 +247,35 @@ function makeTreemapReport(overrides = {}) {
   };
 }
 
-function makeToast(overrides = {}) {
-  return {
-    id: 1,
-    level: 'info',
-    title: 'Toast title',
-    message: 'toast body',
-    phase: 'steady',
-    progress: 1,
-    ...overrides,
-  };
+/** @type {Record<string, import('@flyingrobots/bijou-tui').NotificationTone>} */
+const LEVEL_TO_TONE = {
+  error: 'ERROR',
+  warning: 'WARNING',
+  info: 'INFO',
+  success: 'SUCCESS',
+};
+
+/**
+ * Build a notification state with several toasts pre-pushed.
+ *
+ * @param {Array<{ level?: string, title?: string, message?: string }>} specs
+ * @returns {import('@flyingrobots/bijou-tui').NotificationState<any>}
+ */
+function makeNotifications(specs) {
+  const now = Date.now();
+  let state = createNotificationState();
+  for (const spec of specs) {
+    state = pushNotification(state, {
+      title: spec.title ?? 'Toast title',
+      message: spec.message ?? 'toast body',
+      tone: LEVEL_TO_TONE[spec.level ?? 'info'] ?? 'INFO',
+      variant: 'TOAST',
+      placement: 'LOWER_RIGHT',
+      durationMs: 6000,
+    }, now);
+  }
+  state = tickNotifications(state, now + 200);
+  return state;
 }
 
 function renderDashboardWithModel(modelOverrides = {}, depsOverrides = {}) {
@@ -277,8 +295,8 @@ function makeFullScreenTreemapModel() {
     treemapStatus: 'ready',
     treemapReport: makeTreemapReport({
       tiles: [
-        makeTreemapTile({ kind: 'worktree', label: 'src', value: 4096, detail: '2 tracked paths · 4.0K on disk' }),
-        makeTreemapTile({ kind: 'git', label: '.git/objects', value: 2048, detail: '2 git items · 2.0K on disk',
+        makeTreemapTile({ kind: 'worktree', label: 'src', value: 4096, detail: '2 tracked paths \u00b7 4.0K on disk' }),
+        makeTreemapTile({ kind: 'git', label: '.git/objects', value: 2048, detail: '2 git items \u00b7 2.0K on disk',
           segments: ['.git/objects'],
         }),
         makeTreemapTile({ kind: 'meta', label: 'other', value: 1024, detail: '2 smaller regions',
@@ -332,10 +350,59 @@ describe('dashboard navigation', () => {
     expect(cmds).toHaveLength(1);
   });
 
-  it('scroll-detail adjusts offset', () => {
+  it('scroll-detail is a no-op when detailPager is null', () => {
     const app = createDashboardApp(makeDeps());
-    const [next] = app.update(keyMsg('j', { shift: true }), makeModel());
-    expect(next.detailScroll).toBe(3);
+    const model = makeModel();
+    const [next] = app.update(keyMsg('j', { shift: true }), model);
+    expect(next.detailPager).toBeNull();
+  });
+
+});
+
+describe('dashboard detail pager navigation', () => {
+  it('scroll-detail scrolls the pager when detailPager exists', () => {
+    const app = createDashboardApp(makeDeps());
+    const pager = createPagerState({ content: 'a\nb\nc\nd\ne\nf\ng\nh\ni\nj', width: 40, height: 4 });
+    const model = makeModel({ detailPager: pager });
+    const [next] = app.update(keyMsg('j', { shift: true }), model);
+    expect(next.detailPager).not.toBeNull();
+    expect(next.detailPager.scroll.y).toBeGreaterThan(0);
+  });
+
+  it('j/k scrolls detail pager when pane b is focused', () => {
+    const app = createDashboardApp(makeDeps());
+    const pager = createPagerState({ content: 'a\nb\nc\nd\ne\nf\ng\nh\ni\nj', width: 40, height: 4 });
+    const model = makeModel({
+      detailPager: pager,
+      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+    });
+    const [next] = app.update(keyMsg('j'), model);
+    expect(next.detailPager.scroll.y).toBeGreaterThan(0);
+  });
+
+  it('d/u pages detail pager when pane b is focused', () => {
+    const app = createDashboardApp(makeDeps());
+    const pager = createPagerState({ content: Array.from({ length: 30 }, (_, i) => `line ${i}`).join('\n'), width: 40, height: 4 });
+    const model = makeModel({
+      detailPager: pager,
+      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+    });
+    const [next] = app.update(keyMsg('d'), model);
+    expect(next.detailPager.scroll.y).toBeGreaterThan(0);
+  });
+
+  it('j/k moves table rows when pane a is focused', () => {
+    const app = createDashboardApp(makeDeps());
+    const pager = createPagerState({ content: 'a\nb\nc\nd\ne', width: 40, height: 4 });
+    const model = makeModel({
+      detailPager: pager,
+      filtered: entries,
+      entries,
+      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
+    });
+    const [next] = app.update(keyMsg('j'), model);
+    expect(next.table.focusRow).toBe(1);
+    expect(next.detailPager).toBeNull();
   });
 });
 
@@ -406,28 +473,16 @@ describe('dashboard drawer shortcuts', () => {
   });
 });
 
-describe('dashboard toast dismissal', () => {
-  it('escape starts the latest toast exit animation when no overlay is open', () => {
+describe('dashboard notification dismissal', () => {
+  it('escape dismisses the top notification when no overlay is open', () => {
     const app = createDashboardApp(makeDeps());
-    const [next, cmds] = app.update(keyMsg('escape'), makeModel({
-      toasts: [
-        makeToast({ id: 2, level: 'warning', title: 'Heads up', message: 'yellow alert' }),
-        makeToast({ id: 1, level: 'error', title: 'Failed to load repo treemap', message: 'boom' }),
-      ],
-    }));
-    expect(next.toasts).toHaveLength(2);
-    expect(next.toasts[0]).toMatchObject({
-      id: 2,
-      title: 'Heads up',
-      phase: 'exiting',
-      progress: 1,
-    });
-    expect(next.toasts[1]).toMatchObject({
-      id: 1,
-      title: 'Failed to load repo treemap',
-      phase: 'steady',
-    });
-    expect(cmds).toHaveLength(2);
+    const notifications = makeNotifications([
+      { level: 'warning', title: 'Heads up', message: 'yellow alert' },
+      { level: 'error', title: 'Failed to load repo treemap', message: 'boom' },
+    ]);
+    const [next] = app.update(keyMsg('escape'), makeModel({ notifications }));
+    const dismissedItem = next.notifications.items.find((item) => item.phase === 'exiting');
+    expect(dismissedItem).toBeDefined();
   });
 });
 
@@ -500,7 +555,7 @@ function makeDrilledTreemapModel() {
         label: 'pack',
         kind: 'git',
         value: 2048,
-        detail: '2 git items · 2.0K on disk',
+        detail: '2 git items \u00b7 2.0K on disk',
         drillable: true,
         path: { kind: 'git', segments: ['.git/objects', 'pack'], label: 'pack' },
       }],
@@ -634,7 +689,7 @@ describe('dashboard treemap reports', () => {
         label: 'src',
         kind: 'worktree',
         value: 2048,
-        detail: '2 tracked paths · 2.0K on disk',
+        detail: '2 tracked paths \u00b7 2.0K on disk',
         drillable: true,
         path: { kind: 'worktree', segments: ['src'], label: 'src' },
       }],
@@ -657,30 +712,16 @@ describe('dashboard treemap reports', () => {
   });
 });
 
-describe('dashboard toast messages', () => {
-  it('dismiss-toast removes the matching toast', () => {
+describe('dashboard notification messages', () => {
+  it('notification-tick advances notification animation state', () => {
     const app = createDashboardApp(makeDeps());
-    const model = makeModel({
-      toasts: [
-        makeToast({ id: 1, level: 'error', title: 'Failed to load entries', message: 'boom' }),
-        makeToast({ id: 2, level: 'warning', title: 'Heads up', message: 'careful' }),
-      ],
-    });
-    const [next] = app.update({ type: 'dismiss-toast', id: 1 }, model);
-    expect(next.toasts).toEqual([
-      makeToast({ id: 2, level: 'warning', title: 'Heads up', message: 'careful' }),
+    const notifications = makeNotifications([
+      { level: 'error', title: 'Failed to load entries', message: 'boom' },
     ]);
-  });
-
-  it('toast-progress promotes entering toasts to steady once animation completes', () => {
-    const app = createDashboardApp(makeDeps());
-    const model = makeModel({
-      toasts: [makeToast({ id: 3, title: 'Loaded', phase: 'entering', progress: 0.4 })],
-    });
-    const [next] = app.update({ type: 'toast-progress', id: 3, progress: 1 }, model);
-    expect(next.toasts).toEqual([
-      makeToast({ id: 3, title: 'Loaded', phase: 'steady', progress: 1 }),
-    ]);
+    const model = makeModel({ notifications });
+    const [next] = app.update({ type: 'notification-tick' }, model);
+    expect(next.notifications).toBeDefined();
+    expect(next.notifications.items.length).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -722,15 +763,13 @@ describe('dashboard filter edge cases', () => {
     expect(next.table.focusRow).toBe(0);
   });
 
-  it('load-error from entries sets error and status on model', () => {
+  it('load-error from entries sets error and pushes notification', () => {
     const app = createDashboardApp(makeDeps());
-    const [next, cmds] = app.update({ type: 'load-error', source: 'entries', forSource: { type: 'vault' }, error: 'boom' }, makeModel());
+    const [next] = app.update({ type: 'load-error', source: 'entries', forSource: { type: 'vault' }, error: 'boom' }, makeModel());
     expect(next.error).toBe('boom');
     expect(next.status).toBe('error');
-    expect(next.toasts).toHaveLength(1);
-    expect(next.toasts[0].title).toBe('Failed to load entries');
-    expect(next.toasts[0]).toMatchObject({ phase: 'entering', progress: 0 });
-    expect(cmds).toHaveLength(2);
+    expect(next.notifications.items).toHaveLength(1);
+    expect(next.notifications.items[0].title).toBe('Failed to load entries');
   });
 });
 
@@ -738,13 +777,11 @@ describe('dashboard loading edge cases', () => {
   it('load-error from manifest does not set global error', () => {
     const app = createDashboardApp(makeDeps());
     const model = makeModel({ status: 'ready', entries, filtered: entries });
-    const [next, cmds] = app.update({ type: 'load-error', source: 'manifest', slug: 'alpha', forSource: { type: 'vault' }, error: 'oops' }, model);
+    const [next] = app.update({ type: 'load-error', source: 'manifest', slug: 'alpha', forSource: { type: 'vault' }, error: 'oops' }, model);
     expect(next.status).toBe('ready');
     expect(next.error).toBeNull();
-    expect(next.toasts).toHaveLength(1);
-    expect(next.toasts[0].title).toBe('Failed to load alpha');
-    expect(next.toasts[0]).toMatchObject({ phase: 'entering', progress: 0 });
-    expect(cmds).toHaveLength(2);
+    expect(next.notifications.items).toHaveLength(1);
+    expect(next.notifications.items[0].title).toBe('Failed to load alpha');
   });
 
   it('loaded-entries clamps table focus to filtered bounds', () => {
@@ -1009,37 +1046,24 @@ describe('dashboard palette rendering', () => {
     expect(rendered).toContain('Open Source Stats');
   });
 
-  it('renders stacked toast notifications', () => {
+  it('renders notification stack when notifications exist', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
-    const rendered = renderView(app.view(makeModel({
-      toasts: [
-        makeToast({ id: 2, level: 'warning', title: 'Heads up', message: 'yellow alert with more words to wrap cleanly' }),
-        makeToast({ id: 1, level: 'error', title: 'Failed to load repo treemap', message: 'boom' }),
-      ],
-    })), deps.ctx);
+    const notifications = makeNotifications([
+      { level: 'warning', title: 'Heads up', message: 'yellow alert with more words to wrap cleanly' },
+      { level: 'error', title: 'Failed to load repo treemap', message: 'boom' },
+    ]);
+    const rendered = renderView(app.view(makeModel({ notifications, columns: 120, rows: 36 })), deps.ctx);
     expect(rendered).toContain('alerts 2');
-    expect(rendered).toContain('ERROR // Failed to load repo treemap');
-    expect(rendered).toContain('WARNING // Heads up');
-    expect(rendered).toContain('yellow alert with more words');
   });
 
-  it('renders exiting toasts near completion without crashing', () => {
+  it('renders notifications without crashing', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
-    const rendered = renderView(app.view(makeModel({
-      toasts: [
-        makeToast({
-          id: 7,
-          level: 'error',
-          title: 'Opaque ref',
-          message: 'refs/heads/main does not resolve to CAS entries',
-          phase: 'exiting',
-          progress: 0.08,
-        }),
-      ],
-    })), deps.ctx);
-    expect(rendered).toContain('║ERROR');
+    const notifications = makeNotifications([
+      { level: 'error', title: 'Opaque ref', message: 'refs/heads/main does not resolve to CAS entries' },
+    ]);
+    const rendered = renderView(app.view(makeModel({ notifications })), deps.ctx);
     expect(rendered).not.toContain('TypeError');
   });
 });

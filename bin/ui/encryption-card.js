@@ -2,9 +2,9 @@
  * Encryption info card — visual summary of vault crypto configuration.
  */
 
-import { box } from '@flyingrobots/bijou';
+import { badge, box, surfaceToString } from '@flyingrobots/bijou';
 import { getCliContext } from './context.js';
-import { chipText, sectionHeading, themeText } from './theme.js';
+import { sectionHeading, themeText } from './theme.js';
 
 /**
  * Render an encryption info card for the vault.
@@ -25,8 +25,8 @@ export function renderEncryptionCard({ metadata, unlocked = false }) {
   const { kdf } = encryption;
 
   const status = unlocked
-    ? chipText(ctx, 'unlocked', 'success')
-    : chipText(ctx, 'locked', 'danger');
+    ? surfaceToString(badge('unlocked', { variant: 'success', ctx }), ctx.style)
+    : surfaceToString(badge('locked', { variant: 'danger', ctx }), ctx.style);
 
   const rows = [
     `  cipher      ${encryption.cipher}`,
