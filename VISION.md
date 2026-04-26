@@ -68,7 +68,7 @@ Encryption is a first-class citizen, not an addon. Three encryption schemes — 
 The system is built for automation. Agentic CLI surfaces and JSONL protocols ensure that `git-cas` can be a reliable part of a high-fidelity CI/CD or agentic workflow.
 
 ### 5. Defense in Depth
-No single mechanism is trusted to stand alone. Chunk integrity guards the data. Manifest hashes guard the structure. AAD binding guards the cryptographic context. KDF policy enforcement guards the key material. Schema validation guards the protocol boundary. Timing oracle elimination guards the side channels. Every layer assumes the others have already failed.
+No single mechanism is trusted to stand alone. Chunk integrity guards the data. Manifest hashes guard the structure. AAD binding guards the cryptographic context. KDF policy enforcement guards the key material. Convergent key derivation binds each chunk's encryption to its content hash. Schema validation guards the protocol boundary. Timing oracle elimination guards the side channels. Every layer assumes the others have already failed.
 
 ---
 **The goal is inevitability. Git, freebased: pure CAS that stays in your repository.**
