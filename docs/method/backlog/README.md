@@ -9,6 +9,7 @@ The lane is the priority:
 - `up-next/` — likely after the current pull
 - `cool-ideas/` — interesting, not committed
 - `bad-code/` — debt that works but bothers us
+- `v6.0.0/` — release gate items (must complete before version bump)
 
 Backlog filenames use legend prefixes when they belong to a named domain and do
 not use numeric IDs.
@@ -26,6 +27,14 @@ not use numeric IDs.
 ### `up-next/`
 
 - none currently
+
+### `v6.0.0/` (release gate)
+
+1. [REL — Migration Script](./v6.0.0/REL_migration-script.md) — `npm run upgrade` with dry-run + execute modes
+2. [REL — Breaking Changes Doc](./v6.0.0/REL_breaking-changes-doc.md) — `UPGRADING.md` with migration guide
+3. [REL — Docs Accuracy Audit](./v6.0.0/REL_docs-accuracy-audit.md) — verify all docs against v6 API
+4. [REL — Signpost Rewrite](./v6.0.0/REL_signpost-rewrite.md) — README, BEARING, VISION, STATUS for v6
+5. [REL — Version Bump](./v6.0.0/REL_version-bump.md) — bump, tag, publish (blocked by 1-4)
 
 ### `cool-ideas/`
 
