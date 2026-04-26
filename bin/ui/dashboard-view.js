@@ -6,7 +6,9 @@ import { badge, boxSurface, createSurface, parseAnsiToSurface, kbd } from '@flyi
 import { clipToWidth, commandPalette, dagPane, dissolveShader, hasNotifications, helpView, hstackSurface, interactiveAccordion, navigableTable, pagerSurface, renderNotificationStack, statusBarSurface, vstackSurface, wipe } from '@flyingrobots/bijou-tui';
 import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
 import { inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
-import { renderDoctorReport, renderVaultStats } from './vault-report.js';
+import { renderVaultStats } from './vault-report.js';
+import { renderBadgeRow } from './blocks/asset-card.js';
+import { renderHealthDashboard } from './blocks/health-dashboard.js';
 import { renderManifestView } from './manifest-view.js';
 import { renderWizardSurface } from './store-wizard.js';
 
@@ -468,11 +470,10 @@ function doctorDrawerBody(model, ctx) {
   if (model.doctorStatus === 'error') {
     return `Failed to load doctor report\n\n${model.doctorError ?? 'unknown error'}`;
   }
-  return typeof model.doctorReport === 'string'
-    ? model.doctorReport
-    : model.doctorReport
-    ? `${sectionHeading(ctx, 'Integrity Sweep', 'brand')}\n${themeText(ctx, 'Vault reachability, manifest health, and issue inventory.', { tone: 'subdued' })}\n\n${renderDoctorReport(model.doctorReport)}`
-    : 'Doctor report has not been loaded yet.';
+  if (!model.doctorReport || typeof model.doctorReport === 'string') {
+    return model.doctorReport ?? 'Doctor report has not been loaded yet.';
+  }
+  return `${sectionHeading(ctx, 'Integrity Sweep', 'brand')}\n${themeText(ctx, 'Vault reachability, manifest health, and issue inventory.', { tone: 'subdued' })}\n\n${renderHealthDashboard(model.doctorReport, ctx)}`;
 }
 
 /**
@@ -703,6 +704,26 @@ function inspectorTitle() {
 }
 
 /**
+ * Render the detail pane entry summary header (slug, tree oid, badges).
+ *
+ * @param {{ slug: string, treeOid: string }} entry
+ * @param {import('../../src/domain/value-objects/Manifest.js').ManifestData | null} manifestData
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+function renderEntrySummary(entry, manifestData, ctx) {
+  const parts = [
+    `${themeText(ctx, 'asset', { tone: 'accent' })} ${themeText(ctx, entry.slug, { tone: 'primary', bold: true })}`,
+    `${themeText(ctx, 'tree', { tone: 'subdued' })}  ${themeText(ctx, `${entry.treeOid.slice(0, 12)}...`, { tone: 'secondary' })}`,
+  ];
+  if (manifestData) {
+    const badges = renderBadgeRow(manifestData, ctx);
+    if (badges) { parts.push(badges); }
+  }
+  return parts.join('\n');
+}
+
+/**
  * Render the explorer detail pane.
  *
  * @param {DashModel} model
@@ -721,11 +742,10 @@ function renderDetailPane(model, opts) {
   }
 
   const manifest = model.manifestCache.get(entry.slug);
-  const summary = [
-    `${themeText(opts.ctx, 'asset', { tone: 'accent' })} ${themeText(opts.ctx, entry.slug, { tone: 'primary', bold: true })}`,
-    `${themeText(opts.ctx, 'tree', { tone: 'subdued' })}  ${themeText(opts.ctx, `${entry.treeOid.slice(0, 12)}...`, { tone: 'secondary' })}`,
-  ];
-  content.blit(textSurface(summary.join('\n'), innerWidth, Math.min(2, innerHeight)), 0, 0);
+  const m = manifest ? (manifest.toJSON ? manifest.toJSON() : manifest) : null;
+  const summary = renderEntrySummary(entry, m, opts.ctx);
+  const summaryLines = summary.split('\n').length;
+  content.blit(textSurface(summary, innerWidth, Math.min(summaryLines, innerHeight)), 0, 0);
 
   if (!manifest) {
     const loadingText = entry.slug === model.loadingSlug
@@ -740,7 +760,7 @@ function renderDetailPane(model, opts) {
     : renderManifestView({ manifest: manifest.toJSON ? manifest.toJSON() : manifest, ctx: opts.ctx });
   const manifestLines = Math.max(1, manifestBody.split('\n').length);
   const manifestSurface = parseAnsiToSurface(manifestBody, innerWidth, manifestLines);
-  const bodyTop = 3;
+  const bodyTop = summaryLines + 1;
   const bodyHeight = Math.max(1, innerHeight - bodyTop);
 
   if (model.detailPager && manifestLines > bodyHeight) {

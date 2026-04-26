@@ -15,9 +15,10 @@ import { renderHeatmap } from './ui/heatmap.js';
 import {
   buildVaultStats,
   inspectVaultHealth,
-  renderDoctorReport,
   renderVaultStats,
 } from './ui/vault-report.js';
+import { renderHealthDashboard } from './ui/blocks/health-dashboard.js';
+import { getCliContext } from './ui/context.js';
 import { runAction } from './actions.js';
 import { runAgentCli } from './agent/cli.js';
 import { flushStdioAndExit, installBrokenPipeHandlers } from './io.js';
@@ -482,7 +483,8 @@ program
       if (json) {
         process.stdout.write(`${JSON.stringify(report)}\n`);
       } else {
-        process.stdout.write(renderDoctorReport(report));
+        const ctx = getCliContext();
+        process.stdout.write(`${renderHealthDashboard(report, ctx)}\n`);
       }
 
       if (report.status !== 'ok') {
