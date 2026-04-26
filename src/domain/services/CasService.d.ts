@@ -3,9 +3,8 @@
  * Domain service for Content Addressable Storage operations.
  */
 
-import Manifest from "../value-objects/Manifest.js";
+import Manifest, { type EncryptionMeta, type CompressionMeta, type KdfParams, type EncryptionScheme } from "../value-objects/Manifest.js";
 import Chunk from "../value-objects/Chunk.js";
-import type { EncryptionMeta, CompressionMeta, KdfParams, EncryptionScheme } from "../value-objects/Manifest.js";
 
 /** Port interface for cryptographic operations (hashing, encryption, random bytes). */
 export interface CryptoPort {
