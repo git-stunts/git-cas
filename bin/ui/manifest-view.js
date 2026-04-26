@@ -2,9 +2,10 @@
  * Manifest anatomy view — rich visual breakdown of a manifest.
  */
 
-import { box, table, tree } from '@flyingrobots/bijou';
+import { box } from '@flyingrobots/bijou';
 import { getCliContext } from './context.js';
 import { renderBadgeRow } from './blocks/asset-card.js';
+import { renderChunkTable, renderSubManifestTree } from './blocks/merkle-explorer.js';
 import { sectionHeading, themeText } from './theme.js';
 
 /**
@@ -92,34 +93,16 @@ function renderEncryptionSection(enc, ctx) {
  * @param {BijouContext} ctx
  * @returns {string}
  */
-function chunksBody(chunks, ctx) {
-  const displayChunks = chunks.slice(0, 20);
-  const chunkRows = displayChunks.map((/** @type {{ index: number, size: number, digest: string, blob?: string }} */ c) => [
-    String(c.index),
-    formatBytes(c.size),
-    typeof c.digest === 'string' ? `${c.digest.slice(0, 12)}...` : '-',
-    typeof c.blob === 'string' ? `${c.blob.slice(0, 12)}...` : '-',
-  ]);
-  const chunkTable = table({
-    columns: [{ header: '#' }, { header: 'Size' }, { header: 'Digest' }, { header: 'Blob' }],
-    rows: chunkRows,
-    ctx,
-  });
-  const suffix = chunks.length > 20
-    ? `\n  ...and ${chunks.length - 20} more`
-    : '';
-  return `${chunkTable}${suffix}`;
-}
-
 /**
- * Build the chunks section (headed).
+ * Build the chunks section (headed). Delegates to MerkleExplorer block.
  *
- * @param {ManifestData['chunks']} chunks
+ * @param {ManifestData} m
  * @param {BijouContext} ctx
  * @returns {string}
  */
-function renderChunksSection(chunks, ctx) {
-  return `${sectionHeading(ctx, `Chunk Ledger (${chunks.length})`, 'info')}\n${chunksBody(chunks, ctx)}`;
+function renderChunksSection(m, ctx) {
+  const chunks = m.chunks || [];
+  return `${sectionHeading(ctx, `Chunk Ledger (${chunks.length})`, 'info')}\n${renderChunkTable(m, ctx)}`;
 }
 
 /**
@@ -157,16 +140,8 @@ function renderMetadataSection(m, ctx) {
  * @param {BijouContext} ctx
  * @returns {string}
  */
-function subManifestsBody(m, ctx) {
-  const subs = m.subManifests || [];
-  const nodes = subs.map((/** @type {import('../../src/domain/value-objects/Manifest.js').SubManifestRef} */ sm, /** @type {number} */ i) => ({
-    label: `sub-${i}  ${sm.chunkCount} chunks  start: ${sm.startIndex}  oid: ${sm.oid.slice(0, 8)}...`,
-  }));
-  return tree(nodes, { ctx });
-}
-
 /**
- * Build the sub-manifests section (headed).
+ * Build the sub-manifests section (headed). Delegates to MerkleExplorer block.
  *
  * @param {ManifestData} m
  * @param {BijouContext} ctx
@@ -174,7 +149,7 @@ function subManifestsBody(m, ctx) {
  */
 function renderSubManifestsSection(m, ctx) {
   const subs = m.subManifests || [];
-  return `${sectionHeading(ctx, `Merkle Branches (${subs.length})`, 'accent')}\n${subManifestsBody(m, ctx)}`;
+  return `${sectionHeading(ctx, `Merkle Branches (${subs.length})`, 'accent')}\n${renderSubManifestTree(m, ctx)}`;
 }
 
 /**
@@ -204,7 +179,7 @@ export function renderManifestView({ manifest, ctx = getCliContext() }) {
     sections.push(renderSubManifestsSection(m, ctx));
   }
   if (m.chunks?.length) {
-    sections.push(renderChunksSection(m.chunks, ctx));
+    sections.push(renderChunksSection(m, ctx));
   }
 
   return `${sections.join('\n\n')}\n`;
@@ -235,10 +210,10 @@ export function buildManifestSections({ manifest, ctx = getCliContext() }) {
     sections.push({ title: 'Compression Profile', content: box(`  algorithm  ${m.compression.algorithm}`, { ctx }) });
   }
   if (m.subManifests?.length) {
-    sections.push({ title: `Merkle Branches (${m.subManifests.length})`, content: subManifestsBody(m, ctx) });
+    sections.push({ title: `Merkle Branches (${m.subManifests.length})`, content: renderSubManifestTree(m, ctx) });
   }
   if (m.chunks?.length) {
-    sections.push({ title: `Chunk Ledger (${m.chunks.length})`, content: chunksBody(m.chunks, ctx) });
+    sections.push({ title: `Chunk Ledger (${m.chunks.length})`, content: renderChunkTable(m, ctx) });
   }
   return sections;
 }
