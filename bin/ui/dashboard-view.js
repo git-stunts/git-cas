@@ -590,11 +590,8 @@ function selectedEntry(model) {
  */
 function tableSchema(width) {
   if (width >= 64) {
-    // Fixed data columns, slug gets the remainder up to a cap
     const fixedCols = 10 + 7 + 10 + 9; // Size + Chunks + Crypto + Format
     const slugWidth = Math.max(20, Math.min(40, width - fixedCols - 4));
-    const usedWidth = slugWidth + fixedCols;
-    // Don't let the table stretch beyond content — cap total at usedWidth + gaps
     return {
       columns: [
         { header: 'Slug', width: slugWidth },
@@ -604,7 +601,6 @@ function tableSchema(width) {
         { header: 'Format', width: 9 },
       ],
       indexes: [0, 1, 2, 3, 4],
-      totalWidth: usedWidth + 4,
     };
   }
   if (width >= 48) {
@@ -671,10 +667,7 @@ function renderDividerSurface(height) {
  * @returns {Surface}
  */
 function renderListPane(model, opts) {
-  const schema = tableSchema(opts.width - 2);
-  const contentWidth = schema.totalWidth || (opts.width - 2);
-  const boxWidth = Math.min(opts.width, contentWidth + 2);
-  const innerWidth = Math.max(1, boxWidth - 2);
+  const innerWidth = Math.max(1, opts.width - 2);
   const innerHeight = Math.max(1, opts.height - 2);
   const metaLines = [
     themeText(opts.ctx, clip(model.filtering ? `filter /${model.filterText}\u2588` : model.filterText ? `filter ${model.filterText}` : 'filter all', innerWidth), { tone: 'accent' }),
@@ -697,11 +690,11 @@ function renderListPane(model, opts) {
   }
 
   const content = metaLines.join('\n');
-  const contentHeight = content.split('\n').length;
-  return boxSurface(textSurface(content, innerWidth, contentHeight), {
+  return boxSurface(textSurface(content, innerWidth, innerHeight), {
     ctx: opts.ctx,
     title: 'Entries Ledger',
-    width: boxWidth,
+    width: opts.width,
+    height: opts.height,
   });
 }
 
