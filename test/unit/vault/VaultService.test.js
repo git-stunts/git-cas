@@ -249,6 +249,48 @@ describe('readState – missing kdf.keyLength', () => {
   });
 });
 
+describe('readState – malformed kdf.salt', () => {
+  it('throws VAULT_METADATA_INVALID when kdf.salt is not canonical base64', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    const bad = JSON.stringify({
+      version: 1,
+      encryption: {
+        cipher: 'aes-256-gcm',
+        kdf: {
+          algorithm: 'pbkdf2',
+          salt: '%%%bad-base64%%%',
+          iterations: 100000,
+          keyLength: 32,
+        },
+      },
+    });
+    setupExistingVault({ ref, persistence, metaJson: bad });
+    const vault = createVault({ ref, persistence });
+
+    await expect(vault.readState()).rejects.toSatisfy(
+      (e) => e instanceof CasError && e.code === 'VAULT_METADATA_INVALID',
+    );
+  });
+});
+
+describe('initVault – KDF policy', () => {
+  it('rejects out-of-policy explicit KDF parameters before deriveKey', async () => {
+    const ref = mockRef();
+    setupNoVault(ref);
+    const crypto = mockCrypto();
+    const vault = createVault({ ref, crypto });
+
+    await expect(vault.initVault({
+      passphrase: 'vault-passphrase',
+      kdfOptions: { algorithm: 'pbkdf2', iterations: 99_999 },
+    })).rejects.toSatisfy(
+      (e) => e instanceof CasError && e.code === 'KDF_POLICY_VIOLATION',
+    );
+    expect(crypto.deriveKey).not.toHaveBeenCalled();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // addToVault – first entry
 // ---------------------------------------------------------------------------
@@ -503,7 +545,12 @@ describe('initVault – already encrypted', () => {
       version: 1,
       encryption: {
         cipher: 'aes-256-gcm',
-        kdf: { algorithm: 'pbkdf2', salt: 'abc', iterations: 100000, keyLength: 32 },
+        kdf: {
+          algorithm: 'pbkdf2',
+          salt: Buffer.alloc(32, 0x11).toString('base64'),
+          iterations: 100000,
+          keyLength: 32,
+        },
       },
     });
     setupExistingVault({ ref, persistence, metaJson: meta });
@@ -557,6 +604,28 @@ describe('CAS retry – succeeds on retry', () => {
     const vault = createVault({ ref, persistence });
     const result = await vault.addToVault({ slug: 'demo/hello', treeOid: 'entry-tree-1' });
     expect(result.commitOid).toBe('new-commit-oid');
+  });
+
+  it('retries initVault() on VAULT_CONFLICT and succeeds', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+
+    setupNoVault(ref);
+    setupNoVault(ref);
+    persistence.writeBlob.mockResolvedValueOnce('meta-blob-oid-1');
+    persistence.writeBlob.mockResolvedValueOnce('meta-blob-oid-2');
+    persistence.writeTree.mockResolvedValueOnce('tree-oid-1');
+    persistence.writeTree.mockResolvedValueOnce('tree-oid-2');
+    ref.createCommit.mockResolvedValueOnce('commit-1');
+    ref.createCommit.mockResolvedValueOnce('commit-2');
+    ref.updateRef.mockRejectedValueOnce(new Error('lock failed'));
+    ref.updateRef.mockResolvedValueOnce(undefined);
+
+    const vault = createVault({ ref, persistence });
+    const result = await vault.initVault();
+
+    expect(result.commitOid).toBe('commit-2');
+    expect(ref.updateRef).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -4,14 +4,42 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
+function streamFromBuffers(buffers) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (const buffer of buffers) {
+        yield buffer;
+      }
+    },
+  };
+}
+
+function enableReadBlobStream(mockPersistence, buffers) {
+  let idx = 0;
+  mockPersistence.readBlobStream = vi.fn().mockImplementation(async () => {
+    const buffer = buffers[idx++] || Buffer.alloc(0);
+    return streamFromBuffers([buffer]);
+  });
+}
+
+async function collectChunks(iterable) {
+  const chunks = [];
+  for await (const chunk of iterable) {
+    chunks.push(chunk);
+  }
+  return chunks;
+}
+
 function setup({ maxRestoreBufferSize } = {}) {
   const mockPersistence = {
-    writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
+    writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
     readBlob: vi.fn().mockResolvedValue(Buffer.alloc(1024, 0xaa)),
     readTree: vi.fn(),
   };
@@ -21,6 +49,8 @@ function setup({ maxRestoreBufferSize } = {}) {
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   };
   if (maxRestoreBufferSize !== undefined) {
     opts.maxRestoreBufferSize = maxRestoreBufferSize;
@@ -29,12 +59,15 @@ function setup({ maxRestoreBufferSize } = {}) {
   return { mockPersistence, service };
 }
 
+/** Generate a valid 40-char hex OID for a given index. */
+const blobOid = (i) => `${'abcdef'[i % 6]}`.repeat(40);
+
 function makeEncryptedManifest(chunkSizes) {
   const chunks = chunkSizes.map((size, i) => ({
     index: i,
     size,
     digest: 'a'.repeat(64),
-    blob: `blob-${i}`,
+    blob: blobOid(i),
   }));
   return new Manifest({
     slug: 'test',
@@ -42,6 +75,7 @@ function makeEncryptedManifest(chunkSizes) {
     size: chunkSizes.reduce((a, b) => a + b, 0),
     chunks,
     encryption: {
+      scheme: 'whole',
       algorithm: 'aes-256-gcm',
       nonce: Buffer.alloc(12).toString('base64'),
       tag: Buffer.alloc(16).toString('base64'),
@@ -89,6 +123,33 @@ describe('CasService — RESTORE_TOO_LARGE succeeds within limit', () => {
   });
 });
 
+describe('CasService — buffered restore adapter capability', () => {
+  it('requires readBlobStream() for hard-limited buffered restore modes', async () => {
+    const { service, mockPersistence } = setup({ maxRestoreBufferSize: 4096 });
+    const key = Buffer.alloc(32, 0xab);
+
+    async function* source() { yield Buffer.alloc(512, 0xaa); }
+    const manifest = await service.store({
+      source: source(),
+      slug: 'capability',
+      filename: 'capability.bin',
+      encryptionKey: key,
+      encryption: { scheme: 'whole' },
+    });
+
+    await expect(
+      service.restoreStream({ manifest, encryptionKey: key }).next(),
+    ).rejects.toMatchObject({
+      code: 'PERSISTENCE_CAPABILITY_REQUIRED',
+      meta: expect.objectContaining({
+        capability: 'readBlobStream',
+        mode: 'buffered-restore',
+      }),
+    });
+    expect(mockPersistence.readBlob).not.toHaveBeenCalled();
+  });
+});
+
 describe('CasService — RESTORE_TOO_LARGE defaults and meta', () => {
   it('default maxRestoreBufferSize is 512 MiB', () => {
     const { service } = setup();
@@ -110,29 +171,77 @@ describe('CasService — RESTORE_TOO_LARGE defaults and meta', () => {
   });
 });
 
-describe('CasService — RESTORE_TOO_LARGE after decompression', () => {
+describe('CasService — RESTORE_TOO_LARGE after decompression', () => { // eslint-disable-line max-lines-per-function
   it('throws when decompressed size exceeds limit', async () => {
     const { service, mockPersistence } = setup({ maxRestoreBufferSize: 4096 });
     const key = Buffer.alloc(32, 0xab);
 
     // Store a small encrypted+compressed manifest that fits pre-decompression
-    async function* source() { yield Buffer.alloc(2048, 0xaa); }
+    async function* source() { yield Buffer.alloc(8192, 0xaa); }
     const manifest = await service.store({
       source: source(), slug: 'bomb', filename: 'bomb.bin',
-      encryptionKey: key, compression: { algorithm: 'gzip' },
+      encryptionKey: key,
+      encryption: { scheme: 'whole' },
+      compression: { algorithm: 'gzip' },
     });
 
     // Wire readBlob to return the stored blobs
     const storedBlobs = mockPersistence.writeBlob.mock.calls.map((c) => c[0]);
     let idx = 0;
     mockPersistence.readBlob.mockImplementation(() => Promise.resolve(storedBlobs[idx++] || Buffer.alloc(0)));
-
-    // Mock _decompress to return a buffer larger than the limit
-    service._decompress = vi.fn().mockResolvedValue(Buffer.alloc(8192, 0xbb));
+    enableReadBlobStream(mockPersistence, storedBlobs);
 
     await expect(
-      service.restoreStream({ manifest, encryptionKey: key }).next(),
+      collectChunks(service.restoreStream({ manifest, encryptionKey: key })),
     ).rejects.toMatchObject({ code: 'RESTORE_TOO_LARGE' });
+  });
+
+  it('streams compressed data without buffering — no RESTORE_TOO_LARGE', async () => {
+    const { service, mockPersistence } = setup({ maxRestoreBufferSize: 1024 });
+    const plaintext = Buffer.alloc(8192, 0xaa);
+
+    async function* source() { yield plaintext; }
+    const manifest = await service.store({
+      source: source(),
+      slug: 'plain-bomb',
+      filename: 'plain-bomb.bin',
+      compression: { algorithm: 'gzip' },
+    });
+
+    const storedBlobs = mockPersistence.writeBlob.mock.calls.map((c) => c[0]);
+    let idx = 0;
+    mockPersistence.readBlob.mockImplementation(() => Promise.resolve(storedBlobs[idx++] || Buffer.alloc(0)));
+    enableReadBlobStream(mockPersistence, storedBlobs);
+
+    // Compressed plaintext now uses streaming decompression, so it no longer
+    // buffers the full payload — restoreStream succeeds even when the
+    // decompressed size exceeds maxRestoreBufferSize.
+    const chunks = [];
+    for await (const chunk of service.restoreStream({ manifest })) {
+      chunks.push(chunk);
+    }
+    expect(Buffer.concat(chunks).equals(plaintext)).toBe(true);
+  });
+});
+
+describe('CasService — RESTORE_TOO_LARGE on actual blob overrun', () => {
+  it('throws when a blob is larger than the manifest-declared chunk size', async () => {
+    const { service, mockPersistence } = setup({ maxRestoreBufferSize: 1024 });
+    const manifest = makeEncryptedManifest([512]);
+
+    mockPersistence.readBlobStream = vi.fn().mockResolvedValue(
+      streamFromBuffers([
+        Buffer.alloc(300, 0xaa),
+        Buffer.alloc(300, 0xbb),
+      ]),
+    );
+
+    await expect(
+      service.restoreStream({ manifest, encryptionKey: Buffer.alloc(32, 0xab) }).next(),
+    ).rejects.toMatchObject({
+      code: 'RESTORE_TOO_LARGE',
+      meta: expect.objectContaining({ limit: 512 }),
+    });
   });
 });
 
@@ -163,8 +272,8 @@ describe('CasService — RESTORE_TOO_LARGE does not affect streaming', () => {
       filename: 'plain.bin',
       size: 2048,
       chunks: [
-        { index: 0, size: 1024, digest: 'a'.repeat(64), blob: 'blob-0' },
-        { index: 1, size: 1024, digest: 'a'.repeat(64), blob: 'blob-1' },
+        { index: 0, size: 1024, digest: 'a'.repeat(64), blob: blobOid(0) },
+        { index: 1, size: 1024, digest: 'a'.repeat(64), blob: blobOid(1) },
       ],
     });
 

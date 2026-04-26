@@ -6,18 +6,69 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
+
+/** Valid 40-char hex OID for blob fields. */
+const VALID_BLOB = 'a'.repeat(40);
 
 /** Deterministic SHA-256 hex digest for a given string. */
 const sha256 = (str) => createHash('sha256').update(str).digest('hex');
+
+function createBlobBackedService() {
+  const blobStore = new Map();
+  const crypto = testCrypto;
+  const service = new CasService({
+    persistence: {
+      writeBlob: vi.fn().mockImplementation(async (content) => {
+        const buf = Buffer.isBuffer(content) ? content : Buffer.from(content);
+        const oid = await crypto.sha256(buf);
+        blobStore.set(oid, buf);
+        return oid;
+      }),
+      writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+      readBlob: vi.fn().mockImplementation(async (oid) => blobStore.get(oid)),
+    },
+    crypto,
+    codec: new JsonCodec(),
+    chunkSize: 1024,
+    observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
+  });
+
+  return { service, blobStore, crypto };
+}
+
+async function storeStringManifest(service, text, options = {}) {
+  async function* source() { yield Buffer.from(text); }
+  return await service.store({
+    source: source(),
+    slug: options.slug || 'encrypted-test',
+    filename: options.filename || 'file.bin',
+    encryptionKey: options.encryptionKey,
+    encryption: options.encryption,
+  });
+}
+
+function withUpdatedChunk(manifest, chunkIndex, update) {
+  return new Manifest({
+    ...manifest.toJSON(),
+    chunks: manifest.chunks.map((chunk, index) => (
+      index === chunkIndex ? update(chunk) : { ...chunk }
+    )),
+  });
+}
 
 describe('CasService – constructor – chunkSize validation', () => {
   let mockPersistence;
 
   beforeEach(() => {
     mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+      writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
       writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
       readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
     };
@@ -26,13 +77,13 @@ describe('CasService – constructor – chunkSize validation', () => {
   it('throws when chunkSize is 0', () => {
     expect(
       () => new CasService({ persistence: mockPersistence, crypto: testCrypto, codec: new JsonCodec(), chunkSize: 0, observability: new SilentObserver() }),
-    ).toThrow('Chunk size must be an integer >= 1024 bytes');
+    ).toThrow(/chunkSize must be an integer in/i);
   });
 
   it('throws when chunkSize is 512', () => {
     expect(
       () => new CasService({ persistence: mockPersistence, crypto: testCrypto, codec: new JsonCodec(), chunkSize: 512, observability: new SilentObserver() }),
-    ).toThrow('Chunk size must be an integer >= 1024 bytes');
+    ).toThrow(/chunkSize must be an integer in/i);
   });
 
   it('accepts chunkSize of exactly 1024', () => {
@@ -42,6 +93,8 @@ describe('CasService – constructor – chunkSize validation', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
     expect(service.chunkSize).toBe(1024);
   });
@@ -53,7 +106,7 @@ describe('CasService – store – mutual exclusion and validation', () => {
   beforeEach(() => {
     service = new CasService({
       persistence: {
-        writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+        writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
         writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
         readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
       },
@@ -61,6 +114,8 @@ describe('CasService – store – mutual exclusion and validation', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
   });
 
@@ -88,13 +143,13 @@ describe('CasService – store – mutual exclusion and validation', () => {
   });
 });
 
-describe('CasService – restore – mutual exclusion', () => {
+describe('CasService – restore – mutual exclusion', () => { // eslint-disable-line max-lines-per-function
   let service;
 
   beforeEach(() => {
     service = new CasService({
       persistence: {
-        writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+        writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
         writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
         readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
       },
@@ -102,6 +157,8 @@ describe('CasService – restore – mutual exclusion', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
   });
 
@@ -109,7 +166,11 @@ describe('CasService – restore – mutual exclusion', () => {
     const manifest = new Manifest({
       slug: 'test', filename: 'test.bin', size: 0, chunks: [],
       encryption: {
-        algorithm: 'aes-256-gcm', nonce: 'abc', tag: 'def', encrypted: true,
+        scheme: 'whole',
+        algorithm: 'aes-256-gcm',
+        nonce: base64Bytes(12, 1),
+        tag: base64Bytes(16, 2),
+        encrypted: true,
         kdf: { algorithm: 'pbkdf2', salt: 'c2FsdA==', iterations: 1000, keyLength: 32 },
       },
     });
@@ -121,7 +182,13 @@ describe('CasService – restore – mutual exclusion', () => {
   it('rejects passphrase when manifest has no KDF metadata', async () => {
     const manifest = new Manifest({
       slug: 'test', filename: 'test.bin', size: 0, chunks: [],
-      encryption: { algorithm: 'aes-256-gcm', nonce: 'abc', tag: 'def', encrypted: true },
+      encryption: {
+        scheme: 'whole',
+        algorithm: 'aes-256-gcm',
+        nonce: base64Bytes(12, 3),
+        tag: base64Bytes(16, 4),
+        encrypted: true,
+      },
     });
     await expect(
       service.restore({ manifest, passphrase: 'secret' }),
@@ -134,7 +201,7 @@ describe('CasService – store', () => {
 
   beforeEach(() => {
     mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+      writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
       writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
       readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
     };
@@ -147,6 +214,8 @@ describe('CasService – store', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
 
     await expect(
@@ -159,12 +228,12 @@ describe('CasService – store', () => {
   });
 });
 
-describe('CasService – verifyIntegrity', () => {
+describe('CasService – verifyIntegrity (plain)', () => {
   let mockPersistence;
 
   beforeEach(() => {
     mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+      writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
       writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
       readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
     };
@@ -185,6 +254,8 @@ describe('CasService – verifyIntegrity', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
 
     const manifest = new Manifest({
@@ -195,7 +266,7 @@ describe('CasService – verifyIntegrity', () => {
         {
           index: 0,
           size: originalData.length,
-          blob: 'blob-oid-1',
+          blob: VALID_BLOB,
           digest: correctDigest,
         },
       ],
@@ -206,12 +277,130 @@ describe('CasService – verifyIntegrity', () => {
   });
 });
 
+describe('CasService – verifyIntegrity (encrypted without credentials)', () => {
+  it('returns false for encrypted content when no key is provided', async () => {
+    const key = Buffer.alloc(32, 0x11);
+    const service = new CasService({
+      persistence: {
+        writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
+        writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+        readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
+      },
+      crypto: testCrypto,
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+      observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
+    });
+
+    async function* source() { yield Buffer.from('encrypted verify requires auth'); }
+    const manifest = await service.store({
+      source: source(),
+      slug: 'encrypted-verify-no-key',
+      filename: 'file.bin',
+      encryptionKey: key,
+    });
+
+    await expect(service.verifyIntegrity(manifest)).resolves.toBe(false);
+  });
+});
+
+describe('CasService – verifyIntegrity (whole metadata tampering)', () => {
+  it('returns false when encrypted manifest auth metadata is tampered', async () => {
+    const key = Buffer.alloc(32, 0x22);
+    const { service } = createBlobBackedService();
+    const manifest = await storeStringManifest(service, 'encrypted verify detects tag tamper', {
+      slug: 'encrypted-verify-tag',
+      encryptionKey: key,
+      encryption: { scheme: 'whole' },
+    });
+
+    const tamperedManifest = new Manifest({
+      ...manifest.toJSON(),
+      encryption: {
+        ...manifest.encryption,
+        tag: base64Bytes(16, 9),
+      },
+    });
+
+    await expect(
+      service.verifyIntegrity(tamperedManifest, { encryptionKey: key }),
+    ).resolves.toBe(false);
+  });
+});
+
+describe('CasService – verifyIntegrity (framed ciphertext tampering)', () => {
+  it('returns false when framed ciphertext is tampered even if chunk digests are updated', async () => {
+    const key = Buffer.alloc(32, 0x24);
+    const { service, blobStore, crypto } = createBlobBackedService();
+    const manifest = await storeStringManifest(service, 'framed ciphertext auth still matters '.repeat(80), {
+      slug: 'framed-verify-ciphertext',
+      encryptionKey: key,
+      encryption: { scheme: 'framed', frameBytes: 128 },
+    });
+
+    const originalChunk = blobStore.get(manifest.chunks[0].blob);
+    const tamperedChunk = Buffer.from(originalChunk);
+    tamperedChunk[40] ^= 0xff;
+    const tamperedBlob = await crypto.sha256(tamperedChunk);
+    const tamperedDigest = await crypto.sha256(tamperedChunk);
+    blobStore.set(tamperedBlob, tamperedChunk);
+
+    await expect(
+      service.verifyIntegrity(
+        withUpdatedChunk(manifest, 0, (chunk) => ({ ...chunk, blob: tamperedBlob, digest: tamperedDigest })),
+        { encryptionKey: key },
+      ),
+    ).resolves.toBe(false);
+  });
+});
+
+describe('CasService – verifyIntegrity (encrypted scheme routing)', () => {
+  it('rejects unknown encrypted manifest schemes at construction time', async () => {
+    const key = Buffer.alloc(32, 0x33);
+    const blobStore = new Map();
+    const crypto = testCrypto;
+    const service = new CasService({
+      persistence: {
+        writeBlob: vi.fn().mockImplementation(async (content) => {
+          const buf = Buffer.isBuffer(content) ? content : Buffer.from(content);
+          const oid = await crypto.sha256(buf);
+          blobStore.set(oid, buf);
+          return oid;
+        }),
+        writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+        readBlob: vi.fn().mockImplementation(async (oid) => blobStore.get(oid)),
+      },
+      crypto,
+      codec: new JsonCodec(),
+      chunkSize: 1024,
+      observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
+    });
+
+    async function* source() { yield Buffer.from('encrypted verify detects unknown scheme'); }
+    const manifest = await service.store({
+      source: source(),
+      slug: 'encrypted-verify-scheme',
+      filename: 'file.bin',
+      encryptionKey: key,
+    });
+
+    expect(() => new Manifest({
+      ...manifest.toJSON(),
+      encryption: { ...manifest.encryption, scheme: 'mystery-v9' },
+    })).toThrow(/Invalid manifest data/);
+  });
+});
+
 describe('CasService – createTree', () => {
   let mockPersistence;
 
   beforeEach(() => {
     mockPersistence = {
-      writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
+      writeBlob: vi.fn().mockResolvedValue(VALID_BLOB),
       writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
       readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
     };
@@ -224,6 +413,8 @@ describe('CasService – createTree', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
 
     // A plain object that lacks .toJSON() and .chunks
@@ -239,6 +430,8 @@ describe('CasService – createTree', () => {
       codec: new JsonCodec(),
       chunkSize: 1024,
       observability: new SilentObserver(),
+      chunker: new FixedChunker({ chunkSize: 1024 }),
+      compressionAdapter: new NodeCompressionAdapter(),
     });
 
     const badManifest = { toJSON: 'not-a-function', chunks: [] };

@@ -1,18 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { RecipientSchema, EncryptionSchema, ManifestSchema } from '../../../../src/domain/schemas/ManifestSchema.js';
 
+const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
+
 const validRecipient = (overrides = {}) => ({
   label: 'alice',
-  wrappedDek: 'AAAA',
-  nonce: 'BBBB',
-  tag: 'CCCC',
+  wrappedDek: base64Bytes(32, 1),
+  nonce: base64Bytes(12, 2),
+  tag: base64Bytes(16, 3),
   ...overrides,
 });
 
 const baseEncryption = (overrides = {}) => ({
+  scheme: 'whole',
   algorithm: 'aes-256-gcm',
-  nonce: 'bm9uY2U=',
-  tag: 'dGFn',
+  nonce: base64Bytes(12, 4),
+  tag: base64Bytes(16, 5),
   encrypted: true,
   ...overrides,
 });
@@ -104,5 +107,26 @@ describe('ManifestSchema — keyVersion round-trip', () => {
     expect(result.data.encryption.keyVersion).toBe(3);
     expect(result.data.encryption.recipients[0].keyVersion).toBe(2);
     expect(result.data.encryption.recipients[1].keyVersion).toBe(3);
+  });
+
+  it('accepts framed keyVersion without whole-object nonce/tag fields', () => {
+    const manifest = {
+      version: 1,
+      slug: 'framed-test',
+      filename: 'secret.bin',
+      size: 1024,
+      chunks: [{ index: 0, size: 1024, digest: 'a'.repeat(64), blob: 'b'.repeat(40) }],
+      encryption: {
+        scheme: 'framed',
+        algorithm: 'aes-256-gcm',
+        encrypted: true,
+        frameBytes: 32768,
+        keyVersion: 4,
+      },
+    };
+
+    const result = ManifestSchema.safeParse(manifest);
+    expect(result.success).toBe(true);
+    expect(result.data.encryption.keyVersion).toBe(4);
   });
 });

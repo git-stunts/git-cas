@@ -1,39 +1,17 @@
-# Backlog
+# Legacy Backlog Index
 
-Backlog items are single-file work items in the live backlog.
+This directory is retained so pre-METHOD links keep working.
 
-They can be:
+Fresh backlog truth now lives in [docs/method/backlog/](../method/backlog/README.md).
 
-- rough
-- partial
-- speculative
-- implementation-biased
-- design-biased
+Use that directory for:
 
-That is fine. The backlog is allowed to be cheaper than a cycle doc.
+- inbox capture
+- lane priority
+- current pull decisions
+- new backlog items
 
-Naming convention:
+Historical planning cards still live in
+[docs/archive/BACKLOG/](../archive/BACKLOG/README.md).
 
-`<Legend code>-<numerical identifier>-<name>.md`
-
-Example:
-
-`RL-001-recipient-lifecycle.md`
-
-When work begins, the chosen backlog item should move or be copied into
-`docs/design/` and expanded into a full cycle doc.
-
-When work lands, the consumed backlog card should leave the live backlog.
-If the planning history is still useful, move it to
-[`docs/archive/BACKLOG/`](../archive/BACKLOG/README.md).
-
-Current backlog items:
-
-- [TR-005 — CasService Decomposition Plan](./TR-005-casservice-decomposition-plan.md)
-- [TR-008 — Empty-State Phrasing Consistency](./TR-008-empty-state-phrasing-consistency.md)
-- [TR-011 — Streaming Encrypted Restore](./TR-011-streaming-encrypted-restore.md)
-- [TR-015 — Platform-Agnostic CLI Plan](./TR-015-platform-agnostic-cli-plan.md)
-
-Archived delivered backlog items:
-
-- [docs/archive/BACKLOG](../archive/BACKLOG/README.md)
+This legacy directory intentionally no longer carries live backlog cards.

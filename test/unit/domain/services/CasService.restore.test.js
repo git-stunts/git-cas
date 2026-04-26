@@ -6,8 +6,19 @@ import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
+
+function streamOneBuffer(buf) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield buf;
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Module-level helper: store content via async iterable, return manifest
@@ -19,6 +30,7 @@ async function storeBuffer(svc, buf, opts = {}) {
     slug: opts.slug || 'test',
     filename: opts.filename || 'test.bin',
     encryptionKey: opts.encryptionKey,
+    encryption: opts.encryption,
   });
 }
 
@@ -43,6 +55,11 @@ function setup() {
       if (!buf) { throw new Error(`Blob not found: ${oid}`); }
       return buf;
     }),
+    readBlobStream: vi.fn().mockImplementation(async (oid) => {
+      const buf = blobStore.get(oid);
+      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
+      return streamOneBuffer(buf);
+    }),
   };
 
   const service = new CasService({
@@ -51,6 +68,8 @@ function setup() {
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 
   return { crypto, blobStore, mockPersistence, service };
@@ -188,6 +207,97 @@ describe('CasService.restore() – wrong key', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Encrypted manifest boundary
+// ---------------------------------------------------------------------------
+describe('CasService.restore() – encrypted manifest boundary', () => {
+  let service;
+
+  beforeEach(() => {
+    ({ service } = setup());
+  });
+
+  it('rejects a downgraded encrypted manifest instead of returning ciphertext', async () => {
+    const key = randomBytes(32);
+    const original = Buffer.from('encrypted payload that must not downgrade');
+    const manifest = await storeBuffer(service, original, { encryptionKey: key });
+
+    const downgradedManifest = {
+      ...manifest.toJSON(),
+      encryption: { ...manifest.encryption, encrypted: false },
+    };
+
+    await expect(
+      service.restore({ manifest: downgradedManifest }),
+    ).rejects.toMatchObject({
+      code: 'INTEGRITY_ERROR',
+    });
+  });
+
+  it('rejects encrypted manifests with an unexpected algorithm identifier', async () => {
+    const key = randomBytes(32);
+    const original = Buffer.from('encrypted payload with tampered algorithm');
+    const manifest = await storeBuffer(service, original, { encryptionKey: key });
+
+    const tamperedManifest = {
+      ...manifest.toJSON(),
+      encryption: { ...manifest.encryption, algorithm: 'totally-not-aes-gcm' },
+    };
+
+    await expect(
+      service.restore({ manifest: tamperedManifest, encryptionKey: key }),
+    ).rejects.toMatchObject({
+      code: 'INTEGRITY_ERROR',
+    });
+  });
+});
+
+describe('CasService.restore() – encrypted manifest scheme routing', () => {
+  let service;
+
+  beforeEach(() => {
+    ({ service } = setup());
+  });
+
+  it('rejects legacy encrypted manifests without a scheme field', async () => {
+    const key = randomBytes(32);
+    const original = Buffer.from('legacy encrypted manifest without scheme');
+    const manifest = await storeBuffer(service, original, {
+      encryptionKey: key,
+      encryption: { scheme: 'whole' },
+    });
+
+    const legacyManifest = {
+      ...manifest.toJSON(),
+      encryption: Object.fromEntries(
+        Object.entries(manifest.encryption).filter(([k]) => k !== 'scheme'),
+      ),
+    };
+
+    // Constructing a Manifest with no scheme now fails validation
+    expect(() => {
+      new Manifest(legacyManifest);
+    }).toThrow(/Invalid manifest data/);
+  });
+
+  it('rejects encrypted manifests with an unknown encryption scheme', async () => {
+    const key = randomBytes(32);
+    const original = Buffer.from('encrypted payload with tampered scheme');
+    const manifest = await storeBuffer(service, original, { encryptionKey: key });
+
+    const tamperedManifest = {
+      ...manifest.toJSON(),
+      encryption: { ...manifest.encryption, scheme: 'mystery-v9' },
+    };
+
+    await expect(
+      service.restore({ manifest: tamperedManifest, encryptionKey: key }),
+    ).rejects.toMatchObject({
+      code: 'INTEGRITY_ERROR',
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Corrupted chunk
 // ---------------------------------------------------------------------------
 describe('CasService.restore() – corrupted chunk', () => {
@@ -239,7 +349,13 @@ describe('CasService.restore() – key validation', () => {
       filename: 'x.bin',
       size: 0,
       chunks: [],
-      encryption: { algorithm: 'aes-256-gcm', nonce: 'x', tag: 'x', encrypted: true },
+      encryption: {
+        scheme: 'whole',
+        algorithm: 'aes-256-gcm',
+        nonce: base64Bytes(12, 1),
+        tag: base64Bytes(16, 2),
+        encrypted: true,
+      },
     });
 
     await expect(

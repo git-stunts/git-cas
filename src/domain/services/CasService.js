@@ -3,16 +3,66 @@
  * @fileoverview Domain service for Content Addressable Storage operations.
  * @module
  */
-import { gunzip, createGzip } from 'node:zlib';
-import { Readable } from 'node:stream';
-import { promisify } from 'node:util';
 import Manifest from '../value-objects/Manifest.js';
+import { ChunkSchema } from '../schemas/ManifestSchema.js';
 import CasError from '../errors/CasError.js';
 import Semaphore from './Semaphore.js';
-import FixedChunker from '../../infrastructure/chunkers/FixedChunker.js';
 import KeyResolver from './KeyResolver.js';
+import ConvergentEncryption from './ConvergentEncryption.js';
+import diffManifests from './ManifestDiff.js';
+import prefetchChunks from './PrefetchWindow.js';
+import GitPersistencePort from '../../ports/GitPersistencePort.js';
+import {
+  SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT,
+  assertCurrentScheme,
+} from '../encryption/schemes.js';
 
-const gunzipAsync = promisify(gunzip);
+/**
+ * Builds AAD for whole encryption: UTF-8 bytes of the slug.
+ * @param {string} slug
+ * @returns {Buffer}
+ */
+function buildWholeAad(slug) {
+  return Buffer.from(slug, 'utf8');
+}
+
+/**
+ * Builds AAD for framed encryption: UTF-8 slug + NUL + 4-byte BE frame index.
+ * @param {string} slug
+ * @param {number} frameIndex
+ * @returns {Buffer}
+ */
+function buildFramedAad(slug, frameIndex) {
+  const slugLen = Buffer.byteLength(slug, 'utf8');
+  const buf = Buffer.allocUnsafe(slugLen + 5);
+  buf.write(slug, 0, 'utf8');
+  buf[slugLen] = 0; // NUL separator
+  buf.writeUInt32BE(frameIndex, slugLen + 1);
+  return buf;
+}
+
+/**
+ * Strips `manifestHash` and `undefined` values, then returns codec-encoded bytes.
+ * @param {Object} data - Manifest data object.
+ * @param {{ encode: Function }} codec - Codec instance.
+ * @returns {Buffer|string} Encoded bytes (without manifestHash).
+ */
+function encodeForHash(data, codec) {
+  const copy = { ...data };
+  delete copy.manifestHash;
+  // Remove undefined values to match codec round-trip
+  for (const key of Object.keys(copy)) {
+    if (copy[key] === undefined) { delete copy[key]; }
+  }
+  return codec.encode(copy);
+}
+
+const DEFAULT_FRAMED_FRAME_BYTES = 64 * 1024;
+const MAX_FRAMED_FRAME_BYTES = 64 * 1024 * 1024;
+const FRAMED_LENGTH_BYTES = 4;
+const GCM_NONCE_BYTES = 12;
+const GCM_TAG_BYTES = 16;
+const FRAMED_RECORD_HEADER_BYTES = FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES + GCM_TAG_BYTES;
 
 /**
  * Domain service for Content Addressable Storage operations.
@@ -23,6 +73,7 @@ const gunzipAsync = promisify(gunzip);
 export default class CasService {
   /** @type {KeyResolver} */
   #keyResolver;
+  #convergent;
 
   /**
    * @param {Object} options
@@ -35,8 +86,10 @@ export default class CasService {
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
    * @param {import('../../ports/ChunkingPort.js').default} [options.chunker] - Chunking strategy (default FixedChunker).
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max bytes for buffered restore (default 512 MiB).
+   * @param {import('../../ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter (default NodeCompressionAdapter).
+   * @param {string} [options.formatVersion] - Semver version stamped into new manifests.
    */
-  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024 }) {
+  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024, compressionAdapter, formatVersion }) {
     CasService._validateObservability(observability);
     CasService.#validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize });
     this.persistence = persistence;
@@ -47,35 +100,40 @@ export default class CasService {
     if (chunkSize > 10 * 1024 * 1024) {
       observability.log('warn', `Chunk size ${chunkSize} exceeds 10 MiB — consider a smaller value`, { chunkSize });
     }
+    if (!chunker) {
+      throw new Error('chunker is required — inject a ChunkingPort instance');
+    }
+    if (!compressionAdapter) {
+      throw new Error('compressionAdapter is required — inject a CompressionPort instance');
+    }
     /** @type {import('../../ports/ChunkingPort.js').default} */
-    this.chunker = chunker || new FixedChunker({ chunkSize });
+    this.chunker = chunker;
+    /** @type {import('../../ports/CompressionPort.js').default} */
+    this.compressionAdapter = compressionAdapter;
+    /** @type {string|undefined} */
+    this.formatVersion = formatVersion;
     this.merkleThreshold = merkleThreshold;
     this.concurrency = concurrency;
     this.maxRestoreBufferSize = maxRestoreBufferSize;
     this.#keyResolver = new KeyResolver(crypto);
+    this.#convergent = new ConvergentEncryption(crypto);
   }
 
   /**
    * Validates constructor numeric arguments.
    * @private
    */
+  static #assertIntRange({ value, min, max, label }) {
+    if (!Number.isInteger(value) || value < min || value > max) {
+      throw new Error(`${label} must be an integer in [${min}, ${max}]`);
+    }
+  }
+
   static #validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize }) {
-    if (!Number.isInteger(chunkSize) || chunkSize < 1024) {
-      throw new Error('Chunk size must be an integer >= 1024 bytes');
-    }
-    const MAX_CHUNK_SIZE = 100 * 1024 * 1024;
-    if (chunkSize > MAX_CHUNK_SIZE) {
-      throw new Error(`Chunk size must not exceed ${MAX_CHUNK_SIZE} bytes (100 MiB)`);
-    }
-    if (!Number.isInteger(merkleThreshold) || merkleThreshold < 1) {
-      throw new Error('Merkle threshold must be a positive integer');
-    }
-    if (!Number.isInteger(concurrency) || concurrency < 1) {
-      throw new Error('Concurrency must be a positive integer');
-    }
-    if (!Number.isInteger(maxRestoreBufferSize) || maxRestoreBufferSize < 1024) {
-      throw new Error('maxRestoreBufferSize must be a positive integer >= 1024');
-    }
+    CasService.#assertIntRange({ value: chunkSize, min: 1024, max: 100 * 1024 * 1024, label: 'chunkSize' });
+    CasService.#assertIntRange({ value: merkleThreshold, min: 1, max: Number.MAX_SAFE_INTEGER, label: 'merkleThreshold' });
+    CasService.#assertIntRange({ value: concurrency, min: 1, max: 64, label: 'concurrency' });
+    CasService.#assertIntRange({ value: maxRestoreBufferSize, min: 1024, max: Number.MAX_SAFE_INTEGER, label: 'maxRestoreBufferSize' });
   }
 
   /**
@@ -106,14 +164,23 @@ export default class CasService {
 
   /**
    * Stores a single buffer chunk in Git, returning its metadata.
+   *
+   * When `convergentKey` is provided, the chunk is encrypted per-chunk
+   * using deterministic key/nonce derived from its content hash, enabling
+   * deduplication of identical plaintext across encrypted stores.
+   *
    * @private
    * @param {Buffer} buf - The chunk data to store.
    * @param {number} index - Chunk index.
+   * @param {Buffer} [convergentKey] - Convergent encryption master key.
    * @returns {Promise<{ index: number, size: number, digest: string, blob: string }>}
    */
-  async _storeChunk(buf, index) {
+  async _storeChunk(buf, index, convergentKey) {
     const digest = await this._sha256(buf);
-    const blob = await this.persistence.writeBlob(buf);
+    const blobData = convergentKey
+      ? await this.#convergent.encryptChunk(buf, convergentKey, digest)
+      : buf;
+    const blob = await this.persistence.writeBlob(blobData);
     this.observability.metric('chunk', { action: 'stored', index, size: buf.length, digest, blob });
     return { index, size: buf.length, digest, blob };
   }
@@ -124,55 +191,189 @@ export default class CasService {
    * @private
    * @param {AsyncIterable<Buffer>} source - The data source to chunk.
    * @param {Object} manifestData - Mutable manifest accumulator.
+   * @param {{ convergentKey?: Buffer }} [options] - Optional encryption options.
    * @throws {CasError} STREAM_ERROR if the source stream fails.
    */
-  async _chunkAndStore(source, manifestData) {
+  async _chunkAndStore(source, manifestData, { convergentKey } = {}) {
     const sem = new Semaphore(this.concurrency);
-    const pending = [];
-    let nextIndex = 0;
+    const iterator = this.chunker.chunk(source)[Symbol.asyncIterator]();
+    const results = [];
+    const inFlight = new Set();
+    const orphanedBlobs = [];
+    const state = { nextIndex: 0, writeError: null, failedIndex: null };
 
-    const launchWrite = (buf, idx) => {
-      const p = sem.acquire().then(async () => {
-        try {
-          return await this._storeChunk(buf, idx);
-        } finally {
-          sem.release();
-        }
-      });
-      pending.push(p);
-    };
+    while (true) {
+      // Acquire capacity before pulling the next chunk so slow writes apply
+      // backpressure all the way to the upstream source iterator.
+      await sem.acquire();
 
-    try {
-      for await (const chunk of this.chunker.chunk(source)) {
-        launchWrite(chunk, nextIndex++);
+      if (state.writeError) {
+        sem.release();
+        await this._closeAsyncIterator(iterator);
+        break;
       }
-    } catch (err) {
-      const settled = await Promise.allSettled(pending);
-      const orphanedBlobs = settled
-        .filter((r) => r.status === 'fulfilled')
-        .map((r) => r.value.blob);
-      if (err instanceof CasError) {
-        err.meta = { ...err.meta, orphanedBlobs };
-        throw err;
-      }
-      const casErr = new CasError(
-        `Stream error during store: ${err.message}`,
-        'STREAM_ERROR',
-        { chunksDispatched: nextIndex, orphanedBlobs, originalError: err },
-      );
-      this.observability.metric('error', {
-        code: casErr.code, message: casErr.message,
-        orphanedBlobs: orphanedBlobs.length,
+
+      const step = await this._readNextStoreChunk({
+        iterator, sem, inFlight, orphanedBlobs, nextIndex: state.nextIndex,
       });
-      throw casErr;
+
+      if (step.done) {
+        sem.release();
+        break;
+      }
+
+      this._launchChunkWrite({
+        buf: step.value, idx: state.nextIndex++, sem, results, orphanedBlobs, inFlight, state, convergentKey,
+      });
     }
 
-    const results = await Promise.all(pending);
-    results.sort((a, b) => a.index - b.index);
+    await this._awaitChunkWrites({ inFlight, state, orphanedBlobs });
+    this._appendChunkEntries(manifestData, results);
+  }
+
+  /**
+   * Starts one bounded chunk write and tracks its lifecycle.
+   * @private
+   */
+  _launchChunkWrite({ buf, idx, sem, results, orphanedBlobs, inFlight, state, convergentKey }) {
+    const task = (async () => {
+      try {
+        const entry = await this._storeChunk(buf, idx, convergentKey);
+        results[idx] = entry;
+        orphanedBlobs.push(entry.blob);
+      } finally {
+        sem.release();
+      }
+    })().catch((err) => {
+      state.writeError ??= err;
+      state.failedIndex ??= idx;
+      throw err;
+    });
+
+    inFlight.add(task);
+    task.then(
+      () => inFlight.delete(task),
+      () => inFlight.delete(task),
+    );
+  }
+
+  /**
+   * Reads the next chunk step and wraps source failures as STREAM_ERROR.
+   * @private
+   */
+  async _readNextStoreChunk({ iterator, sem, inFlight, orphanedBlobs, nextIndex }) {
+    try {
+      return await iterator.next();
+    } catch (err) {
+      sem.release();
+      await Promise.allSettled(inFlight);
+      await this._closeAsyncIterator(iterator);
+      throw this._buildStoreStreamError(err, nextIndex, orphanedBlobs);
+    }
+  }
+
+  /**
+   * Finalizes in-flight writes and rethrows the first write failure, if any.
+   * @private
+   */
+  async _awaitChunkWrites({ inFlight, state, orphanedBlobs }) {
+    const settled = await Promise.allSettled(inFlight);
+    if (state.writeError) {
+      throw this._buildStoreWriteError({
+        err: state.writeError,
+        nextIndex: state.nextIndex,
+        orphanedBlobs,
+        failedIndex: state.failedIndex,
+      });
+    }
+    for (const result of settled) {
+      if (result.status !== 'fulfilled') {
+        throw this._buildStoreWriteError({
+          err: result.reason,
+          nextIndex: state.nextIndex,
+          orphanedBlobs,
+          failedIndex: state.failedIndex,
+        });
+      }
+    }
+  }
+
+  /**
+   * Appends chunk entries to the manifest accumulator in index order.
+   * @private
+   */
+  _appendChunkEntries(manifestData, results) {
     for (const entry of results) {
       manifestData.chunks.push(entry);
       manifestData.size += entry.size;
     }
+  }
+
+  /**
+   * Closes an async iterator if it supports early termination.
+   * @private
+   */
+  async _closeAsyncIterator(iterator) {
+    if (typeof iterator.return !== 'function') {
+      return;
+    }
+    try {
+      await iterator.return();
+    } catch {
+      // Prefer surfacing the original store failure.
+    }
+  }
+
+  /**
+   * Normalizes store-stream failures and annotates them with orphaned blobs.
+   * @private
+   */
+  _buildStoreStreamError(err, nextIndex, orphanedBlobs) {
+    if (err instanceof CasError) {
+      err.meta = { ...err.meta, orphanedBlobs };
+      return err;
+    }
+
+    const casErr = new CasError(
+      `Stream error during store: ${err.message}`,
+      'STREAM_ERROR',
+      { chunksDispatched: nextIndex, orphanedBlobs, originalError: err },
+    );
+    this.observability.metric('error', {
+      code: casErr.code, message: casErr.message,
+      orphanedBlobs: orphanedBlobs.length,
+    });
+    return casErr;
+  }
+
+  /**
+   * Normalizes chunk-write failures and annotates them with write-phase state.
+   * @private
+   */
+  _buildStoreWriteError({ err, nextIndex, orphanedBlobs, failedIndex }) {
+    const writeMeta = {
+      chunksDispatched: nextIndex,
+      orphanedBlobs,
+      ...(failedIndex === null ? {} : { failedIndex }),
+    };
+
+    if (err instanceof CasError) {
+      err.meta = { ...err.meta, ...writeMeta };
+      return err;
+    }
+
+    const casErr = new CasError(
+      `Store write failed: ${err.message}`,
+      'STORE_ERROR',
+      { ...writeMeta, originalError: err },
+    );
+    this.observability.metric('error', {
+      code: casErr.code,
+      message: casErr.message,
+      orphanedBlobs: orphanedBlobs.length,
+      ...(failedIndex === null ? {} : { failedIndex }),
+    });
+    return casErr;
   }
 
   /**
@@ -209,18 +410,428 @@ export default class CasService {
   }
 
   /**
+   * Decrypts a buffer with optional AAD. Used internally for v2 schemes.
+   * @private
+   * @param {Object} options
+   * @param {Buffer} options.buffer - Ciphertext to decrypt.
+   * @param {Buffer} options.key - 32-byte encryption key.
+   * @param {{ encrypted: boolean, algorithm: string, nonce: string, tag: string }} options.meta - Encryption metadata.
+   * @param {Buffer} [options.aad] - Optional additional authenticated data.
+   * @returns {Promise<Buffer>} Decrypted plaintext.
+   * @throws {CasError} INTEGRITY_ERROR if authentication tag verification fails.
+   */
+  async _decryptWithAad({ buffer, key, meta, aad }) {
+    if (!meta?.encrypted) {
+      return buffer;
+    }
+    try {
+      return await this.crypto.decryptBuffer(buffer, key, meta, aad);
+    } catch (err) {
+      if (err instanceof CasError) {throw err;}
+      throw new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
+    }
+  }
+
+  /**
+   * Resolves the requested store encryption config.
+   * @private
+   * @param {{ scheme?: string, frameBytes?: number, convergent?: boolean }} [encryption]
+   * @param {boolean} hasEncryptionKey
+   * @returns {undefined|{ scheme: 'whole' }|{ scheme: 'framed', frameBytes: number }|{ scheme: 'convergent' }}
+   */
+  _resolveStoreEncryptionConfig(encryption, hasEncryptionKey) {
+    const scheme = encryption?.scheme;
+    const frameBytes = encryption?.frameBytes;
+    this._assertStoreEncryptionPrereqs({ hasEncryptionKey, scheme, frameBytes });
+
+    if (!hasEncryptionKey) {
+      return undefined;
+    }
+
+    if (scheme === SCHEME_CONVERGENT) {
+      return { scheme: SCHEME_CONVERGENT };
+    }
+
+    if (scheme === SCHEME_WHOLE) {
+      return { scheme: SCHEME_WHOLE };
+    }
+
+    if (scheme === SCHEME_FRAMED) {
+      return this._resolveFramedStoreEncryptionConfig(frameBytes);
+    }
+
+    if (!scheme) {
+      return this._resolveAutoEncryptionScheme(encryption, frameBytes);
+    }
+
+    throw new CasError(
+      `Unsupported encryption scheme: ${scheme}`,
+      'INVALID_OPTIONS',
+      { scheme },
+    );
+  }
+
+  /**
+   * Auto-selects encryption scheme when none is explicitly requested.
+   * Defaults to convergent for CDC chunking (unless opted out),
+   * otherwise framed.
+   * @private
+   * @param {{ convergent?: boolean }} [encryption]
+   * @param {number|undefined} frameBytes
+   * @returns {{ scheme: 'convergent' }|{ scheme: 'framed', frameBytes: number }}
+   */
+  _resolveAutoEncryptionScheme(encryption, frameBytes) {
+    const convergentExplicit = encryption?.convergent;
+    if (convergentExplicit === true || (convergentExplicit !== false && this.chunker.strategy === 'cdc')) {
+      return { scheme: SCHEME_CONVERGENT };
+    }
+    return this._resolveFramedStoreEncryptionConfig(frameBytes);
+  }
+
+  /**
+   * Validates that store-time encryption options are coherent.
+   * @private
+   * @param {{ hasEncryptionKey: boolean, scheme?: string, frameBytes?: number }} options
+   */
+  _assertStoreEncryptionPrereqs({ hasEncryptionKey, scheme, frameBytes }) {
+    if (!hasEncryptionKey && (scheme || frameBytes !== undefined)) {
+      throw new CasError(
+        'encryption options require encryptionKey, passphrase, or recipients',
+        'INVALID_OPTIONS',
+        { scheme, frameBytes },
+      );
+    }
+
+    if (frameBytes !== undefined && scheme === SCHEME_WHOLE) {
+      throw new CasError(
+        `encryption.frameBytes is not supported for ${scheme} stores`,
+        'INVALID_OPTIONS',
+        { scheme, frameBytes },
+      );
+    }
+  }
+
+  /**
+   * Normalizes framed store config.
+   * @private
+   * @param {number|undefined} frameBytes
+   * @returns {{ scheme: 'framed', frameBytes: number }}
+   */
+  _resolveFramedStoreEncryptionConfig(frameBytes) {
+    const normalizedFrameBytes = frameBytes ?? DEFAULT_FRAMED_FRAME_BYTES;
+    if (!Number.isInteger(normalizedFrameBytes) || normalizedFrameBytes < 1) {
+      throw new CasError(
+        'encryption.frameBytes must be a positive integer',
+        'INVALID_OPTIONS',
+        { frameBytes: normalizedFrameBytes },
+      );
+    }
+    if (normalizedFrameBytes > MAX_FRAMED_FRAME_BYTES) {
+      throw new CasError(
+        `encryption.frameBytes must not exceed ${MAX_FRAMED_FRAME_BYTES} bytes (64 MiB), got ${normalizedFrameBytes}`,
+        'INVALID_OPTIONS',
+        { frameBytes: normalizedFrameBytes, max: MAX_FRAMED_FRAME_BYTES },
+      );
+    }
+
+    return {
+      scheme: SCHEME_FRAMED,
+      frameBytes: normalizedFrameBytes,
+    };
+  }
+
+  /**
+   * Treats manifest encryption metadata as security-critical when present.
+   * @private
+   * @param {{ slug?: string, encryption?: { scheme?: string, encrypted?: boolean, algorithm?: string, nonce?: string, tag?: string, frameBytes?: number } }} manifest
+   * @returns {undefined|({ scheme: 'whole', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }|{ scheme: 'framed', encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }|{ scheme: 'convergent', encrypted: true, algorithm: 'aes-256-gcm' })}
+   * @throws {CasError} INTEGRITY_ERROR if encryption metadata was downgraded or tampered.
+   */
+  _validatedEncryptionMeta(manifest) {
+    const meta = manifest.encryption;
+    if (!meta) {
+      return undefined;
+    }
+    this._validateCommonEncryptedManifestMeta(manifest, meta);
+
+    if (meta.scheme === SCHEME_WHOLE) {
+      return this._validateWholeEncryptionMeta(manifest, meta);
+    }
+
+    if (meta.scheme === SCHEME_FRAMED) {
+      return this._validateFramedEncryptionMeta(manifest, meta);
+    }
+
+    if (meta.scheme === SCHEME_CONVERGENT) {
+      return this._validateConvergentEncryptionMeta(manifest, meta);
+    }
+
+    throw new CasError(
+      `Encrypted manifest uses unknown scheme: ${meta.scheme}`,
+      'INTEGRITY_ERROR',
+      { slug: manifest.slug, reason: 'manifest-encryption-scheme', scheme: meta.scheme },
+    );
+  }
+
+  /**
+   * Validates common encrypted-manifest fields.
+   * @private
+   * @param {{ slug?: string }} manifest
+   * @param {{ encrypted?: boolean, algorithm?: string }} meta
+   */
+  _validateCommonEncryptedManifestMeta(manifest, meta) {
+    if (meta.encrypted !== true) {
+      throw new CasError(
+        'Encrypted manifest metadata was downgraded or is invalid',
+        'INTEGRITY_ERROR',
+        { slug: manifest.slug, reason: 'manifest-encryption-downgrade' },
+      );
+    }
+
+    if (meta.algorithm !== 'aes-256-gcm') {
+      throw new CasError(
+        `Encrypted manifest uses unexpected algorithm: ${meta.algorithm}`,
+        'INTEGRITY_ERROR',
+        { slug: manifest.slug, reason: 'manifest-encryption-algorithm', algorithm: meta.algorithm },
+      );
+    }
+  }
+
+  /**
+   * Validates whole manifest metadata.
+   * @private
+   * @param {{ slug?: string }} manifest
+   * @param {{ nonce?: string, tag?: string }} meta
+   * @returns {{ scheme: 'whole', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
+   */
+  _validateWholeEncryptionMeta(manifest, meta) {
+    if (typeof meta.nonce !== 'string' || meta.nonce.length === 0 || typeof meta.tag !== 'string' || meta.tag.length === 0) {
+      throw new CasError(
+        'Whole encrypted manifest is missing nonce/tag metadata',
+        'INTEGRITY_ERROR',
+        { slug: manifest.slug, reason: 'manifest-encryption-meta' },
+      );
+    }
+
+    return /** @type {{ scheme: 'whole', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }} */ ({
+      ...meta,
+      scheme: SCHEME_WHOLE,
+    });
+  }
+
+  /**
+   * Validates framed manifest metadata.
+   * @private
+   * @param {{ slug?: string }} manifest
+   * @param {{ frameBytes?: number }} meta
+   * @returns {{ scheme: 'framed', encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }}
+   */
+  _validateFramedEncryptionMeta(manifest, meta) {
+    if (!Number.isInteger(meta.frameBytes) || meta.frameBytes < 1) {
+      throw new CasError(
+        'Framed encrypted manifest is missing a valid frameBytes value',
+        'INTEGRITY_ERROR',
+        { slug: manifest.slug, reason: 'manifest-encryption-frame-bytes', frameBytes: meta.frameBytes },
+      );
+    }
+
+    return /** @type {{ scheme: 'framed', encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} */ ({
+      ...meta,
+      scheme: SCHEME_FRAMED,
+      frameBytes: meta.frameBytes,
+    });
+  }
+
+  /**
+   * Validates convergent manifest metadata.
+   * @private
+   * @param {{ slug?: string }} manifest
+   * @param {{ scheme: 'convergent' }} meta
+   * @returns {{ scheme: 'convergent', encrypted: true, algorithm: 'aes-256-gcm' }}
+   */
+  _validateConvergentEncryptionMeta(_manifest, meta) {
+    return /** @type {{ scheme: 'convergent', encrypted: true, algorithm: 'aes-256-gcm' }} */ ({
+      ...meta,
+      scheme: SCHEME_CONVERGENT,
+    });
+  }
+
+  /**
+   * Emits a normalized integrity failure event/metric.
+   * @private
+   * @param {{ slug?: string }} manifest
+   * @param {Record<string, unknown>} [extra]
+   */
+  _emitIntegrityFail(manifest, extra = {}) {
+    this.observability.metric('integrity', {
+      action: 'fail',
+      slug: manifest.slug,
+      ...extra,
+    });
+  }
+
+  /**
+   * Validates encryption metadata for verifyIntegrity(), returning false on
+   * integrity-style manifest failures without throwing.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {false|undefined|({ scheme: 'whole', encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }|{ scheme: 'framed', encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }|{ scheme: 'convergent', encrypted: true, algorithm: 'aes-256-gcm' })}
+   */
+  _getVerifyEncryptionMeta(manifest) {
+    try {
+      return this._validatedEncryptionMeta(manifest);
+    } catch (err) {
+      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+        this._emitIntegrityFail(manifest, err.meta);
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Verifies chunk digests and collects buffers for any later auth step.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {Promise<false|Buffer[]>}
+   */
+  async _verifyChunkDigests(manifest) {
+    const buffers = [];
+    for (const chunk of manifest.chunks) {
+      const blob = await this._readChunkBlob(chunk.blob);
+      const digest = await this._sha256(blob);
+      if (digest !== chunk.digest) {
+        this._emitIntegrityFail(manifest, {
+          chunkIndex: chunk.index,
+          expected: chunk.digest,
+          actual: digest,
+        });
+        return false;
+      }
+      buffers.push(blob);
+    }
+    return buffers;
+  }
+
+  /**
+   * Resolves the decryption key for restore-style operations.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} [encryptionKey]
+   * @param {string} [passphrase]
+   * @returns {Promise<Buffer|undefined>}
+   */
+  async _resolveRestoreKey(manifest, encryptionKey, passphrase) {
+    return await this.#keyResolver.resolveForDecryption(
+      manifest,
+      encryptionKey,
+      passphrase,
+    );
+  }
+
+  /**
+   * Resolves a verification key for encrypted content without throwing on
+   * auth-style failures.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {{ encryptionKey?: Buffer, passphrase?: string }} options
+   * @returns {Promise<false|Buffer>}
+   */
+  async _resolveVerifyKey(manifest, options) {
+    try {
+      return await this.#keyResolver.resolveForDecryption(
+        manifest,
+        options.encryptionKey,
+        options.passphrase,
+      );
+    } catch (err) {
+      if (err instanceof CasError && ['MISSING_KEY', 'NO_MATCHING_RECIPIENT', 'DEK_UNWRAP_FAILED'].includes(err.code)) {
+        this._emitIntegrityFail(manifest, { reason: 'auth', code: err.code });
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Authenticates whole encrypted content during verifyIntegrity().
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }} encryptionMeta
+   * @param {Buffer} key
+   * @param {Buffer[]} buffers
+   * @returns {Promise<boolean>}
+   */
+  async _verifyEncryptedAuth({ manifest, encryptionMeta, key, buffers }) {
+    try {
+      const aad = buildWholeAad(manifest.slug);
+      await this._decryptWithAad({
+        buffer: Buffer.concat(buffers),
+        key,
+        meta: encryptionMeta,
+        aad,
+      });
+      return true;
+    } catch (err) {
+      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+        this._emitIntegrityFail(manifest, { reason: 'auth', code: err.code });
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Authenticates framed encrypted content during verifyIntegrity().
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {{ encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} encryptionMeta
+   * @param {Buffer} key
+   * @param {Buffer[]} buffers
+   * @returns {Promise<boolean>}
+   */
+  async _verifyFramedAuth({ manifest, encryptionMeta, key, buffers }) {
+    try {
+      const source = (async function* framedSource() {
+        for (const buffer of buffers) {
+          yield buffer;
+        }
+      })();
+
+      let frameIndex = 0;
+      for await (const record of this._parseFramedRecords(source, encryptionMeta.frameBytes)) {
+        const aad = buildFramedAad(manifest.slug, frameIndex);
+        await this._decryptWithAad({
+          buffer: record.ciphertext,
+          key,
+          meta: record.meta,
+          aad,
+        });
+        frameIndex++;
+      }
+
+      return true;
+    } catch (err) {
+      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+        this._emitIntegrityFail(manifest, {
+          reason: err.meta?.reason === 'framed-record-parse' ? 'framing' : 'auth',
+          code: err.code,
+          ...err.meta,
+        });
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /**
    * Wraps an async iterable through gzip compression.
    * @private
    * @param {AsyncIterable<Buffer>} source
    * @returns {AsyncIterable<Buffer>}
    */
   async *_compressStream(source) {
-    const gz = createGzip();
-    const input = Readable.from(source);
-    const compressed = input.pipe(gz);
-    for await (const chunk of compressed) {
-      yield chunk;
-    }
+    yield* this.compressionAdapter.compressStream(source);
   }
 
   /**
@@ -266,12 +877,16 @@ export default class CasService {
    * @param {string} options.filename
    * @param {Buffer} [options.encryptionKey]
    * @param {string} [options.passphrase] - Derive encryption key from passphrase instead.
+   * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
-  async store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression, recipients }) {
+  async store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients }) {
+    if (!source || typeof source[Symbol.asyncIterator] !== 'function') {
+      throw new CasError('source must be an async iterable', 'INVALID_OPTIONS', { sourceType: typeof source });
+    }
     if (recipients && (encryptionKey || passphrase)) {
       throw new CasError('Provide recipients or encryptionKey/passphrase, not both', 'INVALID_OPTIONS');
     }
@@ -281,24 +896,12 @@ export default class CasService {
     const keyInfo = recipients
       ? await this.#keyResolver.resolveRecipients(recipients)
       : await this.#keyResolver.resolveForStore(encryptionKey, passphrase, kdfOptions);
+    const encryptionConfig = this._resolveStoreEncryptionConfig(encryption, !!keyInfo.key);
 
     const manifestData = this._buildManifestData(slug, filename, compression);
     const processedSource = compression ? this._compressStream(source) : source;
 
-    if (keyInfo.key && this.chunker.strategy === 'cdc') {
-      this.observability.log(
-        'warn',
-        'CDC deduplication is ineffective with encryption — ciphertext is pseudorandom',
-        { strategy: 'cdc' },
-      );
-    }
-    if (keyInfo.key) {
-      const { encrypt, finalize } = this.crypto.createEncryptionStream(keyInfo.key);
-      await this._chunkAndStore(encrypt(processedSource), manifestData);
-      manifestData.encryption = { ...finalize(), ...keyInfo.encExtra };
-    } else {
-      await this._chunkAndStore(processedSource, manifestData);
-    }
+    await this._dispatchStore({ processedSource, manifestData, keyInfo, encryptionConfig });
 
     const manifest = new Manifest(manifestData);
     this.observability.metric('file', {
@@ -308,16 +911,176 @@ export default class CasService {
   }
 
   /**
+   * Routes to the correct store strategy based on encryption config.
+   * @private
+   * @param {{ processedSource: AsyncIterable<Buffer>, manifestData: Object, keyInfo: { key?: Buffer, encExtra: Object }, encryptionConfig?: Object }} options
+   */
+  async _dispatchStore({ processedSource, manifestData, keyInfo, encryptionConfig }) {
+    if (keyInfo.key && encryptionConfig?.scheme === SCHEME_CONVERGENT) {
+      await this._storeConvergentSource(processedSource, manifestData, keyInfo);
+      return;
+    }
+    if (keyInfo.key) {
+      this._warnEncryptedCdc();
+      await this._storeEncryptedSource({
+        processedSource, manifestData, key: keyInfo.key,
+        encryptionConfig, encExtra: keyInfo.encExtra,
+      });
+      return;
+    }
+    await this._chunkAndStore(processedSource, manifestData);
+  }
+
+  /**
+   * Stores content using convergent per-chunk encryption.
+   * @private
+   * @param {AsyncIterable<Buffer>} processedSource
+   * @param {Object} manifestData
+   * @param {{ key: Buffer, encExtra: Object }} keyInfo
+   */
+  async _storeConvergentSource(processedSource, manifestData, keyInfo) {
+    await this._chunkAndStore(processedSource, manifestData, { convergentKey: keyInfo.key });
+    manifestData.encryption = {
+      scheme: SCHEME_CONVERGENT,
+      algorithm: 'aes-256-gcm',
+      encrypted: true,
+      ...keyInfo.encExtra,
+    };
+  }
+
+  /**
+   * Warns when encrypted content is stored through CDC chunking.
+   * @private
+   */
+  _warnEncryptedCdc() {
+    if (this.chunker.strategy !== 'cdc') {
+      return;
+    }
+
+    this.observability.log(
+      'warn',
+      'CDC deduplication is ineffective with encryption — ciphertext is pseudorandom',
+      { strategy: 'cdc' },
+    );
+  }
+
+  /**
+   * Stores encrypted content using the requested scheme.
+   * @private
+   * @param {{ processedSource: AsyncIterable<Buffer>, manifestData: { encryption?: object }, key: Buffer, encryptionConfig: { scheme: 'whole' }|{ scheme: 'framed', frameBytes: number }, encExtra: Record<string, unknown> }} options
+   */
+  async _storeEncryptedSource({ processedSource, manifestData, key, encryptionConfig, encExtra }) {
+    if (encryptionConfig.scheme === SCHEME_FRAMED) {
+      await this._chunkAndStore(
+        this._encryptFramed(processedSource, key, {
+          frameBytes: encryptionConfig.frameBytes,
+          slug: manifestData.slug,
+        }),
+        manifestData,
+      );
+      manifestData.encryption = {
+        scheme: SCHEME_FRAMED,
+        algorithm: 'aes-256-gcm',
+        encrypted: true,
+        frameBytes: encryptionConfig.frameBytes,
+        ...encExtra,
+      };
+      return;
+    }
+
+    const aad = buildWholeAad(manifestData.slug);
+    const { encrypt, finalize } = this.crypto.createEncryptionStream(key, aad);
+    await this._chunkAndStore(encrypt(processedSource), manifestData);
+    manifestData.encryption = {
+      ...finalize(),
+      scheme: SCHEME_WHOLE,
+      ...encExtra,
+    };
+  }
+
+  /**
    * Builds initial manifest data with optional chunking and compression metadata.
    * @private
    */
   _buildManifestData(slug, filename, compression) {
     const data = { slug, filename, size: 0, chunks: [] };
+    if (this.formatVersion) { data.formatVersion = this.formatVersion; }
     if (this.chunker.strategy !== 'fixed') {
       data.chunking = { strategy: this.chunker.strategy, params: this.chunker.params };
     }
     if (compression) { data.compression = { algorithm: 'gzip' }; }
     return data;
+  }
+
+  /**
+   * Builds AAD for the current frame in framed encryption.
+   * @private
+   * @param {string} slug
+   * @param {number} frameIndex
+   * @returns {Buffer}
+   */
+  _buildFrameAad(slug, frameIndex) {
+    return buildFramedAad(slug, frameIndex);
+  }
+
+  /**
+   * Encrypts plaintext frames independently and serializes them into framed
+   * records.
+   * @private
+   * @param {AsyncIterable<Buffer>} source
+   * @param {Buffer} key
+   * @param {{ frameBytes: number, slug: string }} opts
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_encryptFramed(source, key, { frameBytes, slug }) {
+    let pending = Buffer.alloc(0);
+    let sawPlaintext = false;
+    let frameIndex = 0;
+
+    for await (const chunk of source) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      if (buf.length === 0) {
+        continue;
+      }
+
+      sawPlaintext = true;
+      pending = pending.length === 0 ? buf : Buffer.concat([pending, buf]);
+
+      while (pending.length >= frameBytes) {
+        const frame = pending.subarray(0, frameBytes);
+        pending = pending.subarray(frameBytes);
+        yield await this._serializeFramedRecord(frame, key, this._buildFrameAad(slug, frameIndex));
+        frameIndex++;
+      }
+    }
+
+    if (pending.length > 0) {
+      yield await this._serializeFramedRecord(pending, key, this._buildFrameAad(slug, frameIndex));
+      return;
+    }
+
+    if (!sawPlaintext) {
+      yield await this._serializeFramedRecord(Buffer.alloc(0), key, this._buildFrameAad(slug, frameIndex));
+    }
+  }
+
+  /**
+   * Serializes one framed record.
+   * @private
+   * @param {Buffer} frame
+   * @param {Buffer} key
+   * @param {Buffer} [aad] - AAD for framed encryption.
+   * @returns {Promise<Buffer>}
+   */
+  async _serializeFramedRecord(frame, key, aad) {
+    const { buf, meta } = await this.crypto.encryptBuffer(frame, key, aad);
+    const nonce = Buffer.from(meta.nonce, 'base64');
+    const tag = Buffer.from(meta.tag, 'base64');
+    const header = Buffer.alloc(FRAMED_RECORD_HEADER_BYTES);
+    header.writeUInt32BE(buf.length, 0);
+    nonce.copy(header, FRAMED_LENGTH_BYTES);
+    tag.copy(header, FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES);
+    return Buffer.concat([header, buf]);
   }
 
   /**
@@ -363,7 +1126,10 @@ export default class CasService {
       return await this._createMerkleTree({ manifest });
     }
 
-    const serializedManifest = this.codec.encode(manifest.toJSON());
+    const manifestData = manifest.toJSON();
+    const hashableBytes = encodeForHash(manifestData, this.codec);
+    manifestData.manifestHash = await this.crypto.sha256(Buffer.from(hashableBytes));
+    const serializedManifest = this.codec.encode(manifestData);
     const manifestOid = await this.persistence.writeBlob(serializedManifest);
 
     const treeEntries = [
@@ -404,6 +1170,8 @@ export default class CasService {
       chunks: [],
       subManifests: subManifestRefs,
     };
+    const rootHashableBytes = encodeForHash(rootManifestData, this.codec);
+    rootManifestData.manifestHash = await this.crypto.sha256(Buffer.from(rootHashableBytes));
 
     const serializedRoot = this.codec.encode(rootManifestData);
     const rootOid = await this.persistence.writeBlob(serializedRoot);
@@ -428,9 +1196,16 @@ export default class CasService {
    * @returns {Promise<Buffer>} Verified chunk buffer.
    * @throws {CasError} INTEGRITY_ERROR if the chunk digest does not match.
    */
-  async _readAndVerifyChunk(chunk) {
-    const blob = await this.persistence.readBlob(chunk.blob);
-    const digest = await this._sha256(blob);
+  async _readAndVerifyChunk(chunk, { maxBytes, convergentKey } = {}) {
+    const rawBlob = await this._readChunkBlob(chunk.blob, { maxBytes });
+
+    if (convergentKey) {
+      return this.#convergent.decryptAndVerifyChunk({
+        blob: rawBlob, masterKey: convergentKey, expectedDigest: chunk.digest, chunkIndex: chunk.index,
+      });
+    }
+
+    const digest = await this._sha256(rawBlob);
     if (digest !== chunk.digest) {
       const err = new CasError(
         `Chunk ${chunk.index} integrity check failed`,
@@ -440,7 +1215,49 @@ export default class CasService {
       this.observability.metric('error', { code: err.code, message: err.message });
       throw err;
     }
-    return blob;
+    return rawBlob;
+  }
+
+  /**
+   * Reads a chunk blob, preferring stream-native reads when supported.
+   * Falls back to readBlob() for compatibility with older adapters and mocks.
+   *
+   * @private
+   * @param {string} oid - Chunk blob OID.
+   * @returns {Promise<Buffer>}
+   */
+  async _readChunkBlob(oid, { maxBytes } = {}) {
+    if (!this._supportsReadBlobStream()) {
+      if (maxBytes !== undefined) {
+        throw new CasError(
+          'Buffered restore safety requires persistence.readBlobStream()',
+          'PERSISTENCE_CAPABILITY_REQUIRED',
+          { capability: 'readBlobStream', mode: 'buffered-restore', oid },
+        );
+      }
+      const blob = await this.persistence.readBlob(oid);
+      return blob;
+    }
+    let total = 0;
+    const chunks = [];
+    for await (const chunk of await this.persistence.readBlobStream(oid)) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buf.length;
+      this._assertBufferedReadLimit({ size: total, limit: maxBytes, oid });
+      chunks.push(buf);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  /**
+   * Whether the persistence adapter exposes a concrete readBlobStream()
+   * implementation instead of the abstract port stub.
+   * @private
+   * @returns {boolean}
+   */
+  _supportsReadBlobStream() {
+    return typeof this.persistence.readBlobStream === 'function'
+      && this.persistence.readBlobStream !== GitPersistencePort.prototype.readBlobStream;
   }
 
   /**
@@ -450,14 +1267,52 @@ export default class CasService {
    * @returns {Promise<Buffer[]>} Verified chunk buffers in order.
    * @throws {CasError} INTEGRITY_ERROR if any chunk digest does not match.
    */
-  async _readAndVerifyChunks(chunks) {
+  async _readAndVerifyChunks(chunks, { totalLimit } = {}) {
     const buffers = [];
+    let totalRead = 0;
     for (const chunk of chunks) {
-      const blob = await this._readAndVerifyChunk(chunk);
+      const blob = await this._readAndVerifyChunk(chunk, {
+        maxBytes: this._bufferedChunkReadLimit({
+          totalLimit,
+          totalRead,
+          chunkSize: chunk.size,
+        }),
+      });
+      totalRead += blob.length;
       buffers.push(blob);
       this.observability.metric('chunk', { action: 'restored', index: chunk.index, size: blob.length, digest: chunk.digest });
     }
     return buffers;
+  }
+
+  /**
+   * Throws when a buffered read exceeds its allowed limit.
+   * @private
+   * @param {{ size: number, limit?: number, oid: string }} options
+   */
+  _assertBufferedReadLimit({ size, limit, oid }) {
+    if (limit === undefined || size <= limit) {
+      return;
+    }
+    throw new CasError(
+      `Buffered restore read ${size} bytes from blob ${oid} (limit: ${limit})`,
+      'RESTORE_TOO_LARGE',
+      { size, limit, oid, reason: 'chunk-blob-size' },
+    );
+  }
+
+  /**
+   * Computes the per-chunk buffered read limit from the remaining global budget
+   * and manifest-declared chunk size.
+   * @private
+   * @param {{ totalLimit?: number, totalRead: number, chunkSize: number }} options
+   * @returns {number|undefined}
+   */
+  _bufferedChunkReadLimit({ totalLimit, totalRead, chunkSize }) {
+    if (totalLimit === undefined) {
+      return chunkSize;
+    }
+    return Math.min(chunkSize, totalLimit - totalRead);
   }
 
   /**
@@ -484,47 +1339,176 @@ export default class CasService {
   }
 
   /**
+   * Creates a named restore plan for file publication without leaking
+   * underscore helper coupling into infrastructure adapters.
+   *
+   * `stream` plans can be piped directly to the destination file. `bounded-file`
+   * plans preserve the whole-object auth boundary by writing to a temp file and
+   * only publishing on success.
+   *
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @param {Buffer} [options.encryptionKey]
+   * @param {string} [options.passphrase]
+   * @returns {Promise<{ mode: 'stream'|'bounded-file', source: AsyncIterable<Buffer>, encryptionMeta?: import('../value-objects/Manifest.js').EncryptionMeta }>}
+   */
+  async createFileRestorePlan({ manifest, encryptionKey, passphrase }) {
+    const encryptionMeta = this._validatedEncryptionMeta(manifest);
+
+    if (this._shouldUseBufferedFileRestore(manifest, encryptionMeta)) {
+      return {
+        mode: 'bounded-file',
+        source: await this._createBufferedFileRestoreSource({
+          manifest,
+          encryptionKey,
+          passphrase,
+          encryptionMeta,
+        }),
+        encryptionMeta,
+      };
+    }
+
+    return {
+      mode: 'stream',
+      source: this.restoreStream({ manifest, encryptionKey, passphrase }),
+      encryptionMeta,
+    };
+  }
+
+  /**
    * Restores a file from its manifest as an async iterable of Buffer chunks.
    *
-   * For unencrypted, uncompressed files this is true per-chunk streaming
-   * with O(chunkSize) memory. For encrypted or compressed files, all chunks
-   * are buffered internally for decryption/decompression, then yielded.
+   * For unencrypted, uncompressed files this is true per-chunk streaming with
+   * O(chunkSize) memory. `whole` encrypted paths still collect internally
+   * before yielding, while `framed` encrypted payloads authenticate and
+   * emit plaintext incrementally.
    *
    * @param {Object} options
    * @param {import('../value-objects/Manifest.js').default} options.manifest - The file manifest.
    * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * Note: For unencrypted files, each yielded buffer corresponds to an original
-   * stored chunk. For encrypted/compressed files, yielded buffers are
+   * stored chunk. For buffered restore paths, yielded buffers are
    * chunkSize-sliced pieces of the decrypted/decompressed result and may not
-   * correspond 1:1 to the original chunks.
+   * correspond 1:1 to the original chunks. `framed` yields authenticated
+   * plaintext frames (or downstream gunzip output) instead.
    *
    * @yields {Buffer}
    * @throws {CasError} MISSING_KEY if manifest is encrypted but no key is provided.
    * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
    */
   async *restoreStream({ manifest, encryptionKey, passphrase }) {
-    const key = await this.#keyResolver.resolveForDecryption(manifest, encryptionKey, passphrase);
+    const encryptionMeta = this._validatedEncryptionMeta(manifest);
+    const key = await this._resolveRestoreKey(manifest, encryptionKey, passphrase);
 
-    if (manifest.chunks.length === 0) {
+    if (manifest.chunks.length === 0 && !encryptionMeta && !manifest.compression) {
       this.observability.metric('file', {
         action: 'restored', slug: manifest.slug, size: 0, chunkCount: 0,
       });
       return;
     }
 
-    if (manifest.encryption?.encrypted || manifest.compression) {
-      yield* this._restoreBuffered(manifest, key);
-    } else {
-      yield* this._restoreStreaming(manifest);
+    yield* this._dispatchRestore(manifest, key, encryptionMeta);
+  }
+
+  /**
+   * Routes to the correct restore strategy based on encryption metadata.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer|undefined} key
+   * @param {undefined|object} encryptionMeta
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_dispatchRestore(manifest, key, encryptionMeta) {
+    const scheme = encryptionMeta?.scheme;
+    const strategy = this._classifyRestoreStrategy(scheme, manifest);
+    yield* this._executeRestoreStrategy(strategy, { manifest, key, encryptionMeta });
+  }
+
+  /**
+   * Classifies which restore strategy to use based on scheme and compression.
+   * @private
+   * @param {string|undefined} scheme
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {'convergent'|'convergent-compressed'|'framed-compressed'|'framed'|'buffered'|'compressed-streaming'|'streaming'}
+   */
+  _classifyRestoreStrategy(scheme, manifest) {
+    if (scheme === SCHEME_CONVERGENT) {
+      return manifest.compression ? 'convergent-compressed' : 'convergent';
     }
+    if (scheme === SCHEME_FRAMED) {
+      return manifest.compression ? 'framed-compressed' : 'framed';
+    }
+    if (scheme === SCHEME_WHOLE) { return 'buffered'; }
+    if (manifest.compression) { return 'compressed-streaming'; }
+    return 'streaming';
+  }
+
+  /**
+   * Executes the classified restore strategy.
+   * @private
+   * @param {string} strategy
+   * @param {{ manifest: import('../value-objects/Manifest.js').default, key?: Buffer, encryptionMeta?: Object }} ctx
+   */
+  async *_executeRestoreStrategy(strategy, { manifest, key, encryptionMeta }) {
+    switch (strategy) {
+      case 'convergent': yield* this._restoreConvergentStreaming(manifest, key); break;
+      case 'convergent-compressed': yield* this._restoreConvergentCompressed(manifest, key); break;
+      case 'framed-compressed': yield* this._restoreFramedCompressedStreaming(manifest, key, encryptionMeta); break;
+      case 'framed': yield* this._restoreFramedStreaming(manifest, key, encryptionMeta); break;
+      case 'buffered': yield* this._restoreBuffered(manifest, key, encryptionMeta); break;
+      case 'compressed-streaming': yield* this._restoreCompressedStreaming(manifest); break;
+      default: yield* this._restoreStreaming(manifest); break;
+    }
+  }
+
+  /**
+   * Returns whether file publication must stay on the bounded temp-file path.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {undefined|import('../value-objects/Manifest.js').EncryptionMeta} encryptionMeta
+   * @returns {boolean}
+   */
+  _shouldUseBufferedFileRestore(manifest, encryptionMeta) {
+    // Convergent decrypts per-chunk — no buffering needed
+    if (encryptionMeta?.scheme === SCHEME_CONVERGENT) {
+      return false;
+    }
+    return encryptionMeta?.scheme === SCHEME_WHOLE;
+  }
+
+  /**
+   * Builds the restore source used by bounded temp-file publication.
+   * @private
+   * @param {Object} options
+   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @param {Buffer} [options.encryptionKey]
+   * @param {string} [options.passphrase]
+   * @param {undefined|import('../value-objects/Manifest.js').EncryptionMeta} options.encryptionMeta
+   * @returns {Promise<AsyncIterable<Buffer>>}
+   */
+  async _createBufferedFileRestoreSource({ manifest, encryptionKey, passphrase, encryptionMeta }) {
+    /** @type {AsyncIterable<Buffer>} */
+    let source = this._iterVerifiedChunkBlobs(manifest);
+
+    if (encryptionMeta) {
+      const key = await this._resolveRestoreKey(manifest, encryptionKey, passphrase);
+      const aad = buildWholeAad(manifest.slug);
+      source = this.crypto.createDecryptionStream(key, encryptionMeta, aad).decrypt(source);
+    }
+
+    if (manifest.compression) {
+      source = this._decompressStreaming(source);
+    }
+
+    return source;
   }
 
   /**
    * Buffered restore path for encrypted/compressed manifests.
    * @private
    */
-  async *_restoreBuffered(manifest, key) {
+  async *_restoreBuffered(manifest, key, encryptionMeta = this._validatedEncryptionMeta(manifest)) {
     const totalSize = manifest.chunks.reduce((acc, c) => acc + c.size, 0);
     if (totalSize > this.maxRestoreBufferSize) {
       throw new CasError(
@@ -535,11 +1519,14 @@ export default class CasService {
         { size: totalSize, limit: this.maxRestoreBufferSize },
       );
     }
-    let buffer = Buffer.concat(await this._readAndVerifyChunks(manifest.chunks));
+    let buffer = Buffer.concat(await this._readAndVerifyChunks(manifest.chunks, {
+      totalLimit: this.maxRestoreBufferSize,
+    }));
 
-    if (manifest.encryption?.encrypted) {
+    if (encryptionMeta) {
       try {
-        buffer = await this.decrypt({ buffer, key, meta: manifest.encryption });
+        const aad = buildWholeAad(manifest.slug);
+        buffer = await this._decryptWithAad({ buffer, key, meta: encryptionMeta, aad });
       } catch (err) {
         if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
           this.observability.metric('error', { action: 'decryption_failed', slug: manifest.slug });
@@ -549,14 +1536,7 @@ export default class CasService {
     }
 
     if (manifest.compression) {
-      buffer = await this._decompress(buffer);
-      if (buffer.length > this.maxRestoreBufferSize) {
-        throw new CasError(
-          `Decompressed restore is ${buffer.length} bytes (limit: ${this.maxRestoreBufferSize})`,
-          'RESTORE_TOO_LARGE',
-          { size: buffer.length, limit: this.maxRestoreBufferSize },
-        );
-      }
+      buffer = await this._decompressBufferedWithLimit(buffer, this.maxRestoreBufferSize);
     }
 
     this.observability.metric('file', {
@@ -605,12 +1585,310 @@ export default class CasService {
   }
 
   /**
-   * Decompresses a gzip buffer.
+   * Streaming restore path for plaintext + compressed content.
+   * Decompresses chunk data on the fly without buffering the entire payload.
    * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {AsyncIterable<Buffer>}
    */
-  async _decompress(buffer) {
+  async *_restoreCompressedStreaming(manifest) {
+    let totalSize = 0;
+    for await (const chunk of this._decompressStreaming(this._iterVerifiedChunkBlobs(manifest))) {
+      totalSize += chunk.length;
+      yield chunk;
+    }
+
+    this.observability.metric('file', {
+      action: 'restored', slug: manifest.slug, size: totalSize, chunkCount: manifest.chunks.length,
+    });
+  }
+
+  /**
+   * Reads and decrypts convergent-encrypted chunks, prefetching when concurrency > 1.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} key - Convergent master key.
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_iterConvergentChunks(manifest, key) {
+    const fetchFn = async (chunk) => {
+      const plaintext = await this._readAndVerifyChunk(chunk, { convergentKey: key });
+      this.observability.metric('chunk', { action: 'restored', index: chunk.index, size: plaintext.length, digest: chunk.digest });
+      return plaintext;
+    };
+
+    if (this.concurrency > 1) {
+      yield* prefetchChunks(manifest.chunks, fetchFn, this.concurrency);
+    } else {
+      for (const chunk of manifest.chunks) {
+        yield await fetchFn(chunk);
+      }
+    }
+  }
+
+  async *_restoreConvergentStreaming(manifest, key) {
+    let totalSize = 0;
+    for await (const plaintext of this._iterConvergentChunks(manifest, key)) {
+      totalSize += plaintext.length;
+      yield plaintext;
+    }
+
+    this.observability.metric('file', {
+      action: 'restored', slug: manifest.slug, size: totalSize, chunkCount: manifest.chunks.length,
+    });
+  }
+
+  /**
+   * Streaming restore path for convergent encrypted + compressed content.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} key - Convergent master key.
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_restoreConvergentCompressed(manifest, key) {
+    const decryptedSource = this._iterConvergentChunks(manifest, key);
+
+    let totalSize = 0;
+    for await (const chunk of this._decompressStreaming(decryptedSource)) {
+      totalSize += chunk.length;
+      yield chunk;
+    }
+
+    this.observability.metric('file', {
+      action: 'restored', slug: manifest.slug, size: totalSize, chunkCount: manifest.chunks.length,
+    });
+  }
+
+  /**
+   * Reads and verifies stored chunk blobs, prefetching when concurrency > 1.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_iterVerifiedChunkBlobs(manifest) {
+    const fetchFn = async (chunk) => {
+      const blob = await this._readAndVerifyChunk(chunk);
+      this.observability.metric('chunk', { action: 'restored', index: chunk.index, size: blob.length, digest: chunk.digest });
+      return blob;
+    };
+
+    if (this.concurrency > 1) {
+      yield* prefetchChunks(manifest.chunks, fetchFn, this.concurrency);
+    } else {
+      for (const chunk of manifest.chunks) {
+        yield await fetchFn(chunk);
+      }
+    }
+  }
+
+  /**
+   * Parses framed records from a byte stream.
+   * @private
+   * @param {AsyncIterable<Buffer>} source
+   * @param {number} frameBytes
+   * @returns {AsyncIterable<{ ciphertext: Buffer, meta: { encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string } }>}
+   */
+  async *_parseFramedRecords(source, frameBytes) {
+    let pending = Buffer.alloc(0);
+
+    for await (const chunk of source) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      pending = pending.length === 0 ? buf : Buffer.concat([pending, buf]);
+
+      while (pending.length >= FRAMED_RECORD_HEADER_BYTES) {
+        const consumed = this._consumeFramedRecord(pending, frameBytes);
+        if (!consumed) {
+          break;
+        }
+        pending = consumed.remaining;
+        yield consumed.record;
+      }
+    }
+
+    if (pending.length > 0) {
+      throw new CasError(
+        'Framed ciphertext is truncated or malformed',
+        'INTEGRITY_ERROR',
+        { reason: 'framed-record-parse', remainingBytes: pending.length },
+      );
+    }
+  }
+
+  /**
+   * Tries to consume one framed record from a pending buffer.
+   * @private
+   * @param {Buffer} pending
+   * @param {number} frameBytes
+   * @returns {null|{ remaining: Buffer, record: { ciphertext: Buffer, meta: { encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string } } }}
+   */
+  _consumeFramedRecord(pending, frameBytes) {
+    const ciphertextLength = pending.readUInt32BE(0);
+    if (ciphertextLength > frameBytes) {
+      throw new CasError(
+        `Framed ciphertext length ${ciphertextLength} exceeds frameBytes ${frameBytes}`,
+        'INTEGRITY_ERROR',
+        { reason: 'framed-record-parse', ciphertextLength, frameBytes },
+      );
+    }
+
+    const recordLength = FRAMED_RECORD_HEADER_BYTES + ciphertextLength;
+    if (pending.length < recordLength) {
+      return null;
+    }
+
+    return {
+      remaining: pending.subarray(recordLength),
+      record: {
+        ciphertext: pending.subarray(FRAMED_RECORD_HEADER_BYTES, recordLength),
+        meta: this._buildFramedRecordMeta(pending),
+      },
+    };
+  }
+
+  /**
+   * Builds decryption metadata from a framed record header.
+   * @private
+   * @param {Buffer} pending
+   * @returns {{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
+   */
+  _buildFramedRecordMeta(pending) {
+    return {
+      encrypted: true,
+      algorithm: 'aes-256-gcm',
+      nonce: pending
+        .subarray(FRAMED_LENGTH_BYTES, FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES)
+        .toString('base64'),
+      tag: pending
+        .subarray(FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES, FRAMED_RECORD_HEADER_BYTES)
+        .toString('base64'),
+    };
+  }
+
+  /**
+   * Decrypts framed records into authenticated plaintext frames.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} key
+   * @param {{ encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} encryptionMeta
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_decryptFramedSource(manifest, key, encryptionMeta) {
+    let frameIndex = 0;
+    for await (const record of this._parseFramedRecords(
+      this._iterVerifiedChunkBlobs(manifest),
+      encryptionMeta.frameBytes,
+    )) {
+      let plaintext;
+      try {
+        const aad = buildFramedAad(manifest.slug, frameIndex);
+        plaintext = await this._decryptWithAad({
+          buffer: record.ciphertext,
+          key,
+          meta: record.meta,
+          aad,
+        });
+      } catch (err) {
+        if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+          this.observability.metric('error', { action: 'decryption_failed', slug: manifest.slug });
+        }
+        throw err;
+      }
+
+      frameIndex++;
+      if (plaintext.length > 0) {
+        yield plaintext;
+      }
+    }
+  }
+
+  /**
+   * Streaming restore path for framed encrypted content.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} key
+   * @param {{ encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} encryptionMeta
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_restoreFramedStreaming(manifest, key, encryptionMeta) {
+    let totalSize = 0;
+    for await (const chunk of this._decryptFramedSource(manifest, key, encryptionMeta)) {
+      totalSize += chunk.length;
+      yield chunk;
+    }
+
+    this.observability.metric('file', {
+      action: 'restored',
+      slug: manifest.slug,
+      size: totalSize,
+      chunkCount: manifest.chunks.length,
+    });
+  }
+
+  /**
+   * Streaming restore path for framed encrypted + compressed content.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Buffer} key
+   * @param {{ encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} encryptionMeta
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_restoreFramedCompressedStreaming(manifest, key, encryptionMeta) {
+    let totalSize = 0;
+    for await (const chunk of this._decompressStreaming(this._decryptFramedSource(manifest, key, encryptionMeta))) {
+      totalSize += chunk.length;
+      yield chunk;
+    }
+
+    this.observability.metric('file', {
+      action: 'restored',
+      slug: manifest.slug,
+      size: totalSize,
+      chunkCount: manifest.chunks.length,
+    });
+  }
+
+  /**
+   * Decompresses a gzip buffer while enforcing an output-size limit during
+   * collection rather than after full materialization.
+   * @private
+   * @param {Buffer} buffer
+   * @param {number} limit
+   * @returns {Promise<Buffer>}
+   */
+  async _decompressBufferedWithLimit(buffer, limit) {
+    const chunks = [];
+    let total = 0;
+
+    async function* source() {
+      yield buffer;
+    }
+
+    for await (const chunk of this._decompressStreaming(source())) {
+      total += chunk.length;
+      if (total > limit) {
+        throw new CasError(
+          `Decompressed restore is ${total} bytes (limit: ${limit})`,
+          'RESTORE_TOO_LARGE',
+          { size: total, limit },
+        );
+      }
+      chunks.push(chunk);
+    }
+
+    return Buffer.concat(chunks);
+  }
+
+  /**
+   * Decompresses a gzip byte stream.
+   * @private
+   * @param {AsyncIterable<Buffer>} source
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *_decompressStreaming(source) {
     try {
-      return await gunzipAsync(buffer);
+      for await (const chunk of this.compressionAdapter.decompressStream(source)) {
+        yield chunk;
+      }
     } catch (err) {
       if (err instanceof CasError) { throw err; }
       throw new CasError(`Decompression failed: ${err.message}`, 'INTEGRITY_ERROR', { originalError: err });
@@ -627,6 +1905,29 @@ export default class CasService {
    * @throws {CasError} GIT_ERROR if the underlying Git command fails
    */
   async readManifest({ treeOid }) {
+    const blob = await this._readManifestBlob(treeOid);
+    const decoded = this.codec.decode(blob);
+
+    if (decoded.encryption?.scheme) {
+      assertCurrentScheme(decoded.encryption.scheme);
+    }
+
+    await this._verifyManifestHash(decoded, treeOid);
+
+    if (decoded.version === 2 && decoded.subManifests?.length > 0) {
+      decoded.chunks = await this._resolveSubManifests(decoded.subManifests, treeOid);
+    }
+
+    return new Manifest(decoded);
+  }
+
+  /**
+   * Reads the raw manifest blob from a Git tree.
+   * @private
+   * @param {string} treeOid
+   * @returns {Promise<Buffer>}
+   */
+  async _readManifestBlob(treeOid) {
     let entries;
     try {
       entries = await this.persistence.readTree(treeOid);
@@ -650,9 +1951,8 @@ export default class CasService {
       );
     }
 
-    let blob;
     try {
-      blob = await this.persistence.readBlob(manifestEntry.oid);
+      return await this.persistence.readBlob(manifestEntry.oid);
     } catch (err) {
       if (err instanceof CasError) { throw err; }
       throw new CasError(
@@ -661,14 +1961,25 @@ export default class CasService {
         { treeOid, manifestOid: manifestEntry.oid, originalError: err },
       );
     }
+  }
 
-    const decoded = this.codec.decode(blob);
-
-    if (decoded.version === 2 && decoded.subManifests?.length > 0) {
-      decoded.chunks = await this._resolveSubManifests(decoded.subManifests, treeOid);
+  /**
+   * Verifies the manifest integrity hash if present.
+   * @private
+   * @param {Object} decoded - Decoded manifest data.
+   * @param {string} treeOid - Tree OID (for error context).
+   */
+  async _verifyManifestHash(decoded, treeOid) {
+    if (!decoded.manifestHash) { return; }
+    const hashableBytes = encodeForHash(decoded, this.codec);
+    const computed = await this.crypto.sha256(Buffer.from(hashableBytes));
+    if (computed !== decoded.manifestHash) {
+      throw new CasError(
+        'Manifest integrity check failed: hash mismatch',
+        'MANIFEST_INTEGRITY_ERROR',
+        { treeOid, slug: decoded.slug, expected: decoded.manifestHash, actual: computed },
+      );
     }
-
-    return new Manifest(decoded);
   }
 
   /**
@@ -683,7 +1994,22 @@ export default class CasService {
     for (const ref of subManifests) {
       const subBlob = await this._readSubManifestBlob(ref.oid, treeOid);
       const subDecoded = this.codec.decode(subBlob);
-      allChunks.push(...subDecoded.chunks);
+      if (subDecoded.chunks.length !== ref.chunkCount) {
+        throw new CasError(
+          `Sub-manifest ${ref.oid} declares chunkCount ${ref.chunkCount} but contains ${subDecoded.chunks.length} chunks`,
+          'MANIFEST_INTEGRITY_ERROR',
+          { subManifestOid: ref.oid, declaredCount: ref.chunkCount, actualCount: subDecoded.chunks.length, treeOid },
+        );
+      }
+      try {
+        allChunks.push(...subDecoded.chunks.map((c) => ChunkSchema.parse(c)));
+      } catch (err) {
+        throw new CasError(
+          `Sub-manifest ${ref.oid} contains invalid chunk data: ${err.message}`,
+          'MANIFEST_INTEGRITY_ERROR',
+          { subManifestOid: ref.oid, treeOid, originalError: err },
+        );
+      }
     }
     return allChunks;
   }
@@ -703,6 +2029,19 @@ export default class CasService {
         { treeOid, subManifestOid: oid, originalError: err },
       );
     }
+  }
+
+  /**
+   * Compares two manifests by chunk digest to find added, removed, and unchanged chunks.
+   *
+   * Pure function — no I/O. Works with any pair of Manifest instances.
+   *
+   * @param {import('../value-objects/Manifest.js').default} oldManifest
+   * @param {import('../value-objects/Manifest.js').default} newManifest
+   * @returns {import('./ManifestDiff.js').ManifestDiffResult}
+   */
+  static diffManifests(oldManifest, newManifest) {
+    return diffManifests(oldManifest, newManifest);
   }
 
   /**
@@ -994,19 +2333,76 @@ export default class CasService {
   /**
    * Verifies the integrity of a stored file by re-hashing its chunks.
    * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {{ encryptionKey?: Buffer, passphrase?: string }} [options]
    * @returns {Promise<boolean>}
    */
-  async verifyIntegrity(manifest) {
-    for (const chunk of manifest.chunks) {
-      const blob = await this.persistence.readBlob(chunk.blob);
-      const digest = await this._sha256(blob);
-      if (digest !== chunk.digest) {
-        this.observability.metric('integrity', {
-          action: 'fail', slug: manifest.slug, chunkIndex: chunk.index, expected: chunk.digest, actual: digest,
-        });
+  async verifyIntegrity(manifest, options = {}) {
+    const encryptionMeta = this._getVerifyEncryptionMeta(manifest);
+    if (encryptionMeta === false) {
+      return false;
+    }
+
+    if (encryptionMeta?.scheme === SCHEME_CONVERGENT) {
+      return this._verifyConvergentIntegrity(manifest, encryptionMeta, options);
+    }
+
+    return this._verifyNonConvergentIntegrity(manifest, encryptionMeta, options);
+  }
+
+  /**
+   * Verifies integrity for non-convergent schemes (whole, framed, unencrypted).
+   * @private
+   */
+  async _verifyNonConvergentIntegrity(manifest, encryptionMeta, options) {
+    const buffers = await this._verifyChunkDigests(manifest);
+    if (buffers === false) {
+      return false;
+    }
+
+    if (encryptionMeta) {
+      const key = await this._resolveVerifyKey(manifest, options);
+      if (key === false) {
+        return false;
+      }
+      const authOk = encryptionMeta.scheme === SCHEME_FRAMED
+        ? await this._verifyFramedAuth({ manifest, encryptionMeta, key, buffers })
+        : await this._verifyEncryptedAuth({ manifest, encryptionMeta, key, buffers });
+      if (!authOk) {
         return false;
       }
     }
+
+    this.observability.metric('integrity', { action: 'pass', slug: manifest.slug });
+    return true;
+  }
+
+  /**
+   * Verifies integrity of convergent encrypted content by decrypting
+   * each chunk and checking plaintext digests.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {{ scheme: 'convergent' }} _encryptionMeta
+   * @param {{ encryptionKey?: Buffer, passphrase?: string }} options
+   * @returns {Promise<boolean>}
+   */
+  async _verifyConvergentIntegrity(manifest, _encryptionMeta, options) {
+    const key = await this._resolveVerifyKey(manifest, options);
+    if (key === false) {
+      return false;
+    }
+
+    try {
+      for (const chunk of manifest.chunks) {
+        await this._readAndVerifyChunk(chunk, { convergentKey: key });
+      }
+    } catch (err) {
+      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+        this._emitIntegrityFail(manifest, err.meta);
+        return false;
+      }
+      throw err;
+    }
+
     this.observability.metric('integrity', { action: 'pass', slug: manifest.slug });
     return true;
   }

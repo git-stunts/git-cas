@@ -4,6 +4,8 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
@@ -33,8 +35,8 @@ function failingSource(chunksBeforeError, chunkSize = 1024) {
  */
 function setup() {
   const mockPersistence = {
-    writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
+    writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
     readBlob: vi.fn().mockResolvedValue(Buffer.from('data')),
   };
   const service = new CasService({
@@ -43,6 +45,8 @@ function setup() {
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
   return { mockPersistence, service };
 }

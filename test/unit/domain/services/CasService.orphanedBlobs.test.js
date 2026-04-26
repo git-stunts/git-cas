@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
@@ -40,6 +42,8 @@ function buildService() {
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability,
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
   return { service, mockPersistence, observability };
 }

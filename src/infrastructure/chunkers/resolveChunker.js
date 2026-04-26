@@ -30,9 +30,11 @@ export default function resolveChunker({ chunker, chunking } = {}) {
         targetChunkSize: chunking.targetChunkSize,
         minChunkSize: chunking.minChunkSize,
         maxChunkSize: chunking.maxChunkSize,
+        normalized: chunking.normalized,
       });
     }
-    // 'fixed' or unrecognized — fall through to default (FixedChunker via CasService)
+    // 'fixed' with valid chunkSize → FixedChunker; otherwise fall through
+    // to CasService's built-in FixedChunker default.
     if (chunking.strategy === 'fixed'
       && typeof chunking.chunkSize === 'number'
       && Number.isFinite(chunking.chunkSize)

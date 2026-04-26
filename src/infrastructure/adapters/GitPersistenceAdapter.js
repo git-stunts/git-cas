@@ -69,14 +69,26 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
    * @returns {Promise<Buffer>} The blob content.
    */
   async readBlob(oid) {
-    return this.policy.execute(async () => {
-      const stream = await this.plumbing.executeStream({
+    const chunks = [];
+    for await (const chunk of await this.readBlobStream(oid)) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  /**
+   * @override
+   * @param {string} oid - Git object ID.
+   * @returns {Promise<AsyncIterable<Buffer>>} The blob content stream.
+   */
+  async readBlobStream(oid) {
+    const stream = await this.policy.execute(async () => (
+      await this.plumbing.executeStream({
         args: ['cat-file', 'blob', oid],
-      });
-      const data = await stream.collect({ asString: false });
-      // Plumbing returns Uint8Array; ensure we return a Buffer for codec/crypto compat
-      return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-    });
+      })
+    ));
+
+    return this.#bufferStream(stream);
   }
 
   /**
@@ -142,5 +154,31 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
+  }
+
+  /**
+   * Normalizes a plumbing stdout stream into Buffer chunks.
+   *
+   * @param {AsyncIterable<Buffer|Uint8Array|string>} stream
+   * @returns {AsyncIterable<Buffer>}
+   */
+  async *#bufferStream(stream) {
+    for await (const chunk of stream) {
+      yield GitPersistenceAdapter.#toBuffer(chunk);
+    }
+  }
+
+  /**
+   * @param {Buffer|Uint8Array|string} chunk
+   * @returns {Buffer}
+   */
+  static #toBuffer(chunk) {
+    if (Buffer.isBuffer(chunk)) {
+      return chunk;
+    }
+    if (chunk instanceof Uint8Array) {
+      return Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+    }
+    return Buffer.from(String(chunk));
   }
 }

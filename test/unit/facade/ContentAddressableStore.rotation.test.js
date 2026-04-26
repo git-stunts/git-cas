@@ -48,7 +48,7 @@ describe('ContentAddressableStore – rotateVaultPassphrase (wiring)', () => {
   it('delegates to rotateVaultPassphrase and returns result', async () => {
     const oldPass = 'old-pass';
     const newPass = 'new-pass';
-    await cas.initVault({ passphrase: oldPass, kdfOptions: { iterations: 1 } });
+    await cas.initVault({ passphrase: oldPass, kdfOptions: { iterations: 100_000 } });
 
     // Store one envelope entry through the facade
     const metadata = await cas.getVaultMetadata();

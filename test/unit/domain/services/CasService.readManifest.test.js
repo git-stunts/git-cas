@@ -3,9 +3,12 @@ import { createHash } from 'node:crypto';
 import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
+import CborCodec from '../../../../src/infrastructure/codecs/CborCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
@@ -13,20 +16,24 @@ function digestOf(seed) {
   return createHash('sha256').update(seed).digest('hex');
 }
 
+/** Valid 40-char hex OIDs for blob fields. */
+const BLOB_0 = 'a'.repeat(40);
+const BLOB_1 = 'b'.repeat(40);
+
 function validManifestData(overrides = {}) {
   return {
     slug: 'test-asset',
     filename: 'test.bin',
     size: 2048,
     chunks: [
-      { index: 0, size: 1024, digest: digestOf('chunk-0'), blob: 'blob-oid-0' },
-      { index: 1, size: 1024, digest: digestOf('chunk-1'), blob: 'blob-oid-1' },
+      { index: 0, size: 1024, digest: digestOf('chunk-0'), blob: BLOB_0 },
+      { index: 1, size: 1024, digest: digestOf('chunk-1'), blob: BLOB_1 },
     ],
     ...overrides,
   };
 }
 
-function setup() {
+function setup(codec = new JsonCodec()) {
   const mockPersistence = {
     writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
     writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
@@ -34,14 +41,14 @@ function setup() {
     readTree: vi.fn(),
   };
 
-  const codec = new JsonCodec();
-
   const service = new CasService({
     persistence: mockPersistence,
     crypto: testCrypto,
     codec,
     chunkSize: 1024,
     observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 
   return { service, mockPersistence, codec };
@@ -181,7 +188,7 @@ describe('CasService.readManifest – manifest not found (wrong name)', () => {
 // ---------------------------------------------------------------------------
 // Corrupt data handling
 // ---------------------------------------------------------------------------
-describe('CasService.readManifest – corrupt data handling', () => {
+describe('CasService.readManifest – corrupt data handling', () => { // eslint-disable-line max-lines-per-function
   let service;
   let mockPersistence;
   let codec;
@@ -207,6 +214,28 @@ describe('CasService.readManifest – corrupt data handling', () => {
     mockPersistence.readBlob.mockResolvedValue(
       Buffer.from(codec.encode({ foo: 'bar' })),
     );
+
+    await expect(service.readManifest({ treeOid: 'tree-oid' })).rejects.toThrow(
+      /Invalid manifest data/,
+    );
+  });
+
+  it.each([
+    ['json', () => new JsonCodec()],
+    ['cbor', () => new CborCodec()],
+  ])('rejects invalid encrypted metadata through the %s codec', async (_name, makeCodec) => {
+    ({ service, mockPersistence, codec } = setup(makeCodec()));
+
+    mockPersistence.readTree.mockResolvedValue([
+      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: `manifest.${codec.extension}` },
+    ]);
+    mockPersistence.readBlob.mockResolvedValue(Buffer.from(codec.encode(validManifestData({
+      encryption: {
+        scheme: 'framed',
+        algorithm: 'aes-256-gcm',
+        encrypted: true,
+      },
+    }))));
 
     await expect(service.readManifest({ treeOid: 'tree-oid' })).rejects.toThrow(
       /Invalid manifest data/,

@@ -35,15 +35,43 @@ export declare const RecipientSchema: z.ZodObject<{
 }>;
 
 /** Validates the encryption metadata attached to an encrypted manifest. */
-export declare const EncryptionSchema: z.ZodObject<{
-  algorithm: z.ZodString;
-  nonce: z.ZodString;
-  tag: z.ZodString;
-  encrypted: z.ZodDefault<z.ZodBoolean>;
-  kdf: z.ZodOptional<typeof KdfSchema>;
-  recipients: z.ZodOptional<z.ZodArray<typeof RecipientSchema>>;
-  keyVersion: z.ZodOptional<z.ZodNumber>;
-}>;
+export declare const EncryptionSchema: z.ZodUnion<
+  [
+    z.ZodObject<{
+      scheme: z.ZodLiteral<"whole">;
+      algorithm: z.ZodLiteral<"aes-256-gcm">;
+      encrypted: z.ZodDefault<z.ZodLiteral<true>>;
+      kdf: z.ZodOptional<typeof KdfSchema>;
+      recipients: z.ZodOptional<z.ZodArray<typeof RecipientSchema>>;
+      keyVersion: z.ZodOptional<z.ZodNumber>;
+      nonce: z.ZodString;
+      tag: z.ZodString;
+      frameBytes: z.ZodOptional<z.ZodUndefined>;
+    }>,
+    z.ZodObject<{
+      scheme: z.ZodLiteral<"framed">;
+      algorithm: z.ZodLiteral<"aes-256-gcm">;
+      encrypted: z.ZodDefault<z.ZodLiteral<true>>;
+      kdf: z.ZodOptional<typeof KdfSchema>;
+      recipients: z.ZodOptional<z.ZodArray<typeof RecipientSchema>>;
+      keyVersion: z.ZodOptional<z.ZodNumber>;
+      frameBytes: z.ZodNumber;
+      nonce: z.ZodOptional<z.ZodUndefined>;
+      tag: z.ZodOptional<z.ZodUndefined>;
+    }>,
+    z.ZodObject<{
+      scheme: z.ZodLiteral<"convergent">;
+      algorithm: z.ZodLiteral<"aes-256-gcm">;
+      encrypted: z.ZodDefault<z.ZodLiteral<true>>;
+      kdf: z.ZodOptional<typeof KdfSchema>;
+      recipients: z.ZodOptional<z.ZodArray<typeof RecipientSchema>>;
+      keyVersion: z.ZodOptional<z.ZodNumber>;
+      nonce: z.ZodOptional<z.ZodUndefined>;
+      tag: z.ZodOptional<z.ZodUndefined>;
+      frameBytes: z.ZodOptional<z.ZodUndefined>;
+    }>
+  ]
+>;
 
 /** Validates compression metadata. */
 export declare const CompressionSchema: z.ZodObject<{
@@ -65,6 +93,7 @@ export declare const CdcChunkingSchema: z.ZodObject<{
     target: z.ZodNumber;
     min: z.ZodNumber;
     max: z.ZodNumber;
+    normalized: z.ZodOptional<z.ZodBoolean>;
   }>;
 }>;
 
@@ -84,6 +113,8 @@ export declare const SubManifestRefSchema: z.ZodObject<{
 /** Validates a complete file manifest. */
 export declare const ManifestSchema: z.ZodObject<{
   version: z.ZodDefault<z.ZodNumber>;
+  formatVersion: z.ZodOptional<z.ZodString>;
+  manifestHash: z.ZodOptional<z.ZodString>;
   slug: z.ZodString;
   filename: z.ZodString;
   size: z.ZodNumber;

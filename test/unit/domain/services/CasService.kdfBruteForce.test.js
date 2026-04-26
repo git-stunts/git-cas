@@ -3,11 +3,22 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 
 const CHUNK_DATA = Buffer.alloc(128, 0xaa);
 const CHUNK_DIGEST = await testCrypto.sha256(CHUNK_DATA);
+
+function streamOneBuffer(buf) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield buf;
+    },
+  };
+}
 
 function setup() {
   const observability = {
@@ -19,6 +30,7 @@ function setup() {
     writeBlob: vi.fn(),
     writeTree: vi.fn(),
     readBlob: vi.fn().mockResolvedValue(CHUNK_DATA),
+    readBlobStream: vi.fn().mockResolvedValue(streamOneBuffer(CHUNK_DATA)),
     readTree: vi.fn(),
   };
   const service = new CasService({
@@ -27,6 +39,8 @@ function setup() {
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability,
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
   return { service, observability };
 }
@@ -37,12 +51,13 @@ function encryptedManifest(slug) {
     filename: `${slug}.bin`,
     size: 128,
     chunks: [
-      { index: 0, size: 128, digest: CHUNK_DIGEST, blob: 'blob-0' },
+      { index: 0, size: 128, digest: CHUNK_DIGEST, blob: 'a'.repeat(40) },
     ],
     encryption: {
+      scheme: 'whole',
       algorithm: 'aes-256-gcm',
-      nonce: 'deadbeef',
-      tag: 'cafebabe',
+      nonce: base64Bytes(12, 1),
+      tag: base64Bytes(16, 2),
       encrypted: true,
     },
   });

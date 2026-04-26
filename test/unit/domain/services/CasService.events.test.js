@@ -5,9 +5,12 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import EventEmitterObserver from '../../../../src/infrastructure/adapters/EventEmitterObserver.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 
 function setup() {
   const crypto = testCrypto;
@@ -35,6 +38,8 @@ function setup() {
     codec: new JsonCodec(),
     observability: observer,
     chunkSize: 1024,
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 
   return { crypto, blobStore, mockPersistence, service, observer };
@@ -47,6 +52,7 @@ async function storeBuffer(svc, buf, opts = {}) {
     slug: opts.slug || 'test',
     filename: opts.filename || 'test.bin',
     encryptionKey: opts.encryptionKey,
+    encryption: opts.encryption,
   });
 }
 
@@ -158,6 +164,32 @@ describe('CasService events – integrity:fail', () => {
       slug: 'test', chunkIndex: 0, expected: expect.any(String), actual: expect.any(String),
     }));
   });
+
+  it('emits integrity:fail on encrypted auth mismatch', async () => {
+    const { service, observer } = setup();
+    const key = randomBytes(32);
+    const manifest = await storeBuffer(service, Buffer.from('encrypted auth mismatch'), {
+      encryptionKey: key,
+      encryption: { scheme: 'whole' },
+    });
+
+    const onFail = vi.fn();
+    observer.on('integrity:fail', onFail);
+
+    await service.verifyIntegrity({
+      ...manifest.toJSON(),
+      encryption: {
+        ...manifest.encryption,
+        tag: base64Bytes(16, 0x44),
+      },
+    }, { encryptionKey: key });
+
+    expect(onFail).toHaveBeenCalledTimes(1);
+    expect(onFail).toHaveBeenCalledWith(expect.objectContaining({
+      slug: 'test',
+      reason: 'auth',
+    }));
+  });
 });
 
 describe('CasService events – error on restore integrity failure', () => {
@@ -199,6 +231,8 @@ function setupSilent() {
   return new CasService({
     persistence: mockPersistence, crypto, codec: new JsonCodec(),
     observability: new SilentObserver(), chunkSize: 1024,
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 }
 

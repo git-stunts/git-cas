@@ -4,6 +4,8 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 
 const testCrypto = await getTestCryptoAdapter();
@@ -50,6 +52,8 @@ function setup() {
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 
   return { service, blobStore, crypto };
@@ -78,6 +82,7 @@ describe('CasService – envelope encryption (single recipient)', () => {
     });
 
     expect(manifest.encryption).toBeDefined();
+    expect(manifest.encryption.scheme).toBe('framed');
     expect(manifest.encryption.recipients).toHaveLength(1);
     expect(manifest.encryption.recipients[0].label).toBe('alice');
 
@@ -280,7 +285,7 @@ describe('CasService – envelope encryption (edge cases)', () => { // eslint-di
     ).rejects.toThrow(/Duplicate recipient labels/);
   });
 
-  it('envelope manifest includes encryption metadata (algorithm, nonce, tag)', async () => {
+  it('envelope manifest includes framed metadata by default', async () => {
     const kek = randomBytes(32);
 
     const manifest = await service.store({
@@ -291,8 +296,10 @@ describe('CasService – envelope encryption (edge cases)', () => { // eslint-di
     });
 
     expect(manifest.encryption.algorithm).toBe('aes-256-gcm');
-    expect(manifest.encryption.nonce).toBeDefined();
-    expect(manifest.encryption.tag).toBeDefined();
+    expect(manifest.encryption.scheme).toBe('framed');
+    expect(manifest.encryption.frameBytes).toBeDefined();
+    expect(manifest.encryption.nonce).toBeUndefined();
+    expect(manifest.encryption.tag).toBeUndefined();
     expect(manifest.encryption.encrypted).toBe(true);
   });
 

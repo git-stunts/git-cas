@@ -3,6 +3,7 @@ node_modules/
 .vite/
 coverage/
 .claude/
+.codex/
 lastchat.txt
 AGENTS.md
 EDITORS-REPORT

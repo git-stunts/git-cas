@@ -34,12 +34,31 @@ git-cas tracks encryption operations via `encryptionCount` in vault metadata. Wh
 
 When using passphrase-based encryption, git-cas derives keys using PBKDF2 or scrypt.
 
-| Algorithm | Recommended Parameters         | Notes                     |
-| --------- | ------------------------------ | ------------------------- |
-| PBKDF2    | iterations ≥ 600,000 (SHA-256) | OWASP 2024 recommendation |
-| scrypt    | N=2^17, r=8, p=1               | ~128 MiB memory           |
+| Algorithm | Default Parameters           | Notes                                 |
+| --------- | ---------------------------- | ------------------------------------- |
+| PBKDF2    | 600,000 iterations (SHA-512) | Stronger default, broadly portable    |
+| scrypt    | N=2^17, r=8, p=1             | ~128 MiB memory, stronger GPU posture |
 
 Higher iteration counts / cost parameters increase resistance to brute-force attacks but also increase the time to derive a key. Choose parameters based on your threat model and latency tolerance.
+
+git-cas now also applies a bounded KDF policy to passphrase-bearing store,
+restore, vault init, and vault rotation flows:
+
+- new writes default to PBKDF2 `600000` or scrypt `N=131072`
+- stored manifest and vault metadata are accepted only within a bounded
+  compatibility window
+- out-of-policy KDF metadata fails with `KDF_POLICY_VIOLATION` before derive
+  work begins
+
+Current acceptance window:
+
+| Field | Accepted Range |
+| ----- | -------------- |
+| PBKDF2 `iterations` | `100000` to `2000000` |
+| scrypt `cost` (`N`) | `16384` to `1048576`, power of two |
+| scrypt `blockSize` (`r`) | `8` to `32` |
+| scrypt `parallelization` (`p`) | `1` to `16` |
+| `keyLength` | exactly `32` |
 
 ### Passphrase Entropy Recommendations
 
@@ -83,8 +102,9 @@ details behind that boundary.
 git-cas uses **AES-256-GCM** (Galois/Counter Mode) for authenticated encryption:
 
 - **Algorithm**: `aes-256-gcm` via runtime-specific adapters (Node.js `node:crypto`, Bun `CryptoHasher` + `node:crypto`, Deno/Web `crypto.subtle`)
+- **Payload schemes**: `whole` (whole-object authenticated ciphertext), `framed` (independently authenticated records), and `convergent` (per-chunk deterministic encryption)
 - **Key size**: 256 bits (32 bytes)
-- **Nonce size**: 96 bits (12 bytes), cryptographically random
+- **Nonce size**: 96 bits (12 bytes), cryptographically random (or deterministically derived for `convergent`)
 - **Authentication tag**: 128 bits (16 bytes)
 
 ### Why AES-256-GCM?
@@ -104,19 +124,26 @@ Each encryption operation generates a fresh 96-bit (12-byte) nonce using `crypto
 - **Random generation**: git-cas uses cryptographically secure random number generation from Node.js's `crypto.randomBytes()`, which sources from the OS entropy pool.
 - **Collision probability**: With 96-bit random nonces, the probability of collision is negligible for practical use cases (< 2^48 encryptions with the same key).
 
+**Exception**: The `convergent` scheme derives nonces deterministically from the
+content hash (see [Convergent Scheme](#convergent-scheme) below). Identical
+plaintext always produces the same nonce, which is the mechanism that preserves
+deduplication.
+
 **CRITICAL**: Callers must NOT reuse encryption keys across a large number of operations (approaching 2^32 encryptions with a single key). While collision is unlikely, best practice is to rotate keys periodically.
 
 ### Authentication Tag
 
 After encryption completes, AES-256-GCM produces a 128-bit authentication tag:
 
-- The tag is stored in the manifest's `encryption.tag` field (base64-encoded).
+- For `whole`, the tag is stored in the manifest's `encryption.tag` field with one nonce for the full payload.
+- For `framed`, each stored record carries its own nonce and tag inside the serialized ciphertext stream.
+- For `convergent`, the GCM tag is appended directly to each chunk blob (see [Convergent Scheme](#convergent-scheme)).
 - During decryption, the tag is verified by `createDecipheriv()` via `setAuthTag()`.
 - If the ciphertext or tag has been modified, `decipher.final()` will throw an error.
 
 ### Encryption Wraps Around Chunked Storage
 
-The encryption layer wraps the chunking layer:
+For `whole`, the encryption layer wraps the chunking layer:
 
 ```
 [Plain source stream] → [Encrypt stream] → [Chunk into 256KB blocks] → [Store as Git blobs]
@@ -127,6 +154,69 @@ This means:
 - **Encrypted chunks are not individually authenticated**: The entire ciphertext is authenticated as a single unit by the GCM tag.
 - **Chunk digests are computed on ciphertext**: The SHA-256 digest stored in each chunk entry is the hash of the encrypted data, not the plaintext.
 - **Chunking is deterministic**: Given the same plaintext and key/nonce, the encrypted chunks will be identical (because nonce is fixed at encryption time).
+
+In manifest metadata, this current format is named explicitly as
+`encryption.scheme = 'whole'`. Older encrypted manifests using the legacy scheme
+strings `whole-v1` or `whole-v2` are rejected at read time with guidance to run
+the migration script.
+
+Manifest validation accepts three encrypted payload shapes:
+
+- `whole` (whole-object authenticated ciphertext)
+- `framed` (independently authenticated records)
+- `convergent` (per-chunk deterministic encryption)
+
+For `whole`, manifest-level nonce and tag fields must be canonical base64
+and decode to the expected AES-GCM sizes. For `framed`, the manifest must
+carry `frameBytes` and must not carry top-level nonce/tag fields.
+
+For `framed`, git-cas first splits plaintext into fixed-size frames, then
+encrypts each frame independently and serializes records as:
+
+```text
+[4-byte ciphertext length][12-byte nonce][16-byte tag][ciphertext]
+```
+
+Chunk digests still cover the serialized encrypted bytes stored in Git, but
+restore can now authenticate and yield plaintext one frame at a time.
+
+### Convergent Scheme
+
+The `convergent` scheme provides per-chunk deterministic encryption that
+preserves content deduplication across encrypted stores. Identical plaintext
+chunks always produce identical ciphertext, even across different store
+operations with the same master key.
+
+**Key and nonce derivation**:
+
+For each plaintext chunk with SHA-256 digest `D` and master key `K`:
+
+- `chunkKey  = HMAC-SHA256(K, "git-cas-convergent-key:<D>")[0..31]` — 32-byte AES-256 key
+- `chunkNonce = HMAC-SHA256(K, "git-cas-convergent-nonce:<D>")[0..11]` — 12-byte GCM nonce
+
+**Blob format**:
+
+Each chunk blob stores `ciphertext || 16-byte GCM auth tag`. The tag is
+appended directly to the ciphertext within the Git blob, rather than being
+carried in the manifest.
+
+**Properties**:
+
+- **Deterministic**: Same plaintext + same master key = same ciphertext. This
+  enables Git's content-addressed deduplication to work even with encryption.
+- **Per-chunk authentication**: Each chunk is independently authenticated by its
+  GCM tag. Restore verifies each chunk individually.
+- **Streaming restore**: Like `framed`, `convergent` supports true streaming
+  restore — each chunk is decrypted and verified independently without buffering
+  the entire ciphertext.
+- **Digest binding**: The plaintext digest is verified after decryption. If the
+  decrypted content does not match the expected digest, restore fails with
+  `INTEGRITY_ERROR`.
+
+**Trade-off**: Because encryption is deterministic, an attacker who can guess the
+plaintext of a chunk and knows the master key can confirm the guess by deriving
+the expected ciphertext. This is inherent to all convergent encryption schemes.
+The `whole` and `framed` schemes use random nonces and do not have this property.
 
 ---
 
@@ -147,7 +237,7 @@ git-cas validates keys before use:
 
 ```javascript
 _validateKey(key) {
-  if (!Buffer.isBuffer(key) && !(key instanceof Uint8Array)) {
+  if (!globalThis.Buffer?.isBuffer(key) && !(key instanceof Uint8Array)) {
     throw new CasError(
       'Encryption key must be a Buffer or Uint8Array',
       'INVALID_KEY_TYPE',
@@ -165,6 +255,10 @@ _validateKey(key) {
 
 **Accepted types**: `Buffer` or `Uint8Array`
 **Required length**: Exactly 32 bytes (256 bits)
+
+The `globalThis.Buffer?.isBuffer` check (rather than `Buffer.isBuffer`) ensures
+the validation works on runtimes where the `Buffer` global may not exist (e.g.,
+Deno with `crypto.subtle`).
 
 If validation fails:
 
@@ -196,7 +290,13 @@ When storing content with encryption enabled:
 7. After encryption completes, the GCM authentication tag is retrieved.
 8. Encryption metadata (algorithm, nonce, tag) is stored in the manifest.
 
-### Step-by-Step: `store({ source, slug, filename, encryptionKey })`
+> **Note**: The above describes the `whole` encryption path. `framed` encrypts
+> each frame independently (each with its own nonce and tag) before chunking.
+> `convergent` skips stream-level encryption entirely and instead encrypts each
+> chunk individually after chunking, deriving key and nonce from the chunk's
+> plaintext digest (see [Convergent Scheme](#convergent-scheme)).
+
+### Step-by-Step: `store({ source, slug, filename, encryptionKey })` — `whole` path
 
 **Step 1: Key Validation**
 
@@ -223,11 +323,15 @@ const manifestData = {
 **Step 3: Create Encryption Stream**
 
 ```javascript
-const { encrypt, finalize } = this.crypto.createEncryptionStream(encryptionKey);
+const { encrypt, finalize } = this.crypto.createEncryptionStream(key, aad);
 ```
 
-- `createEncryptionStream()` generates a 12-byte random nonce.
+- `createEncryptionStream(key, aad)` generates a 12-byte random nonce.
 - Creates an `aes-256-gcm` cipher with the key and nonce.
+- If `aad` (Additional Authenticated Data) is provided, it is bound to the
+  cipher via `setAAD()`. AAD is authenticated but not encrypted — it ensures
+  the ciphertext cannot be re-associated with a different manifest context
+  (e.g., a different slug or filename) without failing tag verification.
 - Returns:
   - `encrypt`: an async generator function that yields encrypted chunks
   - `finalize`: a function that returns encryption metadata after encryption completes
@@ -290,7 +394,14 @@ When restoring content with encryption:
 7. If the tag verification fails, decryption throws an integrity error.
 8. The plaintext buffer is returned to the caller.
 
-### Step-by-Step: `restore({ manifest, encryptionKey })`
+> **Note**: The above describes the `whole` decryption path, which buffers the
+> full ciphertext. `framed` and `convergent` provide true streaming restore:
+> `framed` decrypts and authenticates each frame independently, and `convergent`
+> decrypts each chunk independently using its derived key and nonce. Both can
+> yield verified plaintext incrementally without loading the entire ciphertext
+> into memory.
+
+### Step-by-Step: `restore({ manifest, encryptionKey })` — `whole` path
 
 **Step 1: Key Validation**
 
@@ -366,7 +477,7 @@ return { buffer, bytesWritten: buffer.length };
 
 ### Important Properties
 
-- **No streaming decryption**: The entire ciphertext must be loaded into memory before decryption. This is a limitation of the current implementation.
+- **No streaming decryption for `whole`**: The entire ciphertext must be loaded into memory before decryption. This is a limitation of the `whole` scheme specifically. The `framed` and `convergent` schemes support true streaming decryption.
 - **Authentication before decryption**: GCM mode ensures that ciphertext integrity is verified before any plaintext is returned. If the tag check fails, no plaintext is leaked.
 - **Chunk integrity before decryption**: SHA-256 verification of encrypted chunks occurs before decryption. This detects corruption at the chunk level.
 
@@ -389,7 +500,12 @@ Every chunk (encrypted or unencrypted) is protected by a SHA-256 digest:
 
 2. **During integrity verification** (`verifyIntegrity()` method):
    - All chunks are read and their SHA-256 digests are verified.
-   - If any digest mismatch is detected, `verifyIntegrity()` returns `false` and emits an `integrity:fail` event.
+   - For encrypted manifests, authenticated decryption is also required for a
+     passing result.
+   - If any digest mismatch or encrypted-auth failure is detected,
+     `verifyIntegrity()` returns `false` and emits an `integrity:fail` event.
+   - If encrypted content is verified without decryption credentials,
+     `verifyIntegrity()` returns `false`.
 
 ### What Digests Protect Against
 
@@ -402,7 +518,9 @@ Every chunk (encrypted or unencrypted) is protected by a SHA-256 digest:
 
 - **Manifest tampering**: If an attacker modifies the manifest to point to different blobs with matching digests, the chunk verification will pass. However:
   - For unencrypted content, this results in incorrect data being restored.
-  - For encrypted content, GCM tag verification will fail unless the attacker also forges the authentication tag (which is computationally infeasible).
+  - For encrypted content, restore rejects downgraded encryption metadata and
+    GCM tag verification fails unless the attacker also forges the
+    authentication tag (which is computationally infeasible).
 
 - **Rollback attacks**: If an attacker replaces a newer manifest with an older one, chunk digests will still verify. Application-level versioning or commit signing is required to prevent rollback.
 
@@ -410,9 +528,9 @@ Every chunk (encrypted or unencrypted) is protected by a SHA-256 digest:
 
 ## Limitations
 
-### 1. Encrypted Restore Loads Full Ciphertext into Memory
+### 1. `whole` Encrypted Restore Loads Full Ciphertext into Memory
 
-**Issue**: The `restore()` method concatenates all encrypted chunks into a single buffer before decryption:
+**Issue**: The `whole` scheme concatenates all encrypted chunks into a single buffer before decryption:
 
 ```javascript
 let buffer = Buffer.concat(chunks);
@@ -425,21 +543,38 @@ let buffer = Buffer.concat(chunks);
 
 **Workaround**:
 
-- Avoid encrypting extremely large files with git-cas.
+- Prefer `framed` or `convergent` for large encrypted assets that need authenticated streaming restore.
+- If the consumer is restoring to disk, prefer `restoreFile()`. `whole`
+  file restores now use a bounded temp-file path instead of buffering the full
+  decrypted payload before publication.
+- On Web Crypto runtimes, the whole-object decrypt step is still one-shot.
+  The parity improvement is bounded buffering via `maxDecryptionBufferSize`,
+  not true whole-object streaming.
+- `restoreStream()` / `restore()` now enforce `maxRestoreBufferSize` against
+  streamed gunzip output and, on stream-native persistence adapters, against
+  actual blob reads in the buffered path. They still fundamentally require a
+  bounded in-memory buffer for `whole`.
 - If large encrypted files are required, implement application-level chunking (e.g., split a 10GB file into 10 separate 1GB files before storing).
 
-**Future improvement**: Implement streaming decryption to process ciphertext in chunks without full concatenation.
+### 2. `whole` Has No Streaming Decryption
 
-### 2. No Streaming Decryption
-
-**Issue**: AES-256-GCM decryption is currently performed on the entire ciphertext as a single operation. The authentication tag is verified only at the end of decryption.
+**Issue**: AES-256-GCM decryption under the `whole` scheme is performed on the entire ciphertext as a single operation. The authentication tag is verified only at the end of decryption.
 
 **Impact**:
 
-- Cannot stream decrypted plaintext to the caller incrementally.
-- Cannot detect tampering until the entire ciphertext is processed.
+- Cannot stream decrypted plaintext to the caller incrementally for `whole`.
+- Cannot detect tampering until the entire ciphertext is processed for `whole`.
 
-**Future improvement**: Investigate chunked AEAD modes or encrypt-then-MAC schemes that allow incremental authentication.
+`framed` and `convergent` are the streaming alternatives: `framed` authenticates
+each frame independently, and `convergent` authenticates each chunk
+independently, so restore can emit verified plaintext incrementally in both
+cases.
+
+`restoreFile()` now provides the bounded operational path for `whole`: it
+streams tentative plaintext into a temp file and only renames into place after
+final authentication succeeds. The generic `restoreStream()` API remains
+compatibility-only for `whole` because yielding plaintext to arbitrary
+callers before final auth would weaken the contract.
 
 ### 3. Key Rotation (v5.2.0+)
 
@@ -589,6 +724,31 @@ throw new CasError('Chunk 2 integrity check failed', 'INTEGRITY_ERROR', {
 - If this occurs during `restore()`, the file is corrupted and cannot be recovered without a backup.
 - If this occurs during `verifyIntegrity()`, investigate storage hardware or Git repository health.
 
+### `KDF_POLICY_VIOLATION`
+
+**Thrown when**:
+
+- Requested KDF parameters for a new passphrase-encrypted write are outside the accepted policy.
+- Stored manifest or vault KDF metadata requests parameters outside the accepted policy window.
+
+**Example**:
+
+```javascript
+throw new CasError('manifest KDF field "iterations" must be between 100000 and 2000000', 'KDF_POLICY_VIOLATION', {
+  source: 'manifest',
+  field: 'iterations',
+  value: 20000000,
+  min: 100000,
+  max: 2000000,
+});
+```
+
+**Recommended action**:
+
+- If this occurs on new writes, choose a supported KDF parameter set.
+- If this occurs on restore or vault operations, treat the stored metadata as
+  invalid or hostile and inspect repository provenance before proceeding.
+
 ### `INVALID_KEY_LENGTH`
 
 **Thrown when**:
@@ -667,7 +827,8 @@ throw new CasError('Encryption key required to restore encrypted content', 'MISS
 **Thrown when**:
 
 - An encrypted or compressed restore would exceed the configured `maxRestoreBufferSize` limit.
-- The post-decompression size exceeds the limit (checked after gunzip).
+- An actual blob read in the buffered restore path exceeds its allowed bound.
+- Streamed gunzip output in the buffered restore path exceeds the limit.
 
 **Example**:
 
@@ -681,12 +842,14 @@ throw new CasError('Restore buffer exceeds limit', 'RESTORE_TOO_LARGE', {
 **Possible causes**:
 
 - The asset is larger than the configured buffer limit (default 512 MiB).
-- A compressed asset inflates beyond the limit after decompression.
+- A referenced blob is larger than the manifest-declared chunk size or the
+  remaining buffered restore budget.
+- A compressed asset inflates beyond the limit during decompression.
 
 **Recommended action**:
 
 - Increase `maxRestoreBufferSize` in the `CasService` constructor or `.casrc`.
-- For very large assets, consider storing without encryption to enable streaming restore.
+- For very large assets, consider `framed` or `convergent` so encrypted restore can stay streaming.
 
 ---
 
@@ -709,8 +872,10 @@ throw new CasError(
 
 **Possible causes**:
 
-- Large chunks combined with `WebCryptoAdapter` (used in Bun/Deno).
-- `NodeCryptoAdapter` uses true streaming and is not affected by this limit.
+- Large plaintext inputs combined with `WebCryptoAdapter` (used by Deno and
+  browser-class runtimes).
+- `NodeCryptoAdapter` and `BunCryptoAdapter` use true streaming encryption and
+  are not affected by this limit.
 
 **Recommended action**:
 
@@ -720,14 +885,50 @@ throw new CasError(
 
 ---
 
+### `DECRYPTION_BUFFER_EXCEEDED`
+
+**Thrown when**:
+
+- Web Crypto AES-GCM whole-object decryption is attempted on ciphertext
+  exceeding the configured `maxDecryptionBufferSize`.
+- Web Crypto decrypt is still one-shot, so `whole` ciphertext must fit
+  within the configured bounded buffer on that runtime path.
+
+**Example**:
+
+```javascript
+throw new CasError(
+  'Streaming decryption buffered 1073741824 bytes (limit: 536870912)...',
+  'DECRYPTION_BUFFER_EXCEEDED',
+  { accumulated: 1073741824, limit: 536870912 }
+);
+```
+
+**Possible causes**:
+
+- Large `whole` encrypted restores on Deno or browser-class runtimes using
+  `WebCryptoAdapter`.
+- Assuming `restoreFile()` implies identical whole-object decrypt mechanics on
+  Node/Bun and Web Crypto.
+
+**Recommended action**:
+
+- Prefer `framed` or `convergent` for large encrypted restores that need bounded,
+  authenticated streaming across runtimes.
+- Increase `maxDecryptionBufferSize` in the `WebCryptoAdapter` constructor if
+  the runtime has enough headroom.
+- Use Node.js or Bun when large `whole` file restores are required.
+
+---
+
 ## Conclusion
 
 git-cas provides strong at-rest encryption and integrity guarantees through AES-256-GCM and SHA-256 chunk verification. However, it is critical to understand the limitations and caller responsibilities:
 
 - **Key management is entirely your responsibility**. git-cas does not store or manage keys.
-- **Encrypted restore is not streaming**. Large encrypted files may cause memory issues.
+- **Encrypted restore under the `whole` scheme is buffered, not streaming**. Large encrypted files may cause memory issues. The `framed` and `convergent` schemes provide true streaming restore with per-frame or per-chunk authentication.
 - **Key rotation supported for envelope encryption** (v5.2.0+). Legacy (non-envelope) content still requires manual restore/store cycles.
 - **Metadata is not encrypted**. File structure and sizes are visible to anyone with repository access.
 - **Logical deletion does not physically remove data**. Use `git gc` to prune unreferenced objects.
 
-For questions or security concerns, please review the [ROADMAP](../ROADMAP.md) or file an issue.
+For questions or security concerns, please review the [ROADMAP](./ROADMAP.md) or file an issue.

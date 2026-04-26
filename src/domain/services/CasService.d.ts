@@ -4,7 +4,8 @@
  */
 
 import Manifest from "../value-objects/Manifest.js";
-import type { EncryptionMeta, CompressionMeta, KdfParams } from "../value-objects/Manifest.js";
+import Chunk from "../value-objects/Chunk.js";
+import type { EncryptionMeta, CompressionMeta, KdfParams, EncryptionScheme } from "../value-objects/Manifest.js";
 
 /** Port interface for cryptographic operations (hashing, encryption, random bytes). */
 export interface CryptoPort {
@@ -13,12 +14,28 @@ export interface CryptoPort {
   encryptBuffer(
     buffer: Buffer,
     key: Buffer,
+    aad?: Buffer | Uint8Array,
   ): { buf: Buffer; meta: EncryptionMeta } | Promise<{ buf: Buffer; meta: EncryptionMeta }>;
-  decryptBuffer(buffer: Buffer, key: Buffer, meta: EncryptionMeta): Buffer | Promise<Buffer>;
-  createEncryptionStream(key: Buffer): {
+  decryptBuffer(buffer: Buffer, key: Buffer, meta: EncryptionMeta, aad?: Buffer | Uint8Array): Buffer | Promise<Buffer>;
+  createEncryptionStream(key: Buffer, aad?: Buffer | Uint8Array): {
     encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
     finalize: () => EncryptionMeta;
   };
+  createDecryptionStream(key: Buffer, meta: EncryptionMeta, aad?: Buffer | Uint8Array): {
+    decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
+  };
+  hmacSha256(key: Buffer | Uint8Array, data: Buffer | Uint8Array | string): Buffer;
+  encryptBufferWithNonce(
+    buffer: Buffer | Uint8Array,
+    key: Buffer | Uint8Array,
+    nonce: Buffer | Uint8Array,
+  ): { buf: Buffer; tag: Buffer } | Promise<{ buf: Buffer; tag: Buffer }>;
+  decryptBufferWithNonceTag(
+    buffer: Buffer | Uint8Array,
+    key: Buffer | Uint8Array,
+    nonce: Buffer | Uint8Array,
+    tag: Buffer | Uint8Array,
+  ): Buffer | Promise<Buffer>;
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }
 
@@ -34,6 +51,7 @@ export interface GitPersistencePort {
   writeBlob(content: Buffer | string): Promise<string>;
   writeTree(entries: string[]): Promise<string>;
   readBlob(oid: string): Promise<Buffer>;
+  readBlobStream(oid: string): Promise<AsyncIterable<Buffer>>;
   readTree(
     treeOid: string,
   ): Promise<Array<{ mode: string; type: string; oid: string; name: string }>>;
@@ -53,6 +71,14 @@ export interface ChunkingPort {
   readonly params: Record<string, unknown>;
 }
 
+/** Port interface for compression and decompression of buffers and streams. */
+export interface CompressionPort {
+  compressBuffer(buffer: Buffer): Promise<Buffer>;
+  decompressBuffer(buffer: Buffer): Promise<Buffer>;
+  compressStream(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
+  decompressStream(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
+}
+
 /** Constructor options for {@link CasService}. */
 export interface CasServiceOptions {
   persistence: GitPersistencePort;
@@ -64,6 +90,8 @@ export interface CasServiceOptions {
   concurrency?: number;
   chunker?: ChunkingPort;
   maxRestoreBufferSize?: number;
+  compressionAdapter?: CompressionPort;
+  formatVersion?: string;
 }
 
 /** Options for key derivation. */
@@ -83,6 +111,22 @@ export interface DeriveKeyResult {
   key: Buffer;
   salt: Buffer;
   params: KdfParams;
+}
+
+export interface VerifyIntegrityOptions {
+  encryptionKey?: Buffer;
+  passphrase?: string;
+}
+
+export interface StoreEncryptionOptions {
+  scheme?: EncryptionScheme;
+  frameBytes?: number;
+}
+
+export interface FileRestorePlan {
+  mode: "stream" | "bounded-file";
+  source: AsyncIterable<Buffer>;
+  encryptionMeta?: EncryptionMeta;
 }
 
 /**
@@ -120,6 +164,7 @@ export default class CasService {
     filename: string;
     encryptionKey?: Buffer;
     passphrase?: string;
+    encryption?: StoreEncryptionOptions;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
     recipients?: Array<{ label: string; key: Buffer }>;
@@ -138,6 +183,12 @@ export default class CasService {
     encryptionKey?: Buffer;
     passphrase?: string;
   }): AsyncIterable<Buffer>;
+
+  createFileRestorePlan(options: {
+    manifest: Manifest;
+    encryptionKey?: Buffer;
+    passphrase?: string;
+  }): Promise<FileRestorePlan>;
 
   readManifest(options: { treeOid: string }): Promise<Manifest>;
 
@@ -180,7 +231,24 @@ export default class CasService {
     label?: string;
   }): Promise<Manifest>;
 
-  verifyIntegrity(manifest: Manifest): Promise<boolean>;
+  verifyIntegrity(manifest: Manifest, options?: VerifyIntegrityOptions): Promise<boolean>;
 
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
+
+  static diffManifests(oldManifest: Manifest, newManifest: Manifest): ManifestDiffResult;
+}
+
+/** Result of comparing two manifests by chunk digest. */
+export interface ManifestDiffResult {
+  added: Chunk[];
+  removed: Chunk[];
+  unchanged: Chunk[];
+  summary: {
+    addedCount: number;
+    removedCount: number;
+    unchangedCount: number;
+    addedBytes: number;
+    removedBytes: number;
+    unchangedBytes: number;
+  };
 }

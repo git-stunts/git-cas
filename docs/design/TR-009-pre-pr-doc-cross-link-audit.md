@@ -97,7 +97,7 @@ That keeps the workflow small and discoverable.
 The audit should run when a branch changes top-level or canonical doc surfaces
 such as `README.md`, `CONTRIBUTING.md`, `WORKFLOW.md`, `ARCHITECTURE.md`,
 `SECURITY.md`, `docs/API.md`, `docs/THREAT_MODEL.md`,
-`docs/BENCHMARKS.md`, and planning indexes.
+`ADVANCED_GUIDE.md`, and planning indexes.
 
 That makes the trigger concrete without pretending every markdown file needs the
 same treatment.

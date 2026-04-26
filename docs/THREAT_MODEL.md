@@ -54,6 +54,13 @@ The following are not fully confidential simply because encryption is enabled:
 - vault metadata in `.vault.json`
 - the existence of stored assets and their relationship to particular slugs
 
+When `convergent-v1` encryption is active, identical plaintext chunks produce
+identical ciphertext blobs. An attacker with read access to the Git object
+database can observe that two manifests reference the same blob OID, inferring
+that those chunks contain identical plaintext. This is the well-known limitation
+of convergent encryption (Tahoe-LAFS, etc.). For scenarios where content
+equality itself is sensitive, use `framed-v2` or `whole-v2` instead.
+
 This is especially important for repository exposure scenarios: encrypted
 content can remain confidential while metadata remains visible.
 
@@ -116,7 +123,10 @@ What `git-cas` does protect:
 
 - SHA-256 chunk verification detects chunk substitution or corruption
 - AES-GCM authentication detects encrypted-content tampering
-- manifest read/restore flows fail instead of silently producing modified bytes
+- encrypted restore rejects downgraded manifest metadata instead of silently
+  returning ciphertext
+- encrypted `verifyIntegrity()` only passes when ciphertext authentication also
+  succeeds with valid credentials
 
 What it does not protect:
 

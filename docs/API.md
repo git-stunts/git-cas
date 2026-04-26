@@ -114,7 +114,7 @@ const service = await cas.getService();
 #### store
 
 ```javascript
-await cas.store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression });
+await cas.store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression });
 ```
 
 Stores content from an async iterable source.
@@ -126,7 +126,10 @@ Stores content from an async iterable source.
 - `filename` (required): `string` - Original filename
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase (alternative to `encryptionKey`)
-- `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`)
+- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed`
+- `encryption.scheme` (optional): `'whole' | 'framed' | 'convergent'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode; `convergent` derives per-chunk keys from content, enabling deduplication across encrypted stores and is the default when using CDC chunking with encryption
+- `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed record (default `65536`)
+- `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`). New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
 
 **Returns:** `Promise<Manifest>`
@@ -137,18 +140,22 @@ Stores content from an async iterable source.
 - `CasError` with code `INVALID_KEY_LENGTH` if encryptionKey is not 32 bytes
 - `CasError` with code `STREAM_ERROR` if the source stream fails
 - `CasError` with code `INVALID_OPTIONS` if both `passphrase` and `encryptionKey` are provided
+- `CasError` with code `INVALID_OPTIONS` if an unsupported encryption scheme is specified
 - `CasError` with code `INVALID_OPTIONS` if an unsupported compression algorithm is specified
 
 **Example:**
 
 ```javascript
 import { createReadStream } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 
 const stream = createReadStream('/path/to/file.txt');
+const key = randomBytes(32);
 const manifest = await cas.store({
   source: stream,
   slug: 'my-asset',
   filename: 'file.txt',
+  encryptionKey: key,
 });
 ```
 
@@ -161,6 +168,7 @@ await cas.storeFile({
   filename,
   encryptionKey,
   passphrase,
+  encryption,
   kdfOptions,
   compression,
 });
@@ -175,7 +183,10 @@ Convenience method that opens a file and stores it.
 - `filename` (optional): `string` - Filename (defaults to basename of filePath)
 - `encryptionKey` (optional): `Buffer` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase
-- `kdfOptions` (optional): `Object` - KDF options when using `passphrase`
+- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed`
+- `encryption.scheme` (optional): `'whole' | 'framed' | 'convergent'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode; `convergent` derives per-chunk keys from content, enabling deduplication across encrypted stores and is the default when using CDC chunking with encryption
+- `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed record (default `65536`)
+- `kdfOptions` (optional): `Object` - KDF options when using `passphrase`. New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
 
 **Returns:** `Promise<Manifest>`
@@ -188,6 +199,7 @@ Convenience method that opens a file and stores it.
 const manifest = await cas.storeFile({
   filePath: '/path/to/file.txt',
   slug: 'my-asset',
+  encryptionKey: key,
 });
 ```
 
@@ -198,6 +210,10 @@ await cas.restore({ manifest, encryptionKey, passphrase });
 ```
 
 Restores content from a manifest and returns the buffer.
+
+For encrypted content, `whole` still buffers the full ciphertext before
+authenticating and decrypting. `framed` restores authenticated plaintext
+frame-by-frame and only the final `restore()` collector buffers the result.
 
 **Parameters:**
 
@@ -230,6 +246,17 @@ await cas.restoreFile({ manifest, encryptionKey, passphrase, outputPath });
 ```
 
 Restores content from a manifest and writes it to a file.
+
+For plaintext and `framed`, this writes from the streaming restore path.
+For `whole` and compression-buffered modes, `restoreFile()` now uses a
+bounded temp-file path: bytes are verified, decrypted, and optionally gunzipped
+into a temporary sibling path, then renamed into place only after the pipeline
+completes successfully. This improves file restores without changing the
+contract of `restoreStream()`, which remains buffered for `whole`.
+On Web Crypto runtimes, the whole-object decrypt step is still internally
+one-shot; the parity improvement is that this path now stays bounded by the
+adapter's decryption buffer limit instead of collecting ciphertext without a
+guard.
 
 **Parameters:**
 
@@ -277,11 +304,17 @@ const treeOid = await cas.createTree({ manifest });
 await cas.verifyIntegrity(manifest);
 ```
 
-Verifies the integrity of stored content by re-hashing all chunks.
+Verifies the integrity of stored content by re-hashing all chunks. For
+encrypted manifests, pass the same decryption credentials you would use for
+`restore()` so the ciphertext is also authenticated. `whole` authenticates
+the full ciphertext as one unit; `framed` authenticates every stored frame.
 
 **Parameters:**
 
 - `manifest` (required): `Manifest` - Manifest object
+- `options` (optional): `object`
+- `options.encryptionKey` (optional): `Buffer` - 32-byte key for encrypted manifests
+- `options.passphrase` (optional): `string` - Passphrase for KDF-based encrypted manifests
 
 **Returns:** `Promise<boolean>` - True if all chunks pass verification
 
@@ -292,6 +325,14 @@ const isValid = await cas.verifyIntegrity(manifest);
 if (!isValid) {
   console.log('Integrity check failed');
 }
+```
+
+Encrypted example:
+
+```javascript
+const isValid = await cas.verifyIntegrity(manifest, {
+  encryptionKey: key,
+});
 ```
 
 #### readManifest
@@ -323,7 +364,200 @@ console.log(manifest.slug); // "photos/vacation"
 console.log(manifest.chunks); // array of Chunk objects
 ```
 
+#### restoreStream
+
+```javascript
+const stream = cas.restoreStream({ manifest, encryptionKey, passphrase });
+```
+
+Restores content from a manifest as an async iterable of Buffer chunks.
+
+For unencrypted, uncompressed files this is true per-chunk streaming with O(chunkSize) memory. `whole` encrypted paths still collect internally before yielding, while `framed` encrypted payloads authenticate and emit plaintext incrementally.
+
+**Parameters:**
+
+- `manifest` (required): `Manifest` - Manifest object
+- `encryptionKey` (optional): `Buffer` - 32-byte encryption key (required if content is encrypted)
+- `passphrase` (optional): `string` - Passphrase for KDF-based decryption (alternative to `encryptionKey`)
+
+**Returns:** `AsyncIterable<Buffer>`
+
+**Throws:**
+
+- `CasError` with code `MISSING_KEY` if content is encrypted but no key provided
+- `CasError` with code `INTEGRITY_ERROR` if chunk verification or decryption fails
+
+**Example:**
+
+```javascript
+for await (const chunk of cas.restoreStream({ manifest })) {
+  process.stdout.write(chunk);
+}
+```
+
+#### inspectAsset
+
+```javascript
+await cas.inspectAsset({ treeOid });
+```
+
+Reads a manifest from a Git tree and returns inspection metadata. Does not perform any destructive Git operations.
+
+**Parameters:**
+
+- `treeOid` (required): `string` - Git tree OID of the asset
+
+**Returns:** `Promise<{ slug: string, chunksOrphaned: number }>`
+
+**Throws:**
+
+- `CasError` with code `MANIFEST_NOT_FOUND` if the tree has no manifest
+- `CasError` with code `GIT_ERROR` if the underlying Git command fails
+
+**Example:**
+
+```javascript
+const { slug, chunksOrphaned } = await cas.inspectAsset({ treeOid });
+console.log(`Asset "${slug}" has ${chunksOrphaned} chunks`);
+```
+
+#### diffManifests (static)
+
+```javascript
+ContentAddressableStore.diffManifests(oldManifest, newManifest);
+```
+
+Compares two manifests by chunk digest to find added, removed, and unchanged chunks. Pure function — no I/O. Does not require initialization.
+
+**Parameters:**
+
+- `oldManifest` (required): `Manifest` - Previous manifest
+- `newManifest` (required): `Manifest` - Updated manifest
+
+**Returns:** `ManifestDiffResult` — object with `added`, `removed`, and `unchanged` chunk arrays
+
+**Example:**
+
+```javascript
+const diff = ContentAddressableStore.diffManifests(oldManifest, newManifest);
+console.log(`Added: ${diff.added.length}, Removed: ${diff.removed.length}`);
+```
+
+#### addRecipient
+
+```javascript
+await cas.addRecipient({ manifest, existingKey, newRecipientKey, label });
+```
+
+Adds a recipient to an envelope-encrypted manifest. Unwraps the DEK using `existingKey`, then re-wraps it with `newRecipientKey` for the new recipient.
+
+**Parameters:**
+
+- `manifest` (required): `Manifest` - Envelope-encrypted manifest
+- `existingKey` (required): `Buffer` - KEK of an existing recipient (used to unwrap the DEK)
+- `newRecipientKey` (required): `Buffer` - KEK for the new recipient
+- `label` (required): `string` - Label for the new recipient
+
+**Returns:** `Promise<Manifest>` - Updated manifest with the new recipient entry
+
+**Throws:**
+
+- `CasError` with code `INVALID_OPTIONS` if manifest has no recipients
+- `CasError` with code `RECIPIENT_ALREADY_EXISTS` if label is a duplicate
+- `CasError` with code `DEK_UNWRAP_FAILED` if existingKey doesn't match any recipient
+
+**Example:**
+
+```javascript
+const updated = await cas.addRecipient({
+  manifest,
+  existingKey: aliceKey,
+  newRecipientKey: bobKey,
+  label: 'bob',
+});
+```
+
+#### removeRecipient
+
+```javascript
+await cas.removeRecipient({ manifest, label });
+```
+
+Removes a recipient from an envelope-encrypted manifest.
+
+**Parameters:**
+
+- `manifest` (required): `Manifest` - Envelope-encrypted manifest
+- `label` (required): `string` - Label of the recipient to remove
+
+**Returns:** `Promise<Manifest>` - Updated manifest without the removed recipient
+
+**Throws:**
+
+- `CasError` with code `RECIPIENT_NOT_FOUND` if label doesn't exist
+- `CasError` with code `CANNOT_REMOVE_LAST_RECIPIENT` if only one recipient remains
+
+**Example:**
+
+```javascript
+const updated = await cas.removeRecipient({ manifest, label: 'bob' });
+```
+
+#### listRecipients
+
+```javascript
+await cas.listRecipients(manifest);
+```
+
+Lists recipient labels from an envelope-encrypted manifest.
+
+**Parameters:**
+
+- `manifest` (required): `Manifest` - Manifest to inspect
+
+**Returns:** `Promise<string[]>` - Recipient labels, or empty array if not envelope-encrypted
+
+**Example:**
+
+```javascript
+const labels = await cas.listRecipients(manifest);
+console.log('Recipients:', labels.join(', '));
+```
+
+#### collectReferencedChunks
+
+```javascript
+await cas.collectReferencedChunks({ treeOids });
+```
+
+Aggregates referenced chunk blob OIDs across multiple stored assets. Analysis only — does not delete or modify anything.
+
+**Parameters:**
+
+- `treeOids` (required): `Array<string>` - Git tree OIDs to analyze
+
+**Returns:** `Promise<{ referenced: Set<string>, total: number }>`
+
+- `referenced` — deduplicated Set of all chunk blob OIDs across the given trees
+- `total` — total number of chunk references (before deduplication)
+
+**Throws:**
+
+- `CasError` with code `MANIFEST_NOT_FOUND` if any `treeOid` lacks a manifest (fail closed)
+- `CasError` with code `GIT_ERROR` if the underlying Git command fails
+
+**Example:**
+
+```javascript
+const { referenced, total } = await cas.collectReferencedChunks({
+  treeOids: [treeOid1, treeOid2, treeOid3],
+});
+console.log(`${referenced.size} unique blobs across ${total} total chunk references`);
+```
+
 #### deleteAsset
+
+> **Deprecated.** Use [`inspectAsset`](#inspectasset) instead.
 
 ```javascript
 await cas.deleteAsset({ treeOid });
@@ -363,8 +597,8 @@ Derives an encryption key from a passphrase using PBKDF2 or scrypt.
 - `options.passphrase` (required): `string` - The passphrase
 - `options.salt` (optional): `Buffer` - Salt (random if omitted)
 - `options.algorithm` (optional): `'pbkdf2' | 'scrypt'` - KDF algorithm (default: `'pbkdf2'`)
-- `options.iterations` (optional): `number` - PBKDF2 iterations (default: 100000)
-- `options.cost` (optional): `number` - scrypt cost parameter N (default: 16384)
+- `options.iterations` (optional): `number` - PBKDF2 iterations (default: 600000)
+- `options.cost` (optional): `number` - scrypt cost parameter N (default: 131072)
 - `options.blockSize` (optional): `number` - scrypt block size r (default: 8)
 - `options.parallelization` (optional): `number` - scrypt parallelization p (default: 1)
 - `options.keyLength` (optional): `number` - Derived key length (default: 32)
@@ -381,7 +615,7 @@ Derives an encryption key from a passphrase using PBKDF2 or scrypt.
 const { key, salt, params } = await cas.deriveKey({
   passphrase: 'my secret passphrase',
   algorithm: 'pbkdf2',
-  iterations: 200000,
+  iterations: 600000,
 });
 
 // Use the derived key for encryption
@@ -393,6 +627,8 @@ const manifest = await cas.storeFile({
 ```
 
 #### findOrphanedChunks
+
+> **Deprecated.** Use [`collectReferencedChunks`](#collectreferencedchunks) instead.
 
 ```javascript
 await cas.findOrphanedChunks({ treeOids });
@@ -527,7 +763,7 @@ Rotates the vault-level encryption passphrase. Re-wraps every envelope-encrypted
 
 - `oldPassphrase` (required): `string` - Current vault passphrase
 - `newPassphrase` (required): `string` - New vault passphrase
-- `kdfOptions` (optional): `Object` - KDF options for new passphrase (e.g., `{ algorithm: 'scrypt' }`)
+- `kdfOptions` (optional): `Object` - KDF options for new passphrase (e.g., `{ algorithm: 'scrypt' }`). Defaults use PBKDF2 `600000` or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 
 **Returns:** `Promise<{ commitOid: string, rotatedSlugs: string[], skippedSlugs: string[] }>`
 
@@ -535,6 +771,7 @@ Rotates the vault-level encryption passphrase. Re-wraps every envelope-encrypted
 
 - `CasError` with code `VAULT_METADATA_INVALID` if vault is not encrypted
 - `CasError` with code `DEK_UNWRAP_FAILED` or `NO_MATCHING_RECIPIENT` if old passphrase is wrong
+- `CasError` with code `KDF_POLICY_VIOLATION` if stored or requested KDF parameters fall outside policy
 - `CasError` with code `VAULT_CONFLICT` if concurrent vault updates exhaust retries
 
 **Example:**
@@ -623,13 +860,14 @@ Initializes the vault. Optionally configures vault-level encryption with a passp
 **Parameters:**
 
 - `passphrase` (optional): `string` - Passphrase for vault-level key derivation
-- `kdfOptions` (optional): `Object` - KDF options (`{ algorithm, iterations, cost, ... }`)
+- `kdfOptions` (optional): `Object` - KDF options (`{ algorithm, iterations, cost, ... }`). Defaults use PBKDF2 `600000` or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 
 **Returns:** `Promise<{ commitOid: string }>`
 
 **Throws:**
 
 - `CasError` with code `VAULT_ENCRYPTION_ALREADY_CONFIGURED` if vault already has encryption
+- `CasError` with code `KDF_POLICY_VIOLATION` if requested KDF parameters fall outside policy
 
 **Example:**
 
@@ -776,7 +1014,8 @@ Slugs are validated with the following rules:
 
 When a vault is initialized with a passphrase, the human CLI can derive an
 asset encryption key from the vault's KDF configuration when you supply
-`--vault-passphrase` or `--vault-passphrase-file` during store and restore:
+`--vault-passphrase`, `--vault-passphrase-file`, or `--os-keychain-target`
+during store and restore:
 
 ```javascript
 // Initialize vault with encryption
@@ -787,6 +1026,9 @@ await cas.initVault({ passphrase: 'secret' });
 
 // Restore with vault-configured passphrase derivation
 // git-cas restore --slug demo/hello --out file.txt --vault-passphrase secret
+
+// Or resolve the vault passphrase from the OS keychain
+// git-cas restore --slug demo/hello --out file.txt --os-keychain-target demo/passphrase
 ```
 
 The vault stores the KDF parameters (algorithm, salt, iterations) in
@@ -802,11 +1044,25 @@ Library callers still pass explicit `encryptionKey` or `passphrase` values, or
 derive keys themselves through `getVaultMetadata()` plus `deriveKey()` before
 calling the content APIs.
 
+When `--os-keychain-target` is used, the human CLI resolves the passphrase
+through `@git-stunts/vault` using OS-native secure storage. The optional
+`--os-keychain-account` flag scopes the lookup; the default account is
+`git-cas`.
+
+The machine-facing `git cas agent` surface now supports the same explicit
+keychain lookup model for vault-derived passphrase flows through structured
+request fields:
+
+- `osKeychainTarget` / `osKeychainAccount` for agent store, restore, and vault init
+- `oldOsKeychainTarget` / `oldOsKeychainAccount` and
+  `newOsKeychainTarget` / `newOsKeychainAccount` for agent vault rotate
+
 ### CLI Vault Commands
 
 ```bash
 git cas vault init                               # Initialize vault
 git cas vault init --vault-passphrase "secret"   # With encryption
+git cas vault init --os-keychain-target demo/passphrase
 git cas vault list                               # List all entries
 git cas vault info <slug>                        # Show slug + tree OID
 git cas vault remove <slug>                      # Remove an entry
@@ -865,7 +1121,7 @@ Domain service for vault operations. Requires three ports:
 - `crypto` (`CryptoPort`) — KDF for vault-level encryption
 
 ```javascript
-import { VaultService } from '@git-stunts/cas'; // or via facade
+import { VaultService } from '@git-stunts/git-cas'; // or via facade
 const vault = await cas.getVaultService();
 ```
 
@@ -915,7 +1171,7 @@ All methods from ContentAddressableStore delegate to CasService. See ContentAddr
 - `store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression })`
 - `restore({ manifest, encryptionKey, passphrase })`
 - `createTree({ manifest })`
-- `verifyIntegrity(manifest)`
+- `verifyIntegrity(manifest, { encryptionKey, passphrase })`
 - `readManifest({ treeOid })`
 - `deleteAsset({ treeOid })`
 - `findOrphanedChunks({ treeOids })`
@@ -1198,6 +1454,25 @@ Reads a Git blob.
 
 **Returns:** `Promise<Buffer>` - Blob content
 
+##### readBlobStream
+
+```javascript
+await port.readBlobStream(oid);
+```
+
+Reads a Git blob as an async stream of `Buffer` chunks.
+
+For custom persistence adapters, this method is required for hard-limited
+buffered restore modes such as `whole` encrypted restore and buffered
+compression restore. `readBlob()` remains a compatibility fallback for
+plaintext restore only.
+
+**Parameters:**
+
+- `oid`: `string` - Git blob OID
+
+**Returns:** `Promise<AsyncIterable<Buffer>>` - Blob byte stream
+
 ##### readTree
 
 ```javascript
@@ -1223,6 +1498,10 @@ class CustomGitAdapter extends GitPersistencePort {
   }
 
   async writeTree(entries) {
+    // Implementation
+  }
+
+  async readBlobStream(oid) {
     // Implementation
   }
 
@@ -1399,11 +1678,15 @@ Derives an encryption key from a passphrase using PBKDF2 or scrypt.
 - `options.passphrase`: `string` - The passphrase
 - `options.salt` (optional): `Buffer` - Salt (random if omitted)
 - `options.algorithm` (optional): `'pbkdf2' | 'scrypt'` - KDF algorithm (default: `'pbkdf2'`)
-- `options.iterations` (optional): `number` - PBKDF2 iterations
-- `options.cost` (optional): `number` - scrypt cost N
+- `options.iterations` (optional): `number` - PBKDF2 iterations (default: `600000`)
+- `options.cost` (optional): `number` - scrypt cost N (default: `131072`)
 - `options.blockSize` (optional): `number` - scrypt block size r
 - `options.parallelization` (optional): `number` - scrypt parallelization p
 - `options.keyLength` (optional): `number` - Derived key length (default: 32)
+
+`deriveKey()` is the raw derivation primitive. Policy enforcement for persisted
+KDF metadata happens in `store()`, `restore()`, `initVault()`, and
+`rotateVaultPassphrase()`.
 
 **Returns:** `Promise<{ key: Buffer, salt: Buffer, params: Object }>`
 
@@ -1507,7 +1790,11 @@ new CasError(message, code, meta);
 | `INVALID_KEY_LENGTH`                  | Encryption key must be exactly 32 bytes                                    | `encrypt()`, `decrypt()`, `store()`, `restore()`                              |
 | `MISSING_KEY`                         | Encryption key required to restore encrypted content but none was provided | `restore()`                                                                   |
 | `INTEGRITY_ERROR`                     | Chunk digest verification failed or decryption authentication failed       | `restore()`, `verifyIntegrity()`, `decrypt()`                                 |
+| `PERSISTENCE_CAPABILITY_REQUIRED`     | Buffered restore mode requires `readBlobStream()` on the persistence adapter | `restore()`, `restoreStream()`                                              |
+| `DECRYPTION_BUFFER_EXCEEDED`          | Web Crypto whole-object decrypt exceeded the configured buffer limit       | `createDecryptionStream()` via Web Crypto restore paths                       |
+| `KDF_POLICY_VIOLATION`               | KDF parameters fell outside the accepted policy window                     | `store()`, `restore()`, `initVault()`, `rotateVaultPassphrase()`, `readState()` |
 | `STREAM_ERROR`                        | Stream error occurred during store operation                               | `store()`                                                                     |
+| `STORE_ERROR`                         | Chunk write failed during store after dispatch                             | `store()`                                                                     |
 | `MANIFEST_NOT_FOUND`                  | No manifest entry found in the Git tree                                    | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()`                     |
 | `GIT_ERROR`                           | Underlying Git plumbing command failed                                     | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()`                     |
 | `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value            | `store()`, `restore()`                                                        |
@@ -1591,7 +1878,19 @@ Different error codes include different metadata:
 
 ```javascript
 {
-  chunksWritten: <number>,
+  chunksDispatched: <number>,
+  orphanedBlobs: <string[]>,
+  originalError: <Error>
+}
+```
+
+**STORE_ERROR:**
+
+```javascript
+{
+  chunksDispatched: <number>,
+  orphanedBlobs: <string[]>,
+  failedIndex: <number>,
   originalError: <Error>
 }
 ```

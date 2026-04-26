@@ -220,7 +220,7 @@ describe('vault CLI — validation', () => { // eslint-disable-line max-lines-pe
 
       expect(result.status).toBe(1);
       expect(`${result.stderr ?? ''}`).toContain(
-        'Provide --vault-passphrase or --vault-passphrase-file when using --algorithm',
+        'Provide --vault-passphrase, --vault-passphrase-file, or --os-keychain-target when using --algorithm',
       );
     } finally {
       rmSync(validationRepoDir, { recursive: true, force: true });
@@ -246,7 +246,7 @@ describe('vault CLI — validation', () => { // eslint-disable-line max-lines-pe
 
       expect(result.status).toBe(1);
       expect(`${result.stderr ?? ''}`).toContain(
-        'Provide --vault-passphrase or --vault-passphrase-file, not both',
+        'Provide exactly one vault passphrase source: --vault-passphrase, --vault-passphrase-file, or --os-keychain-target',
       );
     } finally {
       rmSync(validationRepoDir, { recursive: true, force: true });

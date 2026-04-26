@@ -21,16 +21,46 @@ export interface RecipientEntry {
   keyVersion?: number;
 }
 
-/** AES-256-GCM encryption metadata attached to an encrypted manifest. */
-export interface EncryptionMeta {
-  algorithm: string;
+export type EncryptionScheme = "whole" | "framed" | "convergent";
+
+export interface WholeEncryptionMeta {
+  scheme: "whole";
+  algorithm: "aes-256-gcm";
   nonce: string;
   tag: string;
-  encrypted: boolean;
+  frameBytes?: never;
+  encrypted: true;
   kdf?: KdfParams;
   recipients?: RecipientEntry[];
   keyVersion?: number;
 }
+
+export interface FramedEncryptionMeta {
+  scheme: "framed";
+  algorithm: "aes-256-gcm";
+  nonce?: never;
+  tag?: never;
+  frameBytes: number;
+  encrypted: true;
+  kdf?: KdfParams;
+  recipients?: RecipientEntry[];
+  keyVersion?: number;
+}
+
+export interface ConvergentEncryptionMeta {
+  scheme: "convergent";
+  algorithm: "aes-256-gcm";
+  nonce?: never;
+  tag?: never;
+  frameBytes?: never;
+  encrypted: true;
+  kdf?: KdfParams;
+  recipients?: RecipientEntry[];
+  keyVersion?: number;
+}
+
+/** AES-256-GCM encryption metadata attached to an encrypted manifest. */
+export type EncryptionMeta = WholeEncryptionMeta | FramedEncryptionMeta | ConvergentEncryptionMeta;
 
 /** Compression metadata. */
 export interface CompressionMeta {
@@ -47,13 +77,16 @@ export interface SubManifestRef {
 /** Raw manifest data accepted by the {@link Manifest} constructor. */
 export interface ManifestData {
   version?: number;
+  formatVersion?: string;
   slug: string;
   filename: string;
   size: number;
   chunks: Array<{ index: number; size: number; digest: string; blob: string }>;
   encryption?: EncryptionMeta;
   compression?: CompressionMeta;
+  chunking?: { strategy: "fixed"; params: { chunkSize: number } } | { strategy: "cdc"; params: { target: number; min: number; max: number; normalized?: boolean } };
   subManifests?: SubManifestRef[];
+  manifestHash?: string;
 }
 
 /**
@@ -61,13 +94,16 @@ export interface ManifestData {
  */
 export default class Manifest {
   readonly version: number;
+  readonly formatVersion?: string;
   readonly slug: string;
   readonly filename: string;
   readonly size: number;
   readonly chunks: readonly Chunk[];
   readonly encryption?: EncryptionMeta;
   readonly compression?: CompressionMeta;
+  readonly chunking?: ManifestData["chunking"];
   readonly subManifests?: readonly SubManifestRef[];
+  readonly manifestHash?: string;
 
   constructor(data: ManifestData);
 

@@ -21,8 +21,8 @@ canonical project docs:
 - release history
 
 Planning history, archive material, long-form tutorials, and tool-specific
-instruction files should prefer `docs/`, `docs/archive/`, or local-only
-surfaces.
+instruction files should prefer `docs/`, `docs/method/`, `docs/archive/`, or
+local-only surfaces.
 
 ## Root Markdown
 
@@ -35,14 +35,13 @@ surfaces.
 - [SECURITY.md](../SECURITY.md): `KEEP` — canonical security guidance and
   vulnerability-routing surface; belongs at the repo root.
 - [WORKFLOW.md](../WORKFLOW.md): `KEEP` — planning and delivery model for fresh
-  work; belongs at the repo root.
+  work, now as a root signpost into `docs/method/`; belongs at the repo root.
 - [ARCHITECTURE.md](../ARCHITECTURE.md): `KEEP` — canonical high-level
   architecture map; still useful as a root-level reference.
-- [ROADMAP.md](../ROADMAP.md): `MOVE`, `CUT` — useful as migration and sequence
-  context today, but too specialized and too drift-prone for permanent
-  root-level residency.
-- [STATUS.md](../STATUS.md): `MERGE`, `CUT` — compact snapshot value is real,
-  but it largely overlaps with the README, roadmap, and changelog.
+- [ROADMAP.md](../ROADMAP.md): `KEEP`, `MERGE` — a slim sequence-context
+  signpost is useful at the repo root, but it should stay derivative.
+- [STATUS.md](../STATUS.md): `KEEP`, `MERGE` — compact snapshot value is real,
+  but it should stay derivative and slim.
 - [GRAVEYARD.md](../GRAVEYARD.md): `KEEP`, `MOVE` — still useful historical
   context, but it belongs under `docs/archive/` instead of the repo root.
 - [CLAUDE.md](../CLAUDE.md): `CUT`, `MOVE` — tool-specific instruction files
@@ -54,10 +53,10 @@ surfaces.
   `docs/`.
 - [docs/THREAT_MODEL.md](./THREAT_MODEL.md): `KEEP` — canonical threat model;
   belongs under `docs/`.
-- [docs/BENCHMARKS.md](./BENCHMARKS.md): `KEEP` — benchmark guidance and
-  published baselines belong under `docs/`.
-- [docs/RELEASE.md](./RELEASE.md): `KEEP` — release runbook belongs under
-  `docs/`.
+- [ADVANCED_GUIDE.md](../ADVANCED_GUIDE.md): `KEEP` — benchmark guidance and
+  published baselines in the advanced guide.
+- [docs/RELEASE.md](./RELEASE.md): `KEEP` — docs-level release signpost belongs
+  under `docs/`.
 - [docs/DOCS_CHECKLIST.md](./DOCS_CHECKLIST.md): `KEEP` — maintainer-facing docs
   review checklist belongs under `docs/`.
 - [docs/GUIDE.md](./GUIDE.md): `KEEP` — the long-form tutorial should exist, but
@@ -68,23 +67,48 @@ surfaces.
 - [docs/MARKDOWN_SURFACE.md](./MARKDOWN_SURFACE.md): `KEEP` — this audit belongs
   under `docs/` as repo-maintainer guidance, not at the root.
 
-## Live Planning Surface
+## METHOD Planning Surface
 
-- [docs/BACKLOG/README.md](./BACKLOG/README.md): `KEEP` — canonical live backlog
-  index.
-- [docs/BACKLOG/TR-005-casservice-decomposition-plan.md](./BACKLOG/TR-005-casservice-decomposition-plan.md):
-  `KEEP` — active backlog work item.
-- [docs/BACKLOG/TR-008-empty-state-phrasing-consistency.md](./BACKLOG/TR-008-empty-state-phrasing-consistency.md):
-  `KEEP` — active backlog work item.
-- [docs/BACKLOG/TR-011-streaming-encrypted-restore.md](./BACKLOG/TR-011-streaming-encrypted-restore.md):
-  `KEEP` — active backlog work item.
-- [docs/BACKLOG/TR-015-platform-agnostic-cli-plan.md](./BACKLOG/TR-015-platform-agnostic-cli-plan.md):
-  `KEEP` — active backlog work item.
+- [docs/method/process.md](./method/process.md): `KEEP` — canonical planning
+  and delivery process for fresh work.
+- [docs/method/release.md](./method/release.md): `KEEP` — canonical release
+  process for fresh work.
+- [docs/method/backlog/README.md](./method/backlog/README.md): `KEEP` —
+  canonical live backlog index.
+- [docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md](./method/backlog/bad-code/TR_casservice-decomposition-plan.md):
+  `KEEP` — active debt backlog work item.
+- [docs/method/backlog/bad-code/TR_platform-dependency-leaks.md](./method/backlog/bad-code/TR_platform-dependency-leaks.md):
+  `KEEP` — active debt backlog work item.
+- [docs/method/legends/README.md](./method/legends/README.md): `KEEP` —
+  canonical legend index for fresh work.
+- [docs/method/legends/RL_relay.md](./method/legends/RL_relay.md): `KEEP` —
+  active METHOD legend doc.
+- [docs/method/legends/TR_truth.md](./method/legends/TR_truth.md): `KEEP` —
+  active METHOD legend doc.
+- [docs/method/retro/README.md](./method/retro/README.md): `KEEP` — canonical
+  retro location contract.
+- [docs/method/graveyard/README.md](./method/graveyard/README.md): `KEEP` —
+  canonical graveyard entrypoint.
+
+## Legacy Planning Compatibility Surface
+
+- [docs/BACKLOG/README.md](./BACKLOG/README.md): `KEEP` — legacy backlog
+  signpost retained for older links, but no longer the active backlog.
+- [docs/legends/README.md](./legends/README.md): `KEEP` — legacy legend
+  signpost retained for older links.
+- [docs/legends/RL-relay.md](./legends/RL-relay.md): `KEEP` — legacy legend
+  compatibility doc.
+- [docs/legends/TR-truth.md](./legends/TR-truth.md): `KEEP` — legacy legend
+  compatibility doc.
 
 ## Landed Design Surface
 
 - [docs/design/README.md](./design/README.md): `KEEP` — canonical landed design
-  index.
+  and active-cycle index.
+- [docs/design/0020-method-adoption/adopt-method.md](./design/0020-method-adoption/adopt-method.md):
+  `KEEP` — active METHOD cycle doc.
+- [docs/design/0020-method-adoption/witness/verification.md](./design/0020-method-adoption/witness/verification.md):
+  `KEEP` — active METHOD playback witness.
 - [docs/design/0001-m18-relay-agent-cli.md](./design/0001-m18-relay-agent-cli.md):
   `KEEP` — legacy-named landed cycle history; retain until touched.
 - [docs/design/0002-m18-relay-write-flows.md](./design/0002-m18-relay-write-flows.md):
@@ -169,9 +193,18 @@ surfaces.
 - [docs/invariants/README.md](./invariants/README.md): `KEEP` — invariants index.
 - [docs/invariants/I-001-determinism-trust-and-explicit-surfaces.md](./invariants/I-001-determinism-trust-and-explicit-surfaces.md):
   `KEEP` — active project invariant.
-- [docs/legends/README.md](./legends/README.md): `KEEP` — legend index.
-- [docs/legends/RL-relay.md](./legends/RL-relay.md): `KEEP` — active legend doc.
-- [docs/legends/TR-truth.md](./legends/TR-truth.md): `KEEP` — active legend doc.
+- [docs/method/legends/README.md](./method/legends/README.md): `KEEP` —
+  current legend index.
+- [docs/method/legends/RL_relay.md](./method/legends/RL_relay.md): `KEEP` —
+  current legend doc.
+- [docs/method/legends/TR_truth.md](./method/legends/TR_truth.md): `KEEP` —
+  current legend doc.
+- [docs/legends/README.md](./legends/README.md): `KEEP` — legacy compatibility
+  legend index.
+- [docs/legends/RL-relay.md](./legends/RL-relay.md): `KEEP` — legacy
+  compatibility legend doc.
+- [docs/legends/TR-truth.md](./legends/TR-truth.md): `KEEP` — legacy
+  compatibility legend doc.
 
 ## Examples And Test Doctrine
 

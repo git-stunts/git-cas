@@ -5,6 +5,7 @@
  * resolving encryption keys from passphrases, and envelope recipient management.
  */
 import CasError from '../errors/CasError.js';
+import { prepareKdfOptions, prepareStoredKdfOptions } from '../../helpers/kdfPolicy.js';
 
 /**
  * Resolves encryption keys for store and restore operations.
@@ -122,7 +123,8 @@ export default class KeyResolver {
   async resolveForStore(encryptionKey, passphrase, kdfOptions) {
     let kdfParams;
     if (passphrase) {
-      const derived = await this.#crypto.deriveKey({ passphrase, ...kdfOptions });
+      const options = prepareKdfOptions(kdfOptions, { source: 'store' });
+      const derived = await this.#crypto.deriveKey({ passphrase, ...options });
       encryptionKey = derived.key;
       kdfParams = derived.params;
     }
@@ -166,19 +168,24 @@ export default class KeyResolver {
       return key;
     }
 
+    // Iterate all recipients to avoid leaking which index matched via timing.
+    let result = null;
     for (const entry of recipients) {
       try {
-        return await this.unwrapDek(entry, key);
+        const dek = await this.unwrapDek(entry, key);
+        if (!result) { result = dek; }
       } catch (err) {
         if (!(err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED')) { throw err; }
-        // Not this recipient's KEK, try next
       }
     }
 
-    throw new CasError(
-      'No recipient entry could be unwrapped with the provided key',
-      'NO_MATCHING_RECIPIENT',
-    );
+    if (!result) {
+      throw new CasError(
+        'No recipient entry could be unwrapped with the provided key',
+        'NO_MATCHING_RECIPIENT',
+      );
+    }
+    return result;
   }
 
   /**
@@ -205,15 +212,11 @@ export default class KeyResolver {
    * @returns {Promise<Buffer>}
    */
   async #resolveKeyFromPassphrase(passphrase, kdf) {
+    const params = prepareStoredKdfOptions(kdf, { source: 'manifest' });
     const { key } = await this.#crypto.deriveKey({
       passphrase,
       salt: Buffer.from(kdf.salt, 'base64'),
-      algorithm: kdf.algorithm,
-      iterations: kdf.iterations,
-      cost: kdf.cost,
-      blockSize: kdf.blockSize,
-      parallelization: kdf.parallelization,
-      keyLength: kdf.keyLength,
+      ...params,
     });
     return key;
   }

@@ -5,11 +5,14 @@ import Chunk from '../../../../src/domain/value-objects/Chunk.js';
 /** Deterministic SHA-256 hex digest (always 64 hex chars). */
 const sha256 = (str) => createHash('sha256').update(str).digest('hex');
 
+/** Valid 40-char hex OID for blob fields. */
+const VALID_BLOB = 'a'.repeat(40);
+
 /** Reusable minimal valid chunk data. */
 const validChunkData = () => ({
   index: 0,
   size: 256,
-  blob: 'abc123',
+  blob: VALID_BLOB,
   digest: sha256('test-chunk-0'),
 });
 
@@ -22,7 +25,7 @@ describe('Chunk – creation', () => {
 
     expect(c.index).toBe(0);
     expect(c.size).toBe(256);
-    expect(c.blob).toBe('abc123');
+    expect(c.blob).toBe(VALID_BLOB);
     expect(c.digest).toBe(sha256('test-chunk-0'));
     expect(Object.isFrozen(c)).toBe(true);
   });
@@ -108,5 +111,39 @@ describe('Chunk – missing fields', () => {
 
   it('throws when constructed with no arguments', () => {
     expect(() => new Chunk()).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Property stripping (security: extra properties must not leak through)
+// ---------------------------------------------------------------------------
+describe('Chunk – extra property stripping', () => {
+  it('does not copy unknown properties from input data', () => {
+    const data = { ...validChunkData(), malicious: 'payload' };
+    const c = new Chunk(data);
+
+    expect(c).not.toHaveProperty('malicious');
+    expect(Object.keys(c).sort()).toEqual(['blob', 'digest', 'index', 'size']);
+  });
+
+  it('does not allow __proto__ pollution via input data', () => {
+    const data = Object.assign(Object.create(null), validChunkData(), {
+      __proto__: { polluted: true },
+    });
+    const c = new Chunk(data);
+
+    expect(c).not.toHaveProperty('polluted');
+  });
+
+  it('does not allow overriding built-in methods via input data', () => {
+    const evil = () => 'pwned';
+    const data = { ...validChunkData(), hasOwnProperty: evil, toString: evil };
+    const c = new Chunk(data);
+
+    // Extra properties must not become own properties on the Chunk
+    expect(Object.getOwnPropertyDescriptor(c, 'hasOwnProperty')).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptor(c, 'toString')).toBeUndefined();
+    // Inherited methods must still work normally
+    expect(c.toString()).not.toBe('pwned');
   });
 });

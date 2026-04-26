@@ -4,6 +4,8 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 const SLOW_COMPRESSION_TEST_TIMEOUT_MS = 15000;
@@ -16,14 +18,41 @@ async function* bufferSource(buf) {
   yield buf;
 }
 
+function streamOneBuffer(buf) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield buf;
+    },
+  };
+}
+
 async function storeBuffer(svc, buf, opts = {}) {
   return svc.store({
     source: bufferSource(buf),
     slug: opts.slug || 'test',
     filename: opts.filename || 'test.bin',
     encryptionKey: opts.encryptionKey,
+    encryption: opts.encryption,
     compression: opts.compression,
   });
+}
+
+async function expectCompressedEncryptedRoundTrip(service, encryptionOptions) {
+  const key = randomBytes(32);
+  const original = Buffer.from('Secret compressible content! '.repeat(100));
+
+  const manifest = await storeBuffer(service, original, {
+    compression: { algorithm: 'gzip' },
+    encryptionKey: key,
+    encryption: encryptionOptions,
+  });
+
+  const { buffer, bytesWritten } = await service.restore({
+    manifest,
+    encryptionKey: key,
+  });
+
+  return { key, original, manifest, buffer, bytesWritten };
 }
 
 /**
@@ -47,6 +76,11 @@ function setup() {
       if (!buf) { throw new Error(`Blob not found: ${oid}`); }
       return buf;
     }),
+    readBlobStream: vi.fn().mockImplementation(async (oid) => {
+      const buf = blobStore.get(oid);
+      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
+      return streamOneBuffer(buf);
+    }),
   };
 
   const service = new CasService({
@@ -55,6 +89,8 @@ function setup() {
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
 
   return { crypto, blobStore, mockPersistence, service };
@@ -121,23 +157,23 @@ describe('CasService compression – compression + encryption round-trip', () =>
   });
 
   it('round-trips data stored with both compression and encryption', async () => {
-    const key = randomBytes(32);
-    const original = Buffer.from('Secret compressible content! '.repeat(100));
-
-    const manifest = await storeBuffer(service, original, {
-      compression: { algorithm: 'gzip' },
-      encryptionKey: key,
-    });
+    const { original, manifest, buffer, bytesWritten } = await expectCompressedEncryptedRoundTrip(service);
 
     expect(manifest.compression).toBeDefined();
     expect(manifest.encryption).toBeDefined();
     expect(manifest.encryption.encrypted).toBe(true);
+    expect(buffer.equals(original)).toBe(true);
+    expect(bytesWritten).toBe(original.length);
+  });
 
-    const { buffer, bytesWritten } = await service.restore({
-      manifest,
-      encryptionKey: key,
+  it('round-trips data stored with compression and framed encryption', async () => {
+    const { original, manifest, buffer, bytesWritten } = await expectCompressedEncryptedRoundTrip(service, {
+      scheme: 'framed',
+      frameBytes: 128,
     });
 
+    expect(manifest.compression).toBeDefined();
+    expect(manifest.encryption.scheme).toBe('framed');
     expect(buffer.equals(original)).toBe(true);
     expect(bytesWritten).toBe(original.length);
   });

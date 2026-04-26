@@ -1,35 +1,47 @@
 # Design Docs
 
-This directory holds the current cycle design surface for `git-cas`.
+This directory now contains two kinds of cycle history:
 
-The working rules are simple:
+- active METHOD cycles in numbered subdirectories
+- legacy pre-METHOD cycle docs kept at the top level for history and stable
+  links
 
-- design docs come first
-- executable tests come second
-- implementation comes third
-- `main` is the playback truth
+Fresh work should follow [WORKFLOW.md](../../WORKFLOW.md) and the canonical
+process in [docs/method/process.md](../method/process.md).
 
-New cycle docs should follow the workflow in [WORKFLOW.md](../../WORKFLOW.md)
-and use legend-code naming:
+## Active METHOD Cycles
 
-`<Legend code>-<numerical identifier>-<name>.md`
+- [0020-method-adoption — adopt-method](./0020-method-adoption/adopt-method.md)
+- [0021-store-write-backpressure — enforce-store-backpressure](./0021-store-write-backpressure/enforce-store-backpressure.md)
+- [0022-git-persistence-read-blob-stream — add-read-blob-stream](./0022-git-persistence-read-blob-stream/add-read-blob-stream.md)
+- [0023-casservice-read-blob-stream-integration — use-read-blob-stream-in-restore](./0023-casservice-read-blob-stream-integration/use-read-blob-stream-in-restore.md)
+- [0024-cli-os-keychain-passphrase — cli-os-keychain-passphrase](./0024-cli-os-keychain-passphrase/cli-os-keychain-passphrase.md)
+- [0025-encrypted-manifest-auth-boundary — encrypted-manifest-auth-boundary](./0025-encrypted-manifest-auth-boundary/encrypted-manifest-auth-boundary.md)
+- [0026-dual-encryption-mode-foundation — dual-encryption-mode-foundation](./0026-dual-encryption-mode-foundation/dual-encryption-mode-foundation.md)
+- [0027-framed-v1-streaming-restore — framed-v1-streaming-restore](./0027-framed-v1-streaming-restore/framed-v1-streaming-restore.md)
+- [0028-whole-v1-bounded-file-restore — whole-v1-bounded-file-restore](./0028-whole-v1-bounded-file-restore/whole-v1-bounded-file-restore.md)
+- [0029-restore-buffer-hard-limits — restore-buffer-hard-limits](./0029-restore-buffer-hard-limits/restore-buffer-hard-limits.md)
+- [0030-kdf-parameter-bounds-and-policy — kdf-parameter-bounds-and-policy](./0030-kdf-parameter-bounds-and-policy/kdf-parameter-bounds-and-policy.md)
+- [0031-empty-state-phrasing-consistency — empty-state-phrasing-consistency](./0031-empty-state-phrasing-consistency/empty-state-phrasing-consistency.md)
+- [0032-encryption-metadata-schema-hardening — encryption-metadata-schema-hardening](./0032-encryption-metadata-schema-hardening/encryption-metadata-schema-hardening.md)
+- [0033-webcrypto-streaming-parity — webcrypto-streaming-parity](./0033-webcrypto-streaming-parity/webcrypto-streaming-parity.md)
+- [0034-framed-v1-default-encrypted-store — framed-v1-default-encrypted-store](./0034-framed-v1-default-encrypted-store/framed-v1-default-encrypted-store.md)
+- [0035-agent-cli-os-keychain-passphrase — agent-cli-os-keychain-passphrase](./0035-agent-cli-os-keychain-passphrase/agent-cli-os-keychain-passphrase.md)
+- [0036-platform-agnostic-cli-plan — platform-agnostic-cli-plan](./0036-platform-agnostic-cli-plan/platform-agnostic-cli-plan.md)
+- [0037-scrypt-maxmem-budget-dedup — scrypt-maxmem-budget-dedup](./0037-scrypt-maxmem-budget-dedup/scrypt-maxmem-budget-dedup.md)
+- [0038-aes-gcm-metadata-enforcement — aes-gcm-metadata-enforcement](./0038-aes-gcm-metadata-enforcement/aes-gcm-metadata-enforcement.md)
+- [0039-buffered-restore-readblob-fallback — buffered-restore-readblob-fallback](./0039-buffered-restore-readblob-fallback/buffered-restore-readblob-fallback.md)
+- [0040-kdf-salt-schema-hardening — kdf-salt-schema-hardening](./0040-kdf-salt-schema-hardening/kdf-salt-schema-hardening.md)
+- [0041-restorefile-service-internal-coupling — restorefile-service-internal-coupling](./0041-restorefile-service-internal-coupling/restorefile-service-internal-coupling.md)
+- [0042-store-write-failure-surface — store-write-failure-surface](./0042-store-write-failure-surface/store-write-failure-surface.md)
+- [0043-vault-retry-abstraction — vault-retry-abstraction](./0043-vault-retry-abstraction/vault-retry-abstraction.md)
+- [0044-casservice-decomposition-plan — casservice-decomposition-plan](./0044-casservice-decomposition-plan/casservice-decomposition-plan.md)
 
-The existing `0001`/`0002`/`0003` docs are legacy cycle docs from before that
-naming migration and can remain until they are touched.
-
-Status vocabulary used here:
-
-- `Proposed`
-- `Active`
-- `Landed`
-- `Superseded`
-- `Archived`
-
-Active cycle docs:
+## Landed METHOD Cycles
 
 - none currently
 
-Landed cycle docs:
+## Legacy Landed Cycle Docs
 
 - [0001 — M18 Relay: Agent CLI Foundation](./0001-m18-relay-agent-cli.md)
 - [0002 — M18 Relay: Write Flows and Input Semantics](./0002-m18-relay-write-flows.md)
@@ -51,6 +63,6 @@ Landed cycle docs:
 - [TR-013 — Truth: Guide Accuracy Audit](./TR-013-guide-accuracy-audit.md)
 - [TR-014 — Truth: Markdown Surface Rationalization](./TR-014-markdown-surface-rationalization.md)
 
-Archived or retired cycle docs:
+## Archived Or Retired Cycle Docs
 
 - [docs/archive/design](../archive/design/README.md)

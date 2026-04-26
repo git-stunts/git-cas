@@ -6,6 +6,7 @@
 // ---------------------------------------------------------------------------
 // Imports used in the class body
 // ---------------------------------------------------------------------------
+import { createRequire } from 'node:module';
 import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
 import rotateVaultPassphrase from './src/domain/services/rotateVaultPassphrase.js';
@@ -17,6 +18,11 @@ import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
 import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
 import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
+import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from './src/infrastructure/adapters/NodeCompressionAdapter.js';
+
+const require = createRequire(import.meta.url);
+const { version: PKG_VERSION } = require('./package.json');
 
 // ---------------------------------------------------------------------------
 // Re-exports — modules used in the class body
@@ -44,6 +50,9 @@ export { default as EventEmitterObserver } from './src/infrastructure/adapters/E
 export { default as StatsCollector } from './src/infrastructure/adapters/StatsCollector.js';
 export { default as FixedChunker } from './src/infrastructure/chunkers/FixedChunker.js';
 export { default as CdcChunker } from './src/infrastructure/chunkers/CdcChunker.js';
+export { default as CompressionPort } from './src/ports/CompressionPort.js';
+export { default as NodeCompressionAdapter } from './src/infrastructure/adapters/NodeCompressionAdapter.js';
+export { default as diffManifests } from './src/domain/services/ManifestDiff.js';
 
 /**
  * High-level facade for the Content Addressable Store library.
@@ -65,14 +74,15 @@ export default class ContentAddressableStore {
    * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance (advanced).
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes for encrypted/compressed restores (default 512 MiB).
+   * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter (default NodeCompressionAdapter).
    */
-  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize }) {
-    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize };
+  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, compressionAdapter }) {
+    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, compressionAdapter };
     this.service = null;
     this.#servicePromise = null;
   }
 
-  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number }} */
+  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, compressionAdapter?: * }} */
   #config;
   /** @type {VaultService|null} */
   #vault = null;
@@ -102,10 +112,12 @@ export default class ContentAddressableStore {
       policy: cfg.policy,
     });
     const crypto = cfg.crypto || await createCryptoAdapter();
-    const chunker = resolveChunker({ chunker: cfg.chunker, chunking: cfg.chunking });
+    const chunkSize = cfg.chunkSize || 256 * 1024;
+    const chunker = resolveChunker({ chunker: cfg.chunker, chunking: cfg.chunking })
+      || new FixedChunker({ chunkSize });
     this.service = new CasService({
       persistence,
-      chunkSize: cfg.chunkSize,
+      chunkSize,
       codec: cfg.codec || new JsonCodec(),
       crypto,
       observability: cfg.observability || new SilentObserver(),
@@ -113,6 +125,8 @@ export default class ContentAddressableStore {
       concurrency: cfg.concurrency,
       chunker,
       maxRestoreBufferSize: cfg.maxRestoreBufferSize,
+      compressionAdapter: cfg.compressionAdapter || new NodeCompressionAdapter(),
+      formatVersion: PKG_VERSION,
     });
 
     const ref = new GitRefAdapter({
@@ -215,6 +229,7 @@ export default class ContentAddressableStore {
    * @param {string} [options.filename] - Override filename (defaults to basename of filePath).
    * @param {Buffer} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
    * @param {string} [options.passphrase] - Derive encryption key from passphrase.
+   * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
@@ -233,6 +248,7 @@ export default class ContentAddressableStore {
    * @param {string} options.filename - Filename for the manifest.
    * @param {Buffer} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
    * @param {string} [options.passphrase] - Derive encryption key from passphrase.
+   * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
@@ -297,11 +313,12 @@ export default class ContentAddressableStore {
   /**
    * Verifies the integrity of a stored file by re-hashing its chunks.
    * @param {import('./src/domain/value-objects/Manifest.js').default} manifest - The file manifest.
+   * @param {{ encryptionKey?: Buffer, passphrase?: string }} [options] - Optional decryption credentials for encrypted manifests.
    * @returns {Promise<boolean>} `true` if all chunks pass verification.
    */
-  async verifyIntegrity(manifest) {
+  async verifyIntegrity(manifest, options) {
     const service = await this.#getService();
-    return await service.verifyIntegrity(manifest);
+    return await service.verifyIntegrity(manifest, options);
   }
 
   /**
@@ -313,6 +330,17 @@ export default class ContentAddressableStore {
   async readManifest(options) {
     const service = await this.#getService();
     return await service.readManifest(options);
+  }
+
+  /**
+   * Compares two manifests by chunk digest.
+   * Pure function — no I/O needed. Does not require initialization.
+   * @param {import('./src/domain/value-objects/Manifest.js').default} oldManifest
+   * @param {import('./src/domain/value-objects/Manifest.js').default} newManifest
+   * @returns {import('./src/domain/services/ManifestDiff.js').ManifestDiffResult}
+   */
+  static diffManifests(oldManifest, newManifest) {
+    return CasService.diffManifests(oldManifest, newManifest);
   }
 
   /**
@@ -450,9 +478,9 @@ export default class ContentAddressableStore {
   }
 
   /** @see VaultService#listVault */
-  async listVault() {
+  async listVault(options) {
     const vault = await this.#getVault();
-    return vault.listVault();
+    return vault.listVault(options);
   }
 
   /** @see VaultService#removeFromVault */

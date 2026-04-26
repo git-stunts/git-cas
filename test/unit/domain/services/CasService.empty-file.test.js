@@ -7,6 +7,8 @@ import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 const SLOW_EMPTY_FILE_TEST_TIMEOUT_MS = 15000;
@@ -25,8 +27,8 @@ function emptyFile(tempDir, name = 'empty.bin') {
  */
 function setup() {
   const mockPersistence = {
-    writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
+    writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
     readBlob: vi.fn().mockResolvedValue(Buffer.alloc(0)),
   };
   const service = new CasService({
@@ -35,6 +37,8 @@ function setup() {
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
   const tempDir = mkdtempSync(path.join(os.tmpdir(), 'cas-empty-'));
   return { mockPersistence, service, tempDir };
@@ -101,9 +105,11 @@ describe('CasService – empty file store encrypted', () => {
     expect(manifest.slug).toBe('enc-empty');
     expect(manifest.filename).toBe('empty-enc.bin');
     expect(manifest.encryption).toBeDefined();
+    expect(manifest.encryption.scheme).toBe('framed');
     expect(manifest.encryption.algorithm).toBe('aes-256-gcm');
-    expect(manifest.encryption.nonce).toEqual(expect.any(String));
-    expect(manifest.encryption.tag).toEqual(expect.any(String));
+    expect(manifest.encryption.frameBytes).toBeDefined();
+    expect(manifest.encryption.nonce).toBeUndefined();
+    expect(manifest.encryption.tag).toBeUndefined();
     expect(manifest.encryption.encrypted).toBe(true);
 
     // Every chunk (if any) must still pass schema validation.

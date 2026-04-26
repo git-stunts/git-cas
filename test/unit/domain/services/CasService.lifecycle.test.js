@@ -2,9 +2,15 @@ import { describe, it, expect, vi } from 'vitest';
 import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 import { digestOf } from '../../../helpers/crypto.js';
 
 const testCrypto = await getTestCryptoAdapter();
+
+/** Valid 40-char hex OIDs for blob fields. */
+const B0 = 'a'.repeat(40);
+const B1 = 'b'.repeat(40);
 
 function makeChunk(index, seed, blobOid) {
   return { index, size: 1024, digest: digestOf(seed), blob: blobOid };
@@ -28,6 +34,8 @@ function setup() {
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability,
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
   return { mockPersistence, observability, service };
 }
@@ -45,7 +53,7 @@ describe('16.7: inspectAsset (canonical name)', () => {
     const { service, mockPersistence } = setup();
     const manifest = {
       slug: 'asset-1', filename: 'f.bin', size: 2048,
-      chunks: [makeChunk(0, 'c0', 'b0'), makeChunk(1, 'c1', 'b1')],
+      chunks: [makeChunk(0, 'c0', B0), makeChunk(1, 'c1', B1)],
     };
     mockManifest(mockPersistence, manifest);
     const result = await service.inspectAsset({ treeOid: 'tree-1' });
@@ -58,7 +66,7 @@ describe('16.7: deleteAsset (deprecated alias)', () => {
     const { service, mockPersistence } = setup();
     const manifest = {
       slug: 'asset-2', filename: 'g.bin', size: 1024,
-      chunks: [makeChunk(0, 'd0', 'b0')],
+      chunks: [makeChunk(0, 'd0', B0)],
     };
     mockManifest(mockPersistence, manifest);
     const result = await service.deleteAsset({ treeOid: 'tree-2' });
@@ -83,7 +91,7 @@ describe('16.7: collectReferencedChunks (canonical name)', () => {
     const { service, mockPersistence } = setup();
     const manifest = {
       slug: 'asset-3', filename: 'h.bin', size: 2048,
-      chunks: [makeChunk(0, 'e0', 'b0'), makeChunk(1, 'e1', 'b1')],
+      chunks: [makeChunk(0, 'e0', B0), makeChunk(1, 'e1', B1)],
     };
     mockManifest(mockPersistence, manifest);
     const result = await service.collectReferencedChunks({ treeOids: ['tree-3'] });
@@ -97,7 +105,7 @@ describe('16.7: findOrphanedChunks (deprecated alias)', () => {
     const { service, mockPersistence } = setup();
     const manifest = {
       slug: 'asset-4', filename: 'i.bin', size: 1024,
-      chunks: [makeChunk(0, 'f0', 'b0')],
+      chunks: [makeChunk(0, 'f0', B0)],
     };
     mockManifest(mockPersistence, manifest);
     const result = await service.findOrphanedChunks({ treeOids: ['tree-4'] });

@@ -42,7 +42,7 @@ expanding the benchmark surface.
 
 ### Hill
 
-A maintainer or operator can read [docs/BENCHMARKS.md](../BENCHMARKS.md) and
+A maintainer or operator can read [ADVANCED_GUIDE.md](../../ADVANCED_GUIDE.md) and
 come away with an honest current baseline for chunking throughput and edit-shift
 dedupe behavior.
 
@@ -62,7 +62,7 @@ dedupe behavior.
 
 ### Hill
 
-An agent can reference [docs/BENCHMARKS.md](../BENCHMARKS.md) as the canonical
+An agent can reference [ADVANCED_GUIDE.md](../../ADVANCED_GUIDE.md) as the canonical
 published chunking baseline instead of extrapolating from raw benchmark source
 files alone.
 
@@ -111,7 +111,7 @@ machine and runtime," not "these are universal performance truths."
 1. Audit the current chunking benchmark harness and capture its actual input
    sizes and chunker settings.
 2. Run the harness and record the observed throughput and dedupe output.
-3. Add [docs/BENCHMARKS.md](../BENCHMARKS.md) with methodology, environment,
+3. Add [ADVANCED_GUIDE.md](../../ADVANCED_GUIDE.md) with methodology, environment,
    results, interpretation, and rerun instructions.
 4. Add this cycle doc, archive the consumed backlog card, update the Truth
    indexes, and record the change in [CHANGELOG.md](../../CHANGELOG.md).

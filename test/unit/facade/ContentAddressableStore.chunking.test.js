@@ -92,6 +92,7 @@ describe('Facade – cdc chunking config', () => {
       target: 262144,
       min: 65536,
       max: 1048576,
+      normalized: true,
     });
   });
 
@@ -106,6 +107,7 @@ describe('Facade – cdc chunking config', () => {
       target: 262144,
       min: 65536,
       max: 1048576,
+      normalized: true,
     });
   });
 });

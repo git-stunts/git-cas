@@ -26,6 +26,31 @@ The same core supports:
 
 Those surfaces are different contracts over one shared core.
 
+## CAS Pipeline
+
+```mermaid
+flowchart TD
+    subgraph Ingress["Ingress Surfaces"]
+        LIB[index.js Facade]
+        CLI[bin/git-cas.js]
+        AGENT[bin/agent/cli.js]
+    end
+    subgraph Engine["CasService (Engine)"]
+        CH[Chunker]
+        EN[Encryption]
+        CM[Compression]
+        MF[Manifest Creator]
+    end
+    subgraph Persistence["Git Persistence (Substrate)"]
+        BL[Blobs]
+        TR[Trees]
+        CMT[Vault Commits]
+    end
+
+    Ingress --> Engine
+    Engine --> Persistence
+```
+
 ## Layer Model
 
 ### Facade
@@ -275,6 +300,75 @@ But it still owns a broad content-orchestration surface:
 
 That is good candidate pressure for future decomposition work, but it is not yet
 a completed architectural split.
+
+## CasService Decomposition Trajectory
+
+The repo now has an explicit extraction order for `CasService`. The goal is not
+to erase the service as a public entrypoint; the goal is to reduce internal
+coupling while preserving the public `CasService` facade.
+
+### 1. Store write coordination
+
+Extract first:
+
+- chunk write scheduling
+- backpressure and in-flight orchestration
+- source-vs-sink store error normalization
+
+Why first:
+
+- the tests already isolate this behavior well
+- the seam is mostly runtime-neutral
+- it reduces risk in the highest-churn write path
+
+### 2. Manifest and tree publication
+
+Extract second:
+
+- manifest assembly
+- chunk-tree entry construction
+- Merkle sub-manifest publication
+
+Why second:
+
+- publication logic is cohesive
+- it is mostly independent of restore semantics
+- it provides a stable seam for future manifest evolution
+
+### 3. Recipient mutation flows
+
+Extract third:
+
+- recipient add/remove
+- key rotation manifest rewriting
+
+Why third:
+
+- `KeyResolver` is already separate
+- recipient mutation is a distinct policy surface from byte transport
+- it can move without disturbing the store/restore pipeline
+
+### 4. Restore pipeline extraction
+
+Extract last, after platform dependency cleanup:
+
+- chunk read and verify
+- buffered vs streaming restore planning
+- gzip and stream bridging
+- framed vs whole-object decrypt routing
+
+Why last:
+
+- restore still carries the heaviest Node stream and zlib coupling
+- platform-port work should land before the restore internals are split apart
+- the repo already has a named file-restore seam, so this area is safer than it
+  was, but still not the first extraction target
+
+### Non-goals
+
+- no public API split away from `CasService`
+- no extraction motivated only by class count
+- no restore-platform refactor hidden inside a decomposition cycle
 
 ## Reading This With Other Docs
 

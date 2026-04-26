@@ -1,16 +1,13 @@
 # Archive
 
 This directory holds historical planning artifacts that are no longer part of
-the current working surface.
+the active working surface.
 
-Archive content is still useful for provenance and decision history, but it is
-not the place to look first when deciding what is current.
-
-Current planning truth lives in:
+Current planning truth now lives in:
 
 - [WORKFLOW.md](../../WORKFLOW.md)
-- [docs/legends](../legends/README.md)
-- [docs/BACKLOG](../BACKLOG/README.md)
+- [docs/method/backlog](../method/backlog/README.md)
+- [docs/method/legends](../method/legends/README.md)
 - [docs/design](../design/README.md)
 - [docs/invariants](../invariants/README.md)
 

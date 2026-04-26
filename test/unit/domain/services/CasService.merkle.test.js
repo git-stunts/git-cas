@@ -5,6 +5,8 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
@@ -61,6 +63,8 @@ function setup(merkleThreshold = 5) {
     chunkSize: 1024,
     merkleThreshold,
     observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
   return { mockPersistence, service, blobs, trees, crypto, codec };
 }
@@ -506,15 +510,15 @@ describe('CasService Merkle – fuzz round-trip across various chunk counts', ()
 // ---------------------------------------------------------------------------
 describe('CasService Merkle – merkleThreshold validation', () => {
   it('rejects merkleThreshold of 0', () => {
-    expect(() => setup(0)).toThrow('Merkle threshold must be a positive integer');
+    expect(() => setup(0)).toThrow(/merkleThreshold must be an integer in/i);
   });
 
   it('rejects negative merkleThreshold', () => {
-    expect(() => setup(-1)).toThrow('Merkle threshold must be a positive integer');
+    expect(() => setup(-1)).toThrow(/merkleThreshold must be an integer in/i);
   });
 
   it('rejects non-integer merkleThreshold', () => {
-    expect(() => setup(1.5)).toThrow('Merkle threshold must be a positive integer');
+    expect(() => setup(1.5)).toThrow(/merkleThreshold must be an integer in/i);
   });
 });
 

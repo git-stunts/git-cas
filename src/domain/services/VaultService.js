@@ -3,10 +3,13 @@
  */
 import CasError from '../errors/CasError.js';
 import buildKdfMetadata from '../helpers/buildKdfMetadata.js';
+import { prepareKdfOptions, prepareStoredKdfOptions } from '../../helpers/kdfPolicy.js';
 
 const VAULT_REF = 'refs/cas/vault';
 const MAX_CAS_RETRIES = 3;
 const CAS_RETRY_BASE_MS = 50;
+const PRIVACY_DERIVATION_LABEL = 'git-cas-privacy-v1';
+const PRIVACY_INDEX_ENTRY = '.privacy-index';
 
 /**
  * Vault encryption metadata stored in .vault.json.
@@ -37,6 +40,13 @@ const CAS_RETRY_BASE_MS = 50;
  * @returns {string}
  */
 function encodeSlug(slug) {
+  if (hasControlChars(slug)) {
+    throw new CasError(
+      'Slug contains control characters — refusing to encode for mktree',
+      'INVALID_SLUG',
+      { slug },
+    );
+  }
   return slug.replaceAll('%', '%25').replaceAll('/', '%2F');
 }
 
@@ -160,6 +170,27 @@ export default class VaultService {
         { metadata },
       );
     }
+    VaultService.#validateStoredKdf(kdf, metadata);
+  }
+
+  /**
+   * Normalizes stored-KDF validation errors to vault-metadata parse errors.
+   * @param {VaultEncryptionMeta['kdf']} kdf
+   * @param {VaultMetadata} metadata
+   */
+  static #validateStoredKdf(kdf, metadata) {
+    try {
+      prepareStoredKdfOptions(kdf, { source: 'vault-metadata' });
+    } catch (err) {
+      if (!(err instanceof CasError) || err.code !== 'KDF_POLICY_VIOLATION') {
+        throw err;
+      }
+      throw new CasError(
+        `Vault encryption metadata invalid: ${err.message}`,
+        'VAULT_METADATA_INVALID',
+        { metadata, originalError: err },
+      );
+    }
   }
 
   /**
@@ -207,26 +238,84 @@ export default class VaultService {
   /**
    * Separates vault tree entries into slug→OID map and metadata blob OID.
    * @param {Array<{ mode: string, type: string, oid: string, name: string }>} treeEntries
-   * @returns {{ entries: Map<string, string>, metadataBlobOid: string|null }}
+   * @param {Object} [options]
+   * @param {boolean} [options.privacyEnabled=false] - When true, entry names are HMAC hashes (skip decodeSlug).
+   * @returns {{ entries: Map<string, string>, metadataBlobOid: string|null, privacyIndexBlobOid: string|null }}
    */
-  static #parseTreeEntries(treeEntries) {
+  static #parseTreeEntries(treeEntries, { privacyEnabled = false } = {}) {
     const entries = new Map();
     let metadataBlobOid = null;
+    let privacyIndexBlobOid = null;
     for (const entry of treeEntries) {
       if (entry.name === '.vault.json') {
         metadataBlobOid = entry.oid;
+      } else if (entry.name === PRIVACY_INDEX_ENTRY) {
+        privacyIndexBlobOid = entry.oid;
       } else {
-        entries.set(decodeSlug(entry.name), entry.oid);
+        // When privacy is enabled, entry names are raw HMAC hashes — store as-is.
+        // When privacy is disabled, decode percent-encoded slugs.
+        const key = privacyEnabled ? entry.name : decodeSlug(entry.name);
+        entries.set(key, entry.oid);
       }
     }
-    return { entries, metadataBlobOid };
+    return { entries, metadataBlobOid, privacyIndexBlobOid };
+  }
+
+  /**
+   * Resolves HMAC tree entry names to slugs using the encrypted privacy index.
+   * @param {Array<{ mode: string, type: string, oid: string, name: string }>} rawEntries - Raw tree entries.
+   * @param {VaultMetadata} metadata - Vault metadata (must have privacy.indexMeta).
+   * @param {Buffer} encryptionKey - Vault encryption key.
+   * @returns {Promise<Map<string, string>>} Slug→treeOid map.
+   */
+  async #resolvePrivacyEntries(rawEntries, metadata, encryptionKey) {
+    const parsed = VaultService.#parseTreeEntries(rawEntries, { privacyEnabled: true });
+
+    if (!parsed.privacyIndexBlobOid) {
+      throw new CasError(
+        'Privacy mode is enabled but .privacy-index is missing',
+        'VAULT_PRIVACY_INDEX_MISSING',
+      );
+    }
+
+    const indexBlob = await this.persistence.readBlob(parsed.privacyIndexBlobOid);
+    const slugToHmac = await this.#decryptPrivacyIndex(
+      indexBlob, encryptionKey, metadata.privacy.indexMeta,
+    );
+
+    // Reverse the index: hmacName → slug.
+    const hmacToSlug = new Map();
+    for (const [slug, hmac] of slugToHmac) {
+      hmacToSlug.set(hmac, slug);
+    }
+
+    const entries = new Map();
+    for (const [hmacName, oid] of parsed.entries) {
+      const slug = hmacToSlug.get(hmacName);
+      if (slug) {
+        entries.set(slug, oid);
+      }
+    }
+
+    if (entries.size < parsed.entries.size) {
+      const unmatchedCount = parsed.entries.size - entries.size;
+      this.observability.log(
+        'warn',
+        `Privacy index resolution: ${unmatchedCount} tree entries had no matching slug — potential corruption`,
+        { unmatchedCount, treeEntryCount: parsed.entries.size, resolvedCount: entries.size },
+      );
+    }
+
+    return entries;
   }
 
   /**
    * Reads the current vault state from refs/cas/vault.
+   * @param {Object} [options]
+   * @param {Buffer} [options.encryptionKey] - Vault encryption key (required when privacy mode is enabled).
    * @returns {Promise<VaultState>}
    */
-  async readState() {
+  async readState({ encryptionKey } = {}) {
     let commitOid;
     try {
       commitOid = await this.ref.resolveRef(VAULT_REF);
@@ -236,11 +325,23 @@ export default class VaultService {
 
     const treeOid = await this.ref.resolveTree(commitOid);
     const rawEntries = await this.persistence.readTree(treeOid);
-    const { entries, metadataBlobOid } = VaultService.#parseTreeEntries(rawEntries);
+    const { metadataBlobOid } = VaultService.#parseTreeEntries(rawEntries);
     const metadata = metadataBlobOid
       ? await this.#readMetadataBlob(metadataBlobOid)
       : null;
 
+    if (metadata?.privacy?.enabled) {
+      if (!encryptionKey) {
+        throw new CasError(
+          'Privacy mode is enabled — encryption key is required to read vault state',
+          'VAULT_PRIVACY_KEY_REQUIRED',
+        );
+      }
+      const entries = await this.#resolvePrivacyEntries(rawEntries, metadata, encryptionKey);
+      return { entries, parentCommitOid: commitOid, metadata };
+    }
+
+    const { entries } = VaultService.#parseTreeEntries(rawEntries);
     return { entries, parentCommitOid: commitOid, metadata };
   }
 
@@ -251,18 +352,28 @@ export default class VaultService {
    * @param {VaultMetadata} options.metadata - Vault metadata (.vault.json contents).
    * @param {string|null} options.parentCommitOid - Parent commit OID (null for first commit).
    * @param {string} options.message - Commit message.
+   * @param {Buffer} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
    * @returns {Promise<{ commitOid: string }>}
    */
-  async writeCommit({ entries, metadata, parentCommitOid, message }) {
-    const metadataBlob = await this.persistence.writeBlob(
-      JSON.stringify(metadata, null, 2),
-    );
+  async writeCommit({ entries, metadata, parentCommitOid, message, encryptionKey }) {
+    const privacyEnabled = Boolean(metadata?.privacy?.enabled);
 
-    const treeLines = [`100644 blob ${metadataBlob}\t.vault.json`];
-    for (const [slug, treeOid] of entries) {
-      treeLines.push(`040000 tree ${treeOid}\t${encodeSlug(slug)}`);
+    if (privacyEnabled && !encryptionKey) {
+      throw new CasError(
+        'Privacy mode is enabled — encryption key is required to write vault state',
+        'VAULT_PRIVACY_KEY_REQUIRED',
+      );
     }
 
+    const metaCopy = JSON.parse(JSON.stringify(metadata));
+    const treeLines = privacyEnabled
+      ? await this.#buildPrivacyTreeLines(entries, metaCopy, encryptionKey)
+      : VaultService.#buildPlainTreeLines(entries);
+
+    const metadataBlob = await this.persistence.writeBlob(
+      JSON.stringify(metaCopy, null, 2),
+    );
+    treeLines.unshift(`100644 blob ${metadataBlob}\t.vault.json`);
     const newTreeOid = await this.persistence.writeTree(treeLines);
 
     const commitOid = await this.ref.createCommit({
@@ -272,6 +383,48 @@ export default class VaultService {
     });
     await this.#casUpdateRef(commitOid, parentCommitOid);
     return { commitOid };
+  }
+
+  /**
+   * Builds tree lines with plain (percent-encoded) slug names.
+   * @param {Map<string, string>} entries - Slug→treeOid map.
+   * @returns {string[]}
+   */
+  static #buildPlainTreeLines(entries) {
+    const lines = [];
+    for (const [slug, treeOid] of entries) {
+      lines.push(`040000 tree ${treeOid}\t${encodeSlug(slug)}`);
+    }
+    return lines;
+  }
+
+  /**
+   * Builds tree lines with HMAC-masked slug names and an encrypted privacy index.
+   * Mutates `metaCopy.privacy.indexMeta` with encryption metadata.
+   * @param {Map<string, string>} entries - Slug→treeOid map.
+   * @param {VaultMetadata} metaCopy - Mutable metadata clone.
+   * @param {Buffer} encryptionKey - Vault encryption key.
+   * @returns {Promise<string[]>}
+   */
+  async #buildPrivacyTreeLines(entries, metaCopy, encryptionKey) {
+    const privacyKey = this.#derivePrivacyKey(encryptionKey);
+    const lines = [];
+    const slugToHmac = new Map();
+
+    for (const [slug, treeOid] of entries) {
+      const hmacName = this.#hmacSlug(privacyKey, slug);
+      slugToHmac.set(slug, hmacName);
+      lines.push(`040000 tree ${treeOid}\t${hmacName}`);
+    }
+
+    const { buf: indexBuf, meta: indexMeta } = await this.#encryptPrivacyIndex(
+      slugToHmac, encryptionKey,
+    );
+    const indexBlobOid = await this.persistence.writeBlob(indexBuf);
+    lines.push(`100644 blob ${indexBlobOid}\t${PRIVACY_INDEX_ENTRY}`);
+    metaCopy.privacy.indexMeta = indexMeta;
+
+    return lines;
   }
 
   /**
@@ -296,18 +449,67 @@ export default class VaultService {
   }
 
   /**
-   * Wraps a vault mutation with CAS retry logic.
-   * @param {(state: VaultState) => { entries: Map<string, string>, metadata: VaultMetadata, message: string }|Promise<{ entries: Map<string, string>, metadata: VaultMetadata, message: string }>} mutationFn - Mutation function (sync or async).
-   * @returns {Promise<{ commitOid: string }>}
+   * Creates an isolated mutable draft for a vault mutation attempt.
+   * @param {VaultState} state
+   * @returns {{ entries: Map<string, string>, metadata: VaultMetadata }}
    */
-  async #retryMutation(mutationFn) {
+  static #createMutationDraft(state) {
+    return {
+      entries: new Map(state.entries),
+      metadata: VaultService.#cloneMetadata(state.metadata || { version: 1 }),
+    };
+  }
+
+  /**
+   * Clones vault metadata so retry attempts mutate an isolated working copy.
+   * @param {VaultMetadata} metadata
+   * @returns {VaultMetadata}
+   */
+  static #cloneMetadata(metadata) {
+    return {
+      ...metadata,
+      encryption: metadata.encryption
+        ? {
+          ...metadata.encryption,
+          kdf: { ...metadata.encryption.kdf },
+        }
+        : undefined,
+      privacy: metadata.privacy
+        ? {
+          ...metadata.privacy,
+          indexMeta: metadata.privacy.indexMeta ? { ...metadata.privacy.indexMeta } : undefined,
+        }
+        : undefined,
+    };
+  }
+
+  /**
+   * Wraps a vault mutation with CAS retry logic.
+   *
+   * The mutation function may return an `encryptionKey` to override the one
+   * from options — this is needed by `initVault` where the key is derived
+   * inside the mutation.
+   *
+   * @param {(context: { state: VaultState, draft: { entries: Map<string, string>, metadata: VaultMetadata } }) => { message: string, result?: Record<string, unknown>, encryptionKey?: Buffer }|Promise<{ message: string, result?: Record<string, unknown>, encryptionKey?: Buffer }>} mutationFn
+   * @param {Object} [options]
+   * @param {Buffer} [options.encryptionKey] - Vault encryption key (threaded to readState/writeCommit for privacy mode).
+   * @returns {Promise<{ commitOid: string } & Record<string, unknown>>}
+   */
+  async #withVaultRetry(mutationFn, { encryptionKey } = {}) {
     for (let attempt = 0; attempt < MAX_CAS_RETRIES; attempt++) {
-      const state = await this.readState();
-      const { entries, metadata, message } = await mutationFn(state);
+      const state = await this.readState({ encryptionKey });
+      const draft = VaultService.#createMutationDraft(state);
+      const { message, result, encryptionKey: mutationKey } = await mutationFn({ state, draft });
+      const effectiveKey = mutationKey || encryptionKey;
       try {
-        return await this.writeCommit({
-          entries, metadata, parentCommitOid: state.parentCommitOid, message,
+        const commit = await this.writeCommit({
+          entries: draft.entries,
+          metadata: draft.metadata,
+          parentCommitOid: state.parentCommitOid,
+          message,
+          encryptionKey: effectiveKey,
         });
+        return result ? { ...commit, ...result } : commit;
       } catch (err) {
         const isRetryable = err instanceof CasError && err.code === 'VAULT_CONFLICT';
         if (!isRetryable || attempt >= MAX_CAS_RETRIES - 1) {
@@ -339,38 +541,95 @@ export default class VaultService {
   }
 
   // ---------------------------------------------------------------------------
+  // Privacy mode helpers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Derives a privacy key from the vault encryption key.
+   * @param {Buffer} encryptionKey - 32-byte vault encryption key.
+   * @returns {Buffer} 32-byte privacy key.
+   */
+  #derivePrivacyKey(encryptionKey) {
+    return this.crypto.hmacSha256(encryptionKey, PRIVACY_DERIVATION_LABEL);
+  }
+
+  /**
+   * Computes the HMAC-SHA256 of a slug using the privacy key.
+   * @param {Buffer} privacyKey - 32-byte privacy key.
+   * @param {string} slug - Vault slug.
+   * @returns {string} 64-char lowercase hex string.
+   */
+  #hmacSlug(privacyKey, slug) {
+    return this.crypto.hmacSha256(privacyKey, slug).toString('hex');
+  }
+
+  /**
+   * Encrypts the privacy index (slug→hmacName mapping).
+   * @param {Map<string, string>} slugToHmac - Slug→HMAC name mapping.
+   * @param {Buffer} encryptionKey - 32-byte vault encryption key.
+   * @returns {Promise<{ buf: Buffer, meta: import('../../ports/CryptoPort.js').EncryptionMeta }>}
+   */
+  async #encryptPrivacyIndex(slugToHmac, encryptionKey) {
+    const json = JSON.stringify(Object.fromEntries(slugToHmac));
+    return await this.crypto.encryptBuffer(Buffer.from(json, 'utf8'), encryptionKey);
+  }
+
+  /**
+   * Decrypts the privacy index blob.
+   * @param {Buffer} blob - Encrypted index blob.
+   * @param {Buffer} encryptionKey - 32-byte vault encryption key.
+   * @param {import('../../ports/CryptoPort.js').EncryptionMeta} meta - Encryption metadata.
+   * @returns {Promise<Map<string, string>>} slug→hmacName mapping.
+   */
+  async #decryptPrivacyIndex(blob, encryptionKey, meta) {
+    const plaintext = await this.crypto.decryptBuffer(blob, encryptionKey, meta);
+    const obj = JSON.parse(plaintext.toString('utf8'));
+    return new Map(Object.entries(obj));
+  }
+
+  // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
 
   /**
-   * Initializes the vault, optionally with encryption.
+   * Initializes the vault, optionally with encryption and privacy mode.
    * @param {Object} [options]
    * @param {string} [options.passphrase] - Passphrase for vault-level encryption.
    * @param {Object} [options.kdfOptions] - KDF options (algorithm, iterations, etc.).
+   * @param {boolean} [options.privacy=false] - Enable privacy mode (requires passphrase/encryption).
    * @returns {Promise<{ commitOid: string }>}
    */
-  async initVault({ passphrase, kdfOptions } = {}) {
-    const state = await this.readState();
-
-    if (state.metadata?.encryption) {
+  async initVault({ passphrase, kdfOptions, privacy = false } = {}) {
+    if (privacy && !passphrase) {
       throw new CasError(
-        'Vault encryption is already configured',
-        'VAULT_ENCRYPTION_ALREADY_CONFIGURED',
+        'Privacy mode requires vault encryption — provide a passphrase',
+        'VAULT_PRIVACY_REQUIRES_ENCRYPTION',
       );
     }
 
-    /** @type {VaultMetadata} */
-    const metadata = { version: 1 };
-    if (passphrase) {
-      const { salt, params } = await this.crypto.deriveKey({ passphrase, ...kdfOptions });
-      metadata.encryption = VaultService.#buildEncryptionMeta(salt, params);
-    }
+    return await this.#withVaultRetry(async ({ state, draft }) => {
+      if (state.metadata?.encryption) {
+        throw new CasError(
+          'Vault encryption is already configured',
+          'VAULT_ENCRYPTION_ALREADY_CONFIGURED',
+        );
+      }
 
-    return await this.writeCommit({
-      entries: state.entries,
-      metadata,
-      parentCommitOid: state.parentCommitOid,
-      message: 'vault: init',
+      draft.metadata = { version: 1 };
+      /** @type {Buffer|undefined} */
+      let derivedKey;
+      if (passphrase) {
+        const options = prepareKdfOptions(kdfOptions, { source: 'vault-init' });
+        const { key, salt, params } = await this.crypto.deriveKey({ passphrase, ...options });
+        draft.metadata.encryption = VaultService.#buildEncryptionMeta(salt, params);
+        derivedKey = key;
+      }
+
+      if (privacy) {
+        draft.metadata.privacy = { enabled: true };
+      }
+
+      return { message: 'vault: init', encryptionKey: derivedKey };
     });
   }
 
@@ -380,50 +639,49 @@ export default class VaultService {
    * @param {string} options.slug - Entry slug.
    * @param {string} options.treeOid - Git tree OID.
    * @param {boolean} [options.force=false] - Overwrite existing entry.
+   * @param {Buffer} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
    * @returns {Promise<{ commitOid: string }>}
    */
-  async addToVault({ slug, treeOid, force = false }) {
+  async addToVault({ slug, treeOid, force = false, encryptionKey }) {
     this.validateSlug(slug);
 
-    return await this.#retryMutation((state) => {
-      if (state.entries.has(slug) && !force) {
+    return await this.#withVaultRetry(({ draft }) => {
+      if (draft.entries.has(slug) && !force) {
         throw new CasError(
           `Vault entry "${slug}" already exists (use force to overwrite)`,
           'VAULT_ENTRY_EXISTS',
           { slug },
         );
       }
-      const isUpdate = state.entries.has(slug);
-      state.entries.set(slug, treeOid);
-      // Shallow copy to avoid mutating readState()'s object on CAS retries.
-      const metadata = { ...(state.metadata || { version: 1 }) };
-      if (metadata.encryption) {
+      const isUpdate = draft.entries.has(slug);
+      draft.entries.set(slug, treeOid);
+      if (draft.metadata.encryption) {
         // Tracks nonce-relevant operations: every addToVault on an encrypted
         // vault implies an encryption occurred at the store layer.
-        metadata.encryptionCount = (metadata.encryptionCount || 0) + 1;
-        if (metadata.encryptionCount >= VaultService.ENCRYPTION_COUNT_WARN) {
+        draft.metadata.encryptionCount = (draft.metadata.encryptionCount || 0) + 1;
+        if (draft.metadata.encryptionCount >= VaultService.ENCRYPTION_COUNT_WARN) {
           this.observability.log(
             'warn',
-            `Vault encryption count (${metadata.encryptionCount}) exceeds ` +
+            `Vault encryption count (${draft.metadata.encryptionCount}) exceeds ` +
             `${VaultService.ENCRYPTION_COUNT_WARN} — rotate your key`,
-            { encryptionCount: metadata.encryptionCount },
+            { encryptionCount: draft.metadata.encryptionCount },
           );
         }
       }
       return {
-        entries: state.entries,
-        metadata,
         message: isUpdate ? `vault: update ${slug}` : `vault: add ${slug}`,
       };
-    });
+    }, { encryptionKey });
   }
 
   /**
    * Lists all vault entries.
+   * @param {Object} [options]
+   * @param {Buffer} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
    * @returns {Promise<Array<{ slug: string, treeOid: string }>>}
    */
-  async listVault() {
-    const { entries } = await this.readState();
+  async listVault({ encryptionKey } = {}) {
+    const { entries } = await this.readState({ encryptionKey });
     return [...entries.entries()]
       .map(([slug, treeOid]) => ({ slug, treeOid }))
       .sort((a, b) => a.slug.localeCompare(b.slug));
@@ -433,40 +691,41 @@ export default class VaultService {
    * Removes an entry from the vault.
    * @param {Object} options
    * @param {string} options.slug - Entry slug to remove.
+   * @param {Buffer} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
    * @returns {Promise<{ commitOid: string, removedTreeOid: string }>}
    */
-  async removeFromVault({ slug }) {
-    /** @type {string|undefined} */
-    let removedTreeOid;
-
-    const result = await this.#retryMutation((state) => {
-      if (!state.entries.has(slug)) {
+  async removeFromVault({ slug, encryptionKey }) {
+    const result = await this.#withVaultRetry(({ draft }) => {
+      if (!draft.entries.has(slug)) {
         throw new CasError(
           `Vault entry "${slug}" not found`,
           'VAULT_ENTRY_NOT_FOUND',
           { slug },
         );
       }
-      removedTreeOid = state.entries.get(slug);
-      state.entries.delete(slug);
+      const removedTreeOid = /** @type {string} */ (draft.entries.get(slug));
+      draft.entries.delete(slug);
       return {
-        entries: state.entries,
-        metadata: state.metadata || { version: 1 },
         message: `vault: remove ${slug}`,
+        result: { removedTreeOid },
       };
-    });
+    }, { encryptionKey });
 
-    return { commitOid: result.commitOid, removedTreeOid: /** @type {string} */ (removedTreeOid) };
+    return {
+      commitOid: result.commitOid,
+      removedTreeOid: /** @type {string} */ (result.removedTreeOid),
+    };
   }
 
   /**
    * Resolves a vault entry slug to its tree OID.
    * @param {Object} options
    * @param {string} options.slug - Entry slug.
+   * @param {Buffer} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
    * @returns {Promise<string>} The tree OID.
    */
-  async resolveVaultEntry({ slug }) {
-    const { entries } = await this.readState();
+  async resolveVaultEntry({ slug, encryptionKey }) {
+    const { entries } = await this.readState({ encryptionKey });
     if (!entries.has(slug)) {
       throw new CasError(
         `Vault entry "${slug}" not found`,

@@ -1,12 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createHash } from 'node:crypto';
 import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 import { digestOf } from '../../../helpers/crypto.js';
 
 const testCrypto = await getTestCryptoAdapter();
+
+/** Generate a deterministic valid 40-char hex OID from a label. */
+function oid(label) {
+  return createHash('sha1').update(label).digest('hex');
+}
 
 /**
  * Shared factory: builds the standard test fixtures.
@@ -24,6 +32,8 @@ function setup() {
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
   return { mockPersistence, service };
 }
@@ -61,8 +71,8 @@ function buildDedupFixtures() {
     filename: 'file1.bin',
     size: 2048,
     chunks: [
-      chunk(0, 'chunk-0', 'blob-shared'),
-      chunk(1, 'chunk-1', 'blob-unique-1'),
+      chunk(0, 'chunk-0', oid('blob-shared')),
+      chunk(1, 'chunk-1', oid('blob-unique-1')),
     ],
   });
 
@@ -71,8 +81,8 @@ function buildDedupFixtures() {
     filename: 'file2.bin',
     size: 2048,
     chunks: [
-      chunk(0, 'chunk-0', 'blob-shared'),
-      chunk(1, 'chunk-2', 'blob-unique-2'),
+      chunk(0, 'chunk-0', oid('blob-shared')),
+      chunk(1, 'chunk-2', oid('blob-unique-2')),
     ],
   });
 
@@ -90,7 +100,7 @@ function buildSharedChunkFixtures() {
   for (let m = 0; m < 10; m++) {
     const chunks = [];
     for (let c = 0; c < 10; c++) {
-      const blobOid = c < 5 ? `blob-shared-${c}` : `blob-m${m}-c${c}`;
+      const blobOid = c < 5 ? oid(`blob-shared-${c}`) : oid(`blob-m${m}-c${c}`);
       chunks.push(chunk(c, `chunk-m${m}-c${c}`, blobOid));
     }
 
@@ -126,8 +136,8 @@ describe('CasService – findOrphanedChunks – golden path (single manifest)', 
       filename: 'file.bin',
       size: 2048,
       chunks: [
-        chunk(0, 'chunk-0', 'blob-oid-1'),
-        chunk(1, 'chunk-1', 'blob-oid-2'),
+        chunk(0, 'chunk-0', oid('blob-oid-1')),
+        chunk(1, 'chunk-1', oid('blob-oid-2')),
       ],
     });
 
@@ -141,8 +151,8 @@ describe('CasService – findOrphanedChunks – golden path (single manifest)', 
     const result = await service.findOrphanedChunks({ treeOids: ['tree-1'] });
 
     expect(result.referenced.size).toBe(2);
-    expect(result.referenced.has('blob-oid-1')).toBe(true);
-    expect(result.referenced.has('blob-oid-2')).toBe(true);
+    expect(result.referenced.has(oid('blob-oid-1'))).toBe(true);
+    expect(result.referenced.has(oid('blob-oid-2'))).toBe(true);
     expect(result.total).toBe(2);
   });
 });
@@ -179,9 +189,9 @@ describe('CasService – findOrphanedChunks – golden path (dedup)', () => {
 
     // 3 unique blobs: blob-shared, blob-unique-1, blob-unique-2
     expect(result.referenced.size).toBe(3);
-    expect(result.referenced.has('blob-shared')).toBe(true);
-    expect(result.referenced.has('blob-unique-1')).toBe(true);
-    expect(result.referenced.has('blob-unique-2')).toBe(true);
+    expect(result.referenced.has(oid('blob-shared'))).toBe(true);
+    expect(result.referenced.has(oid('blob-unique-1'))).toBe(true);
+    expect(result.referenced.has(oid('blob-unique-2'))).toBe(true);
     // Total counts all chunks: 2 + 2 = 4
     expect(result.total).toBe(4);
   });
@@ -203,21 +213,21 @@ describe('CasService – findOrphanedChunks – golden path (identical chunks)',
       slug: 'asset-1',
       filename: 'file1.bin',
       size: 1024,
-      chunks: [chunk(0, 'chunk-0', 'blob-same')],
+      chunks: [chunk(0, 'chunk-0', oid('blob-same'))],
     });
 
     const manifest2 = manifestJson({
       slug: 'asset-2',
       filename: 'file2.bin',
       size: 1024,
-      chunks: [chunk(0, 'chunk-0', 'blob-same')],
+      chunks: [chunk(0, 'chunk-0', oid('blob-same'))],
     });
 
     const manifest3 = manifestJson({
       slug: 'asset-3',
       filename: 'file3.bin',
       size: 1024,
-      chunks: [chunk(0, 'chunk-0', 'blob-same')],
+      chunks: [chunk(0, 'chunk-0', oid('blob-same'))],
     });
 
     mockPersistence.readTree.mockResolvedValue([
@@ -235,7 +245,7 @@ describe('CasService – findOrphanedChunks – golden path (identical chunks)',
 
     // Only 1 unique blob
     expect(result.referenced.size).toBe(1);
-    expect(result.referenced.has('blob-same')).toBe(true);
+    expect(result.referenced.has(oid('blob-same'))).toBe(true);
     // Total counts all instances: 3
     expect(result.total).toBe(3);
   });
@@ -298,7 +308,7 @@ describe('CasService – findOrphanedChunks – edge cases', () => {
   it('processes single treeOid with large manifest', async () => {
     const chunks = [];
     for (let i = 0; i < 100; i++) {
-      chunks.push(chunk(i, `chunk-${i}`, `blob-oid-${i}`));
+      chunks.push(chunk(i, `chunk-${i}`, oid(`blob-oid-${i}`)));
     }
 
     const manifest = manifestJson({
@@ -358,12 +368,12 @@ describe('CasService – findOrphanedChunks – stress test (shared chunks)', ()
 
     // Verify shared blobs are present
     for (let c = 0; c < 5; c++) {
-      expect(result.referenced.has(`blob-shared-${c}`)).toBe(true);
+      expect(result.referenced.has(oid(`blob-shared-${c}`))).toBe(true);
     }
 
     // Verify some unique blobs are present
-    expect(result.referenced.has('blob-m0-c5')).toBe(true);
-    expect(result.referenced.has('blob-m9-c9')).toBe(true);
+    expect(result.referenced.has(oid('blob-m0-c5'))).toBe(true);
+    expect(result.referenced.has(oid('blob-m9-c9'))).toBe(true);
 
     // Total chunks: 10 manifests x 10 chunks = 100
     expect(result.total).toBe(100);
@@ -393,9 +403,9 @@ describe('CasService – findOrphanedChunks – stress test (complete overlap)',
       filename: 'shared.bin',
       size: 3072,
       chunks: [
-        chunk(0, 'chunk-0', 'blob-a'),
-        chunk(1, 'chunk-1', 'blob-b'),
-        chunk(2, 'chunk-2', 'blob-c'),
+        chunk(0, 'chunk-0', oid('blob-a')),
+        chunk(1, 'chunk-1', oid('blob-b')),
+        chunk(2, 'chunk-2', oid('blob-c')),
       ],
     });
 
@@ -417,9 +427,9 @@ describe('CasService – findOrphanedChunks – stress test (complete overlap)',
 
     // Only 3 unique blobs despite 20 manifests
     expect(result.referenced.size).toBe(3);
-    expect(result.referenced.has('blob-a')).toBe(true);
-    expect(result.referenced.has('blob-b')).toBe(true);
-    expect(result.referenced.has('blob-c')).toBe(true);
+    expect(result.referenced.has(oid('blob-a'))).toBe(true);
+    expect(result.referenced.has(oid('blob-b'))).toBe(true);
+    expect(result.referenced.has(oid('blob-c'))).toBe(true);
 
     // Total: 20 manifests x 3 chunks = 60
     expect(result.total).toBe(60);
@@ -471,12 +481,12 @@ describe('CasService – findOrphanedChunks – MANIFEST_NOT_FOUND (second tree)
       slug: 'asset-1',
       filename: 'file1.bin',
       size: 1024,
-      chunks: [chunk(0, 'chunk-0', 'blob-1')],
+      chunks: [chunk(0, 'chunk-0', oid('blob-1'))],
     });
 
     // Mock returns valid tree first, then empty tree
-    mockPersistence.readTree.mockImplementation((oid) => {
-      if (oid === 'tree-1') {
+    mockPersistence.readTree.mockImplementation((treeId) => {
+      if (treeId === 'tree-1') {
         return Promise.resolve([
           { mode: '100644', type: 'blob', oid: 'manifest-oid-1', name: 'manifest.json' },
         ]);
@@ -583,7 +593,7 @@ describe('CasService – findOrphanedChunks – invalid manifest data', () => {
       slug: 'asset-1',
       // Missing filename
       size: 1024,
-      chunks: [chunk(0, 'chunk-0', 'blob-1')],
+      chunks: [chunk(0, 'chunk-0', oid('blob-1'))],
     };
 
     mockPersistence.readTree.mockResolvedValue([
@@ -616,7 +626,7 @@ describe('CasService – findOrphanedChunks – fail-closed behavior', () => {
       slug: 'asset-1',
       filename: 'file1.bin',
       size: 1024,
-      chunks: [chunk(0, 'chunk-0', 'blob-1')],
+      chunks: [chunk(0, 'chunk-0', oid('blob-1'))],
     });
 
     mockPersistence.readTree

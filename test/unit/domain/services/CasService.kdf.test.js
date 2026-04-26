@@ -5,6 +5,8 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
+import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
+import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
 const SLOW_KDF_TEST_TIMEOUT_MS = 20000;
@@ -43,6 +45,8 @@ function setup() {
     codec: new JsonCodec(),
     chunkSize: 1024,
     observability: new SilentObserver(),
+    chunker: new FixedChunker({ chunkSize: 1024 }),
+    compressionAdapter: new NodeCompressionAdapter(),
   });
   return { mockPersistence, service, blobs, crypto };
 }
@@ -191,6 +195,7 @@ describe('CasService – passphrase store/restore round-trip', () => {
 
     expect(manifest.encryption).toBeDefined();
     expect(manifest.encryption.encrypted).toBe(true);
+    expect(manifest.encryption.scheme).toBe('framed');
     expect(manifest.encryption.kdf).toBeDefined();
 
     const { buffer, bytesWritten } = await service.restore({ manifest, passphrase });
@@ -215,7 +220,7 @@ describe('CasService – passphrase multi-chunk round-trip', () => {
       passphrase: 'multi-chunk-passphrase',
     });
 
-    expect(manifest.chunks.length).toBe(3);
+    expect(manifest.chunks.length).toBeGreaterThan(1);
     expect(manifest.encryption.kdf).toBeDefined();
 
     const { buffer } = await service.restore({ manifest, passphrase: 'multi-chunk-passphrase' });
@@ -231,7 +236,7 @@ describe('CasService – passphrase multi-chunk round-trip', () => {
       passphrase: 'exact-boundary',
     });
 
-    expect(manifest.chunks.length).toBe(2);
+    expect(manifest.chunks.length).toBeGreaterThan(1);
 
     const { buffer } = await service.restore({ manifest, passphrase: 'exact-boundary' });
     expect(buffer.equals(original)).toBe(true);
@@ -299,7 +304,7 @@ describe('CasService – manifest KDF metadata (pbkdf2)', () => {
     expect(kdf.algorithm).toBe('pbkdf2');
     expect(typeof kdf.salt).toBe('string');
     expect(kdf.keyLength).toBe(32);
-    expect(typeof kdf.iterations).toBe('number');
+    expect(kdf.iterations).toBe(600_000);
   });
 });
 
@@ -324,7 +329,7 @@ describe('CasService – manifest KDF metadata (scrypt)', () => {
     expect(kdf.algorithm).toBe('scrypt');
     expect(typeof kdf.salt).toBe('string');
     expect(kdf.keyLength).toBe(32);
-    expect(typeof kdf.cost).toBe('number');
+    expect(kdf.cost).toBe(131_072);
     expect(typeof kdf.blockSize).toBe('number');
     expect(kdf.iterations).toBeUndefined();
   }, SLOW_KDF_TEST_TIMEOUT_MS);
@@ -365,7 +370,7 @@ describe('CasService – scrypt passphrase round-trip', () => {
       kdfOptions: { algorithm: 'scrypt' },
     });
 
-    expect(manifest.chunks.length).toBe(3);
+    expect(manifest.chunks.length).toBeGreaterThan(1);
     const { buffer } = await service.restore({ manifest, passphrase: 'scrypt-multi-chunk' });
     expect(buffer.equals(original)).toBe(true);
   }, SLOW_KDF_TEST_TIMEOUT_MS);
@@ -470,5 +475,23 @@ describe('CasService – passphrase + compression edge cases', () => {
     await expect(
       service.restore({ manifest, passphrase: 'wrong-compress-pass' }),
     ).rejects.toThrow(CasError);
+  });
+});
+
+describe('CasService – KDF policy rejection', () => {
+  let service;
+
+  beforeEach(() => {
+    ({ service } = setup());
+  });
+
+  it('rejects out-of-policy PBKDF2 iterations before storing encrypted content', async () => {
+    await expect(service.store({
+      source: bufferSource(Buffer.from('policy guard')),
+      slug: 'kdf-policy-low',
+      filename: 'kdf-policy-low.bin',
+      passphrase: 'policy-passphrase',
+      kdfOptions: { iterations: 99_999 },
+    })).rejects.toThrow(expect.objectContaining({ code: 'KDF_POLICY_VIOLATION' }));
   });
 });

@@ -37,7 +37,7 @@ describe('resolveChunker – cdc strategy', () => {
     });
     expect(result).toBeInstanceOf(CdcChunker);
     expect(result).toBeInstanceOf(ChunkingPort);
-    expect(result.params).toEqual({ target: 262144, min: 65536, max: 1048576 });
+    expect(result.params).toEqual({ target: 262144, min: 65536, max: 1048576, normalized: true });
   });
 
   it('chunking: { strategy: "cdc" } with defaults works', () => {
