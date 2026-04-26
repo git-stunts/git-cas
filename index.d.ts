@@ -4,21 +4,17 @@
  */
 
 import Manifest from "./src/domain/value-objects/Manifest.js";
+import type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, EncryptionScheme } from "./src/domain/value-objects/Manifest.js";
 import Chunk from "./src/domain/value-objects/Chunk.js";
 import CasService from "./src/domain/services/CasService.js";
+import type { CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, StoreEncryptionOptions, VerifyIntegrityOptions } from "./src/domain/services/CasService.js";
 
 export { CasService, Manifest, Chunk };
 /** Type alias mapping the runtime `CompressionPort` export to its base class declaration. */
 export type CompressionPort = CompressionPortBase;
 
-export type {
-  EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, EncryptionScheme,
-} from "./src/domain/value-objects/Manifest.js";
-
-export type {
-  CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort,
-  CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, StoreEncryptionOptions, VerifyIntegrityOptions,
-} from "./src/domain/services/CasService.js";
+export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, EncryptionScheme };
+export type { CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, StoreEncryptionOptions, VerifyIntegrityOptions };
 
 /** Abstract port for compression and decompression of buffers and streams. */
 export declare class CompressionPortBase {
