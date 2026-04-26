@@ -2,8 +2,9 @@
  * Manifest anatomy view — rich visual breakdown of a manifest.
  */
 
-import { badge, box, surfaceToString, table, tree } from '@flyingrobots/bijou';
+import { box, table, tree } from '@flyingrobots/bijou';
 import { getCliContext } from './context.js';
+import { renderBadgeRow } from './blocks/asset-card.js';
 import { sectionHeading, themeText } from './theme.js';
 
 /**
@@ -43,30 +44,7 @@ function formatKv(rows, ctx) {
   return rows.map(([k, v]) => `  ${themeText(ctx, k.padEnd(maxKey), { tone: 'accent' })}  ${v}`).join('\n');
 }
 
-/**
- * Build the header badges line.
- *
- * @param {ManifestData} m
- * @param {BijouContext} ctx
- * @returns {string}
- */
-function renderBadges(m, ctx) {
-  const renderBadge = (label, variant = 'neutral') => surfaceToString(badge(label, { variant, ctx }), ctx.style);
-  const badges = [];
-  if (Number.isFinite(m.version)) {
-    badges.push(renderBadge(`v${m.version}`, 'brand'));
-  }
-  if (m.encryption) {
-    badges.push(renderBadge('encrypted', 'warning'));
-  }
-  if (m.compression) {
-    badges.push(renderBadge(m.compression.algorithm, 'info'));
-  }
-  if (m.subManifests?.length) {
-    badges.push(renderBadge('merkle', 'accent'));
-  }
-  return badges.join(' ');
-}
+// Badge rendering delegated to blocks/asset-card.js (renderBadgeRow)
 
 /**
  * Build the encryption section body.
@@ -209,9 +187,9 @@ function renderSubManifestsSection(m, ctx) {
  */
 export function renderManifestView({ manifest, ctx = getCliContext() }) {
   const m = manifest;
-  const badges = renderBadges(m, ctx);
+  const badges = renderBadgeRow(m, ctx);
   const sections = [themeText(ctx, 'Manifest Ledger', { tone: 'brand' })];
-  if (badges.length > 0) {
+  if (badges) {
     sections.push(badges);
   }
   sections.push(renderMetadataSection(m, ctx));
