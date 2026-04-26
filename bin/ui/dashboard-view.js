@@ -1207,19 +1207,48 @@ function renderFooterSurface(model, ctx, width) {
 function renderBody(model, deps, options) {
   if (model.activeDrawer === 'treemap') {
     renderTreemapView(model, deps, options);
-    return;
-  }
-  if (model.activeDrawer === 'refs') {
+  } else if (model.activeDrawer === 'refs') {
     renderRefsView(model, deps, options);
-    return;
-  }
-  if (model.viewMode === 'detail') {
+  } else if (model.viewMode === 'detail') {
     const detailPane = renderDetailPane(model, { width: model.columns, height: options.height, ctx: deps.ctx });
     options.screen.blit(detailPane, 0, options.top);
-    return;
+  } else {
+    const listPane = renderListPane(model, { width: model.columns, height: options.height, ctx: deps.ctx });
+    options.screen.blit(listPane, 0, options.top);
   }
-  const listPane = renderListPane(model, { width: model.columns, height: options.height, ctx: deps.ctx });
-  options.screen.blit(listPane, 0, options.top);
+  if (model.viewTransition) {
+    applyTransitionEffect(options.screen, { top: options.top, height: options.height }, model.viewTransition);
+  }
+}
+
+/**
+ * Apply a visual transition effect to the body region of the screen.
+ * For 'wipe': progressively reveals columns left-to-right.
+ * For 'fade': dims characters in the first half of the transition.
+ *
+ * @param {Surface} screen
+ * @param {{ top: number, height: number }} region
+ * @param {{ startTime: number, duration: number, shader: string }} transition
+ */
+function applyTransitionEffect(screen, region, transition) {
+  const progress = Math.min(1, (Date.now() - transition.startTime) / transition.duration);
+  const { top, height } = region;
+  if (transition.shader === 'wipe') {
+    const revealCol = Math.floor(progress * screen.width);
+    for (let y = top; y < top + height && y < screen.height; y++) {
+      for (let x = revealCol; x < screen.width; x++) {
+        screen.set(x, y, ' ');
+      }
+    }
+  } else {
+    // Fade: blank unrevealed rows (top-down reveal)
+    const revealRow = Math.floor(progress * height);
+    for (let y = top + revealRow; y < top + height && y < screen.height; y++) {
+      for (let x = 0; x < screen.width; x++) {
+        screen.set(x, y, ' ');
+      }
+    }
+  }
 }
 
 /**

@@ -142,6 +142,7 @@ import { createWizardState, wizardHandleKey } from './store-wizard.js';
  * @property {AccordionState | null} detailAccordion
  * @property {DagPaneState | null} dagPane
  * @property {StoreWizardState | null} storeWizard
+ * @property {{ startTime: number, duration: number, shader: string } | null} viewTransition
  */
 
 /**
@@ -211,7 +212,33 @@ const DASH_FOOTER_ROWS = 3;
 const PANE_BORDER_ROWS = 2;
 const LIST_META_ROWS = 2;
 const NOTIFICATION_TICK_MS = 50;
+const TRANSITION_DURATION_MS = 150;
+const REDUCE_MOTION = process.env.REDUCE_MOTION === '1';
 const DETAIL_BODY_TOP = 3;
+
+/**
+ * Inject a view transition into a [model, cmds] result.
+ *
+ * @param {[DashModel, DashCmd[]]} result
+ * @param {string} shader
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function withTransition(result, shader) {
+  const vt = startTransition(shader);
+  return [{ ...result[0], viewTransition: vt }, result[1]];
+}
+
+/**
+ * Start a view transition if motion is enabled.
+ * Uses a timestamp so progress is computed at render time without extra commands.
+ *
+ * @param {string} [shader='fade']
+ * @returns {{ startTime: number, duration: number, shader: string } | null}
+ */
+function startTransition(shader = 'fade') {
+  if (REDUCE_MOTION) { return null; }
+  return { startTime: Date.now(), duration: TRANSITION_DURATION_MS, shader };
+}
 
 /**
  * Estimate the pager viewport height for the detail pane.
@@ -761,6 +788,7 @@ function createInitModel(ctx, source) {
     detailAccordion: null,
     dagPane: null,
     storeWizard: null,
+    viewTransition: null,
     error: null,
     table: createInitTable(rows),
     refsTable: createInitRefsTable(rows),
@@ -1141,20 +1169,20 @@ function handleSelect(model, deps) {
     const manifest = model.manifestCache.get(entry.slug);
     const detailPager = buildDetailPager(manifest, deps.ctx, model.rows);
     const detailAccordion = buildDetailAccordion(manifest, deps.ctx);
-    return [{ ...model, viewMode: 'detail', detailPager, detailAccordion }, []];
+    return withTransition([{ ...model, viewMode: 'detail', detailPager, detailAccordion }, []], 'fade');
   }
   const cmd = /** @type {DashCmd} */ (loadManifestCmd(deps.cas, {
     slug: entry.slug,
     treeOid: entry.treeOid,
     source: model.source,
   }));
-  return [{
+  return withTransition([{
     ...model,
     viewMode: 'detail',
     loadingSlug: entry.slug,
     detailPager: null,
     detailAccordion: null,
-  }, [cmd]];
+  }, [cmd]], 'fade');
 }
 
 /**
@@ -1571,10 +1599,10 @@ function closeOverlay(model) {
     return [{ ...model, dagPane: null }, []];
   }
   if (model.activeDrawer) {
-    return [{ ...model, activeDrawer: null }, []];
+    return withTransition([{ ...model, activeDrawer: null }, []], 'fade');
   }
   if (model.viewMode === 'detail') {
-    return [{ ...model, viewMode: 'list' }, []];
+    return withTransition([{ ...model, viewMode: 'list' }, []], 'fade');
   }
   if (hasNotifications(model.notifications)) {
     const topItem = model.notifications.items[0];
@@ -1802,10 +1830,10 @@ function startFilter(model) {
 function handleOverlayAction(action, model, deps) {
   const handlers = {
     'open-palette': () => setPalette(model, createPalette(model.rows)),
-    'open-stats': () => openStatsDrawer(model, deps),
-    'open-doctor': () => openDoctorDrawer(model, deps),
-    'open-refs': () => openRefsDrawer(model, deps),
-    'open-treemap': () => openTreemapDrawer(model, deps),
+    'open-stats': () => withTransition(openStatsDrawer(model, deps), 'fade'),
+    'open-doctor': () => withTransition(openDoctorDrawer(model, deps), 'fade'),
+    'open-refs': () => withTransition(openRefsDrawer(model, deps), 'fade'),
+    'open-treemap': () => withTransition(openTreemapDrawer(model, deps), 'wipe'),
     'toggle-treemap-scope': () => toggleTreemapScope(model, deps),
     'toggle-treemap-worktree': () => toggleTreemapWorktreeMode(model, deps),
     'treemap-drill-in': () => handleTreemapDrillIn(model, deps),
