@@ -3,7 +3,7 @@
  */
 
 import { badge, boxSurface, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
-import { clipToWidth, commandPalette, dagPane, hasNotifications, helpView, hstackSurface, interactiveAccordion, navigableTable, pagerSurface, renderNotificationStack, statusBarSurface, vstackSurface } from '@flyingrobots/bijou-tui';
+import { clipToWidth, commandPalette, dagPane, dissolveShader, hasNotifications, helpView, hstackSurface, interactiveAccordion, navigableTable, pagerSurface, renderNotificationStack, statusBarSurface, vstackSurface, wipe } from '@flyingrobots/bijou-tui';
 import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
 import { inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
 import { renderDoctorReport, renderVaultStats } from './vault-report.js';
@@ -1274,18 +1274,15 @@ function renderBody(model, deps, options) {
 function applyTransitionEffect(screen, region, transition) {
   const progress = Math.min(1, (Date.now() - transition.startTime) / transition.duration);
   const { top, height } = region;
+  const shader = transition.shader === 'wipe' ? wipe('right') : dissolveShader;
   const blank = { char: ' ', empty: true };
-  if (transition.shader === 'wipe') {
-    const revealCol = Math.floor(progress * screen.width);
-    const clearWidth = screen.width - revealCol;
-    if (clearWidth > 0) {
-      screen.fill(blank, revealCol, top, clearWidth, height);
-    }
-  } else {
-    const revealRow = Math.floor(progress * height);
-    const clearHeight = height - revealRow;
-    if (clearHeight > 0) {
-      screen.fill(blank, 0, top + revealRow, screen.width, clearHeight);
+  const w = screen.width;
+  for (let y = top; y < top + height && y < screen.height; y++) {
+    for (let x = 0; x < w; x++) {
+      const result = shader({ x, y: y - top, width: w, height, progress });
+      if (!result.showNext) {
+        screen.fill(blank, x, y, 1, 1);
+      }
     }
   }
 }
