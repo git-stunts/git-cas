@@ -1379,6 +1379,31 @@ function renderDagOverlay(model, deps, options) {
 }
 
 /**
+ * Render the quit confirmation modal if active.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ top: number, height: number, screen: Surface }} options
+ */
+function renderQuitModal(model, deps, options) {
+  if (!model.quitConfirm) {
+    return;
+  }
+  const body = [
+    themeText(deps.ctx, 'Are you sure you want to quit?', { tone: 'primary', bold: true }),
+    '',
+    `  ${themeText(deps.ctx, 'q / y', { tone: 'accent' })}  ${themeText(deps.ctx, 'Confirm quit', { tone: 'secondary' })}`,
+    `  ${themeText(deps.ctx, 'any', { tone: 'accent' })}    ${themeText(deps.ctx, 'Cancel', { tone: 'secondary' })}`,
+  ].join('\n');
+  const innerW = 36;
+  const content = parseAnsiToSurface(body, innerW, 4);
+  const modal = boxSurface(content, { ctx: deps.ctx, title: 'Quit', width: innerW + 2, height: 6 });
+  const mx = centerX(options.screen.width, modal.width);
+  const my = topThirdY(options.top, options.height, modal.height);
+  options.screen.blit(modal, mx, my);
+}
+
+/**
  * Render the store wizard overlay if active.
  *
  * @param {DashModel} model
@@ -1440,6 +1465,7 @@ function renderOverlays(model, deps, options) {
   }
 
   renderNotifications(model, deps, options);
+  renderQuitModal(model, deps, options);
 }
 
 /**

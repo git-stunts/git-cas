@@ -347,10 +347,21 @@ describe('dashboard navigation', () => {
     expect(next.table.focusRow).toBeGreaterThan(0);
   });
 
-  it('quit returns quit command', () => {
+  it('quit requires confirmation — first q shows modal, second q quits', () => {
     const app = createDashboardApp(makeDeps());
-    const [, cmds] = app.update(keyMsg('q'), makeModel());
-    expect(cmds).toHaveLength(1);
+    const [confirming, cmds1] = app.update(keyMsg('q'), makeModel());
+    expect(confirming.quitConfirm).toBe(true);
+    expect(cmds1).toHaveLength(0);
+    const [, cmds2] = app.update(keyMsg('q'), confirming);
+    expect(cmds2).toHaveLength(1);
+  });
+
+  it('quit confirmation is cancelled by any other key', () => {
+    const app = createDashboardApp(makeDeps());
+    const [confirming] = app.update(keyMsg('q'), makeModel());
+    expect(confirming.quitConfirm).toBe(true);
+    const [cancelled] = app.update(keyMsg('j'), confirming);
+    expect(cancelled.quitConfirm).toBe(false);
   });
 
   it('scroll-detail is a no-op when detailPager is null', () => {

@@ -141,6 +141,7 @@ import { createWizardState, wizardHandleKey } from './store-wizard.js';
  * @property {string | null} gitBranch
  * @property {AccordionState | null} detailAccordion
  * @property {DagPaneState | null} dagPane
+ * @property {boolean} quitConfirm
  * @property {StoreWizardState | null} storeWizard
  * @property {{ startTime: number, duration: number, shader: string } | null} viewTransition
  */
@@ -789,6 +790,7 @@ function createInitModel(ctx, source) {
     detailPager: null,
     detailAccordion: null,
     dagPane: null,
+    quitConfirm: false,
     storeWizard: null,
     viewTransition: null,
     error: null,
@@ -1832,17 +1834,29 @@ function startFilter(model) {
 function handleOverlayAction(action, model, deps) {
   const handlers = {
     'open-palette': () => setPalette(model, createPalette(model.rows)),
-    'open-stats': () => withTransition(openStatsDrawer(model, deps), 'fade'),
-    'open-doctor': () => withTransition(openDoctorDrawer(model, deps), 'fade'),
-    'open-refs': () => withTransition(openRefsDrawer(model, deps), 'fade'),
-    'open-treemap': () => withTransition(openTreemapDrawer(model, deps), 'wipe'),
+    'open-stats': () => model.activeDrawer === 'stats'
+      ? withTransition([{ ...model, activeDrawer: null }, []], 'fade')
+      : withTransition(openStatsDrawer(model, deps), 'fade'),
+    'open-doctor': () => model.activeDrawer === 'doctor'
+      ? withTransition([{ ...model, activeDrawer: null }, []], 'fade')
+      : withTransition(openDoctorDrawer(model, deps), 'fade'),
+    'open-refs': () => model.activeDrawer === 'refs'
+      ? withTransition([{ ...model, activeDrawer: null }, []], 'fade')
+      : withTransition(openRefsDrawer(model, deps), 'fade'),
+    'open-treemap': () => model.activeDrawer === 'treemap'
+      ? withTransition([{ ...model, activeDrawer: null }, []], 'wipe')
+      : withTransition(openTreemapDrawer(model, deps), 'wipe'),
     'toggle-treemap-scope': () => toggleTreemapScope(model, deps),
     'toggle-treemap-worktree': () => toggleTreemapWorktreeMode(model, deps),
     'treemap-drill-in': () => handleTreemapDrillIn(model, deps),
     'treemap-drill-out': () => handleTreemapDrillOut(model, deps),
     'toggle-help': () => [{ ...model, showHelp: !model.showHelp }, []],
-    'open-merkle-dag': () => openMerkleDag(model, deps),
-    'open-store-wizard': () => [{ ...model, storeWizard: createWizardState(), palette: null }, []],
+    'open-merkle-dag': () => model.dagPane
+      ? [{ ...model, dagPane: null }, []]
+      : openMerkleDag(model, deps),
+    'open-store-wizard': () => model.storeWizard
+      ? [{ ...model, storeWizard: null }, []]
+      : [{ ...model, storeWizard: createWizardState(), palette: null }, []],
     'overlay-close': () => closeOverlay(model),
   };
   return action.type in handlers ? handlers[action.type]() : null;
@@ -1900,7 +1914,10 @@ function isBlockedByTreemapView(action) {
  */
 function handlePrimaryAction(action, model, deps) {
   if (action.type === 'quit') {
-    return [model, [quit()]];
+    if (model.quitConfirm) {
+      return [model, [quit()]];
+    }
+    return [{ ...model, quitConfirm: true }, []];
   }
   if (action.type === 'move') {
     return handleMove(action, model, deps.ctx);
@@ -2220,6 +2237,12 @@ function runtimeSymbolAction(msg) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function handleKeyMsg(msg, model, deps) {
+  if (model.quitConfirm) {
+    if (msg.key === 'q' || msg.key === 'y') {
+      return [model, [quit()]];
+    }
+    return [{ ...model, quitConfirm: false }, []];
+  }
   if (model.palette) {
     return handlePaletteKey(msg, model, deps);
   }
