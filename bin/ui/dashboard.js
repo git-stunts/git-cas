@@ -319,9 +319,12 @@ function verifyPassphraseCmd(cas, passphrase) {
  * @param {DashModel} model
  * @returns {[DashModel, DashCmd[]]}
  */
-function handleTitleKey(msg, model) {
+function handleTitleKey(msg, model, deps) {
   if (msg.key === 'q') {
     return [model, [quit()]];
+  }
+  if (msg.key === 'enter' && model.promptEnter) {
+    return handleVaultAuthOk(model, deps);
   }
   return [model, []];
 }

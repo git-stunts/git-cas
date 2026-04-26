@@ -12,6 +12,7 @@ import { renderEncryptionCard } from './ui/encryption-card.js';
 import { renderHistoryTimeline } from './ui/history-timeline.js';
 import { renderManifestView } from './ui/manifest-view.js';
 import { renderHeatmap } from './ui/heatmap.js';
+import { surfaceToString } from '@flyingrobots/bijou';
 import {
   buildVaultStats,
   inspectVaultHealth,
@@ -644,7 +645,7 @@ vault
         process.stdout.write(`tree\t${treeOid}\n`);
         if (opts.encryption) {
           const metadata = await cas.getVaultMetadata();
-          process.stdout.write(`\n${renderEncryptionCard({ metadata })}\n`);
+          process.stdout.write(`\n${surfaceToString(renderEncryptionCard({ metadata }), getCliContext().style)}\n`);
         }
       }
     }, getJson)

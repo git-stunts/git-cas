@@ -1547,7 +1547,13 @@ function renderTitleScreen(model, deps) {
   ];
 
   if (model.phase === 'title') {
-    surfaces.push(textSurface(themeText(ctx, 'Checking vault...', { tone: 'subdued' }), innerW, 1));
+    if (model.promptEnter) {
+      surfaces.push(textSurface(themeText(ctx, 'Vault is ready.', { tone: 'success' }), innerW, 1));
+      surfaces.push(spacer);
+      surfaces.push(textSurface(themeText(ctx, 'enter to continue  |  escape to quit', { tone: 'subdued' }), innerW, 1));
+    } else {
+      surfaces.push(textSurface(themeText(ctx, 'Checking vault...', { tone: 'subdued' }), innerW, 1));
+    }
   } else {
     surfaces.push(textSurface(themeText(ctx, 'Vault is encrypted. Enter passphrase to unlock.', { tone: 'warning' }), innerW, 1));
     surfaces.push(spacer);

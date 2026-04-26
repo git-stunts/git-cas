@@ -211,6 +211,7 @@
   },
   "active": "b2fe1794833835a5",
   "lastOpenFiles": [
+    "test-title.js",
     "docs/method/backlog/cool-ideas/TUI_segmented-manifest-view.md",
     "docs/method/backlog/cool-ideas/TUI_cli-adaptive-table.md",
     "docs/method/backlog/cool-ideas/TUI_title-screen-stats.md",
@@ -245,7 +246,6 @@
     "docs/method/backlog/v6.0.0-polish/POL-003_string-sludge-encryption-card.md",
     "docs/method/backlog/v6.0.0-polish/POL-002_string-sludge-vault-report.md",
     "docs/method/backlog/v6.0.0-polish/POL-001_string-sludge-manifest-view.md",
-    "docs/audit/DETAILED-SCREEN-BREAKDOWN.md",
-    "docs/audit/SCORECARD-AND-HOMEWORK.md"
+    "docs/audit/DETAILED-SCREEN-BREAKDOWN.md"
   ]
 }
