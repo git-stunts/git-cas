@@ -211,6 +211,7 @@
   },
   "active": "b2fe1794833835a5",
   "lastOpenFiles": [
+    "bin/ui/blocks/operation-feed.js",
     "bin/ui/blocks/merkle-explorer.js",
     "bin/ui/blocks/health-dashboard.js",
     "bin/ui/blocks/asset-card.js",
@@ -223,7 +224,6 @@
     "output-health2.txt",
     "output-merkle2.txt",
     "output-dash-help.txt",
-    "output-dash8.txt",
     "docs/method/backlog/v6.0.0-polish/POL-017_heatmap-block.md",
     "docs/method/backlog/v6.0.0-polish/POL-016_operation-feed-block.md",
     "docs/method/backlog/v6.0.0-polish/POL-015_wizard-block.md",
