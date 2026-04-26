@@ -73,6 +73,42 @@ export function isLegacyScheme(scheme) {
 }
 
 // ---------------------------------------------------------------------------
+// Legacy → current mapping
+// ---------------------------------------------------------------------------
+
+/** @type {Record<string, string>} */
+const LEGACY_SCHEME_MAP = {
+  'whole-v1': SCHEME_WHOLE,
+  'whole-v2': SCHEME_WHOLE,
+  'framed-v1': SCHEME_FRAMED,
+  'framed-v2': SCHEME_FRAMED,
+  'convergent-v1': SCHEME_CONVERGENT,
+};
+
+/**
+ * Maps a legacy scheme identifier to its current name.
+ * Returns `null` if the input is not a recognized legacy scheme.
+ *
+ * @param {string} scheme
+ * @returns {string|null}
+ */
+export function mapToCurrentScheme(scheme) {
+  return LEGACY_SCHEME_MAP[scheme] ?? null;
+}
+
+/**
+ * Returns true if the legacy scheme used no AAD (all v1 variants).
+ *
+ * @param {string} scheme - A legacy scheme identifier.
+ * @returns {boolean}
+ */
+export function isLegacyNoAad(scheme) {
+  return scheme === 'whole-v1' ||
+    scheme === 'framed-v1' ||
+    scheme === 'convergent-v1';
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline classification
 // ---------------------------------------------------------------------------
 

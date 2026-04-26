@@ -63,6 +63,7 @@
     "benchmark": "vitest bench test/benchmark",
     "benchmark:local": "vitest bench test/benchmark",
     "release:verify": "node scripts/release/verify.js",
+    "upgrade": "node scripts/migrate-encryption.js",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

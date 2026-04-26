@@ -15,7 +15,15 @@ import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import {
   SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT,
   assertCurrentScheme,
+  mapToCurrentScheme, isLegacyNoAad,
 } from '../encryption/schemes.js';
+
+/**
+ * Tracks the original legacy scheme for manifests read in legacy mode.
+ * Used to determine AAD policy: v1 schemes had no AAD, v2 schemes did.
+ * @type {WeakMap<import('../value-objects/Manifest.js').default, string>}
+ */
+const originalSchemeMap = new WeakMap();
 
 /**
  * Builds AAD for whole encryption: UTF-8 bytes of the slug.
@@ -74,6 +82,8 @@ export default class CasService {
   /** @type {KeyResolver} */
   #keyResolver;
   #convergent;
+  /** @type {boolean} */
+  #legacyMode;
 
   /**
    * @param {Object} options
@@ -88,8 +98,9 @@ export default class CasService {
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max bytes for buffered restore (default 512 MiB).
    * @param {import('../../ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter (default NodeCompressionAdapter).
    * @param {string} [options.formatVersion] - Semver version stamped into new manifests.
+   * @param {boolean} [options.legacyMode=false] - When true, allows reading manifests with legacy encryption schemes (v1/v2) without throwing.
    */
-  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024, compressionAdapter, formatVersion }) {
+  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024, compressionAdapter, formatVersion, legacyMode = false }) {
     CasService._validateObservability(observability);
     CasService.#validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize });
     this.persistence = persistence;
@@ -117,6 +128,7 @@ export default class CasService {
     this.maxRestoreBufferSize = maxRestoreBufferSize;
     this.#keyResolver = new KeyResolver(crypto);
     this.#convergent = new ConvergentEncryption(crypto);
+    this.#legacyMode = legacyMode;
   }
 
   /**
@@ -764,7 +776,9 @@ export default class CasService {
    */
   async _verifyEncryptedAuth({ manifest, encryptionMeta, key, buffers }) {
     try {
-      const aad = buildWholeAad(manifest.slug);
+      const aad = this._isLegacyNoAad(manifest)
+        ? undefined
+        : buildWholeAad(manifest.slug);
       await this._decryptWithAad({
         buffer: Buffer.concat(buffers),
         key,
@@ -798,9 +812,10 @@ export default class CasService {
         }
       })();
 
+      const noAad = this._isLegacyNoAad(manifest);
       let frameIndex = 0;
       for await (const record of this._parseFramedRecords(source, encryptionMeta.frameBytes)) {
-        const aad = buildFramedAad(manifest.slug, frameIndex);
+        const aad = noAad ? undefined : buildFramedAad(manifest.slug, frameIndex);
         await this._decryptWithAad({
           buffer: record.ciphertext,
           key,
@@ -1021,6 +1036,19 @@ export default class CasService {
    */
   _buildFrameAad(slug, frameIndex) {
     return buildFramedAad(slug, frameIndex);
+  }
+
+  /**
+   * Returns true when a manifest was read in legacy mode from a v1
+   * scheme that did not use AAD.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {boolean}
+   */
+  _isLegacyNoAad(manifest) {
+    if (!this.#legacyMode) { return false; }
+    const orig = originalSchemeMap.get(manifest);
+    return orig ? isLegacyNoAad(orig) : false;
   }
 
   /**
@@ -1493,7 +1521,9 @@ export default class CasService {
 
     if (encryptionMeta) {
       const key = await this._resolveRestoreKey(manifest, encryptionKey, passphrase);
-      const aad = buildWholeAad(manifest.slug);
+      const aad = this._isLegacyNoAad(manifest)
+        ? undefined
+        : buildWholeAad(manifest.slug);
       source = this.crypto.createDecryptionStream(key, encryptionMeta, aad).decrypt(source);
     }
 
@@ -1525,7 +1555,9 @@ export default class CasService {
 
     if (encryptionMeta) {
       try {
-        const aad = buildWholeAad(manifest.slug);
+        const aad = this._isLegacyNoAad(manifest)
+          ? undefined
+          : buildWholeAad(manifest.slug);
         buffer = await this._decryptWithAad({ buffer, key, meta: encryptionMeta, aad });
       } catch (err) {
         if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
@@ -1773,6 +1805,7 @@ export default class CasService {
    * @returns {AsyncIterable<Buffer>}
    */
   async *_decryptFramedSource(manifest, key, encryptionMeta) {
+    const noAad = this._isLegacyNoAad(manifest);
     let frameIndex = 0;
     for await (const record of this._parseFramedRecords(
       this._iterVerifiedChunkBlobs(manifest),
@@ -1780,7 +1813,9 @@ export default class CasService {
     )) {
       let plaintext;
       try {
-        const aad = buildFramedAad(manifest.slug, frameIndex);
+        const aad = noAad
+          ? undefined
+          : buildFramedAad(manifest.slug, frameIndex);
         plaintext = await this._decryptWithAad({
           buffer: record.ciphertext,
           key,
@@ -1907,9 +1942,16 @@ export default class CasService {
   async readManifest({ treeOid }) {
     const blob = await this._readManifestBlob(treeOid);
     const decoded = this.codec.decode(blob);
+    let originalScheme;
 
     if (decoded.encryption?.scheme) {
-      assertCurrentScheme(decoded.encryption.scheme);
+      originalScheme = decoded.encryption.scheme;
+      if (this.#legacyMode) {
+        const mapped = mapToCurrentScheme(originalScheme);
+        if (mapped) { decoded.encryption.scheme = mapped; }
+      } else {
+        assertCurrentScheme(decoded.encryption.scheme);
+      }
     }
 
     await this._verifyManifestHash(decoded, treeOid);
@@ -1918,7 +1960,28 @@ export default class CasService {
       decoded.chunks = await this._resolveSubManifests(decoded.subManifests, treeOid);
     }
 
-    return new Manifest(decoded);
+    const manifest = new Manifest(decoded);
+    if (originalScheme) {
+      originalSchemeMap.set(manifest, originalScheme);
+    }
+    return manifest;
+  }
+
+  /**
+   * Reads a manifest from a Git tree OID and returns the raw decoded
+   * object WITHOUT Manifest construction or scheme assertion.
+   *
+   * This is the migration entry point -- it can read manifests with
+   * legacy encryption scheme identifiers that the normal
+   * {@link readManifest} rejects.
+   *
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID.
+   * @returns {Promise<Object>} Raw decoded manifest data.
+   */
+  async readManifestRaw({ treeOid }) {
+    const blob = await this._readManifestBlob(treeOid);
+    return this.codec.decode(blob);
   }
 
   /**

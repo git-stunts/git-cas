@@ -2,6 +2,13 @@ import js from "@eslint/js";
 
 export default [
   { ignores: ["examples/"] },
+  {
+    files: ["scripts/**/*.js"],
+    rules: {
+      "no-console": "off",
+      "max-lines-per-function": ["error", 80],
+    }
+  },
   js.configs.recommended,
   {
     languageOptions: {

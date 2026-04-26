@@ -92,6 +92,8 @@ export interface CasServiceOptions {
   maxRestoreBufferSize?: number;
   compressionAdapter?: CompressionPort;
   formatVersion?: string;
+  /** When true, allows reading manifests with legacy encryption schemes (v1/v2). */
+  legacyMode?: boolean;
 }
 
 /** Options for key derivation. */
@@ -191,6 +193,9 @@ export default class CasService {
   }): Promise<FileRestorePlan>;
 
   readManifest(options: { treeOid: string }): Promise<Manifest>;
+
+  /** Reads a raw manifest without scheme assertion or Manifest construction. */
+  readManifestRaw(options: { treeOid: string }): Promise<Record<string, unknown>>;
 
   inspectAsset(options: {
     treeOid: string;

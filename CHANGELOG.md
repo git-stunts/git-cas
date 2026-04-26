@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [5.3.3] — Unreleased
 
+### Added
+
+- **Migration script (`npm run upgrade`)** — fully implemented `scripts/migrate-encryption.js` for v6.0.0 encryption scheme upgrades. Two modes: **fast** (rename-only for v2 schemes and `convergent-v1`) and **full** (re-encryption for v1 whole/framed schemes that lacked AAD). Supports `--execute` (default dry-run), `--passphrase`, and `--cwd`. Reads every vault entry, classifies it, and reports what will/did change.
+- **`CasService.readManifestRaw()`** — reads a manifest from a Git tree OID and returns the raw decoded object without Manifest construction or scheme assertion. Migration entry point for inspecting legacy manifests.
+- **`CasService` `legacyMode` constructor option** — when `true`, `readManifest()` maps legacy scheme identifiers (v1/v2) to their current names instead of throwing `LEGACY_SCHEME`. Legacy v1 manifests (no AAD) are correctly decrypted without AAD during restore.
+- **`mapToCurrentScheme()` and `isLegacyNoAad()` in `schemes.js`** — public helpers for mapping legacy scheme strings to current names and detecting v1 no-AAD schemes.
+
 ### Changed
 
 - **BREAKING: Encryption scheme identifiers simplified** — `whole-v1`/`whole-v2` collapsed to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1` collapsed to `convergent`. Legacy v1/v2 scheme strings in stored manifests now throw `LEGACY_SCHEME` at `readManifest()` time with migration guidance. The `scheme` field in `ManifestSchema` is now required for all encryption metadata (previously optional for backward-compatible schemeless whole manifests).
