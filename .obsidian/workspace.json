@@ -196,6 +196,8 @@
   },
   "active": "7f4030d6907b6836",
   "lastOpenFiles": [
+    "bin/ui/blocks/heatmap-block.js",
+    "bin/ui/blocks",
     "output-merkle3.txt",
     "output-health2.txt",
     "output-merkle2.txt",
@@ -205,8 +207,6 @@
     "output-merkle.txt",
     "output-dash7.txt",
     "output-dash6.txt",
-    "output-dash5.txt",
-    "output-dash4.txt",
     "docs/method/backlog/v6.0.0-polish/POL-017_heatmap-block.md",
     "docs/method/backlog/v6.0.0-polish/POL-016_operation-feed-block.md",
     "docs/method/backlog/v6.0.0-polish/POL-015_wizard-block.md",

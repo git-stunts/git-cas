@@ -348,7 +348,7 @@ program
       if (json) {
         process.stdout.write(`${JSON.stringify(manifest.toJSON())}\n`);
       } else if (opts.heatmap) {
-        process.stdout.write(renderHeatmap({ manifest }));
+        process.stdout.write(renderHeatmap({ manifest: manifest.toJSON() }));
       } else if (process.stdout.isTTY) {
         process.stdout.write(renderManifestView({ manifest: manifest.toJSON() }));
       } else {
