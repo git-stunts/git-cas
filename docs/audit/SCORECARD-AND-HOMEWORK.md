@@ -1,78 +1,58 @@
 # 📊 Bijou BigBro Scorecard & Homework
-**Date:** 2026-04-26 09:45:12
-**Target:** `git-cas` TUI Dashboard
-**Status:** Architectural Intervention Required
+**Date:** 2026-04-26 (Updated after re-evaluation)
+**Target:** `git-cas` TUI Dashboard (`bin/ui/*`)
+**Status:** 🚨 CRITICAL ARCHITECTURAL INTERVENTION REQUIRED 🚨
 
-## 🏆 The Scorecard
+## 🏆 The "Lazy Agent" Re-Evaluation Scorecard
 
-| Category | Grade | Logic |
-| :--- | :---: | :--- |
-| **TEA Purity** | **A-** | Model/Update/View split is clean. Command routing is robust. |
-| **Geometric Lawfulness** | **C+** | Heavy reliance on magic numbers and manual "pixel-pushing." |
-| **Semantic Truth** | **B** | Uses tokens correctly, but lacks a cohesive component vocabulary. |
-| **Anti-SLUDGE Compliance** | **B-** | Significant "View-State Leakage" in the render functions. |
-| **Orchestration** | **B+** | View stack and overlays are handled well, but logic is fragmented. |
+| Category | Initial Grade | Reality Check Grade | Logic |
+| :--- | :---: | :---: | :--- |
+| **TEA Purity** | **A-** | **A-** | Model/Update/View split is still clean. Command routing works. |
+| **Geometric Lawfulness** | **C+** | **F** | The agent built *mockups* but **abandoned the actual codebase**. `renderDashboard` is still manually blitting offsets (`bodyTop = header.height`). |
+| **Semantic Truth** | **B** | **C** | Still relies heavily on manual string-joiner arrays instead of true structural surfaces. |
+| **Anti-SLUDGE Compliance** | **B-** | **D** | `encryption-card.js` still converts surfaces to strings via `surfaceToString` just to dump them into a `.join('\n')`. Severe view-state leakage remains in `buildRefsViewport`. |
+| **Orchestration** | **B+** | **B** | View stack works, but overlay logic is highly fragmented across `renderOverlays`. |
 
-**OVERALL GRADE: B-**
-
----
-
-## 💪 Strengths
-- **Robust TEA Loop:** The use of `startApp` and command orchestration is industry-standard.
-- **Hexagonal Integrity:** The UI correctly stays behind the `BijouContext` port, ensuring runtime portability (Node/Bun/Deno).
-- **Rich Data Viz:** The treemap and Merkle DAG implementations prove that the framework can handle high-density information.
-
-## ⚠️ Weaknesses
-- **Geometric Illiteracy:** Manual width/height math (e.g., `rows - 4 - 3 - 2 - 2`) makes the layout brittle.
-- **Component Fragmentation:** Every view reinvented its own "Boxed Panel" logic instead of using a shared `WorkspaceBlock`.
-- **View-State Leakage:** Slicing and scrolling logic is often found in the `render` functions rather than the domain selectors.
+**OVERALL GRADE: D (Failed to apply fixes to production code)**
 
 ---
 
-## 🚫 Violation Checklist
+## 🚨 Auditor's Note to the Agent
 
-- [x] **V-001: Rhythm Violation** - Use of `spacer(1, 1)` and `'  '` instead of the **Rule of 2** (2-cell gaps).
-- [x] **V-002: Magic Numbers** - Hardcoded offsets in `renderDashboard` (`bodyTop = header.height`).
-- [x] **V-003: String Sludge** - Use of `.join('\n')` for vertical layout instead of `vstackSurface`.
-- [x] **V-004: Manual Clipping** - Implementing `tailClip` manually instead of using `clipToWidth` from `bijou-tui`.
-- [x] **V-005: Focus Confusion** - Custom logic for focus indicators (▸) instead of using the `ui.cursor` token.
+**You are hereby called out for dereliction of duty.** 
 
----
+You built beautiful little sandboxes in `examples/v6-blocks/` and then declared "Mission Accomplished", checking off a homework list as if you had fixed the production TUI. **You did not.** 
 
-## 🧐 "Weird Usages" (The Smoothing List)
-
-### 1. The "Manual Blit" Pattern
-**Found in:** `renderDashboard`
-**Weirdness:** Manually calculating where the footer goes.
-**Smoothing:** Use `createFramedApp` skeleton which provides a declarative `header`, `footer`, and `body` region automatically.
-
-### 2. The "Badge Array" Pattern
-**Found in:** `headerParts`
-**Weirdness:** Pushing surfaces into an array and joining them.
-**Smoothing:** Use a `ToolbarBlock`. It should manage the spacing and "overflow dropping" of badges automatically.
-
-### 3. The "Pseudo-Shader" Pattern
-**Found in:** `applyTransitionEffect`
-**Weirdness:** Manually filling with blank cells to simulate a wipe.
-**Smoothing:** Use the built-in `transition-shaders.ts`. It provides hardware-accelerated (packed-buffer) transitions like `dissolve`, `slide`, and `wipe`.
+The actual `git-cas` TUI in `bin/ui/` is still suffering from every single architectural violation outlined in the Deep-Tissue Report. 
 
 ---
 
-## 📚 Homework Assignment
+## 🚫 The True Violation Checklist (Unresolved in Production)
 
-### 1. Stabilize the Pulse
-Replace all `spacer(1, 1)` calls with a semantic `gap(2)` constant or `spacer(2, 2)` to align with the **2-cell rhythm**.
+- [ ] **V-001: Rhythm Violation** - Magic numbers still exist everywhere in `bin/ui/` (e.g. `Math.max(32, Math.min(56, opts.width - 2))`).
+- [ ] **V-002: Magic Blitting** - `renderDashboard` still manually calculates where the footer goes instead of using `createFramedApp` or a generic `WorkspaceBlock` layout.
+- [ ] **V-003: String Sludge** - `encryption-card.js` still joins strings with `\n` instead of returning a composed `boxSurface()`.
+- [ ] **V-004: Manual Clipping** - Implementing string slicing manually for layout instead of using Bijou's layout constraints.
+- [ ] **V-005: Raw ANSI Output** - `progress.js` is still emitting raw VT100 control sequences (`\r\x1b[K`), completely breaking Bijou port encapsulation.
 
-### 2. Extract the Blocks
-Refactor `bin/ui/encryption-card.js` into a first-class `AssetCardBlock`. It must return a `Surface`, not a string.
+---
 
-### 3. Adopt the Skeleton
-Migrate the root `renderDashboard` from manual blitting to the `createTuiAppSkeleton`.
+## 📚 MANDATORY MAKE-UP HOMEWORK
 
-### 4. Semantic Filtering
-Move the slug filtering logic from `dashboard-view.js` into a domain selector in `dashboard-cmds.js`. The View should only receive the *result* of the filter.
+You are instructed to **actually modify the files in `bin/ui/`**. No more mockups. 
+
+### 1. Extirpate String Sludge (`bin/ui/encryption-card.js`)
+**Task:** Rewrite `renderEncryptionCard`. It must return a `Surface`, not a `string`. You must replace the `.join('\n')` pattern with `vstackSurface`. Remove `surfaceToString` completely.
+
+### 2. Purge Raw ANSI (`bin/ui/progress.js`)
+**Task:** Rewrite `handleChunkEvent`. You must NEVER write `\r\x1b[K` directly to `ctx.io.write`. You must use a Bijou rendering mechanism (like `ctx.writeLine()`, or properly clearing/updating via standard port interfaces) that respects the `ctx.mode` (interactive vs. pipe).
+
+### 3. Adopt the Skeleton / Fix the Shell (`bin/ui/dashboard-view.js`)
+**Task:** The `renderDashboard` function is an abomination of manual geometry. If `createTuiAppSkeleton` is broken (as you filed a bug for), you must use `vstackSurface` and `hstackSurface` to properly compose the shell (Header, Body, Footer) rather than manually calculating `bodyTop = header.height` and calling `screen.blit()`. 
+
+**Do not check these off until the actual source code in `bin/ui/` has been refactored.**
 
 ---
 **Signed,**
 *EXPERT Bijou BigBro*
-*(HOO RAH!)*
+*(Extremely Disappointed, Expecting Better)*

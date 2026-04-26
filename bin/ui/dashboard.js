@@ -101,7 +101,14 @@ import { createWizardState, wizardHandleKey } from './store-wizard.js';
  */
 
 /**
+ * @typedef {'title' | 'password' | 'dashboard'} AppPhase
+ */
+
+/**
  * @typedef {Object} DashModel
+ * @property {AppPhase} phase
+ * @property {string} passphrase
+ * @property {string | null} authError
  * @property {string} status
  * @property {number} columns
  * @property {number} rows
@@ -227,6 +234,24 @@ const DETAIL_BODY_TOP = 3;
 function withTransition(result, shader) {
   const vt = startTransition(shader);
   return [{ ...result[0], viewTransition: vt }, result[1]];
+}
+
+/**
+ * Command to check vault metadata and determine if auth is needed.
+ *
+ * @param {ContentAddressableStore} cas
+ * @param {DashSource} source
+ * @returns {DashCmd}
+ */
+function checkVaultAuthCmd(cas, source) {
+  return async (/** @type {(msg: DashMsg) => void} */ dispatch) => {
+    try {
+      const metadata = await cas.getVaultMetadata();
+      dispatch({ type: 'vault-auth-check', encrypted: Boolean(metadata?.encryption), source });
+    } catch {
+      dispatch({ type: 'vault-auth-check', encrypted: false, source });
+    }
+  };
 }
 
 /**
@@ -776,6 +801,9 @@ function createInitRefsTable(rows) {
 function createInitModel(ctx, source) {
   const rows = ctx.runtime.rows ?? 24;
   return {
+    phase: 'title',
+    passphrase: '',
+    authError: null,
     status: 'loading',
     columns: ctx.runtime.columns ?? 80,
     rows,
@@ -2150,6 +2178,9 @@ function handleAppMsg(msg, model, deps) {
     const notifications = tickNotifications(model.notifications, Date.now());
     return [{ ...model, notifications }, notificationTickCmds(notifications)];
   }
+  if (msg.type === 'vault-auth-check') { return handleVaultAuthCheck(msg, model, deps); }
+  if (msg.type === 'vault-auth-ok') { return handleVaultAuthOk(model, deps); }
+  if (msg.type === 'vault-auth-fail') { return [{ ...model, authError: msg.error, passphrase: '' }, []]; }
   if (msg.type === 'wizard-store-done') { return handleWizardDone(msg, model, deps); }
   if (msg.type === 'wizard-store-error') { return handleWizardError(msg, model); }
   if (msg.type === 'load-error') { return handleLoadError(msg, model); }
@@ -2324,7 +2355,7 @@ function treemapReportMatches(model, report) {
  */
 export function createDashboardApp(deps) {
   return {
-    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(deps.ctx, deps.source), [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas, deps.source)), /** @type {DashCmd} */ (loadBranchCmd(deps.cas))]]),
+    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(deps.ctx, deps.source), [/** @type {DashCmd} */ (checkVaultAuthCmd(deps.cas, deps.source))]]),
     update: (/** @type {KeyMsg | ResizeMsg | DashMsg} */ msg, /** @type {DashModel} */ model) => handleUpdate(msg, model, deps),
     view: (/** @type {DashModel} */ model) => renderDashboard(model, deps),
   };
