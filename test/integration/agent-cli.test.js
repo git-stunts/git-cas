@@ -1985,7 +1985,7 @@ function defineNeedsInputTests() {
       data: {
         code: 'NEEDS_INPUT',
         message: 'Encrypted restore requires --key-file or a vault passphrase source',
-        requiredInputs: ['keyFile', 'vaultPassphrase', 'vaultPassphraseFile'],
+        requiredInputs: ['keyFile', 'vaultPassphrase', 'vaultPassphraseFile', 'osKeychainTarget'],
         slug: 'enc/hello',
         treeOid: encTreeOid,
       },
