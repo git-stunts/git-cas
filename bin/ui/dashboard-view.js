@@ -3,7 +3,7 @@
  */
 
 import { badge, boxSurface, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
-import { commandPalette, dagPane, hasNotifications, helpView, interactiveAccordion, navigableTable, pagerSurface, renderNotificationStack, statusBarSurface } from '@flyingrobots/bijou-tui';
+import { commandPalette, dagPane, hasNotifications, helpView, hstackSurface, interactiveAccordion, navigableTable, pagerSurface, renderNotificationStack, statusBarSurface, vstackSurface } from '@flyingrobots/bijou-tui';
 import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
 import { inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
 import { renderDoctorReport, renderVaultStats } from './vault-report.js';
@@ -58,29 +58,6 @@ function textSurface(text, width, height) {
   return parseAnsiToSurface(text, Math.max(1, width), Math.max(1, height));
 }
 
-/**
- * Write inline items on a single row.
- *
- * @param {Surface} target
- * @param {{ x: number, y: number, parts: (Surface | string)[], maxWidth: number }} options
- */
-function blitInline(target, options) {
-  let cursor = options.x;
-  for (const part of options.parts) {
-    const surface = typeof part === 'string'
-      ? textSurface(
-        clip(part, Math.max(1, options.maxWidth - (cursor - options.x))),
-        Math.max(1, Math.min(part.length, options.maxWidth - (cursor - options.x))),
-        1,
-      )
-      : part;
-    if (cursor >= options.x + options.maxWidth) {
-      break;
-    }
-    target.blit(surface, cursor, options.y);
-    cursor += surface.width + 1;
-  }
-}
 
 /**
  * Build header badges that summarize current explorer state.
@@ -191,33 +168,21 @@ function selectedTreemapTile(model) {
  * @returns {Surface}
  */
 function renderHeaderSurface(model, deps) {
-  const surface = createSurface(Math.max(1, model.columns), 4);
-  blitInline(surface, {
-    x: 0,
-    y: 0,
-    parts: [
-      inlineSurface(deps.ctx, 'git-cas', { tone: 'brand' }),
-      inlineSurface(deps.ctx, 'repository explorer', { tone: 'secondary' }),
-    ],
-    maxWidth: surface.width,
-  });
-  blitInline(surface, {
-    x: 0,
-    y: 1,
-    parts: [
-      inlineSurface(deps.ctx, 'cwd', { tone: 'accent' }),
-      inlineSurface(deps.ctx, tailClip(deps.cwdLabel ?? '-', Math.max(1, surface.width - 5)), { tone: 'subdued' }),
-    ],
-    maxWidth: surface.width,
-  });
-  blitInline(surface, {
-    x: 0,
-    y: 2,
-    parts: [inlineSurface(deps.ctx, sourceLabel(model.source), { tone: 'primary' }), ...headerParts(model, deps.ctx)],
-    maxWidth: surface.width,
-  });
-  surface.blit(textSurface(shellRule(deps.ctx, surface.width), surface.width, 1), 0, 3);
-  return surface;
+  const w = Math.max(1, model.columns);
+  const titleRow = hstackSurface(1,
+    inlineSurface(deps.ctx, 'git-cas', { tone: 'brand' }),
+    inlineSurface(deps.ctx, 'repository explorer', { tone: 'secondary' }),
+  );
+  const cwdRow = hstackSurface(1,
+    inlineSurface(deps.ctx, 'cwd', { tone: 'accent' }),
+    inlineSurface(deps.ctx, tailClip(deps.cwdLabel ?? '-', Math.max(1, w - 5)), { tone: 'subdued' }),
+  );
+  const sourceRow = hstackSurface(1,
+    inlineSurface(deps.ctx, sourceLabel(model.source), { tone: 'primary' }),
+    ...headerParts(model, deps.ctx),
+  );
+  const ruleRow = textSurface(shellRule(deps.ctx, w), w, 1);
+  return vstackSurface(titleRow, cwdRow, sourceRow, ruleRow);
 }
 
 /**
@@ -1226,14 +1191,9 @@ function renderFooterSurface(model, ctx, width) {
     right: statusBarRight(model, ctx),
     width: barWidth,
   });
-  const hintsLine = footerHints(model, ctx);
-  const hintsSurface = textSurface(hintsLine, barWidth, 1);
   const ruleSurface = textSurface(shellRule(ctx, barWidth), barWidth, 1);
-  const footer = createSurface(barWidth, 3);
-  footer.blit(bar, 0, 0);
-  footer.blit(ruleSurface, 0, 1);
-  footer.blit(hintsSurface, 0, 2);
-  return footer;
+  const hintsSurface = textSurface(footerHints(model, ctx), barWidth, 1);
+  return vstackSurface(bar, ruleSurface, hintsSurface);
 }
 
 /**
