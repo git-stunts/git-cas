@@ -132,8 +132,8 @@ user to the migration script:
 scripts/migrate-encryption.js
 ```
 
-The migration script re-encrypts manifests in-place, upgrading them to the
-current scheme identifiers.
+The migration script migrates manifests to current scheme identifiers — renaming
+v2 schemes directly and re-encrypting v1 schemes with AAD binding.
 
 ### whole
 

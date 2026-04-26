@@ -1,7 +1,7 @@
 # STATUS
 
 **Last tagged release:** `v5.3.2` (`2026-03-15`)
-**Current package version on `main`:** `v5.3.3`
+**Current pre-release version:** `v6.0.0` (on `release/v6.0.0`)
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -17,11 +17,23 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- New encrypted stores now default to `framed`, which provides an
-  authenticated streaming encrypted restore path. `whole` remains the
-  explicit compatibility whole-object mode for `restoreStream()`, while
-  `restoreFile()` now has a bounded temp-file restore path for `whole` and
-  buffered compression modes.
+- **v6.0.0 encryption scheme simplification** — `whole-v1`/`whole-v2` collapsed
+  to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1`
+  collapsed to `convergent`. AAD is now always on. Legacy scheme strings in
+  stored manifests throw `LEGACY_SCHEME` at `readManifest()` time with
+  migration guidance.
+- **Migration script** — `npm run upgrade` (or `node scripts/migrate-encryption.js`)
+  migrates existing vault entries. Two modes: fast (rename-only for v2 schemes
+  and `convergent-v1`) and full (re-encryption for v1 whole/framed schemes that
+  lacked AAD). Defaults to dry-run.
+- **`legacyMode`** — `CasService` constructor option allows reading legacy
+  manifests without throwing `LEGACY_SCHEME`, used by the migration script.
+- **Convergent encryption** — new default scheme for CDC + encryption that
+  preserves deduplication across encrypted stores.
+- New encrypted stores default to `framed`, which provides an authenticated
+  streaming encrypted restore path. `whole` remains the explicit compatibility
+  whole-object mode for `restoreStream()`, while `restoreFile()` now has a
+  bounded temp-file restore path for `whole` and buffered compression modes.
 - Buffered `restoreStream()` / `restore()` now enforce `maxRestoreBufferSize`
   against streamed gunzip output and, on stream-native blob adapters, against
   actual blob reads instead of only manifest-estimated sizes.
@@ -49,8 +61,6 @@
 ## Active Queue Snapshot
 
 - [TR — Platform Dependency Leaks](./docs/method/backlog/bad-code/TR_platform-dependency-leaks.md)
-- [TR — CasService Decomposition Plan](./docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md)
-- [TR — RestoreFile Service Internal Coupling](./docs/method/backlog/bad-code/TR_restorefile-service-internal-coupling.md)
 
 ## Read Next
 

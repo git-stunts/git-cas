@@ -173,7 +173,7 @@ Beyond the core encryption primitives, `git-cas` enforces a set of defensive lim
 - **Source validation**: Async iterables passed to `store()` are validated before processing begins.
 - **Salt enforcement**: KDF salts must be at least 16 bytes.
 - **Nonce rotation**: Encryption count tracking warns before nonce reuse becomes a concern.
-- **Legacy scheme rejection**: Attempting to use a legacy encryption scheme (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) throws a `LEGACY_SCHEME` error with migration guidance.
+- **Legacy scheme rejection**: Attempting to use a legacy encryption scheme (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) throws a `LEGACY_SCHEME` error with migration guidance (see [UPGRADING.md](./UPGRADING.md)).
 
 ## Streaming Surface
 
@@ -241,6 +241,7 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
 - **[Security](./SECURITY.md)**: Threat models, trust boundaries, and encryption internals.
 - **[Agents](./AGENTS.md)**: JSONL agent protocol for CI/CD automation.
 - **[Workflow](./WORKFLOW.md)**: Repo work doctrine, cycles, and invariants.
+- **[Upgrading](./UPGRADING.md)**: Migration guide for v5 → v6.
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.
 
 ---

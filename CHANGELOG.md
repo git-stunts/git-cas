@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.3.3] — Unreleased
+## [6.0.0] — Unreleased
+
+### Breaking Changes
+
+- **Encryption scheme identifiers simplified** — `whole-v1`/`whole-v2` collapsed to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1` collapsed to `convergent`. Legacy v1/v2 scheme strings in stored manifests now throw `LEGACY_SCHEME` at `readManifest()` time with migration guidance. The `scheme` field in `ManifestSchema` is now required for all encryption metadata (previously optional for backward-compatible schemeless whole manifests).
+- **AAD is always on** — `whole` and `framed` encryption always bind slug-based AAD into the GCM tag. The v1 no-AAD path is removed.
+- See [UPGRADING.md](./UPGRADING.md) for the full migration guide.
 
 ### Added
 
@@ -13,17 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`CasService.readManifestRaw()`** — reads a manifest from a Git tree OID and returns the raw decoded object without Manifest construction or scheme assertion. Migration entry point for inspecting legacy manifests.
 - **`CasService` `legacyMode` constructor option** — when `true`, `readManifest()` maps legacy scheme identifiers (v1/v2) to their current names instead of throwing `LEGACY_SCHEME`. Legacy v1 manifests (no AAD) are correctly decrypted without AAD during restore.
 - **`mapToCurrentScheme()` and `isLegacyNoAad()` in `schemes.js`** — public helpers for mapping legacy scheme strings to current names and detecting v1 no-AAD schemes.
-
-### Changed
-
-- **BREAKING: Encryption scheme identifiers simplified** — `whole-v1`/`whole-v2` collapsed to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1` collapsed to `convergent`. Legacy v1/v2 scheme strings in stored manifests now throw `LEGACY_SCHEME` at `readManifest()` time with migration guidance. The `scheme` field in `ManifestSchema` is now required for all encryption metadata (previously optional for backward-compatible schemeless whole manifests).
-- **AAD is always on** — `whole` and `framed` encryption always bind slug-based AAD into the GCM tag. The v1 no-AAD path is removed.
-- **Plaintext+compressed restore is now streaming** — compressed unencrypted data uses `_restoreCompressedStreaming` instead of the buffered path, eliminating the `maxRestoreBufferSize` constraint for this case.
-- **`formatVersion` stamped into new manifests** — new manifests include a `formatVersion` field carrying the package semver at store time. The field is optional on read for backward compatibility with older manifests.
-- **`CryptoPort._buildMeta` default scheme** — changed from `'whole-v1'` to `'whole'`.
-
-### Added
-
 - **Convergent encryption (`convergent`)** — new per-chunk encryption scheme that preserves CDC deduplication across encrypted stores. Each chunk is encrypted with a deterministic key and nonce derived from its plaintext content hash via HMAC-SHA256, so identical plaintext chunks always produce identical ciphertext blobs that Git deduplicates at the object level. The scheme is the default when CDC chunking and encryption are both active. Opt out with `encryption: { convergent: false }`. Force it on any chunker with `encryption: { scheme: 'convergent' }` or `encryption: { convergent: true }`. Manifests record `{ scheme: 'convergent', algorithm: 'aes-256-gcm', encrypted: true }` with no per-chunk nonce or tag fields — those are derived from the existing `digest` field at restore time. The 16-byte GCM auth tag is appended to each blob.
 - **`CryptoPort.encryptBufferWithNonce(buffer, key, nonce)`** — new abstract method for AES-256-GCM encryption with a caller-provided nonce. Implemented in `NodeCryptoAdapter`, `BunCryptoAdapter`, and `WebCryptoAdapter`. Used by convergent encryption for deterministic ciphertext.
 - **`CryptoPort.decryptBufferWithNonceTag(buffer, key, nonce, tag)`** — new abstract method for AES-256-GCM decryption with explicit nonce and tag. Implemented in all three crypto adapters.
@@ -55,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Plaintext+compressed restore is now streaming** — compressed unencrypted data uses `_restoreCompressedStreaming` instead of the buffered path, eliminating the `maxRestoreBufferSize` constraint for this case.
+- **`formatVersion` stamped into new manifests** — new manifests include a `formatVersion` field carrying the package semver at store time. The field is optional on read for backward compatibility with older manifests.
+- **`CryptoPort._buildMeta` default scheme** — changed from `'whole-v1'` to `'whole'`.
 - **CompressionPort extraction** — `CasService` no longer imports `node:zlib`, `node:stream`, or `node:util` directly. Compression is now delegated through a `CompressionPort` abstract port with a `NodeCompressionAdapter` default implementation. The `CasService` constructor accepts an optional `compressionAdapter` parameter for injecting alternative implementations. Public API unchanged; internal refactor only.
 - **AES-GCM adapter enforcement** — Node, Bun, and Web Crypto decrypt paths now all reject malformed AES-256-GCM metadata at the adapter boundary, enforce the declared algorithm before decrypting, and reject short or malformed nonce/tag fields before any runtime-specific decrypt call runs.
 - **Buffered restore adapter contract** — hard-limited buffered restore modes now require `readBlobStream()` on the persistence adapter instead of silently degrading to whole-blob `readBlob()` fallback behavior. Plaintext restore keeps the compatibility fallback.

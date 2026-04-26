@@ -489,7 +489,7 @@ return { buffer, bytesWritten: buffer.length };
 
 Every chunk (encrypted or unencrypted) is protected by a SHA-256 digest:
 
-- **Digest computation**: When a chunk is stored, `crypto.createHash('sha256').update(buf).digest('hex')` is computed and stored in the manifest.
+- **Digest computation**: When a chunk is stored, its SHA-256 digest is computed and stored in the manifest. (The actual implementation uses the async `CryptoPort.sha256()` abstraction for runtime portability, not a direct `node:crypto` call.)
 - **Digest verification**: When a chunk is read during `restore()` or `verifyIntegrity()`, the digest is recomputed and compared.
 
 ### When Digests Are Verified

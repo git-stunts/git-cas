@@ -34,8 +34,14 @@ new ContentAddressableStore(options);
 - `options.chunkSize` (optional): Chunk size in bytes (default: 262144 / 256 KiB)
 - `options.codec` (optional): CodecPort implementation (default: JsonCodec)
 - `options.crypto` (optional): CryptoPort implementation (default: auto-detected)
+- `options.observability` (optional): ObservabilityPort implementation (default: SilentObserver)
 - `options.policy` (optional): Resilience policy from `@git-stunts/alfred` for Git I/O
 - `options.merkleThreshold` (optional): Chunk count threshold for Merkle manifests (default: 1000)
+- `options.concurrency` (optional): Maximum parallel chunk I/O operations (default: 1)
+- `options.chunking` (optional): Declarative chunking strategy config `{ strategy: 'fixed'|'cdc', chunkSize?, targetChunkSize?, minChunkSize?, maxChunkSize? }`
+- `options.chunker` (optional): Pre-built ChunkingPort instance (advanced; overrides `chunking`)
+- `options.maxRestoreBufferSize` (optional): Max bytes for buffered encrypted/compressed restore (default: 536870912 / 512 MiB)
+- `options.compressionAdapter` (optional): CompressionPort implementation (default: NodeCompressionAdapter)
 
 **Example:**
 
@@ -111,10 +117,26 @@ Lazily initializes and returns the underlying CasService instance.
 const service = await cas.getService();
 ```
 
+#### getVaultService
+
+```javascript
+await cas.getVaultService();
+```
+
+Lazily initializes and returns the underlying VaultService instance.
+
+**Returns:** `Promise<VaultService>`
+
+**Example:**
+
+```javascript
+const vaultService = await cas.getVaultService();
+```
+
 #### store
 
 ```javascript
-await cas.store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression });
+await cas.store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients });
 ```
 
 Stores content from an async iterable source.
@@ -131,6 +153,7 @@ Stores content from an async iterable source.
 - `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed record (default `65536`)
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`). New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
+- `recipients` (optional): `Array<{ label: string, key: Buffer }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
 
 **Returns:** `Promise<Manifest>`
 
@@ -171,6 +194,7 @@ await cas.storeFile({
   encryption,
   kdfOptions,
   compression,
+  recipients,
 });
 ```
 
@@ -188,6 +212,7 @@ Convenience method that opens a file and stores it.
 - `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed record (default `65536`)
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase`. New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
+- `recipients` (optional): `Array<{ label: string, key: Buffer }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
 
 **Returns:** `Promise<Manifest>`
 
@@ -1132,7 +1157,7 @@ Core domain service implementing CAS operations. Usually accessed via ContentAdd
 ### Constructor
 
 ```javascript
-new CasService({ persistence, codec, crypto, chunkSize, merkleThreshold });
+new CasService({ persistence, codec, crypto, observability, chunkSize, merkleThreshold, concurrency, chunker, compressionAdapter, maxRestoreBufferSize, formatVersion, legacyMode });
 ```
 
 **Parameters:**
@@ -1140,13 +1165,23 @@ new CasService({ persistence, codec, crypto, chunkSize, merkleThreshold });
 - `persistence` (required): `GitPersistencePort` implementation
 - `codec` (required): `CodecPort` implementation
 - `crypto` (required): `CryptoPort` implementation
+- `observability` (required): `ObservabilityPort` implementation
 - `chunkSize` (optional): `number` - Chunk size in bytes (default: 262144, minimum: 1024)
 - `merkleThreshold` (optional): `number` - Chunk count threshold for Merkle manifests (default: 1000)
+- `concurrency` (optional): `number` - Maximum parallel chunk I/O operations (default: 1, max: 64)
+- `chunker` (required): `ChunkingPort` - Chunking strategy instance (e.g., `FixedChunker`, `CdcChunker`)
+- `compressionAdapter` (required): `CompressionPort` - Compression adapter (e.g., `NodeCompressionAdapter`)
+- `maxRestoreBufferSize` (optional): `number` - Max bytes for buffered encrypted/compressed restore (default: 536870912 / 512 MiB)
+- `formatVersion` (optional): `string` - Semver version stamped into new manifests
+- `legacyMode` (optional): `boolean` - When true, allows reading manifests with legacy encryption schemes (default: false)
 
 **Throws:**
 
 - `Error` if chunkSize is less than 1024 bytes
 - `Error` if merkleThreshold is not a positive integer
+- `Error` if chunker is not provided
+- `Error` if compressionAdapter is not provided
+- `Error` if observability does not implement ObservabilityPort
 
 **Example:**
 
@@ -1168,16 +1203,90 @@ const service = new CasService({
 
 All methods from ContentAddressableStore delegate to CasService. See ContentAddressableStore documentation above for:
 
-- `store({ source, slug, filename, encryptionKey, passphrase, kdfOptions, compression })`
+- `store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients })`
 - `restore({ manifest, encryptionKey, passphrase })`
+- `restoreStream({ manifest, encryptionKey, passphrase })`
 - `createTree({ manifest })`
 - `verifyIntegrity(manifest, { encryptionKey, passphrase })`
 - `readManifest({ treeOid })`
-- `deleteAsset({ treeOid })`
-- `findOrphanedChunks({ treeOids })`
+- `inspectAsset({ treeOid })`
+- `collectReferencedChunks({ treeOids })`
+- `addRecipient({ manifest, existingKey, newRecipientKey, label })`
+- `removeRecipient({ manifest, label })`
+- `listRecipients(manifest)` — **synchronous** on CasService (returns `string[]`, not a Promise)
+- `rotateKey({ manifest, oldKey, newKey, label })`
 - `encrypt({ buffer, key })`
 - `decrypt({ buffer, key, meta })`
 - `deriveKey(options)`
+- `deleteAsset({ treeOid })` — **deprecated**, use `inspectAsset`
+- `findOrphanedChunks({ treeOids })` — **deprecated**, use `collectReferencedChunks`
+
+#### CasService-only methods
+
+The following methods are available only on CasService (not on the facade):
+
+##### readManifestRaw
+
+```javascript
+await service.readManifestRaw({ treeOid });
+```
+
+Reads a manifest from a Git tree OID and returns the raw decoded object WITHOUT Manifest construction or scheme assertion. This is the migration entry point -- it can read manifests with legacy encryption scheme identifiers that the normal `readManifest` rejects.
+
+**Parameters:**
+
+- `treeOid` (required): `string` - Git tree OID
+
+**Returns:** `Promise<Record<string, unknown>>` - Raw decoded manifest data
+
+**Throws:**
+
+- `CasError` with code `MANIFEST_NOT_FOUND` if no manifest entry exists in the tree
+- `CasError` with code `GIT_ERROR` if the underlying Git command fails
+
+**Example:**
+
+```javascript
+const service = await cas.getService();
+const raw = await service.readManifestRaw({ treeOid });
+console.log(raw.slug, raw.encryption?.scheme);
+```
+
+##### createFileRestorePlan
+
+```javascript
+await service.createFileRestorePlan({ manifest, encryptionKey, passphrase });
+```
+
+Creates a named restore plan for file publication without leaking internal helper coupling into infrastructure adapters. `stream` plans can be piped directly to the destination file. `bounded-file` plans preserve the whole-object auth boundary by writing to a temp file and only publishing on success.
+
+**Parameters:**
+
+- `manifest` (required): `Manifest` - The file manifest
+- `encryptionKey` (optional): `Buffer` - 32-byte encryption key
+- `passphrase` (optional): `string` - Passphrase for KDF-based decryption
+
+**Returns:** `Promise<FileRestorePlan>`
+
+```typescript
+interface FileRestorePlan {
+  mode: 'stream' | 'bounded-file';
+  source: AsyncIterable<Buffer>;
+  encryptionMeta?: EncryptionMeta;
+}
+```
+
+**Example:**
+
+```javascript
+const service = await cas.getService();
+const plan = await service.createFileRestorePlan({ manifest, encryptionKey });
+if (plan.mode === 'stream') {
+  // Pipe plan.source directly to disk
+} else {
+  // Write to temp, rename on success
+}
+```
 
 ### EventEmitter
 
@@ -1599,7 +1708,7 @@ Computes SHA-256 hash.
 
 - `buf`: `Buffer` - Data to hash
 
-**Returns:** `string` - 64-character hex digest
+**Returns:** `Promise<string>` - 64-character hex digest
 
 ##### randomBytes
 
@@ -1618,7 +1727,7 @@ Generates cryptographically random bytes.
 ##### encryptBuffer
 
 ```javascript
-port.encryptBuffer(buffer, key);
+port.encryptBuffer(buffer, key, aad);
 ```
 
 Encrypts a buffer using AES-256-GCM.
@@ -1627,13 +1736,14 @@ Encrypts a buffer using AES-256-GCM.
 
 - `buffer`: `Buffer` - Data to encrypt
 - `key`: `Buffer` - 32-byte encryption key
+- `aad` (optional): `Buffer | Uint8Array` - Additional authenticated data (AAD)
 
-**Returns:** `{ buf: Buffer, meta: { algorithm: string, nonce: string, tag: string, encrypted: boolean } }`
+**Returns:** `{ buf: Buffer, meta: { algorithm: string, nonce: string, tag: string, encrypted: boolean } } | Promise<...>`
 
 ##### decryptBuffer
 
 ```javascript
-port.decryptBuffer(buffer, key, meta);
+port.decryptBuffer(buffer, key, meta, aad);
 ```
 
 Decrypts a buffer using AES-256-GCM.
@@ -1643,15 +1753,16 @@ Decrypts a buffer using AES-256-GCM.
 - `buffer`: `Buffer` - Encrypted data
 - `key`: `Buffer` - 32-byte encryption key
 - `meta`: `Object` - Encryption metadata with `algorithm`, `nonce`, `tag`, `encrypted`
+- `aad` (optional): `Buffer | Uint8Array` - Additional authenticated data (AAD). Must match the AAD used during encryption
 
-**Returns:** `Buffer` - Decrypted data
+**Returns:** `Buffer | Promise<Buffer>` - Decrypted data
 
 **Throws:** On authentication failure
 
 ##### createEncryptionStream
 
 ```javascript
-port.createEncryptionStream(key);
+port.createEncryptionStream(key, aad);
 ```
 
 Creates a streaming encryption context.
@@ -1659,11 +1770,80 @@ Creates a streaming encryption context.
 **Parameters:**
 
 - `key`: `Buffer` - 32-byte encryption key
+- `aad` (optional): `Buffer | Uint8Array` - Additional authenticated data (AAD)
 
 **Returns:** `{ encrypt: Function, finalize: Function }`
 
 - `encrypt`: `(source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>` - Transform function
 - `finalize`: `() => { algorithm: string, nonce: string, tag: string, encrypted: boolean }` - Get metadata
+
+##### createDecryptionStream
+
+```javascript
+port.createDecryptionStream(key, meta, aad);
+```
+
+Creates a streaming decryption context. The returned stream may yield tentative plaintext before final auth succeeds, so callers must control publication semantics themselves.
+
+**Parameters:**
+
+- `key`: `Buffer` - 32-byte encryption key
+- `meta`: `Object` - Encryption metadata from the encrypt operation
+- `aad` (optional): `Buffer | Uint8Array` - Additional authenticated data (AAD). Must match the AAD used during encryption
+
+**Returns:** `{ decrypt: Function }`
+
+- `decrypt`: `(source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>` - Transform function
+
+##### hmacSha256
+
+```javascript
+port.hmacSha256(key, data);
+```
+
+Computes HMAC-SHA256 of the given data with the given key.
+
+**Parameters:**
+
+- `key`: `Buffer | Uint8Array` - HMAC key
+- `data`: `Buffer | Uint8Array | string` - Data to authenticate
+
+**Returns:** `Buffer` - 32-byte HMAC digest
+
+##### encryptBufferWithNonce
+
+```javascript
+port.encryptBufferWithNonce(buffer, key, nonce);
+```
+
+Encrypts a buffer using AES-256-GCM with a caller-provided nonce. Used by convergent encryption where the nonce must be deterministic (derived from content hash) to enable deduplication.
+
+**Parameters:**
+
+- `buffer`: `Buffer | Uint8Array` - Plaintext to encrypt
+- `key`: `Buffer | Uint8Array` - 32-byte encryption key
+- `nonce`: `Buffer | Uint8Array` - 12-byte nonce (IV)
+
+**Returns:** `{ buf: Buffer, tag: Buffer } | Promise<{ buf: Buffer, tag: Buffer }>`
+
+##### decryptBufferWithNonceTag
+
+```javascript
+port.decryptBufferWithNonceTag(buffer, key, nonce, tag);
+```
+
+Decrypts a buffer using AES-256-GCM with explicit nonce and tag. Used by convergent encryption to decrypt per-chunk ciphertext where the nonce and tag are stored/derived externally.
+
+**Parameters:**
+
+- `buffer`: `Buffer | Uint8Array` - Ciphertext to decrypt
+- `key`: `Buffer | Uint8Array` - 32-byte encryption key
+- `nonce`: `Buffer | Uint8Array` - 12-byte nonce (IV)
+- `tag`: `Buffer | Uint8Array` - 16-byte GCM authentication tag
+
+**Returns:** `Buffer | Promise<Buffer>`
+
+**Throws:** On authentication failure
 
 ##### deriveKey
 
@@ -1697,22 +1877,38 @@ import CryptoPort from 'git-cas/src/ports/CryptoPort.js';
 
 class CustomCryptoAdapter extends CryptoPort {
   sha256(buf) {
-    // Implementation
+    // Implementation — returns Promise<string>
   }
 
   randomBytes(n) {
     // Implementation
   }
 
-  encryptBuffer(buffer, key) {
+  encryptBuffer(buffer, key, aad) {
     // Implementation
   }
 
-  decryptBuffer(buffer, key, meta) {
+  decryptBuffer(buffer, key, meta, aad) {
     // Implementation
   }
 
-  createEncryptionStream(key) {
+  createEncryptionStream(key, aad) {
+    // Implementation
+  }
+
+  createDecryptionStream(key, meta, aad) {
+    // Implementation
+  }
+
+  hmacSha256(key, data) {
+    // Implementation
+  }
+
+  encryptBufferWithNonce(buffer, key, nonce) {
+    // Implementation
+  }
+
+  decryptBufferWithNonceTag(buffer, key, nonce, tag) {
     // Implementation
   }
 

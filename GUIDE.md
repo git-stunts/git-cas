@@ -294,7 +294,7 @@ Manifests created with earlier versions may use v1/v2 scheme identifiers (`whole
 node scripts/migrate-encryption.js
 ```
 
-The migration script exports the canonical legacy-to-current scheme mapping. Full migration orchestration is not yet implemented. The main `src/` codebase throws `LEGACY_SCHEME` if it encounters a v1/v2 identifier.
+The migration script handles both fast (rename-only for v2 schemes) and full (re-encryption with AAD for v1 schemes) migration paths. The main `src/` codebase throws `LEGACY_SCHEME` if it encounters a v1/v2 identifier.
 
 ---
 
