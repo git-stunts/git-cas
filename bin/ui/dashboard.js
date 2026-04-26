@@ -941,6 +941,25 @@ function applyFilter(entries, text) {
 }
 
 /**
+ * Sort entries by manifest size descending, biggest first.
+ * Entries without a loaded manifest sort to the bottom by slug.
+ *
+ * @param {VaultEntry[]} entries
+ * @param {Map<string, Manifest>} manifestCache
+ * @returns {VaultEntry[]}
+ */
+function sortBySize(entries, manifestCache) {
+  return [...entries].sort((a, b) => {
+    const ma = manifestCache.get(a.slug);
+    const mb = manifestCache.get(b.slug);
+    const sa = ma ? (ma.toJSON ? ma.toJSON() : ma).size ?? 0 : -1;
+    const sb = mb ? (mb.toJSON ? mb.toJSON() : mb).size ?? 0 : -1;
+    if (sa === sb) { return a.slug.localeCompare(b.slug); }
+    return sb - sa;
+  });
+}
+
+/**
  * Handle the loaded-entries message.
  *
  * @param {DashMsg & { type: 'loaded-entries' }} msg
@@ -952,7 +971,7 @@ function handleLoadedEntries(msg, model, cas) {
   if (!sourceEquals(msg.source, model.source)) {
     return [model, []];
   }
-  const filtered = applyFilter(msg.entries, model.filterText);
+  const filtered = sortBySize(applyFilter(msg.entries, model.filterText), model.manifestCache);
   const table = syncTable(model.table, {
     entries: filtered,
     manifestCache: model.manifestCache,
@@ -988,12 +1007,13 @@ function handleLoadedManifest(msg, model, ctx) {
   }
   const cache = new Map(model.manifestCache);
   cache.set(msg.slug, msg.manifest);
+  const filtered = sortBySize(model.filtered, cache);
   const table = syncTable(model.table, {
-    entries: model.filtered,
+    entries: filtered,
     manifestCache: cache,
     rows: model.rows,
   });
-  const selectedSlug = model.filtered[model.table.focusRow]?.slug;
+  const selectedSlug = filtered[model.table.focusRow]?.slug;
   const detailPager = selectedSlug === msg.slug
     ? buildDetailPager(msg.manifest, ctx, model.rows)
     : model.detailPager;
@@ -1003,6 +1023,7 @@ function handleLoadedManifest(msg, model, ctx) {
   return [{
     ...model,
     manifestCache: cache,
+    filtered,
     loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug,
     table,
     detailPager,
@@ -1055,7 +1076,7 @@ function handleFilterKey(msg, model) {
   }
   if (msg.key === 'backspace') {
     const text = model.filterText.slice(0, -1);
-    const filtered = applyFilter(model.entries, text);
+    const filtered = sortBySize(applyFilter(model.entries, text), model.manifestCache);
     const table = syncTable(model.table, {
       entries: filtered,
       manifestCache: model.manifestCache,
@@ -1067,7 +1088,7 @@ function handleFilterKey(msg, model) {
   }
   if (msg.key.length === 1) {
     const text = model.filterText + msg.key;
-    const filtered = applyFilter(model.entries, text);
+    const filtered = sortBySize(applyFilter(model.entries, text), model.manifestCache);
     const table = syncTable(model.table, {
       entries: filtered,
       manifestCache: model.manifestCache,
