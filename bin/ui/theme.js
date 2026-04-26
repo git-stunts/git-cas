@@ -5,7 +5,7 @@
  * voice with a small, consistent set of semantic color roles.
  */
 
-import { parseAnsiToSurface } from '@flyingrobots/bijou';
+import { parseAnsiToSurface, extendTheme, CYAN_MAGENTA } from '@flyingrobots/bijou';
 
 export const GIT_CAS_PALETTE = {
   ivory: [246, 239, 221],
@@ -27,6 +27,33 @@ export const GIT_CAS_PALETTE = {
   smoke: [92, 104, 125],
   ink: [12, 16, 24],
 };
+
+/**
+ * Convert an [r, g, b] palette tuple to a TokenValue hex string.
+ *
+ * @param {[number, number, number]} rgb
+ * @returns {string}
+ */
+function rgbToHex(rgb) {
+  return `#${rgb.map((ch) => ch.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Bijou v5 theme derived from the git-cas palette.
+ *
+ * Extends the CYAN_MAGENTA base with git-cas semantic color overrides.
+ * Dashboard views will pass this to `startApp()` once the full framed-app
+ * migration is complete; for now it is exported for incremental adoption.
+ */
+export const GIT_CAS_THEME = extendTheme(CYAN_MAGENTA, {
+  status: {
+    success: { hex: rgbToHex(GIT_CAS_PALETTE.lime) },
+    warning: { hex: rgbToHex(GIT_CAS_PALETTE.brass) },
+    error: { hex: rgbToHex(GIT_CAS_PALETTE.ruby) },
+    info: { hex: rgbToHex(GIT_CAS_PALETTE.sky) },
+    muted: { hex: rgbToHex(GIT_CAS_PALETTE.slate) },
+  },
+});
 
 const TEXT_TONES = {
   brand: { fg: GIT_CAS_PALETTE.brass, bold: true },

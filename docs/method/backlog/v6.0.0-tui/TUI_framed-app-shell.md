@@ -59,6 +59,11 @@ The current bootstrap path is ~70 lines of plumbing spread across `context.js` a
 - [ ] All existing unit tests pass without modification (or are updated to use `startApp` mocks)
 - [ ] `npx eslint .` reports 0 errors
 
+## Status
+
+- [x] Phase 1 resolved — `startApp` replaces `run`, `GIT_CAS_THEME` defined
+- [ ] Phase 2 pending — full `createFramedApp` with pages (enables tabs)
+
 ## Effort
 
 Large

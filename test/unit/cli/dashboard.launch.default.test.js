@@ -18,15 +18,11 @@ beforeEach(() => {
 
 describe('launchDashboard default context path', () => {
   it('stays interactive on a tty when NO_COLOR is set', async () => {
-    vi.doMock('@flyingrobots/bijou-tui', async () => {
-      const actual = await vi.importActual('@flyingrobots/bijou-tui');
-      return { ...actual, run: runMock };
-    });
-
     vi.doMock('@flyingrobots/bijou-node', async () => {
       const actual = await vi.importActual('@flyingrobots/bijou-node');
       return {
         ...actual,
+        startApp: runMock,
         nodeRuntime: () => mockRuntime({
           env: { NO_COLOR: '1', TERM: 'xterm-256color' },
           stdoutIsTTY: true,

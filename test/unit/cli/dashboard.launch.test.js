@@ -3,9 +3,9 @@ import { makeCtx, makeInteractiveRuntime } from './_testContext.js';
 
 const runMock = vi.fn().mockResolvedValue(undefined);
 
-vi.mock('@flyingrobots/bijou-tui', async () => {
-  const actual = await vi.importActual('@flyingrobots/bijou-tui');
-  return { ...actual, run: runMock };
+vi.mock('@flyingrobots/bijou-node', async () => {
+  const actual = await vi.importActual('@flyingrobots/bijou-node');
+  return { ...actual, startApp: runMock };
 });
 
 const { launchDashboard } = await import('../../../bin/ui/dashboard.js');

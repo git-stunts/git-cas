@@ -2,8 +2,9 @@
  * TEA app shell for the vault dashboard.
  */
 
+import { startApp } from '@flyingrobots/bijou-node';
 import {
-  run, quit, tick, createKeyMap,
+  quit, tick, createKeyMap,
   createNavigableTableState, navTableFocusNext, navTableFocusPrev, navTablePageDown, navTablePageUp,
   createSplitPaneState, splitPaneFocusNext, splitPaneResizeBy,
   createCommandPaletteState, cpFilter, cpFocusNext, cpFocusPrev, cpPageDown, cpPageUp, cpSelectedItem, commandPaletteKeyMap,
@@ -2035,8 +2036,8 @@ function normalizeLaunchContext(ctx) {
  * @param {ContentAddressableStore} cas
  * @param {{
  *   ctx?: BijouContext,
- *   runApp?: typeof run,
-  *   cwd?: string,
+ *   runApp?: typeof startApp,
+ *   cwd?: string,
  *   source?: DashSource,
  *   output?: Pick<NodeJS.WriteStream, 'write'>,
  * }} [options]
@@ -2049,6 +2050,6 @@ export async function launchDashboard(cas, options = {}) {
   }
   const keyMap = createKeyBindings();
   const deps = { keyMap, cas, ctx, cwdLabel: options.cwd, source };
-  const runApp = options.runApp || run;
+  const runApp = options.runApp || startApp;
   return runApp(createDashboardApp(deps), { ctx });
 }
