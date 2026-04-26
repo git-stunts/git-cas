@@ -862,14 +862,38 @@ function buildRefsViewport(options) {
  * @param {{ width: number, height: number }} size
  * @returns {string}
  */
+/**
+ * Resolve the scroll start index that keeps the focused row visible.
+ *
+ * Variable-height ref rows mean the model's scrollY is an approximation.
+ * This selector adjusts it so the focused row is guaranteed visible.
+ *
+ * @param {{ items: import('./dashboard-cmds.js').RefInventoryItem[], focusRow: number, scrollY: number }} state
+ * @param {{ width: number, height: number, ctx: BijouContext }} size
+ * @returns {number}
+ */
+function resolveRefsScrollStart(state, size) {
+  const focusRow = Math.max(0, Math.min(state.focusRow, state.items.length - 1));
+  let start = Math.max(0, Math.min(state.scrollY, state.items.length - 1));
+  let viewport = buildRefsViewport({ ...state, focusRow, startIndex: start, ...size });
+  while (!viewport.visibleFocus && start < focusRow) {
+    start += 1;
+    viewport = buildRefsViewport({ ...state, focusRow, startIndex: start, ...size });
+  }
+  return start;
+}
+
 function renderRefsListBody(model, deps, size) {
   if (model.refsStatus !== 'ready') {
     return renderRefsListStatusBody(model, size.width);
   }
 
   const focusRow = Math.max(0, Math.min(model.refsTable.focusRow, model.refsItems.length - 1));
-  let start = Math.max(0, Math.min(model.refsTable.scrollY, model.refsItems.length - 1));
-  let viewport = buildRefsViewport({
+  const start = resolveRefsScrollStart(
+    { items: model.refsItems, focusRow, scrollY: model.refsTable.scrollY },
+    { width: size.width, height: size.height, ctx: deps.ctx },
+  );
+  const viewport = buildRefsViewport({
     items: model.refsItems,
     focusRow,
     startIndex: start,
@@ -877,17 +901,6 @@ function renderRefsListBody(model, deps, size) {
     height: size.height,
     ctx: deps.ctx,
   });
-  while (!viewport.visibleFocus && start < focusRow) {
-    start += 1;
-    viewport = buildRefsViewport({
-      items: model.refsItems,
-      focusRow,
-      startIndex: start,
-      width: size.width,
-      height: size.height,
-      ctx: deps.ctx,
-    });
-  }
 
   return viewport.lines.join('\n');
 }
