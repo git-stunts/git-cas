@@ -1505,6 +1505,10 @@ function renderNotifications(model, deps, options) {
  * @returns {Surface}
  */
 export function renderDashboard(model, deps) {
+  if (model.phase === 'title' || model.phase === 'password') {
+    return renderTitleScreen(model, deps);
+  }
+
   const width = Math.max(1, model.columns);
   const height = Math.max(1, model.rows);
   const screen = createSurface(width, height);
@@ -1517,6 +1521,50 @@ export function renderDashboard(model, deps) {
   renderBody(model, deps, { top: bodyTop, height: bodyHeight, screen });
   renderOverlays(model, deps, { top: bodyTop, height: bodyHeight, screen });
   screen.blit(footer, 0, Math.max(0, height - footer.height));
+
+  return screen;
+}
+
+/**
+ * Render the full-screen title/password screen.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {Surface}
+ */
+function renderTitleScreen(model, deps) {
+  const width = Math.max(1, model.columns);
+  const height = Math.max(1, model.rows);
+  const screen = createSurface(width, height);
+  const ctx = deps.ctx;
+
+  const titleLines = [
+    themeText(ctx, 'git-cas', { tone: 'brand', bold: true }),
+    themeText(ctx, 'content-addressable storage', { tone: 'secondary' }),
+    '',
+  ];
+
+  if (model.phase === 'title') {
+    titleLines.push(themeText(ctx, 'Checking vault...', { tone: 'subdued' }));
+  } else {
+    titleLines.push(themeText(ctx, 'Vault is encrypted. Enter passphrase to unlock.', { tone: 'warning' }));
+    titleLines.push('');
+    const mask = '\u2022'.repeat(model.passphrase.length);
+    titleLines.push(`  ${themeText(ctx, 'Passphrase:', { tone: 'accent' })} ${mask}\u2588`);
+    if (model.authError) {
+      titleLines.push('');
+      titleLines.push(`  ${themeText(ctx, model.authError, { tone: 'danger' })}`);
+    }
+    titleLines.push('');
+    titleLines.push(themeText(ctx, 'enter to unlock  |  escape to quit', { tone: 'subdued' }));
+  }
+
+  const body = titleLines.join('\n');
+  const bodyLines = body.split('\n').length;
+  const surface = parseAnsiToSurface(body, width, bodyLines);
+  const y = Math.max(0, Math.floor((height - bodyLines) / 3));
+  const x = Math.max(0, Math.floor((width - 50) / 2));
+  screen.blit(surface, x, y);
 
   return screen;
 }

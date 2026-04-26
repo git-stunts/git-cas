@@ -211,6 +211,7 @@
   },
   "active": "b2fe1794833835a5",
   "lastOpenFiles": [
+    "vitest.config.js.timestamp-1777236244426-6e83e0d1a1ad8.mjs",
     "bin/ui/blocks/operation-feed.js",
     "bin/ui/blocks/merkle-explorer.js",
     "bin/ui/blocks/health-dashboard.js",
@@ -223,7 +224,6 @@
     "output-merkle3.txt",
     "output-health2.txt",
     "output-merkle2.txt",
-    "output-dash-help.txt",
     "docs/method/backlog/v6.0.0-polish/POL-017_heatmap-block.md",
     "docs/method/backlog/v6.0.0-polish/POL-016_operation-feed-block.md",
     "docs/method/backlog/v6.0.0-polish/POL-015_wizard-block.md",

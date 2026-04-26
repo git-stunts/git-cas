@@ -255,6 +255,105 @@ function checkVaultAuthCmd(cas, source) {
 }
 
 /**
+ * Handle the vault auth check result.
+ *
+ * @param {{ type: 'vault-auth-check', encrypted: boolean, source: DashSource }} msg
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleVaultAuthCheck(msg, model, deps) {
+  if (msg.encrypted) {
+    return [{ ...model, phase: 'password' }, []];
+  }
+  return handleVaultAuthOk(model, deps);
+}
+
+/**
+ * Transition from title/password to the main dashboard.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleVaultAuthOk(model, deps) {
+  return [{
+    ...model,
+    phase: 'dashboard',
+    authError: null,
+  }, [
+    /** @type {DashCmd} */ (loadEntriesCmd(deps.cas, deps.source)),
+    /** @type {DashCmd} */ (loadBranchCmd(deps.cas)),
+  ]];
+}
+
+/**
+ * Command to verify a passphrase against the vault.
+ *
+ * @param {ContentAddressableStore} cas
+ * @param {string} passphrase
+ * @returns {DashCmd}
+ */
+function verifyPassphraseCmd(cas, passphrase) {
+  return async (/** @type {(msg: DashMsg) => void} */ dispatch) => {
+    try {
+      const entries = await cas.listVault();
+      if (entries.length === 0) {
+        dispatch({ type: 'vault-auth-ok' });
+        return;
+      }
+      const first = entries[0];
+      await cas.readManifest({ treeOid: first.treeOid, passphrase });
+      dispatch({ type: 'vault-auth-ok' });
+    } catch (/** @type {any} */ err) {
+      const msg = err.code === 'INTEGRITY_ERROR' ? 'Wrong passphrase' : (err.message ?? String(err));
+      dispatch({ type: 'vault-auth-fail', error: msg });
+    }
+  };
+}
+
+/**
+ * Handle key events during the title screen.
+ *
+ * @param {KeyMsg} msg
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handleTitleKey(msg, model) {
+  if (msg.key === 'q') {
+    return [model, [quit()]];
+  }
+  return [model, []];
+}
+
+/**
+ * Handle key events during the password entry phase.
+ *
+ * @param {KeyMsg} msg
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]]}
+ */
+function handlePasswordKey(msg, model, deps) {
+  if (msg.key === 'q' && msg.ctrl) {
+    return [model, [quit()]];
+  }
+  if (msg.key === 'escape') {
+    return [model, [quit()]];
+  }
+  if (msg.key === 'enter' && model.passphrase.length > 0) {
+    return [{ ...model, authError: null }, [verifyPassphraseCmd(deps.cas, model.passphrase)]];
+  }
+  if (msg.key === 'backspace') {
+    return [{ ...model, passphrase: model.passphrase.slice(0, -1), authError: null }, []];
+  }
+  if (msg.key.length === 1 && !msg.ctrl && !msg.alt) {
+    return [{ ...model, passphrase: model.passphrase + msg.key, authError: null }, []];
+  }
+  return [model, []];
+}
+
+/**
  * Start a view transition if motion is enabled.
  * Uses a timestamp so progress is computed at render time without extra commands.
  *
@@ -2170,6 +2269,23 @@ function handleLoadError(msg, model) {
  * @param {DashDeps} deps
  * @returns {[DashModel, DashCmd[]]}
  */
+/**
+ * Handle auth and wizard lifecycle messages.
+ *
+ * @param {DashMsg} msg
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]] | null}
+ */
+function handleLifecycleMsg(msg, model, deps) {
+  if (msg.type === 'vault-auth-check') { return handleVaultAuthCheck(msg, model, deps); }
+  if (msg.type === 'vault-auth-ok') { return handleVaultAuthOk(model, deps); }
+  if (msg.type === 'vault-auth-fail') { return [{ ...model, authError: msg.error, passphrase: '' }, []]; }
+  if (msg.type === 'wizard-store-done') { return handleWizardDone(msg, model, deps); }
+  if (msg.type === 'wizard-store-error') { return handleWizardError(msg, model); }
+  return null;
+}
+
 function handleAppMsg(msg, model, deps) {
   if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, deps.cas); }
   if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model, deps.ctx); }
@@ -2178,11 +2294,8 @@ function handleAppMsg(msg, model, deps) {
     const notifications = tickNotifications(model.notifications, Date.now());
     return [{ ...model, notifications }, notificationTickCmds(notifications)];
   }
-  if (msg.type === 'vault-auth-check') { return handleVaultAuthCheck(msg, model, deps); }
-  if (msg.type === 'vault-auth-ok') { return handleVaultAuthOk(model, deps); }
-  if (msg.type === 'vault-auth-fail') { return [{ ...model, authError: msg.error, passphrase: '' }, []]; }
-  if (msg.type === 'wizard-store-done') { return handleWizardDone(msg, model, deps); }
-  if (msg.type === 'wizard-store-error') { return handleWizardError(msg, model); }
+  const lifecycle = handleLifecycleMsg(msg, model, deps);
+  if (lifecycle) { return lifecycle; }
   if (msg.type === 'load-error') { return handleLoadError(msg, model); }
   return handleLoadedReport(msg, model);
 }
@@ -2267,25 +2380,30 @@ function runtimeSymbolAction(msg) {
  * @param {DashDeps} deps
  * @returns {[DashModel, DashCmd[]]}
  */
-function handleKeyMsg(msg, model, deps) {
+/**
+ * Handle key events in modal states (quit confirm, palette, filter, wizard, dag).
+ *
+ * @param {KeyMsg} msg
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @returns {[DashModel, DashCmd[]] | null}
+ */
+function handleModalKey(msg, model, deps) {
   if (model.quitConfirm) {
-    if (msg.key === 'q' || msg.key === 'y') {
-      return [model, [quit()]];
-    }
-    return [{ ...model, quitConfirm: false }, []];
+    return (msg.key === 'q' || msg.key === 'y') ? [model, [quit()]] : [{ ...model, quitConfirm: false }, []];
   }
-  if (model.palette) {
-    return handlePaletteKey(msg, model, deps);
-  }
-  if (model.filtering) {
-    return handleFilterKey(msg, model);
-  }
-  if (model.storeWizard) {
-    return handleWizardKey(msg, model, deps);
-  }
-  if (model.dagPane) {
-    return handleDagKey(msg, model, deps);
-  }
+  if (model.palette) { return handlePaletteKey(msg, model, deps); }
+  if (model.filtering) { return handleFilterKey(msg, model); }
+  if (model.storeWizard) { return handleWizardKey(msg, model, deps); }
+  if (model.dagPane) { return handleDagKey(msg, model, deps); }
+  return null;
+}
+
+function handleKeyMsg(msg, model, deps) {
+  if (model.phase === 'title') { return handleTitleKey(msg, model); }
+  if (model.phase === 'password') { return handlePasswordKey(msg, model, deps); }
+  const modal = handleModalKey(msg, model, deps);
+  if (modal) { return modal; }
   const action = runtimeSymbolAction(msg) ?? deps.keyMap.handle(msg);
   if (action) { return handleAction(action, model, deps); }
   return [model, []];

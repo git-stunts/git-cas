@@ -315,11 +315,12 @@ function makeFullScreenTreemapModel() {
 }
 
 describe('dashboard initialization', () => {
-  it('init returns loading model with one cmd', () => {
+  it('init returns title phase with auth check cmd', () => {
     const app = createDashboardApp(makeDeps());
     const [model, cmds] = app.init();
+    expect(model.phase).toBe('title');
     expect(model.status).toBe('loading');
-    expect(cmds).toHaveLength(2);
+    expect(cmds).toHaveLength(1);
     expect(model.viewMode).toBe('list');
   });
 });
