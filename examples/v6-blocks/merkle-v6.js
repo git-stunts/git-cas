@@ -89,8 +89,25 @@ const app = {
     const width = ctx.runtime.columns;
     const height = ctx.runtime.rows;
 
-    const headerStr = `git-cas Merkle Lens | [Tab] Toggle Mode | [q] Quit\n`;
+    const headerStr = `git-cas Merkle Lens | [Tab] Toggle Mode | [?] Help | [q] Quit\n`;
     const header = text(headerStr, ctx);
+    
+    const bodyHeight = height - header.height;
+    const body = MerkleLensBlock({ mode: model.mode, ctx, width, height: bodyHeight });
+    const screen = vstackSurface(header, body);
+    
+    if (model.showHelp) {
+      const help = HelpOverlay({ ctx });
+      screen.blit(help, Math.max(0, Math.floor((width - help.width) / 2)), Math.max(0, Math.floor((height - help.height) / 2)));
+    }
+
+    return screen;
+  }
+};
+
+console.log('Starting Merkle Lens Mock-up... (Press Tab to toggle mode)');
+await run(app, { ctx });
+t header = text(headerStr, ctx);
     
     const bodyHeight = height - header.height;
     const body = MerkleLensBlock({ mode: model.mode, ctx, width, height: bodyHeight });

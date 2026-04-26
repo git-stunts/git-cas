@@ -700,7 +700,7 @@ function renderDetailPane(model, opts) {
 
   const manifestBody = model.detailAccordion
     ? interactiveAccordion(model.detailAccordion, { ctx: opts.ctx })
-    : renderManifestView({ manifest, ctx: opts.ctx });
+    : renderManifestView({ manifest: manifest.toJSON ? manifest.toJSON() : manifest, ctx: opts.ctx });
   const manifestLines = Math.max(1, manifestBody.split('\n').length);
   const manifestSurface = parseAnsiToSurface(manifestBody, innerWidth, manifestLines);
   const bodyTop = 3;

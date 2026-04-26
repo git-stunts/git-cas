@@ -194,8 +194,9 @@
       "chronology:Open Chronology": false
     }
   },
-  "active": "f89a74e03083c747",
+  "active": "7f4030d6907b6836",
   "lastOpenFiles": [
+    "output-dash-help.txt",
     "output-dash8.txt",
     "output-health.txt",
     "output-merkle.txt",
@@ -223,7 +224,6 @@
     "docs/method/backlog/v6.0.0-polish/POL-003_string-sludge-encryption-card.md",
     "docs/method/backlog/v6.0.0-polish/POL-002_string-sludge-vault-report.md",
     "docs/method/backlog/v6.0.0-polish/POL-001_string-sludge-manifest-view.md",
-    "docs/method/backlog/v6.0.0-polish",
     "docs/audit/DETAILED-SCREEN-BREAKDOWN.md",
     "docs/audit/2026-04-26_bijou-bigbro-audit.md",
     "docs/audit/SCORECARD-AND-HOMEWORK.md",

@@ -350,7 +350,7 @@ program
       } else if (opts.heatmap) {
         process.stdout.write(renderHeatmap({ manifest }));
       } else if (process.stdout.isTTY) {
-        process.stdout.write(renderManifestView({ manifest }));
+        process.stdout.write(renderManifestView({ manifest: manifest.toJSON() }));
       } else {
         process.stdout.write(`${JSON.stringify(manifest.toJSON(), null, 2)}\n`);
       }

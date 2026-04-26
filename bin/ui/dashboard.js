@@ -261,7 +261,8 @@ function detailPagerHeight(termRows) {
  * @returns {PagerState}
  */
 function buildDetailPager(manifest, ctx, termRows) {
-  const content = renderManifestView({ manifest, ctx });
+  const data = manifest.toJSON ? manifest.toJSON() : manifest;
+  const content = renderManifestView({ manifest: data, ctx });
   return createPagerState({ content, width: 1, height: detailPagerHeight(termRows) });
 }
 
@@ -273,7 +274,8 @@ function buildDetailPager(manifest, ctx, termRows) {
  * @returns {import('@flyingrobots/bijou-tui').AccordionState}
  */
 function buildDetailAccordion(manifest, ctx) {
-  const sections = buildManifestSections({ manifest, ctx });
+  const data = manifest.toJSON ? manifest.toJSON() : manifest;
+  const sections = buildManifestSections({ manifest: data, ctx });
   return createAccordionState(sections);
 }
 

@@ -32,6 +32,18 @@ function formatBytes(bytes) {
 }
 
 /**
+ * Format key-value pairs with aligned themed labels.
+ *
+ * @param {[string, string][]} rows
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+function formatKv(rows, ctx) {
+  const maxKey = Math.max(...rows.map(([k]) => k.length));
+  return rows.map(([k, v]) => `  ${themeText(ctx, k.padEnd(maxKey), { tone: 'accent' })}  ${v}`).join('\n');
+}
+
+/**
  * Build the header badges line.
  *
  * @param {ManifestData} m
@@ -64,23 +76,24 @@ function renderBadges(m, ctx) {
  * @returns {string}
  */
 function encryptionBody(enc, ctx) {
-  const rows = [`  algorithm  ${enc.algorithm}`];
+  /** @type {[string, string][]} */
+  const rows = [['algorithm', enc.algorithm]];
   if (enc.kdf) {
-    rows.push(`  kdf        ${enc.kdf.algorithm}`);
+    rows.push(['kdf', enc.kdf.algorithm]);
     if (enc.kdf.iterations) {
-      rows.push(`  iterations ${enc.kdf.iterations.toLocaleString()}`);
+      rows.push(['iterations', enc.kdf.iterations.toLocaleString()]);
     }
     if (enc.kdf.cost) {
-      rows.push(`  cost       ${enc.kdf.cost}`);
+      rows.push(['cost', String(enc.kdf.cost)]);
     }
   }
   if (enc.nonce) {
-    rows.push(`  nonce      ${enc.nonce.slice(0, 16)}...`);
+    rows.push(['nonce', `${enc.nonce.slice(0, 16)}...`]);
   }
   if (enc.tag) {
-    rows.push(`  tag        ${enc.tag.slice(0, 16)}...`);
+    rows.push(['tag', `${enc.tag.slice(0, 16)}...`]);
   }
-  return box(rows.join('\n'), { ctx });
+  return box(formatKv(rows, ctx), { ctx });
 }
 
 /**
@@ -139,13 +152,13 @@ function renderChunksSection(chunks, ctx) {
  * @returns {string}
  */
 function metadataBody(m, ctx) {
-  const meta = [
-    `  slug      ${m.slug ?? '-'}`,
-    `  filename  ${m.filename ?? '-'}`,
-    `  size      ${formatBytes(m.size)}`,
-    `  chunks    ${m.chunks?.length ?? 0}`,
+  const rows = [
+    ['slug', m.slug ?? '-'],
+    ['filename', m.filename ?? '-'],
+    ['size', formatBytes(m.size)],
+    ['chunks', String(m.chunks?.length ?? 0)],
   ];
-  return box(meta.join('\n'), { ctx });
+  return box(formatKv(rows, ctx), { ctx });
 }
 
 /**
@@ -190,12 +203,12 @@ function renderSubManifestsSection(m, ctx) {
  * Render a full manifest anatomy view.
  *
  * @param {Object} options
- * @param {ManifestData | { toJSON(): ManifestData }} options.manifest - The manifest (Manifest instance or plain ManifestData).
+ * @param {ManifestData} options.manifest - Pre-normalized manifest data.
  * @param {BijouContext} [options.ctx] - Optional bijou context override.
  * @returns {string}
  */
 export function renderManifestView({ manifest, ctx = getCliContext() }) {
-  const m = /** @type {ManifestData} */ ('toJSON' in manifest ? manifest.toJSON() : manifest);
+  const m = manifest;
   const badges = renderBadges(m, ctx);
   const sections = [themeText(ctx, 'Manifest Ledger', { tone: 'brand' })];
   if (badges.length > 0) {
@@ -227,12 +240,12 @@ export function renderManifestView({ manifest, ctx = getCliContext() }) {
  * manifest are included (e.g. no encryption section for plaintext assets).
  *
  * @param {Object} options
- * @param {ManifestData | { toJSON(): ManifestData }} options.manifest - The manifest (Manifest instance or plain ManifestData).
+ * @param {ManifestData} options.manifest - Pre-normalized manifest data.
  * @param {BijouContext} [options.ctx] - Optional bijou context override.
  * @returns {AccordionSection[]}
  */
 export function buildManifestSections({ manifest, ctx = getCliContext() }) {
-  const m = /** @type {ManifestData} */ ('toJSON' in manifest ? manifest.toJSON() : manifest);
+  const m = manifest;
   /** @type {AccordionSection[]} */
   const sections = [
     { title: 'Asset Metadata', content: metadataBody(m, ctx), expanded: true },

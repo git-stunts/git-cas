@@ -76,6 +76,24 @@ function InspectorBlock({ entry, ctx, width, height }) {
 }
 
 /**
+ * BLOCK: Help Overlay
+ */
+function HelpOverlay({ ctx }) {
+  const lines = [
+    text(ctx.style.bold('Keybindings Reference'), ctx),
+    createSurface(1, 1),
+    text('  [?]        Toggle this help menu', ctx),
+    text('  [q]        Quit application', ctx),
+    text('  [j/down]   Move focus down', ctx),
+    text('  [k/up]     Move focus up', ctx),
+  ];
+  const content = vstackSurface(...lines);
+  const bg = createSurface(content.width + 4, content.height + 2);
+  bg.blit(content, 2, 1);
+  return boxSurface(bg, { title: 'Controls', width: bg.width, height: bg.height, ctx });
+}
+
+/**
  * MAIN APP
  */
 const ctx = initDefaultContext();
@@ -100,7 +118,7 @@ const app = {
     const width = ctx.runtime.columns;
     const height = ctx.runtime.rows;
 
-    const headerStr = `git-cas V6 Cockpit | [j/k] Move Focus | [q] Quit\n`;
+    const headerStr = `git-cas V6 Cockpit | [j/k] Move Focus | [?] Help | [q] Quit\n`;
     const header = text(headerStr, ctx);
     
     const bodyHeight = height - header.height;
