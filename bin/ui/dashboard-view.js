@@ -688,7 +688,9 @@ function renderListPane(model, opts) {
     metaLines.push(tableText);
   }
 
-  return boxSurface(textSurface(metaLines.join('\n'), innerWidth, innerHeight), {
+  const content = metaLines.join('\n');
+  const contentHeight = content.split('\n').length;
+  return boxSurface(textSurface(content, innerWidth, contentHeight), {
     ctx: opts.ctx,
     title: 'Entries Ledger',
     width: opts.width,
