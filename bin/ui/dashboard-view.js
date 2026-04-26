@@ -1537,34 +1537,41 @@ function renderTitleScreen(model, deps) {
   const height = Math.max(1, model.rows);
   const screen = createSurface(width, height);
   const ctx = deps.ctx;
+  const innerW = Math.min(56, width);
+  const spacer = createSurface(1, 1);
 
-  const titleLines = [
-    themeText(ctx, 'git-cas', { tone: 'brand', bold: true }),
-    themeText(ctx, 'content-addressable storage', { tone: 'secondary' }),
-    '',
+  const surfaces = [
+    textSurface(themeText(ctx, 'git-cas', { tone: 'brand', bold: true }), innerW, 1),
+    textSurface(themeText(ctx, 'content-addressable storage', { tone: 'secondary' }), innerW, 1),
+    spacer,
   ];
 
   if (model.phase === 'title') {
-    titleLines.push(themeText(ctx, 'Checking vault...', { tone: 'subdued' }));
+    surfaces.push(textSurface(themeText(ctx, 'Checking vault...', { tone: 'subdued' }), innerW, 1));
   } else {
-    titleLines.push(themeText(ctx, 'Vault is encrypted. Enter passphrase to unlock.', { tone: 'warning' }));
-    titleLines.push('');
+    surfaces.push(textSurface(themeText(ctx, 'Vault is encrypted. Enter passphrase to unlock.', { tone: 'warning' }), innerW, 1));
+    surfaces.push(spacer);
     const mask = '\u2022'.repeat(model.passphrase.length);
-    titleLines.push(`  ${themeText(ctx, 'Passphrase:', { tone: 'accent' })} ${mask}\u2588`);
+    surfaces.push(hstackSurface(1,
+      createSurface(2, 1),
+      textSurface(themeText(ctx, 'Passphrase:', { tone: 'accent' }), 11, 1),
+      textSurface(`${mask}\u2588`, Math.max(1, innerW - 14), 1)
+    ));
     if (model.authError) {
-      titleLines.push('');
-      titleLines.push(`  ${themeText(ctx, model.authError, { tone: 'danger' })}`);
+      surfaces.push(spacer);
+      surfaces.push(hstackSurface(1,
+        createSurface(2, 1),
+        textSurface(themeText(ctx, model.authError, { tone: 'danger' }), Math.max(1, innerW - 3), 1)
+      ));
     }
-    titleLines.push('');
-    titleLines.push(themeText(ctx, 'enter to unlock  |  escape to quit', { tone: 'subdued' }));
+    surfaces.push(spacer);
+    surfaces.push(textSurface(themeText(ctx, 'enter to unlock  |  escape to quit', { tone: 'subdued' }), innerW, 1));
   }
 
-  const body = titleLines.join('\n');
-  const bodyLines = body.split('\n').length;
-  const surface = parseAnsiToSurface(body, width, bodyLines);
-  const y = Math.max(0, Math.floor((height - bodyLines) / 3));
-  const x = Math.max(0, Math.floor((width - 50) / 2));
-  screen.blit(surface, x, y);
+  const content = vstackSurface(...surfaces);
+  const y = Math.max(0, Math.floor((height - content.height) / 3));
+  const x = Math.max(0, Math.floor((width - innerW) / 2));
+  screen.blit(content, x, y);
 
   return screen;
 }
