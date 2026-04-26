@@ -1,7 +1,7 @@
 import { initDefaultContext } from '@flyingrobots/bijou-node';
-import { run, createKeyMap, quit } from '@flyingrobots/bijou-tui';
-import { createTuiAppSkeleton } from '@flyingrobots/bijou-tui-app';
-import { badge, box, column, row, spacer, textSurface, createSurface } from '@flyingrobots/bijou';
+import { run, quit } from '@flyingrobots/bijou-tui';
+import { badge, boxSurface, createSurface, parseAnsiToSurface } from '@flyingrobots/bijou';
+import { hstackSurface, vstackSurface } from '@flyingrobots/bijou-tui';
 
 /**
  * MOCK DATA
@@ -12,55 +12,67 @@ const ENTRIES = [
   { slug: 'config/prod.env', size: '1.2 KB', crypto: 'whole', format: 'single' },
 ];
 
+function text(str, ctx) {
+  if (typeof str !== 'string') return str;
+  return parseAnsiToSurface(str, Math.max(1, str.replace(/\x1b\[[0-9;]*m/g, '').length), 1);
+}
+
 /**
  * BLOCK: Asset Ledger
- * Demonstrates a "packaged" view component with internal rhythm.
  */
-function AssetLedgerBlock({ entries, selectedIndex, ctx }) {
+function AssetLedgerBlock({ entries, selectedIndex, ctx, width, height }) {
+  const innerWidth = width - 2;
   const rows = entries.map((entry, i) => {
     const isFocused = i === selectedIndex;
-    const tone = isFocused ? 'brand' : 'subdued';
     
-    return row([
-      ctx.ui(isFocused ? 'cursor' : 'gap', isFocused ? '▸' : ' '),
-      ' ',
-      ctx.style.styled(ctx.semantic(isFocused ? 'primary' : 'foreground'), entry.slug.padEnd(25)),
-      ' ',
+    return hstackSurface(1,
+      text(isFocused ? ctx.style.styled(ctx.semantic('primary'), '▸') : ' ', ctx),
+      text(ctx.style.styled(ctx.semantic(isFocused ? 'primary' : 'muted'), (entry.slug.length > 15 ? entry.slug.slice(0, 15) + '...' : entry.slug).padEnd(18)), ctx),
       badge(entry.size, { variant: isFocused ? 'accent' : 'muted', ctx }),
-      ' ',
       badge(entry.crypto, { variant: 'info', ctx }),
-    ]);
+    );
   });
 
-  return box(column(rows), {
+  const content = vstackSurface(...rows);
+  const bg = createSurface(innerWidth, height - 2);
+  bg.blit(content, 0, 0);
+
+  return boxSurface(bg, {
     title: 'Entries Ledger',
-    padding: 1, // Bijou 1-cell atomic padding
+    width,
+    height,
     ctx
   });
 }
 
 /**
  * BLOCK: Inspector Block
- * Demonstrates the "Mantine Card" pattern for terminal metadata.
  */
-function InspectorBlock({ entry, ctx }) {
-  if (!entry) return box('Select an asset to inspect.', { ctx });
+function InspectorBlock({ entry, ctx, width, height }) {
+  const innerWidth = width - 2;
+  
+  if (!entry) {
+    const bg = createSurface(innerWidth, height - 2);
+    bg.blit(text('Select an asset to inspect.', ctx), 0, 0);
+    return boxSurface(bg, { title: 'Manifest Inspector', width, height, ctx });
+  }
 
-  return box(
-    column([
-      row([ctx.style.bold('Asset:'), ' ', ctx.style.styled(ctx.semantic('primary'), entry.slug)]),
-      spacer(1, 1),
-      row([
-        badge('SHA-256', { variant: 'brand', ctx }),
-        ' ',
-        ctx.style.styled(ctx.semantic('subdued'), 'f3a1...9b2e')
-      ]),
-      spacer(1, 1),
-      ctx.style.styled(ctx.semantic('subdued'), 'Content-Defined Chunking (Buzhash)'),
-      ctx.style.styled(ctx.semantic('subdued'), 'Target: 1 MiB | Min: 512 KiB | Max: 2 MiB'),
-    ]),
-    { title: 'Manifest Inspector', padding: 1, ctx }
+  const content = vstackSurface(
+    hstackSurface(1, text(ctx.style.bold('Asset:'), ctx), text(ctx.style.styled(ctx.semantic('primary'), entry.slug), ctx)),
+    createSurface(1, 1), // spacer
+    hstackSurface(1,
+      badge('SHA-256', { variant: 'brand', ctx }),
+      text(ctx.style.styled(ctx.semantic('muted'), 'f3a1...9b2e'), ctx)
+    ),
+    createSurface(1, 1), // spacer
+    text(ctx.style.styled(ctx.semantic('muted'), 'Content-Defined Chunking (Buzhash)'), ctx),
+    text(ctx.style.styled(ctx.semantic('muted'), 'Target: 1 MiB | Min: 512 KiB | Max: 2 MiB'), ctx),
   );
+
+  const bg = createSurface(innerWidth, height - 2);
+  bg.blit(content, 0, 0);
+
+  return boxSurface(bg, { title: 'Manifest Inspector', width, height, ctx });
 }
 
 /**
@@ -68,33 +80,41 @@ function InspectorBlock({ entry, ctx }) {
  */
 const ctx = initDefaultContext();
 
-const app = createTuiAppSkeleton({
-  ctx,
-  title: 'git-cas V6 Cockpit',
-  tabs: [
-    {
-      id: 'ledger',
-      title: 'Vault Explorer',
-      render: ({ width, height }) => {
-        // Here we use the "Workspace" pattern: Sidebar (35%) + Content (65%)
-        const sidebarWidth = Math.floor(width * 0.4);
-        const contentWidth = width - sidebarWidth - 2; // -2 for the gap
-
-        return row([
-          AssetLedgerBlock({ entries: ENTRIES, selectedIndex: 0, ctx }),
-          '  ', // THE RULE OF 2: 2-cell gap between major blocks
-          InspectorBlock({ entry: ENTRIES[0], ctx })
-        ]);
-      }
-    },
-    {
-      id: 'history',
-      title: 'History',
-      render: () => 'History Timeline Block (Coming Soon)'
+const app = {
+  init() {
+    return [{ selectedIndex: 0 }, []];
+  },
+  update(msg, model) {
+    if (msg.type === 'key' && (msg.key === 'q' || msg.ctrl && msg.key === 'c')) {
+      return [model, [quit()]];
     }
-  ],
-  keyMap: createKeyMap().bind('q', 'Quit', quit())
-});
+    if (msg.type === 'key' && (msg.key === 'j' || msg.key === 'down')) {
+      return [{ ...model, selectedIndex: Math.min(model.selectedIndex + 1, ENTRIES.length - 1) }, []];
+    }
+    if (msg.type === 'key' && (msg.key === 'k' || msg.key === 'up')) {
+      return [{ ...model, selectedIndex: Math.max(model.selectedIndex - 1, 0) }, []];
+    }
+    return [model, []];
+  },
+  view(model) {
+    const width = ctx.runtime.columns;
+    const height = ctx.runtime.rows;
+
+    const headerStr = `git-cas V6 Cockpit | [j/k] Move Focus | [q] Quit\n`;
+    const header = text(headerStr, ctx);
+    
+    const bodyHeight = height - header.height;
+    const sidebarWidth = Math.floor(width * 0.4);
+    const contentWidth = width - sidebarWidth - 2;
+
+    const sidebar = AssetLedgerBlock({ entries: ENTRIES, selectedIndex: model.selectedIndex, ctx, width: sidebarWidth, height: bodyHeight });
+    const content = InspectorBlock({ entry: ENTRIES[model.selectedIndex], ctx, width: contentWidth, height: bodyHeight });
+    
+    const body = hstackSurface(2, sidebar, content);
+
+    return vstackSurface(header, body);
+  }
+};
 
 console.log('Starting git-cas V6 Mock-up...');
-await run(app, { mouse: true, ctx });
+await run(app, { ctx });

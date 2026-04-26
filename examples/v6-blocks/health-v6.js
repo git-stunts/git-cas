@@ -1,7 +1,7 @@
 import { initDefaultContext } from '@flyingrobots/bijou-node';
-import { run, createKeyMap, quit } from '@flyingrobots/bijou-tui';
-import { createTuiAppSkeleton } from '@flyingrobots/bijou-tui-app';
-import { badge, box, column, row, spacer, timeline } from '@flyingrobots/bijou';
+import { run, quit } from '@flyingrobots/bijou-tui';
+import { badge, boxSurface, timeline, createSurface, parseAnsiToSurface } from '@flyingrobots/bijou';
+import { hstackSurface, vstackSurface } from '@flyingrobots/bijou-tui';
 
 /**
  * MOCK DATA: Health Events
@@ -13,27 +13,39 @@ const EVENTS = [
   { label: 'Backup Completed', status: 'muted' },
 ];
 
+function text(str, ctx) {
+  if (typeof str !== 'string') return str;
+  return parseAnsiToSurface(str, Math.max(1, str.replace(/\x1b\[[0-9;]*m/g, '').length), 1);
+}
+
 /**
  * BLOCK: Health Report Block
  * A cohesive summary of repo state.
  */
-function HealthReportBlock({ ctx }) {
-  return box(
-    column([
-      row([
-        badge('REACHABILITY: OK', { variant: 'success', ctx }),
-        '  ',
-        badge('ENCRYPTION: HARDENED', { variant: 'brand', ctx }),
-      ]),
-      spacer(1, 1),
-      ctx.style.bold('Vault History:'),
-      spacer(1, 1),
-      timeline(EVENTS, { ctx }),
-      spacer(1, 1),
-      ctx.style.styled(ctx.semantic('subdued'), 'Last sweep: 2 mins ago'),
-    ]),
-    { title: 'Vault Doctor Report', padding: 2, ctx }
+function HealthReportBlock({ ctx, width, height }) {
+  const innerWidth = width - 2;
+  
+  const timelineStr = timeline(EVENTS, { ctx });
+  const timelineLines = timelineStr.split('\n');
+  const timelineSurface = parseAnsiToSurface(timelineStr, innerWidth, timelineLines.length);
+
+  const block = vstackSurface(
+    hstackSurface(2,
+      badge('REACHABILITY: OK', { variant: 'success', ctx }),
+      badge('ENCRYPTION: HARDENED', { variant: 'brand', ctx }),
+    ),
+    createSurface(1, 1),
+    text(ctx.style.bold('Vault History:'), ctx),
+    createSurface(1, 1),
+    timelineSurface,
+    createSurface(1, 1),
+    text(ctx.style.styled(ctx.semantic('muted'), 'Last sweep: 2 mins ago'), ctx),
   );
+
+  const bg = createSurface(innerWidth, height - 2);
+  bg.blit(block, 0, 0, 0, 0, Math.min(block.width, innerWidth), Math.min(block.height, height - 2));
+
+  return boxSurface(bg, { title: 'Vault Doctor Report', width, height, ctx });
 }
 
 /**
@@ -41,18 +53,29 @@ function HealthReportBlock({ ctx }) {
  */
 const ctx = initDefaultContext();
 
-const app = createTuiAppSkeleton({
-  ctx,
-  title: 'git-cas Health Monitor',
-  tabs: [
-    {
-      id: 'health',
-      title: 'Diagnostics',
-      render: () => HealthReportBlock({ ctx })
+const app = {
+  init() {
+    return [{}, []];
+  },
+  update(msg, model) {
+    if (msg.type === 'key' && (msg.key === 'q' || msg.ctrl && msg.key === 'c')) {
+      return [model, [quit()]];
     }
-  ],
-  keyMap: createKeyMap().bind('q', 'Quit', quit())
-});
+    return [model, []];
+  },
+  view(model) {
+    const width = ctx.runtime.columns;
+    const height = ctx.runtime.rows;
+
+    const headerStr = `git-cas Health Monitor | [q] Quit\n`;
+    const header = text(headerStr, ctx);
+    
+    const bodyHeight = height - header.height;
+    const body = HealthReportBlock({ ctx, width, height: bodyHeight });
+
+    return vstackSurface(header, body);
+  }
+};
 
 console.log('Starting Health Monitor Mock-up...');
-await run(app, { mouse: true, ctx });
+await run(app, { ctx });
