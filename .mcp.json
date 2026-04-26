@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "think": {
+      "command": "node",
+      "args": ["/Users/james/git/think/bin/think-mcp.js"],
+      "cwd": "/Users/james/git/think",
+      "env": {
+        "THINK_REPO_DIR": "/Users/james/.think/claude"
+      }
+    },
+    "method": {
+      "command": "node",
+      "args": ["/Users/james/git/method/dist/cli.js", "mcp"],
+      "cwd": "/Users/james/git/method"
+    },
+    "graft": {
+      "command": "/Users/james/git/graft/node_modules/.bin/tsx",
+      "args": ["/Users/james/git/graft/src/mcp/stdio.ts"],
+      "cwd": "/Users/james/git/graft"
+    },
+    "bijou": {
+      "command": "node",
+      "args": ["/Users/james/git/bijou/packages/bijou-mcp/dist/server.js"],
+      "cwd": "/Users/james/git/bijou"
+    }
+  }
+}

@@ -57,3 +57,7 @@ and exactly what users need to do.
 - [ ] Every breaking change has: what changed, who is affected, what to do
 - [ ] Code examples for common migration scenarios
 - [ ] Links to `npm run upgrade` for automated migration
+
+## Status
+
+- [x] Resolved — `release/v6.0.0` branch
