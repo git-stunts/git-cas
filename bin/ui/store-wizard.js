@@ -3,9 +3,14 @@
  *
  * State machine with steps: filePath → slug → encryption → compression → chunking → confirm.
  * Renders within the TUI overlay system using the TEA architecture.
+ * Delegates generic step handling and rendering to WizardBlock.
  */
 
-import { boxSurface, parseAnsiToSurface } from '@flyingrobots/bijou';
+import {
+  handleSelectKey, handleTextKey, handleToggleKey,
+  renderFieldLine, renderSelectList, renderTextInput, renderToggle,
+  renderWizardPanel,
+} from './blocks/wizard-block.js';
 import { themeText } from './theme.js';
 
 /**
@@ -62,17 +67,11 @@ export function createWizardState() {
  * @returns {StoreWizardState}
  */
 function handleFilePathKey(state, key) {
-  if (key === 'enter' && state.filePath.length > 0) {
-    const slug = deriveSlug(state.filePath);
-    return { ...state, step: 'slug', slug };
+  const result = handleTextKey(state.filePath, key);
+  if (result.confirmed) {
+    return { ...state, filePath: result.value, step: 'slug', slug: deriveSlug(result.value) };
   }
-  if (key === 'backspace') {
-    return { ...state, filePath: state.filePath.slice(0, -1) };
-  }
-  if (key.length === 1) {
-    return { ...state, filePath: state.filePath + key };
-  }
-  return state;
+  return { ...state, filePath: result.value };
 }
 
 /**
@@ -81,16 +80,11 @@ function handleFilePathKey(state, key) {
  * @returns {StoreWizardState}
  */
 function handleSlugKey(state, key) {
-  if (key === 'enter' && state.slug.length > 0) {
-    return { ...state, step: 'encryption', selectIndex: ENCRYPTION_OPTIONS.indexOf(state.encryption) };
+  const result = handleTextKey(state.slug, key);
+  if (result.confirmed) {
+    return { ...state, slug: result.value, step: 'encryption', selectIndex: ENCRYPTION_OPTIONS.indexOf(state.encryption) };
   }
-  if (key === 'backspace') {
-    return { ...state, slug: state.slug.slice(0, -1) };
-  }
-  if (key.length === 1) {
-    return { ...state, slug: state.slug + key };
-  }
-  return state;
+  return { ...state, slug: result.value };
 }
 
 /**
@@ -99,20 +93,12 @@ function handleSlugKey(state, key) {
  * @returns {StoreWizardState}
  */
 function handleEncryptionKey(state, key) {
-  if (key === 'enter') {
-    const encryption = /** @type {'none' | 'passphrase' | 'convergent'} */ (ENCRYPTION_OPTIONS[state.selectIndex]);
-    if (encryption === 'passphrase') {
-      return { ...state, encryption, step: 'compression', selectIndex: 0 };
-    }
-    return { ...state, encryption, step: 'compression', selectIndex: 0 };
+  const result = handleSelectKey(state.selectIndex, ENCRYPTION_OPTIONS.length, key);
+  if (result.confirmed) {
+    const encryption = /** @type {'none' | 'passphrase' | 'convergent'} */ (ENCRYPTION_OPTIONS[result.selectIndex]);
+    return { ...state, encryption, selectIndex: 0, step: 'compression' };
   }
-  if (key === 'j' || key === 'down') {
-    return { ...state, selectIndex: Math.min(state.selectIndex + 1, ENCRYPTION_OPTIONS.length - 1) };
-  }
-  if (key === 'k' || key === 'up') {
-    return { ...state, selectIndex: Math.max(state.selectIndex - 1, 0) };
-  }
-  return state;
+  return { ...state, selectIndex: result.selectIndex };
 }
 
 /**
@@ -121,13 +107,11 @@ function handleEncryptionKey(state, key) {
  * @returns {StoreWizardState}
  */
 function handleCompressionKey(state, key) {
-  if (key === 'enter') {
-    return { ...state, step: 'chunking', selectIndex: CHUNKING_OPTIONS.indexOf(state.chunking) };
+  const result = handleToggleKey(state.compression, key);
+  if (result.confirmed) {
+    return { ...state, compression: result.value, step: 'chunking', selectIndex: CHUNKING_OPTIONS.indexOf(state.chunking) };
   }
-  if (key === 'space' || key === 'j' || key === 'k') {
-    return { ...state, compression: !state.compression };
-  }
-  return state;
+  return { ...state, compression: result.value };
 }
 
 /**
@@ -136,17 +120,12 @@ function handleCompressionKey(state, key) {
  * @returns {StoreWizardState}
  */
 function handleChunkingKey(state, key) {
-  if (key === 'enter') {
-    const chunking = /** @type {'whole' | 'fixed' | 'cdc'} */ (CHUNKING_OPTIONS[state.selectIndex]);
+  const result = handleSelectKey(state.selectIndex, CHUNKING_OPTIONS.length, key);
+  if (result.confirmed) {
+    const chunking = /** @type {'whole' | 'fixed' | 'cdc'} */ (CHUNKING_OPTIONS[result.selectIndex]);
     return { ...state, chunking, step: 'confirm' };
   }
-  if (key === 'j' || key === 'down') {
-    return { ...state, selectIndex: Math.min(state.selectIndex + 1, CHUNKING_OPTIONS.length - 1) };
-  }
-  if (key === 'k' || key === 'up') {
-    return { ...state, selectIndex: Math.max(state.selectIndex - 1, 0) };
-  }
-  return state;
+  return { ...state, selectIndex: result.selectIndex };
 }
 
 /**
@@ -203,29 +182,18 @@ function deriveSlug(filePath) {
   return dotIndex > 0 ? name.slice(0, dotIndex) : name;
 }
 
-/**
- * @param {number} index
- * @param {string[]} options
- * @param {BijouContext} ctx
- * @returns {string}
- */
-function renderSelectList(index, options, ctx) {
-  return options.map((opt, i) => {
-    const indicator = i === index ? '▸' : ' ';
-    const tone = i === index ? 'primary' : 'secondary';
-    return `${indicator} ${themeText(ctx, opt, { tone })}`;
-  }).join('\n');
-}
-
-/**
- * @param {BijouContext} ctx
- * @param {string} label
- * @param {string} value
- * @returns {string}
- */
-function fieldLine(ctx, label, value) {
-  return `${themeText(ctx, label, { tone: 'accent' })} ${themeText(ctx, value || '-', { tone: 'primary' })}`;
-}
+/** @type {Record<string, string>} */
+const STEP_LABELS = {
+  filePath: '1/6 File',
+  slug: '2/6 Slug',
+  encryption: '3/6 Encryption',
+  compression: '4/6 Compression',
+  chunking: '5/6 Chunking',
+  confirm: '6/6 Confirm',
+  storing: 'Storing...',
+  done: 'Done',
+  error: 'Error',
+};
 
 /**
  * Render the wizard overlay surface.
@@ -235,47 +203,21 @@ function fieldLine(ctx, label, value) {
  * @returns {Surface}
  */
 export function renderWizardSurface(state, opts) {
-  const panelWidth = Math.max(36, Math.min(60, opts.width - 4));
-  const innerWidth = Math.max(1, panelWidth - 2);
-  const body = renderWizardBody(state, opts.ctx, innerWidth);
-  const lines = body.split('\n');
-  const panelHeight = Math.max(8, Math.min(lines.length + 4, opts.height));
-  const innerHeight = Math.max(1, panelHeight - 2);
-  const content = parseAnsiToSurface(body, innerWidth, innerHeight);
-  return boxSurface(content, {
+  return renderWizardPanel({
+    title: `Store  [${STEP_LABELS[state.step] ?? state.step}]`,
+    body: renderWizardBody(state, opts.ctx),
+    screenWidth: opts.width,
+    screenHeight: opts.height,
     ctx: opts.ctx,
-    title: `Store  [${stepLabel(state.step)}]`,
-    width: panelWidth,
-    height: panelHeight,
   });
-}
-
-/**
- * @param {WizardStep} step
- * @returns {string}
- */
-function stepLabel(step) {
-  const labels = {
-    filePath: '1/6 File',
-    slug: '2/6 Slug',
-    encryption: '3/6 Encryption',
-    compression: '4/6 Compression',
-    chunking: '5/6 Chunking',
-    confirm: '6/6 Confirm',
-    storing: 'Storing...',
-    done: 'Done',
-    error: 'Error',
-  };
-  return labels[step] ?? step;
 }
 
 /**
  * @param {StoreWizardState} state
  * @param {BijouContext} ctx
- * @param {number} _width
  * @returns {string}
  */
-function renderWizardBody(state, ctx, _width) {
+function renderWizardBody(state, ctx) {
   if (state.step === 'error') {
     return themeText(ctx, state.error ?? 'Cancelled', { tone: 'danger' });
   }
@@ -297,35 +239,41 @@ function renderWizardBody(state, ctx, _width) {
  * @returns {string}
  */
 function renderStepBody(state, ctx) {
-  const lines = [];
-  if (state.step === 'filePath') {
-    lines.push(themeText(ctx, 'File path:', { tone: 'accent' }));
-    lines.push(`${state.filePath}\u2588`);
-    lines.push('');
-    lines.push(themeText(ctx, 'Type the file path, then press enter.', { tone: 'subdued' }));
-  } else if (state.step === 'slug') {
-    lines.push(themeText(ctx, 'Slug name:', { tone: 'accent' }));
-    lines.push(`${state.slug}\u2588`);
-    lines.push('');
-    lines.push(themeText(ctx, 'Edit the slug, then press enter.', { tone: 'subdued' }));
-  } else if (state.step === 'encryption') {
-    lines.push(themeText(ctx, 'Encryption:', { tone: 'accent' }));
-    lines.push(renderSelectList(state.selectIndex, ENCRYPTION_OPTIONS, ctx));
-    lines.push('');
-    lines.push(themeText(ctx, 'j/k to move, enter to select.', { tone: 'subdued' }));
-  } else if (state.step === 'compression') {
-    lines.push(themeText(ctx, 'Compression (gzip):', { tone: 'accent' }));
-    const toggle = state.compression ? '[x] enabled' : '[ ] disabled';
-    lines.push(themeText(ctx, toggle, { tone: 'primary' }));
-    lines.push('');
-    lines.push(themeText(ctx, 'space to toggle, enter to continue.', { tone: 'subdued' }));
-  } else if (state.step === 'chunking') {
-    lines.push(themeText(ctx, 'Chunking strategy:', { tone: 'accent' }));
-    lines.push(renderSelectList(state.selectIndex, CHUNKING_OPTIONS, ctx));
-    lines.push('');
-    lines.push(themeText(ctx, 'j/k to move, enter to select.', { tone: 'subdued' }));
-  }
-  return lines.join('\n');
+  /** @type {Record<string, () => string[]>} */
+  const renderers = {
+    filePath: () => [
+      themeText(ctx, 'File path:', { tone: 'accent' }),
+      renderTextInput(state.filePath),
+      '',
+      themeText(ctx, 'Type the file path, then press enter.', { tone: 'subdued' }),
+    ],
+    slug: () => [
+      themeText(ctx, 'Slug name:', { tone: 'accent' }),
+      renderTextInput(state.slug),
+      '',
+      themeText(ctx, 'Edit the slug, then press enter.', { tone: 'subdued' }),
+    ],
+    encryption: () => [
+      themeText(ctx, 'Encryption:', { tone: 'accent' }),
+      renderSelectList(state.selectIndex, ENCRYPTION_OPTIONS, ctx),
+      '',
+      themeText(ctx, 'j/k to move, enter to select.', { tone: 'subdued' }),
+    ],
+    compression: () => [
+      themeText(ctx, 'Compression (gzip):', { tone: 'accent' }),
+      renderToggle(state.compression, ctx),
+      '',
+      themeText(ctx, 'space to toggle, enter to continue.', { tone: 'subdued' }),
+    ],
+    chunking: () => [
+      themeText(ctx, 'Chunking strategy:', { tone: 'accent' }),
+      renderSelectList(state.selectIndex, CHUNKING_OPTIONS, ctx),
+      '',
+      themeText(ctx, 'j/k to move, enter to select.', { tone: 'subdued' }),
+    ],
+  };
+  const render = renderers[state.step];
+  return render ? render().join('\n') : '';
 }
 
 /**
@@ -334,16 +282,15 @@ function renderStepBody(state, ctx) {
  * @returns {string}
  */
 function renderConfirmBody(state, ctx) {
-  const lines = [
+  return [
     themeText(ctx, 'Review and confirm:', { tone: 'accent', bold: true }),
     '',
-    fieldLine(ctx, 'File:', state.filePath),
-    fieldLine(ctx, 'Slug:', state.slug),
-    fieldLine(ctx, 'Encryption:', state.encryption),
-    fieldLine(ctx, 'Compression:', state.compression ? 'gzip' : 'none'),
-    fieldLine(ctx, 'Chunking:', state.chunking),
+    renderFieldLine(ctx, 'File:', state.filePath),
+    renderFieldLine(ctx, 'Slug:', state.slug),
+    renderFieldLine(ctx, 'Encryption:', state.encryption),
+    renderFieldLine(ctx, 'Compression:', state.compression ? 'gzip' : 'none'),
+    renderFieldLine(ctx, 'Chunking:', state.chunking),
     '',
     themeText(ctx, 'enter/y to store, n/backspace to restart.', { tone: 'subdued' }),
-  ];
-  return lines.join('\n');
+  ].join('\n');
 }
