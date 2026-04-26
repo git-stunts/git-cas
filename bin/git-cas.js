@@ -31,9 +31,11 @@ import {
 } from './passphrase-source.js';
 import { loadConfig, mergeConfig } from './config.js';
 
+import { resolveVersionString } from '../src/build-version.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const { version: CLI_VERSION } = JSON.parse(
-  readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
+const CLI_VERSION = resolveVersionString(
+  JSON.parse(readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')).version,
 );
 
 const getJson = () => program.opts().json;

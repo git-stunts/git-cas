@@ -15,6 +15,7 @@
   "files": [
     "index.js",
     "index.d.ts",
+    "build-info.json",
     "bin/",
     "src/",
     "scripts/",
@@ -65,6 +66,8 @@
     "benchmark": "vitest bench test/benchmark",
     "benchmark:local": "vitest bench test/benchmark",
     "release:verify": "node scripts/release/verify.js",
+    "stamp": "node scripts/stamp-build.js",
+    "prepublishOnly": "node scripts/stamp-build.js",
     "upgrade": "node scripts/migrate-encryption.js",
     "lint": "eslint .",
     "format": "prettier --write ."

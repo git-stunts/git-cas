@@ -24,7 +24,10 @@ describe('git-cas --version', () => {
     expect(result.error).toBeUndefined();
     expect(result.signal).toBeNull();
     expect(result.status).toBe(0);
-    expect(`${result.stdout ?? ''}`.trim()).toBe(version);
+    const output = `${result.stdout ?? ''}`.trim();
+    expect(output.startsWith(version)).toBe(true);
+    // In dev: "5.3.3+abc1234" (version+sha). In CI/published: "5.3.3" or "5.3.3+abc1234".
+    expect(output).toMatch(new RegExp(`^${version.replace(/\./g, '\\.')}(\\+[0-9a-f]+)?$`));
     expect(`${result.stderr ?? ''}`).toBe('');
   });
 });
