@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { surfaceToString } from '@flyingrobots/bijou';
-import { createNavigableTableState, createNotificationState, createPagerState, createSplitPaneState, pushNotification, tickNotifications } from '@flyingrobots/bijou-tui';
+import { createAccordionState, createNavigableTableState, createNotificationState, createPagerState, createSplitPaneState, pushNotification, tickNotifications } from '@flyingrobots/bijou-tui';
 import { makeCtx } from './_testContext.js';
 
 vi.mock('../../../bin/ui/context.js', () => ({
@@ -99,6 +99,7 @@ function makeModel(overrides = {}) {
     refsItems,
     splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
     palette: null,
+    showHelp: false,
     activeDrawer: null,
     refsStatus: 'idle',
     refsError: null,
@@ -116,6 +117,8 @@ function makeModel(overrides = {}) {
     treemapReport: null,
     treemapError: null,
     notifications: createNotificationState(),
+    gitBranch: null,
+    detailAccordion: null,
     ...overrides,
   };
 }
@@ -316,7 +319,7 @@ describe('dashboard initialization', () => {
     const app = createDashboardApp(makeDeps());
     const [model, cmds] = app.init();
     expect(model.status).toBe('loading');
-    expect(cmds).toHaveLength(1);
+    expect(cmds).toHaveLength(2);
     expect(model.splitPane.focused).toBe('a');
   });
 });
@@ -406,13 +409,105 @@ describe('dashboard detail pager navigation', () => {
   });
 });
 
+describe('dashboard detail accordion navigation', () => {
+  function makeAccordion() {
+    return createAccordionState([
+      { title: 'Asset Metadata', content: 'slug test', expanded: true },
+      { title: 'Encryption Profile', content: 'aes-256-gcm' },
+      { title: 'Chunk Ledger (2)', content: 'chunk table' },
+    ]);
+  }
+
+  it('j/k navigates accordion sections when pane b is focused', () => {
+    const app = createDashboardApp(makeDeps());
+    const acc = makeAccordion();
+    const model = makeModel({
+      detailAccordion: acc,
+      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+    });
+    expect(model.detailAccordion.focusIndex).toBe(0);
+    const [next] = app.update(keyMsg('j'), model);
+    expect(next.detailAccordion.focusIndex).toBe(1);
+  });
+
+  it('k moves focus to previous accordion section', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({
+      detailAccordion: { ...makeAccordion(), focusIndex: 2 },
+      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+    });
+    const [next] = app.update(keyMsg('k'), model);
+    expect(next.detailAccordion.focusIndex).toBe(1);
+  });
+
+  it('accordion navigation wraps around', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({
+      detailAccordion: { ...makeAccordion(), focusIndex: 2 },
+      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+    });
+    const [next] = app.update(keyMsg('j'), model);
+    expect(next.detailAccordion.focusIndex).toBe(0);
+  });
+});
+
+describe('dashboard detail accordion toggle', () => {
+  function makeAccordion() {
+    return createAccordionState([
+      { title: 'Asset Metadata', content: 'slug test', expanded: true },
+      { title: 'Encryption Profile', content: 'aes-256-gcm' },
+      { title: 'Chunk Ledger (2)', content: 'chunk table' },
+    ]);
+  }
+
+  it('space toggles the focused accordion section', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({
+      detailAccordion: makeAccordion(),
+      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+    });
+    expect(model.detailAccordion.sections[0].expanded).toBe(true);
+    const [next] = app.update(keyMsg('space'), model);
+    expect(next.detailAccordion.sections[0].expanded).toBe(false);
+  });
+
+  it('enter toggles the focused accordion section', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({
+      detailAccordion: { ...makeAccordion(), focusIndex: 1 },
+      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'b' }),
+    });
+    expect(model.detailAccordion.sections[1].expanded).toBeFalsy();
+    const [next] = app.update(keyMsg('enter'), model);
+    expect(next.detailAccordion.sections[1].expanded).toBe(true);
+  });
+
+  it('accordion is null when no manifest is loaded', () => {
+    const model = makeModel();
+    expect(model.detailAccordion).toBeNull();
+  });
+
+  it('j/k moves table rows instead of accordion when pane a is focused', () => {
+    const app = createDashboardApp(makeDeps());
+    const model = makeModel({
+      detailAccordion: makeAccordion(),
+      filtered: entries,
+      entries,
+      splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
+    });
+    const [next] = app.update(keyMsg('j'), model);
+    expect(next.table.focusRow).toBe(1);
+    expect(next.detailAccordion).toBeNull();
+  });
+});
+
 describe('dashboard pane controls', () => {
   it('resize updates dimensions', () => {
     const app = createDashboardApp(makeDeps());
     const [next] = app.update({ type: 'resize', columns: 120, rows: 40 }, makeModel());
     expect(next.columns).toBe(120);
     expect(next.rows).toBe(40);
-    expect(next.table.height).toBe(28);
+    expect(next.table.height).toBe(29);
   });
 
   it('tab toggles the focused pane', () => {
@@ -470,6 +565,50 @@ describe('dashboard drawer shortcuts', () => {
     const app = createDashboardApp(makeDeps());
     const [next] = app.update(keyMsg('escape'), makeModel({ activeDrawer: 'stats', statsStatus: 'ready' }));
     expect(next.activeDrawer).toBeNull();
+  });
+});
+
+describe('dashboard help overlay', () => {
+  it('? key toggles showHelp on', () => {
+    const app = createDashboardApp(makeDeps());
+    const [next] = app.update(keyMsg('?'), makeModel());
+    expect(next.showHelp).toBe(true);
+  });
+
+  it('? key toggles showHelp off when already open', () => {
+    const app = createDashboardApp(makeDeps());
+    const [next] = app.update(keyMsg('?'), makeModel({ showHelp: true }));
+    expect(next.showHelp).toBe(false);
+  });
+
+  it('escape closes the help overlay', () => {
+    const app = createDashboardApp(makeDeps());
+    const [next] = app.update(keyMsg('escape'), makeModel({ showHelp: true }));
+    expect(next.showHelp).toBe(false);
+  });
+
+  it('escape closes help before other overlays', () => {
+    const app = createDashboardApp(makeDeps());
+    const [next] = app.update(keyMsg('escape'), makeModel({ showHelp: true, activeDrawer: 'stats', statsStatus: 'ready' }));
+    expect(next.showHelp).toBe(false);
+    expect(next.activeDrawer).toBe('stats');
+  });
+
+  it('renders keybinding reference when showHelp is true', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const rendered = renderView(app.view(makeModel({ showHelp: true })), deps.ctx);
+    expect(rendered).toContain('Help');
+    expect(rendered).toContain('Keybindings Reference');
+    expect(rendered).toContain('Quit');
+    expect(rendered).toContain('Navigation');
+  });
+
+  it('does not render help overlay when showHelp is false', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const rendered = renderView(app.view(makeModel({ showHelp: false })), deps.ctx);
+    expect(rendered).not.toContain('Keybindings Reference');
   });
 });
 
@@ -863,19 +1002,13 @@ describe('dashboard footer rendering', () => {
   it('renders footer keybinding hints', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
-    const model = makeModel({ columns: 120 });
+    const model = makeModel({ columns: 140 });
     const rendered = renderView(app.view(model), deps.ctx);
-    expect(rendered).toContain('inspect');
-    expect(rendered).toContain('resize');
+    expect(rendered).toContain('move');
     expect(rendered).toContain('pane');
+    expect(rendered).toContain('filter');
     expect(rendered).toContain('palette');
-    expect(rendered).toContain('stats');
-    expect(rendered).toContain('doctor');
-    expect(rendered).toContain('treemap');
-    expect(rendered).toContain('scope');
-    expect(rendered).toContain('files');
-    expect(rendered).toContain('refs');
-    expect(rendered).toContain('clos');
+    expect(rendered).toContain('help');
     expect(rendered).toContain('quit');
   });
 
@@ -886,9 +1019,12 @@ describe('dashboard footer rendering', () => {
       treemapReport: makeTreemapReport(),
       columns: 120,
     });
+    expect(rendered).toContain('move');
+    expect(rendered).toContain('drill');
+    expect(rendered).toContain('scope');
     expect(rendered).toContain('back');
-    expect(rendered).toContain('descend');
-    expect(rendered).toContain('ascend');
+    expect(rendered).toContain('help');
+    expect(rendered).toContain('quit');
   });
 });
 

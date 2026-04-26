@@ -9,6 +9,7 @@ import { sectionHeading, themeText } from './theme.js';
 /**
  * @typedef {import('../../src/domain/value-objects/Manifest.js').ManifestData} ManifestData
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
+ * @typedef {import('@flyingrobots/bijou').AccordionSection} AccordionSection
  */
 
 /**
@@ -56,13 +57,13 @@ function renderBadges(m, ctx) {
 }
 
 /**
- * Build the encryption section.
+ * Build the encryption section body.
  *
  * @param {NonNullable<ManifestData['encryption']>} enc
  * @param {BijouContext} ctx
  * @returns {string}
  */
-function renderEncryptionSection(enc, ctx) {
+function encryptionBody(enc, ctx) {
   const rows = [`  algorithm  ${enc.algorithm}`];
   if (enc.kdf) {
     rows.push(`  kdf        ${enc.kdf.algorithm}`);
@@ -79,17 +80,28 @@ function renderEncryptionSection(enc, ctx) {
   if (enc.tag) {
     rows.push(`  tag        ${enc.tag.slice(0, 16)}...`);
   }
-  return `${sectionHeading(ctx, 'Encryption Profile', 'warning')}\n${box(rows.join('\n'), { ctx })}`;
+  return box(rows.join('\n'), { ctx });
 }
 
 /**
- * Build the chunks section.
+ * Build the encryption section (headed).
+ *
+ * @param {NonNullable<ManifestData['encryption']>} enc
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+function renderEncryptionSection(enc, ctx) {
+  return `${sectionHeading(ctx, 'Encryption Profile', 'warning')}\n${encryptionBody(enc, ctx)}`;
+}
+
+/**
+ * Build the chunks section body.
  *
  * @param {ManifestData['chunks']} chunks
  * @param {BijouContext} ctx
  * @returns {string}
  */
-function renderChunksSection(chunks, ctx) {
+function chunksBody(chunks, ctx) {
   const displayChunks = chunks.slice(0, 20);
   const chunkRows = displayChunks.map((/** @type {{ index: number, size: number, digest: string, blob?: string }} */ c) => [
     String(c.index),
@@ -105,28 +117,65 @@ function renderChunksSection(chunks, ctx) {
   const suffix = chunks.length > 20
     ? `\n  ...and ${chunks.length - 20} more`
     : '';
-  return `${sectionHeading(ctx, `Chunk Ledger (${chunks.length})`, 'info')}\n${chunkTable}${suffix}`;
+  return `${chunkTable}${suffix}`;
 }
 
 /**
- * Build the metadata section.
+ * Build the chunks section (headed).
+ *
+ * @param {ManifestData['chunks']} chunks
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+function renderChunksSection(chunks, ctx) {
+  return `${sectionHeading(ctx, `Chunk Ledger (${chunks.length})`, 'info')}\n${chunksBody(chunks, ctx)}`;
+}
+
+/**
+ * Build the metadata section body.
  *
  * @param {ManifestData} m
  * @param {BijouContext} ctx
  * @returns {string}
  */
-function renderMetadataSection(m, ctx) {
+function metadataBody(m, ctx) {
   const meta = [
     `  slug      ${m.slug ?? '-'}`,
     `  filename  ${m.filename ?? '-'}`,
     `  size      ${formatBytes(m.size)}`,
     `  chunks    ${m.chunks?.length ?? 0}`,
   ];
-  return `${sectionHeading(ctx, 'Asset Metadata', 'brand')}\n${box(meta.join('\n'), { ctx })}`;
+  return box(meta.join('\n'), { ctx });
 }
 
 /**
- * Build the sub-manifests section.
+ * Build the metadata section (headed).
+ *
+ * @param {ManifestData} m
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+function renderMetadataSection(m, ctx) {
+  return `${sectionHeading(ctx, 'Asset Metadata', 'brand')}\n${metadataBody(m, ctx)}`;
+}
+
+/**
+ * Build the sub-manifests section body.
+ *
+ * @param {ManifestData} m
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+function subManifestsBody(m, ctx) {
+  const subs = m.subManifests || [];
+  const nodes = subs.map((/** @type {import('../../src/domain/value-objects/Manifest.js').SubManifestRef} */ sm, /** @type {number} */ i) => ({
+    label: `sub-${i}  ${sm.chunkCount} chunks  start: ${sm.startIndex}  oid: ${sm.oid.slice(0, 8)}...`,
+  }));
+  return tree(nodes, { ctx });
+}
+
+/**
+ * Build the sub-manifests section (headed).
  *
  * @param {ManifestData} m
  * @param {BijouContext} ctx
@@ -134,10 +183,7 @@ function renderMetadataSection(m, ctx) {
  */
 function renderSubManifestsSection(m, ctx) {
   const subs = m.subManifests || [];
-  const nodes = subs.map((/** @type {import('../../src/domain/value-objects/Manifest.js').SubManifestRef} */ sm, /** @type {number} */ i) => ({
-    label: `sub-${i}  ${sm.chunkCount} chunks  start: ${sm.startIndex}  oid: ${sm.oid.slice(0, 8)}...`,
-  }));
-  return `${sectionHeading(ctx, `Merkle Branches (${subs.length})`, 'accent')}\n${tree(nodes, { ctx })}`;
+  return `${sectionHeading(ctx, `Merkle Branches (${subs.length})`, 'accent')}\n${subManifestsBody(m, ctx)}`;
 }
 
 /**
@@ -171,4 +217,37 @@ export function renderManifestView({ manifest, ctx = getCliContext() }) {
   }
 
   return `${sections.join('\n\n')}\n`;
+}
+
+/**
+ * Build structured accordion sections from manifest data.
+ *
+ * Each section has a title and content string. Metadata is expanded by
+ * default; all other sections are collapsed. Only sections relevant to the
+ * manifest are included (e.g. no encryption section for plaintext assets).
+ *
+ * @param {Object} options
+ * @param {ManifestData | { toJSON(): ManifestData }} options.manifest - The manifest (Manifest instance or plain ManifestData).
+ * @param {BijouContext} [options.ctx] - Optional bijou context override.
+ * @returns {AccordionSection[]}
+ */
+export function buildManifestSections({ manifest, ctx = getCliContext() }) {
+  const m = /** @type {ManifestData} */ ('toJSON' in manifest ? manifest.toJSON() : manifest);
+  /** @type {AccordionSection[]} */
+  const sections = [
+    { title: 'Asset Metadata', content: metadataBody(m, ctx), expanded: true },
+  ];
+  if (m.encryption) {
+    sections.push({ title: 'Encryption Profile', content: encryptionBody(m.encryption, ctx) });
+  }
+  if (m.compression) {
+    sections.push({ title: 'Compression Profile', content: box(`  algorithm  ${m.compression.algorithm}`, { ctx }) });
+  }
+  if (m.subManifests?.length) {
+    sections.push({ title: `Merkle Branches (${m.subManifests.length})`, content: subManifestsBody(m, ctx) });
+  }
+  if (m.chunks?.length) {
+    sections.push({ title: `Chunk Ledger (${m.chunks.length})`, content: chunksBody(m.chunks, ctx) });
+  }
+  return sections;
 }

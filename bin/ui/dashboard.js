@@ -10,11 +10,12 @@ import {
   createCommandPaletteState, cpFilter, cpFocusNext, cpFocusPrev, cpPageDown, cpPageUp, cpSelectedItem, commandPaletteKeyMap,
   createNotificationState, pushNotification, dismissNotification, tickNotifications, notificationsNeedTick, hasNotifications,
   createPagerState, pagerScrollBy, pagerPageDown, pagerPageUp,
+  createAccordionState, focusNext as accordionFocusNext, focusPrev as accordionFocusPrev, toggleFocused as accordionToggleFocused,
 } from '@flyingrobots/bijou-tui';
-import { loadEntriesCmd, loadManifestCmd, loadRefsCmd, loadStatsCmd, loadDoctorCmd, loadTreemapCmd, readSourceEntries } from './dashboard-cmds.js';
+import { loadEntriesCmd, loadManifestCmd, loadRefsCmd, loadStatsCmd, loadDoctorCmd, loadTreemapCmd, loadBranchCmd, readSourceEntries } from './dashboard-cmds.js';
 import { createCliTuiContext, detectCliTuiMode } from './context.js';
 import { renderDashboard } from './dashboard-view.js';
-import { renderManifestView } from './manifest-view.js';
+import { renderManifestView, buildManifestSections } from './manifest-view.js';
 
 /**
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
@@ -26,6 +27,7 @@ import { renderManifestView } from './manifest-view.js';
  * @typedef {import('@flyingrobots/bijou-tui').SplitPaneState} SplitPaneState
  * @typedef {import('@flyingrobots/bijou-tui').CommandPaletteState} CommandPaletteState
  * @typedef {import('@flyingrobots/bijou-tui').PagerState} PagerState
+ * @typedef {import('@flyingrobots/bijou-tui').AccordionState} AccordionState
  * @typedef {import('../../index.js').default} ContentAddressableStore
  * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
  * @typedef {import('./dashboard-cmds.js').TreemapScope} TreemapScope
@@ -58,6 +60,8 @@ import { renderManifestView } from './manifest-view.js';
  *   | { type: 'toggle-treemap-worktree' }
  *   | { type: 'treemap-drill-in' }
  *   | { type: 'treemap-drill-out' }
+ *   | { type: 'toggle-help' }
+ *   | { type: 'accordion-toggle' }
  *   | { type: 'overlay-close' }
  * } DashAction
  */
@@ -79,6 +83,7 @@ import { renderManifestView } from './manifest-view.js';
  *   | { type: 'loaded-stats', stats: any, source: DashSource }
  *   | { type: 'loaded-doctor', report: any, source: DashSource }
  *   | { type: 'loaded-treemap', report: any }
+ *   | { type: 'loaded-branch', branch: string | null }
  *   | { type: 'notification-tick' }
  *   | { type: 'load-error', source: string, slug?: string, forSource?: DashSource, scopeId?: TreemapScope, worktreeMode?: TreemapWorktreeMode, drillPath?: TreemapPathNode[], error: string }
  * } DashMsg
@@ -104,6 +109,7 @@ import { renderManifestView } from './manifest-view.js';
  * @property {RefInventoryItem[]} refsItems
  * @property {SplitPaneState} splitPane
  * @property {CommandPaletteState | null} palette
+ * @property {boolean} showHelp
  * @property {'stats' | 'doctor' | 'treemap' | 'refs' | null} activeDrawer
  * @property {LoadState} refsStatus
  * @property {string | null} refsError
@@ -121,6 +127,8 @@ import { renderManifestView } from './manifest-view.js';
  * @property {any | null} treemapReport
  * @property {string | null} treemapError
  * @property {import('@flyingrobots/bijou-tui').NotificationState<DashMsg>} notifications
+ * @property {string | null} gitBranch
+ * @property {AccordionState | null} detailAccordion
  */
 
 /**
@@ -140,32 +148,39 @@ import { renderManifestView } from './manifest-view.js';
 export function createKeyBindings() {
   return createKeyMap()
     .bind('q', 'Quit', { type: 'quit' })
-    .bind('j', 'Down', { type: 'move', delta: 1 })
-    .bind('down', 'Down', { type: 'move', delta: 1 })
-    .bind('k', 'Up', { type: 'move', delta: -1 })
-    .bind('up', 'Up', { type: 'move', delta: -1 })
-    .bind('d', 'Page down', { type: 'page', delta: 1 })
-    .bind('pagedown', 'Page down', { type: 'page', delta: 1 })
-    .bind('u', 'Page up', { type: 'page', delta: -1 })
-    .bind('pageup', 'Page up', { type: 'page', delta: -1 })
-    .bind('enter', 'Load', { type: 'select' })
-    .bind('/', 'Filter', { type: 'filter-start' })
-    .bind('tab', 'Focus pane', { type: 'split-focus' })
-    .bind('shift+h', 'Narrow pane', { type: 'split-resize', delta: -4 })
-    .bind('shift+l', 'Widen pane', { type: 'split-resize', delta: 4 })
-    .bind('ctrl+p', 'Palette', { type: 'open-palette' })
-    .bind(':', 'Palette', { type: 'open-palette' })
-    .bind('s', 'Stats', { type: 'open-stats' })
-    .bind('g', 'Doctor', { type: 'open-doctor' })
-    .bind('t', 'Treemap', { type: 'open-treemap' })
-    .bind('r', 'Refs', { type: 'open-refs' })
-    .bind('shift+t', 'Treemap scope', { type: 'toggle-treemap-scope' })
-    .bind('i', 'Treemap files', { type: 'toggle-treemap-worktree' })
-    .bind('shift+=', 'Treemap descend', { type: 'treemap-drill-in' })
-    .bind('-', 'Treemap ascend', { type: 'treemap-drill-out' })
-    .bind('escape', 'Close overlay', { type: 'overlay-close' })
-    .bind('shift+j', 'Scroll down', { type: 'scroll-detail', delta: 3 })
-    .bind('shift+k', 'Scroll up', { type: 'scroll-detail', delta: -3 });
+    .bind('?', 'Help', { type: 'toggle-help' })
+    .group('Navigation', (g) => g
+      .bind('j', 'Down', { type: 'move', delta: 1 })
+      .bind('down', 'Down', { type: 'move', delta: 1 })
+      .bind('k', 'Up', { type: 'move', delta: -1 })
+      .bind('up', 'Up', { type: 'move', delta: -1 })
+      .bind('d', 'Page down', { type: 'page', delta: 1 })
+      .bind('pagedown', 'Page down', { type: 'page', delta: 1 })
+      .bind('u', 'Page up', { type: 'page', delta: -1 })
+      .bind('pageup', 'Page up', { type: 'page', delta: -1 })
+      .bind('enter', 'Load', { type: 'select' })
+      .bind('/', 'Filter', { type: 'filter-start' }))
+    .group('Layout', (g) => g
+      .bind('tab', 'Focus pane', { type: 'split-focus' })
+      .bind('shift+h', 'Narrow pane', { type: 'split-resize', delta: -4 })
+      .bind('shift+l', 'Widen pane', { type: 'split-resize', delta: 4 })
+      .bind('ctrl+p', 'Palette', { type: 'open-palette' })
+      .bind(':', 'Palette', { type: 'open-palette' })
+      .bind('escape', 'Close overlay', { type: 'overlay-close' }))
+    .group('Views', (g) => g
+      .bind('s', 'Stats', { type: 'open-stats' })
+      .bind('g', 'Doctor', { type: 'open-doctor' })
+      .bind('t', 'Treemap', { type: 'open-treemap' })
+      .bind('r', 'Refs', { type: 'open-refs' }))
+    .group('Treemap', (g) => g
+      .bind('shift+t', 'Treemap scope', { type: 'toggle-treemap-scope' })
+      .bind('i', 'Treemap files', { type: 'toggle-treemap-worktree' })
+      .bind('shift+=', 'Treemap descend', { type: 'treemap-drill-in' })
+      .bind('-', 'Treemap ascend', { type: 'treemap-drill-out' }))
+    .group('Detail', (g) => g
+      .bind('shift+j', 'Scroll down', { type: 'scroll-detail', delta: 3 })
+      .bind('shift+k', 'Scroll up', { type: 'scroll-detail', delta: -3 })
+      .bind('space', 'Toggle section', { type: 'accordion-toggle' }));
 }
 
 const TABLE_COLUMNS = [
@@ -178,7 +193,7 @@ const TABLE_COLUMNS = [
 ];
 
 const DASH_HEADER_ROWS = 4;
-const DASH_FOOTER_ROWS = 4;
+const DASH_FOOTER_ROWS = 3;
 const PANE_BORDER_ROWS = 2;
 const LIST_META_ROWS = 2;
 const SPLIT_MIN_LIST_WIDTH = 28;
@@ -210,6 +225,18 @@ function detailPagerHeight(termRows) {
 function buildDetailPager(manifest, ctx, termRows) {
   const content = renderManifestView({ manifest, ctx });
   return createPagerState({ content, width: 1, height: detailPagerHeight(termRows) });
+}
+
+/**
+ * Build a detail accordion from manifest sections.
+ *
+ * @param {import('../../src/domain/value-objects/Manifest.js').default} manifest
+ * @param {BijouContext} ctx
+ * @returns {import('@flyingrobots/bijou-tui').AccordionState}
+ */
+function buildDetailAccordion(manifest, ctx) {
+  const sections = buildManifestSections({ manifest, ctx });
+  return createAccordionState(sections);
 }
 
 const PALETTE_ITEMS = [
@@ -733,12 +760,14 @@ function createInitModel(ctx, source) {
     manifestCache: new Map(),
     loadingSlug: null,
     detailPager: null,
+    detailAccordion: null,
     error: null,
     table: createInitTable(rows),
     refsTable: createInitRefsTable(rows),
     refsItems: [],
     splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
     palette: null,
+    showHelp: false,
     activeDrawer: null,
     refsStatus: 'idle',
     refsError: null,
@@ -756,6 +785,7 @@ function createInitModel(ctx, source) {
     treemapReport: null,
     treemapError: null,
     notifications: createNotificationState(),
+    gitBranch: null,
   };
 }
 
@@ -988,12 +1018,16 @@ function handleLoadedManifest(msg, model, ctx) {
   const detailPager = selectedSlug === msg.slug
     ? buildDetailPager(msg.manifest, ctx, model.rows)
     : model.detailPager;
+  const detailAccordion = selectedSlug === msg.slug
+    ? buildDetailAccordion(msg.manifest, ctx)
+    : model.detailAccordion;
   return [{
     ...model,
     manifestCache: cache,
     loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug,
     table,
     detailPager,
+    detailAccordion,
   }, []];
 }
 
@@ -1009,7 +1043,8 @@ function handleMove(msg, model, ctx) {
   const selected = model.filtered[table.focusRow];
   const cached = selected ? model.manifestCache.get(selected.slug) : null;
   const detailPager = cached ? buildDetailPager(cached, ctx, model.rows) : null;
-  return [{ ...model, table, detailPager }, []];
+  const detailAccordion = cached ? buildDetailAccordion(cached, ctx) : null;
+  return [{ ...model, table, detailPager, detailAccordion }, []];
 }
 
 /**
@@ -1024,7 +1059,8 @@ function handlePage(msg, model, ctx) {
   const selected = model.filtered[table.focusRow];
   const cached = selected ? model.manifestCache.get(selected.slug) : null;
   const detailPager = cached ? buildDetailPager(cached, ctx, model.rows) : null;
-  return [{ ...model, table, detailPager }, []];
+  const detailAccordion = cached ? buildDetailAccordion(cached, ctx) : null;
+  return [{ ...model, table, detailPager, detailAccordion }, []];
 }
 
 /**
@@ -1080,7 +1116,8 @@ function handleSelect(model, deps) {
   if (model.manifestCache.has(entry.slug)) {
     const manifest = model.manifestCache.get(entry.slug);
     const detailPager = buildDetailPager(manifest, deps.ctx, model.rows);
-    return [{ ...model, splitPane: { ...model.splitPane, focused: 'b' }, detailPager }, []];
+    const detailAccordion = buildDetailAccordion(manifest, deps.ctx);
+    return [{ ...model, splitPane: { ...model.splitPane, focused: 'b' }, detailPager, detailAccordion }, []];
   }
   const cmd = /** @type {DashCmd} */ (loadManifestCmd(deps.cas, {
     slug: entry.slug,
@@ -1091,6 +1128,7 @@ function handleSelect(model, deps) {
     ...model,
     loadingSlug: entry.slug,
     detailPager: null,
+    detailAccordion: null,
     splitPane: { ...model.splitPane, focused: 'b' },
   }, [cmd]];
 }
@@ -1265,6 +1303,7 @@ function buildSourceSwitchModel(model, source) {
     manifestCache: new Map(),
     loadingSlug: null,
     detailPager: null,
+    detailAccordion: null,
     error: null,
     table: clearedTable,
     splitPane: { ...model.splitPane, focused: 'a' },
@@ -1357,6 +1396,9 @@ function toggleTreemapWorktreeMode(model, deps) {
  * @returns {[DashModel, DashCmd[]]}
  */
 function closeOverlay(model) {
+  if (model.showHelp) {
+    return [{ ...model, showHelp: false }, []];
+  }
   if (model.palette) {
     return [{ ...model, palette: null }, []];
   }
@@ -1632,6 +1674,7 @@ function handleOverlayAction(action, model, deps) {
     'toggle-treemap-worktree': () => toggleTreemapWorktreeMode(model, deps),
     'treemap-drill-in': () => handleTreemapDrillIn(model, deps),
     'treemap-drill-out': () => handleTreemapDrillOut(model, deps),
+    'toggle-help': () => [{ ...model, showHelp: !model.showHelp }, []],
     'overlay-close': () => closeOverlay(model),
   };
   return action.type in handlers ? handlers[action.type]() : null;
@@ -1719,9 +1762,36 @@ function handlePrimaryAction(action, model, deps) {
  * @param {DashDeps} deps
  * @returns {[DashModel, DashCmd[]]}
  */
+/**
+ * Handle accordion navigation within the detail pane.
+ *
+ * @param {DashAction} action
+ * @param {DashModel} model
+ * @returns {[DashModel, DashCmd[]] | null}
+ */
+function handleDetailAccordionAction(action, model) {
+  if (!model.detailAccordion) {
+    return null;
+  }
+  if (action.type === 'move') {
+    const next = action.delta > 0
+      ? accordionFocusNext(model.detailAccordion)
+      : accordionFocusPrev(model.detailAccordion);
+    return [{ ...model, detailAccordion: next }, []];
+  }
+  if (action.type === 'select' || action.type === 'accordion-toggle') {
+    return [{ ...model, detailAccordion: accordionToggleFocused(model.detailAccordion) }, []];
+  }
+  return null;
+}
+
 function handleDetailPaneAction(action, model) {
   if (model.activeDrawer || model.splitPane.focused !== 'b') {
     return null;
+  }
+  const accordionResult = handleDetailAccordionAction(action, model);
+  if (accordionResult) {
+    return accordionResult;
   }
   if (action.type === 'move') {
     return handleLayoutAction({ type: 'scroll-detail', delta: action.delta }, model) ?? [model, []];
@@ -1894,6 +1964,7 @@ function handleLoadError(msg, model) {
 function handleAppMsg(msg, model, deps) {
   if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, deps.cas); }
   if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model, deps.ctx); }
+  if (msg.type === 'loaded-branch') { return [{ ...model, gitBranch: msg.branch }, []]; }
   if (msg.type === 'notification-tick') {
     const notifications = tickNotifications(model.notifications, Date.now());
     return [{ ...model, notifications }, notificationTickCmds(notifications)];
@@ -2005,7 +2076,7 @@ function treemapReportMatches(model, report) {
  */
 export function createDashboardApp(deps) {
   return {
-    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(deps.ctx, deps.source), [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas, deps.source))]]),
+    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(deps.ctx, deps.source), [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas, deps.source)), /** @type {DashCmd} */ (loadBranchCmd(deps.cas))]]),
     update: (/** @type {KeyMsg | ResizeMsg | DashMsg} */ msg, /** @type {DashModel} */ model) => handleUpdate(msg, model, deps),
     view: (/** @type {DashModel} */ model) => renderDashboard(model, deps),
   };

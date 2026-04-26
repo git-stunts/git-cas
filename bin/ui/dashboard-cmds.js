@@ -1541,3 +1541,22 @@ export function loadTreemapCmd(cas, options = {}) {
     }
   };
 }
+
+/**
+ * Load the current git branch name for the status bar.
+ *
+ * @param {ContentAddressableStore} cas
+ */
+export function loadBranchCmd(cas) {
+  return async () => {
+    try {
+      const service = await cas.getService();
+      const branch = (await service.persistence.plumbing.execute({
+        args: ['branch', '--show-current'],
+      })).trim();
+      return /** @type {const} */ ({ type: 'loaded-branch', branch: branch || null });
+    } catch {
+      return /** @type {const} */ ({ type: 'loaded-branch', branch: null });
+    }
+  };
+}

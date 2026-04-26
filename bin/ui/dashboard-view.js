@@ -3,7 +3,7 @@
  */
 
 import { badge, boxSurface, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
-import { commandPalette, hasNotifications, navigableTable, pagerSurface, renderNotificationStack, splitPaneLayout } from '@flyingrobots/bijou-tui';
+import { commandPalette, hasNotifications, helpView, interactiveAccordion, navigableTable, pagerSurface, renderNotificationStack, splitPaneLayout, statusBarSurface } from '@flyingrobots/bijou-tui';
 import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
 import { inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
 import { renderDoctorReport, renderVaultStats } from './vault-report.js';
@@ -742,7 +742,9 @@ function renderDetailPane(model, opts) {
     return boxSurface(content, { ctx: opts.ctx, title: inspectorTitle(model), width: opts.width });
   }
 
-  const manifestBody = renderManifestView({ manifest, ctx: opts.ctx });
+  const manifestBody = model.detailAccordion
+    ? interactiveAccordion(model.detailAccordion, { ctx: opts.ctx })
+    : renderManifestView({ manifest, ctx: opts.ctx });
   const manifestLines = Math.max(1, manifestBody.split('\n').length);
   const manifestSurface = parseAnsiToSurface(manifestBody, innerWidth, manifestLines);
   const bodyTop = 3;
@@ -1136,7 +1138,77 @@ function renderTreemapView(model, deps, options) {
 }
 
 /**
- * Render the footer help surface.
+ * Human-readable view mode label for the status bar.
+ *
+ * @param {DashModel} model
+ * @returns {string}
+ */
+function viewModeLabel(model) {
+  if (model.activeDrawer === 'treemap') {
+    return model.treemapScope === 'repository' ? 'atlas:repo' : 'atlas:source';
+  }
+  if (model.activeDrawer === 'refs') {
+    return 'refs';
+  }
+  return model.splitPane.focused === 'b' ? 'entries:inspector' : 'entries:ledger';
+}
+
+/**
+ * Build the left section of the status bar.
+ *
+ * @param {DashModel} model
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+function statusBarLeft(model, ctx) {
+  const parts = [];
+  parts.push(themeText(ctx, model.metadata?.encryption ? 'encrypted' : 'plain', { tone: model.metadata?.encryption ? 'warning' : 'subdued' }));
+  parts.push(themeText(ctx, `${model.entries.length} entries`, { tone: 'secondary' }));
+  const selected = selectedEntry(model);
+  if (selected && model.activeDrawer !== 'treemap' && model.activeDrawer !== 'refs') {
+    parts.push(themeText(ctx, selected.slug, { tone: 'accent' }));
+  }
+  return parts.join(themeText(ctx, ' | ', { tone: 'subdued' }));
+}
+
+/**
+ * Build the right section of the status bar.
+ *
+ * @param {DashModel} model
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+function statusBarRight(model, ctx) {
+  const parts = [];
+  parts.push(themeText(ctx, viewModeLabel(model), { tone: 'brand' }));
+  if (model.gitBranch) {
+    parts.push(themeText(ctx, model.gitBranch, { tone: 'info' }));
+  }
+  return parts.join(themeText(ctx, ' | ', { tone: 'subdued' }));
+}
+
+/**
+ * Build the condensed keybinding hints line for the footer.
+ *
+ * @param {DashModel} model
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+function footerHints(model, ctx) {
+  if (model.activeDrawer === 'treemap') {
+    return `${kbd('j/k', { ctx })} move  ${kbd('+/-', { ctx })} drill  ${kbd('T', { ctx })} scope  ${kbd('esc', { ctx })} back  ${kbd('?', { ctx })} help  ${kbd('q', { ctx })} quit`;
+  }
+  if (model.activeDrawer === 'refs') {
+    return `${kbd('j/k', { ctx })} move  ${kbd('enter', { ctx })} switch  ${kbd('esc', { ctx })} back  ${kbd('?', { ctx })} help  ${kbd('q', { ctx })} quit`;
+  }
+  if (model.splitPane.focused === 'b' && model.detailAccordion) {
+    return `${kbd('j/k', { ctx })} section  ${kbd('space', { ctx })} toggle  ${kbd('tab', { ctx })} pane  ${kbd('ctrl+p', { ctx })} palette  ${kbd('?', { ctx })} help  ${kbd('q', { ctx })} quit`;
+  }
+  return `${kbd('j/k', { ctx })} move  ${kbd('tab', { ctx })} pane  ${kbd('/', { ctx })} filter  ${kbd('ctrl+p', { ctx })} palette  ${kbd('?', { ctx })} help  ${kbd('q', { ctx })} quit`;
+}
+
+/**
+ * Render the footer surface with a status bar and condensed keybinding hints.
  *
  * @param {DashModel} model
  * @param {BijouContext} ctx
@@ -1144,34 +1216,20 @@ function renderTreemapView(model, deps, options) {
  * @returns {Surface}
  */
 function renderFooterSurface(model, ctx, width) {
-  const lines = model.activeDrawer === 'treemap'
-    ? [
-      shellRule(ctx, width),
-      `${themeText(ctx, 'atlas', { tone: 'accent' })}  ${kbd('j/k', { ctx })} regions  ${kbd('d/u', { ctx })} page  ${kbd('+', { ctx })} descend  ${kbd('-', { ctx })} ascend`,
-      `${themeText(ctx, 'scope', { tone: 'brand' })}  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('r', { ctx })} refs  ${kbd('ctrl+p', { ctx })} palette`,
-      `${themeText(ctx, 'ops', { tone: 'warning' })}  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
-    ]
-    : model.activeDrawer === 'refs'
-      ? [
-        shellRule(ctx, width),
-        `${themeText(ctx, 'index', { tone: 'accent' })}  ${kbd('j/k', { ctx })} refs  ${kbd('d/u', { ctx })} page  ${kbd('enter', { ctx })} switch source`,
-        `${themeText(ctx, 'inspect', { tone: 'brand' })}  ${kbd('t', { ctx })} treemap  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('ctrl+p', { ctx })} palette`,
-        `${themeText(ctx, 'shell', { tone: 'warning' })}  ${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
-      ]
-      : model.splitPane.focused === 'b'
-      ? [
-        shellRule(ctx, width),
-        `${themeText(ctx, 'detail', { tone: 'accent' })}  ${kbd('j/k', { ctx })} scroll  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} fast  ${kbd('enter', { ctx })} inspect`,
-        `${themeText(ctx, 'shell', { tone: 'brand' })}  ${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
-        `${themeText(ctx, 'ops', { tone: 'warning' })}  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('r', { ctx })} refs  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
-      ]
-      : [
-        shellRule(ctx, width),
-        `${themeText(ctx, 'browse', { tone: 'accent' })}  ${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
-        `${themeText(ctx, 'shell', { tone: 'brand' })}  ${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
-        `${themeText(ctx, 'ops', { tone: 'warning' })}  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('r', { ctx })} refs  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
-      ];
-  return textSurface(lines.join('\n'), width, 4);
+  const barWidth = Math.max(1, width);
+  const bar = statusBarSurface({
+    left: statusBarLeft(model, ctx),
+    right: statusBarRight(model, ctx),
+    width: barWidth,
+  });
+  const hintsLine = footerHints(model, ctx);
+  const hintsSurface = textSurface(hintsLine, barWidth, 1);
+  const ruleSurface = textSurface(shellRule(ctx, barWidth), barWidth, 1);
+  const footer = createSurface(barWidth, 3);
+  footer.blit(bar, 0, 0);
+  footer.blit(ruleSurface, 0, 1);
+  footer.blit(hintsSurface, 0, 2);
+  return footer;
 }
 
 /**
@@ -1206,6 +1264,31 @@ function renderBody(model, deps, options) {
 }
 
 /**
+ * Render the help overlay surface.
+ *
+ * @param {DashModel} model
+ * @param {DashDeps} deps
+ * @param {{ width: number, height: number }} opts
+ * @returns {Surface | null}
+ */
+function renderHelpSurface(model, deps, opts) {
+  if (!model.showHelp) {
+    return null;
+  }
+  const body = helpView(deps.keyMap, { title: 'Keybindings Reference' });
+  const panelWidth = Math.max(36, Math.min(60, opts.width - 4));
+  const lines = body.split('\n');
+  const panelHeight = Math.max(8, Math.min(lines.length + 2, opts.height));
+  return renderOverlayPanel({
+    title: 'Help',
+    body,
+    width: panelWidth,
+    height: panelHeight,
+    ctx: deps.ctx,
+  });
+}
+
+/**
  * Render any active operator overlays over the dashboard body.
  *
  * @param {DashModel} model
@@ -1232,6 +1315,16 @@ function renderOverlays(model, deps, options) {
     const x = Math.max(0, Math.floor((options.screen.width - palette.width) / 2));
     const y = options.top + Math.max(0, Math.floor((options.height - palette.height) / 3));
     options.screen.blit(palette, x, y);
+  }
+
+  const help = renderHelpSurface(model, deps, {
+    width: options.screen.width,
+    height: options.height,
+  });
+  if (help) {
+    const hx = Math.max(0, Math.floor((options.screen.width - help.width) / 2));
+    const hy = options.top + Math.max(0, Math.floor((options.height - help.height) / 3));
+    options.screen.blit(help, hx, hy);
   }
 
   if (hasNotifications(model.notifications)) {
