@@ -308,7 +308,7 @@ function layoutTreemap(tiles, rect, vertical = rect.width >= rect.height) {
  *
  * @param {number} width
  * @param {number} height
- * @returns {Array<Array<{ ch: string, kind: keyof typeof TILE_COLOR | null, label?: boolean }>>}
+ * @returns {Array<Array<{ ch: string, kind: keyof typeof TILE_COLOR | null, label?: boolean, focused?: boolean }>>}
  */
 function createGrid(width, height) {
   return Array.from({ length: height }, () => Array.from({ length: width }, () => ({ ch: ' ', kind: null })));
@@ -318,15 +318,16 @@ function createGrid(width, height) {
  * Write one cell when it falls inside the current grid.
  *
  * @param {ReturnType<typeof createGrid>} grid
- * @param {{ row: number, col: number, ch: string, kind: RepoTreemapTile['kind'], label?: boolean }} cell
+ * @param {{ row: number, col: number, ch: string, kind: RepoTreemapTile['kind'], label?: boolean, focused?: boolean }} cell
  */
 function putCell(grid, cell) {
   if (grid[cell.row]?.[cell.col]) {
-    grid[cell.row][cell.col] = { ch: cell.ch, kind: cell.kind, label: cell.label ?? false };
+    grid[cell.row][cell.col] = { ch: cell.ch, kind: cell.kind, label: cell.label ?? false, focused: cell.focused ?? false };
   }
 }
 
 const LABEL_FOREGROUND = [255, 255, 255];
+const FOCUS_BORDER_COLOR = [255, 255, 80];
 
 /**
  * Border glyphs for normal or focused treemap outlines.
@@ -363,17 +364,17 @@ function outlineRect(grid, rect, focused = false) {
   const right = rect.x + rect.width - 1;
 
   for (let col = left + 1; col < right; col++) {
-    putCell(grid, { row: top, col, ch: h, kind: rect.tile.kind });
-    putCell(grid, { row: bottom, col, ch: h, kind: rect.tile.kind });
+    putCell(grid, { row: top, col, ch: h, kind: rect.tile.kind, focused });
+    putCell(grid, { row: bottom, col, ch: h, kind: rect.tile.kind, focused });
   }
   for (let row = top + 1; row < bottom; row++) {
-    putCell(grid, { row, col: left, ch: v, kind: rect.tile.kind });
-    putCell(grid, { row, col: right, ch: v, kind: rect.tile.kind });
+    putCell(grid, { row, col: left, ch: v, kind: rect.tile.kind, focused });
+    putCell(grid, { row, col: right, ch: v, kind: rect.tile.kind, focused });
   }
-  putCell(grid, { row: top, col: left, ch: tl, kind: rect.tile.kind });
-  putCell(grid, { row: top, col: right, ch: tr, kind: rect.tile.kind });
-  putCell(grid, { row: bottom, col: left, ch: bl, kind: rect.tile.kind });
-  putCell(grid, { row: bottom, col: right, ch: br, kind: rect.tile.kind });
+  putCell(grid, { row: top, col: left, ch: tl, kind: rect.tile.kind, focused });
+  putCell(grid, { row: top, col: right, ch: tr, kind: rect.tile.kind, focused });
+  putCell(grid, { row: bottom, col: left, ch: bl, kind: rect.tile.kind, focused });
+  putCell(grid, { row: bottom, col: right, ch: br, kind: rect.tile.kind, focused });
 }
 
 /**
@@ -431,6 +432,10 @@ function renderGrid(grid, ctx) {
       return cell.ch;
     }
     const color = TILE_COLOR[cell.kind] ?? TILE_COLOR.meta;
+    if (cell.focused) {
+      const focusText = ctx.style.rgb(FOCUS_BORDER_COLOR[0], FOCUS_BORDER_COLOR[1], FOCUS_BORDER_COLOR[2], cell.ch);
+      return ctx.style.inverse ? ctx.style.bold(ctx.style.inverse(focusText)) : ctx.style.bold(focusText);
+    }
     if (cell.label) {
       return ctx.style.bold(
         ctx.style.rgb(LABEL_FOREGROUND[0], LABEL_FOREGROUND[1], LABEL_FOREGROUND[2], cell.ch),

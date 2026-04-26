@@ -655,6 +655,25 @@ function renderDividerSurface(height) {
 }
 
 /**
+ * Render a navigable table with the focused row highlighted via inverse styling.
+ *
+ * @param {DashModel} model
+ * @param {{ width: number, height: number, ctx: BijouContext }} opts
+ * @returns {string}
+ */
+function renderHighlightedTable(model, opts) {
+  const state = tableViewState(model, { width: opts.width, height: opts.height });
+  const ctx = opts.ctx;
+  const tableText = navigableTable(state, { ctx, focusIndicator: '\u25b8' });
+  const lines = tableText.split('\n');
+  const focusLine = state.focusRow - state.scrollY + 1;
+  if (focusLine >= 0 && focusLine < lines.length && ctx.style?.inverse) {
+    lines[focusLine] = ctx.style.inverse(lines[focusLine]);
+  }
+  return lines.join('\n');
+}
+
+/**
  * Render the explorer list pane.
  *
  * @param {DashModel} model
@@ -677,11 +696,7 @@ function renderListPane(model, opts) {
       ? themeText(opts.ctx, `Error: ${model.error}`, { tone: 'danger' })
       : themeText(opts.ctx, 'No entries', { tone: 'subdued' }));
   } else {
-    const tableText = navigableTable(tableViewState(model, { width: innerWidth, height: tableHeight }), {
-      ctx: opts.ctx,
-      focusIndicator: '▸',
-    });
-    metaLines.push(tableText);
+    metaLines.push(renderHighlightedTable(model, { width: innerWidth, height: tableHeight, ctx: opts.ctx }));
   }
 
   const content = metaLines.join('\n');
