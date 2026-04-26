@@ -57,6 +57,7 @@ npm run upgrade -- --execute --passphrase <passphrase>
 ```
 
 The migration script has two modes:
+
 - **Fast mode** (v2 schemes + convergent): renames the scheme in the manifest metadata. No re-encryption. Seconds.
 - **Full mode** (v1 schemes): restores through the legacy pipeline (decrypts without AAD), then re-stores with the current scheme (encrypts with AAD). Requires passphrase.
 

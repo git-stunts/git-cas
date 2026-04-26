@@ -232,9 +232,8 @@ describe('CasService.readManifestRaw', () => {
 // ---------------------------------------------------------------------------
 // readManifest — legacyMode hash verification with scheme mapping
 // ---------------------------------------------------------------------------
-// Current behavior: scheme mapped BEFORE hash verification, so hash over
-// mapped data (scheme:'whole') won't match original (scheme:'whole-v1').
-// When the fix lands this test should pass without hitting the catch path.
+// Hash verification must run against the ORIGINAL manifest data (before scheme
+// mapping), so a hash computed over the legacy scheme name stays valid.
 describe('CasService.readManifest – hash verified before scheme mapping', () => {
   it('manifestHash over original legacy data in legacyMode', async () => {
     const { service, mockPersistence, codec } = setup({ legacyMode: true });
@@ -243,13 +242,8 @@ describe('CasService.readManifest – hash verified before scheme mapping', () =
     data.manifestHash = await testCrypto.sha256(Buffer.from(encoded));
     mockTreeAndBlob(mockPersistence, codec, data);
 
-    try {
-      const result = await service.readManifest({ treeOid: 'tree-oid' });
-      expect(result).toBeInstanceOf(Manifest);
-      expect(result.encryption.scheme).toBe('whole');
-    } catch (err) {
-      expect(err).toBeInstanceOf(CasError);
-      expect(err.code).toBe('MANIFEST_INTEGRITY_ERROR');
-    }
+    const result = await service.readManifest({ treeOid: 'tree-oid' });
+    expect(result).toBeInstanceOf(Manifest);
+    expect(result.encryption.scheme).toBe('whole');
   });
 });

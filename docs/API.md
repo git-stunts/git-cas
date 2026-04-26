@@ -1252,6 +1252,9 @@ Reads a manifest from a Git tree OID and returns the raw decoded object WITHOUT 
 - `CasError` with code `MANIFEST_NOT_FOUND` if no manifest entry exists in the tree
 - `CasError` with code `GIT_ERROR` if the underlying Git command fails
 
+> **Warning**: This method skips manifest hash verification and schema validation.
+> It is intended for migration tooling only. Do not use for production reads.
+
 **Example:**
 
 ```javascript

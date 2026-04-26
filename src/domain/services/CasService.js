@@ -1047,8 +1047,10 @@ export default class CasService {
    */
   _isLegacyNoAad(manifest) {
     if (!this.#legacyMode) { return false; }
+    if (!originalSchemeMap.has(manifest)) { return false; }
     const orig = originalSchemeMap.get(manifest);
-    return orig ? isLegacyNoAad(orig) : false;
+    // undefined means schemeless legacy — no AAD, same as whole-v1
+    return orig === undefined || isLegacyNoAad(orig);
   }
 
   /**
@@ -1945,27 +1947,52 @@ export default class CasService {
 
     await this._verifyManifestHash(decoded, treeOid);
 
-    let originalScheme;
-
-    if (decoded.encryption?.scheme) {
-      originalScheme = decoded.encryption.scheme;
-      if (this.#legacyMode) {
-        const mapped = mapToCurrentScheme(originalScheme);
-        if (mapped) { decoded.encryption.scheme = mapped; }
-      } else {
-        assertCurrentScheme(decoded.encryption.scheme);
-      }
-    }
+    const originalScheme = this._resolveEncryptionScheme(decoded);
 
     if (decoded.version === 2 && decoded.subManifests?.length > 0) {
       decoded.chunks = await this._resolveSubManifests(decoded.subManifests, treeOid);
     }
 
     const manifest = new Manifest(decoded);
-    if (originalScheme) {
+    // For schemeless manifests, store undefined so _isLegacyNoAad treats
+    // them like whole-v1 (no AAD). For normal legacy schemes, store the
+    // original scheme string.
+    if (this.#legacyMode && decoded.encryption) {
       originalSchemeMap.set(manifest, originalScheme);
     }
     return manifest;
+  }
+
+  /**
+   * Resolves and normalises the encryption scheme on a decoded manifest.
+   *
+   * In legacy mode, schemeless manifests get `SCHEME_WHOLE` and versioned
+   * scheme identifiers are mapped to their current names.  In normal mode
+   * the scheme is asserted to be current.
+   *
+   * @private
+   * @param {Object} decoded - Mutable decoded manifest data.
+   * @returns {string|undefined} The original scheme string before mapping
+   *   (used for AAD decisions), or undefined for schemeless manifests.
+   */
+  _resolveEncryptionScheme(decoded) {
+    // Schemeless legacy manifests: encrypted but no scheme field.
+    // These were always whole-object encryption (pre-scheme era).
+    if (this.#legacyMode && decoded.encryption && !decoded.encryption.scheme) {
+      decoded.encryption.scheme = SCHEME_WHOLE;
+      return undefined;
+    }
+
+    if (!decoded.encryption?.scheme) { return undefined; }
+
+    const originalScheme = decoded.encryption.scheme;
+    if (this.#legacyMode) {
+      const mapped = mapToCurrentScheme(originalScheme);
+      if (mapped) { decoded.encryption.scheme = mapped; }
+    } else {
+      assertCurrentScheme(decoded.encryption.scheme);
+    }
+    return originalScheme;
   }
 
   /**

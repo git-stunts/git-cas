@@ -90,15 +90,23 @@ function classifyEntry(raw) {
 // ---------------------------------------------------------------------------
 
 /**
- * Performs fast migration: renames the scheme and rebuilds the tree.
+ * Performs fast migration: renames the scheme in the manifest blob and
+ * rebuilds the tree with only the manifest entry replaced.
+ *
+ * This preserves the entire tree structure (sub-manifests, chunk entries)
+ * and only replaces the manifest blob, avoiding round-tripping through
+ * createTree() which would flatten Merkle manifests.
+ *
  * @param {Object} ctx
- * @param {CasService} ctx.service - Normal CasService (current schemes).
+ * @param {CasService} ctx.service - CasService matching the entry's codec.
  * @param {CasService} ctx.rawService - Legacy-mode CasService for hash verification.
  * @param {string} ctx.treeOid - Original tree OID for hash verification context.
  * @param {Object} ctx.raw - Raw manifest data.
+ * @param {Object} ctx.persistence - GitPersistenceAdapter instance.
+ * @param {{ encode: Function }} ctx.codec - Codec matching the entry's format.
  * @returns {Promise<string>} New tree OID.
  */
-async function migrateFast({ service, rawService, raw, treeOid }) {
+async function migrateFast({ service, rawService, raw, treeOid, persistence, codec }) {
   await rawService._verifyManifestHash(raw, treeOid);
 
   const currentScheme = mapToCurrentScheme(raw.encryption.scheme);
@@ -108,11 +116,27 @@ async function migrateFast({ service, rawService, raw, treeOid }) {
     raw.formatVersion = service.formatVersion;
   }
 
-  const { default: Manifest } = await import(
-    '../src/domain/value-objects/Manifest.js'
+  // Recompute manifest hash with the updated scheme
+  const hashable = { ...raw };
+  delete hashable.manifestHash;
+  for (const key of Object.keys(hashable)) {
+    if (hashable[key] === undefined) { delete hashable[key]; }
+  }
+  raw.manifestHash = await service.crypto.sha256(Buffer.from(codec.encode(hashable)));
+
+  // Encode the updated manifest and write as a new blob
+  const newManifestBlob = codec.encode(raw);
+  const newManifestOid = await persistence.writeBlob(newManifestBlob);
+
+  // Rebuild tree with only the manifest entry replaced
+  const entries = await persistence.readTree(treeOid);
+  const manifestEntry = entries.find((e) => e.name.startsWith('manifest.'));
+  const newEntries = entries.map((e) =>
+    e.name === manifestEntry.name
+      ? `${e.mode} ${e.type} ${newManifestOid}\t${e.name}`
+      : `${e.mode} ${e.type} ${e.oid}\t${e.name}`,
   );
-  const manifest = new Manifest(raw);
-  return await service.createTree({ manifest });
+  return await persistence.writeTree(newEntries);
 }
 
 // ---------------------------------------------------------------------------
@@ -123,14 +147,34 @@ async function migrateFast({ service, rawService, raw, treeOid }) {
  * Performs full migration: decrypt with legacy, re-encrypt with current.
  * @param {Object} ctx
  * @param {CasService} ctx.legacyService - Legacy-mode CasService.
- * @param {CasService} ctx.service - Normal CasService.
+ * @param {CasService} ctx.service - CasService matching the entry's codec.
  * @param {string} ctx.treeOid - Original tree OID.
  * @param {Object} ctx.keyOpts - { passphrase } or { encryptionKey }.
+ * @param {Object} ctx.deps - Shared dependency bag for building services.
+ * @param {{ encode: Function, extension: string }} ctx.codec - Codec matching the entry's format.
  * @returns {Promise<string>} New tree OID.
  */
-async function migrateFull({ legacyService, service, treeOid, keyOpts }) {
+async function migrateFull({ legacyService, service, treeOid, keyOpts, deps, codec }) {
   const manifest = await legacyService.readManifest({ treeOid });
   const source = legacyService.restoreStream({ manifest, ...keyOpts });
+
+  // If the manifest has non-default chunking, build a writer service with
+  // the matching chunker so re-stored data preserves chunk boundaries.
+  let writerService = service;
+  if (manifest.chunking) {
+    const { default: resolveChunker } = await import(
+      '../src/infrastructure/chunkers/resolveChunker.js'
+    );
+    const chunker = resolveChunker({
+      chunking: {
+        strategy: manifest.chunking.strategy,
+        ...manifest.chunking.params,
+      },
+    });
+    if (chunker) {
+      writerService = new CasService({ ...deps, codec, chunker });
+    }
+  }
 
   const storeOpts = {
     source,
@@ -144,9 +188,9 @@ async function migrateFull({ legacyService, service, treeOid, keyOpts }) {
     storeOpts.compression = manifest.compression;
   }
 
-  const newManifest = await service.store(storeOpts);
+  const newManifest = await writerService.store(storeOpts);
 
-  return await service.createTree({ manifest: newManifest });
+  return await writerService.createTree({ manifest: newManifest });
 }
 
 // ---------------------------------------------------------------------------
@@ -179,7 +223,12 @@ async function migrateEntry(ctx, entry, opts) {
 
   if (classification.mode === 'fast') {
     result.newTreeOid = await migrateFast({
-      service: ctx.service, rawService, raw, treeOid: entry.treeOid,
+      service: ctx.services[codecExt],
+      rawService,
+      raw,
+      treeOid: entry.treeOid,
+      persistence: ctx.persistence,
+      codec: ctx.codecs[codecExt],
     });
   }
 
@@ -187,9 +236,11 @@ async function migrateEntry(ctx, entry, opts) {
     const keyOpts = buildKeyOpts(opts, classification);
     result.newTreeOid = await migrateFull({
       legacyService: ctx.legacyServices[codecExt],
-      service: ctx.service,
+      service: ctx.services[codecExt],
       treeOid: entry.treeOid,
       keyOpts,
+      deps: ctx.deps,
+      codec: ctx.codecs[codecExt],
     });
   }
 
@@ -244,7 +295,7 @@ async function detectCodec(persistence, treeOid) {
  */
 async function createMigrationContext(plumbing) {
   const cas = new ContentAddressableStore({ plumbing });
-  const service = await cas.getService();
+  await cas.getService();
   const vault = await cas.getVaultService();
 
   const { default: JsonCodec } = await import(
@@ -260,9 +311,11 @@ async function createMigrationContext(plumbing) {
     cbor: new CborCodec(),
   };
 
+  const services = {};
   const legacyServices = {};
   const rawServices = {};
   for (const [ext, codec] of Object.entries(codecs)) {
+    services[ext] = new CasService({ ...deps, codec });
     legacyServices[ext] = new CasService({
       ...deps,
       codec,
@@ -275,7 +328,7 @@ async function createMigrationContext(plumbing) {
     });
   }
 
-  return { service, legacyServices, rawServices, vault, persistence: deps.persistence };
+  return { services, legacyServices, rawServices, codecs, deps, vault, persistence: deps.persistence };
 }
 
 /**
@@ -349,15 +402,8 @@ function printReport(results, execute) {
 // ---------------------------------------------------------------------------
 
 async function listVaultEntries(vault) {
-  try {
-    return await vault.listVault();
-  } catch (err) {
-    const msg = err?.message ?? '';
-    if (err?.code === 'GIT_ERROR' && /ref.*(not found|does not exist)/i.test(msg)) {
-      return null;
-    }
-    throw err;
-  }
+  const entries = await vault.listVault();
+  return entries.length === 0 ? null : entries;
 }
 
 async function main() {

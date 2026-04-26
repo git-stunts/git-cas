@@ -34,5 +34,5 @@ branch.
 
 - [ ] All four docs rewritten
 - [ ] No in-progress language ("this branch", "security/audit-fixes")
-- [ ] Version references say 6.0.0
+- [x] Version references say 6.0.0
 - [ ] UPGRADING.md linked from README

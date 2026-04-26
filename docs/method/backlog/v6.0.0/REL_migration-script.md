@@ -34,10 +34,10 @@ migrates them to v6.0.0 format.
 
 ## Acceptance Criteria
 
-- [ ] `npm run upgrade` produces a dry-run report
-- [ ] `npm run upgrade -- --execute` migrates all entries
-- [ ] v2 schemes are renamed without re-encryption
-- [ ] v1 schemes are re-encrypted with AAD
+- [x] `npm run upgrade` produces a dry-run report
+- [x] `npm run upgrade -- --execute` migrates all entries
+- [x] v2 schemes are renamed without re-encryption
+- [x] v1 schemes are re-encrypted with AAD
 - [ ] Migrated manifests load cleanly in v6
-- [ ] Original blobs are not deleted (GC-safe)
-- [ ] Works on Node 22+
+- [x] Original blobs are not deleted (GC-safe)
+- [x] Works on Node 22+
