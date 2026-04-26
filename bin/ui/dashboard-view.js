@@ -1233,20 +1233,18 @@ function renderBody(model, deps, options) {
 function applyTransitionEffect(screen, region, transition) {
   const progress = Math.min(1, (Date.now() - transition.startTime) / transition.duration);
   const { top, height } = region;
+  const blank = { char: ' ', empty: true };
   if (transition.shader === 'wipe') {
     const revealCol = Math.floor(progress * screen.width);
-    for (let y = top; y < top + height && y < screen.height; y++) {
-      for (let x = revealCol; x < screen.width; x++) {
-        screen.set(x, y, ' ');
-      }
+    const clearWidth = screen.width - revealCol;
+    if (clearWidth > 0) {
+      screen.fill(blank, revealCol, top, clearWidth, height);
     }
   } else {
-    // Fade: blank unrevealed rows (top-down reveal)
     const revealRow = Math.floor(progress * height);
-    for (let y = top + revealRow; y < top + height && y < screen.height; y++) {
-      for (let x = 0; x < screen.width; x++) {
-        screen.set(x, y, ' ');
-      }
+    const clearHeight = height - revealRow;
+    if (clearHeight > 0) {
+      screen.fill(blank, 0, top + revealRow, screen.width, clearHeight);
     }
   }
 }
