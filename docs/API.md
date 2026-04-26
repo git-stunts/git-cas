@@ -1186,16 +1186,24 @@ new CasService({ persistence, codec, crypto, observability, chunkSize, merkleThr
 **Example:**
 
 ```javascript
-import CasService from 'git-cas/src/domain/services/CasService.js';
-import GitPersistenceAdapter from 'git-cas/src/infrastructure/adapters/GitPersistenceAdapter.js';
-import JsonCodec from 'git-cas/src/infrastructure/codecs/JsonCodec.js';
-import NodeCryptoAdapter from 'git-cas/src/infrastructure/adapters/NodeCryptoAdapter.js';
+import CasService from '@git-stunts/git-cas/service';
+// Or: import { CasService } from '@git-stunts/git-cas';
+import {
+  GitPersistenceAdapter,
+  JsonCodec,
+  NodeCryptoAdapter,
+  SilentObserver,
+  FixedChunker,
+  NodeCompressionAdapter,
+} from '@git-stunts/git-cas';
 
 const service = new CasService({
   persistence: new GitPersistenceAdapter({ plumbing }),
   codec: new JsonCodec(),
   crypto: new NodeCryptoAdapter(),
-  chunkSize: 512 * 1024,
+  observability: new SilentObserver(),
+  chunker: new FixedChunker({ chunkSize: 512 * 1024 }),
+  compressionAdapter: new NodeCompressionAdapter(),
 });
 ```
 
@@ -1288,17 +1296,21 @@ if (plan.mode === 'stream') {
 }
 ```
 
-### EventEmitter
+### Observability
 
-CasService extends Node.js EventEmitter. See [Events](#events) section for all emitted events.
+CasService delegates metrics and logging to the injected `ObservabilityPort` adapter. Use `EventEmitterObserver` for event-based monitoring or `StatsCollector` for metric aggregation.
 
 ## Events
 
-CasService emits the following events. Listen using standard EventEmitter API:
+Events are emitted through the `ObservabilityPort` adapter, not directly from CasService. Attach an `EventEmitterObserver` to listen:
 
 ```javascript
-const service = await cas.getService();
-service.on('chunk:stored', (payload) => {
+import ContentAddressableStore, { EventEmitterObserver } from '@git-stunts/git-cas';
+
+const observability = new EventEmitterObserver();
+const cas = new ContentAddressableStore({ plumbing, observability });
+
+observability.on('chunk:stored', (payload) => {
   console.log('Chunk stored:', payload);
 });
 ```

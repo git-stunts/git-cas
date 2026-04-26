@@ -340,6 +340,13 @@ export interface ManifestDiffResult {
 /** Compares two manifests by chunk digest, returning added/removed/unchanged chunks. */
 export function diffManifests(oldManifest: Manifest, newManifest: Manifest): ManifestDiffResult;
 
+/** Encryption scheme constant for whole-object encryption. */
+export const SCHEME_WHOLE: 'whole';
+/** Encryption scheme constant for framed streaming encryption. */
+export const SCHEME_FRAMED: 'framed';
+/** Encryption scheme constant for convergent (dedup-preserving) encryption. */
+export const SCHEME_CONVERGENT: 'convergent';
+
 /**
  * High-level facade for the Content Addressable Store library.
  *

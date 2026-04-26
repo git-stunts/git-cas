@@ -386,7 +386,7 @@ Compare two manifests to find added, removed, and unchanged chunks. This is a pu
 
 ```js
 // Static method (requires class, not an instance)
-import { CasService } from '@git-stunts/git-cas/service';
+import CasService from '@git-stunts/git-cas/service';
 const diff = CasService.diffManifests(oldManifest, newManifest);
 
 // Standalone function

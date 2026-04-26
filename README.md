@@ -85,7 +85,7 @@ Three encryption schemes are supported:
 
 | Scheme | Framing | AAD Binding | Notes |
 |---|---|---|---|
-| `whole` | Single ciphertext blob | Slug + frame index | AAD always bound to prevent cross-manifest blob swaps |
+| `whole` | Single ciphertext blob | Slug | AAD always bound to prevent cross-manifest blob swaps |
 | `framed` | Bounded frames | Slug + frame index | Default for fixed-chunk encrypted stores — streaming decrypt with per-frame AAD binding |
 | `convergent` | Per-chunk deterministic | Derived from content hash | **Default for CDC + encryption** — preserves deduplication across encrypted stores. Implemented as a standalone `ConvergentEncryption` service. |
 
@@ -181,7 +181,7 @@ Beyond the core encryption primitives, `git-cas` enforces a set of defensive lim
 |---|---|---|---|
 | Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. CDC + encryption defaults to `convergent` (per-chunk deterministic encryption preserving dedup). Fixed + encryption defaults to `framed`. |
 | Read: plaintext | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True chunk-by-chunk streaming restore. |
-| Read: encrypted `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is the buffered compatibility path. `restoreFile()` uses a bounded temp-file path: verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption, and renames into place only after auth succeeds. AAD (slug + frame index) is always bound. On Web Crypto runtimes this decrypt step is still one-shot internally, bounded by `maxDecryptionBufferSize`. |
+| Read: encrypted `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is the buffered compatibility path. `restoreFile()` uses a bounded temp-file path: verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption, and renames into place only after auth succeeds. AAD (slug) is always bound. On Web Crypto runtimes this decrypt step is still one-shot internally, bounded by `maxDecryptionBufferSize`. |
 | Read: encrypted `framed` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True authenticated streaming restore. Plaintext is yielded frame-by-frame after each frame is verified. Per-frame AAD is always bound. |
 | Read: compressed-only | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Plaintext + gzip now streams end-to-end. `restoreFile()` streams gunzip output through a bounded temp-file path. |
 | Read: compressed + `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is buffered because auth completes at the end of whole-object AES-GCM. `restoreFile()` decrypts and gunzips through the bounded temp-file path. |

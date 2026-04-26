@@ -54,14 +54,11 @@ npm run upgrade
 
 # Execute: migrate all vault entries
 npm run upgrade -- --execute --passphrase <passphrase>
-
-# Or with a key file
-npm run upgrade -- --execute --key-file <path>
 ```
 
 The migration script has two modes:
 - **Fast mode** (v2 schemes + convergent): renames the scheme in the manifest metadata. No re-encryption. Seconds.
-- **Full mode** (v1 schemes): restores through the legacy pipeline (decrypts without AAD), then re-stores with the current scheme (encrypts with AAD). Requires passphrase or key.
+- **Full mode** (v1 schemes): restores through the legacy pipeline (decrypts without AAD), then re-stores with the current scheme (encrypts with AAD). Requires passphrase.
 
 Original blobs are never deleted — Git's garbage collection only removes unreferenced objects after `git gc`.
 
@@ -98,8 +95,7 @@ Original blobs are never deleted — Git's garbage collection only removes unref
 -   persistence, codec, crypto, observability,
 - });
 
-+ import FixedChunker from '@git-stunts/git-cas/infrastructure/chunkers/FixedChunker.js';
-+ import NodeCompressionAdapter from '@git-stunts/git-cas/infrastructure/adapters/NodeCompressionAdapter.js';
++ import { FixedChunker, NodeCompressionAdapter } from '@git-stunts/git-cas';
 +
 + const service = new CasService({
 +   persistence, codec, crypto, observability,
@@ -148,7 +144,7 @@ ContentAddressableStore.diffManifests(oldManifest, newManifest);
 import { CompressionPort, NodeCompressionAdapter } from '@git-stunts/git-cas';
 
 // Scheme constants
-import { SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT } from '@git-stunts/git-cas/encryption/schemes';
+import { SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT } from '@git-stunts/git-cas';
 ```
 
 ### Behavioral Changes

@@ -61,16 +61,23 @@ function printUsage() {
  * @returns {{ mode: 'skip'|'fast'|'full', scheme: string|undefined, reason: string }}
  */
 function classifyEntry(raw) {
-  const scheme = raw.encryption?.scheme;
+  if (!raw.encryption) {
+    return { mode: 'skip', scheme: undefined, reason: 'unencrypted' };
+  }
+
+  const scheme = raw.encryption.scheme;
 
   if (!scheme) {
-    return { mode: 'skip', scheme, reason: 'unencrypted' };
+    return { mode: 'full', scheme, reason: 'schemeless legacy — re-encrypt' };
   }
   if (CURRENT_SCHEMES.has(scheme)) {
     return { mode: 'skip', scheme, reason: 'already current' };
   }
   if (!isLegacyScheme(scheme)) {
     return { mode: 'skip', scheme, reason: 'unknown scheme' };
+  }
+  if (scheme === 'convergent-v1') {
+    return { mode: 'fast', scheme, reason: 'convergent — rename only' };
   }
   if (isLegacyNoAad(scheme)) {
     return { mode: 'full', scheme, reason: 'v1 (no AAD) — re-encrypt' };
@@ -86,12 +93,14 @@ function classifyEntry(raw) {
  * Performs fast migration: renames the scheme and rebuilds the tree.
  * @param {Object} ctx
  * @param {CasService} ctx.service - Normal CasService (current schemes).
- * @param {CasService} ctx.rawService - Legacy-mode CasService for raw reads.
- * @param {string} ctx.treeOid
+ * @param {CasService} ctx.rawService - Legacy-mode CasService for hash verification.
+ * @param {string} ctx.treeOid - Original tree OID for hash verification context.
  * @param {Object} ctx.raw - Raw manifest data.
  * @returns {Promise<string>} New tree OID.
  */
-async function migrateFast({ service, raw }) {
+async function migrateFast({ service, rawService, raw, treeOid }) {
+  await rawService._verifyManifestHash(raw, treeOid);
+
   const currentScheme = mapToCurrentScheme(raw.encryption.scheme);
   raw.encryption.scheme = currentScheme;
 
@@ -111,49 +120,31 @@ async function migrateFast({ service, raw }) {
 // ---------------------------------------------------------------------------
 
 /**
- * Collects the full plaintext from a legacy restore stream.
- * @param {AsyncIterable<Buffer>} stream
- * @returns {Promise<Buffer>}
- */
-async function drainStream(stream) {
-  const chunks = [];
-  for await (const chunk of stream) {
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks);
-}
-
-/**
- * Wraps a buffer as an async iterable.
- * @param {Buffer} buf
- * @returns {AsyncIterable<Buffer>}
- */
-async function* bufferToStream(buf) {
-  yield buf;
-}
-
-/**
  * Performs full migration: decrypt with legacy, re-encrypt with current.
  * @param {Object} ctx
  * @param {CasService} ctx.legacyService - Legacy-mode CasService.
  * @param {CasService} ctx.service - Normal CasService.
- * @param {string} ctx.treeOid
+ * @param {string} ctx.treeOid - Original tree OID.
  * @param {Object} ctx.keyOpts - { passphrase } or { encryptionKey }.
  * @returns {Promise<string>} New tree OID.
  */
 async function migrateFull({ legacyService, service, treeOid, keyOpts }) {
   const manifest = await legacyService.readManifest({ treeOid });
-  const plaintext = await drainStream(
-    legacyService.restoreStream({ manifest, ...keyOpts }),
-  );
+  const source = legacyService.restoreStream({ manifest, ...keyOpts });
 
-  const newManifest = await service.store({
-    source: bufferToStream(plaintext),
+  const storeOpts = {
+    source,
     slug: manifest.slug,
     filename: manifest.filename,
     ...keyOpts,
     encryption: { scheme: manifest.encryption.scheme },
-  });
+  };
+
+  if (manifest.compression) {
+    storeOpts.compression = manifest.compression;
+  }
+
+  const newManifest = await service.store(storeOpts);
 
   return await service.createTree({ manifest: newManifest });
 }
@@ -164,13 +155,14 @@ async function migrateFull({ legacyService, service, treeOid, keyOpts }) {
 
 /**
  * Runs migration for a single vault entry.
- * @param {Object} ctx - Migration context.
- * @param {{ slug: string, treeOid: string }} entry
- * @param {Object} opts - { execute, passphrase }
+ * @param {Object} ctx - Migration context with codec-keyed services.
+ * @param {{ slug: string, treeOid: string }} entry - Vault entry to migrate.
+ * @param {{ execute: boolean, passphrase?: string }} opts - Migration options.
  * @returns {Promise<Object>} Result record.
  */
 async function migrateEntry(ctx, entry, opts) {
-  const { rawService } = ctx;
+  const codecExt = await detectCodec(ctx.persistence, entry.treeOid);
+  const rawService = ctx.rawServices[codecExt];
   const raw = await rawService.readManifestRaw({ treeOid: entry.treeOid });
   const classification = classifyEntry(raw);
 
@@ -186,13 +178,15 @@ async function migrateEntry(ctx, entry, opts) {
   }
 
   if (classification.mode === 'fast') {
-    result.newTreeOid = await migrateFast({ service: ctx.service, raw });
+    result.newTreeOid = await migrateFast({
+      service: ctx.service, rawService, raw, treeOid: entry.treeOid,
+    });
   }
 
   if (classification.mode === 'full') {
     const keyOpts = buildKeyOpts(opts, classification);
     result.newTreeOid = await migrateFull({
-      legacyService: ctx.legacyService,
+      legacyService: ctx.legacyServices[codecExt],
       service: ctx.service,
       treeOid: entry.treeOid,
       keyOpts,
@@ -212,9 +206,9 @@ async function migrateEntry(ctx, entry, opts) {
 
 /**
  * Builds key options for full-mode migration.
- * @param {Object} opts
- * @param {Object} classification
- * @returns {Object}
+ * @param {{ passphrase?: string }} opts - CLI options containing passphrase.
+ * @param {{ scheme: string|undefined, mode: string, reason: string }} classification - Entry classification.
+ * @returns {{ passphrase: string }} Key options for re-encryption.
  */
 function buildKeyOpts(opts, classification) {
   if (!opts.passphrase) {
@@ -231,9 +225,22 @@ function buildKeyOpts(opts, classification) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Detects the codec type from a tree OID by inspecting manifest entry names.
+ * @param {Object} persistence - GitPersistenceAdapter instance.
+ * @param {string} treeOid - Git tree OID to inspect.
+ * @returns {Promise<'json'|'cbor'>} Detected codec extension.
+ */
+async function detectCodec(persistence, treeOid) {
+  const entries = await persistence.readTree(treeOid);
+  const manifestEntry = entries.find((e) => e.name.startsWith('manifest.'));
+  if (!manifestEntry) { return 'json'; }
+  return manifestEntry.name.endsWith('.cbor') ? 'cbor' : 'json';
+}
+
+/**
  * Creates services with proper legacy mode support.
- * @param {Object} plumbing
- * @returns {Promise<Object>}
+ * @param {Object} plumbing - Git plumbing instance.
+ * @returns {Promise<Object>} Migration context with codec-keyed legacy services.
  */
 async function createMigrationContext(plumbing) {
   const cas = new ContentAddressableStore({ plumbing });
@@ -243,27 +250,38 @@ async function createMigrationContext(plumbing) {
   const { default: JsonCodec } = await import(
     '../src/infrastructure/codecs/JsonCodec.js'
   );
+  const { default: CborCodec } = await import(
+    '../src/infrastructure/codecs/CborCodec.js'
+  );
   const deps = await buildLegacyDeps(plumbing);
 
-  const legacyService = new CasService({
-    ...deps,
-    codec: new JsonCodec(),
-    legacyMode: true,
-  });
+  const codecs = {
+    json: new JsonCodec(),
+    cbor: new CborCodec(),
+  };
 
-  const rawService = new CasService({
-    ...deps,
-    codec: new JsonCodec(),
-    legacyMode: true,
-  });
+  const legacyServices = {};
+  const rawServices = {};
+  for (const [ext, codec] of Object.entries(codecs)) {
+    legacyServices[ext] = new CasService({
+      ...deps,
+      codec,
+      legacyMode: true,
+    });
+    rawServices[ext] = new CasService({
+      ...deps,
+      codec,
+      legacyMode: true,
+    });
+  }
 
-  return { service, legacyService, rawService, vault };
+  return { service, legacyServices, rawServices, vault, persistence: deps.persistence };
 }
 
 /**
  * Builds shared dependencies for legacy CasService instances.
- * @param {Object} plumbing
- * @returns {Promise<Object>}
+ * @param {Object} plumbing - Git plumbing instance.
+ * @returns {Promise<Object>} Shared dependency bag for CasService construction.
  */
 async function buildLegacyDeps(plumbing) {
   const { default: GitPersistenceAdapter } = await import(
@@ -330,6 +348,18 @@ function printReport(results, execute) {
 // Main
 // ---------------------------------------------------------------------------
 
+async function listVaultEntries(vault) {
+  try {
+    return await vault.listVault();
+  } catch (err) {
+    const msg = err?.message ?? '';
+    if (err?.code === 'GIT_ERROR' && /ref.*(not found|does not exist)/i.test(msg)) {
+      return null;
+    }
+    throw err;
+  }
+}
+
 async function main() {
   const { values: opts } = parseArgs(ARGS_CONFIG);
 
@@ -345,10 +375,9 @@ async function main() {
   const plumbing = createGitPlumbing({ cwd });
   const ctx = await createMigrationContext(plumbing);
 
-  let entries;
-  try {
-    entries = await ctx.vault.listVault();
-  } catch {
+  const entries = await listVaultEntries(ctx.vault);
+
+  if (entries === null) {
     console.log('No vault found — nothing to migrate.');
     return;
   }
@@ -369,7 +398,18 @@ async function main() {
   printReport(results, opts.execute);
 }
 
-main().catch((err) => {
-  console.error('Migration failed:', err.message);
-  process.exitCode = 1;
-});
+export {
+  classifyEntry,
+  migrateFast,
+  migrateFull,
+  buildKeyOpts,
+  createMigrationContext,
+  detectCodec,
+};
+
+if (process.argv[1]?.endsWith('migrate-encryption.js')) {
+  main().catch((err) => {
+    console.error('Migration failed:', err.message);
+    process.exitCode = 1;
+  });
+}

@@ -53,6 +53,7 @@ export { default as CdcChunker } from './src/infrastructure/chunkers/CdcChunker.
 export { default as CompressionPort } from './src/ports/CompressionPort.js';
 export { default as NodeCompressionAdapter } from './src/infrastructure/adapters/NodeCompressionAdapter.js';
 export { default as diffManifests } from './src/domain/services/ManifestDiff.js';
+export { SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT } from './src/domain/encryption/schemes.js';
 
 /**
  * High-level facade for the Content Addressable Store library.

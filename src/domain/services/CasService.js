@@ -1942,6 +1942,9 @@ export default class CasService {
   async readManifest({ treeOid }) {
     const blob = await this._readManifestBlob(treeOid);
     const decoded = this.codec.decode(blob);
+
+    await this._verifyManifestHash(decoded, treeOid);
+
     let originalScheme;
 
     if (decoded.encryption?.scheme) {
@@ -1953,8 +1956,6 @@ export default class CasService {
         assertCurrentScheme(decoded.encryption.scheme);
       }
     }
-
-    await this._verifyManifestHash(decoded, treeOid);
 
     if (decoded.version === 2 && decoded.subManifests?.length > 0) {
       decoded.chunks = await this._resolveSubManifests(decoded.subManifests, treeOid);

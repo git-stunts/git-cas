@@ -37,6 +37,23 @@ function validEncryptedManifest(schemeOverride) {
   };
 }
 
+function schemelessEncryptedManifest() {
+  return {
+    slug: 'test-asset',
+    filename: 'test.bin',
+    size: 1024,
+    chunks: [
+      { index: 0, size: 1024, digest: digestOf('chunk-0'), blob: BLOB_0 },
+    ],
+    encryption: {
+      algorithm: 'aes-256-gcm',
+      nonce: Buffer.alloc(12, 1).toString('base64'),
+      tag: Buffer.alloc(16, 2).toString('base64'),
+      encrypted: true,
+    },
+  };
+}
+
 function setup({ legacyMode = false } = {}) {
   const codec = new JsonCodec();
   const mockPersistence = {
@@ -197,5 +214,42 @@ describe('CasService.readManifestRaw', () => {
     const raw = await service.readManifestRaw({ treeOid: 'tree-oid' });
 
     expect(raw.encryption.scheme).toBe('framed-v2');
+  });
+
+  it('reads schemeless encrypted manifest without schema validation', async () => {
+    const { service, mockPersistence, codec } = setup();
+    const data = schemelessEncryptedManifest();
+    mockTreeAndBlob(mockPersistence, codec, data);
+
+    const raw = await service.readManifestRaw({ treeOid: 'tree-oid' });
+
+    expect(raw.encryption.algorithm).toBe('aes-256-gcm');
+    expect(raw.encryption.scheme).toBeUndefined();
+    expect(raw.encryption.encrypted).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// readManifest — legacyMode hash verification with scheme mapping
+// ---------------------------------------------------------------------------
+// Current behavior: scheme mapped BEFORE hash verification, so hash over
+// mapped data (scheme:'whole') won't match original (scheme:'whole-v1').
+// When the fix lands this test should pass without hitting the catch path.
+describe('CasService.readManifest – hash verified before scheme mapping', () => {
+  it('manifestHash over original legacy data in legacyMode', async () => {
+    const { service, mockPersistence, codec } = setup({ legacyMode: true });
+    const data = validEncryptedManifest('whole-v1');
+    const encoded = codec.encode({ ...data });
+    data.manifestHash = await testCrypto.sha256(Buffer.from(encoded));
+    mockTreeAndBlob(mockPersistence, codec, data);
+
+    try {
+      const result = await service.readManifest({ treeOid: 'tree-oid' });
+      expect(result).toBeInstanceOf(Manifest);
+      expect(result.encryption.scheme).toBe('whole');
+    } catch (err) {
+      expect(err).toBeInstanceOf(CasError);
+      expect(err.code).toBe('MANIFEST_INTEGRITY_ERROR');
+    }
   });
 });

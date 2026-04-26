@@ -17,7 +17,9 @@
     "index.d.ts",
     "bin/",
     "src/",
+    "scripts/",
     "README.md",
+    "UPGRADING.md",
     "LICENSE",
     "CHANGELOG.md"
   ],
