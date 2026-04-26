@@ -21,7 +21,7 @@ Bump to 6.0.0, tag, push, let CI publish.
 - [ ] Bun unit + integration tests pass
 - [ ] Deno unit + integration tests pass
 - [ ] `npm pack --dry-run` — clean
-- [ ] `npx jsr publish --dry-run --allow-dirty` — clean
+- [ ] `npx jsr publish --dry-run --allow-dirty` — **BLOCKED** by upstream Deno 2.6.7 panic in `deno_ast@0.52.0` (also fails on `main`; not a v6 regression). JSR publish deferred until Deno fix lands.
 - [ ] CHANGELOG complete
 - [ ] UPGRADING.md exists and is linked from README
 - [ ] Migration script works (`npm run upgrade`)
