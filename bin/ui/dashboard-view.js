@@ -590,13 +590,14 @@ function selectedEntry(model) {
  */
 function tableSchema(width) {
   if (width >= 64) {
+    const slugWidth = Math.max(20, Math.min(60, width - 40));
     return {
       columns: [
-        { header: 'Slug', width: Math.max(14, width - 36) },
-        { header: 'Size', width: 8, align: 'right' },
-        { header: 'Chunks', width: 6, align: 'right' },
-        { header: 'Crypto', width: 7 },
-        { header: 'Format', width: 9 },
+        { header: 'Slug', width: slugWidth },
+        { header: 'Size', width: 10, align: 'right' },
+        { header: 'Chunks', width: 7, align: 'right' },
+        { header: 'Crypto', width: 10 },
+        { header: 'Format', width: Math.max(9, width - slugWidth - 31) },
       ],
       indexes: [0, 1, 2, 3, 4],
     };
