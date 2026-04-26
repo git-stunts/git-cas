@@ -1004,9 +1004,12 @@ function handleLoadedManifest(msg, model, ctx) {
  * @param {DashModel} model
  * @returns {[DashModel, DashCmd[]]}
  */
-function handleMove(msg, model) {
+function handleMove(msg, model, ctx) {
   const table = msg.delta > 0 ? navTableFocusNext(model.table) : navTableFocusPrev(model.table);
-  return [{ ...model, table, detailPager: null }, []];
+  const selected = model.filtered[table.focusRow];
+  const cached = selected ? model.manifestCache.get(selected.slug) : null;
+  const detailPager = cached ? buildDetailPager(cached, ctx, model.rows) : null;
+  return [{ ...model, table, detailPager }, []];
 }
 
 /**
@@ -1016,9 +1019,12 @@ function handleMove(msg, model) {
  * @param {DashModel} model
  * @returns {[DashModel, DashCmd[]]}
  */
-function handlePage(msg, model) {
+function handlePage(msg, model, ctx) {
   const table = msg.delta > 0 ? navTablePageDown(model.table) : navTablePageUp(model.table);
-  return [{ ...model, table, detailPager: null }, []];
+  const selected = model.filtered[table.focusRow];
+  const cached = selected ? model.manifestCache.get(selected.slug) : null;
+  const detailPager = cached ? buildDetailPager(cached, ctx, model.rows) : null;
+  return [{ ...model, table, detailPager }, []];
 }
 
 /**
@@ -1694,10 +1700,10 @@ function handlePrimaryAction(action, model, deps) {
     return [model, [quit()]];
   }
   if (action.type === 'move') {
-    return handleMove(action, model);
+    return handleMove(action, model, deps.ctx);
   }
   if (action.type === 'page') {
-    return handlePage(action, model);
+    return handlePage(action, model, deps.ctx);
   }
   if (action.type === 'select') {
     return handleSelect(model, deps);
