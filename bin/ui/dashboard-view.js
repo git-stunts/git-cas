@@ -1146,9 +1146,9 @@ function renderTreemapSidebarText(options) {
  * @param {{ top: number, height: number, screen: Surface }} options
  */
 function renderTreemapView(model, deps, options) {
-  const maxSidebarWidth = Math.max(18, options.screen.width - 17);
-  const sidebarWidth = Math.min(maxSidebarWidth, Math.max(24, Math.min(42, Math.floor(options.screen.width * TREEMAP_SIDEBAR_RATIO))));
-  const mapWidth = Math.max(16, options.screen.width - sidebarWidth - 1);
+  const maxSidebarWidth = Math.max(18, options.width - 17);
+  const sidebarWidth = Math.min(maxSidebarWidth, Math.max(24, Math.min(42, Math.floor(options.width * TREEMAP_SIDEBAR_RATIO))));
+  const mapWidth = Math.max(16, options.width - sidebarWidth - 1);
   const mapHeight = options.height;
   const sidebarHeight = options.height;
 
@@ -1173,9 +1173,7 @@ function renderTreemapView(model, deps, options) {
     ctx: deps.ctx,
   });
 
-  options.screen.blit(mapPanel, 0, options.top);
-  options.screen.blit(renderDividerSurface(options.height), mapWidth, options.top);
-  options.screen.blit(sidebarPanel, mapWidth + 1, options.top);
+  return hstackSurface(0, mapPanel, renderDividerSurface(options.height), sidebarPanel);
 }
 
 /**
@@ -1511,16 +1509,15 @@ export function renderDashboard(model, deps) {
 
   const width = Math.max(1, model.columns);
   const height = Math.max(1, model.rows);
-  const screen = createSurface(width, height);
   const header = renderHeaderSurface(model, deps);
   const footer = renderFooterSurface(model, deps.ctx, width);
   const bodyTop = header.height;
   const bodyHeight = Math.max(1, height - header.height - footer.height);
 
-  screen.blit(header, 0, 0);
-  renderBody(model, deps, { top: bodyTop, height: bodyHeight, screen });
+  const bodySurface = renderBody(model, deps, { width, height: bodyHeight });
+  const screen = vstackSurface(header, bodySurface, footer);
+
   renderOverlays(model, deps, { top: bodyTop, height: bodyHeight, screen });
-  screen.blit(footer, 0, Math.max(0, height - footer.height));
 
   return screen;
 }
