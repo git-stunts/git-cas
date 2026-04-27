@@ -263,11 +263,11 @@ function checkVaultAuthCmd(cas, source) {
  * @param {DashDeps} deps
  * @returns {[DashModel, DashCmd[]]}
  */
-function handleVaultAuthCheck(msg, model, deps) {
+function handleVaultAuthCheck(msg, model) {
   if (msg.encrypted) {
     return [{ ...model, phase: 'password' }, []];
   }
-  return handleVaultAuthOk(model, deps);
+  return [{ ...model, promptEnter: true }, []];
 }
 
 /**
@@ -281,6 +281,7 @@ function handleVaultAuthOk(model, deps) {
   return [{
     ...model,
     phase: 'dashboard',
+    promptEnter: false,
     authError: null,
   }, [
     /** @type {DashCmd} */ (loadEntriesCmd(deps.cas, deps.source)),
@@ -539,7 +540,7 @@ function buildTableRows(entries, manifestCache) {
   return entries.map((entry) => {
     const manifest = manifestCache.get(entry.slug);
     if (!manifest) {
-      return [entry.slug, '...', '...', '...', '...', 'loading'];
+      return [entry.slug, entry.treeOid, '...', '...', '...', '...', 'loading'];
     }
     const m = manifest.toJSON ? manifest.toJSON() : manifest;
     const crypto = m.encryption ? 'enc' : 'plain';
@@ -547,6 +548,7 @@ function buildTableRows(entries, manifestCache) {
     const profile = m.subManifests?.length ? `${format} merkle` : `${format} single`;
     return [
       entry.slug,
+      entry.treeOid,
       formatSize(m.size ?? 0),
       String(m.chunks?.length ?? 0),
       crypto,
@@ -2288,7 +2290,7 @@ function handleLoadError(msg, model) {
  * @returns {[DashModel, DashCmd[]] | null}
  */
 function handleLifecycleMsg(msg, model, deps) {
-  if (msg.type === 'vault-auth-check') { return handleVaultAuthCheck(msg, model, deps); }
+  if (msg.type === 'vault-auth-check') { return handleVaultAuthCheck(msg, model); }
   if (msg.type === 'vault-auth-ok') { return handleVaultAuthOk(model, deps); }
   if (msg.type === 'vault-auth-fail') { return [{ ...model, authError: msg.error, passphrase: '' }, []]; }
   if (msg.type === 'wizard-store-done') { return handleWizardDone(msg, model, deps); }
