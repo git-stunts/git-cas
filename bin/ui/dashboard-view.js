@@ -11,7 +11,7 @@ import { renderBadgeRow } from './blocks/asset-card.js';
 import { renderHealthDashboard } from './blocks/health-dashboard.js';
 import { renderManifestView } from './manifest-view.js';
 import { renderWizardSurface } from './store-wizard.js';
-import { phasePortraitShader } from './shaders/phase-portrait.js';
+import { bakSneppenShader } from './shaders/bak-sneppen.js';
 
 /**
  * @typedef {import('./dashboard.js').DashModel} DashModel
@@ -1511,7 +1511,7 @@ function renderTitleScreen(model, deps) {
   const innerW = Math.min(56, width);
   const spacer = createSurface(1, 1);
 
-  screen.blit(canvas(width, height, phasePortraitShader, { time: (model.titleTimeMs ?? 0) / 1000, resolution: 'quad' }), 0, 0);
+  screen.blit(canvas(width, height, bakSneppenShader, { time: (model.titleTimeMs ?? 0) / 1000, resolution: 'quad' }), 0, 0);
 
   const surfaces = [
     textSurface(themeText(ctx, 'git-cas', { tone: 'brand', bold: true }), innerW, 1),
