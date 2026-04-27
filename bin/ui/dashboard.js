@@ -304,10 +304,16 @@ function verifyPassphraseCmd(cas, passphrase) {
         return;
       }
       const first = entries[0];
-      await cas.readManifest({ treeOid: first.treeOid, passphrase });
-      dispatch({ type: 'vault-auth-ok' });
+      const manifest = await cas.readManifest({ treeOid: first.treeOid });
+      const ok = await cas.verifyIntegrity(manifest, { passphrase });
+      if (ok) {
+        dispatch({ type: 'vault-auth-ok' });
+      } else {
+        dispatch({ type: 'vault-auth-fail', error: 'Wrong passphrase' });
+      }
     } catch (/** @type {any} */ err) {
-      const msg = err.code === 'INTEGRITY_ERROR' ? 'Wrong passphrase' : (err.message ?? String(err));
+      const authErrorCodes = ['INTEGRITY_ERROR', 'DEK_UNWRAP_FAILED', 'MISSING_KEY', 'NO_MATCHING_RECIPIENT'];
+      const msg = authErrorCodes.includes(err.code) ? 'Wrong passphrase' : (err.message ?? String(err));
       dispatch({ type: 'vault-auth-fail', error: msg });
     }
   };
@@ -345,7 +351,7 @@ function handlePasswordKey(msg, model, deps) {
   if (msg.key === 'escape') {
     return [model, [quit()]];
   }
-  if (msg.key === 'enter' && model.passphrase.length > 0) {
+  if (msg.key === 'enter') {
     return [{ ...model, authError: null }, [verifyPassphraseCmd(deps.cas, model.passphrase)]];
   }
   if (msg.key === 'backspace') {
