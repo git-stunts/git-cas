@@ -1511,7 +1511,7 @@ function renderTitleScreen(model, deps) {
   const innerW = Math.min(56, width);
   const spacer = createSurface(1, 1);
 
-  screen.blit(canvas(width, height, phasePortraitShader, { time: (model.titleTimeMs ?? 0) / 1000 }), 0, 0);
+  screen.blit(canvas(width, height, phasePortraitShader, { time: (model.titleTimeMs ?? 0) / 1000, resolution: 'quad' }), 0, 0);
 
   const surfaces = [
     textSurface(themeText(ctx, 'git-cas', { tone: 'brand', bold: true }), innerW, 1),

@@ -3,37 +3,15 @@
  * Adapts the polynomial roots phase visualization to the terminal grid.
  */
 
-/**
- * HSL to RGB conversion helper.
- * @param {number} h
- * @param {number} s
- * @param {number} l
- * @returns {[number, number, number]}
- */
-function hslToRgb(h, s, l) {
-  let r; let g; let b;
-
-  if (s === 0) {
-    r = g = b = l; // achromatic
-  } else {
-    const hue2rgb = (p, q, t) => {
-      if (t < 0) {t += 1;}
-      if (t > 1) {t -= 1;}
-      if (t < 1/6) {return p + (q - p) * 6 * t;}
-      if (t < 1/2) {return q;}
-      if (t < 2/3) {return p + (q - p) * (2/3 - t) * 6;}
-      return p;
-    };
-
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1/3);
-    g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1/3);
-  }
-
-  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
-}
+const TWILIGHT_STOPS = [
+  [228, 207, 212], // Light pinkish-white
+  [120, 130, 180], // Slate blue/periwinkle
+  [50, 40, 80],    // Dark purple
+  [30, 20, 40],    // Deep midnight/black
+  [150, 60, 80],   // Deep red/burgundy
+  [210, 130, 110], // Warm orange
+  [228, 207, 212]  // Light pinkish-white
+];
 
 /**
  * @param {number} r
@@ -49,17 +27,25 @@ function rgbToHex(r, g, b) {
 }
 
 /**
- * Maps an angle to a twilight-like color map.
- * @param {number} angle 
+ * Maps a normalized value [0..1] to the twilight colormap.
+ * @param {number} t
  * @returns {string} hex color
  */
-function angleToTwilightHex(angle) {
-  // Map angle from -PI..PI to 0..1
-  const normalized = (angle + Math.PI) / (2 * Math.PI);
-  // We can simulate twilight with HSL.
-  // Real twilight is more complex, but a hue sweep from purple/blue to orange/red works decently well.
-  const rgb = hslToRgb(normalized, 0.65, 0.45);
-  return rgbToHex(rgb[0], rgb[1], rgb[2]);
+function twilightHex(t) {
+  t = Math.max(0, Math.min(1, t));
+  const max = TWILIGHT_STOPS.length - 1;
+  const scaled = t * max;
+  const idx = Math.floor(scaled);
+  if (idx >= max) {return rgbToHex(TWILIGHT_STOPS[max][0], TWILIGHT_STOPS[max][1], TWILIGHT_STOPS[max][2]);}
+  
+  const frac = scaled - idx;
+  const c1 = TWILIGHT_STOPS[idx];
+  const c2 = TWILIGHT_STOPS[idx + 1];
+  
+  const r = Math.round(c1[0] + (c2[0] - c1[0]) * frac);
+  const g = Math.round(c1[1] + (c2[1] - c1[1]) * frac);
+  const b = Math.round(c1[2] + (c2[2] - c1[2]) * frac);
+  return rgbToHex(r, g, b);
 }
 
 /**
@@ -68,6 +54,9 @@ function angleToTwilightHex(angle) {
  */
 export function phasePortraitShader({ u, v, time }) {
   // Grid bounds mapping u,v (0..1) to x,y (-1.5..1.5)
+  // Adjust aspect ratio since we will be using sub-cell 'quad' resolution (2:2 or roughly 1:1 visually)
+  // The 'quad' resolution mode samples at 2x2 per cell, bringing the aspect ratio much closer to 1:1
+  // We'll leave the UV multiplier alone, or apply a slight correction if necessary.
   const dx = 1.5;
   const dy = 1.5;
   const zx = (u * 2 - 1) * dx;
@@ -78,9 +67,7 @@ export function phasePortraitShader({ u, v, time }) {
 
   for (let i = 0; i < nRoots; i++) {
     // Generate pseudo-random orbit
-    // Fixed random-ish radius for each root
     const r = Math.sqrt(((i + 1) * 0.6180339887) % 1.0);
-    // Different rotation speeds to make them move around
     const th = ((i + 1) * 2.39996) + time * (0.2 + i * 0.05);
     
     const rx = r * Math.cos(th);
@@ -89,13 +76,18 @@ export function phasePortraitShader({ u, v, time }) {
     totalAngle += Math.atan2(zy - ry, zx - rx);
   }
 
-  // Wrap total angle to -PI to PI
+  // Wrap total angle to 0..2PI
   let ang = (totalAngle + Math.PI) % (2 * Math.PI);
-  if (ang < 0) {ang += 2 * Math.PI;}
-  ang -= Math.PI;
+  if (ang < 0) {
+    ang += 2 * Math.PI;
+  }
+  
+  // Normalize to 0..1 for colormap
+  const t = ang / (2 * Math.PI);
 
-  const hex = angleToTwilightHex(ang);
+  const hex = twilightHex(t);
 
-  // Return a solid colored cell
-  return { char: ' ', bg: hex, empty: false };
+  // Return hex string. When using `canvas` with resolution 'quad', Bijou expects the shader
+  // to return a color string which it will downsample into block characters.
+  return hex;
 }
