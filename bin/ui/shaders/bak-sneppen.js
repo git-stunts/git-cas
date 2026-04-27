@@ -8,7 +8,7 @@
 const NUM_SPECIES = 120;
 const fitnessState = new Float32Array(NUM_SPECIES);
 let initialized = false;
-let lastTickMs = 0;
+let lastSimTime = -1;
 
 /**
  * Initialize the fitness array with random values
@@ -35,10 +35,8 @@ function stepBakSneppen(steps) {
       }
     }
 
-    // Replace the weakest link and its two nearest neighbors
     const leftIdx = (minIdx - 1 + NUM_SPECIES) % NUM_SPECIES;
     const rightIdx = (minIdx + 1) % NUM_SPECIES;
-
     fitnessState[leftIdx] = Math.random();
     fitnessState[minIdx] = Math.random();
     fitnessState[rightIdx] = Math.random();
@@ -50,23 +48,15 @@ function stepBakSneppen(steps) {
  * @param {{ x: number, y: number, z: number, elevation: number, azimuth: number }} params
  */
 function project3D({ x, y, z, elevation, azimuth }) {
-  // Convert angles to radians
   const el = elevation * (Math.PI / 180);
   const az = azimuth * (Math.PI / 180);
-
-  // Rotate around Z axis (azimuth)
   const x1 = x * Math.cos(az) - y * Math.sin(az);
   const y1 = x * Math.sin(az) + y * Math.cos(az);
-
-  // Rotate around X axis (elevation)
   const y2 = y1 * Math.cos(el) - z * Math.sin(el);
   const z2 = y1 * Math.sin(el) + z * Math.cos(el);
-
-  // Simple orthographic projection since we just need screen x,y
   return { px: x1, py: y2, pz: z2 };
 }
 
-// Colors matching the Marimo notebook
 const BG_COLOR = '#1d252b';
 const DR_COLOR = '#fbfcfc';
 const STEM_COLOR = '#FF8552';
@@ -84,71 +74,60 @@ function distToSegment({ px, py, x1, y1, x2, y2 }) {
 
 /**
  * Checks intersection with a single stem
- * @param {number} screenX
- * @param {number} screenY
- * @param {number} i
- * @param {number} elevation
- * @param {number} azimuth
+ * @param {{ screenX: number, screenY: number, i: number, elevation: number, azimuth: number }} params
  * @returns {{ hitColor: string | null, closestZ: number }}
  */
 function checkStemHit({ screenX, screenY, i, elevation, azimuth }) {
   const theta = (i / NUM_SPECIES) * 2 * Math.PI;
-  const r = 1.0;
-  const x = r * Math.cos(theta);
-  const y = r * Math.sin(theta);
+  const x = Math.cos(theta);
+  const y = Math.sin(theta);
   const z = fitnessState[i];
 
   const baseProj = project3D({ x, y, z: 0, elevation, azimuth });
   const headProj = project3D({ x, y, z, elevation, azimuth });
 
-  let hitColor = null;
-  let closestZ = -Infinity;
-
   const lineDist = distToSegment({ px: screenX, py: screenY, x1: baseProj.px, y1: baseProj.py, x2: headProj.px, y2: headProj.py });
-  if (lineDist < 0.015) {
-    hitColor = STEM_COLOR;
-    closestZ = headProj.pz;
+  if (lineDist < 0.02) {
+    return { hitColor: STEM_COLOR, closestZ: headProj.pz };
   }
 
   const headDist = Math.hypot(screenX - headProj.px, screenY - headProj.py);
-  if (headDist < 0.035) {
-    hitColor = HEAD_COLOR;
-    closestZ = headProj.pz;
+  if (headDist < 0.05) {
+    return { hitColor: HEAD_COLOR, closestZ: headProj.pz };
   }
   
   const baseDist = Math.hypot(screenX - baseProj.px, screenY - baseProj.py);
-  if (baseDist < 0.02) {
-    hitColor = DR_COLOR;
-    closestZ = baseProj.pz;
+  if (baseDist < 0.03) {
+    return { hitColor: DR_COLOR, closestZ: baseProj.pz };
   }
 
-  return { hitColor, closestZ };
+  return { hitColor: null, closestZ: -Infinity };
 }
 
 /**
  * @param {import('@flyingrobots/bijou-tui').ShaderParams} params
- * @returns {string} hex color
+ * @returns {import('@flyingrobots/bijou').Cell}
  */
 export function bakSneppenShader({ u, v, time }) {
   if (!initialized) {
     initBakSneppen();
   }
 
-  const currentTickMs = Math.floor(time * 1000);
-  if (currentTickMs - lastTickMs > 50) {
-    stepBakSneppen(5);
-    lastTickMs = currentTickMs;
+  // Simulation step: run only once per frame by checking time
+  if (time !== lastSimTime) {
+    stepBakSneppen(3);
+    lastSimTime = time;
   }
 
-  const dx = 1.5;
-  const dy = 1.5;
+  const dx = 1.6; // Slightly wider to fit the ring
+  const dy = 1.2; // Slightly shorter due to aspect ratio
   const screenX = (u * 2 - 1) * dx;
   const screenY = (v * 2 - 1) * dy;
 
-  const elevation = 30;
-  const azimuth = 45 + (time * 10); 
+  const elevation = 35;
+  const azimuth = 45 + (time * 15); 
 
-  let finalColor = BG_COLOR;
+  let finalColor = null;
   let maxZ = -Infinity;
 
   for (let i = 0; i < NUM_SPECIES; i++) {
@@ -159,5 +138,13 @@ export function bakSneppenShader({ u, v, time }) {
     }
   }
 
-  return finalColor;
+  // In quad mode:
+  // - If we return char ' ', the sub-pixel is "off".
+  // - If we return any other char, the sub-pixel is "on".
+  // - The color of the first "on" sub-pixel becomes the FG of the cell.
+  // - We set the BG to BG_COLOR so the whole surface has a consistent background.
+  if (finalColor) {
+    return { char: '█', fg: finalColor, bg: BG_COLOR };
+  }
+  return { char: ' ', bg: BG_COLOR };
 }
