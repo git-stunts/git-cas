@@ -96,6 +96,7 @@ import { createWizardState, wizardHandleKey } from './store-wizard.js';
  *   | { type: 'loaded-treemap', report: any }
  *   | { type: 'loaded-branch', branch: string | null }
  *   | { type: 'notification-tick' }
+ *   | { type: 'title-tick' }
  *   | { type: 'load-error', source: string, slug?: string, forSource?: DashSource, scopeId?: TreemapScope, worktreeMode?: TreemapWorktreeMode, drillPath?: TreemapPathNode[], error: string }
  * } DashMsg
  */
@@ -904,11 +905,11 @@ function createInitModel(ctx, source) {
   const rows = ctx.runtime.rows ?? 24;
   return {
     phase: 'title',
+    titleTimeMs: 0,
     passphrase: '',
     authError: null,
     status: 'loading',
-    columns: ctx.runtime.columns ?? 80,
-    rows,
+    columns: ctx.runtime.columns ?? 80, rows,
     source,
     entries: [],
     filtered: [],
@@ -2289,14 +2290,20 @@ function handleLifecycleMsg(msg, model, deps) {
   return null;
 }
 
-function handleAppMsg(msg, model, deps) {
-  if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, deps.cas); }
-  if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model, deps.ctx); }
-  if (msg.type === 'loaded-branch') { return [{ ...model, gitBranch: msg.branch }, []]; }
+function handleTickMsg(msg, model) {
   if (msg.type === 'notification-tick') {
     const notifications = tickNotifications(model.notifications, Date.now());
     return [{ ...model, notifications }, notificationTickCmds(notifications)];
   }
+  if (model.phase !== 'title' && model.phase !== 'password') { return [model, []]; }
+  return [{ ...model, titleTimeMs: (model.titleTimeMs || 0) + 33 }, [/** @type {DashCmd} */ (tick(33, { type: 'title-tick' }))]];
+}
+
+function handleAppMsg(msg, model, deps) {
+  if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, deps.cas); }
+  if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model, deps.ctx); }
+  if (msg.type === 'loaded-branch') { return [{ ...model, gitBranch: msg.branch }, []]; }
+  if (msg.type === 'notification-tick' || msg.type === 'title-tick') { return handleTickMsg(msg, model); }
   const lifecycle = handleLifecycleMsg(msg, model, deps);
   if (lifecycle) { return lifecycle; }
   if (msg.type === 'load-error') { return handleLoadError(msg, model); }
