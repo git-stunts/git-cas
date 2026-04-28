@@ -1542,6 +1542,12 @@ function renderTitleScreen(model, deps) {
     uniforms: { entryCount: model.vaultEntryCount }
   }), 0, 0);
 
+  if (model.showPerfHud) {
+    const fpsText = ` ${model.fps} FPS `;
+    const hud = textSurface(ctx.style.bgRgb(0, 0, 0, ctx.style.rgb(255, 255, 255, fpsText)), fpsText.length, 1);
+    screen.blit(hud, 0, 0);
+  }
+
   const surfaces = [
     textSurface(themeText(ctx, 'git-cas', { tone: 'brand', bold: true }), innerW, 1),
     textSurface(themeText(ctx, 'content-addressable storage', { tone: 'secondary' }), innerW, 1),

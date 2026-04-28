@@ -74,6 +74,7 @@ import { createWizardState, wizardHandleKey } from './store-wizard.js';
  *   | { type: 'dag-scroll-x', delta: number }
  *   | { type: 'dag-page', delta: number }
  *   | { type: 'overlay-close' }
+ *   | { type: 'toggle-perf-hud' }
  * } DashAction
  */
 
@@ -112,6 +113,9 @@ import { createWizardState, wizardHandleKey } from './store-wizard.js';
  * @typedef {Object} DashModel
  * @property {AppPhase} phase
  * @property {number} titleTimeMs
+ * @property {number} lastTickTime
+ * @property {number} fps
+ * @property {boolean} showPerfHud
  * @property {number} vaultEntryCount
  * @property {string} passphrase
  * @property {string | null} authError
@@ -920,7 +924,8 @@ function createInitModel(ctx, source) {
   const rows = ctx.runtime.rows ?? 24;
   return {
     phase: 'title',
-    titleTimeMs: 0, vaultEntryCount: 0,
+    titleTimeMs: 0, lastTickTime: 0, fps: 0, showPerfHud: false,
+    vaultEntryCount: 0,
     passphrase: '', authError: null,
     status: 'loading',
     columns: ctx.runtime.columns ?? 80, rows,
@@ -2291,7 +2296,17 @@ function handleTickMsg(msg, model) {
     return [{ ...model, notifications }, notificationTickCmds(notifications)];
   }
   if (model.phase !== 'title' && model.phase !== 'password') { return [model, []]; }
-  return [{ ...model, titleTimeMs: (model.titleTimeMs || 0) + 33 }, [/** @type {DashCmd} */ (tick(33, { type: 'title-tick' }))]];
+  
+  const now = Date.now();
+  const elapsed = now - (model.lastTickTime || now);
+  const fps = elapsed > 0 ? Math.round(1000 / elapsed) : 0;
+  
+  return [{ 
+    ...model, 
+    titleTimeMs: (model.titleTimeMs || 0) + 33,
+    lastTickTime: now,
+    fps: model.lastTickTime ? fps : 0 
+  }, [/** @type {DashCmd} */ (tick(33, { type: 'title-tick' }))]];
 }
 
 function handleAppMsg(msg, model, deps) {
@@ -2405,6 +2420,9 @@ function handleModalKey(msg, model, deps) {
 }
 
 function handleKeyMsg(msg, model, deps) {
+  if (msg.key === '`') {
+    return [{ ...model, showPerfHud: !model.showPerfHud }, []];
+  }
   if (model.phase === 'title') { return handleTitleKey(msg, model); }
   if (model.phase === 'password') { return handlePasswordKey(msg, model, deps); }
   const modal = handleModalKey(msg, model, deps);
