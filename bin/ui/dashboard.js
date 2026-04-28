@@ -88,7 +88,10 @@ import { createWizardState, wizardHandleKey } from './store-wizard.js';
  */
 
 /**
- * @typedef {{ type: 'loaded-entries', entries: VaultEntry[], metadata: any, source: DashSource }
+ * @typedef {{ type: 'vault-auth-check', encrypted: boolean, entryCount: number, source: DashSource }
+ *   | { type: 'vault-auth-ok' }
+ *   | { type: 'vault-auth-fail', error: string }
+ *   | { type: 'loaded-entries', entries: VaultEntry[], metadata: any, source: DashSource }
  *   | { type: 'loaded-manifest', slug: string, manifest: Manifest, source: DashSource }
  *   | { type: 'loaded-refs', refs: RefInventory }
  *   | { type: 'loaded-stats', stats: any, source: DashSource }
@@ -108,6 +111,8 @@ import { createWizardState, wizardHandleKey } from './store-wizard.js';
 /**
  * @typedef {Object} DashModel
  * @property {AppPhase} phase
+ * @property {number} titleTimeMs
+ * @property {number} vaultEntryCount
  * @property {string} passphrase
  * @property {string | null} authError
  * @property {string} status
@@ -129,6 +134,7 @@ import { createWizardState, wizardHandleKey } from './store-wizard.js';
  * @property {'list' | 'detail'} viewMode
  * @property {CommandPaletteState | null} palette
  * @property {boolean} showHelp
+ * @property {boolean} promptEnter
  * @property {'stats' | 'doctor' | 'treemap' | 'refs' | null} activeDrawer
  * @property {LoadState} refsStatus
  * @property {string | null} refsError
@@ -248,9 +254,10 @@ function checkVaultAuthCmd(cas, source) {
   return async (/** @type {(msg: DashMsg) => void} */ dispatch) => {
     try {
       const metadata = await cas.getVaultMetadata();
-      dispatch({ type: 'vault-auth-check', encrypted: Boolean(metadata?.encryption), source });
+      const { entries } = await readSourceEntries(cas, source);
+      dispatch({ type: 'vault-auth-check', encrypted: Boolean(metadata?.encryption), entryCount: entries.length, source });
     } catch {
-      dispatch({ type: 'vault-auth-check', encrypted: false, source });
+      dispatch({ type: 'vault-auth-check', encrypted: false, entryCount: 0, source });
     }
   };
 }
@@ -265,9 +272,9 @@ function checkVaultAuthCmd(cas, source) {
  */
 function handleVaultAuthCheck(msg, model) {
   if (msg.encrypted) {
-    return [{ ...model, phase: 'password' }, []];
+    return [{ ...model, phase: 'password', vaultEntryCount: msg.entryCount }, []];
   }
-  return [{ ...model, promptEnter: true }, []];
+  return [{ ...model, promptEnter: true, vaultEntryCount: msg.entryCount }, []];
 }
 
 /**
@@ -913,50 +920,30 @@ function createInitModel(ctx, source) {
   const rows = ctx.runtime.rows ?? 24;
   return {
     phase: 'title',
-    titleTimeMs: 0,
-    passphrase: '',
-    authError: null,
+    titleTimeMs: 0, vaultEntryCount: 0,
+    passphrase: '', authError: null,
     status: 'loading',
     columns: ctx.runtime.columns ?? 80, rows,
     source,
-    entries: [],
-    filtered: [],
-    filterText: '',
-    filtering: false,
+    entries: [], filtered: [],
+    filterText: '', filtering: false,
     metadata: null,
     manifestCache: new Map(),
-    loadingSlug: null,
-    detailPager: null,
-    detailAccordion: null,
-    dagPane: null,
-    quitConfirm: false,
-    storeWizard: null,
-    viewTransition: null,
-    error: null,
+    loadingSlug: null, detailPager: null, detailAccordion: null,
+    dagPane: null, quitConfirm: false, storeWizard: null,
+    viewTransition: null, error: null,
     table: createInitTable(rows),
     refsTable: createInitRefsTable(rows),
     refsItems: [],
     viewMode: 'list',
-    palette: null,
-    showHelp: false,
-    activeDrawer: null,
-    refsStatus: 'idle',
-    refsError: null,
-    statsStatus: 'idle',
-    statsReport: null,
-    statsError: null,
-    doctorStatus: 'idle',
-    doctorReport: null,
-    doctorError: null,
-    treemapScope: 'repository',
-    treemapWorktreeMode: 'tracked',
-    treemapPath: [],
-    treemapFocus: 0,
-    treemapStatus: 'idle',
-    treemapReport: null,
-    treemapError: null,
+    palette: null, showHelp: false, activeDrawer: null,
+    refsStatus: 'idle', refsError: null,
+    statsStatus: 'idle', statsReport: null, statsError: null,
+    doctorStatus: 'idle', doctorReport: null, doctorError: null,
+    treemapScope: 'repository', treemapWorktreeMode: 'tracked', treemapPath: [],
+    treemapFocus: 0, treemapStatus: 'idle', treemapReport: null, treemapError: null,
     notifications: createNotificationState(),
-    gitBranch: null,
+    gitBranch: null, promptEnter: false,
   };
 }
 

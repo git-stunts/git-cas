@@ -199,8 +199,8 @@ function selectedTreemapTile(model) {
  * @param {DashDeps} deps
  * @returns {Surface}
  */
-function renderHeaderSurface(model, deps) {
-  const w = Math.max(1, model.columns);
+function renderHeaderSurface(model, deps, width) {
+  const w = Math.max(1, width);
   const titleRow = hstackSurface(1,
     inlineSurface(deps.ctx, 'git-cas', { tone: 'brand' }),
     inlineSurface(deps.ctx, 'repository explorer', { tone: 'secondary' }),
@@ -585,6 +585,22 @@ function selectedEntry(model) {
  * @returns {{ columns: { header: string, width: number, align?: 'left' | 'right' | 'center' }[], indexes: number[] }}
  */
 function tableSchema(width) {
+  if (width >= 100) {
+    const oidWidth = 40;
+    const fixedCols = oidWidth + 10 + 7 + 10 + 9; // OID + Size + Chunks + Crypto + Format
+    const slugWidth = Math.max(16, Math.min(32, width - fixedCols - 6));
+    return {
+      columns: [
+        { header: 'Slug', width: slugWidth },
+        { header: 'Tree OID', width: oidWidth },
+        { header: 'Size', width: 10, align: 'right' },
+        { header: 'Chunks', width: 7, align: 'right' },
+        { header: 'Crypto', width: 10 },
+        { header: 'Format', width: 9 },
+      ],
+      indexes: [0, 1, 2, 3, 4, 5],
+    };
+  }
   if (width >= 64) {
     const fixedCols = 10 + 7 + 10 + 9; // Size + Chunks + Crypto + Format
     const slugWidth = Math.max(20, Math.min(40, width - fixedCols - 4));
@@ -596,7 +612,7 @@ function tableSchema(width) {
         { header: 'Crypto', width: 10 },
         { header: 'Format', width: 9 },
       ],
-      indexes: [0, 1, 2, 3, 4],
+      indexes: [0, 2, 3, 4, 5],
     };
   }
   if (width >= 48) {
@@ -606,7 +622,7 @@ function tableSchema(width) {
         { header: 'Size', width: 8, align: 'right' },
         { header: 'Profile', width: 11 },
       ],
-      indexes: [0, 1, 5],
+      indexes: [0, 2, 6],
     };
   }
   return {
@@ -614,7 +630,7 @@ function tableSchema(width) {
       { header: 'Slug', width: Math.max(14, width - 12) },
       { header: 'State', width: 10 },
     ],
-    indexes: [0, 5],
+    indexes: [0, 6],
   };
 }
 
@@ -1483,17 +1499,26 @@ export function renderDashboard(model, deps) {
 
   const width = Math.max(1, model.columns);
   const height = Math.max(1, model.rows);
-  const header = renderHeaderSurface(model, deps);
-  const footer = renderFooterSurface(model, deps.ctx, width);
+  const margin = width >= 80 ? 2 : 1;
+  const contentWidth = width - (margin * 2);
+
+  const header = renderHeaderSurface(model, deps, contentWidth);
+  const footer = renderFooterSurface(model, deps.ctx, contentWidth);
   const bodyTop = header.height;
   const bodyHeight = Math.max(1, height - header.height - footer.height);
 
-  const bodySurface = renderBody(model, deps, { width, height: bodyHeight });
-  const screen = vstackSurface(header, bodySurface, footer);
+  const bodySurface = renderBody(model, deps, { width: contentWidth, height: bodyHeight });
+  
+  // Compose shell with horizontal margins
+  const shell = vstackSurface(
+    hstackSurface(margin, header),
+    hstackSurface(margin, bodySurface),
+    hstackSurface(margin, footer)
+  );
 
-  renderOverlays(model, deps, { top: bodyTop, height: bodyHeight, screen });
+  renderOverlays(model, deps, { top: bodyTop, height: bodyHeight, screen: shell });
 
-  return screen;
+  return shell;
 }
 
 /**
@@ -1511,7 +1536,11 @@ function renderTitleScreen(model, deps) {
   const innerW = Math.min(56, width);
   const spacer = createSurface(1, 1);
 
-  screen.blit(canvas(width, height, bakSneppenShader, { time: (model.titleTimeMs ?? 0) / 1000, resolution: 'quad' }), 0, 0);
+  screen.blit(canvas(width, height, bakSneppenShader, {
+    time: (model.titleTimeMs ?? 0) / 1000,
+    resolution: 'quad',
+    uniforms: { entryCount: model.vaultEntryCount }
+  }), 0, 0);
 
   const surfaces = [
     textSurface(themeText(ctx, 'git-cas', { tone: 'brand', bold: true }), innerW, 1),

@@ -3,18 +3,23 @@
  * Simulates a ring of species where the weakest and its neighbors are replaced,
  * leading to a self-organized critical state.
  * Maps fitness values to a 3D stem plot projection in terminal space.
+ *
+ * Ecosystem size dynamically scales based on the CAS object count.
  */
 
-const NUM_SPECIES = 120;
-const fitnessState = new Float32Array(NUM_SPECIES);
+let currentNumSpecies = 120;
+let fitnessState = new Float32Array(currentNumSpecies);
 let initialized = false;
 let lastSimTime = -1;
 
 /**
  * Initialize the fitness array with random values
+ * @param {number} numSpecies
  */
-function initBakSneppen() {
-  for (let i = 0; i < NUM_SPECIES; i++) {
+function initBakSneppen(numSpecies) {
+  currentNumSpecies = numSpecies;
+  fitnessState = new Float32Array(currentNumSpecies);
+  for (let i = 0; i < currentNumSpecies; i++) {
     fitnessState[i] = Math.random();
   }
   initialized = true;
@@ -28,15 +33,15 @@ function stepBakSneppen(steps) {
   for (let s = 0; s < steps; s++) {
     let minIdx = 0;
     let minVal = fitnessState[0];
-    for (let i = 1; i < NUM_SPECIES; i++) {
+    for (let i = 1; i < currentNumSpecies; i++) {
       if (fitnessState[i] < minVal) {
         minVal = fitnessState[i];
         minIdx = i;
       }
     }
 
-    const leftIdx = (minIdx - 1 + NUM_SPECIES) % NUM_SPECIES;
-    const rightIdx = (minIdx + 1) % NUM_SPECIES;
+    const leftIdx = (minIdx - 1 + currentNumSpecies) % currentNumSpecies;
+    const rightIdx = (minIdx + 1) % currentNumSpecies;
     fitnessState[leftIdx] = Math.random();
     fitnessState[minIdx] = Math.random();
     fitnessState[rightIdx] = Math.random();
@@ -74,11 +79,11 @@ function distToSegment({ px, py, x1, y1, x2, y2 }) {
 
 /**
  * Checks intersection with a single stem
- * @param {{ screenX: number, screenY: number, i: number, elevation: number, azimuth: number }} params
+ * @param {{ screenX: number, screenY: number, i: number, elevation: number, azimuth: number, time: number }} params
  * @returns {{ hitColor: string | null, closestZ: number }}
  */
-function checkStemHit({ screenX, screenY, i, elevation, azimuth }) {
-  const theta = (i / NUM_SPECIES) * 2 * Math.PI;
+function checkStemHit({ screenX, screenY, i, elevation, azimuth, time }) {
+  const theta = (i / currentNumSpecies) * 2 * Math.PI + (time * 0.5);
   const x = Math.cos(theta);
   const y = Math.sin(theta);
   const z = fitnessState[i];
@@ -108,9 +113,11 @@ function checkStemHit({ screenX, screenY, i, elevation, azimuth }) {
  * @param {import('@flyingrobots/bijou-tui').ShaderParams} params
  * @returns {import('@flyingrobots/bijou').Cell}
  */
-export function bakSneppenShader({ u, v, time }) {
-  if (!initialized) {
-    initBakSneppen();
+export function bakSneppenShader({ u, v, time, uniforms }) {
+  const targetNumSpecies = Math.max(50, Math.min(300, uniforms?.entryCount ?? 120));
+  
+  if (!initialized || currentNumSpecies !== targetNumSpecies) {
+    initBakSneppen(targetNumSpecies);
   }
 
   // Simulation step: run only once per frame by checking time
@@ -130,8 +137,8 @@ export function bakSneppenShader({ u, v, time }) {
   let finalColor = null;
   let maxZ = -Infinity;
 
-  for (let i = 0; i < NUM_SPECIES; i++) {
-    const { hitColor, closestZ } = checkStemHit({ screenX, screenY, i, elevation, azimuth });
+  for (let i = 0; i < currentNumSpecies; i++) {
+    const { hitColor, closestZ } = checkStemHit({ screenX, screenY, i, elevation, azimuth, time });
     if (hitColor && closestZ > maxZ) {
       finalColor = hitColor;
       maxZ = closestZ;
