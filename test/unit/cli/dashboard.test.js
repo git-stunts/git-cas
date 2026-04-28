@@ -37,11 +37,12 @@ function buildTableRows(entries, manifestCache = new Map()) {
   return entries.map((entry) => {
     const manifest = manifestCache.get(entry.slug);
     if (!manifest) {
-      return [entry.slug, '...', '...', '...', '...', 'loading'];
+      return [entry.slug, entry.treeOid, '...', '...', '...', '...', 'loading'];
     }
     const m = manifest.toJSON ? manifest.toJSON() : manifest;
     return [
       entry.slug,
+      entry.treeOid,
       String(m.size ?? 0),
       String(m.chunks?.length ?? 0),
       m.encryption ? 'enc' : 'plain',
@@ -56,7 +57,7 @@ function makeTable(filtered = [], options = {}) {
   const manifestCache = options.manifestCache || new Map();
   return {
     ...createNavigableTableState({
-      columns: [{ header: 'Slug', width: 20 }],
+      columns: [{ header: 'Slug', width: 20 }, { header: 'Tree OID', width: 40 }],
       rows: buildTableRows(filtered, manifestCache),
       height: Math.max(1, rows - 12),
     }),
@@ -320,7 +321,7 @@ describe('dashboard initialization', () => {
     const [model, cmds] = app.init();
     expect(model.phase).toBe('title');
     expect(model.status).toBe('loading');
-    expect(cmds).toHaveLength(1);
+    expect(cmds).toHaveLength(2);
     expect(model.viewMode).toBe('list');
   });
 });
@@ -1190,7 +1191,7 @@ describe('dashboard treemap rendering', () => {
         },
       }),
     });
-    expect(rendered).toContain('No CAS entries were resolved for the current source.');
+    expect(rendered).toContain('No CAS entries were resolved');
     expect(rendered).toContain('Press r to browse refs');
   });
 });

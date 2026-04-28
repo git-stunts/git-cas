@@ -2478,7 +2478,7 @@ function treemapReportMatches(model, report) {
  */
 export function createDashboardApp(deps) {
   return {
-    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(deps.ctx, deps.source), [/** @type {DashCmd} */ (checkVaultAuthCmd(deps.cas, deps.source))]]),
+    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(deps.ctx, deps.source), [/** @type {DashCmd} */ (checkVaultAuthCmd(deps.cas, deps.source)), /** @type {DashCmd} */ (tick(33, { type: 'title-tick' }))]]),
     update: (/** @type {KeyMsg | ResizeMsg | DashMsg} */ msg, /** @type {DashModel} */ model) => handleUpdate(msg, model, deps),
     view: (/** @type {DashModel} */ model) => renderDashboard(model, deps),
   };
