@@ -2,8 +2,8 @@
  * TEA app shell for the vault dashboard.
  */
 
-import { startApp, tick } from '@flyingrobots/bijou';
-import { createNavigableTableState, createNotificationState, tickNotifications } from '@flyingrobots/bijou-tui';
+import { startApp as bijouStartApp } from '@flyingrobots/bijou-node';
+import { tick as bijouTick, createNavigableTableState, createNotificationState, tickNotifications } from '@flyingrobots/bijou-tui';
 import { renderDashboard, tableSchema } from './dashboard-view.js';
 import { createCliTuiContext } from './context.js';
 import { formatTabSeparated } from './vault-list.js';
@@ -325,9 +325,9 @@ export async function launchDashboard(cas, options = {}) {
   if (ctx.mode !== 'interactive') {
     return printStaticList(cas, source, options.output || process.stdout);
   }
-  const dashTick = options.tick || tick;
+  const dashTick = options.tick || bijouTick;
   const deps = { cas, ctx, cwdLabel: options.cwd, source, tick: dashTick };
-  const runApp = options.runApp || startApp;
+  const runApp = options.runApp || bijouStartApp;
   return runApp(createDashboardApp(deps), { ctx });
 }
 
