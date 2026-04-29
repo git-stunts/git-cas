@@ -11,7 +11,7 @@ import { renderBadgeRow } from './blocks/asset-card.js';
 import { renderHealthDashboard } from './blocks/health-dashboard.js';
 import { renderManifestView } from './manifest-view.js';
 import { renderWizardSurface } from './store-wizard.js';
-import { fractalZoomShader } from './shaders/fractal-zoom.js';
+import { merkleTreeShader } from './shaders/merkle-tree.js';
 
 /**
  * @typedef {import('./dashboard.js').DashModel} DashModel
@@ -1536,7 +1536,7 @@ function renderTitleScreen(model, deps) {
   const innerW = Math.min(56, width);
   const spacer = createSurface(1, 1);
 
-  screen.blit(canvas(width, height, fractalZoomShader, {
+  screen.blit(canvas(width, height, merkleTreeShader, {
     time: (model.titleTimeMs ?? 0) / 1000,
     resolution: 'quad',
     uniforms: { entryCount: model.vaultEntryCount }
