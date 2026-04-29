@@ -81,6 +81,7 @@ Resolved — `security/audit-fixes` branch:
 Active:
 
 - [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md)
+- [SEC — Vault Passphrase Verifier Gap](./bad-code/SEC_vault-passphrase-verifier-gap.md)
 
 Resolved — `security/audit-fixes` branch:
 

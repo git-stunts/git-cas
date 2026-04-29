@@ -11,6 +11,7 @@
 
 import { table, tree } from '@flyingrobots/bijou';
 import { buildDagSource } from '../merkle-dag.js';
+import { renderShortSha, shortenSha } from '../components/short-sha.js';
 
 /**
  * @typedef {import('../../../src/domain/value-objects/Manifest.js').ManifestData} ManifestData
@@ -49,28 +50,68 @@ export function availableModes(manifest) {
   return modes;
 }
 
+function clampIndex(index, length) {
+  return Math.max(0, Math.min(index, Math.max(0, length - 1)));
+}
+
+function chunkPage({ chunks, pageSize, selectedIndex }) {
+  const size = pageSize ? Math.max(1, pageSize) : Math.max(1, chunks.length);
+  const selected = clampIndex(selectedIndex ?? 0, chunks.length);
+  const pageStart = Math.floor(selected / size) * size;
+  return {
+    chunks: chunks.slice(pageStart, pageStart + size),
+    selected,
+    pageStart,
+    pageEnd: Math.min(chunks.length, pageStart + size),
+    page: Math.floor(pageStart / size) + 1,
+    pages: Math.max(1, Math.ceil(chunks.length / size)),
+  };
+}
+
+function shaCharsForWidth(width) {
+  if (!Number.isFinite(width)) { return 16; }
+  if (width >= 92) { return 20; }
+  if (width >= 72) { return 16; }
+  return 12;
+}
+
 /**
  * Render the chunk table view.
  *
  * @param {ManifestData} manifest
  * @param {BijouContext} ctx
+ * @param {{ pageSize?: number, selectedIndex?: number, width?: number }} [options]
  * @returns {string}
  */
-export function renderChunkTable(manifest, ctx) {
+export function renderChunkTable(manifest, ctx, options = {}) {
   const chunks = manifest.chunks || [];
-  const displayChunks = chunks.slice(0, 20);
-  const rows = displayChunks.map((c) => [
-    String(c.index),
-    formatBytes(c.size),
-    typeof c.digest === 'string' ? c.digest : '-',
-    typeof c.blob === 'string' ? c.blob : '-',
-  ]);
+  const page = chunkPage({ chunks, pageSize: options.pageSize, selectedIndex: options.selectedIndex });
+  const shaChars = shaCharsForWidth(options.width);
+  const rows = page.chunks.map((c, offset) => {
+    const absoluteIndex = page.pageStart + offset;
+    const selected = options.selectedIndex !== undefined && absoluteIndex === page.selected;
+    return [
+      selected ? '>' : ' ',
+      String(c.index ?? absoluteIndex),
+      formatBytes(c.size),
+      renderShortSha(c.digest, ctx, { chars: shaChars, selected }),
+      renderShortSha(c.blob, ctx, { chars: shaChars, selected }),
+    ];
+  });
   const chunkTable = table({
-    columns: [{ header: '#' }, { header: 'Size' }, { header: 'Digest' }, { header: 'Blob' }],
+    columns: [
+      { header: '', width: 1 },
+      { header: '#', width: 5 },
+      { header: 'Size', width: 10 },
+      { header: 'Digest', width: shaChars + 3 },
+      { header: 'Blob', width: shaChars + 3 },
+    ],
     rows,
     ctx,
   });
-  const suffix = chunks.length > 20 ? `\n  ...and ${chunks.length - 20} more` : '';
+  const suffix = options.pageSize && chunks.length > options.pageSize
+    ? `\n  Showing ${page.pageStart + 1}-${page.pageEnd} of ${chunks.length}  Page ${page.page}/${page.pages}`
+    : '';
   return `${chunkTable}${suffix}`;
 }
 
@@ -87,7 +128,7 @@ export function renderSubManifestTree(manifest, ctx) {
     return 'No sub-manifests';
   }
   const nodes = subs.map((sm, i) => ({
-    label: `sub-${i}  ${sm.chunkCount} chunks  start: ${sm.startIndex}  oid: ${sm.oid.slice(0, 8)}...`,
+    label: `sub-${i}  ${sm.chunkCount} chunks  start: ${sm.startIndex}  oid: ${shortenSha(sm.oid, 8)}`,
   }));
   return tree(nodes, { ctx });
 }

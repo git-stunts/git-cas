@@ -38,6 +38,7 @@ import {
 } from './dashboard-cmds.js';
 import { createWizardState, wizardHandleKey } from './store-wizard.js';
 import { createFeedState } from './blocks/operation-feed.js';
+import { shortenSha } from './components/short-sha.js';
 
 /** @typedef {import('../index.js').default} ContentAddressableStore */
 /** @typedef {import('../src/domain/value-objects/Manifest.js').default} Manifest */
@@ -74,6 +75,8 @@ import { createFeedState } from './blocks/operation-feed.js';
  * @property {WorkspaceId} workspace
  * @property {ExplorerMode} explorerMode
  * @property {MerkleMode} merkleMode
+ * @property {'ledger' | 'detail'} focusPane
+ * @property {number} chunkFocus
  * @property {VaultEntry[]} entries
  * @property {VaultEntry[]} filtered
  * @property {string} filterText
@@ -107,6 +110,8 @@ import { createFeedState } from './blocks/operation-feed.js';
  * @property {OperationFeedState} operationFeed
  * @property {StoreWizardState | null} storeWizard
  * @property {string | null} gitBranch
+ * @property {Buffer | null} vaultEncryptionKey
+ * @property {boolean} settingsOpen
  */
 
 /**
@@ -137,10 +142,6 @@ function formatSize(bytes) {
   if (bytes < 1024 * 1024) { return `${(bytes / 1024).toFixed(1)}K`; }
   if (bytes < 1024 * 1024 * 1024) { return `${(bytes / (1024 * 1024)).toFixed(1)}M`; }
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}G`;
-}
-
-function shortOid(oid) {
-  return typeof oid === 'string' ? oid.slice(0, 12) : '-';
 }
 
 function manifestData(manifest) {
@@ -175,7 +176,7 @@ function rowForEntry(entry, manifestCache) {
   const manifest = manifestFor(entry, manifestCache);
   return [
     entry.slug,
-    shortOid(entry.treeOid),
+    shortenSha(entry.treeOid),
     formatSize(manifest?.size),
     chunkLabel(manifest),
     cryptoLabel(manifest),
@@ -258,9 +259,13 @@ function createShellState(columns, rows, source) {
     workspace: 'explorer',
     explorerMode: 'ledger',
     merkleMode: 'table',
+    focusPane: 'ledger',
+    chunkFocus: 0,
     promptEnter: false,
     quitConfirm: false,
     gitBranch: null,
+    vaultEncryptionKey: null,
+    settingsOpen: false,
   };
 }
 
@@ -316,8 +321,16 @@ function createInitModel(ctx, source) {
 
 function checkVaultAuthCmd(cas) {
   return async () => {
+    let metadata = null;
     try {
-      const metadata = await cas.getVaultMetadata();
+      metadata = await cas.getVaultMetadata();
+    } catch {
+      metadata = null;
+    }
+    if (metadata?.encryption) {
+      return { type: 'vault-auth-check', encrypted: true, entryCount: 0, metadata };
+    }
+    try {
       const all = await cas.listVault();
       return { type: 'vault-auth-check', encrypted: Boolean(metadata?.encryption), entryCount: all.length, metadata };
     } catch {
@@ -326,20 +339,65 @@ function checkVaultAuthCmd(cas) {
   };
 }
 
+async function deriveVaultKey(cas, metadata, passphrase) {
+  const kdf = metadata?.encryption?.kdf;
+  if (!kdf) { throw new Error('Missing vault encryption KDF metadata'); }
+  const { key } = await cas.deriveKey({
+    passphrase,
+    salt: Buffer.from(kdf.salt, 'base64'),
+    algorithm: kdf.algorithm,
+    iterations: kdf.iterations,
+    cost: kdf.cost,
+    blockSize: kdf.blockSize,
+    parallelization: kdf.parallelization,
+    keyLength: kdf.keyLength,
+  });
+  return key;
+}
+
+async function verifyVaultKeyAgainstEntries(cas, entries, encryptionKey) {
+  for (const entry of entries) {
+    const manifest = await cas.readManifest({ treeOid: entry.treeOid });
+    const data = manifestData(manifest);
+    if (data?.encryption?.encrypted || data?.encryption) {
+      return await cas.verifyIntegrity(manifest, { encryptionKey });
+    }
+  }
+  return true;
+}
+
 function verifyPassphraseCmd(cas, passphrase) {
   return async () => {
     try {
-      const entries = await cas.listVault();
-      if (entries.length === 0) { return { type: 'vault-auth-ok' }; }
-      const manifest = await cas.readManifest({ treeOid: entries[0].treeOid });
-      const ok = await cas.verifyIntegrity(manifest, { passphrase });
-      return ok ? { type: 'vault-auth-ok' } : { type: 'vault-auth-fail', error: 'Wrong passphrase' };
+      const metadata = await cas.getVaultMetadata();
+      const encryptionKey = await deriveVaultKey(cas, metadata, passphrase);
+      const entries = await cas.listVault({ encryptionKey });
+      const ok = await verifyVaultKeyAgainstEntries(cas, entries, encryptionKey);
+      return ok
+        ? { type: 'vault-auth-ok', encryptionKey }
+        : { type: 'vault-auth-fail', error: 'Wrong passphrase' };
     } catch (err) {
       const authErrorCodes = ['INTEGRITY_ERROR', 'DEK_UNWRAP_FAILED', 'MISSING_KEY', 'NO_MATCHING_RECIPIENT'];
       const msg = authErrorCodes.includes(err.code) ? 'Wrong passphrase' : (err.message ?? String(err));
       return { type: 'vault-auth-fail', error: msg };
     }
   };
+}
+
+function casForModel(cas, model) {
+  if (!model.vaultEncryptionKey) { return cas; }
+  return new Proxy(cas, {
+    get(target, prop, receiver) {
+      if (prop === 'listVault') {
+        return (options = {}) => target.listVault({ ...options, encryptionKey: model.vaultEncryptionKey });
+      }
+      if (prop === 'addToVault') {
+        return (options = {}) => target.addToVault({ ...options, encryptionKey: model.vaultEncryptionKey });
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
 }
 
 function runStoreWizardCmd(cas, wizard) {
@@ -366,6 +424,7 @@ function runStoreWizardCmd(cas, wizard) {
 }
 
 function enterDashboard(model, deps) {
+  const cas = casForModel(deps.cas, model);
   return [{
     ...model,
     phase: 'dashboard',
@@ -373,9 +432,9 @@ function enterDashboard(model, deps) {
     authError: null,
     status: 'loading entries',
   }, [
-    loadEntriesCmd(deps.cas, model.source),
-    loadBranchCmd(deps.cas),
-    loadRefsCmd(deps.cas),
+    loadEntriesCmd(cas, model.source),
+    loadBranchCmd(cas),
+    loadRefsCmd(cas),
   ]];
 }
 
@@ -477,7 +536,7 @@ function handleLoadError(msg, model) {
 }
 
 function handleAuthOkMsg(_msg, model, deps) {
-  return enterDashboard(model, deps);
+  return enterDashboard({ ...model, vaultEncryptionKey: _msg.encryptionKey ?? null }, deps);
 }
 
 function handleAuthFailMsg(msg, model) {
@@ -512,8 +571,8 @@ function handleStoreCompleteMsg(msg, model, deps) {
   const next = pushToast({
     ...syncExplorer(model, { manifestCache, storeWizard: null }),
     operationFeed: completeLatestOperation(model.operationFeed, msg.slug, null),
-  }, { title: 'Stored asset', message: `${msg.slug} -> ${shortOid(msg.treeOid)}`, tone: 'SUCCESS' });
-  return [next, [loadEntriesCmd(deps.cas, model.source), ...notificationTick(next, deps)]];
+  }, { title: 'Stored asset', message: `${msg.slug} -> ${shortenSha(msg.treeOid)}`, tone: 'SUCCESS' });
+  return [next, [loadEntriesCmd(casForModel(deps.cas, model), model.source), ...notificationTick(next, deps)]];
 }
 
 function handleStoreErrorMsg(msg, model, deps) {
@@ -665,22 +724,65 @@ function handleFilterKey(msg, model) {
   return [model, []];
 }
 
+const LEDGER_NAVIGATORS = {
+  j: navTableFocusNext,
+  down: navTableFocusNext,
+  k: navTableFocusPrev,
+  up: navTableFocusPrev,
+  d: navTablePageDown,
+  pagedown: navTablePageDown,
+  u: navTablePageUp,
+  pageup: navTablePageUp,
+};
+
 function handleExplorerNavigation(msg, model, deps) {
-  let table = model.table;
-  if (msg.key === 'j' || msg.key === 'down') { table = navTableFocusNext(table); }
-  else if (msg.key === 'k' || msg.key === 'up') { table = navTableFocusPrev(table); }
-  else if (msg.key === 'd' || msg.key === 'pagedown') { table = navTablePageDown(table); }
-  else if (msg.key === 'u' || msg.key === 'pageup') { table = navTablePageUp(table); }
-  else { return null; }
-  const next = { ...model, table };
+  if (model.focusPane !== 'ledger') { return null; }
+  const navigate = LEDGER_NAVIGATORS[msg.key];
+  if (!navigate) { return null; }
+  const next = { ...model, table: navigate(model.table), chunkFocus: 0 };
   const manifestCmd = maybeLoadSelectedManifest(next, deps);
   return [next, manifestCmd ? [manifestCmd] : []];
+}
+
+function selectedChunks(model) {
+  return selectedManifest(model)?.chunks ?? [];
+}
+
+function clampChunkFocus(model, nextFocus) {
+  const chunks = selectedChunks(model);
+  return Math.max(0, Math.min(nextFocus, Math.max(0, chunks.length - 1)));
+}
+
+function chunkPageStep(model) {
+  return Math.max(1, Math.min(24, model.rows - 14));
+}
+
+function moveChunkFocus(model, delta) {
+  return [{ ...model, chunkFocus: clampChunkFocus(model, model.chunkFocus + delta) }, []];
+}
+
+function detailDeltaForKey(key, model) {
+  if (key === 'j' || key === 'down') { return 1; }
+  if (key === 'k' || key === 'up') { return -1; }
+  if (key === 'd' || key === 'pagedown') { return chunkPageStep(model); }
+  if (key === 'u' || key === 'pageup') { return -chunkPageStep(model); }
+  return null;
+}
+
+function handleDetailNavigation(msg, model) {
+  if (model.focusPane !== 'detail' || model.explorerMode === 'ledger') { return null; }
+  if (selectedChunks(model).length === 0) { return null; }
+  const delta = detailDeltaForKey(msg.key, model);
+  if (delta !== null) { return moveChunkFocus(model, delta); }
+  if (msg.key === 'g') { return [{ ...model, chunkFocus: 0 }, []]; }
+  return null;
 }
 
 function switchWorkspace(model, workspace, deps) {
   const next = { ...model, workspace, showHelp: false };
   if (workspace === 'atlas' && next.treemapStatus === 'idle') {
-    return [{ ...next, treemapStatus: 'loading' }, [loadTreemapCmd(deps.cas, {
+    const cas = casForModel(deps.cas, next);
+    return [{ ...next, treemapStatus: 'loading' }, [loadTreemapCmd(cas, {
       source: next.source,
       scope: next.treemapScope,
       worktreeMode: next.treemapWorktreeMode,
@@ -700,30 +802,54 @@ function handleWorkspaceKey(msg, model, deps) {
   return null;
 }
 
+function toggleExplorerDetail(model, deps) {
+  const enteringDetail = model.explorerMode === 'ledger';
+  const next = {
+    ...model,
+    explorerMode: enteringDetail ? 'manifest' : 'ledger',
+    focusPane: enteringDetail ? 'detail' : 'ledger',
+  };
+  const manifestCmd = maybeLoadSelectedManifest(next, deps);
+  return [next, manifestCmd ? [manifestCmd] : []];
+}
+
+function cycleMerkleMode(model) {
+  const modes = /** @type {MerkleMode[]} */ (['table', 'tree', 'dag']);
+  const nextMode = modes[(modes.indexOf(model.merkleMode) + 1) % modes.length];
+  return [{ ...model, explorerMode: 'merkle', merkleMode: nextMode, focusPane: 'detail' }, []];
+}
+
+function toggleInspectorMode(model, deps) {
+  const next = {
+    ...model,
+    explorerMode: model.explorerMode === 'manifest' ? 'merkle' : 'manifest',
+    focusPane: 'detail',
+  };
+  const manifestCmd = maybeLoadSelectedManifest(next, deps);
+  return [next, manifestCmd ? [manifestCmd] : []];
+}
+
+function handleExplorerModeKey(msg, model, deps) {
+  if (msg.key === 'enter') { return toggleExplorerDetail(model, deps); }
+  if (msg.key === 'm') { return cycleMerkleMode(model); }
+  if (msg.key === 'i') { return toggleInspectorMode(model, deps); }
+  return null;
+}
+
 function handleExplorerKey(msg, model, deps) {
+  if (msg.key === 'tab') {
+    return [{ ...model, focusPane: model.focusPane === 'ledger' ? 'detail' : 'ledger' }, []];
+  }
+  const detailNav = handleDetailNavigation(msg, model);
+  if (detailNav) { return detailNav; }
   const nav = handleExplorerNavigation(msg, model, deps);
   if (nav) { return nav; }
-  if (msg.key === 'enter') {
-    const next = { ...model, explorerMode: model.explorerMode === 'ledger' ? 'manifest' : 'ledger' };
-    const manifestCmd = maybeLoadSelectedManifest(next, deps);
-    return [next, manifestCmd ? [manifestCmd] : []];
-  }
-  if (msg.key === 'm') {
-    const modes = /** @type {MerkleMode[]} */ (['table', 'tree', 'dag']);
-    const nextMode = modes[(modes.indexOf(model.merkleMode) + 1) % modes.length];
-    return [{ ...model, explorerMode: 'merkle', merkleMode: nextMode }, []];
-  }
-  if (msg.key === 'i') {
-    const next = { ...model, explorerMode: model.explorerMode === 'manifest' ? 'merkle' : 'manifest' };
-    const manifestCmd = maybeLoadSelectedManifest(next, deps);
-    return [next, manifestCmd ? [manifestCmd] : []];
-  }
-  return null;
+  return handleExplorerModeKey(msg, model, deps);
 }
 
 function reloadTreemap(model, deps, patch = {}) {
   const next = { ...model, ...patch, treemapStatus: 'loading', treemapError: null };
-  return [next, [loadTreemapCmd(deps.cas, {
+  return [next, [loadTreemapCmd(casForModel(deps.cas, next), {
     source: next.source,
     scope: next.treemapScope,
     worktreeMode: next.treemapWorktreeMode,
@@ -822,7 +948,7 @@ function handleWizardKey(msg, model, deps) {
       ...model,
       storeWizard: nextWizard,
       operationFeed: startOperation(model.operationFeed, nextWizard.slug),
-    }, [runStoreWizardCmd(deps.cas, nextWizard)]];
+    }, [runStoreWizardCmd(casForModel(deps.cas, model), nextWizard)]];
   }
   return [{ ...model, storeWizard: nextWizard }, []];
 }
@@ -847,11 +973,20 @@ function handleQuitConfirmKey(msg, model) {
 }
 
 function clearDashboardOverlays(model) {
-  return { ...model, showHelp: false, storeWizard: null, palette: null, filtering: false, quitConfirm: false };
+  return {
+    ...model,
+    showHelp: false,
+    storeWizard: null,
+    palette: null,
+    filtering: false,
+    quitConfirm: false,
+    settingsOpen: false,
+  };
 }
 
 function handleOverlayShortcut(msg, model) {
   if (msg.key === 'escape') { return [clearDashboardOverlays(model), []]; }
+  if (msg.key === 'f2') { return [{ ...model, settingsOpen: !model.settingsOpen, showHelp: false, palette: null }, []]; }
   if (msg.key === '?' || (msg.shift && msg.key === '/')) {
     return [{ ...model, showHelp: !model.showHelp, palette: null }, []];
   }

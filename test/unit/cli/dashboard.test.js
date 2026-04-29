@@ -13,6 +13,7 @@ const { createDashboardApp } = await import('../../../bin/ui/dashboard.js');
 
 function makeDeps(overrides = {}) {
   const ctx = makeCtx();
+  const { cas: casOverrides = {}, ...rest } = overrides;
   return {
     keyMap: { handle: () => null },
     cas: {
@@ -20,12 +21,16 @@ function makeDeps(overrides = {}) {
       getVaultMetadata: vi.fn().mockResolvedValue({}),
       readManifest: vi.fn(),
       verifyIntegrity: vi.fn(),
+      deriveKey: vi.fn().mockResolvedValue({ key: Buffer.alloc(32), salt: Buffer.from('salt'), params: {} }),
+      getService: vi.fn(),
+      getVaultService: vi.fn(),
+      ...casOverrides,
     },
     ctx,
     cwdLabel: '/tmp/git-cas-fixture',
     source: { type: 'vault' },
     tick: vi.fn((ms, msg) => ({ type: 'tick', ms, msg })),
-    ...overrides,
+    ...rest,
   };
 }
 
@@ -46,6 +51,10 @@ function modelCoreDefaults() {
     workspace: 'explorer',
     explorerMode: 'ledger',
     merkleMode: 'table',
+    focusPane: 'ledger',
+    chunkFocus: 0,
+    vaultEncryptionKey: null,
+    settingsOpen: false,
     entries: [],
     filtered: [],
     filterText: '',
@@ -112,6 +121,7 @@ describe('dashboard basic rendering', () => {
     expect(rendered).toContain('Atlas');
     expect(rendered).toContain('Operations');
     expect(rendered).toContain('Asset Ledger');
+    expect(rendered.split('\n').slice(0, 4).join('\n')).not.toContain('palette ctrl+p');
   });
 
   it('renders entry list when entries exist', () => {
@@ -120,15 +130,16 @@ describe('dashboard basic rendering', () => {
     const model = makeModel({
       entries: [{ slug: 'alpha', treeOid: 'abc' }],
       filtered: [{ slug: 'alpha', treeOid: 'abc' }],
-      table: createNavigableTableState({ 
+      table: createNavigableTableState({
         columns: [{ header: 'Slug', width: 20 }, { header: 'Size', width: 10 }],
-        rows: [['alpha', 'abc', '100B', '1', 'plain', 'raw', 'single']], 
-        height: 10 
-      })
+        rows: [['alpha', 'abc', '100B', '1', 'plain', 'raw', 'single']],
+        height: 10,
+      }),
     });
     const rendered = renderView(app.view(model), deps.ctx);
     expect(rendered).toContain('alpha');
   });
+
   it('opens command palette for digest search', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
@@ -143,6 +154,143 @@ describe('dashboard basic rendering', () => {
     const [queried] = app.update({ type: 'key', key: 'd' }, next);
     expect(queried.palette.query).toBe('d');
     expect(queried.palette.filteredItems[0].id).toBe('alpha');
+  });
+});
+
+describe('dashboard detail chrome', () => {
+  it('opens the settings drawer with F2', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const [next] = app.update({ type: 'key', key: 'f2' }, makeModel());
+    expect(next.settingsOpen).toBe(true);
+    const rendered = renderView(app.view(next), deps.ctx);
+    expect(rendered).toContain('Settings');
+    expect(rendered).toContain('Cockpit Settings');
+  });
+
+  it('paginates detail chunks and expands the selected digest in the footer', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const chunks = Array.from({ length: 30 }, (_, index) => ({
+      index,
+      size: 2048,
+      digest: `sha256:${String(index).padStart(2, '0')}${'a'.repeat(56)}`,
+      blob: `blob-${String(index).padStart(2, '0')}-${'b'.repeat(36)}`,
+    }));
+    const entry = { slug: 'alpha', treeOid: 'f'.repeat(40) };
+    const model = makeModel({
+      columns: 220,
+      rows: 42,
+      entries: [entry],
+      filtered: [entry],
+      explorerMode: 'manifest',
+      focusPane: 'detail',
+      chunkFocus: 25,
+      manifestCache: new Map([['alpha', {
+        slug: 'alpha',
+        filename: 'alpha.bin',
+        size: 61440,
+        chunks,
+      }]]),
+      table: createNavigableTableState({
+        columns: [{ header: 'Slug', width: 20 }, { header: 'Tree OID', width: 14 }],
+        rows: [['alpha', 'f'.repeat(40), '60.0K', '30', 'plain', 'manifest', 'loaded']],
+        height: 10,
+      }),
+    });
+    const rendered = renderView(app.view(model), deps.ctx);
+    expect(rendered).toContain('Chunk Ledger (30)');
+    expect(rendered).toContain('Showing 22-30 of 30');
+    expect(rendered).toContain('Page 2/2');
+    expect(rendered).toContain(`${chunks[25].digest.slice(0, 20)}...`);
+    expect(rendered).toContain(chunks[25].digest);
+  });
+});
+
+function encryptedMetadata() {
+  return {
+    encryption: {
+      kdf: {
+        algorithm: 'pbkdf2',
+        salt: Buffer.from('salt').toString('base64'),
+        iterations: 100000,
+        keyLength: 32,
+      },
+    },
+  };
+}
+
+describe('dashboard vault lock detection', () => {
+  it('keeps encrypted vaults locked when entry listing fails before unlock', async () => {
+    const listVault = vi.fn().mockRejectedValue(new Error('missing key'));
+    const deps = makeDeps({
+      cas: {
+        getVaultMetadata: vi.fn().mockResolvedValue(encryptedMetadata()),
+        listVault,
+      },
+    });
+    const app = createDashboardApp(deps);
+    const [model, cmds] = app.init();
+    const msg = await cmds[0]();
+    const [next] = app.update(msg, model);
+    expect(msg.encrypted).toBe(true);
+    expect(listVault).not.toHaveBeenCalled();
+    expect(next.phase).toBe('password');
+  });
+});
+
+describe('dashboard vault passphrase handling', () => {
+  it('rejects an incorrect encrypted vault passphrase', async () => {
+    const encryptionKey = Buffer.alloc(32, 7);
+    const deps = makeDeps({
+      cas: {
+        getVaultMetadata: vi.fn().mockResolvedValue(encryptedMetadata()),
+        deriveKey: vi.fn().mockResolvedValue({ key: encryptionKey, salt: Buffer.from('salt'), params: {} }),
+        listVault: vi.fn().mockResolvedValue([{ slug: 'alpha', treeOid: 'abc' }]),
+        readManifest: vi.fn().mockResolvedValue({ encryption: { encrypted: true }, chunks: [] }),
+        verifyIntegrity: vi.fn().mockResolvedValue(false),
+      },
+    });
+    const app = createDashboardApp(deps);
+    const [pending, cmds] = app.update({ type: 'key', key: 'enter' }, makeModel({
+      phase: 'password',
+      metadata: encryptedMetadata(),
+      passphrase: 'wrong',
+    }));
+    const msg = await cmds[0]();
+    const [failed] = app.update(msg, pending);
+    expect(msg).toEqual({ type: 'vault-auth-fail', error: 'Wrong passphrase' });
+    expect(failed.phase).toBe('password');
+    expect(failed.authError).toBe('Wrong passphrase');
+    expect(failed.passphrase).toBe('');
+  });
+});
+
+describe('dashboard vault key threading', () => {
+  it('threads the derived encryption key into the dashboard entry load after unlock', async () => {
+    const encryptionKey = Buffer.alloc(32, 9);
+    const listVault = vi.fn().mockResolvedValue([]);
+    const deps = makeDeps({
+      cas: {
+        getVaultMetadata: vi.fn().mockResolvedValue(encryptedMetadata()),
+        deriveKey: vi.fn().mockResolvedValue({ key: encryptionKey, salt: Buffer.from('salt'), params: {} }),
+        listVault,
+        readManifest: vi.fn(),
+        verifyIntegrity: vi.fn().mockResolvedValue(true),
+      },
+    });
+    const app = createDashboardApp(deps);
+    const [pending, authCmds] = app.update({ type: 'key', key: 'enter' }, makeModel({
+      phase: 'password',
+      metadata: encryptedMetadata(),
+      passphrase: 'correct',
+    }));
+    const authMsg = await authCmds[0]();
+    const [unlocked, loadCmds] = app.update(authMsg, pending);
+    await loadCmds[0]();
+    expect(unlocked.phase).toBe('dashboard');
+    expect(unlocked.vaultEncryptionKey).toBe(encryptionKey);
+    expect(listVault).toHaveBeenLastCalledWith({ encryptionKey });
   });
 });
 

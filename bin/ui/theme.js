@@ -6,14 +6,16 @@ import { parseAnsiToSurface } from '@flyingrobots/bijou';
 
 export const GIT_CAS_PALETTE = {
   ghost: [251, 252, 252],
-  slate: [148, 163, 184],
-  cyan: [7, 190, 184],
-  orange: [255, 133, 82],
-  midnight: [29, 37, 43],
-  ink: [18, 14, 46],
-  ruby: [230, 89, 111],
-  sky: [123, 170, 247],
-  deepSlate: [61, 75, 89],
+  pearl: [228, 235, 241],
+  slate: [188, 203, 216],
+  cyan: [35, 221, 210],
+  orange: [255, 163, 102],
+  midnight: [37, 49, 58],
+  ink: [34, 39, 64],
+  ruby: [255, 111, 136],
+  sky: [151, 194, 255],
+  violet: [186, 155, 255],
+  deepSlate: [108, 130, 148],
 };
 
 function rgbToHex(rgb) {
@@ -30,7 +32,7 @@ function token(rgb, modifiers = [], bg) {
 }
 
 const {
-  ghost, slate, cyan, orange, midnight, ink, ruby, sky, deepSlate,
+  ghost, pearl, slate, cyan, orange, midnight, ink, ruby, sky, violet, deepSlate,
 } = GIT_CAS_PALETTE;
 
 /**
@@ -47,9 +49,9 @@ export const GIT_CAS_THEME = {
     error: token(ruby, ['bold']),
     warning: token(orange, ['bold']),
     info: token(sky),
-    pending: token(slate, ['dim']),
+    pending: token(slate),
     active: token(cyan, ['bold']),
-    muted: token(deepSlate, ['dim']),
+    muted: token(deepSlate),
   },
   semantic: {
     success: token(cyan, ['bold']),
@@ -57,13 +59,14 @@ export const GIT_CAS_THEME = {
     warning: token(orange, ['bold']),
     info: token(sky),
     accent: token(orange, ['bold']),
-    muted: token(slate, ['dim']),
+    muted: token(slate),
     primary: token(ghost),
   },
   gradient: {
     brand: [
       { pos: 0, color: cyan },
-      { pos: 0.55, color: sky },
+      { pos: 0.38, color: sky },
+      { pos: 0.72, color: violet },
       { pos: 1, color: orange },
     ],
     progress: [
@@ -74,7 +77,7 @@ export const GIT_CAS_THEME = {
   },
   border: {
     primary: token(cyan),
-    secondary: token(deepSlate),
+    secondary: token(slate),
     success: token(cyan),
     warning: token(orange),
     error: token(ruby),
@@ -91,10 +94,10 @@ export const GIT_CAS_THEME = {
   },
   surface: {
     primary: token(ghost, [], midnight),
-    secondary: token(slate, [], [23, 31, 37]),
-    elevated: token(ghost, [], [35, 45, 53]),
+    secondary: token(pearl, [], [43, 58, 68]),
+    elevated: token(ghost, [], [51, 68, 78]),
     overlay: token(ghost, [], ink),
-    muted: token(slate, ['dim'], [15, 20, 25]),
+    muted: token(slate, [], [31, 41, 49]),
   },
 };
 
@@ -105,6 +108,7 @@ const TEXT_TONES = {
   secondary: { fg: slate },
   subdued: { fg: deepSlate },
   info: { fg: sky, bold: true },
+  violet: { fg: violet, bold: true },
   success: { fg: cyan, bold: true },
   warning: { fg: orange, bold: true },
   danger: { fg: ruby, bold: true },

@@ -34,7 +34,7 @@ describe('renderManifestView', () => {
   it('renders chunk table', () => {
     const output = renderManifestView({ manifest: makeManifest() });
     expect(output).toContain('Chunk Ledger (2)');
-    expect(output).toContain('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+    expect(output).toContain('aaaaaaaaaaaaaaaa...');
   });
 
   it('renders encryption section', () => {
@@ -58,10 +58,12 @@ describe('renderManifestView', () => {
     expect(output).toContain('merkle');
   });
 
-  it('truncates chunks beyond 20', () => {
+  it('renders all chunks in static manifest output', () => {
     const chunks = Array.from({ length: 30 }, (_, i) => ({ index: i, size: 262144, digest: 'a'.repeat(64), blob: 'b'.repeat(40) }));
     const output = renderManifestView({ manifest: makeManifest({ chunks }) });
     expect(output).toContain('Chunk Ledger (30)');
+    expect(output).toContain('29');
+    expect(output).not.toContain('and 10 more');
   });
 });
 

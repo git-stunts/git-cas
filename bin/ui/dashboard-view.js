@@ -6,6 +6,7 @@ import { boxSurface, createSurface, parseAnsiToSurface } from '@flyingrobots/bij
 import {
   canvas,
   commandPaletteSurface,
+  drawer,
   hstackSurface,
   modal,
   navigableTableSurface,
@@ -16,18 +17,18 @@ import {
 } from '@flyingrobots/bijou-tui';
 import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
 import { shellRule, themeText } from './theme.js';
-import { renderManifestView } from './manifest-view.js';
-import { renderMerkleExplorer } from './blocks/merkle-explorer.js';
+import { renderChunkTable, renderMerkleExplorer } from './blocks/merkle-explorer.js';
 import { renderHealthDashboard } from './blocks/health-dashboard.js';
 import { renderOperationFeed } from './blocks/operation-feed.js';
 import { renderWizardSurface } from './store-wizard.js';
 import { organicFlowShader } from './shaders/organic-flow.js';
+import { shortShaStatus } from './components/short-sha.js';
 
 /** @typedef {import('./dashboard.js').DashModel} DashModel */
 /** @typedef {import('./dashboard.js').DashDeps} DashDeps */
 /** @typedef {import('./dashboard.js').DashSource} DashSource */
 
-const BG = '#1d252b';
+const BG = '#25313a';
 const HELP_WIDTH = 58;
 
 function sourceLabel(source) {
@@ -44,7 +45,12 @@ function blank(width, height) {
   return createSurface(Math.max(1, width), Math.max(1, height), { char: ' ', bg: BG });
 }
 
-function panel({ title, body, width, height, ctx }) {
+function verticalRail(ctx, height) {
+  return textSurface(Array.from({ length: Math.max(1, height) }, () =>
+    themeText(ctx, '│', { tone: 'accent', bold: true })).join('\n'), 1, height);
+}
+
+function panel({ title, body, width, height, ctx, active = false }) {
   const safeWidth = Math.max(4, width);
   const safeHeight = Math.max(3, height);
   const innerWidth = Math.max(1, safeWidth - 2);
@@ -59,7 +65,9 @@ function panel({ title, body, width, height, ctx }) {
     borderToken: ctx.theme.theme.border.secondary,
     bgToken: ctx.theme.theme.surface.primary,
   });
-  return placeSurface(boxed, { width: safeWidth, height: safeHeight });
+  const placed = placeSurface(boxed, { width: safeWidth, height: safeHeight });
+  if (active) { placed.blit(verticalRail(ctx, safeHeight), 0, 0); }
+  return placed;
 }
 
 function metricLine(model, ctx) {
@@ -94,7 +102,7 @@ function workspaceTabs(model, ctx) {
   ];
   return tabs.map(([id, label]) => {
     const active = model.workspace === id;
-    return themeText(ctx, active ? `[${label}]` : ` ${label} `, { tone: active ? 'brand' : 'secondary', bold: active });
+    return themeText(ctx, active ? `▌ ${label}` : `  ${label}`, { tone: active ? 'brand' : 'secondary', bold: active });
   }).join('  ');
 }
 
@@ -110,7 +118,7 @@ function renderHeaderSurface(model, deps, width) {
   });
   const filter = model.filtering
     ? `${themeText(deps.ctx, 'filter', { tone: 'accent' })} /${model.filterText}█`
-    : `${themeText(deps.ctx, 'filter', { tone: 'accent' })} ${model.filterText ? `/${model.filterText}` : 'none'}  ${themeText(deps.ctx, 'palette', { tone: 'accent' })} ctrl+p`;
+    : `${themeText(deps.ctx, 'filter', { tone: 'accent' })} ${model.filterText ? `/${model.filterText}` : 'none'}`;
   const third = statusBarSurface({
     left: ` ${filter}`,
     right: model.error ? themeText(deps.ctx, model.error, { tone: 'danger' }) : '',
@@ -123,15 +131,20 @@ function renderHeaderSurface(model, deps, width) {
 function renderFooterSurface(model, ctx, width) {
   const left = model.quitConfirm
     ? themeText(ctx, 'Quit? y/enter confirm, n/escape cancel', { tone: 'warning' })
-    : themeText(ctx, '? help  / filter  ctrl+p palette  q quit', { tone: 'subdued' });
+    : themeText(ctx, '? help  / filter  ctrl+p palette  F2 settings  q quit', { tone: 'subdued' });
   const rightByWorkspace = {
-    explorer: 'j/k rows  enter detail  m merkle',
+    explorer: model.focusPane === 'detail'
+      ? 'tab focus  j/k chunk  u/d page  enter ledger'
+      : 'tab focus  j/k rows  enter detail  m merkle',
     atlas: 'j/k focus  +/- drill  t scope  i ignored',
     operations: 'n store  s stats  x doctor',
   };
+  const detailStatus = selectedShaFooter(model);
   const footer = statusBarSurface({
     left: ` ${left}`,
-    right: themeText(ctx, rightByWorkspace[model.workspace], { tone: 'secondary' }),
+    right: detailStatus
+      ? themeText(ctx, detailStatus, { tone: 'info' })
+      : themeText(ctx, rightByWorkspace[model.workspace], { tone: 'secondary' }),
     width,
   });
   return vstackSurface(textSurface(shellRule(ctx, width), width, 1), footer);
@@ -186,9 +199,9 @@ export function renderDashboard(model, deps) {
   const header = renderHeaderSurface(model, deps, width);
   const footer = renderFooterSurface(model, deps.ctx, width);
   const bodyHeight = Math.max(1, height - header.height - footer.height);
-  const body = renderBody(model, deps, { width, height: bodyHeight });
+  const body = renderBody(model, deps, { width: Math.max(1, width - 1), height: bodyHeight });
 
-  screen.blit(vstackSurface(header, body, footer), 0, 0);
+  screen.blit(vstackSurface(header, hstackSurface(0, verticalRail(deps.ctx, bodyHeight), body), footer), 0, 0);
   renderOverlays(model, deps, { screen, width, height });
   return screen;
 }
@@ -297,7 +310,7 @@ function renderLedgerPanel(model, ctx, box) {
     scrollY: model.table.scrollY,
     height: Math.max(1, height - 5),
   }, { ctx });
-  return panel({ title: 'Asset Ledger', body: tableSurface, width, height, ctx });
+  return panel({ title: 'Asset Ledger', body: tableSurface, width, height, ctx, active: model.focusPane === 'ledger' });
 }
 
 function selectedEntry(model) {
@@ -313,23 +326,45 @@ function selectedManifest(model) {
   return entry ? manifestData(model.manifestCache.get(entry.slug)) : null;
 }
 
+function selectedChunk(model) {
+  const chunks = selectedManifest(model)?.chunks ?? [];
+  const index = Math.max(0, Math.min(model.chunkFocus ?? 0, Math.max(0, chunks.length - 1)));
+  return chunks[index] ?? null;
+}
+
+function selectedShaFooter(model) {
+  if (model.workspace !== 'explorer' || model.focusPane !== 'detail') { return null; }
+  const chunk = selectedChunk(model);
+  if (!chunk) { return null; }
+  const digest = shortShaStatus('digest', chunk.digest);
+  const blob = shortShaStatus('blob', chunk.blob);
+  return [`#${chunk.index}`, digest, blob].filter(Boolean).join('  ');
+}
+
 function renderInspectorPanel(model, ctx, box) {
   const { width, height } = box;
   const entry = selectedEntry(model);
   const manifest = selectedManifest(model);
   if (!entry) {
-    return panel({ title: 'Inspector', body: 'No asset selected.', width, height, ctx });
+    return panel({ title: 'Inspector', body: 'No asset selected.', width, height, ctx, active: model.focusPane === 'detail' });
   }
   if (model.explorerMode === 'merkle') {
-    return panel({ title: `Merkle Lens [${model.merkleMode}]`, body: renderMerkleBody(manifest, model.merkleMode, ctx), width, height, ctx });
+    return panel({
+      title: `Merkle Lens [${model.merkleMode}]`,
+      body: renderMerkleBody({ model, manifest, ctx, box: { width, height } }),
+      width,
+      height,
+      ctx,
+      active: model.focusPane === 'detail',
+    });
   }
   if (model.explorerMode === 'manifest') {
     const body = manifest
-      ? renderManifestView({ manifest, ctx })
+      ? renderManifestDetail({ model, manifest, ctx, box: { width, height } })
       : `Loading manifest for ${entry.slug}...\n${entry.treeOid}`;
-    return panel({ title: 'Manifest Ledger', body, width, height, ctx });
+    return panel({ title: 'Manifest Ledger', body, width, height, ctx, active: model.focusPane === 'detail' });
   }
-  return panel({ title: 'Inspector', body: renderInspectorBody(entry, manifest, ctx), width, height, ctx });
+  return panel({ title: 'Inspector', body: renderInspectorBody(entry, manifest, ctx), width, height, ctx, active: model.focusPane === 'detail' });
 }
 
 function renderInspectorBody(entry, manifest, ctx) {
@@ -348,17 +383,48 @@ function renderInspectorBody(entry, manifest, ctx) {
     `${themeText(ctx, 'compress', { tone: 'accent' })}   ${manifest.compression?.algorithm ?? 'none'}`,
     `${themeText(ctx, 'format', { tone: 'accent' })}     ${manifest.formatVersion ?? manifest.version ?? '-'}`,
     '',
-    themeText(ctx, 'enter detail  |  m merkle  |  ctrl+p digest search', { tone: 'subdued' }),
+    themeText(ctx, 'enter detail  |  tab detail focus  |  ctrl+p digest search', { tone: 'subdued' }),
   );
   return lines.join('\n');
 }
 
-function renderMerkleBody(manifest, mode, ctx) {
+function pageSizeForDetail(height) {
+  return Math.max(1, height - 15);
+}
+
+function renderManifestDetail({ model, manifest, ctx, box }) {
+  const chunks = manifest.chunks ?? [];
+  const lines = [
+    themeText(ctx, 'Asset', { tone: 'accent', bold: true }),
+    `${themeText(ctx, 'slug', { tone: 'accent' })}       ${manifest.slug ?? '-'}`,
+    `${themeText(ctx, 'filename', { tone: 'accent' })}   ${manifest.filename ?? '-'}`,
+    `${themeText(ctx, 'size', { tone: 'accent' })}       ${formatSize(manifest.size)}`,
+    `${themeText(ctx, 'crypto', { tone: 'accent' })}     ${manifest.encryption ? 'encrypted' : 'plaintext'}`,
+    `${themeText(ctx, 'chunks', { tone: 'accent' })}     ${chunks.length}`,
+    '',
+    themeText(ctx, `Chunk Ledger (${chunks.length})`, { tone: 'info', bold: true }),
+  ];
+  if (chunks.length === 0) { return lines.concat('No chunks.').join('\n'); }
+  return lines.concat(renderChunkTable(manifest, ctx, {
+    selectedIndex: Math.min(model.chunkFocus ?? 0, chunks.length - 1),
+    pageSize: pageSizeForDetail(box.height),
+    width: Math.max(24, box.width - 4),
+  })).join('\n');
+}
+
+function renderMerkleBody({ model, manifest, ctx, box }) {
   if (!manifest) { return 'No manifest loaded.'; }
   const tabs = ['table', 'tree', 'dag']
-    .map((item) => item === mode ? `[${item}]` : ` ${item} `)
+    .map((item) => item === model.merkleMode ? `[${item}]` : ` ${item} `)
     .join(' ');
-  return `${themeText(ctx, tabs, { tone: 'accent' })}\n\n${renderMerkleExplorer(manifest, mode, ctx)}`;
+  if (model.merkleMode !== 'table') {
+    return `${themeText(ctx, tabs, { tone: 'accent' })}\n\n${renderMerkleExplorer(manifest, model.merkleMode, ctx)}`;
+  }
+  return `${themeText(ctx, tabs, { tone: 'accent' })}\n\n${renderChunkTable(manifest, ctx, {
+    selectedIndex: Math.min(model.chunkFocus ?? 0, (manifest.chunks?.length ?? 1) - 1),
+    pageSize: pageSizeForDetail(box.height),
+    width: Math.max(24, box.width - 4),
+  })}`;
 }
 
 function renderAtlasWorkspace(model, deps, options) {
@@ -465,6 +531,9 @@ function renderOpsDetailPanel(model, ctx, box) {
 }
 
 function renderOverlays(model, deps, options) {
+  if (model.settingsOpen) {
+    blitOverlay(options.screen, renderSettingsDrawer(model, deps, options));
+  }
   if (model.palette) {
     const width = Math.min(84, Math.max(24, options.width - 6));
     const palette = panel({
@@ -508,15 +577,50 @@ function renderOverlays(model, deps, options) {
   }
 }
 
+function vaultStatus(model) {
+  if (model.metadata?.encryption && model.vaultEncryptionKey) { return 'encrypted / unlocked'; }
+  if (model.metadata?.encryption) { return 'encrypted / locked'; }
+  return 'plaintext vault';
+}
+
+function renderSettingsDrawer(model, deps, options) {
+  const { ctx } = deps;
+  const body = [
+    themeText(ctx, 'Cockpit Settings', { tone: 'brand', bold: true }),
+    '',
+    `${themeText(ctx, 'theme', { tone: 'accent' })}        bright cockpit`,
+    `${themeText(ctx, 'workspace', { tone: 'accent' })}    ${model.workspace}`,
+    `${themeText(ctx, 'focus', { tone: 'accent' })}        ${model.focusPane ?? '-'}`,
+    `${themeText(ctx, 'source', { tone: 'accent' })}       ${sourceLabel(model.source)}`,
+    `${themeText(ctx, 'vault', { tone: 'accent' })}        ${vaultStatus(model)}`,
+    `${themeText(ctx, 'short SHA', { tone: 'accent' })}   selected chunk expands in footer`,
+    '',
+    themeText(ctx, 'F2 closes this drawer.', { tone: 'subdued' }),
+  ].join('\n');
+  return drawer({
+    content: body,
+    anchor: 'right',
+    width: Math.min(46, Math.max(28, options.width - 4)),
+    screenWidth: options.width,
+    screenHeight: options.height,
+    title: 'Settings',
+    borderToken: ctx.theme.theme.border.primary,
+    bgToken: ctx.theme.theme.surface.overlay,
+    ctx,
+  });
+}
+
 function renderHelpSurface(model, ctx, box) {
   const lines = [
     themeText(ctx, 'Frame', { tone: 'accent', bold: true }),
     '1/e Explorer     2/a Atlas       3/o Operations',
-    '? Help           q Quit          Esc Close overlay',
+    '? Help           F2 Settings     q Quit',
+    'Esc Close overlay',
     '',
     themeText(ctx, 'Explorer', { tone: 'accent', bold: true }),
-    'j/k rows         / Filter        Ctrl+P Search digest',
-    'Enter detail     m Merkle lens   i Inspector mode',
+    'Tab focus        / Filter        Ctrl+P Search digest',
+    'j/k rows/chunks  u/d page        Enter detail',
+    'm Merkle lens    i Inspector mode',
     '',
     themeText(ctx, 'Atlas', { tone: 'accent', bold: true }),
     'j/k focus        + Drill in      - Drill out',
