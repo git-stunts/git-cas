@@ -4,6 +4,7 @@
 
 import { createBijou } from '@flyingrobots/bijou';
 import { nodeRuntime, nodeIO, chalkStyle } from '@flyingrobots/bijou-node';
+import { GIT_CAS_THEME } from './theme.js';
 
 /** @type {import('@flyingrobots/bijou').BijouContext | null} */
 let ctx = null;
@@ -24,6 +25,7 @@ export function getCliContext() {
     runtime,
     io: stderrIO(),
     style: chalkStyle(noColor),
+    theme: GIT_CAS_THEME,
   });
   return ctx;
 }
@@ -73,6 +75,7 @@ export function createCliTuiContext(options = {}) {
     runtime,
     io: options.io || nodeIO(),
     style: options.style || chalkStyle(noColor),
+    theme: GIT_CAS_THEME,
   });
   return {
     ...base,
