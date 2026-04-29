@@ -34,7 +34,7 @@ describe('renderManifestView', () => {
   it('renders chunk table', () => {
     const output = renderManifestView({ manifest: makeManifest() });
     expect(output).toContain('Chunk Ledger (2)');
-    expect(output).toContain('aaaaaaaaaaaa...');
+    expect(output).toContain('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
   });
 
   it('renders encryption section', () => {
@@ -81,13 +81,13 @@ describe('buildManifestSections structure', () => {
     expect(titles).not.toContain('Compression Profile');
   });
 
-  it('non-metadata sections default to collapsed', () => {
+  it('all sections default to expanded', () => {
     const enc = { algorithm: 'aes-256-gcm', nonce: 'bm9uY2U=bm9u', tag: 'dGFndGFn', encrypted: true };
     const sections = buildManifestSections({
       manifest: makeManifest({ encryption: enc, compression: { algorithm: 'zstd' } }),
     });
-    for (const section of sections.slice(1)) {
-      expect(section.expanded).toBeFalsy();
+    for (const section of sections) {
+      expect(section.expanded).toBe(true);
     }
   });
 
@@ -104,7 +104,7 @@ describe('buildManifestSections optional sections', () => {
     const enc = { algorithm: 'aes-256-gcm', nonce: 'bm9uY2U=bm9u', tag: 'dGFndGFn', encrypted: true, kdf: { algorithm: 'pbkdf2', iterations: 100000 } };
     const sections = buildManifestSections({ manifest: makeManifest({ encryption: enc }) });
     expect(sections.map((s) => s.title)).toContain('Encryption Profile');
-    expect(sections.find((s) => s.title === 'Encryption Profile').expanded).toBeFalsy();
+    expect(sections.find((s) => s.title === 'Encryption Profile').expanded).toBe(true);
   });
 
   it('includes compression section when manifest is compressed', () => {

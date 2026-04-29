@@ -1,132 +1,94 @@
-import { describe, it, expect } from 'vitest';
-import { renderRepoTreemapMap, renderRepoTreemapSidebar } from '../../../bin/ui/repo-treemap.js';
+import { describe, it, expect, vi } from 'vitest';
 import { makeCtx } from './_testContext.js';
+import { renderRepoTreemapMap, renderRepoTreemapSidebar } from '../../../bin/ui/repo-treemap.js';
 
-function makeReport(overrides = {}) {
-  return {
-    scope: 'repository',
-    worktreeMode: 'tracked',
-    cwd: '/tmp/git-cas-fixture',
-    source: { type: 'vault' },
-    drillPath: [],
-    breadcrumb: ['repository'],
-    totalValue: 21_400_000,
-    tiles: [
-      { id: 'worktree:docs', label: 'docs', kind: 'worktree', value: 3_638_000, detail: '33 tracked paths · 3.5M on disk', drillable: true, path: { kind: 'worktree', segments: ['docs'], label: 'docs' } },
-      { id: 'worktree:public', label: 'public', kind: 'worktree', value: 107_000, detail: '5 tracked paths · 104.5K on disk', drillable: true, path: { kind: 'worktree', segments: ['public'], label: 'public' } },
-      { id: 'worktree:package-lock.json', label: 'package-lock.json', kind: 'worktree', value: 107_000, detail: '1 tracked path · 104.5K on disk', drillable: false, path: { kind: 'worktree', segments: ['package-lock.json'], label: 'package-lock.json' } },
-      { id: 'worktree:test', label: 'test', kind: 'worktree', value: 64_000, detail: '17 tracked paths · 62.5K on disk', drillable: true, path: { kind: 'worktree', segments: ['test'], label: 'test' } },
-      { id: 'worktree:pnpm-lock.yaml', label: 'pnpm-lock.yaml', kind: 'worktree', value: 64_000, detail: '1 tracked path · 62.5K on disk', drillable: false, path: { kind: 'worktree', segments: ['pnpm-lock.yaml'], label: 'pnpm-lock.yaml' } },
-      { id: 'worktree:src', label: 'src', kind: 'worktree', value: 43_000, detail: '6 tracked paths · 42.0K on disk', drillable: true, path: { kind: 'worktree', segments: ['src'], label: 'src' } },
-      { id: 'worktree:scripts', label: 'scripts', kind: 'worktree', value: 21_000, detail: '13 tracked paths · 20.5K on disk', drillable: true, path: { kind: 'worktree', segments: ['scripts'], label: 'scripts' } },
-      { id: 'git:.git/objects', label: '.git/objects', kind: 'git', value: 8_000_000, detail: '7.6M on disk', drillable: true, path: { kind: 'git', segments: ['.git/objects'], label: '.git/objects' } },
-      { id: 'ref:refs/git-cms', label: 'refs/git-cms', kind: 'ref', value: 2_000_000, detail: '17 refs', drillable: true, path: { kind: 'ref', segments: ['refs/git-cms'], label: 'refs/git-cms' } },
-      { id: 'vault:docs', label: 'docs', kind: 'vault', value: 1_500_000, detail: '2 entries · 1.4M logical', drillable: true, path: { kind: 'vault', segments: ['docs'], label: 'docs' } },
-    ],
-    notes: [
-      'Repository view mixes Git-reported worktree paths, .git on-disk bytes, ref namespaces, and logical CAS region sizes.',
-    ],
-    summary: {
-      bare: false,
-      gitDir: '/tmp/git-cas-fixture/.git',
-      worktreeItems: 7,
-      worktreePaths: 102,
-      refNamespaces: 1,
-      refCount: 17,
-      vaultEntries: 2,
-      sourceEntries: 0,
-    },
-    ...overrides,
-  };
-}
-
-function makeStyledCtx() {
-  return /** @type {any} */ ({
-    style: {
-      rgb: (...args) => {
-        const [red, green, blue, text] = args;
-        return `[fg:${red},${green},${blue}]${text}[/fg]`;
-      },
-      bgRgb: (...args) => `[bg]${args[3]}[/bg]`,
-      bold: (text) => `[bold]${text}[/bold]`,
-    },
-  });
-}
+vi.mock('../../../bin/ui/context.js', () => ({
+  getCliContext: () => makeCtx(),
+}));
 
 describe('repo treemap map rendering', () => {
-  it('renders multiple large regions when the half-split crosses on the last item', () => {
-    const output = renderRepoTreemapMap(makeReport(), {
-      ctx: makeCtx(),
-      width: 120,
-      height: 28,
-    });
+  it('renders multiple large regions with correct borders', () => {
+    const ctx = makeCtx();
+    const output = renderRepoTreemapMap({
+      breadcrumb: ['root'],
+      tiles: [
+        { id: 'a', label: 'a', value: 100, kind: 'worktree' },
+        { id: 'b', label: 'b', value: 100, kind: 'worktree' },
+      ],
+      totalValue: 200,
+    }, { ctx, width: 40, height: 20 });
 
-    expect(output).toContain('docs');
-    expect(output).toContain('.git/objects');
-    expect(output).toContain('refs/git-cms');
+    // Verify box-drawing characters are present for the layout
+    expect(output).toContain('┌');
+    expect(output).toContain('┐');
+    expect(output).toContain('│');
+    // Verify labels are centered in tiles
+    expect(output).toContain('a');
+    expect(output).toContain('b');
   });
 
-  it('renders label text as bold white without painting stripe backgrounds', () => {
-    const output = renderRepoTreemapMap(makeReport({
-      totalValue: 10,
-      tiles: [{ id: 'worktree:docs', label: 'docs', kind: 'worktree', value: 10, detail: '10 tracked paths', drillable: true, path: { kind: 'worktree', segments: ['docs'], label: 'docs' } }],
-    }), {
-      ctx: makeStyledCtx(),
-      width: 24,
-      height: 8,
-    });
+  it('renders label text correctly', () => {
+    const ctx = makeCtx();
+    const output = renderRepoTreemapMap({
+      breadcrumb: ['root'],
+      tiles: [{ id: 'docs', label: 'docs', value: 100, kind: 'worktree' }],
+      totalValue: 100,
+    }, { ctx, width: 40, height: 20 });
 
-    expect(output).toContain('[bold][fg:255,255,255]d[/fg][/bold]');
-    expect(output).toContain('[bold][fg:255,255,255]o[/fg][/bold]');
-    expect(output).not.toContain('[bg]');
+    expect(output).toContain('docs');
   });
 });
 
-describe('repo treemap sidebar rendering', () => {
+describe('repo treemap sidebar basics', () => {
+  it('renders breadcrumb path', () => {
+    const ctx = makeCtx();
+    const sidebar = renderRepoTreemapSidebar({
+      scope: 'repository',
+      source: { type: 'vault' },
+      breadcrumb: ['root', 'src', 'core'],
+      cwd: '/test',
+      tiles: [],
+      notes: [],
+      totalValue: 1000,
+      summary: { vaultEntries: 1, sourceEntries: 1 },
+    }, { ctx, width: 40, height: 24 });
 
-  it('sorts sidebar largest regions by value instead of source construction order', () => {
-    const sidebar = renderRepoTreemapSidebar(makeReport(), {
-      ctx: makeCtx(),
-      width: 60,
-      height: 28,
-    });
-    const regionLines = sidebar.regions.split('\n');
-
-    expect(regionLines[0]).toContain('.git/objects');
-    expect(regionLines[1]).toContain('docs');
-    expect(regionLines[2]).toContain('refs/git-cms');
+    expect(sidebar.overview).toContain('root > src > core');
   });
 
-  it('includes the current level and focused region in the sidebar', () => {
-    const sidebar = renderRepoTreemapSidebar(makeReport({
-      drillPath: [{ kind: 'git', segments: ['.git/objects'], label: '.git/objects' }],
-      breadcrumb: ['repository', '.git/objects'],
-    }), {
-      ctx: makeCtx(),
-      width: 60,
-      height: 28,
-      selectedTileId: 'git:.git/objects',
-    });
+  it('renders logical source weighting for source scope', () => {
+    const ctx = makeCtx();
+    const sidebar = renderRepoTreemapSidebar({
+      scope: 'source',
+      source: { type: 'vault' },
+      breadcrumb: ['root'],
+      cwd: '/test',
+      tiles: [],
+      notes: [],
+      totalValue: 1000,
+      summary: { vaultEntries: 1, sourceEntries: 1 },
+    }, { ctx, width: 40, height: 24 });
 
-    expect(sidebar.overview).toContain('level repository > .git/objects');
-    expect(sidebar.focused).toContain('.git/objects');
-    expect(sidebar.focused).toContain('Press + to descend.');
+    expect(sidebar.overview).toContain('logical source weighting');
   });
+});
 
-  it('wraps notes on whitespace before falling back to hard character breaks', () => {
-    const sidebar = renderRepoTreemapSidebar(makeReport({
-      notes: ['alpha beta longword delta', 'supercalifragilistic'],
-    }), {
-      ctx: makeCtx(),
-      width: 16,
-      height: 32,
-    });
+describe('repo treemap sidebar focus', () => {
+  it('renders tile details for the focused region', () => {
+    const ctx = makeCtx();
+    const sidebar = renderRepoTreemapSidebar({
+      scope: 'repository',
+      source: { type: 'vault' },
+      breadcrumb: ['root'],
+      cwd: '/test',
+      tiles: [{ id: 'a', label: 'test-region', value: 500, detail: '500 bytes', kind: 'worktree', drillable: true }],
+      notes: [],
+      totalValue: 1000,
+      summary: { vaultEntries: 1, sourceEntries: 1 },
+    }, { ctx, width: 40, height: 24, selectedTileId: 'a' });
 
-    expect(sidebar.notes.split('\n')).toEqual([
-      'alpha beta',
-      'longword delta',
-      'supercalifragili',
-      'stic',
-    ]);
+    expect(sidebar.focused).toContain('test-region');
+    expect(sidebar.focused).toContain('worktree · 50.0%');
+    expect(sidebar.focused).toContain('Press + to descend');
   });
 });

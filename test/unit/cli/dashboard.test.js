@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { surfaceToString } from '@flyingrobots/bijou';
 import { createNavigableTableState, createNotificationState } from '@flyingrobots/bijou-tui';
 import { makeCtx } from './_testContext.js';
+import { createFeedState } from '../../../bin/ui/blocks/operation-feed.js';
 
 vi.mock('../../../bin/ui/context.js', () => ({
   getCliContext: () => makeCtx(),
@@ -28,10 +29,13 @@ function makeDeps(overrides = {}) {
   };
 }
 
-function makeModel(overrides = {}) {
+function modelCoreDefaults() {
   return {
     phase: 'dashboard',
     titleTimeMs: 0,
+    lastTickTime: 0,
+    fps: 0,
+    showPerfHud: false,
     vaultEntryCount: 0,
     passphrase: '',
     authError: null,
@@ -39,6 +43,9 @@ function makeModel(overrides = {}) {
     columns: 80,
     rows: 24,
     source: { type: 'vault' },
+    workspace: 'explorer',
+    explorerMode: 'ledger',
+    merkleMode: 'table',
     entries: [],
     filtered: [],
     filterText: '',
@@ -46,23 +53,44 @@ function makeModel(overrides = {}) {
     metadata: null,
     manifestCache: new Map(),
     loadingSlug: null,
-    detailPager: null,
-    detailAccordion: null,
-    dagPane: null,
     quitConfirm: false,
     storeWizard: null,
-    viewTransition: null,
     error: null,
     table: createNavigableTableState({ columns: [], rows: [], height: 10 }),
-    refsTable: createNavigableTableState({ columns: [], rows: [], height: 10 }),
-    refsItems: [],
-    viewMode: 'list',
     palette: null,
     showHelp: false,
-    activeDrawer: null,
+  };
+}
+
+function modelServiceDefaults() {
+  return {
+    refsStatus: 'idle',
+    refsInventory: null,
+    refsError: null,
+    statsStatus: 'idle',
+    statsReport: null,
+    statsError: null,
+    doctorStatus: 'idle',
+    doctorReport: null,
+    doctorError: null,
+    treemapScope: 'repository',
+    treemapWorktreeMode: 'tracked',
+    treemapPath: [],
+    treemapFocus: 0,
+    treemapStatus: 'idle',
+    treemapReport: null,
+    treemapError: null,
     notifications: createNotificationState(),
+    operationFeed: createFeedState(),
     gitBranch: null,
     promptEnter: false,
+  };
+}
+
+function makeModel(overrides = {}) {
+  return {
+    ...modelCoreDefaults(),
+    ...modelServiceDefaults(),
     ...overrides,
   };
 }
@@ -79,8 +107,11 @@ describe('dashboard basic rendering', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
     const rendered = renderView(app.view(makeModel()), deps.ctx);
-    expect(rendered).toContain('git-cas');
-    expect(rendered).toContain('repository explorer');
+    expect(rendered).toContain('git-cas cockpit');
+    expect(rendered).toContain('Explorer');
+    expect(rendered).toContain('Atlas');
+    expect(rendered).toContain('Operations');
+    expect(rendered).toContain('Asset Ledger');
   });
 
   it('renders entry list when entries exist', () => {
@@ -98,22 +129,78 @@ describe('dashboard basic rendering', () => {
     const rendered = renderView(app.view(model), deps.ctx);
     expect(rendered).toContain('alpha');
   });
-});
-
-describe('dashboard treemap rendering', () => {
-  it('renders the treemap panel with title', () => {
+  it('opens command palette for digest search', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
-    const rendered = renderView(app.view(makeModel({ activeDrawer: 'treemap', treemapReport: { tiles: [], breadcrumb: ['root'], totalValue: 0, notes: [], summary: {}, scope: 'repository', source: { type: 'vault' }, cwd: '/test' } })), deps.ctx);
-    expect(rendered).toContain('Repository Atlas');
+    const model = makeModel({
+      entries: [{ slug: 'alpha', treeOid: 'abc' }],
+      filtered: [{ slug: 'alpha', treeOid: 'abc' }],
+      manifestCache: new Map([['alpha', {
+        chunks: [{ digest: 'sha256:deadbeef', blob: 'blob-1' }],
+      }]]),
+    });
+    const [next] = app.update({ type: 'key', key: 'p', ctrl: true }, model);
+    const [queried] = app.update({ type: 'key', key: 'd' }, next);
+    expect(queried.palette.query).toBe('d');
+    expect(queried.palette.filteredItems[0].id).toBe('alpha');
   });
 });
 
-describe('dashboard refs rendering', () => {
-  it('renders the refs index panel', () => {
+function treemapReport() {
+  return {
+    tiles: [{
+      id: 'app',
+      label: 'app',
+      kind: 'worktree',
+      value: 4096,
+      detail: 'source files',
+      drillable: true,
+      path: 'app',
+    }],
+    breadcrumb: ['root'],
+    totalValue: 4096,
+    notes: ['fixture repository atlas'],
+    summary: {
+      worktreePaths: 1,
+      worktreeItems: 1,
+      refCount: 0,
+      refNamespaces: 0,
+      vaultEntries: 1,
+      sourceEntries: 1,
+    },
+    scope: 'repository',
+    source: { type: 'vault' },
+    cwd: '/test',
+    worktreeMode: 'tracked',
+  };
+}
+
+describe('dashboard atlas rendering', () => {
+  it('renders the treemap panel with title', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
-    const rendered = renderView(app.view(makeModel({ activeDrawer: 'refs' })), deps.ctx);
-    expect(rendered).toContain('Ref Index');
+    const rendered = renderView(app.view(makeModel({ workspace: 'atlas', treemapStatus: 'ready', treemapReport: treemapReport(), columns: 120 })), deps.ctx);
+    expect(rendered).toContain('Repository Atlas');
+    expect(rendered).toContain('Atlas Briefing');
+    expect(rendered).toContain('app');
+  });
+
+  it('switches to atlas and queues a treemap load', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const [next, cmds] = app.update({ type: 'key', key: '2' }, makeModel());
+    expect(next.workspace).toBe('atlas');
+    expect(next.treemapStatus).toBe('loading');
+    expect(cmds).toHaveLength(1);
+  });
+});
+
+describe('dashboard operations rendering', () => {
+  it('renders the operations deck', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const rendered = renderView(app.view(makeModel({ workspace: 'operations', columns: 120 })), deps.ctx);
+    expect(rendered).toContain('Vault Economics');
+    expect(rendered).toContain('Operations Deck');
   });
 });

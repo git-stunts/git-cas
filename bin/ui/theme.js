@@ -1,59 +1,113 @@
 /**
  * Shared visual language for git-cas terminal surfaces.
- * 
- * BIJOU_CYBER_HEX Theme: Derived from the Organic Flow SOC aesthetic.
  */
 
-import { parseAnsiToSurface, extendTheme, CYAN_MAGENTA } from '@flyingrobots/bijou';
+import { parseAnsiToSurface } from '@flyingrobots/bijou';
 
 export const GIT_CAS_PALETTE = {
-  ghost: [251, 252, 252],    // #fbfcfc - Primary Text
-  slate: [148, 163, 184],    // #94a3b8 - Secondary Text
-  cyan: [7, 190, 184],       // #07beb8 - Brand / Success
-  orange: [255, 133, 82],    // #ff8552 - Accent / Warning
-  midnight: [29, 37, 43],    // #1d252b - Background Surface
-  ink: [18, 14, 46],         // #120e2e - Deep Shadow
-  ruby: [230, 89, 111],      // #e6596f - Danger
-  sky: [123, 170, 247],      // #7baaf7 - Info
-  deepSlate: [61, 75, 89],   // Subdued Chrome
+  ghost: [251, 252, 252],
+  slate: [148, 163, 184],
+  cyan: [7, 190, 184],
+  orange: [255, 133, 82],
+  midnight: [29, 37, 43],
+  ink: [18, 14, 46],
+  ruby: [230, 89, 111],
+  sky: [123, 170, 247],
+  deepSlate: [61, 75, 89],
 };
 
 function rgbToHex(rgb) {
   return `#${rgb.map((ch) => ch.toString(16).padStart(2, '0')).join('')}`;
 }
 
+function token(rgb, modifiers = [], bg) {
+  return {
+    hex: rgbToHex(rgb),
+    fgRGB: rgb,
+    ...(bg ? { bg: rgbToHex(bg), bgRGB: bg } : {}),
+    ...(modifiers.length ? { modifiers } : {}),
+  };
+}
+
+const {
+  ghost, slate, cyan, orange, midnight, ink, ruby, sky, deepSlate,
+} = GIT_CAS_PALETTE;
+
 /**
- * Full Bijou v5 theme for git-cas.
+ * Bijou v5 theme for the git-cas cockpit.
+ *
+ * Keep this object aligned with Bijou's public Theme shape. App-specific
+ * colors belong in local helpers, not in stray token groups that components
+ * will never read.
  */
-export const GIT_CAS_THEME = extendTheme(CYAN_MAGENTA, {
-  surface: {
-    background: { hex: rgbToHex(GIT_CAS_PALETTE.midnight) },
-    foreground: { hex: rgbToHex(GIT_CAS_PALETTE.ghost) },
-  },
-  panel: {
-    background: { hex: rgbToHex(GIT_CAS_PALETTE.midnight) },
-    border: { hex: rgbToHex(GIT_CAS_PALETTE.deepSlate) },
-    title: { hex: rgbToHex(GIT_CAS_PALETTE.cyan), bold: true },
-  },
+export const GIT_CAS_THEME = {
+  name: 'git-cas-cockpit',
   status: {
-    success: { hex: rgbToHex(GIT_CAS_PALETTE.cyan) },
-    warning: { hex: rgbToHex(GIT_CAS_PALETTE.orange) },
-    error: { hex: rgbToHex(GIT_CAS_PALETTE.ruby) },
-    info: { hex: rgbToHex(GIT_CAS_PALETTE.sky) },
-    muted: { hex: rgbToHex(GIT_CAS_PALETTE.slate) },
+    success: token(cyan, ['bold']),
+    error: token(ruby, ['bold']),
+    warning: token(orange, ['bold']),
+    info: token(sky),
+    pending: token(slate, ['dim']),
+    active: token(cyan, ['bold']),
+    muted: token(deepSlate, ['dim']),
   },
-});
+  semantic: {
+    success: token(cyan, ['bold']),
+    error: token(ruby, ['bold']),
+    warning: token(orange, ['bold']),
+    info: token(sky),
+    accent: token(orange, ['bold']),
+    muted: token(slate, ['dim']),
+    primary: token(ghost),
+  },
+  gradient: {
+    brand: [
+      { pos: 0, color: cyan },
+      { pos: 0.55, color: sky },
+      { pos: 1, color: orange },
+    ],
+    progress: [
+      { pos: 0, color: deepSlate },
+      { pos: 0.5, color: sky },
+      { pos: 1, color: cyan },
+    ],
+  },
+  border: {
+    primary: token(cyan),
+    secondary: token(deepSlate),
+    success: token(cyan),
+    warning: token(orange),
+    error: token(ruby),
+    muted: token(deepSlate),
+  },
+  ui: {
+    cursor: token(cyan, ['bold']),
+    scrollThumb: token(cyan),
+    scrollTrack: token(deepSlate),
+    sectionHeader: token(orange, ['bold']),
+    logo: token(cyan, ['bold']),
+    tableHeader: token(ghost, ['bold']),
+    trackEmpty: token(deepSlate),
+  },
+  surface: {
+    primary: token(ghost, [], midnight),
+    secondary: token(slate, [], [23, 31, 37]),
+    elevated: token(ghost, [], [35, 45, 53]),
+    overlay: token(ghost, [], ink),
+    muted: token(slate, ['dim'], [15, 20, 25]),
+  },
+};
 
 const TEXT_TONES = {
-  brand: { fg: GIT_CAS_PALETTE.cyan, bold: true },
-  accent: { fg: GIT_CAS_PALETTE.orange, bold: true },
-  primary: { fg: GIT_CAS_PALETTE.ghost },
-  secondary: { fg: GIT_CAS_PALETTE.slate },
-  subdued: { fg: GIT_CAS_PALETTE.deepSlate },
-  info: { fg: GIT_CAS_PALETTE.sky, bold: true },
-  success: { fg: GIT_CAS_PALETTE.cyan, bold: true },
-  warning: { fg: GIT_CAS_PALETTE.orange, bold: true },
-  danger: { fg: GIT_CAS_PALETTE.ruby, bold: true },
+  brand: { fg: cyan, bold: true },
+  accent: { fg: orange, bold: true },
+  primary: { fg: ghost },
+  secondary: { fg: slate },
+  subdued: { fg: deepSlate },
+  info: { fg: sky, bold: true },
+  success: { fg: cyan, bold: true },
+  warning: { fg: orange, bold: true },
+  danger: { fg: ruby, bold: true },
 };
 
 export function themeText(ctx, text, options = {}) {
@@ -62,17 +116,7 @@ export function themeText(ctx, text, options = {}) {
 
 export function inlineSurface(ctx, text, options = {}) {
   const styled = themeText(ctx, text, options);
-  const s = parseAnsiToSurface(styled, Math.max(1, text.length), 1);
-  // Enforce theme background on all cells
-  const bg = rgbToHex(GIT_CAS_PALETTE.midnight);
-  for (let i = 0; i < s.buffer.length; i++) {
-    // We can't set .bg directly on numbers in packed buffers, 
-    // but in tests it might be an object if not packed.
-    if (typeof s.buffer[i] === 'object') {
-      s.buffer[i].bg = bg;
-    }
-  }
-  return s;
+  return parseAnsiToSurface(styled, Math.max(1, text.length), 1);
 }
 
 export function sectionHeading(ctx, label, tone = 'brand') {

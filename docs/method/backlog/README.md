@@ -60,6 +60,11 @@ Active:
 - [TR — Manifest Diffing](./cool-ideas/TR_manifest-diffing.md) ✅
 - [TR — Parallel Chunk Restore](./cool-ideas/TR_parallel-chunk-restore.md) ✅
 - [TR — Content-Aware Chunking](./cool-ideas/TR_content-aware-chunking.md)
+- [TUI — CLI Adaptive Table](./cool-ideas/TUI_cli-adaptive-table.md)
+- [TUI — Operation Feed Drawer](./cool-ideas/TUI_operation-feed-drawer.md)
+- [TUI — OS Keychain Auto-Discovery](./cool-ideas/TUI_os-keychain-auto-discovery.md)
+- [TUI — Segmented Manifest View](./cool-ideas/TUI_segmented-manifest-view.md)
+- [TUI — Title Screen Stats](./cool-ideas/TUI_title-screen-stats.md)
 
 Resolved — `security/audit-fixes` branch:
 
@@ -72,6 +77,10 @@ Resolved — `security/audit-fixes` branch:
 - [SEC — Manifest-Level Integrity Hash](./cool-ideas/SEC_manifest-integrity-hash.md) ✅
 
 ### `bad-code/`
+
+Active:
+
+- [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md)
 
 Resolved — `security/audit-fixes` branch:
 

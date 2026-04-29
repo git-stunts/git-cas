@@ -204,16 +204,16 @@ export function buildManifestSections({ manifest, ctx = getCliContext() }) {
     { title: 'Asset Metadata', content: metadataBody(m, ctx), expanded: true },
   ];
   if (m.encryption) {
-    sections.push({ title: 'Encryption Profile', content: encryptionBody(m.encryption, ctx) });
+    sections.push({ title: 'Encryption Profile', content: encryptionBody(m.encryption, ctx), expanded: true });
   }
   if (m.compression) {
-    sections.push({ title: 'Compression Profile', content: box(`  algorithm  ${m.compression.algorithm}`, { ctx }) });
+    sections.push({ title: 'Compression Profile', content: box(`  algorithm  ${m.compression.algorithm}`, { ctx }), expanded: true });
   }
   if (m.subManifests?.length) {
-    sections.push({ title: `Merkle Branches (${m.subManifests.length})`, content: renderSubManifestTree(m, ctx) });
+    sections.push({ title: `Merkle Branches (${m.subManifests.length})`, content: renderSubManifestTree(m, ctx), expanded: true });
   }
   if (m.chunks?.length) {
-    sections.push({ title: `Chunk Ledger (${m.chunks.length})`, content: renderChunkTable(m, ctx) });
+    sections.push({ title: `Chunk Ledger (${m.chunks.length})`, content: renderChunkTable(m, ctx), expanded: true });
   }
   return sections;
 }

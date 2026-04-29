@@ -62,8 +62,8 @@ export function renderChunkTable(manifest, ctx) {
   const rows = displayChunks.map((c) => [
     String(c.index),
     formatBytes(c.size),
-    typeof c.digest === 'string' ? `${c.digest.slice(0, 12)}...` : '-',
-    typeof c.blob === 'string' ? `${c.blob.slice(0, 12)}...` : '-',
+    typeof c.digest === 'string' ? c.digest : '-',
+    typeof c.blob === 'string' ? c.blob : '-',
   ]);
   const chunkTable = table({
     columns: [{ header: '#' }, { header: 'Size' }, { header: 'Digest' }, { header: 'Blob' }],
