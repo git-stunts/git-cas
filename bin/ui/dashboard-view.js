@@ -22,10 +22,6 @@ const TREEMAP_SIDEBAR_RATIO = 0.32;
 
 /**
  * Center an overlay horizontally within a container.
- *
- * @param {number} containerWidth
- * @param {number} overlayWidth
- * @returns {number}
  */
 function centerX(containerWidth, overlayWidth) {
   return Math.max(0, Math.floor((containerWidth - overlayWidth) / 2));
@@ -33,11 +29,6 @@ function centerX(containerWidth, overlayWidth) {
 
 /**
  * Position an overlay at roughly the top-third of the screen.
- *
- * @param {number} top
- * @param {number} containerHeight
- * @param {number} overlayHeight
- * @returns {number}
  */
 function topThirdY(top, containerHeight, overlayHeight) {
   return Math.max(top, top + Math.floor((containerHeight - overlayHeight) / 3));
@@ -45,59 +36,71 @@ function topThirdY(top, containerHeight, overlayHeight) {
 
 /**
  * Clips a path from the left so the leaf part is always visible.
- *
- * @param {string} text
- * @param {number} width
- * @returns {string}
  */
 function tailClip(text, width) {
-  if (text.length <= width) {
-    return text;
-  }
+  if (text.length <= width) { return text; }
   return `...${text.slice(text.length - (width - 3))}`;
 }
 
 /**
  * Return labels for the active source filters.
- *
- * @param {DashModel} model
- * @param {import('@flyingrobots/bijou').BijouContext} ctx
- * @returns {import('@flyingrobots/bijou').Surface[]}
  */
 function headerParts(model, ctx) {
   const parts = [];
-  if (model.gitBranch) {
-    parts.push(inlineSurface(ctx, model.gitBranch, { tone: 'info' }));
-  }
-  if (model.filterText) {
-    parts.push(inlineSurface(ctx, `/${model.filterText}`, { tone: 'accent' }));
-  }
+  if (model.gitBranch) { parts.push(inlineSurface(ctx, model.gitBranch, { tone: 'info' })); }
+  if (model.filterText) { parts.push(inlineSurface(ctx, `/${model.filterText}`, { tone: 'accent' })); }
   return parts;
 }
 
-/**
- * Build a human-readable label for the active dashboard source.
- *
- * @param {DashSource} source
- * @returns {string}
- */
 function sourceLabel(source) {
-  if (source.type === 'vault') {
-    return 'vault';
-  }
-  if (source.type === 'ref') {
-    return `ref ${source.ref}`;
-  }
+  if (source.type === 'vault') { return 'vault'; }
+  if (source.type === 'ref') { return `ref ${source.ref}`; }
   return `oid ${source.treeOid}`;
 }
 
 /**
- * Render the main dashboard shell.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {import('@flyingrobots/bijou').Surface}
+ * Defines the responsive table columns and data indices.
  */
+export function tableSchema(width) {
+  if (width >= 100) {
+    const oidWidth = 40;
+    const fixedCols = oidWidth + 10 + 7 + 10 + 9;
+    const slugWidth = Math.max(16, Math.min(32, width - fixedCols - 6));
+    return {
+      columns: [
+        { header: 'Slug', width: slugWidth },
+        { header: 'Tree OID', width: oidWidth },
+        { header: 'Size', width: 10, align: 'right' },
+        { header: 'Chunks', width: 7, align: 'right' },
+        { header: 'Crypto', width: 10 },
+        { header: 'Format', width: 9 },
+      ],
+      indexes: [0, 1, 2, 3, 4, 5],
+    };
+  }
+  if (width >= 64) {
+    const fixedCols = 10 + 7 + 10 + 9;
+    const slugWidth = Math.max(20, Math.min(40, width - fixedCols - 4));
+    return {
+      columns: [
+        { header: 'Slug', width: slugWidth },
+        { header: 'Size', width: 10, align: 'right' },
+        { header: 'Chunks', width: 7, align: 'right' },
+        { header: 'Crypto', width: 10 },
+        { header: 'Format', width: 9 },
+      ],
+      indexes: [0, 2, 3, 4, 5],
+    };
+  }
+  return {
+    columns: [
+      { header: 'Slug', width: Math.max(14, width - 12) },
+      { header: 'State', width: 10 },
+    ],
+    indexes: [0, 6],
+  };
+}
+
 export function renderDashboard(model, deps) {
   if (model.phase === 'title' || model.phase === 'password') {
     return renderTitleScreen(model, deps);
@@ -110,36 +113,25 @@ export function renderDashboard(model, deps) {
 
   const header = renderHeaderSurface(model, deps, contentWidth);
   const footer = renderFooterSurface(model, deps.ctx, contentWidth);
-  const bodyTop = header.height;
   const bodyHeight = Math.max(1, height - header.height - footer.height);
 
   const bodySurface = renderBody(model, deps, { width: contentWidth, height: bodyHeight });
   
-  // Compose shell with horizontal margins
   const shell = vstackSurface(
     hstackSurface(margin, header),
     hstackSurface(margin, bodySurface),
     hstackSurface(margin, footer)
   );
 
-  // Final root surface filled with theme background to ensure total coverage
   const screen = createSurface(width, height);
   const themeBg = '#1d252b';
   screen.fill({ char: ' ', bg: themeBg });
   screen.blit(shell, 0, 0);
 
-  renderOverlays(model, deps, { top: bodyTop, height: bodyHeight, screen });
-
+  renderOverlays(model, deps, { top: header.height, height: bodyHeight, screen });
   return screen;
 }
 
-/**
- * Render the full-screen title/password screen.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {import('@flyingrobots/bijou').Surface}
- */
 function renderTitleScreen(model, deps) {
   const { columns: width, rows: height } = model;
   const screen = createSurface(width, height);
@@ -189,26 +181,10 @@ function renderTitleScreen(model, deps) {
   return screen;
 }
 
-/**
- * Create a simple one-line text surface.
- *
- * @param {string} content
- * @param {number} width
- * @param {number} height
- * @returns {import('@flyingrobots/bijou').Surface}
- */
 function textSurface(content, width, height) {
   return parseAnsiToSurface(content, width, height);
 }
 
-/**
- * Render the dashboard header area.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {number} width
- * @returns {import('@flyingrobots/bijou').Surface}
- */
 function renderHeaderSurface(model, deps, width) {
   const w = Math.max(1, width);
   const titleRow = hstackSurface(1,
@@ -227,31 +203,13 @@ function renderHeaderSurface(model, deps, width) {
   return vstackSurface(titleRow, cwdRow, sourceRow, ruleRow);
 }
 
-/**
- * Render a simple themed panel with a title and body.
- *
- * @param {{ title: string, body: string | import('@flyingrobots/bijou').Surface, width: number, height: number, ctx: import('@flyingrobots/bijou').BijouContext }} options
- * @returns {import('@flyingrobots/bijou').Surface}
- */
 function renderPanel(options) {
   const body = typeof options.body === 'string'
     ? textSurface(options.body, Math.max(1, options.width - 2), Math.max(1, options.height - 2))
     : options.body;
-  return boxSurface(body, {
-    ctx: options.ctx,
-    title: options.title,
-    width: options.width,
-  });
+  return boxSurface(body, { ctx: options.ctx, title: options.title, width: options.width });
 }
 
-/**
- * Render the dashboard footer area.
- *
- * @param {DashModel} model
- * @param {import('@flyingrobots/bijou').BijouContext} ctx
- * @param {number} width
- * @returns {import('@flyingrobots/bijou').Surface}
- */
 function renderFooterSurface(model, ctx, width) {
   const w = Math.max(1, width);
   const statusLine = model.activeDrawer ? 'Press escape to close drawer.' : 'Press ? for help.';
@@ -267,74 +225,34 @@ function renderFooterSurface(model, ctx, width) {
   );
 }
 
-/**
- * Render the central dashboard body.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ width: number, height: number }} options
- * @returns {import('@flyingrobots/bijou').Surface}
- */
 function renderBody(model, deps, options) {
-  if (model.activeDrawer === 'treemap') {
-    return renderTreemapView(model, deps, options);
-  }
-  if (model.activeDrawer === 'refs') {
-    return renderRefsView(model, deps, options);
-  }
-  if (model.viewMode === 'detail') {
-    return renderDetailPane(model, { width: options.width, height: options.height, ctx: deps.ctx });
-  }
+  if (model.activeDrawer === 'treemap') { return renderTreemapView(model, deps, options); }
+  if (model.activeDrawer === 'refs') { return renderRefsView(model, deps, options); }
+  if (model.viewMode === 'detail') { return renderDetailPane(model, { width: options.width, height: options.height, ctx: deps.ctx }); }
   return renderListPane(model, { width: options.width, height: options.height, ctx: deps.ctx });
 }
 
-/**
- * Render the asset list pane.
- *
- * @param {DashModel} model
- * @param {{ width: number, height: number, ctx: import('@flyingrobots/bijou').BijouContext }} options
- * @returns {import('@flyingrobots/bijou').Surface}
- */
 function renderListPane(model, options) {
+  const schema = tableSchema(options.width);
   return navigableTable(model.table, {
     width: options.width,
     height: options.height,
     ctx: options.ctx,
+    columns: schema.columns,
+    indexes: schema.indexes,
   });
 }
 
-/**
- * Render the asset detail pane.
- *
- * @param {DashModel} model
- * @param {{ width: number, height: number, ctx: import('@flyingrobots/bijou').BijouContext }} options
- * @returns {import('@flyingrobots/bijou').Surface}
- */
 function renderDetailPane(model, options) {
   const content = renderManifestView({
     manifest: model.manifestCache.get(model.table.rows[model.table.focusRow][0]),
     ctx: options.ctx,
   });
-  return renderPanel({
-    title: 'Asset Detail',
-    body: content,
-    width: options.width,
-    height: options.height,
-    ctx: options.ctx,
-  });
+  return renderPanel({ title: 'Asset Detail', body: content, width: options.width, height: options.height, ctx: options.ctx });
 }
 
-/**
- * Render the treemap full-screen view.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ width: number, height: number }} options
- * @returns {import('@flyingrobots/bijou').Surface}
- */
 function renderTreemapView(model, deps, options) {
-  const maxSidebarWidth = Math.max(18, options.width - 17);
-  const sidebarWidth = Math.min(maxSidebarWidth, Math.max(24, Math.min(42, Math.floor(options.width * TREEMAP_SIDEBAR_RATIO))));
+  const sidebarWidth = Math.min(Math.max(18, options.width - 17), Math.max(24, Math.min(42, Math.floor(options.width * TREEMAP_SIDEBAR_RATIO))));
   const mapWidth = Math.max(16, options.width - sidebarWidth - 1);
   const mapHeight = options.height;
 
@@ -356,17 +274,8 @@ function renderTreemapView(model, deps, options) {
   return hstackSurface(0, mapPanel, textSurface('│', 1, options.height), sidebarPanel);
 }
 
-/**
- * Render the refs browser full-screen view.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ width: number, height: number }} options
- * @returns {import('@flyingrobots/bijou').Surface}
- */
 function renderRefsView(model, deps, options) {
-  const maxSidebarWidth = Math.max(22, options.width - 25);
-  const sidebarWidth = Math.min(maxSidebarWidth, Math.max(30, Math.min(46, Math.floor(options.width * REFS_SIDEBAR_RATIO))));
+  const sidebarWidth = Math.min(Math.max(22, options.width - 25), Math.max(30, Math.min(46, Math.floor(options.width * REFS_SIDEBAR_RATIO))));
   const listWidth = Math.max(18, options.width - sidebarWidth - 1);
 
   const listPanel = renderPanel({
@@ -387,13 +296,6 @@ function renderRefsView(model, deps, options) {
   return hstackSurface(0, listPanel, textSurface('│', 1, options.height), detailPanel);
 }
 
-/**
- * Render overlays (palette, help, notifications) over the main screen.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ top: number, height: number, screen: import('@flyingrobots/bijou').Surface }} options
- */
 function renderOverlays(model, deps, options) {
   if (model.palette) {
     const palette = commandPalette(model.palette, { width: Math.min(80, options.screen.width - 4), ctx: deps.ctx });

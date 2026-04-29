@@ -23,12 +23,12 @@ function makeDeps(overrides = {}) {
     ctx,
     cwdLabel: '/tmp/git-cas-fixture',
     source: { type: 'vault' },
+    tick: vi.fn((ms, msg) => ({ type: 'tick', ms, msg })),
     ...overrides,
   };
 }
 
 function makeModel(overrides = {}) {
-  const rows = 24;
   return {
     phase: 'dashboard',
     titleTimeMs: 0,
@@ -37,7 +37,7 @@ function makeModel(overrides = {}) {
     authError: null,
     status: 'idle',
     columns: 80,
-    rows,
+    rows: 24,
     source: { type: 'vault' },
     entries: [],
     filtered: [],
@@ -48,17 +48,20 @@ function makeModel(overrides = {}) {
     loadingSlug: null,
     detailPager: null,
     detailAccordion: null,
+    dagPane: null,
+    quitConfirm: false,
+    storeWizard: null,
+    viewTransition: null,
     error: null,
     table: createNavigableTableState({ columns: [], rows: [], height: 10 }),
     refsTable: createNavigableTableState({ columns: [], rows: [], height: 10 }),
     refsItems: [],
-    activeDrawer: null,
     viewMode: 'list',
-    viewTransition: null,
     palette: null,
-    notifications: createNotificationState(),
     showHelp: false,
-    dagPane: null,
+    activeDrawer: null,
+    notifications: createNotificationState(),
+    gitBranch: null,
     promptEnter: false,
     ...overrides,
   };
@@ -78,6 +81,22 @@ describe('dashboard basic rendering', () => {
     const rendered = renderView(app.view(makeModel()), deps.ctx);
     expect(rendered).toContain('git-cas');
     expect(rendered).toContain('repository explorer');
+  });
+
+  it('renders entry list when entries exist', () => {
+    const deps = makeDeps();
+    const app = createDashboardApp(deps);
+    const model = makeModel({
+      entries: [{ slug: 'alpha', treeOid: 'abc' }],
+      filtered: [{ slug: 'alpha', treeOid: 'abc' }],
+      table: createNavigableTableState({ 
+        columns: [{ header: 'Slug', width: 20 }, { header: 'Size', width: 10 }],
+        rows: [['alpha', 'abc', '100B', '1', 'plain', 'raw', 'single']], 
+        height: 10 
+      })
+    });
+    const rendered = renderView(app.view(model), deps.ctx);
+    expect(rendered).toContain('alpha');
   });
 });
 
