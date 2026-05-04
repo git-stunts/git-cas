@@ -1,10 +1,17 @@
 FROM ubuntu:24.04 AS ubuntu-base
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates git \
- && groupadd --system gitstunts \
- && useradd --system --gid gitstunts --create-home --shell /usr/sbin/nologin gitstunts \
- && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    for attempt in 1 2 3 4 5; do \
+      apt-get update \
+      && apt-get install -y --no-install-recommends ca-certificates git \
+      && break; \
+      if [ "$attempt" -eq 5 ]; then exit 1; fi; \
+      rm -rf /var/lib/apt/lists/*; \
+      sleep "$((attempt * 5))"; \
+    done; \
+    groupadd --system gitstunts; \
+    useradd --system --gid gitstunts --create-home --shell /usr/sbin/nologin gitstunts; \
+    rm -rf /var/lib/apt/lists/*
 
 FROM node:22 AS node-runtime
 FROM oven/bun:1 AS bun-runtime
