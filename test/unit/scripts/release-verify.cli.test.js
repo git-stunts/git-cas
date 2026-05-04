@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   renderJsonReport,
   resolveOutputFormat,
+  resolveReleaseOptions,
 } from '../../../scripts/release/verify.js';
 
 describe('release verify CLI helpers', () => {
@@ -10,10 +11,16 @@ describe('release verify CLI helpers', () => {
     expect(resolveOutputFormat([])).toBe('markdown');
   });
 
+  it('resolves the JSR skip option', () => {
+    expect(resolveReleaseOptions(['--skip-jsr'])).toEqual({ skipJsr: true });
+    expect(resolveReleaseOptions([])).toEqual({ skipJsr: false });
+  });
+
   it('renders machine-readable release output', () => {
     const output = renderJsonReport({
       version: '5.3.3',
       totalTests: 12,
+      skippedSteps: ['JSR publish dry-run'],
       results: [
         { id: 'lint', label: 'Lint', passed: true, tests: null, code: 0, signal: null, errorMessage: null },
         { id: 'unit-node', label: 'Unit Tests (Node)', passed: true, tests: 12, code: 0, signal: null, errorMessage: null },
@@ -24,6 +31,7 @@ describe('release verify CLI helpers', () => {
     expect(report.version).toBe('5.3.3');
     expect(report.stepsPassed).toBe(2);
     expect(report.totalSteps).toBe(2);
+    expect(report.skippedSteps).toEqual(['JSR publish dry-run']);
     expect(report.totalTests).toBe(12);
     expect(report.results[1]).toMatchObject({
       id: 'unit-node',

@@ -21,14 +21,15 @@ Fresh planning now follows the METHOD:
   for shipped Relay flows, but breadth and portability are still incomplete.
 - **Planning reality:** fresh work is now chosen from METHOD backlog lanes, not
   milestone fiction.
+- **Release posture:** JSR publication is deferred from the v6.0.0 tag path
+  until the upstream `jsr`/Deno dry-run blocker is fixed.
 
 ## Current Queue Snapshot
 
 See the live backlog for exact lane placement:
 
-- [REL — Docs Accuracy Audit](./docs/method/backlog/v6.0.0/REL_docs-accuracy-audit.md)
-- [REL — Signpost Rewrite](./docs/method/backlog/v6.0.0/REL_signpost-rewrite.md)
 - [REL — Version Bump](./docs/method/backlog/v6.0.0/REL_version-bump.md)
+- [TUI — v6.x TUI Modernization](./docs/method/backlog/v6.x-tui/TUI_store-wizard.md)
 - [TUI — Store Wizard Execution Gap](./docs/method/backlog/bad-code/TUI_store-wizard-execution-gap.md)
 - [SEC — Vault Passphrase Verifier Gap](./docs/method/backlog/bad-code/SEC_vault-passphrase-verifier-gap.md)
 

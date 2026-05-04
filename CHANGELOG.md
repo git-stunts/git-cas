@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Review automation baseline** — added `.github/CODEOWNERS` with repo-wide ownership for `@git-stunts`.
 - **Release runbook** — added `docs/RELEASE.md` and linked it from `CONTRIBUTING.md` as the canonical patch-release workflow.
 - **`pnpm release:verify`** — new maintainer-facing release helper runs the full release checklist, captures observed test counts, and prints a Markdown summary that can be pasted into release notes or changelog prep.
+- **JSR-deferred release verification** — `npm run release:verify -- --skip-jsr` now supports release-candidate sanity checks when the external JSR/Deno toolchain is broken, records skipped steps in Markdown and JSON summaries, and keeps the v6.0.0 tag workflow focused on npm plus GitHub Release publication.
 - **`git cas vault stats`** — new vault summary command reports logical size, chunk references, dedupe ratio, encryption coverage, compression usage, and chunking strategy breakdowns.
 - **`git cas doctor`** — new diagnostics command scans `refs/cas/vault`, validates every referenced manifest, and exits non-zero with structured issue output when it finds broken entries or a missing vault ref.
 - **Deterministic property-based envelope coverage** — added a `fast-check`-backed property suite for envelope-encrypted store/restore round-trips and tamper rejection across empty, boundary-adjacent, and multi-chunk payload sizes.

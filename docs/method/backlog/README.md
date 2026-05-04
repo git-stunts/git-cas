@@ -10,6 +10,7 @@ The lane is the priority:
 - `cool-ideas/` — interesting, not committed
 - `bad-code/` — debt that works but bothers us
 - `v6.0.0/` — release gate items (must complete before tag/publish)
+- `v6.x-tui/` — post-6.0 TUI modernization work for the v6 release line
 
 Backlog filenames use legend prefixes when they belong to a named domain and do
 not use numeric IDs.
@@ -32,7 +33,7 @@ not use numeric IDs.
 
 Active:
 
-1. [REL — Version Bump](./v6.0.0/REL_version-bump.md) — tag/publish gate plus external JSR dry-run blocker
+1. [REL — Version Bump](./v6.0.0/REL_version-bump.md) — tag/publish gate; JSR publication is deferred externally
 
 Resolved:
 
@@ -41,20 +42,23 @@ Resolved:
 - [REL — Docs Accuracy Audit](./v6.0.0/REL_docs-accuracy-audit.md) — GUIDE examples and tracked Markdown links covered by tests
 - [REL — Signpost Rewrite](./v6.0.0/REL_signpost-rewrite.md) — README, BEARING, VISION, STATUS for v6
 
-### `v6.0.0-tui/` (Bijou v5 TUI modernization)
+### `v6.x-tui/` (Bijou v5 TUI modernization)
 
-1. [TUI-001 — Framed App Shell](./v6.0.0-tui/TUI_framed-app-shell.md) — Foundation: `createFramedApp()` + `startApp()`
-2. [TUI-002 — boxV3 → boxSurface](./v6.0.0-tui/TUI_box-surface-migration.md) — Breaking API fix (Small)
-3. [TUI-003 — Status Bar](./v6.0.0-tui/TUI_status-bar.md) — Persistent bottom bar
-4. [TUI-004 — Toast Notifications](./v6.0.0-tui/TUI_toast-notifications.md) — Replace custom toast with built-in
-5. [TUI-005 — Badge Components](./v6.0.0-tui/TUI_badge-components.md) — Bijou `badge` for encryption/compression tags
-6. [TUI-006 — Layout Primitives](./v6.0.0-tui/TUI_layout-primitives.md) — hstack/vstack/flex/grid
-7. [TUI-007 — Help Overlay](./v6.0.0-tui/TUI_help-overlay.md) — `?` key → full keybinding reference
-8. [TUI-008 — Merkle DAG Viewer](./v6.0.0-tui/TUI_merkle-dag-viewer.md) — `dagPane` for manifest structure
-9. [TUI-009 — Interactive Store Wizard](./v6.0.0-tui/TUI_store-wizard.md) — Guided store flow inside TUI
-10. [TUI-010 — Pager Scrollable Content](./v6.0.0-tui/TUI_pager-scrollable-content.md) — Scrollable detail pane
-11. [TUI-011 — Accordion Detail Pane](./v6.0.0-tui/TUI_accordion-detail-pane.md) — Collapsible manifest sections
-12. [TUI-012 — Animated Transitions](./v6.0.0-tui/TUI_animated-transitions.md) — Spring physics + transition shaders
+Post-6.0 minor release line, not a v6.0.0 tag blocker.
+
+1. [TUI-001 — Framed App Shell](./v6.x-tui/TUI_framed-app-shell.md) — Foundation: `createFramedApp()` + `startApp()`
+2. [TUI-002 — boxV3 -> boxSurface](./v6.x-tui/TUI_box-surface-migration.md) — Breaking API fix (Small)
+3. [TUI-003 — Status Bar](./v6.x-tui/TUI_status-bar.md) — Persistent bottom bar
+4. [TUI-004 — Toast Notifications](./v6.x-tui/TUI_toast-notifications.md) — Replace custom toast with built-in
+5. [TUI-005 — Badge Components](./v6.x-tui/TUI_badge-components.md) — Bijou `badge` for encryption/compression tags
+6. [TUI-006 — Layout Primitives](./v6.x-tui/TUI_layout-primitives.md) — hstack/vstack/flex/grid
+7. [TUI-007 — Help Overlay](./v6.x-tui/TUI_help-overlay.md) — `?` key -> full keybinding reference
+8. [TUI-008 — Merkle DAG Viewer](./v6.x-tui/TUI_merkle-dag-viewer.md) — `dagPane` for manifest structure
+9. [TUI-009 — Interactive Store Wizard](./v6.x-tui/TUI_store-wizard.md) — Guided store flow inside TUI
+10. [TUI-010 — Pager Scrollable Content](./v6.x-tui/TUI_pager-scrollable-content.md) — Scrollable detail pane
+11. [TUI-011 — Accordion Detail Pane](./v6.x-tui/TUI_accordion-detail-pane.md) — Collapsible manifest sections
+12. [TUI-012 — Animated Transitions](./v6.x-tui/TUI_animated-transitions.md) — Spring physics + transition shaders
+13. [TUI-013 — Full-Screen Detail View](./v6.x-tui/TUI_fullscreen-detail-view.md) — Replace split pane with list/detail drill-in
 
 ### `cool-ideas/`
 

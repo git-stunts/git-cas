@@ -17,6 +17,10 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
+- **v6.0.0 release posture** — JSR publication is deferred because the current
+  `jsr`/Deno toolchain panics before package validation. The tag workflow
+  publishes npm and creates the GitHub Release; JSR can return in a later 6.x
+  maintenance change once its dry-run is healthy.
 - **v6.0.0 encryption scheme simplification** — `whole-v1`/`whole-v2` collapsed
   to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1`
   collapsed to `convergent`. AAD is now always on. Legacy scheme strings in
@@ -57,6 +61,8 @@
   `framed` remains the actual cross-runtime streaming-encrypted mode.
 - Fresh work is now organized through METHOD backlog lanes and numbered cycle
   directories.
+- TUI modernization is queued for the v6.x line after v6.0.0, not as a v6.0.0
+  tag blocker.
 
 ## Active Queue Snapshot
 

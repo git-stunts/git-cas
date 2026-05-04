@@ -3,6 +3,7 @@ import {
   RELEASE_STEPS,
   ReleaseVerifyError,
   extractVitestTestCount,
+  releaseStepsFor,
   renderMarkdownSummary,
   runReleaseVerify,
 } from '../../../scripts/release/verify.js';
@@ -106,6 +107,17 @@ describe('release verify helpers', () => {
     expect(summary).toContain('- Total tests observed: 12');
     expect(summary).toContain('| Unit Tests (Node) | PASS | 12 |');
   });
+
+  it('renders skipped release steps when provided', () => {
+    const summary = renderMarkdownSummary({
+      version: '6.0.0',
+      totalTests: 0,
+      skippedSteps: ['JSR publish dry-run'],
+      results: [{ label: 'Lint', passed: true, tests: null }],
+    });
+
+    expect(summary).toContain('- Skipped steps: JSR publish dry-run');
+  });
 });
 
 describe('release verify execution', () => {
@@ -119,6 +131,22 @@ describe('release verify execution', () => {
     expect(report.results.every((result) => result.passed)).toBe(true);
   });
 
+  it('can skip the JSR publish dry-run for externally blocked releases', async () => {
+    const runner = makeSuccessRunner();
+
+    const report = await runReleaseVerify({ runner, logger: QUIET_LOGGER, skipJsr: true });
+
+    expect(runner).toHaveBeenCalledTimes(RELEASE_STEPS.length - 1);
+    expect(report.results.map((result) => result.id)).toEqual(
+      releaseStepsFor({ skipJsr: true }).map((step) => step.id),
+    );
+    expect(report.results.some((result) => result.id === 'jsr-publish')).toBe(false);
+    expect(report.skippedSteps).toEqual(['JSR publish dry-run']);
+    expect(report.summary).toContain('- Skipped steps: JSR publish dry-run');
+  });
+});
+
+describe('release verify failures', () => {
   it('treats missing signal values as a successful exit', async () => {
     const runner = makeUndefinedSignalRunner();
 

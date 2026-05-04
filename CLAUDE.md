@@ -28,4 +28,4 @@ Before tagging a release, ALL of the following must pass:
 3. Bun unit + integration tests pass
 4. Deno unit + integration tests pass
 5. `npm pack --dry-run` — clean
-6. `npx jsr publish --dry-run --allow-dirty` — clean
+6. `npx jsr publish --dry-run --allow-dirty` — clean, unless a documented upstream JSR/Deno toolchain failure prevents package validation from starting. In that case, run `npm run release:verify -- --skip-jsr`, record the skipped step, and keep JSR publishing out of the tag workflow until the dry-run is healthy again.
