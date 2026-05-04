@@ -51,7 +51,7 @@ export default class NodeCompressionAdapter extends CompressionPort {
 
     try {
       for await (const chunk of gunzipStream) {
-        yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        yield chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
       }
     } finally {
       input.removeListener('error', forwardInputError);

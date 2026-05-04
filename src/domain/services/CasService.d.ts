@@ -3,55 +3,54 @@
  * Domain service for Content Addressable Storage operations.
  */
 
-import Manifest from "../value-objects/Manifest.js";
+import Manifest, { type EncryptionMeta, type CompressionMeta, type KdfParams, type EncryptionScheme } from "../value-objects/Manifest.js";
 import Chunk from "../value-objects/Chunk.js";
-import type { EncryptionMeta, CompressionMeta, KdfParams, EncryptionScheme } from "../value-objects/Manifest.js";
 
 /** Port interface for cryptographic operations (hashing, encryption, random bytes). */
 export interface CryptoPort {
-  sha256(buf: Buffer): Promise<string>;
-  randomBytes(n: number): Buffer;
+  sha256(buf: Uint8Array): Promise<string>;
+  randomBytes(n: number): Uint8Array;
   encryptBuffer(
-    buffer: Buffer,
-    key: Buffer,
-    aad?: Buffer | Uint8Array,
-  ): { buf: Buffer; meta: EncryptionMeta } | Promise<{ buf: Buffer; meta: EncryptionMeta }>;
-  decryptBuffer(buffer: Buffer, key: Buffer, meta: EncryptionMeta, aad?: Buffer | Uint8Array): Buffer | Promise<Buffer>;
-  createEncryptionStream(key: Buffer, aad?: Buffer | Uint8Array): {
-    encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
+    buffer: Uint8Array,
+    key: Uint8Array,
+    aad?: Uint8Array,
+  ): { buf: Uint8Array; meta: EncryptionMeta } | Promise<{ buf: Uint8Array; meta: EncryptionMeta }>;
+  decryptBuffer(buffer: Uint8Array, key: Uint8Array, meta: EncryptionMeta, aad?: Uint8Array): Uint8Array | Promise<Uint8Array>;
+  createEncryptionStream(key: Uint8Array, aad?: Uint8Array): {
+    encrypt: (source: AsyncIterable<Uint8Array>) => AsyncIterable<Uint8Array>;
     finalize: () => EncryptionMeta;
   };
-  createDecryptionStream(key: Buffer, meta: EncryptionMeta, aad?: Buffer | Uint8Array): {
-    decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
+  createDecryptionStream(key: Uint8Array, meta: EncryptionMeta, aad?: Uint8Array): {
+    decrypt: (source: AsyncIterable<Uint8Array>) => AsyncIterable<Uint8Array>;
   };
-  hmacSha256(key: Buffer | Uint8Array, data: Buffer | Uint8Array | string): Buffer;
+  hmacSha256(key: Uint8Array, data: Uint8Array): Uint8Array | Promise<Uint8Array>;
   encryptBufferWithNonce(
-    buffer: Buffer | Uint8Array,
-    key: Buffer | Uint8Array,
-    nonce: Buffer | Uint8Array,
-  ): { buf: Buffer; tag: Buffer } | Promise<{ buf: Buffer; tag: Buffer }>;
+    buffer: Uint8Array,
+    key: Uint8Array,
+    nonce: Uint8Array,
+  ): { buf: Uint8Array; tag: Uint8Array } | Promise<{ buf: Uint8Array; tag: Uint8Array }>;
   decryptBufferWithNonceTag(
-    buffer: Buffer | Uint8Array,
-    key: Buffer | Uint8Array,
-    nonce: Buffer | Uint8Array,
-    tag: Buffer | Uint8Array,
-  ): Buffer | Promise<Buffer>;
+    buffer: Uint8Array,
+    key: Uint8Array,
+    nonce: Uint8Array,
+    tag: Uint8Array,
+  ): Uint8Array | Promise<Uint8Array>;
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }
 
 /** Port interface for encoding and decoding manifest data. */
 export interface CodecPort {
-  encode(data: object): Buffer | string;
-  decode(buffer: Buffer | string): object;
+  encode(data: object): Uint8Array;
+  decode(buffer: Uint8Array): object;
   get extension(): string;
 }
 
 /** Port interface for persisting data to Git's object database. */
 export interface GitPersistencePort {
-  writeBlob(content: Buffer | string): Promise<string>;
+  writeBlob(content: Uint8Array): Promise<string>;
   writeTree(entries: string[]): Promise<string>;
-  readBlob(oid: string): Promise<Buffer>;
-  readBlobStream(oid: string): Promise<AsyncIterable<Buffer>>;
+  readBlob(oid: string): Promise<Uint8Array>;
+  readBlobStream(oid: string): Promise<AsyncIterable<Uint8Array>>;
   readTree(
     treeOid: string,
   ): Promise<Array<{ mode: string; type: string; oid: string; name: string }>>;
@@ -66,17 +65,17 @@ export interface ObservabilityPort {
 
 /** Port interface for chunking strategies (fixed, CDC, etc.). */
 export interface ChunkingPort {
-  chunk(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
+  chunk(source: AsyncIterable<Uint8Array>): AsyncIterable<Uint8Array>;
   readonly strategy: string;
   readonly params: Record<string, unknown>;
 }
 
 /** Port interface for compression and decompression of buffers and streams. */
 export interface CompressionPort {
-  compressBuffer(buffer: Buffer): Promise<Buffer>;
-  decompressBuffer(buffer: Buffer): Promise<Buffer>;
-  compressStream(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
-  decompressStream(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
+  compressBuffer(buffer: Uint8Array): Promise<Uint8Array>;
+  decompressBuffer(buffer: Uint8Array): Promise<Uint8Array>;
+  compressStream(source: AsyncIterable<Uint8Array>): AsyncIterable<Uint8Array>;
+  decompressStream(source: AsyncIterable<Uint8Array>): AsyncIterable<Uint8Array>;
 }
 
 /** Constructor options for {@link CasService}. */
@@ -92,12 +91,14 @@ export interface CasServiceOptions {
   maxRestoreBufferSize?: number;
   compressionAdapter?: CompressionPort;
   formatVersion?: string;
+  /** When true, allows reading manifests with legacy encryption schemes (v1/v2). */
+  legacyMode?: boolean;
 }
 
 /** Options for key derivation. */
 export interface DeriveKeyOptions {
   passphrase: string;
-  salt?: Buffer;
+  salt?: Uint8Array;
   algorithm?: "pbkdf2" | "scrypt";
   iterations?: number;
   cost?: number;
@@ -108,13 +109,13 @@ export interface DeriveKeyOptions {
 
 /** Result from key derivation. */
 export interface DeriveKeyResult {
-  key: Buffer;
-  salt: Buffer;
+  key: Uint8Array;
+  salt: Uint8Array;
   params: KdfParams;
 }
 
 export interface VerifyIntegrityOptions {
-  encryptionKey?: Buffer;
+  encryptionKey?: Uint8Array;
   passphrase?: string;
 }
 
@@ -125,7 +126,7 @@ export interface StoreEncryptionOptions {
 
 export interface FileRestorePlan {
   mode: "stream" | "bounded-file";
-  source: AsyncIterable<Buffer>;
+  source: AsyncIterable<Uint8Array>;
   encryptionMeta?: EncryptionMeta;
 }
 
@@ -148,49 +149,52 @@ export default class CasService {
   constructor(options: CasServiceOptions);
 
   encrypt(options: {
-    buffer: Buffer;
-    key: Buffer;
-  }): Promise<{ buf: Buffer; meta: EncryptionMeta }>;
+    buffer: Uint8Array;
+    key: Uint8Array;
+  }): Promise<{ buf: Uint8Array; meta: EncryptionMeta }>;
 
   decrypt(options: {
-    buffer: Buffer;
-    key: Buffer;
+    buffer: Uint8Array;
+    key: Uint8Array;
     meta: EncryptionMeta;
-  }): Promise<Buffer>;
+  }): Promise<Uint8Array>;
 
   store(options: {
-    source: AsyncIterable<Buffer>;
+    source: AsyncIterable<Uint8Array>;
     slug: string;
     filename: string;
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
     passphrase?: string;
     encryption?: StoreEncryptionOptions;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
-    recipients?: Array<{ label: string; key: Buffer }>;
+    recipients?: Array<{ label: string; key: Uint8Array }>;
   }): Promise<Manifest>;
 
   createTree(options: { manifest: Manifest }): Promise<string>;
 
   restore(options: {
     manifest: Manifest;
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
     passphrase?: string;
-  }): Promise<{ buffer: Buffer; bytesWritten: number }>;
+  }): Promise<{ buffer: Uint8Array; bytesWritten: number }>;
 
   restoreStream(options: {
     manifest: Manifest;
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
     passphrase?: string;
-  }): AsyncIterable<Buffer>;
+  }): AsyncIterable<Uint8Array>;
 
   createFileRestorePlan(options: {
     manifest: Manifest;
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
     passphrase?: string;
   }): Promise<FileRestorePlan>;
 
   readManifest(options: { treeOid: string }): Promise<Manifest>;
+
+  /** Reads a raw manifest without scheme assertion or Manifest construction. */
+  readManifestRaw(options: { treeOid: string }): Promise<Record<string, unknown>>;
 
   inspectAsset(options: {
     treeOid: string;
@@ -212,8 +216,8 @@ export default class CasService {
 
   addRecipient(options: {
     manifest: Manifest;
-    existingKey: Buffer;
-    newRecipientKey: Buffer;
+    existingKey: Uint8Array;
+    newRecipientKey: Uint8Array;
     label: string;
   }): Promise<Manifest>;
 
@@ -226,8 +230,8 @@ export default class CasService {
 
   rotateKey(options: {
     manifest: Manifest;
-    oldKey: Buffer;
-    newKey: Buffer;
+    oldKey: Uint8Array;
+    newKey: Uint8Array;
     label?: string;
   }): Promise<Manifest>;
 

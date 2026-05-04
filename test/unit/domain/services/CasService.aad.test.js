@@ -96,7 +96,7 @@ describe('CasService AAD – whole round-trip', () => {
     });
 
     const { buffer } = await service.restore({ manifest, encryptionKey: key });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
   it('round-trips multi-chunk whole content', async () => {
@@ -109,7 +109,7 @@ describe('CasService AAD – whole round-trip', () => {
 
     expect(manifest.encryption.scheme).toBe('whole');
     const { buffer } = await service.restore({ manifest, encryptionKey: key });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 });
 
@@ -173,7 +173,7 @@ describe('CasService AAD – framed round-trip', () => {
     });
 
     const { buffer } = await service.restore({ manifest, encryptionKey: key });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 });
 

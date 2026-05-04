@@ -211,6 +211,30 @@ describe('privacy mode — tree entry names are HMAC hashes', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Privacy mode — metadata
+// ---------------------------------------------------------------------------
+describe('privacy mode — metadata', () => {
+  it('reads vault metadata without requiring the privacy encryption key', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    const crypto = mockCrypto();
+    const meta = privacyMeta({ algorithm: 'aes-256-gcm', nonce: 'n', tag: 't', encrypted: true });
+
+    ref.resolveRef.mockResolvedValueOnce('commit-oid');
+    ref.resolveTree.mockResolvedValueOnce('tree-oid');
+    persistence.readTree.mockResolvedValueOnce([
+      { mode: '100644', type: 'blob', oid: 'meta-blob', name: '.vault.json' },
+      { mode: '100644', type: 'blob', oid: 'index-blob', name: '.privacy-index' },
+    ]);
+    persistence.readBlob.mockResolvedValueOnce(Buffer.from(JSON.stringify(meta)));
+
+    const vault = createVault({ ref, persistence, crypto });
+
+    await expect(vault.getVaultMetadata()).resolves.toEqual(meta);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Privacy mode — listing returns original slugs
 // ---------------------------------------------------------------------------
 describe('privacy mode — listing returns original slugs', () => {
@@ -432,13 +456,13 @@ describe('CryptoPort.hmacSha256', () => {
     const result2 = crypto.hmacSha256(TEST_KEY, 'hello');
     expect(Buffer.isBuffer(result1)).toBe(true);
     expect(result1.length).toBe(32);
-    expect(result1.equals(result2)).toBe(true);
+    expect(Buffer.from(result1).equals(result2)).toBe(true);
   });
 
   it('produces different output for different data', () => {
     const crypto = mockCrypto();
     const a = crypto.hmacSha256(TEST_KEY, 'alpha');
     const b = crypto.hmacSha256(TEST_KEY, 'beta');
-    expect(a.equals(b)).toBe(false);
+    expect(Buffer.from(a).equals(b)).toBe(false);
   });
 });

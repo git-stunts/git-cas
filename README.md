@@ -4,7 +4,7 @@
 >
 > `git-cas` addresses this by making artifact distribution inherit Git’s existing replication model, allowing binaries to be stored, verified, and transported anywhere Git can operate, including mirrored networks, constrained environments, or fully offline contexts.
 
-An industrial-grade Content-Addressable Storage (CAS) engine backed by Git’s object database. Stored content is chunked, deduplicated, and optionally encrypted — keeping high-fidelity assets and security-sensitive files directly within your repository history.
+`git-cas` 6.0.0 is an industrial-grade Content-Addressable Storage (CAS) engine backed by Git’s object database. Stored content is chunked, deduplicated, and optionally encrypted — keeping high-fidelity assets and security-sensitive files directly within your repository history.
 
 `git-cas` is designed for the architect who demands mathematical certainty and the operator who needs a stable foundation for artifact storage. It scales from simple binary blob management to multi-recipient envelope-encrypted vaults with key rotation, privacy-mode slug hashing, and Merkle-style manifests for assets of any size.
 
@@ -53,7 +53,7 @@ Integrate managed blob storage directly into your TypeScript or JavaScript appli
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
-const plumbing = new GitPlumbing({ cwd: '.' });
+const plumbing = GitPlumbing.createDefault({ cwd: '.' });
 const cas = ContentAddressableStore.createJson({ plumbing });
 
 const manifest = await cas.storeFile({ filePath: './asset.bin', slug: 'app/asset' });
@@ -85,11 +85,11 @@ Three encryption schemes are supported:
 
 | Scheme | Framing | AAD Binding | Notes |
 |---|---|---|---|
-| `whole` | Single ciphertext blob | Slug + frame index | AAD always bound to prevent cross-manifest blob swaps |
+| `whole` | Single ciphertext blob | Slug | AAD always bound to prevent cross-manifest blob swaps |
 | `framed` | Bounded frames | Slug + frame index | Default for fixed-chunk encrypted stores — streaming decrypt with per-frame AAD binding |
 | `convergent` | Per-chunk deterministic | Derived from content hash | **Default for CDC + encryption** — preserves deduplication across encrypted stores. Implemented as a standalone `ConvergentEncryption` service. |
 
-Legacy schemes (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) are no longer accepted and throw a `LEGACY_SCHEME` error pointing to `scripts/migrate-encryption.js` for migration.
+Legacy schemes (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) are no longer accepted and throw a `LEGACY_SCHEME` error. Run `npm run upgrade` (or `node scripts/migrate-encryption.js`) to migrate existing vault entries. The script auto-detects whether each entry needs a rename-only (fast) or full re-encryption (v1 schemes without AAD), accepts either `--passphrase` or `--key-file` for full migrations, supports privacy-vault key options, and defaults to dry-run mode.
 
 **Envelope encryption** wraps a random Data Encryption Key (DEK) with one or more Key Encryption Keys (KEKs). Each recipient is labeled, enabling multi-recipient access to the same encrypted content. Key rotation replaces the KEK wrapping without re-encrypting data blobs.
 
@@ -173,7 +173,7 @@ Beyond the core encryption primitives, `git-cas` enforces a set of defensive lim
 - **Source validation**: Async iterables passed to `store()` are validated before processing begins.
 - **Salt enforcement**: KDF salts must be at least 16 bytes.
 - **Nonce rotation**: Encryption count tracking warns before nonce reuse becomes a concern.
-- **Legacy scheme rejection**: Attempting to use a legacy encryption scheme (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) throws a `LEGACY_SCHEME` error with migration guidance.
+- **Legacy scheme rejection**: Attempting to use a legacy encryption scheme (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) throws a `LEGACY_SCHEME` error with migration guidance (see [UPGRADING.md](./UPGRADING.md)).
 
 ## Streaming Surface
 
@@ -181,7 +181,7 @@ Beyond the core encryption primitives, `git-cas` enforces a set of defensive lim
 |---|---|---|---|
 | Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. CDC + encryption defaults to `convergent` (per-chunk deterministic encryption preserving dedup). Fixed + encryption defaults to `framed`. |
 | Read: plaintext | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True chunk-by-chunk streaming restore. |
-| Read: encrypted `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is the buffered compatibility path. `restoreFile()` uses a bounded temp-file path: verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption, and renames into place only after auth succeeds. AAD (slug + frame index) is always bound. On Web Crypto runtimes this decrypt step is still one-shot internally, bounded by `maxDecryptionBufferSize`. |
+| Read: encrypted `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is the buffered compatibility path. `restoreFile()` uses a bounded temp-file path: verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption, and renames into place only after auth succeeds. AAD (slug) is always bound. On Web Crypto runtimes this decrypt step is still one-shot internally, bounded by `maxDecryptionBufferSize`. |
 | Read: encrypted `framed` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True authenticated streaming restore. Plaintext is yielded frame-by-frame after each frame is verified. Per-frame AAD is always bound. |
 | Read: compressed-only | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Plaintext + gzip now streams end-to-end. `restoreFile()` streams gunzip output through a bounded temp-file path. |
 | Read: compressed + `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is buffered because auth completes at the end of whole-object AES-GCM. `restoreFile()` decrypts and gunzips through the bounded temp-file path. |
@@ -223,6 +223,10 @@ Runtime note: `framed` is the honest cross-runtime streaming answer. On Node and
 
 **Ports** define the contracts. **Adapters** implement them for specific runtimes. Swap any adapter without touching domain logic.
 
+The core byte contract is `Uint8Array`. Node `Buffer` values still work at the
+Node boundary because `Buffer` extends `Uint8Array`, but the domain, ports,
+chunkers, codecs, and shared helpers do not depend on Node-specific byte APIs.
+
 ## Multi-Runtime Support
 
 | Runtime | Version | Crypto Backend | Status |
@@ -239,8 +243,9 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
 - **[Advanced Guide](./ADVANCED_GUIDE.md)**: CDC tuning, large-asset Merkle trees, and performance baselines.
 - **[Architecture](./ARCHITECTURE.md)**: The authoritative system map — Facade, Domain, Ports, and Adapters.
 - **[Security](./SECURITY.md)**: Threat models, trust boundaries, and encryption internals.
-- **[Agents](./AGENTS.md)**: JSONL agent protocol for CI/CD automation.
+- **[Agent API](./docs/API.md)**: JSONL agent protocol for CI/CD automation.
 - **[Workflow](./WORKFLOW.md)**: Repo work doctrine, cycles, and invariants.
+- **[Upgrading](./UPGRADING.md)**: Migration guide for v5 → v6.
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.
 
 ---

@@ -85,7 +85,7 @@ describe('CasService restore blob reads', () => {
 
     const restored = await collectStream(service.restoreStream({ manifest }));
 
-    expect(restored.equals(original)).toBe(true);
+    expect(Buffer.from(restored).equals(original)).toBe(true);
     expect(mockPersistence.readBlobStream).toHaveBeenCalledTimes(manifest.chunks.length);
     expect(mockPersistence.readBlob).not.toHaveBeenCalled();
   });
@@ -97,7 +97,7 @@ describe('CasService restore blob reads', () => {
 
     const restored = await collectStream(service.restoreStream({ manifest }));
 
-    expect(restored.equals(original)).toBe(true);
+    expect(Buffer.from(restored).equals(original)).toBe(true);
     expect(mockPersistence.readBlob).toHaveBeenCalledTimes(manifest.chunks.length);
   });
 });

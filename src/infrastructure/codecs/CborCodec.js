@@ -8,7 +8,7 @@ export default class CborCodec extends CodecPort {
   /**
    * @override
    * @param {Record<string, unknown>} data - Data to encode.
-   * @returns {Buffer}
+   * @returns {Uint8Array}
    */
   encode(data) {
     return encode(data);
@@ -16,11 +16,11 @@ export default class CborCodec extends CodecPort {
 
   /**
    * @override
-   * @param {Buffer|string} buffer - CBOR-encoded data.
+   * @param {Uint8Array} buffer - CBOR-encoded data.
    * @returns {Record<string, unknown>}
    */
   decode(buffer) {
-    return decode(/** @type {Buffer} */ (buffer));
+    return decode(buffer);
   }
 
   /** @override */

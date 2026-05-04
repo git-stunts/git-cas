@@ -34,7 +34,7 @@ No design drift is currently visible inside this cycle.
 
 ## New Debt
 
-- [TR — Store Write Failure Surface](../../backlog/bad-code/TR_store-write-failure-surface.md)
+- [TR — Store Write Failure Surface](../0042-store-write-failure-surface/store-write-failure-surface.md)
 
 ## Cool Ideas
 
@@ -42,4 +42,4 @@ No design drift is currently visible inside this cycle.
 - Existing streaming follow-on work remains captured in
   [TR — Streaming Decryption](../../backlog/cool-ideas/TR_streaming-decryption.md)
   and
-  [TR — Streaming Encrypted Restore](../../backlog/up-next/TR_streaming-encrypted-restore.md).
+  [TR — Streaming Encrypted Restore](../0027-framed-v1-streaming-restore/framed-v1-streaming-restore.md).

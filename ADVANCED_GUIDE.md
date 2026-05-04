@@ -132,8 +132,8 @@ user to the migration script:
 scripts/migrate-encryption.js
 ```
 
-The migration script re-encrypts manifests in-place, upgrading them to the
-current scheme identifiers.
+The migration script migrates manifests to current scheme identifiers — renaming
+v2 schemes directly and re-encrypting v1 schemes with AAD binding.
 
 ### whole
 
@@ -142,7 +142,7 @@ nonce and authentication tag are stored in the manifest's `encryption` object.
 
 - Store: plaintext source -> streaming encrypt -> chunk -> store blobs
 - Restore: read blobs -> concatenate -> single-shot decrypt -> verify tag
-- AAD: `Buffer.from(slug, 'utf8')` -- prevents cross-manifest blob
+- AAD: UTF-8 encoded slug bytes -- prevents cross-manifest blob
   substitution by binding the ciphertext to the manifest slug
 - Manifest fields: `scheme: "whole"`, `nonce`, `tag`
 
@@ -306,6 +306,8 @@ Additional constraints:
 - Salt must be at least **16 bytes** (128 bits), per NIST SP 800-132.
 - Salt must be canonical base64.
 - `keyLength` is locked at exactly 32 bytes; any other value is rejected.
+- Runtime support: Node and Bun adapters support scrypt. Web Crypto runtimes,
+  including the Deno adapter, report an explicit capability error for scrypt.
 
 ### Enforcement Points
 
@@ -414,7 +416,7 @@ I/O, no ports, and no state -- just set algebra over chunk arrays.
 ### Example
 
 ```js
-import { CasService } from '@git-stunts/git-cas/service';
+import CasService from '@git-stunts/git-cas/service';
 
 const oldManifest = await cas.readManifest({ treeOid: oldOid });
 const newManifest = await cas.readManifest({ treeOid: newOid });
@@ -631,18 +633,20 @@ unreachable (e.g., via history rewrite + `git gc`).
 
 ## Streaming Decompression
 
-Plaintext and gzip-compressed restores use **streaming decompression** for all
-code paths. Compressed data is piped through the compression adapter's
+Plaintext+gzip, framed+gzip, and convergent+gzip restores use **streaming
+decompression**. Compressed data is piped through the compression adapter's
 `decompressStream()` method, which processes data incrementally without
 buffering the full decompressed payload in memory. This applies to:
 
 - Plain compressed restores (no encryption)
 - Framed-encrypted + compressed restores
-- Whole-encrypted + compressed restores
 - Convergent-encrypted + compressed restores
 
 The streaming approach keeps memory usage proportional to the chunk/frame size
-rather than the total asset size.
+rather than the total asset size. `whole` encrypted restores preserve the
+whole-object authentication boundary and still use the bounded buffered path
+for `restoreStream()` / `restore()`; `restoreFile()` uses a bounded temp-file
+plan.
 
 ---
 
@@ -655,10 +659,10 @@ interface. `CasService` has **zero platform-specific compression imports**.
 
 ```
 CompressionPort (abstract)
-  compressBuffer(buffer)        -> Promise<Buffer>
-  decompressBuffer(buffer)      -> Promise<Buffer>
-  compressStream(source)        -> AsyncGenerator<Buffer>
-  decompressStream(source)      -> AsyncGenerator<Buffer>
+  compressBuffer(buffer)        -> Promise<Uint8Array>
+  decompressBuffer(buffer)      -> Promise<Uint8Array>
+  compressStream(source)        -> AsyncGenerator<Uint8Array>
+  decompressStream(source)      -> AsyncGenerator<Uint8Array>
 ```
 
 ### NodeCompressionAdapter
@@ -762,10 +766,10 @@ All `CasService` constructor options with types, defaults, and bounds.
 
 | Option | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `source` | `AsyncIterable<Buffer>` | *required* | Input byte stream |
+| `source` | `AsyncIterable<Uint8Array>` | *required* | Input byte stream |
 | `slug` | `string` | *required* | Asset identifier |
 | `filename` | `string` | *required* | Original filename |
-| `encryptionKey` | `Buffer` | -- | 32-byte key (mutually exclusive with `passphrase` and `recipients`) |
+| `encryptionKey` | `Uint8Array` | -- | 32-byte key (mutually exclusive with `passphrase` and `recipients`) |
 | `passphrase` | `string` | -- | Derive key via KDF (mutually exclusive with `encryptionKey` and `recipients`) |
 | `encryption` | `object` | -- | `{ scheme?, frameBytes?, convergent? }` |
 | `encryption.scheme` | `string` | `'framed'` | `'whole'`, `'framed'`, or `'convergent'` |

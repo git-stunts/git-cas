@@ -1,5 +1,6 @@
 import CasError from '../domain/errors/CasError.js';
 import { normalizeKdfOptions, assertKdfPolicy } from '../helpers/kdfPolicy.js';
+import { encodeBase64 } from '../domain/encoding/base64.js';
 
 /**
  * Encryption metadata returned by AES-256-GCM operations.
@@ -40,8 +41,18 @@ import { normalizeKdfOptions, assertKdfPolicy } from '../helpers/kdfPolicy.js';
  */
 export default class CryptoPort {
   /**
+   * Returns true if the adapter supports the given capability.
+   * @param {'scrypt'} capability
+   * @returns {boolean}
+   */
+  supports(capability) {
+    if (capability === 'scrypt') { return true; }
+    return false;
+  }
+
+  /**
    * Returns the SHA-256 hex digest of a buffer.
-   * @param {Buffer|Uint8Array} _buf - Data to hash.
+   * @param {Uint8Array} _buf - Data to hash.
    * @returns {Promise<string>} 64-char hex digest.
    */
   sha256(_buf) {
@@ -49,9 +60,9 @@ export default class CryptoPort {
   }
 
   /**
-   * Returns a Buffer of n cryptographically random bytes.
+   * Returns cryptographically random bytes.
    * @param {number} _n - Number of random bytes.
-   * @returns {Buffer|Uint8Array}
+   * @returns {Uint8Array}
    */
   randomBytes(_n) {
     throw new Error('Not implemented');
@@ -59,10 +70,10 @@ export default class CryptoPort {
 
   /**
    * Encrypts a buffer using AES-256-GCM.
-   * @param {Buffer|Uint8Array} _buffer - Plaintext to encrypt.
-   * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
-   * @param {Buffer|Uint8Array} [_aad] - Optional additional authenticated data (AAD).
-   * @returns {{ buf: Buffer, meta: EncryptionMeta }|Promise<{ buf: Buffer, meta: EncryptionMeta }>}
+   * @param {Uint8Array} _buffer - Plaintext to encrypt.
+   * @param {Uint8Array} _key - 32-byte encryption key.
+   * @param {Uint8Array} [_aad] - Optional additional authenticated data (AAD).
+   * @returns {{ buf: Uint8Array, meta: EncryptionMeta }|Promise<{ buf: Uint8Array, meta: EncryptionMeta }>}
    */
   encryptBuffer(_buffer, _key, _aad) {
     throw new Error('Not implemented');
@@ -70,11 +81,11 @@ export default class CryptoPort {
 
   /**
    * Decrypts a buffer using AES-256-GCM.
-   * @param {Buffer|Uint8Array} _buffer - Ciphertext to decrypt.
-   * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
+   * @param {Uint8Array} _buffer - Ciphertext to decrypt.
+   * @param {Uint8Array} _key - 32-byte encryption key.
    * @param {EncryptionMeta} _meta - Encryption metadata from the encrypt operation.
-   * @param {Buffer|Uint8Array} [_aad] - Optional additional authenticated data (AAD). Must match the AAD used during encryption.
-   * @returns {Buffer|Promise<Buffer>}
+   * @param {Uint8Array} [_aad] - Optional additional authenticated data (AAD). Must match the AAD used during encryption.
+   * @returns {Uint8Array|Promise<Uint8Array>}
    * @throws on authentication failure.
    */
   decryptBuffer(_buffer, _key, _meta, _aad) { // eslint-disable-line max-params
@@ -83,9 +94,9 @@ export default class CryptoPort {
 
   /**
    * Creates a streaming encryption context.
-   * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
-   * @param {Buffer|Uint8Array} [_aad] - Optional additional authenticated data (AAD).
-   * @returns {{ encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>, finalize: () => EncryptionMeta }}
+   * @param {Uint8Array} _key - 32-byte encryption key.
+   * @param {Uint8Array} [_aad] - Optional additional authenticated data (AAD).
+   * @returns {{ encrypt: (source: AsyncIterable<Uint8Array>) => AsyncIterable<Uint8Array>, finalize: () => EncryptionMeta }}
    */
   createEncryptionStream(_key, _aad) {
     throw new Error('Not implemented');
@@ -96,10 +107,10 @@ export default class CryptoPort {
    * The returned stream may yield tentative plaintext before final auth
    * succeeds, so callers must control publication semantics themselves.
    *
-   * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
+   * @param {Uint8Array} _key - 32-byte encryption key.
    * @param {EncryptionMeta} _meta - Encryption metadata from the encrypt operation.
-   * @param {Buffer|Uint8Array} [_aad] - Optional additional authenticated data (AAD). Must match the AAD used during encryption.
-   * @returns {{ decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer> }}
+   * @param {Uint8Array} [_aad] - Optional additional authenticated data (AAD). Must match the AAD used during encryption.
+   * @returns {{ decrypt: (source: AsyncIterable<Uint8Array>) => AsyncIterable<Uint8Array> }}
    */
   createDecryptionStream(_key, _meta, _aad) {
     throw new Error('Not implemented');
@@ -113,14 +124,14 @@ export default class CryptoPort {
    *
    * @param {Object} options
    * @param {string} options.passphrase - The passphrase to derive a key from.
-   * @param {Buffer|Uint8Array} [options.salt] - Salt for the KDF (random if omitted).
+   * @param {Uint8Array} [options.salt] - Salt for the KDF (random if omitted).
    * @param {'pbkdf2'|'scrypt'} [options.algorithm='pbkdf2'] - KDF algorithm.
    * @param {number} [options.iterations=600000] - PBKDF2 iteration count.
    * @param {number} [options.cost=131072] - scrypt cost parameter (N).
    * @param {number} [options.blockSize=8] - scrypt block size (r).
    * @param {number} [options.parallelization=1] - scrypt parallelization (p).
    * @param {number} [options.keyLength=32] - Derived key length in bytes.
-   * @returns {Promise<{ key: Buffer, salt: Buffer, params: KdfParamSet }>}
+   * @returns {Promise<{ key: Uint8Array, salt: Uint8Array, params: KdfParamSet }>}
    */
   async deriveKey({
     passphrase,
@@ -146,7 +157,7 @@ export default class CryptoPort {
     /** @type {KdfParamSet} */
     const params = {
       algorithm: normalized.algorithm,
-      salt: Buffer.from(saltBuf).toString('base64'),
+      salt: encodeBase64(saltBuf),
       keyLength: normalized.keyLength,
     };
 
@@ -169,16 +180,16 @@ export default class CryptoPort {
       keyLength: normalized.keyLength,
     });
 
-    return { key: Buffer.from(key), salt: Buffer.from(saltBuf), params };
+    return { key, salt: saltBuf, params };
   }
 
   /**
    * Adapter-specific key derivation. Override in subclasses.
    * @abstract
    * @param {string} _passphrase - The passphrase.
-   * @param {Buffer|Uint8Array} _saltBuf - Salt bytes.
+   * @param {Uint8Array} _saltBuf - Salt bytes.
    * @param {DeriveKeyParams} _params - Normalized KDF parameters.
-   * @returns {Promise<Buffer|Uint8Array>} Derived key bytes.
+   * @returns {Promise<Uint8Array>} Derived key bytes.
    */
   async _doDeriveKey(_passphrase, _saltBuf, _params) {
     throw new Error('Not implemented');
@@ -188,9 +199,9 @@ export default class CryptoPort {
    * Computes HMAC-SHA256 of the given data with the given key.
    *
    * @abstract
-   * @param {Buffer|Uint8Array} key - HMAC key.
-   * @param {Buffer|Uint8Array|string} data - Data to authenticate.
-   * @returns {Buffer} 32-byte HMAC digest.
+   * @param {Uint8Array} key - HMAC key.
+   * @param {Uint8Array} data - Data to authenticate.
+   * @returns {Uint8Array|Promise<Uint8Array>} 32-byte HMAC digest.
    */
   hmacSha256(_key, _data) {
     throw new Error('Not implemented');
@@ -203,10 +214,10 @@ export default class CryptoPort {
    * (derived from content hash) to enable deduplication.
    *
    * @abstract
-   * @param {Buffer|Uint8Array} _buffer - Plaintext to encrypt.
-   * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
-   * @param {Buffer|Uint8Array} _nonce - 12-byte nonce (IV).
-   * @returns {{ buf: Buffer, tag: Buffer }|Promise<{ buf: Buffer, tag: Buffer }>}
+   * @param {Uint8Array} _buffer - Plaintext to encrypt.
+   * @param {Uint8Array} _key - 32-byte encryption key.
+   * @param {Uint8Array} _nonce - 12-byte nonce (IV).
+   * @returns {{ buf: Uint8Array, tag: Uint8Array }|Promise<{ buf: Uint8Array, tag: Uint8Array }>}
    */
   encryptBufferWithNonce(_buffer, _key, _nonce) {
     throw new Error('Not implemented');
@@ -219,11 +230,11 @@ export default class CryptoPort {
    * where the nonce and tag are stored/derived externally.
    *
    * @abstract
-   * @param {Buffer|Uint8Array} _buffer - Ciphertext to decrypt.
-   * @param {Buffer|Uint8Array} _key - 32-byte encryption key.
-   * @param {Buffer|Uint8Array} _nonce - 12-byte nonce (IV).
-   * @param {Buffer|Uint8Array} _tag - 16-byte GCM authentication tag.
-   * @returns {Buffer|Promise<Buffer>}
+   * @param {Uint8Array} _buffer - Ciphertext to decrypt.
+   * @param {Uint8Array} _key - 32-byte encryption key.
+   * @param {Uint8Array} _nonce - 12-byte nonce (IV).
+   * @param {Uint8Array} _tag - 16-byte GCM authentication tag.
+   * @returns {Uint8Array|Promise<Uint8Array>}
    * @throws on authentication failure.
    */
   decryptBufferWithNonceTag(_buffer, _key, _nonce, _tag) { // eslint-disable-line max-params
@@ -231,15 +242,15 @@ export default class CryptoPort {
   }
 
   /**
-   * Validates that a key is a 32-byte Buffer or Uint8Array.
-   * @param {Buffer|Uint8Array} key - Key to validate.
-   * @throws {CasError} INVALID_KEY_TYPE if key is not a Buffer or Uint8Array.
+   * Validates that a key is a 32-byte Uint8Array.
+   * @param {Uint8Array} key - Key to validate.
+   * @throws {CasError} INVALID_KEY_TYPE if key is not a Uint8Array.
    * @throws {CasError} INVALID_KEY_LENGTH if key is not 32 bytes.
    */
   _validateKey(key) {
-    if (!globalThis.Buffer?.isBuffer(key) && !(key instanceof Uint8Array)) {
+    if (!(key instanceof Uint8Array)) {
       throw new CasError(
-        'Encryption key must be a Buffer or Uint8Array',
+        'Encryption key must be a Uint8Array',
         'INVALID_KEY_TYPE',
       );
     }

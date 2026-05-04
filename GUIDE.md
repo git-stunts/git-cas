@@ -41,7 +41,7 @@ import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
 // 1. Initialize
-const plumbing = new GitPlumbing({ cwd: '/path/to/repo' });
+const plumbing = GitPlumbing.createDefault({ cwd: '/path/to/repo' });
 const cas = ContentAddressableStore.createJson({ plumbing });
 
 // 2. Store a file
@@ -110,8 +110,8 @@ Stores data from any async iterable:
 
 ```js
 async function* generateData() {
-  yield Buffer.from('chunk one');
-  yield Buffer.from('chunk two');
+  yield new TextEncoder().encode('chunk one');
+  yield new TextEncoder().encode('chunk two');
 }
 
 const manifest = await cas.store({
@@ -183,16 +183,19 @@ const { buffer } = await cas.restore({
 
 Derives a key using PBKDF2 (default) or scrypt:
 
+PBKDF2 works across Node, Bun, and Deno/Web Crypto. scrypt requires a Node/Bun
+crypto adapter; Web Crypto runtimes report a capability error for scrypt.
+
 ```js
 // Store with passphrase (PBKDF2)
-const manifest = await cas.storeFile({
+const pbkdf2Manifest = await cas.storeFile({
   filePath: './secret.pdf',
   slug: 'docs/secret',
   passphrase: 'my-strong-passphrase',
 });
 
 // Store with scrypt
-const manifest = await cas.storeFile({
+const scryptManifest = await cas.storeFile({
   filePath: './secret.pdf',
   slug: 'docs/secret',
   passphrase: 'my-strong-passphrase',
@@ -267,7 +270,7 @@ Override the default scheme:
 
 ```js
 // Force framed encryption (even with CDC chunking)
-const manifest = await cas.storeFile({
+const framedManifest = await cas.storeFile({
   filePath: './large-video.mp4',
   slug: 'media/video',
   encryptionKey: key,
@@ -278,7 +281,7 @@ const manifest = await cas.storeFile({
 });
 
 // Force whole-object encryption
-const manifest = await cas.storeFile({
+const wholeManifest = await cas.storeFile({
   filePath: './small-config.json',
   slug: 'config/app',
   encryptionKey: key,
@@ -292,9 +295,11 @@ Manifests created with earlier versions may use v1/v2 scheme identifiers (`whole
 
 ```sh
 node scripts/migrate-encryption.js
+node scripts/migrate-encryption.js --execute --passphrase my-secret
+node scripts/migrate-encryption.js --execute --key-file ./asset.key
 ```
 
-The migration script exports the canonical legacy-to-current scheme mapping. Full migration orchestration is not yet implemented. The main `src/` codebase throws `LEGACY_SCHEME` if it encounters a v1/v2 identifier.
+The migration script handles both fast (rename-only for v2 schemes) and full (re-encryption with AAD for v1 schemes) migration paths. Full migration accepts either `--passphrase` or `--key-file`. For privacy-enabled vaults, add `--vault-passphrase`, `--vault-passphrase-file`, or `--vault-key-file` when the vault passphrase differs from the content passphrase. The main `src/` codebase throws `LEGACY_SCHEME` if it encounters a v1/v2 identifier.
 
 ---
 
@@ -386,21 +391,21 @@ Compare two manifests to find added, removed, and unchanged chunks. This is a pu
 
 ```js
 // Static method (requires class, not an instance)
-import { CasService } from '@git-stunts/git-cas/service';
-const diff = CasService.diffManifests(oldManifest, newManifest);
+import CasService from '@git-stunts/git-cas/service';
+const serviceDiff = CasService.diffManifests(oldManifest, newManifest);
 
 // Standalone function
 import { diffManifests } from '@git-stunts/git-cas';
-const diff = diffManifests(oldManifest, newManifest);
+const standaloneDiff = diffManifests(oldManifest, newManifest);
 
-console.log(diff.summary);
+console.log(standaloneDiff.summary);
 // => {
 //   addedCount: 3, removedCount: 1, unchangedCount: 42,
 //   addedBytes: 196608, removedBytes: 65536, unchangedBytes: 2752512,
 // }
-console.log(diff.added);     // Chunk[] -- new chunks in newManifest
-console.log(diff.removed);   // Chunk[] -- chunks only in oldManifest
-console.log(diff.unchanged); // Chunk[] -- chunks in both (by digest)
+console.log(standaloneDiff.added);     // Chunk[] -- new chunks in newManifest
+console.log(standaloneDiff.removed);   // Chunk[] -- chunks only in oldManifest
+console.log(standaloneDiff.unchanged); // Chunk[] -- chunks in both (by digest)
 ```
 
 ---
@@ -505,7 +510,7 @@ Manifests are versioned value objects that describe a stored asset:
 - **v1**: Flat chunk list with SHA-256 integrity hashes.
 - **v2**: Merkle sub-manifest support for large files. Activated when chunk count exceeds `merkleThreshold` (default 1000).
 
-Each manifest also carries an optional `formatVersion` field -- a semver string (e.g. `"5.2.0"`) stamped by the library version that created it. This enables forward-compatible tooling to detect which features a manifest may use.
+Each manifest also carries an optional `formatVersion` field -- a semver string (e.g. `"6.0.0"`) stamped by the library version that created it. This enables forward-compatible tooling to detect which features a manifest may use.
 
 ### Reading a Manifest
 
@@ -518,7 +523,7 @@ console.log(manifest.size);          // total bytes
 console.log(manifest.chunks.length); // number of chunks
 console.log(manifest.encryption);    // encryption metadata or undefined
 console.log(manifest.compression);   // compression metadata or undefined
-console.log(manifest.formatVersion); // '5.2.0' or undefined (older manifests)
+console.log(manifest.formatVersion); // '6.0.0' or undefined (older manifests)
 ```
 
 ### Inspecting an Asset
@@ -583,7 +588,7 @@ const { bytesWritten } = await cas.restoreFile({
 
 ### `restoreStream({ manifest })` -- Async Iterable
 
-Returns an async iterable of `Buffer` chunks. Best for large files, piping to other streams, or memory-constrained environments.
+Returns an async iterable of `Uint8Array` chunks. Best for large files, piping to other streams, or memory-constrained environments.
 
 ```js
 const manifest = await cas.readManifest({ treeOid });

@@ -13,39 +13,55 @@ import diffManifests from './ManifestDiff.js';
 import prefetchChunks from './PrefetchWindow.js';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import {
+  concatBytes,
+  normalizeByteChunk,
+  readUint32BE,
+  writeUint32BE,
+} from '../bytes/ByteLayout.js';
+import { decodeBase64, encodeBase64 } from '../encoding/base64.js';
+import { utf8Encode } from '../encoding/utf8.js';
+import {
   SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT,
   assertCurrentScheme,
+  mapToCurrentScheme, isLegacyNoAad,
 } from '../encryption/schemes.js';
+
+/**
+ * Tracks the original legacy scheme for manifests read in legacy mode.
+ * Used to determine AAD policy: v1 schemes had no AAD, v2 schemes did.
+ * @type {WeakMap<import('../value-objects/Manifest.js').default, string>}
+ */
+const originalSchemeMap = new WeakMap();
 
 /**
  * Builds AAD for whole encryption: UTF-8 bytes of the slug.
  * @param {string} slug
- * @returns {Buffer}
+ * @returns {Uint8Array}
  */
 function buildWholeAad(slug) {
-  return Buffer.from(slug, 'utf8');
+  return utf8Encode(slug);
 }
 
 /**
  * Builds AAD for framed encryption: UTF-8 slug + NUL + 4-byte BE frame index.
  * @param {string} slug
  * @param {number} frameIndex
- * @returns {Buffer}
+ * @returns {Uint8Array}
  */
 function buildFramedAad(slug, frameIndex) {
-  const slugLen = Buffer.byteLength(slug, 'utf8');
-  const buf = Buffer.allocUnsafe(slugLen + 5);
-  buf.write(slug, 0, 'utf8');
-  buf[slugLen] = 0; // NUL separator
-  buf.writeUInt32BE(frameIndex, slugLen + 1);
-  return buf;
+  const slugBytes = utf8Encode(slug);
+  const bytes = new Uint8Array(slugBytes.length + 5);
+  bytes.set(slugBytes, 0);
+  bytes[slugBytes.length] = 0;
+  writeUint32BE(bytes, slugBytes.length + 1, frameIndex);
+  return bytes;
 }
 
 /**
  * Strips `manifestHash` and `undefined` values, then returns codec-encoded bytes.
  * @param {Object} data - Manifest data object.
  * @param {{ encode: Function }} codec - Codec instance.
- * @returns {Buffer|string} Encoded bytes (without manifestHash).
+ * @returns {Uint8Array} Encoded bytes (without manifestHash).
  */
 function encodeForHash(data, codec) {
   const copy = { ...data };
@@ -54,7 +70,21 @@ function encodeForHash(data, codec) {
   for (const key of Object.keys(copy)) {
     if (copy[key] === undefined) { delete copy[key]; }
   }
-  return codec.encode(copy);
+  return normalizeCodecBytes(codec.encode(copy));
+}
+
+/**
+ * @param {unknown} value
+ * @returns {Uint8Array}
+ */
+function normalizeCodecBytes(value) {
+  if (value instanceof Uint8Array) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return utf8Encode(value);
+  }
+  throw new TypeError('Codec output must be Uint8Array');
 }
 
 const DEFAULT_FRAMED_FRAME_BYTES = 64 * 1024;
@@ -74,6 +104,8 @@ export default class CasService {
   /** @type {KeyResolver} */
   #keyResolver;
   #convergent;
+  /** @type {boolean} */
+  #legacyMode;
 
   /**
    * @param {Object} options
@@ -86,10 +118,11 @@ export default class CasService {
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
    * @param {import('../../ports/ChunkingPort.js').default} [options.chunker] - Chunking strategy (default FixedChunker).
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max bytes for buffered restore (default 512 MiB).
-   * @param {import('../../ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter (default NodeCompressionAdapter).
+   * @param {import('../../ports/CompressionPort.js').default} options.compressionAdapter - Compression adapter.
    * @param {string} [options.formatVersion] - Semver version stamped into new manifests.
+   * @param {boolean} [options.legacyMode=false] - When true, allows reading manifests with legacy encryption schemes (v1/v2) without throwing.
    */
-  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024, compressionAdapter, formatVersion }) {
+  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024, compressionAdapter, formatVersion, legacyMode = false }) {
     CasService._validateObservability(observability);
     CasService.#validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize });
     this.persistence = persistence;
@@ -117,6 +150,7 @@ export default class CasService {
     this.maxRestoreBufferSize = maxRestoreBufferSize;
     this.#keyResolver = new KeyResolver(crypto);
     this.#convergent = new ConvergentEncryption(crypto);
+    this.#legacyMode = legacyMode;
   }
 
   /**
@@ -155,7 +189,7 @@ export default class CasService {
   /**
    * Generates a SHA-256 hex digest for a buffer.
    * @private
-   * @param {Buffer} buf - Data to hash.
+   * @param {Uint8Array} buf - Data to hash.
    * @returns {Promise<string>} 64-character hex digest.
    */
   async _sha256(buf) {
@@ -170,9 +204,9 @@ export default class CasService {
    * deduplication of identical plaintext across encrypted stores.
    *
    * @private
-   * @param {Buffer} buf - The chunk data to store.
+   * @param {Uint8Array} buf - The chunk data to store.
    * @param {number} index - Chunk index.
-   * @param {Buffer} [convergentKey] - Convergent encryption master key.
+   * @param {Uint8Array} [convergentKey] - Convergent encryption master key.
    * @returns {Promise<{ index: number, size: number, digest: string, blob: string }>}
    */
   async _storeChunk(buf, index, convergentKey) {
@@ -189,9 +223,9 @@ export default class CasService {
    * Reads an async iterable source, splits it into chunks via the configured
    * chunker, and stores each chunk in Git.
    * @private
-   * @param {AsyncIterable<Buffer>} source - The data source to chunk.
+   * @param {AsyncIterable<Uint8Array>} source - The data source to chunk.
    * @param {Object} manifestData - Mutable manifest accumulator.
-   * @param {{ convergentKey?: Buffer }} [options] - Optional encryption options.
+   * @param {{ convergentKey?: Uint8Array }} [options] - Optional encryption options.
    * @throws {CasError} STREAM_ERROR if the source stream fails.
    */
   async _chunkAndStore(source, manifestData, { convergentKey } = {}) {
@@ -379,9 +413,9 @@ export default class CasService {
   /**
    * Encrypts a buffer using AES-256-GCM.
    * @param {Object} options
-   * @param {Buffer} options.buffer - Plaintext data to encrypt.
-   * @param {Buffer} options.key - 32-byte encryption key.
-   * @returns {Promise<{ buf: Buffer, meta: { algorithm: string, nonce: string, tag: string, encrypted: boolean } }>}
+   * @param {Uint8Array} options.buffer - Plaintext data to encrypt.
+   * @param {Uint8Array} options.key - 32-byte encryption key.
+   * @returns {Promise<{ buf: Uint8Array, meta: { algorithm: string, nonce: string, tag: string, encrypted: boolean } }>}
    * @throws {CasError} INVALID_KEY_TYPE | INVALID_KEY_LENGTH if the key is invalid.
    */
   async encrypt({ buffer, key }) {
@@ -391,10 +425,10 @@ export default class CasService {
   /**
    * Decrypts a buffer. Returns the buffer unchanged if `meta.encrypted` is falsy.
    * @param {Object} options
-   * @param {Buffer} options.buffer - Ciphertext to decrypt.
-   * @param {Buffer} options.key - 32-byte encryption key.
+   * @param {Uint8Array} options.buffer - Ciphertext to decrypt.
+   * @param {Uint8Array} options.key - 32-byte encryption key.
    * @param {{ encrypted: boolean, algorithm: string, nonce: string, tag: string }} options.meta - Encryption metadata from the manifest.
-   * @returns {Promise<Buffer>} Decrypted plaintext.
+   * @returns {Promise<Uint8Array>} Decrypted plaintext.
    * @throws {CasError} INTEGRITY_ERROR if authentication tag verification fails.
    */
   async decrypt({ buffer, key, meta }) {
@@ -413,11 +447,11 @@ export default class CasService {
    * Decrypts a buffer with optional AAD. Used internally for v2 schemes.
    * @private
    * @param {Object} options
-   * @param {Buffer} options.buffer - Ciphertext to decrypt.
-   * @param {Buffer} options.key - 32-byte encryption key.
+   * @param {Uint8Array} options.buffer - Ciphertext to decrypt.
+   * @param {Uint8Array} options.key - 32-byte encryption key.
    * @param {{ encrypted: boolean, algorithm: string, nonce: string, tag: string }} options.meta - Encryption metadata.
-   * @param {Buffer} [options.aad] - Optional additional authenticated data.
-   * @returns {Promise<Buffer>} Decrypted plaintext.
+   * @param {Uint8Array} [options.aad] - Optional additional authenticated data.
+   * @returns {Promise<Uint8Array>} Decrypted plaintext.
    * @throws {CasError} INTEGRITY_ERROR if authentication tag verification fails.
    */
   async _decryptWithAad({ buffer, key, meta, aad }) {
@@ -693,7 +727,7 @@ export default class CasService {
    * Verifies chunk digests and collects buffers for any later auth step.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @returns {Promise<false|Buffer[]>}
+   * @returns {Promise<false|Uint8Array[]>}
    */
   async _verifyChunkDigests(manifest) {
     const buffers = [];
@@ -717,9 +751,9 @@ export default class CasService {
    * Resolves the decryption key for restore-style operations.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @param {Buffer} [encryptionKey]
+   * @param {Uint8Array} [encryptionKey]
    * @param {string} [passphrase]
-   * @returns {Promise<Buffer|undefined>}
+   * @returns {Promise<Uint8Array|undefined>}
    */
   async _resolveRestoreKey(manifest, encryptionKey, passphrase) {
     return await this.#keyResolver.resolveForDecryption(
@@ -734,8 +768,8 @@ export default class CasService {
    * auth-style failures.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @param {{ encryptionKey?: Buffer, passphrase?: string }} options
-   * @returns {Promise<false|Buffer>}
+   * @param {{ encryptionKey?: Uint8Array, passphrase?: string }} options
+   * @returns {Promise<false|Uint8Array>}
    */
   async _resolveVerifyKey(manifest, options) {
     try {
@@ -758,15 +792,17 @@ export default class CasService {
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
    * @param {{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }} encryptionMeta
-   * @param {Buffer} key
-   * @param {Buffer[]} buffers
+   * @param {Uint8Array} key
+   * @param {Uint8Array[]} buffers
    * @returns {Promise<boolean>}
    */
   async _verifyEncryptedAuth({ manifest, encryptionMeta, key, buffers }) {
     try {
-      const aad = buildWholeAad(manifest.slug);
+      const aad = this._isLegacyNoAad(manifest)
+        ? undefined
+        : buildWholeAad(manifest.slug);
       await this._decryptWithAad({
-        buffer: Buffer.concat(buffers),
+        buffer: concatBytes(buffers),
         key,
         meta: encryptionMeta,
         aad,
@@ -786,8 +822,8 @@ export default class CasService {
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
    * @param {{ encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} encryptionMeta
-   * @param {Buffer} key
-   * @param {Buffer[]} buffers
+   * @param {Uint8Array} key
+   * @param {Uint8Array[]} buffers
    * @returns {Promise<boolean>}
    */
   async _verifyFramedAuth({ manifest, encryptionMeta, key, buffers }) {
@@ -798,9 +834,10 @@ export default class CasService {
         }
       })();
 
+      const noAad = this._isLegacyNoAad(manifest);
       let frameIndex = 0;
       for await (const record of this._parseFramedRecords(source, encryptionMeta.frameBytes)) {
-        const aad = buildFramedAad(manifest.slug, frameIndex);
+        const aad = noAad ? undefined : buildFramedAad(manifest.slug, frameIndex);
         await this._decryptWithAad({
           buffer: record.ciphertext,
           key,
@@ -827,8 +864,8 @@ export default class CasService {
   /**
    * Wraps an async iterable through gzip compression.
    * @private
-   * @param {AsyncIterable<Buffer>} source
-   * @returns {AsyncIterable<Buffer>}
+   * @param {AsyncIterable<Uint8Array>} source
+   * @returns {AsyncIterable<Uint8Array>}
    */
   async *_compressStream(source) {
     yield* this.compressionAdapter.compressStream(source);
@@ -872,15 +909,15 @@ export default class CasService {
    * via `recipients` (DEK/KEK model). The modes are mutually exclusive.
    *
    * @param {Object} options
-   * @param {AsyncIterable<Buffer>} options.source
+   * @param {AsyncIterable<Uint8Array>} options.source
    * @param {string} options.slug
    * @param {string} options.filename
-   * @param {Buffer} [options.encryptionKey]
+   * @param {Uint8Array} [options.encryptionKey]
    * @param {string} [options.passphrase] - Derive encryption key from passphrase instead.
    * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
-   * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
+   * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
   async store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients }) {
@@ -913,7 +950,7 @@ export default class CasService {
   /**
    * Routes to the correct store strategy based on encryption config.
    * @private
-   * @param {{ processedSource: AsyncIterable<Buffer>, manifestData: Object, keyInfo: { key?: Buffer, encExtra: Object }, encryptionConfig?: Object }} options
+   * @param {{ processedSource: AsyncIterable<Uint8Array>, manifestData: Object, keyInfo: { key?: Uint8Array, encExtra: Object }, encryptionConfig?: Object }} options
    */
   async _dispatchStore({ processedSource, manifestData, keyInfo, encryptionConfig }) {
     if (keyInfo.key && encryptionConfig?.scheme === SCHEME_CONVERGENT) {
@@ -934,9 +971,9 @@ export default class CasService {
   /**
    * Stores content using convergent per-chunk encryption.
    * @private
-   * @param {AsyncIterable<Buffer>} processedSource
+   * @param {AsyncIterable<Uint8Array>} processedSource
    * @param {Object} manifestData
-   * @param {{ key: Buffer, encExtra: Object }} keyInfo
+   * @param {{ key: Uint8Array, encExtra: Object }} keyInfo
    */
   async _storeConvergentSource(processedSource, manifestData, keyInfo) {
     await this._chunkAndStore(processedSource, manifestData, { convergentKey: keyInfo.key });
@@ -967,7 +1004,7 @@ export default class CasService {
   /**
    * Stores encrypted content using the requested scheme.
    * @private
-   * @param {{ processedSource: AsyncIterable<Buffer>, manifestData: { encryption?: object }, key: Buffer, encryptionConfig: { scheme: 'whole' }|{ scheme: 'framed', frameBytes: number }, encExtra: Record<string, unknown> }} options
+   * @param {{ processedSource: AsyncIterable<Uint8Array>, manifestData: { encryption?: object }, key: Uint8Array, encryptionConfig: { scheme: 'whole' }|{ scheme: 'framed', frameBytes: number }, encExtra: Record<string, unknown> }} options
    */
   async _storeEncryptedSource({ processedSource, manifestData, key, encryptionConfig, encExtra }) {
     if (encryptionConfig.scheme === SCHEME_FRAMED) {
@@ -1017,34 +1054,49 @@ export default class CasService {
    * @private
    * @param {string} slug
    * @param {number} frameIndex
-   * @returns {Buffer}
+   * @returns {Uint8Array}
    */
   _buildFrameAad(slug, frameIndex) {
     return buildFramedAad(slug, frameIndex);
   }
 
   /**
+   * Returns true when a manifest was read in legacy mode from a v1
+   * scheme that did not use AAD.
+   * @private
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {boolean}
+   */
+  _isLegacyNoAad(manifest) {
+    if (!this.#legacyMode) { return false; }
+    if (!originalSchemeMap.has(manifest)) { return false; }
+    const orig = originalSchemeMap.get(manifest);
+    // undefined means schemeless legacy — no AAD, same as whole-v1
+    return orig === undefined || isLegacyNoAad(orig);
+  }
+
+  /**
    * Encrypts plaintext frames independently and serializes them into framed
    * records.
    * @private
-   * @param {AsyncIterable<Buffer>} source
-   * @param {Buffer} key
+   * @param {AsyncIterable<Uint8Array>} source
+   * @param {Uint8Array} key
    * @param {{ frameBytes: number, slug: string }} opts
-   * @returns {AsyncIterable<Buffer>}
+   * @returns {AsyncIterable<Uint8Array>}
    */
   async *_encryptFramed(source, key, { frameBytes, slug }) {
-    let pending = Buffer.alloc(0);
+    let pending = new Uint8Array(0);
     let sawPlaintext = false;
     let frameIndex = 0;
 
     for await (const chunk of source) {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      const buf = normalizeByteChunk(chunk);
       if (buf.length === 0) {
         continue;
       }
 
       sawPlaintext = true;
-      pending = pending.length === 0 ? buf : Buffer.concat([pending, buf]);
+      pending = pending.length === 0 ? buf : concatBytes([pending, buf]);
 
       while (pending.length >= frameBytes) {
         const frame = pending.subarray(0, frameBytes);
@@ -1060,27 +1112,27 @@ export default class CasService {
     }
 
     if (!sawPlaintext) {
-      yield await this._serializeFramedRecord(Buffer.alloc(0), key, this._buildFrameAad(slug, frameIndex));
+      yield await this._serializeFramedRecord(new Uint8Array(0), key, this._buildFrameAad(slug, frameIndex));
     }
   }
 
   /**
    * Serializes one framed record.
    * @private
-   * @param {Buffer} frame
-   * @param {Buffer} key
-   * @param {Buffer} [aad] - AAD for framed encryption.
-   * @returns {Promise<Buffer>}
+   * @param {Uint8Array} frame
+   * @param {Uint8Array} key
+   * @param {Uint8Array} [aad] - AAD for framed encryption.
+   * @returns {Promise<Uint8Array>}
    */
   async _serializeFramedRecord(frame, key, aad) {
     const { buf, meta } = await this.crypto.encryptBuffer(frame, key, aad);
-    const nonce = Buffer.from(meta.nonce, 'base64');
-    const tag = Buffer.from(meta.tag, 'base64');
-    const header = Buffer.alloc(FRAMED_RECORD_HEADER_BYTES);
-    header.writeUInt32BE(buf.length, 0);
-    nonce.copy(header, FRAMED_LENGTH_BYTES);
-    tag.copy(header, FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES);
-    return Buffer.concat([header, buf]);
+    const nonce = decodeBase64(meta.nonce);
+    const tag = decodeBase64(meta.tag);
+    const header = new Uint8Array(FRAMED_RECORD_HEADER_BYTES);
+    writeUint32BE(header, 0, buf.length);
+    header.set(nonce, FRAMED_LENGTH_BYTES);
+    header.set(tag, FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES);
+    return concatBytes([header, buf]);
   }
 
   /**
@@ -1128,8 +1180,8 @@ export default class CasService {
 
     const manifestData = manifest.toJSON();
     const hashableBytes = encodeForHash(manifestData, this.codec);
-    manifestData.manifestHash = await this.crypto.sha256(Buffer.from(hashableBytes));
-    const serializedManifest = this.codec.encode(manifestData);
+    manifestData.manifestHash = await this.crypto.sha256(hashableBytes);
+    const serializedManifest = normalizeCodecBytes(this.codec.encode(manifestData));
     const manifestOid = await this.persistence.writeBlob(serializedManifest);
 
     const treeEntries = [
@@ -1154,7 +1206,7 @@ export default class CasService {
     for (let i = 0; i < chunks.length; i += this.merkleThreshold) {
       const group = chunks.slice(i, i + this.merkleThreshold);
       const subManifestData = { chunks: group.map((c) => ({ index: c.index, size: c.size, digest: c.digest, blob: c.blob })) };
-      const serialized = this.codec.encode(subManifestData);
+      const serialized = normalizeCodecBytes(this.codec.encode(subManifestData));
       const oid = await this.persistence.writeBlob(serialized);
 
       subManifestRefs.push({
@@ -1171,9 +1223,9 @@ export default class CasService {
       subManifests: subManifestRefs,
     };
     const rootHashableBytes = encodeForHash(rootManifestData, this.codec);
-    rootManifestData.manifestHash = await this.crypto.sha256(Buffer.from(rootHashableBytes));
+    rootManifestData.manifestHash = await this.crypto.sha256(rootHashableBytes);
 
-    const serializedRoot = this.codec.encode(rootManifestData);
+    const serializedRoot = normalizeCodecBytes(this.codec.encode(rootManifestData));
     const rootOid = await this.persistence.writeBlob(serializedRoot);
 
     const subManifestEntries = subManifestRefs.map(
@@ -1193,7 +1245,7 @@ export default class CasService {
    * Reads a single chunk blob from Git and verifies its SHA-256 digest.
    * @private
    * @param {{ index: number, size: number, digest: string, blob: string }} chunk - Chunk metadata.
-   * @returns {Promise<Buffer>} Verified chunk buffer.
+   * @returns {Promise<Uint8Array>} Verified chunk buffer.
    * @throws {CasError} INTEGRITY_ERROR if the chunk digest does not match.
    */
   async _readAndVerifyChunk(chunk, { maxBytes, convergentKey } = {}) {
@@ -1224,7 +1276,7 @@ export default class CasService {
    *
    * @private
    * @param {string} oid - Chunk blob OID.
-   * @returns {Promise<Buffer>}
+   * @returns {Promise<Uint8Array>}
    */
   async _readChunkBlob(oid, { maxBytes } = {}) {
     if (!this._supportsReadBlobStream()) {
@@ -1241,12 +1293,12 @@ export default class CasService {
     let total = 0;
     const chunks = [];
     for await (const chunk of await this.persistence.readBlobStream(oid)) {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      const buf = normalizeByteChunk(chunk);
       total += buf.length;
       this._assertBufferedReadLimit({ size: total, limit: maxBytes, oid });
       chunks.push(buf);
     }
-    return Buffer.concat(chunks);
+    return concatBytes(chunks);
   }
 
   /**
@@ -1264,7 +1316,7 @@ export default class CasService {
    * Reads chunk blobs from Git and verifies their SHA-256 digests.
    * @private
    * @param {import('../value-objects/Chunk.js').default[]} chunks - Chunk metadata from the manifest.
-   * @returns {Promise<Buffer[]>} Verified chunk buffers in order.
+   * @returns {Promise<Uint8Array[]>} Verified chunk buffers in order.
    * @throws {CasError} INTEGRITY_ERROR if any chunk digest does not match.
    */
   async _readAndVerifyChunks(chunks, { totalLimit } = {}) {
@@ -1323,9 +1375,9 @@ export default class CasService {
    *
    * @param {Object} options
    * @param {import('../value-objects/Manifest.js').default} options.manifest - The file manifest.
-   * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
-   * @returns {Promise<{ buffer: Buffer, bytesWritten: number }>}
+   * @returns {Promise<{ buffer: Uint8Array, bytesWritten: number }>}
    * @throws {CasError} MISSING_KEY if manifest is encrypted but no key is provided.
    * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
    */
@@ -1334,7 +1386,7 @@ export default class CasService {
     for await (const chunk of this.restoreStream({ manifest, encryptionKey, passphrase })) {
       chunks.push(chunk);
     }
-    const buffer = Buffer.concat(chunks);
+    const buffer = concatBytes(chunks);
     return { buffer, bytesWritten: buffer.length };
   }
 
@@ -1348,9 +1400,9 @@ export default class CasService {
    *
    * @param {Object} options
    * @param {import('../value-objects/Manifest.js').default} options.manifest
-   * @param {Buffer} [options.encryptionKey]
+   * @param {Uint8Array} [options.encryptionKey]
    * @param {string} [options.passphrase]
-   * @returns {Promise<{ mode: 'stream'|'bounded-file', source: AsyncIterable<Buffer>, encryptionMeta?: import('../value-objects/Manifest.js').EncryptionMeta }>}
+   * @returns {Promise<{ mode: 'stream'|'bounded-file', source: AsyncIterable<Uint8Array>, encryptionMeta?: import('../value-objects/Manifest.js').EncryptionMeta }>}
    */
   async createFileRestorePlan({ manifest, encryptionKey, passphrase }) {
     const encryptionMeta = this._validatedEncryptionMeta(manifest);
@@ -1376,7 +1428,7 @@ export default class CasService {
   }
 
   /**
-   * Restores a file from its manifest as an async iterable of Buffer chunks.
+   * Restores a file from its manifest as an async iterable of Uint8Array chunks.
    *
    * For unencrypted, uncompressed files this is true per-chunk streaming with
    * O(chunkSize) memory. `whole` encrypted paths still collect internally
@@ -1385,7 +1437,7 @@ export default class CasService {
    *
    * @param {Object} options
    * @param {import('../value-objects/Manifest.js').default} options.manifest - The file manifest.
-   * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * Note: For unencrypted files, each yielded buffer corresponds to an original
    * stored chunk. For buffered restore paths, yielded buffers are
@@ -1393,7 +1445,7 @@ export default class CasService {
    * correspond 1:1 to the original chunks. `framed` yields authenticated
    * plaintext frames (or downstream gunzip output) instead.
    *
-   * @yields {Buffer}
+   * @yields {Uint8Array}
    * @throws {CasError} MISSING_KEY if manifest is encrypted but no key is provided.
    * @throws {CasError} INTEGRITY_ERROR if chunk verification or decryption fails.
    */
@@ -1415,9 +1467,9 @@ export default class CasService {
    * Routes to the correct restore strategy based on encryption metadata.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @param {Buffer|undefined} key
+   * @param {Uint8Array|undefined} key
    * @param {undefined|object} encryptionMeta
-   * @returns {AsyncIterable<Buffer>}
+   * @returns {AsyncIterable<Uint8Array>}
    */
   async *_dispatchRestore(manifest, key, encryptionMeta) {
     const scheme = encryptionMeta?.scheme;
@@ -1448,7 +1500,7 @@ export default class CasService {
    * Executes the classified restore strategy.
    * @private
    * @param {string} strategy
-   * @param {{ manifest: import('../value-objects/Manifest.js').default, key?: Buffer, encryptionMeta?: Object }} ctx
+   * @param {{ manifest: import('../value-objects/Manifest.js').default, key?: Uint8Array, encryptionMeta?: Object }} ctx
    */
   async *_executeRestoreStrategy(strategy, { manifest, key, encryptionMeta }) {
     switch (strategy) {
@@ -1482,19 +1534,38 @@ export default class CasService {
    * @private
    * @param {Object} options
    * @param {import('../value-objects/Manifest.js').default} options.manifest
-   * @param {Buffer} [options.encryptionKey]
+   * @param {Uint8Array} [options.encryptionKey]
    * @param {string} [options.passphrase]
    * @param {undefined|import('../value-objects/Manifest.js').EncryptionMeta} options.encryptionMeta
-   * @returns {Promise<AsyncIterable<Buffer>>}
+   * @returns {Promise<AsyncIterable<Uint8Array>>}
    */
   async _createBufferedFileRestoreSource({ manifest, encryptionKey, passphrase, encryptionMeta }) {
-    /** @type {AsyncIterable<Buffer>} */
+    /** @type {AsyncIterable<Uint8Array>} */
     let source = this._iterVerifiedChunkBlobs(manifest);
 
     if (encryptionMeta) {
       const key = await this._resolveRestoreKey(manifest, encryptionKey, passphrase);
-      const aad = buildWholeAad(manifest.slug);
-      source = this.crypto.createDecryptionStream(key, encryptionMeta, aad).decrypt(source);
+      const aad = this._isLegacyNoAad(manifest)
+        ? undefined
+        : buildWholeAad(manifest.slug);
+
+      if (encryptionMeta.scheme === SCHEME_WHOLE) {
+        // whole scheme authentication boundary: buffer entire ciphertext before decryption
+        const chunks = [];
+        for await (const chunk of source) {
+          chunks.push(chunk);
+        }
+        const ciphertext = concatBytes(chunks);
+        const plaintext = await this._decryptWithAad({
+          buffer: ciphertext,
+          key,
+          meta: encryptionMeta,
+          aad,
+        });
+        source = (async function* plaintextSource() { yield plaintext; })();
+      } else {
+        source = this.crypto.createDecryptionStream(key, encryptionMeta, aad).decrypt(source);
+      }
     }
 
     if (manifest.compression) {
@@ -1519,13 +1590,15 @@ export default class CasService {
         { size: totalSize, limit: this.maxRestoreBufferSize },
       );
     }
-    let buffer = Buffer.concat(await this._readAndVerifyChunks(manifest.chunks, {
+    let buffer = concatBytes(await this._readAndVerifyChunks(manifest.chunks, {
       totalLimit: this.maxRestoreBufferSize,
     }));
 
     if (encryptionMeta) {
       try {
-        const aad = buildWholeAad(manifest.slug);
+        const aad = this._isLegacyNoAad(manifest)
+          ? undefined
+          : buildWholeAad(manifest.slug);
         buffer = await this._decryptWithAad({ buffer, key, meta: encryptionMeta, aad });
       } catch (err) {
         if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
@@ -1589,7 +1662,7 @@ export default class CasService {
    * Decompresses chunk data on the fly without buffering the entire payload.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @returns {AsyncIterable<Buffer>}
+   * @returns {AsyncIterable<Uint8Array>}
    */
   async *_restoreCompressedStreaming(manifest) {
     let totalSize = 0;
@@ -1607,8 +1680,8 @@ export default class CasService {
    * Reads and decrypts convergent-encrypted chunks, prefetching when concurrency > 1.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @param {Buffer} key - Convergent master key.
-   * @returns {AsyncIterable<Buffer>}
+   * @param {Uint8Array} key - Convergent master key.
+   * @returns {AsyncIterable<Uint8Array>}
    */
   async *_iterConvergentChunks(manifest, key) {
     const fetchFn = async (chunk) => {
@@ -1642,8 +1715,8 @@ export default class CasService {
    * Streaming restore path for convergent encrypted + compressed content.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @param {Buffer} key - Convergent master key.
-   * @returns {AsyncIterable<Buffer>}
+   * @param {Uint8Array} key - Convergent master key.
+   * @returns {AsyncIterable<Uint8Array>}
    */
   async *_restoreConvergentCompressed(manifest, key) {
     const decryptedSource = this._iterConvergentChunks(manifest, key);
@@ -1663,7 +1736,7 @@ export default class CasService {
    * Reads and verifies stored chunk blobs, prefetching when concurrency > 1.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @returns {AsyncIterable<Buffer>}
+   * @returns {AsyncIterable<Uint8Array>}
    */
   async *_iterVerifiedChunkBlobs(manifest) {
     const fetchFn = async (chunk) => {
@@ -1684,16 +1757,16 @@ export default class CasService {
   /**
    * Parses framed records from a byte stream.
    * @private
-   * @param {AsyncIterable<Buffer>} source
+   * @param {AsyncIterable<Uint8Array>} source
    * @param {number} frameBytes
-   * @returns {AsyncIterable<{ ciphertext: Buffer, meta: { encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string } }>}
+   * @returns {AsyncIterable<{ ciphertext: Uint8Array, meta: { encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string } }>}
    */
   async *_parseFramedRecords(source, frameBytes) {
-    let pending = Buffer.alloc(0);
+    let pending = new Uint8Array(0);
 
     for await (const chunk of source) {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      pending = pending.length === 0 ? buf : Buffer.concat([pending, buf]);
+      const buf = normalizeByteChunk(chunk);
+      pending = pending.length === 0 ? buf : concatBytes([pending, buf]);
 
       while (pending.length >= FRAMED_RECORD_HEADER_BYTES) {
         const consumed = this._consumeFramedRecord(pending, frameBytes);
@@ -1717,12 +1790,12 @@ export default class CasService {
   /**
    * Tries to consume one framed record from a pending buffer.
    * @private
-   * @param {Buffer} pending
+   * @param {Uint8Array} pending
    * @param {number} frameBytes
-   * @returns {null|{ remaining: Buffer, record: { ciphertext: Buffer, meta: { encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string } } }}
+   * @returns {null|{ remaining: Uint8Array, record: { ciphertext: Uint8Array, meta: { encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string } } }}
    */
   _consumeFramedRecord(pending, frameBytes) {
-    const ciphertextLength = pending.readUInt32BE(0);
+    const ciphertextLength = readUint32BE(pending, 0);
     if (ciphertextLength > frameBytes) {
       throw new CasError(
         `Framed ciphertext length ${ciphertextLength} exceeds frameBytes ${frameBytes}`,
@@ -1748,19 +1821,15 @@ export default class CasService {
   /**
    * Builds decryption metadata from a framed record header.
    * @private
-   * @param {Buffer} pending
+   * @param {Uint8Array} pending
    * @returns {{ encrypted: true, algorithm: 'aes-256-gcm', nonce: string, tag: string }}
    */
   _buildFramedRecordMeta(pending) {
     return {
       encrypted: true,
       algorithm: 'aes-256-gcm',
-      nonce: pending
-        .subarray(FRAMED_LENGTH_BYTES, FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES)
-        .toString('base64'),
-      tag: pending
-        .subarray(FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES, FRAMED_RECORD_HEADER_BYTES)
-        .toString('base64'),
+      nonce: encodeBase64(pending.subarray(FRAMED_LENGTH_BYTES, FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES)),
+      tag: encodeBase64(pending.subarray(FRAMED_LENGTH_BYTES + GCM_NONCE_BYTES, FRAMED_RECORD_HEADER_BYTES)),
     };
   }
 
@@ -1768,11 +1837,12 @@ export default class CasService {
    * Decrypts framed records into authenticated plaintext frames.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @param {Buffer} key
+   * @param {Uint8Array} key
    * @param {{ encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} encryptionMeta
-   * @returns {AsyncIterable<Buffer>}
+   * @returns {AsyncIterable<Uint8Array>}
    */
   async *_decryptFramedSource(manifest, key, encryptionMeta) {
+    const noAad = this._isLegacyNoAad(manifest);
     let frameIndex = 0;
     for await (const record of this._parseFramedRecords(
       this._iterVerifiedChunkBlobs(manifest),
@@ -1780,7 +1850,9 @@ export default class CasService {
     )) {
       let plaintext;
       try {
-        const aad = buildFramedAad(manifest.slug, frameIndex);
+        const aad = noAad
+          ? undefined
+          : buildFramedAad(manifest.slug, frameIndex);
         plaintext = await this._decryptWithAad({
           buffer: record.ciphertext,
           key,
@@ -1805,9 +1877,9 @@ export default class CasService {
    * Streaming restore path for framed encrypted content.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @param {Buffer} key
+   * @param {Uint8Array} key
    * @param {{ encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} encryptionMeta
-   * @returns {AsyncIterable<Buffer>}
+   * @returns {AsyncIterable<Uint8Array>}
    */
   async *_restoreFramedStreaming(manifest, key, encryptionMeta) {
     let totalSize = 0;
@@ -1828,9 +1900,9 @@ export default class CasService {
    * Streaming restore path for framed encrypted + compressed content.
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @param {Buffer} key
+   * @param {Uint8Array} key
    * @param {{ encrypted: true, algorithm: 'aes-256-gcm', frameBytes: number }} encryptionMeta
-   * @returns {AsyncIterable<Buffer>}
+   * @returns {AsyncIterable<Uint8Array>}
    */
   async *_restoreFramedCompressedStreaming(manifest, key, encryptionMeta) {
     let totalSize = 0;
@@ -1851,9 +1923,9 @@ export default class CasService {
    * Decompresses a gzip buffer while enforcing an output-size limit during
    * collection rather than after full materialization.
    * @private
-   * @param {Buffer} buffer
+   * @param {Uint8Array} buffer
    * @param {number} limit
-   * @returns {Promise<Buffer>}
+   * @returns {Promise<Uint8Array>}
    */
   async _decompressBufferedWithLimit(buffer, limit) {
     const chunks = [];
@@ -1875,14 +1947,14 @@ export default class CasService {
       chunks.push(chunk);
     }
 
-    return Buffer.concat(chunks);
+    return concatBytes(chunks);
   }
 
   /**
    * Decompresses a gzip byte stream.
    * @private
-   * @param {AsyncIterable<Buffer>} source
-   * @returns {AsyncIterable<Buffer>}
+   * @param {AsyncIterable<Uint8Array>} source
+   * @returns {AsyncIterable<Uint8Array>}
    */
   async *_decompressStreaming(source) {
     try {
@@ -1908,24 +1980,78 @@ export default class CasService {
     const blob = await this._readManifestBlob(treeOid);
     const decoded = this.codec.decode(blob);
 
-    if (decoded.encryption?.scheme) {
-      assertCurrentScheme(decoded.encryption.scheme);
-    }
-
     await this._verifyManifestHash(decoded, treeOid);
+
+    const originalScheme = this._resolveEncryptionScheme(decoded);
 
     if (decoded.version === 2 && decoded.subManifests?.length > 0) {
       decoded.chunks = await this._resolveSubManifests(decoded.subManifests, treeOid);
     }
 
-    return new Manifest(decoded);
+    const manifest = new Manifest(decoded);
+    // For schemeless manifests, store undefined so _isLegacyNoAad treats
+    // them like whole-v1 (no AAD). For normal legacy schemes, store the
+    // original scheme string.
+    if (this.#legacyMode && decoded.encryption) {
+      originalSchemeMap.set(manifest, originalScheme);
+    }
+    return manifest;
+  }
+
+  /**
+   * Resolves and normalises the encryption scheme on a decoded manifest.
+   *
+   * In legacy mode, schemeless manifests get `SCHEME_WHOLE` and versioned
+   * scheme identifiers are mapped to their current names.  In normal mode
+   * the scheme is asserted to be current.
+   *
+   * @private
+   * @param {Object} decoded - Mutable decoded manifest data.
+   * @returns {string|undefined} The original scheme string before mapping
+   *   (used for AAD decisions), or undefined for schemeless manifests.
+   */
+  _resolveEncryptionScheme(decoded) {
+    // Schemeless legacy manifests: encrypted but no scheme field.
+    // These were always whole-object encryption (pre-scheme era).
+    if (this.#legacyMode && decoded.encryption && !decoded.encryption.scheme) {
+      decoded.encryption.scheme = SCHEME_WHOLE;
+      return undefined;
+    }
+
+    if (!decoded.encryption?.scheme) { return undefined; }
+
+    const originalScheme = decoded.encryption.scheme;
+    if (this.#legacyMode) {
+      const mapped = mapToCurrentScheme(originalScheme);
+      if (mapped) { decoded.encryption.scheme = mapped; }
+    } else {
+      assertCurrentScheme(decoded.encryption.scheme);
+    }
+    return originalScheme;
+  }
+
+  /**
+   * Reads a manifest from a Git tree OID and returns the raw decoded
+   * object WITHOUT Manifest construction or scheme assertion.
+   *
+   * This is the migration entry point -- it can read manifests with
+   * legacy encryption scheme identifiers that the normal
+   * {@link readManifest} rejects.
+   *
+   * @param {Object} options
+   * @param {string} options.treeOid - Git tree OID.
+   * @returns {Promise<Object>} Raw decoded manifest data.
+   */
+  async readManifestRaw({ treeOid }) {
+    const blob = await this._readManifestBlob(treeOid);
+    return this.codec.decode(blob);
   }
 
   /**
    * Reads the raw manifest blob from a Git tree.
    * @private
    * @param {string} treeOid
-   * @returns {Promise<Buffer>}
+   * @returns {Promise<Uint8Array>}
    */
   async _readManifestBlob(treeOid) {
     let entries;
@@ -1972,7 +2098,7 @@ export default class CasService {
   async _verifyManifestHash(decoded, treeOid) {
     if (!decoded.manifestHash) { return; }
     const hashableBytes = encodeForHash(decoded, this.codec);
-    const computed = await this.crypto.sha256(Buffer.from(hashableBytes));
+    const computed = await this.crypto.sha256(hashableBytes);
     if (computed !== decoded.manifestHash) {
       throw new CasError(
         'Manifest integrity check failed: hash mismatch',
@@ -2111,14 +2237,14 @@ export default class CasService {
    * Derives an encryption key from a passphrase using PBKDF2 or scrypt.
    * @param {Object} options
    * @param {string} options.passphrase - The passphrase to derive a key from.
-   * @param {Buffer} [options.salt] - Salt (random if omitted).
+   * @param {Uint8Array} [options.salt] - Salt (random if omitted).
    * @param {'pbkdf2'|'scrypt'} [options.algorithm='pbkdf2'] - KDF algorithm.
    * @param {number} [options.iterations] - PBKDF2 iterations.
    * @param {number} [options.cost] - scrypt cost (N).
    * @param {number} [options.blockSize] - scrypt block size (r).
    * @param {number} [options.parallelization] - scrypt parallelization (p).
    * @param {number} [options.keyLength=32] - Derived key length.
-   * @returns {Promise<{ key: Buffer, salt: Buffer, params: Object }>}
+   * @returns {Promise<{ key: Uint8Array, salt: Uint8Array, params: Object }>}
    */
   async deriveKey(options) {
     return await this.crypto.deriveKey(options);
@@ -2132,8 +2258,8 @@ export default class CasService {
    *
    * @param {Object} options
    * @param {import('../value-objects/Manifest.js').default} options.manifest
-   * @param {Buffer} options.existingKey - KEK of an existing recipient.
-   * @param {Buffer} options.newRecipientKey - KEK for the new recipient.
+   * @param {Uint8Array} options.existingKey - KEK of an existing recipient.
+   * @param {Uint8Array} options.newRecipientKey - KEK for the new recipient.
    * @param {string} options.label - Label for the new recipient.
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    * @throws {CasError} INVALID_OPTIONS if manifest has no recipients.
@@ -2250,8 +2376,8 @@ export default class CasService {
    *
    * @param {Object} options
    * @param {import('../value-objects/Manifest.js').default} options.manifest
-   * @param {Buffer} options.oldKey - Current KEK of the recipient to rotate.
-   * @param {Buffer} options.newKey - New KEK to wrap the DEK with.
+   * @param {Uint8Array} options.oldKey - Current KEK of the recipient to rotate.
+   * @param {Uint8Array} options.newKey - New KEK to wrap the DEK with.
    * @param {string} [options.label] - If provided, only rotate the named recipient.
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    * @throws {CasError} ROTATION_NOT_SUPPORTED if manifest has no recipients.
@@ -2333,7 +2459,7 @@ export default class CasService {
   /**
    * Verifies the integrity of a stored file by re-hashing its chunks.
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @param {{ encryptionKey?: Buffer, passphrase?: string }} [options]
+   * @param {{ encryptionKey?: Uint8Array, passphrase?: string }} [options]
    * @returns {Promise<boolean>}
    */
   async verifyIntegrity(manifest, options = {}) {
@@ -2382,7 +2508,7 @@ export default class CasService {
    * @private
    * @param {import('../value-objects/Manifest.js').default} manifest
    * @param {{ scheme: 'convergent' }} _encryptionMeta
-   * @param {{ encryptionKey?: Buffer, passphrase?: string }} options
+   * @param {{ encryptionKey?: Uint8Array, passphrase?: string }} options
    * @returns {Promise<boolean>}
    */
   async _verifyConvergentIntegrity(manifest, _encryptionMeta, options) {

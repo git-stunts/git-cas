@@ -1,1429 +1,648 @@
 /**
- * Pure render functions for the vault dashboard.
+ * Pure render functions for the V6 git-cas cockpit.
  */
 
-import { boxV3, createSurface, parseAnsiToSurface, kbd } from '@flyingrobots/bijou';
-import { commandPalette, navigableTable, splitPaneLayout } from '@flyingrobots/bijou-tui';
+import { boxSurface, createSurface, parseAnsiToSurface } from '@flyingrobots/bijou';
+import {
+  canvas,
+  commandPaletteSurface,
+  drawer,
+  hstackSurface,
+  modal,
+  navigableTableSurface,
+  placeSurface,
+  renderNotificationStack,
+  statusBarSurface,
+  vstackSurface,
+} from '@flyingrobots/bijou-tui';
 import { renderRepoTreemapMap, renderRepoTreemapSidebar } from './repo-treemap.js';
-import { GIT_CAS_PALETTE, chipSurface, inlineSurface, sectionHeading, shellRule, themeText } from './theme.js';
-import { renderDoctorReport, renderVaultStats } from './vault-report.js';
-import { renderManifestView } from './manifest-view.js';
+import { shellRule, themeText } from './theme.js';
+import { renderChunkTable, renderMerkleExplorer } from './blocks/merkle-explorer.js';
+import { renderHealthDashboard } from './blocks/health-dashboard.js';
+import { renderOperationFeed } from './blocks/operation-feed.js';
+import { renderWizardSurface } from './store-wizard.js';
+import { organicFlowShader } from './shaders/organic-flow.js';
+import { shortShaStatus } from './components/short-sha.js';
 
-/**
- * @typedef {import('./dashboard.js').DashModel} DashModel
- * @typedef {import('./dashboard.js').DashDeps} DashDeps
- * @typedef {import('./dashboard.js').DashSource} DashSource
- * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
- * @typedef {import('@flyingrobots/bijou').Surface} Surface
- */
+/** @typedef {import('./dashboard.js').DashModel} DashModel */
+/** @typedef {import('./dashboard.js').DashDeps} DashDeps */
+/** @typedef {import('./dashboard.js').DashSource} DashSource */
 
-const SPLIT_MIN_LIST_WIDTH = 28;
-const SPLIT_MIN_DETAIL_WIDTH = 32;
-const SPLIT_DIVIDER_SIZE = 1;
-const TOAST_THEME = {
-  error: { label: 'Error', bg: GIT_CAS_PALETTE.wine, fg: GIT_CAS_PALETTE.ivory },
-  warning: { label: 'Warning', bg: [148, 82, 23], fg: GIT_CAS_PALETTE.ivory },
-  info: { label: 'Info', bg: GIT_CAS_PALETTE.indigo, fg: GIT_CAS_PALETTE.ivory },
-  success: { label: 'Success', bg: GIT_CAS_PALETTE.moss, fg: GIT_CAS_PALETTE.ivory },
-};
+const BG = '#25313a';
+const HELP_WIDTH = 58;
 
-/**
- * Safely clip text to a pane width.
- *
- * @returns {string}
- */
-function clip(text, width) {
-  return width > 0 ? text.slice(0, width) : '';
-}
-
-/**
- * Clip long paths from the left so the most specific suffix stays visible.
- *
- * @param {string} text
- * @param {number} width
- * @returns {string}
- */
-function tailClip(text, width) {
-  if (width <= 0) {
-    return '';
-  }
-  if (text.length <= width) {
-    return text;
-  }
-  if (width <= 3) {
-    return clip(text, width);
-  }
-  return `...${text.slice(text.length - (width - 3))}`;
-}
-
-/**
- * Compute visible window for cursor scrolling.
- *
- * @param {number} cursor
- * @param {number} total
- * @param {number} height
- * @returns {{ start: number, end: number }}
- */
-function textSurface(text, width, height) {
-  return parseAnsiToSurface(text, Math.max(1, width), Math.max(1, height));
-}
-
-/**
- * Write inline items on a single row.
- *
- * @param {Surface} target
- * @param {{ x: number, y: number, parts: (Surface | string)[], maxWidth: number }} options
- */
-function blitInline(target, options) {
-  let cursor = options.x;
-  for (const part of options.parts) {
-    const surface = typeof part === 'string'
-      ? textSurface(
-        clip(part, Math.max(1, options.maxWidth - (cursor - options.x))),
-        Math.max(1, Math.min(part.length, options.maxWidth - (cursor - options.x))),
-        1,
-      )
-      : part;
-    if (cursor >= options.x + options.maxWidth) {
-      break;
-    }
-    target.blit(surface, cursor, options.y);
-    cursor += surface.width + 1;
-  }
-}
-
-/**
- * Build header badges that summarize current explorer state.
- *
- * @param {DashModel} model
- * @param {BijouContext} ctx
- * @returns {(Surface | string)[]}
- */
-function headerParts(model, ctx) {
-  const parts = [
-    chipSurface(ctx, `${model.filtered.length}/${model.entries.length || model.filtered.length} visible`, 'info'),
-  ];
-  if (model.metadata?.encryption) {
-    parts.push(chipSurface(ctx, 'encrypted', 'warning'));
-  }
-  if (model.filtering || model.filterText) {
-    parts.push(chipSurface(ctx, model.filtering ? 'filtering' : `filter ${model.filterText}`, 'accent'));
-  }
-  if (model.activeDrawer === 'treemap') {
-    parts.push(chipSurface(ctx, 'atlas view', 'brand'));
-  } else if (model.activeDrawer === 'refs') {
-    parts.push(chipSurface(ctx, 'ref index', 'brand'));
-  } else {
-    parts.push(chipSurface(ctx, model.splitPane.focused === 'a' ? 'entries ledger' : 'manifest inspector', 'brand'));
-  }
-  appendSelectionBadges(parts, model, ctx);
-  return parts;
-}
-
-/**
- * Append badges related to selection and overlays.
- *
- * @param {(Surface | string)[]} parts
- * @param {DashModel} model
- * @param {BijouContext} ctx
- */
-function appendSelectionBadges(parts, model, ctx) {
-  const selected = model.filtered[model.table.focusRow];
-  if (selected && model.activeDrawer !== 'treemap') {
-    parts.push(chipSurface(ctx, `selected ${selected.slug}`, 'accent'));
-  }
-  if (model.toasts.length > 0) {
-    parts.push(chipSurface(ctx, `alerts ${model.toasts.length}`, 'warning'));
-  }
-  if (model.activeDrawer === 'treemap') {
-    parts.push(chipSurface(ctx, `scope ${model.treemapScope}`, 'brand'));
-    if (model.treemapScope === 'repository') {
-      parts.push(chipSurface(ctx, `files ${model.treemapWorktreeMode}`, 'accent'));
-    }
-    parts.push(chipSurface(ctx, `level ${treemapLevelLabel(model)}`, 'info'));
-    const tile = selectedTreemapTile(model);
-    if (tile) {
-      parts.push(chipSurface(ctx, `focus ${tile.label}`, 'warning'));
-    }
-  }
-  if (model.activeDrawer && model.activeDrawer !== 'treemap') {
-    parts.push(chipSurface(ctx, `${model.activeDrawer} drawer`, 'info'));
-  }
-  if (model.palette) {
-    parts.push(chipSurface(ctx, 'command deck', 'warning'));
-  }
-}
-
-/**
- * Human-readable label for the active dashboard source.
- *
- * @param {DashSource} source
- * @returns {string}
- */
 function sourceLabel(source) {
-  if (source.type === 'vault') {
-    return 'source vault refs/cas/vault';
-  }
-  if (source.type === 'ref') {
-    return `source ref ${source.ref}`;
-  }
-  return `source oid ${source.treeOid}`;
+  if (source.type === 'vault') { return 'vault'; }
+  if (source.type === 'ref') { return `ref ${source.ref}`; }
+  return `oid ${source.treeOid}`;
 }
 
-/**
- * Current breadcrumb label for the treemap level.
- *
- * @param {DashModel} model
- * @returns {string}
- */
-function treemapLevelLabel(model) {
-  return model.treemapReport?.breadcrumb?.join(' > ') ?? (model.treemapScope === 'repository' ? 'repository' : 'source');
+function textSurface(content, width, height) {
+  return parseAnsiToSurface(content, Math.max(1, width), Math.max(1, height));
 }
 
-/**
- * Selected tile in the current treemap report.
- *
- * @param {DashModel} model
- * @returns {import('./dashboard-cmds.js').RepoTreemapTile | null}
- */
-function selectedTreemapTile(model) {
-  if (!model.treemapReport || model.treemapReport.tiles.length === 0) {
-    return null;
-  }
-  return model.treemapReport.tiles[Math.max(0, Math.min(model.treemapFocus, model.treemapReport.tiles.length - 1))] ?? null;
+function blank(width, height) {
+  return createSurface(Math.max(1, width), Math.max(1, height), { char: ' ', bg: BG });
 }
 
-/**
- * Render the header surface.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {Surface}
- */
-function renderHeaderSurface(model, deps) {
-  const surface = createSurface(Math.max(1, model.columns), 4);
-  blitInline(surface, {
-    x: 0,
-    y: 0,
-    parts: [
-      inlineSurface(deps.ctx, 'git-cas', { tone: 'brand' }),
-      inlineSurface(deps.ctx, 'repository explorer', { tone: 'secondary' }),
-    ],
-    maxWidth: surface.width,
+function verticalRail(ctx, height) {
+  return textSurface(Array.from({ length: Math.max(1, height) }, () =>
+    themeText(ctx, '│', { tone: 'accent', bold: true })).join('\n'), 1, height);
+}
+
+function panel({ title, body, width, height, ctx, active = false }) {
+  const safeWidth = Math.max(4, width);
+  const safeHeight = Math.max(3, height);
+  const innerWidth = Math.max(1, safeWidth - 2);
+  const innerHeight = Math.max(1, safeHeight - 2);
+  const bodySurface = typeof body === 'string'
+    ? textSurface(body, innerWidth, innerHeight)
+    : placeSurface(body, { width: innerWidth, height: innerHeight });
+  const boxed = boxSurface(bodySurface, {
+    ctx,
+    title,
+    width: safeWidth,
+    borderToken: ctx.theme.theme.border.secondary,
+    bgToken: ctx.theme.theme.surface.primary,
   });
-  blitInline(surface, {
-    x: 0,
-    y: 1,
-    parts: [
-      inlineSurface(deps.ctx, 'cwd', { tone: 'accent' }),
-      inlineSurface(deps.ctx, tailClip(deps.cwdLabel ?? '-', Math.max(1, surface.width - 5)), { tone: 'subdued' }),
-    ],
-    maxWidth: surface.width,
-  });
-  blitInline(surface, {
-    x: 0,
-    y: 2,
-    parts: [inlineSurface(deps.ctx, sourceLabel(model.source), { tone: 'primary' }), ...headerParts(model, deps.ctx)],
-    maxWidth: surface.width,
-  });
-  surface.blit(textSurface(shellRule(deps.ctx, surface.width), surface.width, 1), 0, 3);
-  return surface;
+  const placed = placeSurface(boxed, { width: safeWidth, height: safeHeight });
+  if (active) { placed.blit(verticalRail(ctx, safeHeight), 0, 0); }
+  return placed;
 }
 
-/**
- * Render a fixed-width overlay panel surface.
- *
- * @param {{ title: string, body: string, width: number, height: number, ctx: BijouContext }} options
- * @returns {Surface}
- */
-function renderOverlayPanel(options) {
-  const innerWidth = Math.max(1, options.width - 2);
-  const innerHeight = Math.max(1, options.height - 2);
-  return boxV3(textSurface(options.body, innerWidth, innerHeight), {
-    ctx: options.ctx,
-    title: options.title,
-    width: options.width,
-  });
-}
-
-/**
- * Pad or clip text to a fixed width.
- *
- * @param {string} text
- * @param {number} width
- * @returns {string}
- */
-function padToWidth(text, width) {
-  return text.length >= width ? text.slice(0, width) : `${text}${' '.repeat(width - text.length)}`;
-}
-
-/**
- * Wrap text to the requested width and line budget.
- *
- * @param {string[]} lines
- * @param {number} width
- * @param {number} maxLines
- * @returns {string[]}
- */
-function limitWrappedLines(lines, width, maxLines) {
-  if (maxLines <= 0) {
-    return [];
+function metricLine(model, ctx) {
+  if (model.statsStatus === 'ready' && model.statsReport) {
+    return [
+      `${themeText(ctx, 'entries', { tone: 'accent' })} ${model.statsReport.entries}`,
+      `${themeText(ctx, 'dedup', { tone: 'accent' })} ${model.statsReport.dedupRatio.toFixed(2)}x`,
+      `${themeText(ctx, 'logical', { tone: 'accent' })} ${formatSize(model.statsReport.totalLogicalSize)}`,
+      `${themeText(ctx, 'encrypted', { tone: 'accent' })} ${model.statsReport.encryptedEntries}`,
+    ].join('  ');
   }
-  if (lines.length <= maxLines) {
-    return lines;
-  }
-  const capped = lines.slice(0, maxLines);
-  capped[maxLines - 1] = `${clip(capped[maxLines - 1], Math.max(1, width - 1))}…`;
-  return capped;
-}
-
-/**
- * Build one titled sidebar section within a line budget.
- *
- * @param {{ title: string, body: string, width: number, bodyLines: number, ctx: BijouContext, tone?: 'brand' | 'accent' | 'info' | 'warning' | 'subdued' }} options
- * @returns {string[]}
- */
-function sidebarSection(options) {
-  const lines = options.body.length === 0 ? [''] : options.body.split('\n');
   return [
-    sectionHeading(options.ctx, options.title, options.tone ?? 'brand'),
-    ...limitWrappedLines(lines, options.width, Math.max(1, options.bodyLines)),
+    `${themeText(ctx, 'entries', { tone: 'accent' })} ${model.entries.length}`,
+    `${themeText(ctx, 'loaded manifests', { tone: 'accent' })} ${model.manifestCache.size}`,
+    `${themeText(ctx, 'source', { tone: 'accent' })} ${sourceLabel(model.source)}`,
+  ].join('  ');
+}
+
+function formatSize(bytes) {
+  if (!Number.isFinite(bytes)) { return '-'; }
+  if (bytes < 1024) { return `${bytes}B`; }
+  if (bytes < 1024 * 1024) { return `${(bytes / 1024).toFixed(1)}K`; }
+  if (bytes < 1024 * 1024 * 1024) { return `${(bytes / (1024 * 1024)).toFixed(1)}M`; }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}G`;
+}
+
+function workspaceTabs(model, ctx) {
+  const tabs = [
+    ['explorer', '1 Explorer'],
+    ['atlas', '2 Atlas'],
+    ['operations', '3 Operations'],
   ];
+  return tabs.map(([id, label]) => {
+    const active = model.workspace === id;
+    return themeText(ctx, active ? `▌ ${label}` : `  ${label}`, { tone: active ? 'brand' : 'secondary', bold: active });
+  }).join('  ');
 }
 
-/**
- * Treemap sidebar text for loading/error/empty report states.
- *
- * @param {DashModel} model
- * @returns {string | null}
- */
-function treemapSidebarStateText(model) {
-  if (model.treemapStatus === 'loading') {
-    return `Overview\nLoading ${model.treemapScope} treemap...`;
-  }
-  if (model.treemapStatus === 'error') {
-    return `Overview\nFailed to load treemap\n\n${model.treemapError ?? 'unknown error'}`;
-  }
-  if (!model.treemapReport) {
-    return 'Overview\nTreemap has not been loaded yet.';
-  }
-  return null;
-}
-
-/**
- * Compose the full set of sidebar sections for the treemap view.
- *
- * @param {{ sections: ReturnType<typeof renderRepoTreemapSidebar>, width: number, height: number, ctx: BijouContext }} options
- * @returns {string}
- */
-function composeTreemapSidebarText(options) {
-  const sectionBlocks = [
-    sidebarSection({
-      title: 'Overview',
-      body: options.sections.overview,
-      ctx: options.ctx,
-      tone: 'brand',
-      width: options.width,
-      bodyLines: 4,
-    }),
-    sidebarSection({
-      title: 'Focused Region',
-      body: options.sections.focused,
-      ctx: options.ctx,
-      tone: 'accent',
-      width: options.width,
-      bodyLines: 3,
-    }),
-    sidebarSection({
-      title: 'Legend',
-      body: options.sections.legend,
-      ctx: options.ctx,
-      tone: 'info',
-      width: options.width,
-      bodyLines: 6,
-    }),
-    sidebarSection({
-      title: 'Largest Regions',
-      body: options.sections.regions || 'No regions to display.',
-      ctx: options.ctx,
-      tone: 'warning',
-      width: options.width,
-      bodyLines: 4,
-    }),
-    sidebarSection({
-      title: 'Notes',
-      body: options.sections.notes || 'No notes.',
-      ctx: options.ctx,
-      tone: 'subdued',
-      width: options.width,
-      bodyLines: Math.max(2, options.height - 23),
-    }),
-  ];
-  return sectionBlocks.flat().join('\n');
-}
-
-/**
- * Find the last whitespace boundary at or before an index.
- *
- * @param {string} text
- * @param {number} index
- * @returns {number}
- */
-function lastWhitespaceBoundary(text, index) {
-  for (let cursor = Math.min(index, text.length - 1); cursor >= 0; cursor -= 1) {
-    if (/\s/.test(text[cursor])) {
-      return cursor;
-    }
-  }
-  return -1;
-}
-
-/**
- * Wrap one paragraph to a width using whitespace boundaries when available.
- *
- * @param {string} text
- * @param {number} width
- * @returns {string[]}
- */
-function wrapWhitespaceParagraph(text, width) {
-  const lines = [];
-  let remaining = text.trimEnd();
-  if (remaining.length === 0) {
-    return [''];
-  }
-  while (remaining.length > width) {
-    let wrapIndex = Math.min(width, remaining.length);
-    if (wrapIndex < remaining.length && !/\s/.test(remaining[wrapIndex])) {
-      const boundary = lastWhitespaceBoundary(remaining, wrapIndex);
-      if (boundary > 0) {
-        wrapIndex = boundary;
-      }
-    }
-    if (wrapIndex <= 0) {
-      wrapIndex = width;
-    }
-    const line = remaining.slice(0, wrapIndex).trimEnd();
-    lines.push(line.length > 0 ? line : remaining.slice(0, width));
-    remaining = remaining.slice(wrapIndex).trimStart();
-  }
-  if (remaining.length > 0) {
-    lines.push(remaining);
-  }
-  return lines;
-}
-
-/**
- * Wrap plain text on whitespace with hard-break fallback.
- *
- * @param {string} text
- * @param {number} width
- * @returns {string[]}
- */
-function wrapWhitespaceText(text, width) {
-  if (width <= 0) {
-    return [''];
-  }
-  return text
-    .split('\n')
-    .flatMap((part) => wrapWhitespaceParagraph(part, Math.max(1, width)));
-}
-
-/**
- * Measure an appropriate toast width for its title and message.
- *
- * @param {{ level: 'error' | 'warning' | 'info' | 'success', title: string, message: string }} toast
- * @param {number} maxWidth
- * @returns {number}
- */
-function measureToastWidth(toast, maxWidth) {
-  const theme = TOAST_THEME[toast.level] ?? TOAST_THEME.info;
-  const titleLength = `${theme.label.toUpperCase()} // ${toast.title}`.length;
-  const messageLength = toast.message
-    .split('\n')
-    .reduce((longest, line) => Math.max(longest, line.length), 0);
-  const preferredInnerWidth = Math.max(26, Math.min(maxWidth - 2, Math.max(titleLength, messageLength + 4)));
-  return Math.max(28, Math.min(maxWidth, preferredInnerWidth + 2));
-}
-
-/**
- * Wrap toast copy while preferring whitespace boundaries.
- *
- * @param {string} text
- * @param {number} width
- * @param {number} maxLines
- * @returns {string[]}
- */
-function wrapToastText(text, width, maxLines) {
-  const lines = wrapWhitespaceText(text, width);
-  return limitWrappedLines(lines, width, maxLines);
-}
-
-/**
- * Style a single toast content line.
- *
- * @param {{ text: string, theme: { bg: [number, number, number], fg: [number, number, number] }, ctx: BijouContext, width: number }} options
- * @returns {string}
- */
-function styleToastLine(options) {
-  return options.ctx.style.bgRgb(
-    options.theme.bg[0],
-    options.theme.bg[1],
-    options.theme.bg[2],
-    options.ctx.style.rgb(
-      options.theme.fg[0],
-      options.theme.fg[1],
-      options.theme.fg[2],
-      padToWidth(options.text, options.width),
-    ),
-  );
-}
-
-/**
- * Ease toast entry with a small overshoot so it pops into place.
- *
- * @param {number} progress
- * @returns {number}
- */
-function easeOutBack(progress) {
-  const clamped = Math.max(0, Math.min(1, progress));
-  const overshoot = 1.70158;
-  const shifted = clamped - 1;
-  return 1 + ((overshoot + 1) * shifted * shifted * shifted) + (overshoot * shifted * shifted);
-}
-
-/**
- * Visible body line budget for the current toast animation phase.
- *
- * @param {{ phase?: 'entering' | 'steady' | 'exiting', progress?: number }} toast
- * @returns {number}
- */
-function toastBodyLineBudget(toast) {
-  if (toast.phase !== 'exiting') {
-    return 3;
-  }
-  const progress = Math.max(0, Math.min(1, toast.progress ?? 1));
-  if (progress > 0.66) {
-    return 3;
-  }
-  if (progress > 0.36) {
-    return 2;
-  }
-  if (progress > 0.16) {
-    return 1;
-  }
-  return 0;
-}
-
-/**
- * Width of the toast for the current motion phase.
- *
- * @param {{ phase?: 'entering' | 'steady' | 'exiting', progress?: number }} toast
- * @param {number} baseWidth
- * @returns {number}
- */
-function visibleToastWidth(toast, baseWidth) {
-  if (toast.phase !== 'exiting') {
-    return baseWidth;
-  }
-  const progress = Math.max(0, Math.min(1, toast.progress ?? 1));
-  return Math.max(24, Math.min(baseWidth, Math.round(baseWidth * (0.56 + (progress * 0.44)))));
-}
-
-/**
- * Render one toast box surface.
- *
- * @param {{ id: number, level: 'error' | 'warning' | 'info' | 'success', title: string, message: string, phase?: 'entering' | 'steady' | 'exiting', progress?: number }} toast
- * @param {{ width: number, ctx: BijouContext }} opts
- * @returns {Surface}
- */
-function renderToastSurface(toast, opts) {
-  const theme = TOAST_THEME[toast.level] ?? TOAST_THEME.info;
-  const baseWidth = measureToastWidth(toast, Math.max(32, Math.min(48, opts.width)));
-  const width = visibleToastWidth(toast, baseWidth);
-  const innerWidth = Math.max(1, width - 2);
-  const bodyWidth = Math.max(1, innerWidth - 3);
-  const bodyLineBudget = toastBodyLineBudget(toast);
-  const bodyLines = wrapToastText(toast.message, bodyWidth, bodyLineBudget).map((line) => styleToastLine({
-    text: line,
-    theme,
-    ctx: opts.ctx,
-    width: bodyWidth,
-  }));
-  const titleText = padToWidth(`${theme.label.toUpperCase()} // ${toast.title}`, innerWidth);
-  const chrome = opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╔'));
-  const border = opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'));
-  const bottom = opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╚'));
-  const topLine = `${chrome}${opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '═'.repeat(innerWidth))}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╗'))}`;
-  const titleLine = `${border}${styleToastLine({ text: titleText, theme, ctx: opts.ctx, width: innerWidth })}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'))}`;
-  const dividerLine = `${border}${opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '─'.repeat(innerWidth))}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'))}`;
-  const contentLines = bodyLines.map((line) => {
-    const rail = opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '▌'));
-    return `${border}${rail} ${line} ${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '║'))}`;
-  });
-  const bottomLine = `${bottom}${opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '═'.repeat(innerWidth))}${opts.ctx.style.bold(opts.ctx.style.rgb(theme.bg[0], theme.bg[1], theme.bg[2], '╝'))}`;
-  const lines = contentLines.length > 0
-    ? [topLine, titleLine, dividerLine, ...contentLines, bottomLine]
-    : [topLine, titleLine, bottomLine];
-  return textSurface(lines.join('\n'), width, lines.length);
-}
-
-/**
- * Render a soft drop shadow behind a toast.
- *
- * @param {number} width
- * @param {number} height
- * @param {BijouContext} ctx
- * @returns {Surface}
- */
-function renderToastShadow(width, height, ctx) {
-  const line = ctx.style.rgb(32, 38, 52, '░'.repeat(Math.max(1, width)));
-  return textSurface(Array.from({ length: Math.max(1, height) }, () => line).join('\n'), width, height);
-}
-
-/**
- * Compute horizontal slide for toast motion.
- *
- * @param {{ progress?: number }} toast
- * @returns {number}
- */
-function toastSlideOffset(toast) {
-  const progress = Math.max(0, Math.min(1, toast.progress ?? 1));
-  if (toast.phase === 'entering') {
-    return Math.round((1 - easeOutBack(progress)) * 18);
-  }
-  if (toast.phase === 'exiting') {
-    return Math.round((1 - progress) * 24);
-  }
-  return 0;
-}
-
-/**
- * Build drawer copy for the stats overlay.
- *
- * @param {DashModel} model
- * @param {BijouContext} ctx
- * @returns {string}
- */
-function statsDrawerBody(model, ctx) {
-  if (model.statsStatus === 'loading') {
-    return 'Loading source stats...';
-  }
-  if (model.statsStatus === 'error') {
-    return `Failed to load stats\n\n${model.statsError ?? 'unknown error'}`;
-  }
-  return model.statsReport
-    ? `${sectionHeading(ctx, 'Repository Economics', 'brand')}\n${themeText(ctx, 'Logical size, dedupe, encryption, and chunk shape at a glance.', { tone: 'subdued' })}\n\n${renderVaultStats(model.statsReport)}`
-    : 'Stats have not been loaded yet.';
-}
-
-/**
- * Build drawer copy for the doctor overlay.
- *
- * @param {DashModel} model
- * @param {BijouContext} ctx
- * @returns {string}
- */
-function doctorDrawerBody(model, ctx) {
-  if (model.doctorStatus === 'loading') {
-    return 'Loading doctor report...';
-  }
-  if (model.doctorStatus === 'error') {
-    return `Failed to load doctor report\n\n${model.doctorError ?? 'unknown error'}`;
-  }
-  return typeof model.doctorReport === 'string'
-    ? model.doctorReport
-    : model.doctorReport
-    ? `${sectionHeading(ctx, 'Integrity Sweep', 'brand')}\n${themeText(ctx, 'Vault reachability, manifest health, and issue inventory.', { tone: 'subdued' })}\n\n${renderDoctorReport(model.doctorReport)}`
-    : 'Doctor report has not been loaded yet.';
-}
-
-/**
- * Render the stats drawer.
- *
- * @param {DashModel} model
- * @param {{ width: number, height: number, ctx: BijouContext }} opts
- * @returns {Surface}
- */
-function renderStatsDrawer(model, opts) {
-  return renderOverlayPanel({
-    title: 'Vault Metrics',
-    body: statsDrawerBody(model, opts.ctx),
-    width: Math.max(32, Math.min(56, opts.width - 2)),
-    height: Math.max(8, opts.height),
-    ctx: opts.ctx,
-  });
-}
-
-/**
- * Render the doctor drawer.
- *
- * @param {DashModel} model
- * @param {{ width: number, height: number, ctx: BijouContext }} opts
- * @returns {Surface}
- */
-function renderDoctorDrawer(model, opts) {
-  return renderOverlayPanel({
-    title: 'Vault Doctor',
-    body: doctorDrawerBody(model, opts.ctx),
-    width: Math.max(32, Math.min(56, opts.width - 2)),
-    height: Math.max(8, opts.height),
-    ctx: opts.ctx,
-  });
-}
-
-/**
- * Render a boxed panel surface.
- *
- * @param {{ title: string, body: string, width: number, height: number, ctx: BijouContext }} options
- * @returns {Surface}
- */
-function renderPanel(options) {
-  return boxV3(textSurface(options.body, Math.max(1, options.width - 2), Math.max(1, options.height - 2)), {
-    ctx: options.ctx,
-    title: options.title,
-    width: options.width,
-  });
-}
-
-/**
- * Render the operator drawer surface when active.
- *
- * @param {DashModel} model
- * @param {{ width: number, height: number, ctx: BijouContext }} opts
- * @returns {Surface | null}
- */
-function renderDrawerSurface(model, opts) {
-  if (!model.activeDrawer || model.activeDrawer === 'treemap' || model.activeDrawer === 'refs') {
-    return null;
-  }
-  return model.activeDrawer === 'stats'
-    ? renderStatsDrawer(model, opts)
-    : renderDoctorDrawer(model, opts);
-}
-
-/**
- * Render stacked toast notifications in the lower-right corner.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ top: number, height: number, screen: Surface }} options
- */
-function renderToastStack(model, deps, options) {
-  const marginTop = 1;
-  const marginRight = 4;
-  let cursorY = options.top + marginTop;
-  for (const toast of model.toasts) {
-    const surface = renderToastSurface(toast, {
-      width: Math.min(52, Math.max(40, Math.floor(options.screen.width * 0.44))),
-      ctx: deps.ctx,
-    });
-    if (cursorY + surface.height > options.top + options.height) {
-      break;
-    }
-    const slideOffset = toastSlideOffset(toast);
-    const x = Math.max(0, options.screen.width - surface.width - marginRight + slideOffset);
-    const shadow = renderToastShadow(surface.width, surface.height, deps.ctx);
-    const shadowX = Math.max(0, x + 2);
-    const shadowY = Math.min(options.top + options.height - shadow.height, cursorY + 1);
-    options.screen.blit(shadow, shadowX, shadowY);
-    options.screen.blit(surface, x, cursorY);
-    cursorY += surface.height + 1;
-  }
-}
-
-/**
- * Render the command palette overlay.
- *
- * @param {DashModel} model
- * @param {{ width: number, height: number, ctx: BijouContext }} opts
- * @returns {Surface | null}
- */
-function renderPaletteSurface(model, opts) {
-  if (!model.palette) {
-    return null;
-  }
-  const width = Math.max(32, Math.min(72, opts.width - 8));
-  const body = commandPalette(model.palette, {
-    width: Math.max(16, width - 2),
-    ctx: opts.ctx,
-  });
-  return renderOverlayPanel({
-    title: 'Command Deck',
-    body,
+function renderHeaderSurface(model, deps, width) {
+  const left = themeText(deps.ctx, ' git-cas cockpit', { tone: 'brand', bold: true });
+  const center = workspaceTabs(model, deps.ctx);
+  const right = model.gitBranch ? themeText(deps.ctx, model.gitBranch, { tone: 'info' }) : themeText(deps.ctx, model.status, { tone: 'secondary' });
+  const first = statusBarSurface({ left, center, right, width });
+  const economics = statusBarSurface({
+    left: ` ${metricLine(model, deps.ctx)}`,
+    right: themeText(deps.ctx, sourceLabel(model.source), { tone: 'primary' }),
     width,
-    height: Math.min(opts.height, model.palette.height + 3),
-    ctx: opts.ctx,
   });
+  const filter = model.filtering
+    ? `${themeText(deps.ctx, 'filter', { tone: 'accent' })} /${model.filterText}█`
+    : `${themeText(deps.ctx, 'filter', { tone: 'accent' })} ${model.filterText ? `/${model.filterText}` : 'none'}`;
+  const third = statusBarSurface({
+    left: ` ${filter}`,
+    right: model.error ? themeText(deps.ctx, model.error, { tone: 'danger' }) : '',
+    width,
+  });
+  const rule = textSurface(shellRule(deps.ctx, width), width, 1);
+  return vstackSurface(first, economics, third, rule);
 }
 
-/**
- * Select the current vault entry from table focus.
- *
- * @param {DashModel} model
- * @returns {{ slug: string, treeOid: string } | undefined}
- */
-function selectedEntry(model) {
-  return model.filtered[model.table.focusRow];
+function renderFooterSurface(model, ctx, width) {
+  const left = model.quitConfirm
+    ? themeText(ctx, 'Quit? y/enter confirm, n/escape cancel', { tone: 'warning' })
+    : themeText(ctx, '? help  / filter  ctrl+p palette  F2 settings  q quit', { tone: 'subdued' });
+  const rightByWorkspace = {
+    explorer: model.focusPane === 'detail'
+      ? 'tab focus  j/k chunk  u/d page  enter ledger'
+      : 'tab focus  j/k rows  enter detail  m merkle',
+    atlas: 'j/k focus  +/- drill  t scope  i ignored',
+    operations: 'n store  s stats  x doctor',
+  };
+  const detailStatus = selectedShaFooter(model);
+  const footer = statusBarSurface({
+    left: ` ${left}`,
+    right: detailStatus
+      ? themeText(ctx, detailStatus, { tone: 'info' })
+      : themeText(ctx, rightByWorkspace[model.workspace], { tone: 'secondary' }),
+    width,
+  });
+  return vstackSurface(textSurface(shellRule(ctx, width), width, 1), footer);
 }
 
-/**
- * Choose a responsive table schema for the explorer pane width.
- *
- * @param {number} width
- * @returns {{ columns: { header: string, width: number, align?: 'left' | 'right' | 'center' }[], indexes: number[] }}
- */
-function tableSchema(width) {
-  if (width >= 64) {
+export function tableSchema(width) {
+  if (width >= 110) {
+    const slugWidth = Math.max(18, Math.min(36, width - 82));
     return {
       columns: [
-        { header: 'Slug', width: Math.max(14, width - 36) },
-        { header: 'Size', width: 8, align: 'right' },
-        { header: 'Chunks', width: 6, align: 'right' },
-        { header: 'Crypto', width: 7 },
-        { header: 'Format', width: 9 },
+        { header: 'Slug', width: slugWidth },
+        { header: 'Tree OID', width: 14 },
+        { header: 'Size', width: 10 },
+        { header: 'Chunks', width: 8 },
+        { header: 'Crypto', width: 10 },
+        { header: 'Format', width: 12 },
+        { header: 'State', width: 8 },
       ],
-      indexes: [0, 1, 2, 3, 4],
+      indexes: [0, 1, 2, 3, 4, 5, 6],
     };
   }
-  if (width >= 48) {
+  if (width >= 72) {
+    const slugWidth = Math.max(18, Math.min(34, width - 48));
     return {
       columns: [
-        { header: 'Slug', width: Math.max(14, width - 23) },
-        { header: 'Size', width: 8, align: 'right' },
-        { header: 'Profile', width: 11 },
+        { header: 'Slug', width: slugWidth },
+        { header: 'Size', width: 10 },
+        { header: 'Chunks', width: 8 },
+        { header: 'Crypto', width: 10 },
+        { header: 'State', width: 8 },
       ],
-      indexes: [0, 1, 5],
+      indexes: [0, 2, 3, 4, 6],
     };
   }
   return {
     columns: [
-      { header: 'Slug', width: Math.max(14, width - 12) },
-      { header: 'State', width: 10 },
+      { header: 'Slug', width: Math.max(12, width - 14) },
+      { header: 'State', width: 8 },
     ],
-    indexes: [0, 5],
+    indexes: [0, 6],
   };
 }
 
-/**
- * Clamp a table state to the current pane size and responsive schema.
- *
- * @param {DashModel} model
- * @param {{ width: number, height: number }} size
- * @returns {import('@flyingrobots/bijou-tui').NavigableTableState}
- */
-function tableViewState(model, size) {
-  const schema = tableSchema(size.width);
-  const rows = model.table.rows.map((row) => schema.indexes.map((index) => row[index] ?? ''));
-  const focusRow = Math.max(0, Math.min(model.table.focusRow, rows.length - 1));
-  let scrollY = model.table.scrollY;
-  if (focusRow < scrollY) {
-    scrollY = focusRow;
-  } else if (focusRow >= scrollY + size.height) {
-    scrollY = focusRow - size.height + 1;
-  }
-  return {
-    ...model.table,
-    columns: schema.columns,
-    rows,
-    height: size.height,
-    focusRow,
-    scrollY: Math.min(scrollY, Math.max(0, rows.length - size.height)),
-  };
-}
-
-/**
- * Render the split divider surface.
- *
- * @param {number} height
- * @returns {Surface}
- */
-function renderDividerSurface(height) {
-  return textSurface(Array.from({ length: Math.max(1, height) }, () => '│').join('\n'), 1, Math.max(1, height));
-}
-
-/**
- * Render the explorer list pane.
- *
- * @param {DashModel} model
- * @param {{ width: number, height: number, ctx: BijouContext }} opts
- * @returns {Surface}
- */
-function renderListPane(model, opts) {
-  const innerWidth = Math.max(1, opts.width - 2);
-  const innerHeight = Math.max(1, opts.height - 2);
-  const metaLines = [
-    themeText(opts.ctx, clip(model.filtering ? `filter /${model.filterText}\u2588` : model.filterText ? `filter ${model.filterText}` : 'filter all', innerWidth), { tone: 'accent' }),
-    themeText(opts.ctx, clip(`${model.filtered.length} assets  focus row ${model.table.rows.length ? model.table.focusRow + 1 : 0}`, innerWidth), { tone: 'subdued' }),
-  ];
-  const tableHeight = Math.max(1, innerHeight - metaLines.length);
-
-  if (model.table.rows.length === 0) {
-    metaLines.push(model.status === 'loading'
-      ? themeText(opts.ctx, 'Loading...', { tone: 'info' })
-      : model.error
-      ? themeText(opts.ctx, `Error: ${model.error}`, { tone: 'danger' })
-      : themeText(opts.ctx, 'No entries', { tone: 'subdued' }));
-  } else {
-    const tableText = navigableTable(tableViewState(model, { width: innerWidth, height: tableHeight }), {
-      ctx: opts.ctx,
-      focusIndicator: model.splitPane.focused === 'a' ? '▸' : '·',
-    });
-    metaLines.push(tableText);
-  }
-
-  return boxV3(textSurface(metaLines.join('\n'), innerWidth, innerHeight), {
-    ctx: opts.ctx,
-    title: model.splitPane.focused === 'a' ? 'Entries Ledger *' : 'Entries Ledger',
-    width: opts.width,
-  });
-}
-
-/**
- * Render the explorer detail pane.
- *
- * @param {DashModel} model
- * @param {{ width: number, height: number, ctx: BijouContext }} opts
- * @returns {Surface}
- */
-function renderDetailPane(model, opts) {
-  const innerWidth = Math.max(1, opts.width - 2);
-  const innerHeight = Math.max(1, opts.height - 2);
-  const content = createSurface(innerWidth, innerHeight);
-  const entry = selectedEntry(model);
-
-  if (!entry) {
-    content.blit(textSurface('Select an entry to inspect it.', innerWidth, innerHeight), 0, 0);
-    return boxV3(content, {
-      ctx: opts.ctx,
-      title: model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector',
-      width: opts.width,
-    });
-  }
-
-  const manifest = model.manifestCache.get(entry.slug);
-  const summary = [
-    `${themeText(opts.ctx, 'asset', { tone: 'accent' })} ${themeText(opts.ctx, entry.slug, { tone: 'primary', bold: true })}`,
-    `${themeText(opts.ctx, 'tree', { tone: 'subdued' })}  ${themeText(opts.ctx, `${entry.treeOid.slice(0, 12)}...`, { tone: 'secondary' })}`,
-  ];
-  content.blit(textSurface(summary.join('\n'), innerWidth, Math.min(2, innerHeight)), 0, 0);
-
-  if (!manifest) {
-    const loadingText = entry.slug === model.loadingSlug
-      ? themeText(opts.ctx, 'Loading manifest...', { tone: 'info' })
-      : themeText(opts.ctx, 'Manifest not loaded yet.', { tone: 'subdued' });
-    content.blit(textSurface(loadingText, innerWidth, Math.max(1, innerHeight - 3)), 0, 3);
-    return boxV3(content, {
-      ctx: opts.ctx,
-      title: model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector',
-      width: opts.width,
-    });
-  }
-
-  const manifestBody = renderManifestView({ manifest, ctx: opts.ctx });
-  const manifestLines = Math.max(1, manifestBody.split('\n').length);
-  const manifestSurface = parseAnsiToSurface(manifestBody, innerWidth, manifestLines);
-  const bodyTop = 3;
-  const bodyHeight = Math.max(1, innerHeight - bodyTop);
-  content.blit(manifestSurface, 0, bodyTop, 0, model.detailScroll, innerWidth, bodyHeight);
-
-  return boxV3(content, {
-    ctx: opts.ctx,
-    title: model.splitPane.focused === 'b' ? 'Manifest Inspector *' : 'Manifest Inspector',
-    width: opts.width,
-  });
-}
-
-/**
- * Return the selected ref item from the refs browser.
- *
- * @param {DashModel} model
- * @returns {import('./dashboard-cmds.js').RefInventoryItem | undefined}
- */
-function selectedRef(model) {
-  return model.refsItems[model.refsTable.focusRow];
-}
-
-/**
- * Build human-readable metadata for a ref row.
- *
- * @param {import('./dashboard-cmds.js').RefInventoryItem} item
- * @returns {string}
- */
-function refMetaText(item) {
-  return `${item.namespace}  ${item.resolution}  ${item.entryCount} entries  ${item.oid.slice(0, 12)}`;
-}
-
-/**
- * Wrap and prefix a line collection.
- *
- * @param {string[]} lines
- * @param {string} text
- * @param {{ width: number, prefix?: string }} options
- */
-function pushWrappedText(lines, text, options) {
-  const prefix = options.prefix ?? '';
-  const width = options.width;
-  const wrapped = wrapWhitespaceText(text, Math.max(1, width - prefix.length));
-  for (const line of wrapped) {
-    lines.push(`${prefix}${line}`);
-  }
-}
-
-/**
- * Render the visible lines for one ref row.
- *
- * @param {import('./dashboard-cmds.js').RefInventoryItem} item
- * @param {boolean} focused
- * @param {number} width
- * @returns {string[]}
- */
-function renderRefRowLines(item, focused, width) {
-  const lines = [];
-  pushWrappedText(lines, item.ref, { width, prefix: focused ? '▸ ' : '  ' });
-  pushWrappedText(lines, refMetaText(item), { width, prefix: '  ' });
-  return lines;
-}
-
-/**
- * Render refs-browser status text.
- *
- * @param {DashModel} model
- * @param {number} width
- * @returns {string}
- */
-function renderRefsListStatusBody(model, width) {
-  if (model.refsStatus === 'loading') {
-    return wrapWhitespaceText('Loading refs...', width).join('\n');
-  }
-  if (model.refsStatus === 'error') {
-    return wrapWhitespaceText(`Failed to load refs\n\n${model.refsError ?? 'unknown error'}`, width).join('\n');
-  }
-  return wrapWhitespaceText('No refs found.', width).join('\n');
-}
-
-/**
- * Build a visible refs-list viewport.
- *
- * @param {{ items: import('./dashboard-cmds.js').RefInventoryItem[], focusRow: number, startIndex: number, width: number, height: number, ctx: BijouContext }} options
- * @returns {{ lines: string[], visibleFocus: boolean }}
- */
-function buildRefsViewport(options) {
-  const lines = [themeText(options.ctx, `${options.items.length} refs  focus row ${options.focusRow + 1}`, { tone: 'subdued' })];
-  let visibleFocus = false;
-
-  for (let index = options.startIndex; index < options.items.length; index += 1) {
-    const rowLines = renderRefRowLines(options.items[index], index === options.focusRow, options.width);
-    const needed = rowLines.length + (index > options.startIndex ? 1 : 0);
-    if (lines.length + needed > options.height && lines.length > 1) {
-      break;
-    }
-    if (index > options.startIndex) {
-      lines.push('');
-    }
-    const remaining = Math.max(1, options.height - lines.length);
-    lines.push(...rowLines.slice(0, remaining));
-    if (index === options.focusRow) {
-      visibleFocus = true;
-    }
-    if (lines.length >= options.height) {
-      break;
-    }
-  }
-
-  return { lines, visibleFocus };
-}
-
-/**
- * Render the refs-browser list body with whitespace-aware wrapping.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ width: number, height: number }} size
- * @returns {string}
- */
-function renderRefsListBody(model, deps, size) {
-  if (model.refsStatus !== 'ready') {
-    return renderRefsListStatusBody(model, size.width);
-  }
-
-  const focusRow = Math.max(0, Math.min(model.refsTable.focusRow, model.refsItems.length - 1));
-  let start = Math.max(0, Math.min(model.refsTable.scrollY, model.refsItems.length - 1));
-  let viewport = buildRefsViewport({
-    items: model.refsItems,
-    focusRow,
-    startIndex: start,
-    width: size.width,
-    height: size.height,
-    ctx: deps.ctx,
-  });
-  while (!viewport.visibleFocus && start < focusRow) {
-    start += 1;
-    viewport = buildRefsViewport({
-      items: model.refsItems,
-      focusRow,
-      startIndex: start,
-      width: size.width,
-      height: size.height,
-      ctx: deps.ctx,
-    });
-  }
-
-  return viewport.lines.join('\n');
-}
-
-/**
- * Build ref namespace counts.
- *
- * @param {import('./dashboard-cmds.js').RefInventoryItem[]} refsItems
- * @returns {Map<string, number>}
- */
-function refNamespaceCounts(refsItems) {
-  const counts = new Map();
-  for (const ref of refsItems) {
-    counts.set(ref.namespace, (counts.get(ref.namespace) ?? 0) + 1);
-  }
-  return counts;
-}
-
-/**
- * Append inventory summary lines to the refs sidebar.
- *
- * @param {{ lines: string[], model: DashModel, ctx: BijouContext, width: number, namespaceCounts: Map<string, number> }} options
- */
-function appendRefsInventory(options) {
-  options.lines.push(sectionHeading(options.ctx, 'Inventory', 'brand'));
-  pushWrappedText(
-    options.lines,
-    `refs ${options.model.refsItems.length} under ${options.namespaceCounts.size} namespaces`,
-    { width: options.width },
-  );
-  pushWrappedText(options.lines, `current ${sourceLabel(options.model.source)}`, { width: options.width });
-}
-
-/**
- * Append selected-ref detail lines to the refs sidebar.
- *
- * @param {{ lines: string[], current: import('./dashboard-cmds.js').RefInventoryItem, ctx: BijouContext, width: number }} options
- */
-function appendSelectedRefDetails(options) {
-  options.lines.push('', sectionHeading(options.ctx, 'Selected Ref', 'accent'));
-  pushWrappedText(options.lines, `ref ${options.current.ref}`, { width: options.width });
-  pushWrappedText(
-    options.lines,
-    options.current.detail,
-    { width: options.width },
-  );
-  pushWrappedText(options.lines, `namespace ${options.current.namespace}`, { width: options.width });
-  pushWrappedText(
-    options.lines,
-    `status ${options.current.browsable ? 'browsable' : 'opaque'}  kind ${options.current.resolution}  entries ${options.current.entryCount}`,
-    { width: options.width },
-  );
-  if (options.current.browsable) {
-    options.lines.push('');
-    pushWrappedText(options.lines, 'Press enter to switch source to this ref.', { width: options.width });
-  }
-  options.lines.push('');
-  pushWrappedText(options.lines, `oid ${options.current.oid}`, { width: options.width });
-  if (options.current.previewSlugs.length > 0) {
-    options.lines.push('', sectionHeading(options.ctx, 'Preview', 'info'));
-    for (const slug of options.current.previewSlugs) {
-      pushWrappedText(options.lines, slug, { width: options.width, prefix: '- ' });
-    }
-  }
-}
-
-/**
- * Append namespace summary lines to the refs sidebar.
- *
- * @param {{ lines: string[], namespaceCounts: Map<string, number>, ctx: BijouContext, width: number }} options
- */
-function appendNamespaceSummary(options) {
-  if (options.namespaceCounts.size === 0) {
-    return;
-  }
-  options.lines.push('', sectionHeading(options.ctx, 'Namespaces', 'warning'));
-  for (const [namespace, count] of Array.from(options.namespaceCounts.entries()).slice(0, 8)) {
-    pushWrappedText(options.lines, `${namespace} (${count})`, { width: options.width, prefix: '- ' });
-  }
-}
-
-/**
- * Render the refs-browser detail sidebar.
- *
- * @param {DashModel} model
- * @param {BijouContext} ctx
- * @param {number} width
- * @returns {string}
- */
-function renderRefsDetailBody(model, ctx, width) {
-  const current = selectedRef(model);
-  const namespaceCounts = refNamespaceCounts(model.refsItems);
-
-  const sidebarLines = [];
-  appendRefsInventory({ lines: sidebarLines, model, ctx, width, namespaceCounts });
-
-  if (current) {
-    appendSelectedRefDetails({ lines: sidebarLines, current, ctx, width });
-  } else if (model.refsStatus === 'ready') {
-    sidebarLines.push('');
-    pushWrappedText(sidebarLines, 'Select a ref to inspect it.', { width });
-  }
-
-  appendNamespaceSummary({ lines: sidebarLines, namespaceCounts, ctx, width });
-  return sidebarLines.join('\n');
-}
-
-/**
- * Render the full-screen refs browser.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ top: number, height: number, screen: Surface }} options
- */
-function renderRefsView(model, deps, options) {
-  const maxSidebarWidth = Math.max(22, options.screen.width - 25);
-  const sidebarWidth = Math.min(maxSidebarWidth, Math.max(30, Math.min(46, Math.floor(options.screen.width * 0.35))));
-  const listWidth = Math.max(18, options.screen.width - sidebarWidth - 1);
-  const viewHeight = options.height;
-  const listPanel = renderPanel({
-    title: 'Ref Index',
-    body: renderRefsListBody(model, deps, {
-      width: Math.max(8, listWidth - 2),
-      height: Math.max(4, viewHeight - 2),
-    }),
-    width: listWidth,
-    height: viewHeight,
-    ctx: deps.ctx,
-  });
-  const detailPanel = renderPanel({
-    title: 'Ref Dispatch',
-    body: renderRefsDetailBody(model, deps.ctx, Math.max(8, sidebarWidth - 2)),
-    width: sidebarWidth,
-    height: viewHeight,
-    ctx: deps.ctx,
-  });
-
-  options.screen.blit(listPanel, 0, options.top);
-  options.screen.blit(renderDividerSurface(options.height), listWidth, options.top);
-  options.screen.blit(detailPanel, listWidth + 1, options.top);
-}
-
-/**
- * Render the body content of the treemap map panel.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ mapWidth: number, mapHeight: number }} size
- * @returns {string}
- */
-function renderTreemapMapBody(model, deps, size) {
-  if (model.treemapStatus === 'loading') {
-    return `Loading ${model.treemapScope} treemap...`;
-  }
-  if (model.treemapStatus === 'error') {
-    return `Failed to load treemap\n\n${model.treemapError ?? 'unknown error'}`;
-  }
-  if (model.treemapReport && model.treemapScope === 'source' && model.treemapReport.summary.sourceEntries === 0) {
-    return [
-      'No CAS entries were resolved for the current source.',
-      '',
-      sourceLabel(model.source),
-      '',
-      'Press r to browse refs or T to return to the repository view.',
-    ].join('\n');
-  }
-  if (model.treemapReport) {
-    return renderRepoTreemapMap(model.treemapReport, {
-      ctx: deps.ctx,
-      width: Math.max(8, size.mapWidth - 2),
-      height: Math.max(4, size.mapHeight - 2),
-      selectedTileId: selectedTreemapTile(model)?.id ?? null,
-    });
-  }
-  return 'Treemap has not been loaded yet.';
-}
-
-/**
- * Compose sidebar copy for the full-screen treemap view.
- *
- * @param {{ model: DashModel, deps: DashDeps, width: number, height: number }} options
- * @returns {string}
- */
-function renderTreemapSidebarText(options) {
-  const stateText = treemapSidebarStateText(options.model);
-  if (stateText) {
-    return stateText;
-  }
-  const sections = renderRepoTreemapSidebar(options.model.treemapReport, {
-    ctx: options.deps.ctx,
-    width: Math.max(16, options.width),
-    height: options.height,
-    selectedTileId: selectedTreemapTile(options.model)?.id ?? null,
-  });
-  return composeTreemapSidebarText({
-    sections,
-    ctx: options.deps.ctx,
-    width: options.width,
-    height: options.height,
-  });
-}
-
-/**
- * Render the full-screen treemap view.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ top: number, height: number, screen: Surface }} options
- */
-function renderTreemapView(model, deps, options) {
-  const maxSidebarWidth = Math.max(18, options.screen.width - 17);
-  const sidebarWidth = Math.min(maxSidebarWidth, Math.max(24, Math.min(42, Math.floor(options.screen.width * 0.32))));
-  const mapWidth = Math.max(16, options.screen.width - sidebarWidth - 1);
-  const mapHeight = options.height;
-  const sidebarHeight = options.height;
-
-  const mapTitle = `${model.treemapScope === 'repository' ? 'Repository Atlas' : 'Source Atlas'} · ${treemapLevelLabel(model)}`;
-  const mapPanel = renderPanel({
-    title: mapTitle,
-    body: renderTreemapMapBody(model, deps, { mapWidth, mapHeight }),
-    width: mapWidth,
-    height: mapHeight,
-    ctx: deps.ctx,
-  });
-  const sidebarPanel = renderPanel({
-    title: 'Atlas Briefing',
-    body: renderTreemapSidebarText({
-      model,
-      deps,
-      width: Math.max(8, sidebarWidth - 2),
-      height: Math.max(4, sidebarHeight - 2),
-    }),
-    width: sidebarWidth,
-    height: sidebarHeight,
-    ctx: deps.ctx,
-  });
-
-  options.screen.blit(mapPanel, 0, options.top);
-  options.screen.blit(renderDividerSurface(options.height), mapWidth, options.top);
-  options.screen.blit(sidebarPanel, mapWidth + 1, options.top);
-}
-
-/**
- * Render the footer help surface.
- *
- * @param {DashModel} model
- * @param {BijouContext} ctx
- * @param {number} width
- * @returns {Surface}
- */
-function renderFooterSurface(model, ctx, width) {
-  const lines = model.activeDrawer === 'treemap'
-    ? [
-      shellRule(ctx, width),
-      `${themeText(ctx, 'atlas', { tone: 'accent' })}  ${kbd('j/k', { ctx })} regions  ${kbd('d/u', { ctx })} page  ${kbd('+', { ctx })} descend  ${kbd('-', { ctx })} ascend`,
-      `${themeText(ctx, 'scope', { tone: 'brand' })}  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('r', { ctx })} refs  ${kbd('ctrl+p', { ctx })} palette`,
-      `${themeText(ctx, 'ops', { tone: 'warning' })}  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
-    ]
-    : model.activeDrawer === 'refs'
-      ? [
-        shellRule(ctx, width),
-        `${themeText(ctx, 'index', { tone: 'accent' })}  ${kbd('j/k', { ctx })} refs  ${kbd('d/u', { ctx })} page  ${kbd('enter', { ctx })} switch source`,
-        `${themeText(ctx, 'inspect', { tone: 'brand' })}  ${kbd('t', { ctx })} treemap  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('ctrl+p', { ctx })} palette`,
-        `${themeText(ctx, 'shell', { tone: 'warning' })}  ${kbd('esc', { ctx })} back  ${kbd('q', { ctx })} quit`,
-      ]
-      : [
-      shellRule(ctx, width),
-      `${themeText(ctx, 'browse', { tone: 'accent' })}  ${kbd('j/k', { ctx })} rows  ${kbd('d/u', { ctx })} page  ${kbd('J/K', { ctx })} scroll  ${kbd('enter', { ctx })} inspect`,
-      `${themeText(ctx, 'shell', { tone: 'brand' })}  ${kbd('tab', { ctx })} pane  ${kbd('H/L', { ctx })} resize  ${kbd('ctrl+p', { ctx })} palette`,
-      `${themeText(ctx, 'ops', { tone: 'warning' })}  ${kbd('s', { ctx })} stats  ${kbd('g', { ctx })} doctor  ${kbd('r', { ctx })} refs  ${kbd('t', { ctx })} treemap  ${kbd('T', { ctx })} scope  ${kbd('i', { ctx })} files  ${kbd('esc', { ctx })} close  ${kbd('q', { ctx })} quit`,
-    ];
-  return textSurface(lines.join('\n'), width, 4);
-}
-
-/**
- * Render the body with a split explorer layout.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ top: number, height: number, screen: Surface }} options
- */
-function renderBody(model, deps, options) {
-  if (model.activeDrawer === 'treemap') {
-    renderTreemapView(model, deps, options);
-    return;
-  }
-  if (model.activeDrawer === 'refs') {
-    renderRefsView(model, deps, options);
-    return;
-  }
-  const layout = splitPaneLayout(model.splitPane, {
-    direction: 'row',
-    width: model.columns,
-    height: options.height,
-    minA: SPLIT_MIN_LIST_WIDTH,
-    minB: SPLIT_MIN_DETAIL_WIDTH,
-    dividerSize: SPLIT_DIVIDER_SIZE,
-  });
-  const listPane = renderListPane(model, { width: layout.paneA.width, height: layout.paneA.height, ctx: deps.ctx });
-  const detailPane = renderDetailPane(model, { width: layout.paneB.width, height: layout.paneB.height, ctx: deps.ctx });
-  options.screen.blit(listPane, layout.paneA.col, options.top + layout.paneA.row);
-  options.screen.blit(renderDividerSurface(layout.divider.height), layout.divider.col, options.top + layout.divider.row);
-  options.screen.blit(detailPane, layout.paneB.col, options.top + layout.paneB.row);
-}
-
-/**
- * Render any active operator overlays over the dashboard body.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ top: number, height: number, screen: Surface }} options
- * @returns {void}
- */
-function renderOverlays(model, deps, options) {
-  const drawer = renderDrawerSurface(model, {
-    width: options.screen.width,
-    height: options.height,
-    ctx: deps.ctx,
-  });
-  if (drawer) {
-    options.screen.blit(drawer, Math.max(0, options.screen.width - drawer.width), options.top);
-  }
-
-  const palette = renderPaletteSurface(model, {
-    width: options.screen.width,
-    height: options.height,
-    ctx: deps.ctx,
-  });
-  if (palette) {
-    const x = Math.max(0, Math.floor((options.screen.width - palette.width) / 2));
-    const y = options.top + Math.max(0, Math.floor((options.height - palette.height) / 3));
-    options.screen.blit(palette, x, y);
-  }
-
-  renderToastStack(model, deps, options);
-}
-
-/**
- * Render the full dashboard explorer layout.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {Surface}
- */
 export function renderDashboard(model, deps) {
+  if (model.phase === 'title' || model.phase === 'password') {
+    return renderTitleScreen(model, deps);
+  }
+
   const width = Math.max(1, model.columns);
   const height = Math.max(1, model.rows);
-  const screen = createSurface(width, height);
-  const header = renderHeaderSurface(model, deps);
+  const screen = createSurface(width, height, { char: ' ', bg: BG });
+  const header = renderHeaderSurface(model, deps, width);
   const footer = renderFooterSurface(model, deps.ctx, width);
-  const bodyTop = header.height;
   const bodyHeight = Math.max(1, height - header.height - footer.height);
+  const body = renderBody(model, deps, { width: Math.max(1, width - 1), height: bodyHeight });
 
-  screen.blit(header, 0, 0);
-  renderBody(model, deps, { top: bodyTop, height: bodyHeight, screen });
-  renderOverlays(model, deps, { top: bodyTop, height: bodyHeight, screen });
-  screen.blit(footer, 0, Math.max(0, height - footer.height));
-
+  screen.blit(vstackSurface(header, hstackSurface(0, verticalRail(deps.ctx, bodyHeight), body), footer), 0, 0);
+  renderOverlays(model, deps, { screen, width, height });
   return screen;
+}
+
+function renderTitleScreen(model, deps) {
+  const { columns: width, rows: height } = model;
+  const screen = createSurface(width, height, { char: ' ', bg: BG });
+  const { ctx } = deps;
+  const innerW = Math.min(56, width);
+
+  screen.blit(canvas(width, height, organicFlowShader, {
+    time: (model.titleTimeMs ?? 0) / 1000,
+    resolution: 'braille',
+    uniforms: { entryCount: model.vaultEntryCount, width, height },
+  }), 0, 0);
+
+  if (model.showPerfHud) {
+    const fpsText = ` ${model.fps} FPS `;
+    const hud = parseAnsiToSurface(fpsText, fpsText.length, 1);
+    hud.fill({ char: ' ', bg: '#000000', fg: '#ffffff' });
+    screen.blit(hud, 0, 0);
+  }
+
+  const surfaces = titlePanelSurfaces(model, ctx, innerW);
+
+  const titlePanel = boxSurface(vstackSurface(...surfaces), {
+    width: innerW + 4,
+    padding: { left: 2, right: 2, top: 1, bottom: 1 },
+    ctx,
+    borderToken: ctx.theme.theme.border.primary,
+    bgToken: ctx.theme.theme.surface.overlay,
+  });
+  screen.blit(titlePanel, Math.max(0, Math.floor((width - titlePanel.width) / 2)), Math.max(0, Math.floor((height - titlePanel.height) / 3)));
+  return screen;
+}
+
+function titlePanelSurfaces(model, ctx, width) {
+  const heading = [
+    textSurface(themeText(ctx, 'git-cas', { tone: 'brand', bold: true }), width, 1),
+    textSurface(themeText(ctx, 'content-addressable storage', { tone: 'secondary' }), width, 1),
+    createSurface(1, 1),
+  ];
+  return model.phase === 'title'
+    ? heading.concat(titlePhaseSurfaces(model, ctx, width))
+    : heading.concat(passwordPhaseSurfaces(model, ctx, width));
+}
+
+function titlePhaseSurfaces(model, ctx, width) {
+  const status = model.promptEnter ? 'Vault is ready.' : 'Checking vault...';
+  const tone = model.promptEnter ? 'success' : 'subdued';
+  const surfaces = [textSurface(themeText(ctx, status, { tone }), width, 1)];
+  if (model.promptEnter) {
+    surfaces.push(createSurface(1, 1), textSurface(themeText(ctx, 'enter to continue  |  escape to quit', { tone: 'subdued' }), width, 1));
+  }
+  return surfaces;
+}
+
+function passwordPhaseSurfaces(model, ctx, width) {
+  const mask = '•'.repeat(model.passphrase.length);
+  const surfaces = [
+    textSurface(themeText(ctx, 'Vault is encrypted. Enter passphrase to unlock.', { tone: 'warning' }), width, 1),
+    createSurface(1, 1),
+    hstackSurface(1, createSurface(2, 1), textSurface(themeText(ctx, 'Passphrase:', { tone: 'accent' }), 11, 1), textSurface(`${mask}█`, Math.max(1, width - 14), 1)),
+  ];
+  if (model.authError) {
+    surfaces.push(createSurface(1, 1), hstackSurface(1, createSurface(2, 1), textSurface(themeText(ctx, model.authError, { tone: 'danger' }), Math.max(1, width - 3), 1)));
+  }
+  surfaces.push(createSurface(1, 1), textSurface(themeText(ctx, 'enter to unlock  |  escape to quit', { tone: 'subdued' }), width, 1));
+  return surfaces;
+}
+
+function renderBody(model, deps, options) {
+  if (model.workspace === 'atlas') { return renderAtlasWorkspace(model, deps, options); }
+  if (model.workspace === 'operations') { return renderOperationsWorkspace(model, deps, options); }
+  return renderExplorerWorkspace(model, deps, options);
+}
+
+function renderExplorerWorkspace(model, deps, options) {
+  if (options.width < 88) {
+    const ledgerHeight = Math.max(8, Math.floor(options.height * 0.52));
+    const detailHeight = Math.max(4, options.height - ledgerHeight - 1);
+    return vstackSurface(
+      renderLedgerPanel(model, deps.ctx, { width: options.width, height: ledgerHeight }),
+      blank(options.width, 1),
+      renderInspectorPanel(model, deps.ctx, { width: options.width, height: detailHeight }),
+    );
+  }
+  const gap = 2;
+  const ledgerWidth = Math.max(36, Math.floor(options.width * 0.47));
+  const inspectorWidth = Math.max(24, options.width - ledgerWidth - gap);
+  return hstackSurface(
+    gap,
+    renderLedgerPanel(model, deps.ctx, { width: ledgerWidth, height: options.height }),
+    renderInspectorPanel(model, deps.ctx, { width: inspectorWidth, height: options.height }),
+  );
+}
+
+function renderLedgerPanel(model, ctx, box) {
+  const { width, height } = box;
+  const schema = tableSchema(Math.max(20, width - 2));
+  const projectedRows = model.table.rows.map((row) => schema.indexes.map((index) => row[index] ?? ''));
+  const tableSurface = navigableTableSurface({
+    columns: schema.columns,
+    rows: projectedRows,
+    focusRow: model.table.focusRow,
+    scrollY: model.table.scrollY,
+    height: Math.max(1, height - 5),
+  }, { ctx });
+  return panel({ title: 'Asset Ledger', body: tableSurface, width, height, ctx, active: model.focusPane === 'ledger' });
+}
+
+function selectedEntry(model) {
+  return model.filtered[Math.min(model.table.focusRow, Math.max(0, model.filtered.length - 1))] ?? null;
+}
+
+function manifestData(manifest) {
+  return manifest?.toJSON ? manifest.toJSON() : manifest;
+}
+
+function selectedManifest(model) {
+  const entry = selectedEntry(model);
+  return entry ? manifestData(model.manifestCache.get(entry.slug)) : null;
+}
+
+function selectedChunk(model) {
+  const chunks = selectedManifest(model)?.chunks ?? [];
+  const index = Math.max(0, Math.min(model.chunkFocus ?? 0, Math.max(0, chunks.length - 1)));
+  return chunks[index] ?? null;
+}
+
+function selectedShaFooter(model) {
+  if (model.workspace !== 'explorer' || model.focusPane !== 'detail') { return null; }
+  const chunk = selectedChunk(model);
+  if (!chunk) { return null; }
+  const digest = shortShaStatus('digest', chunk.digest);
+  const blob = shortShaStatus('blob', chunk.blob);
+  return [`#${chunk.index}`, digest, blob].filter(Boolean).join('  ');
+}
+
+function renderInspectorPanel(model, ctx, box) {
+  const { width, height } = box;
+  const entry = selectedEntry(model);
+  const manifest = selectedManifest(model);
+  if (!entry) {
+    return panel({ title: 'Inspector', body: 'No asset selected.', width, height, ctx, active: model.focusPane === 'detail' });
+  }
+  if (model.explorerMode === 'merkle') {
+    return panel({
+      title: `Merkle Lens [${model.merkleMode}]`,
+      body: renderMerkleBody({ model, manifest, ctx, box: { width, height } }),
+      width,
+      height,
+      ctx,
+      active: model.focusPane === 'detail',
+    });
+  }
+  if (model.explorerMode === 'manifest') {
+    const body = manifest
+      ? renderManifestDetail({ model, manifest, ctx, box: { width, height } })
+      : `Loading manifest for ${entry.slug}...\n${entry.treeOid}`;
+    return panel({ title: 'Manifest Ledger', body, width, height, ctx, active: model.focusPane === 'detail' });
+  }
+  return panel({ title: 'Inspector', body: renderInspectorBody(entry, manifest, ctx), width, height, ctx, active: model.focusPane === 'detail' });
+}
+
+function renderInspectorBody(entry, manifest, ctx) {
+  const lines = [
+    `${themeText(ctx, 'slug', { tone: 'accent' })}       ${entry.slug}`,
+    `${themeText(ctx, 'tree', { tone: 'accent' })}       ${entry.treeOid}`,
+  ];
+  if (!manifest) {
+    lines.push('', themeText(ctx, 'manifest pending', { tone: 'subdued' }));
+    return lines.join('\n');
+  }
+  lines.push(
+    `${themeText(ctx, 'size', { tone: 'accent' })}       ${formatSize(manifest.size)}`,
+    `${themeText(ctx, 'chunks', { tone: 'accent' })}     ${manifest.chunks?.length ?? 0}`,
+    `${themeText(ctx, 'crypto', { tone: 'accent' })}     ${manifest.encryption ? 'encrypted' : 'plaintext'}`,
+    `${themeText(ctx, 'compress', { tone: 'accent' })}   ${manifest.compression?.algorithm ?? 'none'}`,
+    `${themeText(ctx, 'format', { tone: 'accent' })}     ${manifest.formatVersion ?? manifest.version ?? '-'}`,
+    '',
+    themeText(ctx, 'enter detail  |  tab detail focus  |  ctrl+p digest search', { tone: 'subdued' }),
+  );
+  return lines.join('\n');
+}
+
+function pageSizeForDetail(height) {
+  return Math.max(1, height - 15);
+}
+
+function renderManifestDetail({ model, manifest, ctx, box }) {
+  const chunks = manifest.chunks ?? [];
+  const lines = [
+    themeText(ctx, 'Asset', { tone: 'accent', bold: true }),
+    `${themeText(ctx, 'slug', { tone: 'accent' })}       ${manifest.slug ?? '-'}`,
+    `${themeText(ctx, 'filename', { tone: 'accent' })}   ${manifest.filename ?? '-'}`,
+    `${themeText(ctx, 'size', { tone: 'accent' })}       ${formatSize(manifest.size)}`,
+    `${themeText(ctx, 'crypto', { tone: 'accent' })}     ${manifest.encryption ? 'encrypted' : 'plaintext'}`,
+    `${themeText(ctx, 'chunks', { tone: 'accent' })}     ${chunks.length}`,
+    '',
+    themeText(ctx, `Chunk Ledger (${chunks.length})`, { tone: 'info', bold: true }),
+  ];
+  if (chunks.length === 0) { return lines.concat('No chunks.').join('\n'); }
+  return lines.concat(renderChunkTable(manifest, ctx, {
+    selectedIndex: Math.min(model.chunkFocus ?? 0, chunks.length - 1),
+    pageSize: pageSizeForDetail(box.height),
+    width: Math.max(24, box.width - 4),
+  })).join('\n');
+}
+
+function renderMerkleBody({ model, manifest, ctx, box }) {
+  if (!manifest) { return 'No manifest loaded.'; }
+  const tabs = ['table', 'tree', 'dag']
+    .map((item) => item === model.merkleMode ? `[${item}]` : ` ${item} `)
+    .join(' ');
+  if (model.merkleMode !== 'table') {
+    return `${themeText(ctx, tabs, { tone: 'accent' })}\n\n${renderMerkleExplorer(manifest, model.merkleMode, ctx)}`;
+  }
+  return `${themeText(ctx, tabs, { tone: 'accent' })}\n\n${renderChunkTable(manifest, ctx, {
+    selectedIndex: Math.min(model.chunkFocus ?? 0, (manifest.chunks?.length ?? 1) - 1),
+    pageSize: pageSizeForDetail(box.height),
+    width: Math.max(24, box.width - 4),
+  })}`;
+}
+
+function renderAtlasWorkspace(model, deps, options) {
+  const gap = options.width >= 76 ? 2 : 1;
+  const sidebarWidth = Math.min(44, Math.max(28, Math.floor(options.width * 0.34)));
+  const mapWidth = Math.max(20, options.width - sidebarWidth - gap);
+  if (!model.treemapReport) {
+    const body = model.treemapStatus === 'error'
+      ? `Atlas unavailable\n\n${model.treemapError}`
+      : 'Loading repository atlas...';
+    return panel({ title: 'Repository Atlas', body, width: options.width, height: options.height, ctx: deps.ctx });
+  }
+  const selected = model.treemapReport.tiles?.[model.treemapFocus]?.id ?? null;
+  const map = renderRepoTreemapMap(model.treemapReport, {
+    ctx: deps.ctx,
+    width: Math.max(12, mapWidth - 2),
+    height: Math.max(4, options.height - 2),
+    selectedTileId: selected,
+  });
+  const sidebar = renderRepoTreemapSidebar(model.treemapReport, {
+    ctx: deps.ctx,
+    width: Math.max(16, sidebarWidth - 2),
+    height: Math.max(4, options.height - 2),
+    selectedTileId: selected,
+  });
+  const briefing = [
+    themeText(deps.ctx, 'Overview', { tone: 'accent', bold: true }),
+    sidebar.overview,
+    '',
+    themeText(deps.ctx, 'Focused Region', { tone: 'accent', bold: true }),
+    sidebar.focused,
+    '',
+    themeText(deps.ctx, 'Legend', { tone: 'accent', bold: true }),
+    sidebar.legend,
+    '',
+    themeText(deps.ctx, 'Largest Regions', { tone: 'accent', bold: true }),
+    sidebar.regions,
+    '',
+    sidebar.notes,
+  ].filter(Boolean).join('\n');
+  return hstackSurface(
+    gap,
+    panel({ title: 'Repository Atlas', body: map, width: mapWidth, height: options.height, ctx: deps.ctx }),
+    panel({ title: 'Atlas Briefing', body: briefing, width: sidebarWidth, height: options.height, ctx: deps.ctx }),
+  );
+}
+
+function renderOperationsWorkspace(model, deps, options) {
+  if (options.width < 100) {
+    const topHeight = Math.max(8, Math.floor(options.height / 2));
+    return vstackSurface(
+      renderEconomicsPanel(model, deps.ctx, { width: options.width, height: topHeight }),
+      renderOpsDetailPanel(model, deps.ctx, { width: options.width, height: Math.max(4, options.height - topHeight) }),
+    );
+  }
+  const gap = 2;
+  const leftWidth = Math.max(30, Math.floor((options.width - gap) * 0.42));
+  const rightWidth = Math.max(30, options.width - leftWidth - gap);
+  return hstackSurface(
+    gap,
+    renderEconomicsPanel(model, deps.ctx, { width: leftWidth, height: options.height }),
+    renderOpsDetailPanel(model, deps.ctx, { width: rightWidth, height: options.height }),
+  );
+}
+
+function renderEconomicsPanel(model, ctx, box) {
+  const { width, height } = box;
+  const body = model.statsStatus === 'ready' && model.statsReport
+    ? renderStats(model.statsReport, ctx)
+    : `${themeText(ctx, 'Vault Economics', { tone: 'brand', bold: true })}\n\nStats are ${model.statsStatus}. Press s to refresh.`;
+  return panel({ title: 'Vault Economics', body, width, height, ctx });
+}
+
+function renderStats(stats, ctx) {
+  const chunking = Object.entries(stats.chunkingStrategies ?? {})
+    .map(([strategy, count]) => `${strategy}:${count}`)
+    .join(', ') || '-';
+  return [
+    `${themeText(ctx, 'entries', { tone: 'accent' })}          ${stats.entries}`,
+    `${themeText(ctx, 'logical size', { tone: 'accent' })}     ${formatSize(stats.totalLogicalSize)}`,
+    `${themeText(ctx, 'chunk refs', { tone: 'accent' })}       ${stats.totalChunkRefs}`,
+    `${themeText(ctx, 'unique chunks', { tone: 'accent' })}    ${stats.uniqueChunks}`,
+    `${themeText(ctx, 'duplicate refs', { tone: 'accent' })}   ${stats.duplicateChunkRefs}`,
+    `${themeText(ctx, 'dedup ratio', { tone: 'accent' })}      ${stats.dedupRatio.toFixed(2)}x`,
+    `${themeText(ctx, 'encrypted', { tone: 'accent' })}        ${stats.encryptedEntries}`,
+    `${themeText(ctx, 'compressed', { tone: 'accent' })}       ${stats.compressedEntries}`,
+    `${themeText(ctx, 'chunking', { tone: 'accent' })}         ${chunking}`,
+  ].join('\n');
+}
+
+function renderOpsDetailPanel(model, ctx, box) {
+  const { width, height } = box;
+  const doctor = model.doctorStatus === 'ready' && model.doctorReport
+    ? (typeof model.doctorReport === 'string' ? model.doctorReport : renderHealthDashboard(model.doctorReport, ctx))
+    : `Doctor status: ${model.doctorStatus}\nPress x to run a sweep.`;
+  const feed = renderOperationFeed(model.operationFeed, ctx);
+  return panel({
+    title: 'Operations Deck',
+    body: `${doctor}\n\n${themeText(ctx, 'Operation Feed', { tone: 'accent', bold: true })}\n${feed}`,
+    width,
+    height,
+    ctx,
+  });
+}
+
+function renderOverlays(model, deps, options) {
+  if (model.settingsOpen) {
+    blitOverlay(options.screen, renderSettingsDrawer(model, deps, options));
+  }
+  if (model.palette) {
+    const width = Math.min(84, Math.max(24, options.width - 6));
+    const palette = panel({
+      title: 'Command Palette',
+      body: commandPaletteSurface(model.palette, { width: width - 2, ctx: deps.ctx, showScrollbar: true }),
+      width,
+      height: Math.min(14, options.height - 4),
+      ctx: deps.ctx,
+    });
+    options.screen.blit(palette, centerX(options.width, palette.width), topThirdY(options.height, palette.height));
+  }
+  if (model.showHelp) {
+    const help = renderHelpSurface(model, deps.ctx, { width: Math.min(HELP_WIDTH, options.width - 4), height: Math.min(20, options.height - 4) });
+    options.screen.blit(help, centerX(options.width, help.width), topThirdY(options.height, help.height));
+  }
+  if (model.storeWizard) {
+    const wizard = renderWizardSurface(model.storeWizard, { width: options.width, height: options.height, ctx: deps.ctx });
+    options.screen.blit(wizard, centerX(options.width, wizard.width), topThirdY(options.height, wizard.height));
+  }
+  if (model.quitConfirm) {
+    blitOverlay(options.screen, modal({
+      title: 'Quit git-cas?',
+      body: 'Leave the cockpit session now?',
+      hint: 'Y / Enter confirm  |  N / Esc cancel',
+      width: Math.min(52, options.width - 4),
+      screenWidth: options.width,
+      screenHeight: options.height,
+      borderToken: deps.ctx.theme.theme.border.warning,
+      bgToken: deps.ctx.theme.theme.surface.overlay,
+      ctx: deps.ctx,
+    }));
+  }
+  for (const overlay of renderNotificationStack(model.notifications, {
+    screenWidth: options.width,
+    screenHeight: options.height,
+    ctx: deps.ctx,
+    margin: 1,
+    gap: 1,
+  })) {
+    blitOverlay(options.screen, overlay);
+  }
+}
+
+function vaultStatus(model) {
+  if (model.metadata?.encryption && model.vaultEncryptionKey) { return 'encrypted / unlocked'; }
+  if (model.metadata?.encryption) { return 'encrypted / locked'; }
+  return 'plaintext vault';
+}
+
+function renderSettingsDrawer(model, deps, options) {
+  const { ctx } = deps;
+  const body = [
+    themeText(ctx, 'Cockpit Settings', { tone: 'brand', bold: true }),
+    '',
+    `${themeText(ctx, 'theme', { tone: 'accent' })}        bright cockpit`,
+    `${themeText(ctx, 'workspace', { tone: 'accent' })}    ${model.workspace}`,
+    `${themeText(ctx, 'focus', { tone: 'accent' })}        ${model.focusPane ?? '-'}`,
+    `${themeText(ctx, 'source', { tone: 'accent' })}       ${sourceLabel(model.source)}`,
+    `${themeText(ctx, 'vault', { tone: 'accent' })}        ${vaultStatus(model)}`,
+    `${themeText(ctx, 'short SHA', { tone: 'accent' })}   selected chunk expands in footer`,
+    '',
+    themeText(ctx, 'F2 closes this drawer.', { tone: 'subdued' }),
+  ].join('\n');
+  return drawer({
+    content: body,
+    anchor: 'right',
+    width: Math.min(46, Math.max(28, options.width - 4)),
+    screenWidth: options.width,
+    screenHeight: options.height,
+    title: 'Settings',
+    borderToken: ctx.theme.theme.border.primary,
+    bgToken: ctx.theme.theme.surface.overlay,
+    ctx,
+  });
+}
+
+function renderHelpSurface(model, ctx, box) {
+  const lines = [
+    themeText(ctx, 'Frame', { tone: 'accent', bold: true }),
+    '1/e Explorer     2/a Atlas       3/o Operations',
+    '? Help           F2 Settings     q Quit',
+    'Esc Close overlay',
+    '',
+    themeText(ctx, 'Explorer', { tone: 'accent', bold: true }),
+    'Tab focus        / Filter        Ctrl+P Search digest',
+    'j/k rows/chunks  u/d page        Enter detail',
+    'm Merkle lens    i Inspector mode',
+    '',
+    themeText(ctx, 'Atlas', { tone: 'accent', bold: true }),
+    'j/k focus        + Drill in      - Drill out',
+    't Scope          i Path mode     r Reload',
+    '',
+    themeText(ctx, 'Operations', { tone: 'accent', bold: true }),
+    'n Store wizard   s Stats         x Doctor',
+    '',
+    `Active workspace: ${model.workspace}`,
+  ];
+  return panel({ title: 'Help', body: lines.join('\n'), width: box.width, height: box.height, ctx });
+}
+
+function blitOverlay(screen, overlay) {
+  const surface = overlay.surface ?? textSurface(overlay.content, Math.max(1, overlay.content.split('\n').reduce((max, line) => Math.max(max, line.length), 0)), overlay.content.split('\n').length);
+  screen.blit(surface, overlay.col, overlay.row);
+}
+
+function centerX(containerWidth, overlayWidth) {
+  return Math.max(0, Math.floor((containerWidth - overlayWidth) / 2));
+}
+
+function topThirdY(containerHeight, overlayHeight) {
+  return Math.max(0, Math.floor((containerHeight - overlayHeight) / 3));
 }

@@ -59,8 +59,8 @@ local-only surfaces.
   under `docs/`.
 - [docs/DOCS_CHECKLIST.md](./DOCS_CHECKLIST.md): `KEEP` — maintainer-facing docs
   review checklist belongs under `docs/`.
-- [docs/GUIDE.md](./GUIDE.md): `KEEP` — the long-form tutorial should exist, but
-  under `docs/`, not at the repo root.
+- [GUIDE.md](../GUIDE.md): `KEEP` — the long-form tutorial is still a
+  maintained root guide until a dedicated guide move lands.
 - [docs/ADR-001-vault-in-facade.md](./ADR-001-vault-in-facade.md): `KEEP` —
   accepted architecture decision record; current placement is fine until there
   is a broader ADR collection.
@@ -75,8 +75,8 @@ local-only surfaces.
   process for fresh work.
 - [docs/method/backlog/README.md](./method/backlog/README.md): `KEEP` —
   canonical live backlog index.
-- [docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md](./method/backlog/bad-code/TR_casservice-decomposition-plan.md):
-  `KEEP` — active debt backlog work item.
+- [docs/design/0044-casservice-decomposition-plan](./design/0044-casservice-decomposition-plan/casservice-decomposition-plan.md):
+  `KEEP` — landed design record for the decomposition trajectory.
 - [docs/method/backlog/bad-code/TR_platform-dependency-leaks.md](./method/backlog/bad-code/TR_platform-dependency-leaks.md):
   `KEEP` — active debt backlog work item.
 - [docs/method/legends/README.md](./method/legends/README.md): `KEEP` —

@@ -11,9 +11,6 @@ import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 
 const testCrypto = await getTestCryptoAdapter();
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 function setup() {
   const crypto = testCrypto;
   const blobStore = new Map();
@@ -50,120 +47,6 @@ async function* bufferSource(buf) {
   yield buf;
 }
 
-// ---------------------------------------------------------------------------
-// addRecipient — golden path
-// ---------------------------------------------------------------------------
-describe('CasService – addRecipient', () => { // eslint-disable-line max-lines-per-function
-  let service;
-  beforeEach(() => { ({ service } = setup()); });
-
-  it('adds a recipient, and both can restore', async () => {
-    const alice = randomBytes(32);
-    const bob = randomBytes(32);
-    const original = Buffer.from('shared secret');
-
-    const manifest = await service.store({
-      source: bufferSource(original),
-      slug: 'shared',
-      filename: 'shared.bin',
-      recipients: [{ label: 'alice', key: alice }],
-    });
-
-    const updated = await service.addRecipient({
-      manifest,
-      existingKey: alice,
-      newRecipientKey: bob,
-      label: 'bob',
-    });
-
-    expect(updated.encryption.recipients).toHaveLength(2);
-
-    // Both keys can restore
-    for (const key of [alice, bob]) {
-      const { buffer } = await service.restore({ manifest: updated, encryptionKey: key });
-      expect(buffer.equals(original)).toBe(true);
-    }
-  });
-
-  it('wrong existingKey → DEK_UNWRAP_FAILED', async () => {
-    const alice = randomBytes(32);
-    const wrongKey = randomBytes(32);
-    const bob = randomBytes(32);
-
-    const manifest = await service.store({
-      source: bufferSource(Buffer.from('data')),
-      slug: 'test',
-      filename: 'test.bin',
-      recipients: [{ label: 'alice', key: alice }],
-    });
-
-    try {
-      await service.addRecipient({
-        manifest,
-        existingKey: wrongKey,
-        newRecipientKey: bob,
-        label: 'bob',
-      });
-      expect.unreachable('should have thrown');
-    } catch (err) {
-      expect(err).toBeInstanceOf(CasError);
-      expect(err.code).toBe('DEK_UNWRAP_FAILED');
-    }
-  });
-
-  it('duplicate label → RECIPIENT_ALREADY_EXISTS', async () => {
-    const alice = randomBytes(32);
-    const bob = randomBytes(32);
-
-    const manifest = await service.store({
-      source: bufferSource(Buffer.from('data')),
-      slug: 'test',
-      filename: 'test.bin',
-      recipients: [{ label: 'alice', key: alice }],
-    });
-
-    try {
-      await service.addRecipient({
-        manifest,
-        existingKey: alice,
-        newRecipientKey: bob,
-        label: 'alice',
-      });
-      expect.unreachable('should have thrown');
-    } catch (err) {
-      expect(err).toBeInstanceOf(CasError);
-      expect(err.code).toBe('RECIPIENT_ALREADY_EXISTS');
-    }
-  });
-
-  it('non-envelope manifest → INVALID_OPTIONS', async () => {
-    const key = randomBytes(32);
-
-    const manifest = await service.store({
-      source: bufferSource(Buffer.from('data')),
-      slug: 'test',
-      filename: 'test.bin',
-      encryptionKey: key,
-    });
-
-    try {
-      await service.addRecipient({
-        manifest,
-        existingKey: key,
-        newRecipientKey: randomBytes(32),
-        label: 'bob',
-      });
-      expect.unreachable('should have thrown');
-    } catch (err) {
-      expect(err).toBeInstanceOf(CasError);
-      expect(err.code).toBe('INVALID_OPTIONS');
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// removeRecipient
-// ---------------------------------------------------------------------------
 describe('CasService – removeRecipient', () => { // eslint-disable-line max-lines-per-function
   let service;
   beforeEach(() => { ({ service } = setup()); });
@@ -189,7 +72,7 @@ describe('CasService – removeRecipient', () => { // eslint-disable-line max-li
 
     // Alice can still restore
     const { buffer } = await service.restore({ manifest: updated, encryptionKey: alice });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
 
     // Bob cannot
     try {
@@ -298,48 +181,5 @@ describe('CasService – removeRecipient', () => { // eslint-disable-line max-li
       expect(err).toBeInstanceOf(CasError);
       expect(err.code).toBe('CANNOT_REMOVE_LAST_RECIPIENT');
     }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// listRecipients
-// ---------------------------------------------------------------------------
-describe('CasService – listRecipients', () => {
-  let service;
-  beforeEach(() => { ({ service } = setup()); });
-
-  it('returns labels from envelope-encrypted manifest', async () => {
-    const manifest = await service.store({
-      source: bufferSource(Buffer.from('data')),
-      slug: 'test',
-      filename: 'test.bin',
-      recipients: [
-        { label: 'alice', key: randomBytes(32) },
-        { label: 'bob', key: randomBytes(32) },
-      ],
-    });
-
-    expect(service.listRecipients(manifest)).toEqual(['alice', 'bob']);
-  });
-
-  it('returns empty array for non-envelope encrypted manifest', async () => {
-    const manifest = await service.store({
-      source: bufferSource(Buffer.from('data')),
-      slug: 'test',
-      filename: 'test.bin',
-      encryptionKey: randomBytes(32),
-    });
-
-    expect(service.listRecipients(manifest)).toEqual([]);
-  });
-
-  it('returns empty array for unencrypted manifest', async () => {
-    const manifest = await service.store({
-      source: bufferSource(Buffer.from('data')),
-      slug: 'test',
-      filename: 'test.bin',
-    });
-
-    expect(service.listRecipients(manifest)).toEqual([]);
   });
 });

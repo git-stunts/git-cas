@@ -4,17 +4,17 @@
  */
 export default class CodecPort {
   /**
-   * Encodes data to a Buffer or string.
+   * Encodes data to bytes.
    * @param {Record<string, unknown>} _data - Data to encode.
-   * @returns {Buffer|string}
+   * @returns {Uint8Array}
    */
   encode(_data) {
     throw new Error('Not implemented');
   }
 
   /**
-   * Decodes data from a Buffer or string.
-   * @param {Buffer|string} _buffer - Encoded data to decode.
+   * Decodes data from bytes.
+   * @param {Uint8Array} _buffer - Encoded data to decode.
    * @returns {Record<string, unknown>}
    */
   decode(_buffer) {

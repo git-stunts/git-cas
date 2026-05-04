@@ -5,7 +5,7 @@ vi.mock('../../../bin/ui/context.js', () => ({
   getCliContext: () => makeCtx(),
 }));
 
-const { renderManifestView } = await import('../../../bin/ui/manifest-view.js');
+const { renderManifestView, buildManifestSections } = await import('../../../bin/ui/manifest-view.js');
 
 function makeManifest(overrides = {}) {
   return {
@@ -34,7 +34,7 @@ describe('renderManifestView', () => {
   it('renders chunk table', () => {
     const output = renderManifestView({ manifest: makeManifest() });
     expect(output).toContain('Chunk Ledger (2)');
-    expect(output).toContain('aaaaaaaaaaaa...');
+    expect(output).toContain('aaaaaaaaaaaaaaaa...');
   });
 
   it('renders encryption section', () => {
@@ -58,9 +58,65 @@ describe('renderManifestView', () => {
     expect(output).toContain('merkle');
   });
 
-  it('truncates chunks beyond 20', () => {
+  it('renders all chunks in static manifest output', () => {
     const chunks = Array.from({ length: 30 }, (_, i) => ({ index: i, size: 262144, digest: 'a'.repeat(64), blob: 'b'.repeat(40) }));
     const output = renderManifestView({ manifest: makeManifest({ chunks }) });
     expect(output).toContain('Chunk Ledger (30)');
+    expect(output).toContain('29');
+    expect(output).not.toContain('and 10 more');
+  });
+});
+
+describe('buildManifestSections structure', () => {
+  it('returns metadata section expanded by default', () => {
+    const sections = buildManifestSections({ manifest: makeManifest() });
+    expect(sections[0].title).toBe('Asset Metadata');
+    expect(sections[0].expanded).toBe(true);
+  });
+
+  it('includes only applicable sections', () => {
+    const sections = buildManifestSections({ manifest: makeManifest() });
+    const titles = sections.map((s) => s.title);
+    expect(titles).toContain('Asset Metadata');
+    expect(titles).toContain('Chunk Ledger (2)');
+    expect(titles).not.toContain('Encryption Profile');
+    expect(titles).not.toContain('Compression Profile');
+  });
+
+  it('all sections default to expanded', () => {
+    const enc = { algorithm: 'aes-256-gcm', nonce: 'bm9uY2U=bm9u', tag: 'dGFndGFn', encrypted: true };
+    const sections = buildManifestSections({
+      manifest: makeManifest({ encryption: enc, compression: { algorithm: 'zstd' } }),
+    });
+    for (const section of sections) {
+      expect(section.expanded).toBe(true);
+    }
+  });
+
+  it('section content contains expected data', () => {
+    const sections = buildManifestSections({ manifest: makeManifest() });
+    const metadata = sections.find((s) => s.title === 'Asset Metadata');
+    expect(metadata.content).toContain('test-asset');
+    expect(metadata.content).toContain('photo.jpg');
+  });
+});
+
+describe('buildManifestSections optional sections', () => {
+  it('includes encryption section when manifest is encrypted', () => {
+    const enc = { algorithm: 'aes-256-gcm', nonce: 'bm9uY2U=bm9u', tag: 'dGFndGFn', encrypted: true, kdf: { algorithm: 'pbkdf2', iterations: 100000 } };
+    const sections = buildManifestSections({ manifest: makeManifest({ encryption: enc }) });
+    expect(sections.map((s) => s.title)).toContain('Encryption Profile');
+    expect(sections.find((s) => s.title === 'Encryption Profile').expanded).toBe(true);
+  });
+
+  it('includes compression section when manifest is compressed', () => {
+    const sections = buildManifestSections({ manifest: makeManifest({ compression: { algorithm: 'gzip' } }) });
+    expect(sections.map((s) => s.title)).toContain('Compression Profile');
+  });
+
+  it('includes sub-manifests section when present', () => {
+    const subs = [{ oid: 'aaaa1111bbbb2222', chunkCount: 1000, startIndex: 0 }];
+    const sections = buildManifestSections({ manifest: makeManifest({ subManifests: subs }) });
+    expect(sections.map((s) => s.title)).toContain('Merkle Branches (1)');
   });
 });

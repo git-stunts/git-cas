@@ -58,6 +58,18 @@ describe('16.4: FixedChunker pre-allocated buffer — edge cases', () => {
     const chunker = new FixedChunker({ chunkSize: 64 });
     const chunks = await collect(chunker.chunk(toAsyncIter([Buffer.from([42])])));
     expect(chunks.length).toBe(1);
-    expect(chunks[0]).toEqual(Buffer.from([42]));
+    expect([...chunks[0]]).toEqual([42]);
+  });
+
+  it('accepts Uint8Array source chunks without Buffer.copy', async () => {
+    const chunker = new FixedChunker({ chunkSize: 4 });
+    const input = new Uint8Array([1, 2, 3, 4, 5]);
+
+    const chunks = await collect(chunker.chunk(toAsyncIter([input])));
+
+    expect(chunks.map((chunk) => [...chunk])).toEqual([
+      [1, 2, 3, 4],
+      [5],
+    ]);
   });
 });

@@ -70,6 +70,19 @@ function tempFile(content) {
 }
 
 /**
+ * @param {Uint8Array} actual
+ * @param {Uint8Array} expected
+ */
+function expectBytesEqual(actual, expected) {
+  expect(actual.length).toBe(expected.length);
+  for (let i = 0; i < expected.length; i++) {
+    if (actual[i] !== expected[i]) {
+      throw new Error(`byte mismatch at offset ${i}: expected ${expected[i]}, got ${actual[i]}`);
+    }
+  }
+}
+
+/**
  * Returns chunk entry names from a Git tree listing.
  */
 function chunkEntryNames(entries) {
@@ -134,7 +147,7 @@ describe('plaintext round trip (JSON) – basic', () => {
     const restored = new Manifest(cas.service.codec.decode(manifestBlob));
 
     const { buffer, bytesWritten } = await cas.restore({ manifest: restored });
-    expect(buffer.equals(original)).toBe(true);
+    expectBytesEqual(buffer, original);
     expect(bytesWritten).toBe(original.length);
 
     rmSync(dir, { recursive: true, force: true });
@@ -172,7 +185,7 @@ describe('plaintext round trip (JSON) – chunk boundaries', () => {
     expect(manifest.chunks.length).toBe(1);
 
     const { buffer } = await cas.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expectBytesEqual(buffer, original);
 
     rmSync(dir, { recursive: true, force: true });
   });
@@ -185,7 +198,7 @@ describe('plaintext round trip (JSON) – chunk boundaries', () => {
     expect(manifest.chunks.length).toBe(3);
 
     const { buffer } = await cas.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expectBytesEqual(buffer, original);
 
     rmSync(dir, { recursive: true, force: true });
   });
@@ -214,7 +227,7 @@ describe('encrypted round trip (JSON) – success', () => {
     const restored = new Manifest(cas.service.codec.decode(mBlob));
 
     const { buffer } = await cas.restore({ manifest: restored, encryptionKey: key });
-    expect(buffer.equals(original)).toBe(true);
+    expectBytesEqual(buffer, original);
 
     rmSync(dir, { recursive: true, force: true });
   });
@@ -268,7 +281,7 @@ describe('CBOR codec round trip', () => {
     const restored = new Manifest(casCbor.service.codec.decode(manifestBlob));
 
     const { buffer } = await casCbor.restore({ manifest: restored });
-    expect(buffer.equals(original)).toBe(true);
+    expectBytesEqual(buffer, original);
 
     rmSync(dir, { recursive: true, force: true });
   });
@@ -283,7 +296,7 @@ describe('CBOR codec round trip', () => {
     });
 
     const { buffer } = await casCbor.restore({ manifest, encryptionKey: key });
-    expect(buffer.equals(original)).toBe(true);
+    expectBytesEqual(buffer, original);
 
     rmSync(dir, { recursive: true, force: true });
   });
@@ -351,7 +364,7 @@ describe('repeated chunks — v1 tree emission dedupe + fsck regression', () => 
 
       const restoredManifest = await service.readManifest({ treeOid });
       const { buffer } = await repeatedCas.restore({ manifest: restoredManifest });
-      expect(buffer.equals(original)).toBe(true);
+      expectBytesEqual(buffer, original);
 
       const fsck = runGitFsck();
       expect(fsck.status).toBe(0);
@@ -398,7 +411,7 @@ describe('repeated chunks — Merkle tree emission dedupe + fsck regression', ()
 
       const restoredManifest = await service.readManifest({ treeOid });
       const { buffer } = await repeatedCas.restore({ manifest: restoredManifest });
-      expect(buffer.equals(original)).toBe(true);
+      expectBytesEqual(buffer, original);
 
       const fsck = runGitFsck();
       expect(fsck.status).toBe(0);
@@ -429,7 +442,7 @@ describe('fuzz: 50 file sizes around chunk boundaries', () => {
       const manifest = await cas.storeFile({ filePath, slug: `fuzz-${i}` });
       const { buffer } = await cas.restore({ manifest });
 
-      expect(buffer.equals(original)).toBe(true);
+      expectBytesEqual(buffer, original);
 
       rmSync(dir, { recursive: true, force: true });
     });

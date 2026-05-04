@@ -5,7 +5,7 @@
 export default class GitPersistencePort {
   /**
    * Writes content as a Git blob object.
-   * @param {Buffer|string} _content - Data to store.
+   * @param {Uint8Array} _content - Data to store.
    * @returns {Promise<string>} The Git OID of the stored blob.
    */
   async writeBlob(_content) {
@@ -24,7 +24,7 @@ export default class GitPersistencePort {
   /**
    * Reads a Git blob by its OID.
    * @param {string} _oid - Git object ID.
-   * @returns {Promise<Buffer>} The blob content.
+   * @returns {Promise<Uint8Array>} The blob content.
    */
   async readBlob(_oid) {
     throw new Error('Not implemented');
@@ -35,7 +35,7 @@ export default class GitPersistencePort {
    * Required for hard-limited buffered restore modes. `readBlob()` remains a
    * compatibility fallback for plaintext restore only.
    * @param {string} _oid - Git object ID.
-   * @returns {Promise<AsyncIterable<Buffer>>} The blob byte stream.
+   * @returns {Promise<AsyncIterable<Uint8Array>>} The blob byte stream.
    */
   async readBlobStream(_oid) {
     throw new Error('Not implemented');

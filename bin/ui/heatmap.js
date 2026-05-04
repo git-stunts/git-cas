@@ -2,19 +2,16 @@
  * Chunk heatmap visualization — visual block map of chunks.
  */
 
-import { gradientText } from '@flyingrobots/bijou';
 import { getCliContext } from './context.js';
+import { renderHeatmapGrid } from './blocks/heatmap-block.js';
 
 /**
  * @typedef {import('../../src/domain/value-objects/Manifest.js').ManifestData} ManifestData
  * @typedef {import('../../src/domain/value-objects/Manifest.js').SubManifestRef} SubManifestRef
  */
 
-/** @type {import('@flyingrobots/bijou').GradientStop[]} */
-const GRADIENT_STOPS = [
-  { pos: 0, color: [0, 255, 255] },
-  { pos: 1, color: [255, 0, 255] },
-];
+const HEATMAP_MAX_WIDTH = 60;
+const HEATMAP_MARGIN = 10;
 
 /**
  * Format bytes as human-readable string.
@@ -33,39 +30,6 @@ function formatBytes(bytes) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
   }
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GiB`;
-}
-
-/**
- * Build the block grid string from chunks.
- *
- * @param {ManifestData['chunks']} chunks
- * @param {Set<number>} boundaries
- * @param {number} width
- * @returns {string}
- */
-function buildGrid(chunks, boundaries, width) {
-  let grid = '';
-  let col = 0;
-
-  for (let i = 0; i < chunks.length; i++) {
-    if (boundaries.has(i) && col > 0) {
-      grid += '\n';
-      col = 0;
-    }
-
-    grid += '\u2588';
-    col++;
-
-    if (col >= width) {
-      grid += '\n';
-      col = 0;
-    }
-  }
-
-  if (col > 0) {
-    grid += '\n';
-  }
-  return grid;
 }
 
 /**
@@ -88,33 +52,41 @@ function buildLegend(chunks, subManifests) {
 }
 
 /**
- * Render a chunk heatmap for a manifest.
+ * Collect sub-manifest boundary indices.
+ *
+ * @param {SubManifestRef[]} subManifests
+ * @returns {number[]}
+ */
+function collectBreaks(subManifests) {
+  return subManifests
+    .filter((sm) => sm.startIndex > 0)
+    .map((sm) => sm.startIndex);
+}
+
+/**
+ * Render a chunk heatmap for pre-normalized manifest data.
  *
  * @param {Object} options
- * @param {ManifestData | { toJSON(): ManifestData }} options.manifest - The manifest (Manifest instance or plain ManifestData).
+ * @param {ManifestData} options.manifest - Pre-normalized manifest data.
  * @returns {string}
  */
 export function renderHeatmap({ manifest }) {
   const ctx = getCliContext();
-  const m = /** @type {ManifestData} */ ('toJSON' in manifest ? manifest.toJSON() : manifest);
-  const chunks = m.chunks || [];
+  const chunks = manifest.chunks || [];
 
   if (chunks.length === 0) {
     return 'No chunks to display\n';
   }
 
-  const width = Math.min(60, (ctx.runtime.columns || 80) - 10);
-  const subManifests = m.subManifests || [];
+  const width = Math.min(HEATMAP_MAX_WIDTH, (ctx.runtime.columns || 80) - HEATMAP_MARGIN);
+  const subManifests = manifest.subManifests || [];
+  const breaks = collectBreaks(subManifests);
 
-  const boundaries = new Set();
-  for (const sm of subManifests) {
-    if (sm.startIndex > 0) {
-      boundaries.add(sm.startIndex);
-    }
-  }
-
-  const grid = buildGrid(chunks, boundaries, width);
-  const colored = gradientText(grid, GRADIENT_STOPS, { style: ctx.style });
+  const colored = renderHeatmapGrid(chunks.length, {
+    width,
+    breaks,
+    style: ctx.style,
+  });
   const legend = buildLegend(chunks, subManifests);
 
   return `${colored}\n${legend}\n`;

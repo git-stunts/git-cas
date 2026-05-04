@@ -6,7 +6,8 @@ the root [README.md](../../README.md) when reality changed.
 
 ## Before Tagging
 
-All of the following must pass on the release candidate:
+All of the following must pass on the release candidate. Prefer
+`npm run release:verify` so the release record comes from one command.
 
 1. `npx eslint .`
 2. `npm test`
@@ -20,6 +21,12 @@ All of the following must pass on the release candidate:
 
 Zero tolerance applies here. If any runtime fails, fix the underlying problem
 before continuing.
+
+JSR is the only gate that may be deferred, and only for a documented upstream
+toolchain failure that prevents package validation from starting. In that case,
+run `npm run release:verify -- --skip-jsr`, record the skipped step in the
+release backlog evidence, and keep JSR publication out of the tag workflow
+until the dry-run is healthy again.
 
 ## Release Flow
 

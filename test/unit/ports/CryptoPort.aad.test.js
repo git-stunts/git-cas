@@ -86,7 +86,7 @@ describe.each(adapters)('%s – AAD createEncryptionStream/createDecryptionStrea
 
     const { decrypt } = adapter.createDecryptionStream(key, meta, aad);
     const result = await collect(decrypt(toStream(ciphertext)));
-    expect(result.equals(plaintext)).toBe(true);
+    expect(Buffer.from(result).equals(plaintext)).toBe(true);
   });
 
   it('stream encrypt with AAD -> stream decrypt with different AAD -> fails', async () => {
@@ -123,6 +123,6 @@ describe.each(adapters)('%s – AAD createEncryptionStream/createDecryptionStrea
 
     const { decrypt } = adapter.createDecryptionStream(key, meta);
     const result = await collect(decrypt(toStream(ciphertext)));
-    expect(result.equals(plaintext)).toBe(true);
+    expect(Buffer.from(result).equals(plaintext)).toBe(true);
   });
 });

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT, CURRENT_SCHEMES,
   assertCurrentScheme, isLegacyScheme, schemePipelinePosition,
+  mapToCurrentScheme, isLegacyNoAad,
 } from '../../../../src/domain/encryption/schemes.js';
 
 describe('scheme constants', () => {
@@ -62,5 +63,44 @@ describe('schemePipelinePosition', () => {
 
   it('convergent is post-chunk', () => {
     expect(schemePipelinePosition('convergent')).toBe('post-chunk');
+  });
+});
+
+describe('mapToCurrentScheme', () => {
+  it.each([
+    ['whole-v1', 'whole'],
+    ['whole-v2', 'whole'],
+    ['framed-v1', 'framed'],
+    ['framed-v2', 'framed'],
+    ['convergent-v1', 'convergent'],
+  ])('maps "%s" → "%s"', (legacy, current) => {
+    expect(mapToCurrentScheme(legacy)).toBe(current);
+  });
+
+  it('returns null for current schemes', () => {
+    expect(mapToCurrentScheme('whole')).toBeNull();
+    expect(mapToCurrentScheme('framed')).toBeNull();
+    expect(mapToCurrentScheme('convergent')).toBeNull();
+  });
+
+  it('returns null for unknown schemes', () => {
+    expect(mapToCurrentScheme('aes-cbc')).toBeNull();
+  });
+});
+
+describe('isLegacyNoAad', () => {
+  it('returns true for v1 schemes', () => {
+    expect(isLegacyNoAad('whole-v1')).toBe(true);
+    expect(isLegacyNoAad('framed-v1')).toBe(true);
+    expect(isLegacyNoAad('convergent-v1')).toBe(true);
+  });
+
+  it('returns false for v2 schemes', () => {
+    expect(isLegacyNoAad('whole-v2')).toBe(false);
+    expect(isLegacyNoAad('framed-v2')).toBe(false);
+  });
+
+  it('returns false for current schemes', () => {
+    expect(isLegacyNoAad('whole')).toBe(false);
   });
 });

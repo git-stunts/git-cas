@@ -4,7 +4,7 @@
  */
 
 import { statSync } from 'node:fs';
-import { createAnimatedProgressBar } from '@flyingrobots/bijou';
+import { CLEAR_LINE_RETURN, progressBar } from '@flyingrobots/bijou';
 import { getCliContext } from './context.js';
 
 /**
@@ -99,7 +99,7 @@ export function createRestoreProgress({ totalChunks, quiet, ctx: providedCtx }) 
  *
  * @param {{ size: number }} evt
  * @param {TrackerState} state
- * @param {{ ctx: import('@flyingrobots/bijou').BijouContext, totalChunks: number, label: string, bar: { update(pct: number): void } }} deps
+ * @param {{ ctx: import('@flyingrobots/bijou').BijouContext, totalChunks: number, label: string, width: number }} deps
  */
 function handleChunkEvent({ size }, state, deps) {
   if (!state.startTime) { state.startTime = Date.now(); }
@@ -110,10 +110,10 @@ function handleChunkEvent({ size }, state, deps) {
   const throughput = elapsed > 0 ? state.bytesProcessed / elapsed : 0;
   if (deps.ctx.mode === 'interactive') {
     const status = `  ${deps.label} ${state.chunksProcessed}/${deps.totalChunks}  ${formatBytes(throughput)}/s  `;
-    deps.ctx.io.write(`\r\x1b[K${status}`);
-    deps.bar.update(pct);
+    const barStr = progressBar(pct, { width: deps.width, showPercent: false, ctx: deps.ctx });
+    deps.ctx.io.writeError(`${CLEAR_LINE_RETURN}${status}${barStr}`);
   } else if (state.chunksProcessed === 1 || state.chunksProcessed === deps.totalChunks || state.chunksProcessed % 10 === 0) {
-    deps.ctx.io.write(`${deps.label} ${state.chunksProcessed}/${deps.totalChunks}  ${Math.round(pct)}%\n`);
+    deps.ctx.io.writeError(`${deps.label} ${state.chunksProcessed}/${deps.totalChunks}  ${Math.round(pct)}%\n`);
   }
 }
 
@@ -125,24 +125,30 @@ function handleChunkEvent({ size }, state, deps) {
  */
 function createProgressTracker({ ctx, totalChunks, event, label }) {
   const width = Math.min(40, (ctx.runtime.columns || 80) - 30);
-  const bar = createAnimatedProgressBar({ width, showPercent: false, ctx });
   /** @type {TrackerState} */
   const state = { chunksProcessed: 0, bytesProcessed: 0, startTime: null, service: null, handler: null };
-  const deps = { ctx, totalChunks, label, bar };
+  const deps = { ctx, totalChunks, label, width };
 
   return {
     /** @param {Observer} svc */
     attach(svc) {
       state.service = svc;
       state.handler = (/** @type {{ size: number }} */ evt) => handleChunkEvent(evt, state, deps);
-      bar.start();
+      if (ctx.mode === 'interactive') {
+        ctx.io.writeError('\x1b[?25l'); // hide cursor
+        handleChunkEvent({ size: 0 }, state, deps);
+      }
       state.service.on(event, state.handler);
     },
     detach() {
       if (state.service && state.handler) { state.service.removeListener(event, state.handler); }
       const elapsed = state.startTime ? (Date.now() - state.startTime) / 1000 : 0;
       const throughput = elapsed > 0 ? state.bytesProcessed / elapsed : 0;
-      bar.stop(`  ${label} ${state.chunksProcessed}/${totalChunks} done  ${formatBytes(throughput)}/s`);
+      if (ctx.mode === 'interactive') {
+        ctx.io.writeError(`${CLEAR_LINE_RETURN}  ${label} ${state.chunksProcessed}/${totalChunks} done  ${formatBytes(throughput)}/s\n\x1b[?25h`); // show cursor
+      } else {
+        ctx.io.writeError(`${label} ${state.chunksProcessed}/${totalChunks} done\n`);
+      }
     },
   };
 }

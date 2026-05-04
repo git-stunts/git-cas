@@ -6,6 +6,7 @@
  */
 import CasError from '../errors/CasError.js';
 import { prepareKdfOptions, prepareStoredKdfOptions } from '../../helpers/kdfPolicy.js';
+import { decodeBase64, encodeBase64 } from '../encoding/base64.js';
 
 /**
  * Resolves encryption keys for store and restore operations.
@@ -32,7 +33,7 @@ export default class KeyResolver {
 
   /**
    * Validates that passphrase and encryptionKey are not both provided.
-   * @param {Buffer} [encryptionKey]
+   * @param {Uint8Array} [encryptionKey]
    * @param {string} [passphrase]
    * @throws {CasError} INVALID_OPTIONS if both are provided.
    */
@@ -47,14 +48,14 @@ export default class KeyResolver {
 
   /**
    * Wraps a DEK with a KEK using AES-256-GCM.
-   * @param {Buffer} dek - 32-byte data encryption key.
-   * @param {Buffer} kek - 32-byte key encryption key.
+   * @param {Uint8Array} dek - 32-byte data encryption key.
+   * @param {Uint8Array} kek - 32-byte key encryption key.
    * @returns {Promise<{ wrappedDek: string, nonce: string, tag: string }>}
    */
   async wrapDek(dek, kek) {
     const { buf, meta } = await this.#crypto.encryptBuffer(dek, kek);
     return {
-      wrappedDek: buf.toString('base64'),
+      wrappedDek: encodeBase64(buf),
       nonce: meta.nonce,
       tag: meta.tag,
     };
@@ -63,13 +64,13 @@ export default class KeyResolver {
   /**
    * Unwraps a DEK from a recipient entry using the given KEK.
    * @param {{ wrappedDek: string, nonce: string, tag: string }} recipientEntry
-   * @param {Buffer} kek - 32-byte key encryption key.
-   * @returns {Promise<Buffer>} The unwrapped DEK.
+   * @param {Uint8Array} kek - 32-byte key encryption key.
+   * @returns {Promise<Uint8Array>} The unwrapped DEK.
    * @throws {CasError} DEK_UNWRAP_FAILED if decryption fails.
    */
   async unwrapDek(recipientEntry, kek) {
     try {
-      const ciphertext = Buffer.from(recipientEntry.wrappedDek, 'base64');
+      const ciphertext = decodeBase64(recipientEntry.wrappedDek);
       const meta = {
         algorithm: 'aes-256-gcm',
         nonce: recipientEntry.nonce,
@@ -91,9 +92,9 @@ export default class KeyResolver {
    * Resolves the decryption key from a manifest, handling both legacy and
    * envelope (multi-recipient) encrypted manifests.
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @param {Buffer} [encryptionKey]
+   * @param {Uint8Array} [encryptionKey]
    * @param {string} [passphrase]
-   * @returns {Promise<Buffer|undefined>}
+   * @returns {Promise<Uint8Array|undefined>}
    */
   async resolveForDecryption(manifest, encryptionKey, passphrase) {
     KeyResolver.validateKeySourceExclusive(encryptionKey, passphrase);
@@ -115,10 +116,10 @@ export default class KeyResolver {
 
   /**
    * Resolves encryptionKey/passphrase into a key and optional KDF params for store().
-   * @param {Buffer} [encryptionKey]
+   * @param {Uint8Array} [encryptionKey]
    * @param {string} [passphrase]
    * @param {Object} [kdfOptions] - KDF options when using passphrase.
-   * @returns {Promise<{ key: Buffer|undefined, encExtra: Object }>}
+   * @returns {Promise<{ key: Uint8Array|undefined, encExtra: Object }>}
    */
   async resolveForStore(encryptionKey, passphrase, kdfOptions) {
     let kdfParams;
@@ -134,8 +135,8 @@ export default class KeyResolver {
 
   /**
    * Resolves envelope recipients into a DEK and wrapped entries for store().
-   * @param {Array<{label: string, key: Buffer}>} recipients
-   * @returns {Promise<{ key: Buffer, encExtra: { recipients: Array } }>}
+   * @param {Array<{label: string, key: Uint8Array}>} recipients
+   * @returns {Promise<{ key: Uint8Array, encExtra: { recipients: Array } }>}
    * @throws {CasError} INVALID_OPTIONS if recipients is empty, non-array, or has duplicate labels.
    */
   async resolveRecipients(recipients) {
@@ -158,8 +159,8 @@ export default class KeyResolver {
   /**
    * If manifest uses envelope encryption, unwraps the DEK. Otherwise returns key directly.
    * @param {import('../value-objects/Manifest.js').default} manifest
-   * @param {Buffer} key
-   * @returns {Promise<Buffer>}
+   * @param {Uint8Array} key
+   * @returns {Promise<Uint8Array>}
    * @throws {CasError} NO_MATCHING_RECIPIENT if no recipient entry can be unwrapped.
    */
   async resolveKeyForRecipients(manifest, key) {
@@ -192,7 +193,7 @@ export default class KeyResolver {
    * Resolves passphrase to a key for decryption.
    * @param {import('../value-objects/Manifest.js').default} manifest
    * @param {string} passphrase
-   * @returns {Promise<Buffer>}
+   * @returns {Promise<Uint8Array>}
    * @throws {CasError} MISSING_KEY if manifest has no KDF params.
    */
   async #resolvePassphraseForDecryption(manifest, passphrase) {
@@ -209,13 +210,13 @@ export default class KeyResolver {
    * Derives a key from a passphrase using stored KDF params.
    * @param {string} passphrase
    * @param {Object} kdf - KDF params from manifest.encryption.kdf.
-   * @returns {Promise<Buffer>}
+   * @returns {Promise<Uint8Array>}
    */
   async #resolveKeyFromPassphrase(passphrase, kdf) {
     const params = prepareStoredKdfOptions(kdf, { source: 'manifest' });
     const { key } = await this.#crypto.deriveKey({
       passphrase,
-      salt: Buffer.from(kdf.salt, 'base64'),
+      salt: decodeBase64(kdf.salt),
       ...params,
     });
     return key;

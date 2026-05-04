@@ -77,10 +77,17 @@ export const RELEASE_STEPS = [
     testCount: true,
   },
   {
+    id: 'stamp-build',
+    label: 'Build metadata stamp',
+    command: 'pnpm',
+    args: ['run', 'stamp'],
+  },
+  {
     id: 'npm-pack',
     label: 'npm pack dry-run',
     command: 'npm',
-    args: ['pack', '--dry-run'],
+    args: ['pack', '--dry-run', '--json'],
+    requiredFiles: ['build-info.json'],
   },
   {
     id: 'jsr-publish',
@@ -91,7 +98,7 @@ export const RELEASE_STEPS = [
 ];
 
 export class ReleaseVerifyError extends Error {
-  constructor(message, { step, results, summary, version, totalTests } = {}) {
+  constructor(message, { step, results, summary, version, totalTests, skippedSteps } = {}) {
     super(message);
     this.name = 'ReleaseVerifyError';
     this.step = step;
@@ -99,6 +106,7 @@ export class ReleaseVerifyError extends Error {
     this.summary = summary ?? '';
     this.version = version ?? '';
     this.totalTests = totalTests ?? 0;
+    this.skippedSteps = skippedSteps ?? [];
   }
 }
 
@@ -112,17 +120,38 @@ export function extractVitestTestCount(output = '') {
   return match ? Number.parseInt(match[1], 10) : null;
 }
 
-export function renderMarkdownSummary({ version, results, totalTests }) {
+/**
+ * Extract package file paths from `npm pack --json` output.
+ *
+ * @param {string} output
+ * @returns {string[]}
+ */
+export function extractNpmPackFilePaths(output = '') {
+  const normalized = stripAnsi(output).trim();
+  if (!normalized) { return []; }
+  const parsed = JSON.parse(normalized);
+  const packEntries = Array.isArray(parsed) ? parsed : [parsed];
+  return packEntries.flatMap((entry) =>
+    Array.isArray(entry.files)
+      ? entry.files.map((file) => file.path)
+      : []
+  );
+}
+
+export function renderMarkdownSummary({ version, results, totalTests, skippedSteps = [] }) {
   const lines = [
     '## Release Verification Summary',
     '',
     `- Version: \`${version}\``,
     `- Steps passed: ${results.filter((result) => result.passed).length}/${results.length}`,
     `- Total tests observed: ${totalTests}`,
-    '',
-    '| Step | Status | Tests |',
-    '| --- | --- | ---: |',
   ];
+
+  if (skippedSteps.length > 0) {
+    lines.push(`- Skipped steps: ${skippedSteps.join(', ')}`);
+  }
+
+  lines.push('', '| Step | Status | Tests |', '| --- | --- | ---: |');
 
   for (const result of results) {
     lines.push(`| ${result.label} | ${result.passed ? 'PASS' : 'FAIL'} | ${result.tests ?? '—'} |`);
@@ -134,14 +163,15 @@ export function renderMarkdownSummary({ version, results, totalTests }) {
 /**
  * Render the report as machine-readable JSON.
  *
- * @param {{ version: string, results: Array<Record<string, any>>, totalTests: number, step?: Record<string, any> }} report
+ * @param {{ version: string, results: Array<Record<string, any>>, totalTests: number, step?: Record<string, any>, skippedSteps?: string[] }} report
  * @returns {string}
  */
-export function renderJsonReport({ version, results, totalTests, step }) {
+export function renderJsonReport({ version, results, totalTests, step, skippedSteps = [] }) {
   return `${JSON.stringify({
     version,
     stepsPassed: results.filter((result) => result.passed).length,
     totalSteps: results.length,
+    skippedSteps,
     totalTests,
     failedStep: step ? { id: step.id, label: step.label } : null,
     results,
@@ -159,6 +189,19 @@ function totalObservedTests(results) {
 }
 
 /**
+ * Select release steps for this run.
+ *
+ * @param {{ skipJsr?: boolean }} [options]
+ * @returns {typeof RELEASE_STEPS}
+ */
+export function releaseStepsFor({ skipJsr = false } = {}) {
+  if (!skipJsr) {
+    return RELEASE_STEPS;
+  }
+  return RELEASE_STEPS.filter((step) => step.id !== 'jsr-publish');
+}
+
+/**
  * Normalize a runner outcome into the release-step shape used by summaries.
  *
  * @param {typeof RELEASE_STEPS[number]} step
@@ -168,14 +211,34 @@ function totalObservedTests(results) {
 function buildStepResult(step, outcome) {
   const combinedOutput = `${outcome.stdout ?? ''}${outcome.stderr ?? ''}`;
   const signal = outcome.signal ?? null;
+  const fileAssertionError = validateRequiredFiles(step, combinedOutput);
   return {
     ...step,
     code: outcome.code,
     signal,
-    passed: outcome.code === 0 && signal === null,
+    passed: outcome.code === 0 && signal === null && fileAssertionError === null,
     tests: step.testCount ? extractVitestTestCount(combinedOutput) : null,
-    errorMessage: outcome.errorMessage ?? null,
+    errorMessage: outcome.errorMessage ?? fileAssertionError,
   };
+}
+
+/**
+ * @param {typeof RELEASE_STEPS[number]} step
+ * @param {string} output
+ * @returns {string|null}
+ */
+function validateRequiredFiles(step, output) {
+  if (!step.requiredFiles) { return null; }
+  try {
+    const paths = new Set(extractNpmPackFilePaths(output));
+    const missing = step.requiredFiles.filter((file) => !paths.has(file));
+    return missing.length === 0
+      ? null
+      : `Package dry-run missing required file(s): ${missing.join(', ')} (run 'pnpm run stamp' to generate build-info.json)`;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return `Could not parse npm pack JSON output: ${message}`;
+  }
 }
 
 /**
@@ -242,48 +305,59 @@ function printStepBanner(step, logger) {
 }
 
 /**
+ * Execute a step and normalize thrown runner errors into step results.
+ *
+ * @param {typeof RELEASE_STEPS[number]} step
+ * @param {{ cwd: string, runner: typeof defaultRunner }} options
+ * @returns {Promise<ReturnType<typeof buildStepResult>>}
+ */
+async function runStep(step, { cwd, runner }) {
+  try {
+    const outcome = await runner(step, { cwd });
+    return buildStepResult(step, outcome);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return buildStepResult(step, {
+      code: 1,
+      signal: null,
+      stdout: '',
+      stderr: `${message}\n`,
+      errorMessage: message,
+    });
+  }
+}
+
+/**
  * Execute the full release checklist and return a Markdown summary.
  *
- * @param {{ cwd?: string, runner?: typeof defaultRunner, logger?: { line: (text?: string) => void } }} [options]
- * @returns {Promise<{ version: string, results: Array<ReturnType<typeof buildStepResult>>, totalTests: number, summary: string }>}
+ * @param {{ cwd?: string, runner?: typeof defaultRunner, logger?: { line: (text?: string) => void }, skipJsr?: boolean }} [options]
+ * @returns {Promise<{ version: string, results: Array<ReturnType<typeof buildStepResult>>, totalTests: number, skippedSteps: string[], summary: string }>}
  */
 export async function runReleaseVerify({
   cwd = DEFAULT_CWD,
   runner = defaultRunner,
   logger = DEFAULT_LOGGER,
+  skipJsr = false,
 } = {}) {
   const version = readVersion(cwd);
   const results = [];
+  const skippedSteps = skipJsr ? ['JSR publish dry-run'] : [];
 
-  for (const step of RELEASE_STEPS) {
+  for (const step of releaseStepsFor({ skipJsr })) {
     printStepBanner(step, logger);
-    let outcome;
-
-    try {
-      outcome = await runner(step, { cwd });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      outcome = {
-        code: 1,
-        signal: null,
-        stdout: '',
-        stderr: `${message}\n`,
-        errorMessage: message,
-      };
-    }
-
-    const result = buildStepResult(step, outcome);
+    const result = await runStep(step, { cwd, runner });
     results.push(result);
 
     if (!result.passed) {
       const totalTests = totalObservedTests(results);
-      const summary = renderMarkdownSummary({ version, results, totalTests });
+      const summary = renderMarkdownSummary({ version, results, totalTests, skippedSteps });
       throw new ReleaseVerifyError(`Release verification failed at ${step.label}`, {
         step: result,
         results,
         summary,
         version,
         totalTests,
+        skippedSteps,
       });
     }
   }
@@ -293,7 +367,8 @@ export async function runReleaseVerify({
     version,
     results,
     totalTests,
-    summary: renderMarkdownSummary({ version, results, totalTests }),
+    skippedSteps,
+    summary: renderMarkdownSummary({ version, results, totalTests, skippedSteps }),
   };
 }
 
@@ -308,14 +383,28 @@ export function resolveOutputFormat(argv = process.argv.slice(2)) {
 }
 
 /**
+ * Resolve release verification behavior from argv.
+ *
+ * @param {string[]} [argv]
+ * @returns {{ skipJsr: boolean }}
+ */
+export function resolveReleaseOptions(argv = process.argv.slice(2)) {
+  return {
+    skipJsr: argv.includes('--skip-jsr'),
+  };
+}
+
+/**
  * CLI entry point for `pnpm release:verify`.
  *
  * @returns {Promise<void>}
  */
 async function main() {
-  const format = resolveOutputFormat();
+  const argv = process.argv.slice(2);
+  const format = resolveOutputFormat(argv);
+  const options = resolveReleaseOptions(argv);
   try {
-    const report = await runReleaseVerify();
+    const report = await runReleaseVerify(options);
     if (format === 'json') {
       process.stdout.write(renderJsonReport(report));
     } else {

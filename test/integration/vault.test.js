@@ -66,6 +66,19 @@ function tempFile(content) {
   return { filePath: fp, dir };
 }
 
+/**
+ * @param {Uint8Array} actual
+ * @param {Uint8Array} expected
+ */
+function expectBytesEqual(actual, expected) {
+  expect(actual.length).toBe(expected.length);
+  for (let i = 0; i < expected.length; i++) {
+    if (actual[i] !== expected[i]) {
+      throw new Error(`byte mismatch at offset ${i}: expected ${expected[i]}, got ${actual[i]}`);
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Vault init
 // ---------------------------------------------------------------------------
@@ -117,7 +130,7 @@ describe('vault store → add → resolve → restore round trip', () => {
   it('restores via readManifest + restore', async () => {
     const manifest = await cas.readManifest({ treeOid });
     const { buffer } = await cas.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expectBytesEqual(buffer, original);
     rmSync(tmpDir, { recursive: true, force: true });
   });
 });

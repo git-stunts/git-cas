@@ -73,14 +73,19 @@ function formatBytes(bytes) {
 }
 
 /**
- * Render aligned key/value pairs without tabs so TUI panels stay stable.
+ * Render aligned key/value pairs with themed labels.
  *
  * @param {Array<[string, string | number]>} pairs
+ * @param {{ themeText?: (text: string, opts: { tone: string }) => string }} [opts]
  * @returns {string[]}
  */
-function renderKeyValueLines(pairs) {
+function renderKeyValueLines(pairs, opts) {
   const labelWidth = pairs.reduce((max, [label]) => Math.max(max, label.length), 0);
-  return pairs.map(([label, value]) => `${label.padEnd(labelWidth)} ${value}`);
+  const fmt = opts?.themeText;
+  return pairs.map(([label, value]) => {
+    const key = fmt ? fmt(label.padEnd(labelWidth), { tone: 'accent' }) : label.padEnd(labelWidth);
+    return `${key}  ${value}`;
+  });
 }
 
 /**

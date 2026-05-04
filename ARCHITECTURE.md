@@ -26,6 +26,28 @@ The same core supports:
 
 Those surfaces are different contracts over one shared core.
 
+## Dependency Direction
+
+```
+Facade (index.js)
+    │
+    ▼
+Domain (src/domain/)
+    │
+    ▼
+Ports (src/ports/)         ← abstract interfaces only
+    ▲
+    │
+Infrastructure (src/infrastructure/)   ← concrete adapters
+```
+
+Dependencies point inward. Domain depends on ports (abstractions). Infrastructure
+implements those ports but is never imported by the domain. The facade wires
+adapters to ports at construction time.
+
+`src/helpers/` contains pure utility functions with no domain or infrastructure
+dependencies. They may be imported by any layer.
+
 ## CAS Pipeline
 
 ```mermaid
@@ -51,9 +73,30 @@ flowchart TD
     Engine --> Persistence
 ```
 
+## Store Pipeline
+
+```
+source → compress? → preChunkTransform? (whole/framed) → chunker → postChunkTransform? (convergent) → persistence
+```
+
+Encryption placement depends on the scheme:
+
+- **whole/framed** — encrypts _before_ chunking (pre-chunk transform)
+- **convergent** — encrypts _after_ chunking (post-chunk transform), using a
+  deterministic per-chunk nonce derived from chunk content
+
+## Restore Pipeline
+
+```
+persistence → verify chunks → postChunkRestore? (convergent) → preChunkRestore? (whole/framed) → decompress? → output
+```
+
+Transforms are unwound in reverse order. Chunk integrity is verified by SHA-256
+digest before any decryption or decompression.
+
 ## Layer Model
 
-### Facade
+### Facade (`index.js`)
 
 The public entrypoint is [index.js](./index.js).
 
@@ -62,89 +105,151 @@ The public entrypoint is [index.js](./index.js).
 - lazily initializes the underlying services
 - selects the appropriate crypto adapter for the current runtime
 - resolves chunking strategy configuration
-- wires persistence, ref, codec, crypto, chunking, and observability adapters
+- wires persistence, ref, codec, crypto, chunking, compression, and
+  observability adapters
 - exposes convenience methods like `storeFile()` and `restoreFile()`
 
 The facade is orchestration glue. It is not the storage engine itself.
 
-### Domain
+### Domain (`src/domain/`)
 
-The domain lives under `src/domain/`.
+#### Services (`src/domain/services/`)
 
-Current key domain pieces:
+- **`CasService`** — primary domain service. Orchestrates the store and restore
+  pipelines, manifest and tree creation, inspection, and recipient/key
+  operations. Delegates key resolution to `KeyResolver` and per-chunk encryption
+  to `ConvergentEncryption`.
 
-- `Manifest` and `Chunk`
-  - value objects that describe stored content and chunk metadata
-- `CasService`
-  - the main content orchestration service
-  - handles store, restore, tree creation, manifest reads, inspection, and
-    recipient/key operations
-- `KeyResolver`
-  - resolves key sources, passphrase-derived keys, and envelope recipient DEK
-    wrapping and unwrapping
-- `VaultService`
-  - manages the GC-safe vault ref and its commit-backed slug index
-- `rotateVaultPassphrase`
-  - coordinates vault-wide passphrase rotation across existing entries
-- `CasError`
-  - the canonical domain error type with stable codes and metadata
+- **`VaultService`** — manages the GC-safe vault ref (`refs/cas/vault`). Owns
+  slug validation, vault initialization, add/update/list/resolve/remove, privacy
+  mode, history-oriented state reads, and compare-and-swap ref updates with
+  retry on conflict.
 
-Public API boundary:
+- **`KeyResolver`** — resolves key sources: passphrase-derived keys via KDF,
+  envelope recipient DEK wrapping and unwrapping. `CasService` delegates all key
+  material resolution through `this.keyResolver`.
 
-- the package entry re-exports `Manifest`, `Chunk`, `CasService`, and
-  `VaultService`
-- `KeyResolver`, `rotateVaultPassphrase`, and `CasError` are internal domain
-  implementation details, even though they are important architectural pieces
+- **`ConvergentEncryption`** — per-chunk deterministic encryption and
+  decryption. Uses content-derived nonces so identical plaintext chunks produce
+  identical ciphertext, preserving deduplication across chunked assets.
 
-`CasService` is still the central orchestration unit for content flows. That is
-current architecture truth, not a future-state claim.
+- **`ManifestDiff`** — pure function for chunk-level manifest comparison.
+  Reports added, removed, and unchanged chunks between two manifests.
 
-### Ports
+- **`PrefetchWindow`** — sliding window that drives ordered parallel chunk reads
+  during restore, keeping downstream consumers fed without unbounded memory
+  growth.
 
-The ports live under `src/ports/`.
+- **`Semaphore`** — concurrency limiter for parallel chunk writes during store.
 
-They define the seams the domain depends on:
+- **`rotateVaultPassphrase`** — coordinates vault-wide passphrase rotation
+  across all existing entries.
 
-- `GitPersistencePort`
-  - blob and tree read/write operations
-- `GitRefPort`
-  - ref resolution, commit creation, and compare-and-swap ref updates
-- `CodecPort`
-  - manifest encoding and decoding
-- `CryptoPort`
-  - hashing, encryption, decryption, random bytes, and KDF operations
-- `ChunkingPort`
-  - strategy interface for fixed-size and content-defined chunking
-- `ObservabilityPort`
-  - metrics, logs, and spans without binding the domain to Node event APIs
+#### Encryption (`src/domain/encryption/`)
 
-### Infrastructure
+- **`schemes.js`** — single source of truth for encryption scheme identifiers:
+  `whole`, `framed`, `convergent`. Legacy scheme identifiers are recognized
+  solely to produce actionable migration error messages.
 
-The infrastructure layer lives under `src/infrastructure/`.
+#### Value Objects (`src/domain/value-objects/`)
 
-Current shipped adapters include:
+- **`Manifest`** — immutable, deep-frozen, schema-validated representation of a
+  stored asset's chunk list and metadata.
+- **`Chunk`** — immutable, schema-validated representation of a single chunk's
+  digest, size, and blob OID.
 
-- `GitPersistenceAdapter`
-- `GitRefAdapter`
-- `NodeCryptoAdapter`
-- `BunCryptoAdapter`
-- `WebCryptoAdapter`
-- `JsonCodec`
-- `CborCodec`
-- `FixedChunker`
-- `CdcChunker`
-- `SilentObserver`
-- `EventEmitterObserver`
-- `StatsCollector`
+#### Schemas (`src/domain/schemas/`)
 
-There are also small adapter helpers such as:
+- **`ManifestSchema`** — Zod schemas for manifest and chunk validation. Used by
+  the value objects and codec layers.
 
-- `createCryptoAdapter`
-  - runtime-adaptive crypto selection
-- `resolveChunker`
-  - chunker construction from config
-- `FileIOHelper`
-  - file-backed convenience helpers for the facade
+#### Errors (`src/domain/errors/`)
+
+- **`CasError`** — structured error type with a stable `code` string and
+  arbitrary `metadata` object. All domain errors flow through this type.
+
+#### Helpers (`src/domain/helpers/`)
+
+- **`buildKdfMetadata`** — assembles KDF parameter metadata for manifest
+  storage.
+- **`scryptMaxmem`** — computes the scrypt memory ceiling for the current
+  platform.
+
+### Ports (`src/ports/`)
+
+Ports define the abstract interfaces the domain depends on. Each port is a class
+with methods that throw "not implemented" by default.
+
+- **`CryptoPort`** — SHA-256 hashing, AES-256-GCM encrypt/decrypt, KDF
+  (scrypt), HMAC, random bytes, and deterministic encryption for convergent
+  mode.
+- **`GitPersistencePort`** — blob read/write, tree read/write, and
+  `readBlobStream` for streaming chunk retrieval.
+- **`GitRefPort`** — ref resolution, commit creation, and compare-and-swap ref
+  updates.
+- **`ChunkingPort`** — strategy interface for fixed-size and content-defined
+  chunking.
+- **`CodecPort`** — manifest serialization and deserialization.
+- **`CompressionPort`** — compress/decompress for both byte arrays and streams.
+- **`ObservabilityPort`** — metrics, logs, and spans without binding the domain
+  to any runtime event API.
+
+### Infrastructure (`src/infrastructure/`)
+
+#### Adapters (`src/infrastructure/adapters/`)
+
+Crypto:
+- **`NodeCryptoAdapter`** — `CryptoPort` backed by `node:crypto`.
+- **`BunCryptoAdapter`** — `CryptoPort` optimized for Bun's native crypto.
+- **`WebCryptoAdapter`** — `CryptoPort` backed by the Web Crypto API (used by
+  Deno and other Web Crypto-capable runtimes).
+- **`createCryptoAdapter`** — factory that selects the appropriate crypto
+  adapter for the detected runtime.
+
+Git:
+- **`GitPersistenceAdapter`** — `GitPersistencePort` implementation using
+  `@git-stunts/plumbing` to shell out to the `git` CLI.
+- **`GitRefAdapter`** — `GitRefPort` implementation using
+  `@git-stunts/plumbing`.
+
+Compression:
+- **`NodeCompressionAdapter`** — `CompressionPort` backed by `node:zlib`.
+
+Observability:
+- **`SilentObserver`** — no-op `ObservabilityPort` (default).
+- **`EventEmitterObserver`** — `ObservabilityPort` that emits Node
+  `EventEmitter` events.
+- **`StatsCollector`** — `ObservabilityPort` that accumulates operation
+  statistics.
+
+File I/O:
+- **`FileIOHelper`** — file-backed convenience helpers (`storeFile`,
+  `restoreFile`) used by the facade.
+
+#### Codecs (`src/infrastructure/codecs/`)
+
+- **`JsonCodec`** — `CodecPort` using JSON serialization (default).
+- **`CborCodec`** — `CodecPort` using CBOR serialization.
+
+#### Chunkers (`src/infrastructure/chunkers/`)
+
+- **`FixedChunker`** — `ChunkingPort` that splits input into fixed-size chunks.
+- **`CdcChunker`** — `ChunkingPort` using content-defined chunking with FastCDC
+  normalization.
+- **`resolveChunker`** — factory that constructs a chunker from configuration.
+
+#### Git Plumbing (`src/infrastructure/createGitPlumbing.js`)
+
+- **`createGitPlumbing`** — creates a configured `@git-stunts/plumbing`
+  instance. Used by both `GitPersistenceAdapter` and `GitRefAdapter`.
+
+### Helpers (`src/helpers/`)
+
+Pure utility functions with no domain or infrastructure coupling:
+
+- **`kdfPolicy.js`** — KDF parameter validation and sensible defaults.
+- **`aesGcmMeta.js`** — AES-GCM metadata validation (IV length, tag length).
+- **`canonicalBase64.js`** — base64 encoding round-trip integrity check.
 
 ## Storage Model
 
@@ -218,55 +323,11 @@ containing:
 - add, update, list, resolve, remove, and history-oriented state reads
 - compare-and-swap ref updates with retry on conflict
 - vault metadata validation
+- privacy mode
 
 Vault metadata can include passphrase-derived encryption configuration and
 related counters, but the vault still fundamentally acts as the durable
 slug-to-tree index for stored assets.
-
-## Core Flows
-
-### Store
-
-The store path looks like this:
-
-1. resolve key source or recipient envelope settings
-2. optionally gzip the input stream
-3. choose a chunking strategy
-4. optionally encrypt the processed stream
-5. write chunk blobs to Git
-6. build a manifest
-7. optionally emit a Git tree and add it to the vault
-
-Important current behavior:
-
-- encryption and recipient envelope setup are mutually exclusive
-- CDC is supported, but encryption removes CDC dedupe benefits because
-  ciphertext is pseudorandom
-- observability ports receive metrics and warnings throughout the flow
-
-### Restore
-
-The restore path:
-
-1. reads a manifest from a tree or receives one directly
-2. resolves decryption key material if needed
-3. reads and verifies chunk blobs by SHA-256 digest
-4. either streams plaintext chunks directly or buffers for decrypt/decompress
-5. returns bytes or writes them to disk through the facade helper
-
-For unencrypted and uncompressed assets, restore can operate as true chunk
-streaming. Encrypted or compressed restores currently use a buffered path with
-explicit size guards.
-
-### Vault Mutation
-
-Vault mutation is separate from the core chunk store.
-
-`VaultService` updates `refs/cas/vault` through compare-and-swap semantics,
-creating a new commit for each successful mutation and retrying on conflicts.
-
-That keeps slug resolution durable across `git gc` while leaving the content
-store itself in ordinary Git objects.
 
 ## Runtime Model
 
@@ -277,34 +338,17 @@ running on Node, Bun, or a Web Crypto-capable environment. Runtime differences
 are isolated in the infrastructure adapters and selected by the facade or CLI
 bootstrapping code.
 
+The core byte contract is `Uint8Array`. Node's `Buffer` may appear inside Node
+adapters because it is a `Uint8Array` subclass, but domain services, ports,
+helpers, chunkers, and codecs do not depend on `Buffer` methods or `node:*`
+imports. `test/unit/docs/platform-boundary.test.js` enforces that boundary.
+
 The repo enforces this with a real Node, Bun, and Deno test matrix.
-
-## Honest Pressure Points
-
-The main architectural pressure point today is `CasService`.
-
-It already benefits from some meaningful extractions:
-
-- `KeyResolver`
-- `VaultService`
-- `rotateVaultPassphrase`
-- chunker and crypto adapter factories
-- file I/O helpers
-
-But it still owns a broad content-orchestration surface:
-
-- store and restore
-- manifest and tree handling
-- lifecycle inspection helpers
-- recipient mutation and key rotation
-
-That is good candidate pressure for future decomposition work, but it is not yet
-a completed architectural split.
 
 ## CasService Decomposition Trajectory
 
-The repo now has an explicit extraction order for `CasService`. The goal is not
-to erase the service as a public entrypoint; the goal is to reduce internal
+The repo has an explicit extraction order for `CasService`. The goal is not to
+erase the service as a public entrypoint; the goal is to reduce internal
 coupling while preserving the public `CasService` facade.
 
 ### 1. Store write coordination

@@ -1,6 +1,6 @@
 # TR — Vault Privacy Mode
 
-Legend: [TR — Truth](../../legends/TR-truth.md)
+Legend: [TR — Truth](../../legends/TR_truth.md)
 
 ## Idea
 

@@ -41,6 +41,10 @@ When using passphrase-based encryption, git-cas derives keys using PBKDF2 or scr
 
 Higher iteration counts / cost parameters increase resistance to brute-force attacks but also increase the time to derive a key. Choose parameters based on your threat model and latency tolerance.
 
+PBKDF2 works across the shipped Node, Bun, and Web Crypto adapters. scrypt
+requires a Node/Bun-compatible crypto adapter; Web Crypto runtimes, including
+the Deno adapter, report an explicit capability error for scrypt.
+
 git-cas now also applies a bounded KDF policy to passphrase-bearing store,
 restore, vault init, and vault rotation flows:
 
@@ -237,9 +241,9 @@ git-cas validates keys before use:
 
 ```javascript
 _validateKey(key) {
-  if (!globalThis.Buffer?.isBuffer(key) && !(key instanceof Uint8Array)) {
+  if (!(key instanceof Uint8Array)) {
     throw new CasError(
-      'Encryption key must be a Buffer or Uint8Array',
+      'Encryption key must be a Uint8Array',
       'INVALID_KEY_TYPE',
     );
   }
@@ -253,16 +257,15 @@ _validateKey(key) {
 }
 ```
 
-**Accepted types**: `Buffer` or `Uint8Array`
+**Accepted type**: `Uint8Array`
 **Required length**: Exactly 32 bytes (256 bits)
 
-The `globalThis.Buffer?.isBuffer` check (rather than `Buffer.isBuffer`) ensures
-the validation works on runtimes where the `Buffer` global may not exist (e.g.,
-Deno with `crypto.subtle`).
+Node `Buffer` values are accepted at the Node boundary because `Buffer` extends
+`Uint8Array`; the core contract is the platform-neutral parent type.
 
 If validation fails:
 
-- **INVALID_KEY_TYPE**: Key is not a Buffer or Uint8Array
+- **INVALID_KEY_TYPE**: Key is not a Uint8Array
 - **INVALID_KEY_LENGTH**: Key is not 32 bytes
 
 ### Key Best Practices
@@ -281,7 +284,7 @@ If validation fails:
 
 When storing content with encryption enabled:
 
-1. Caller provides `source` (async iterable of Buffers), `slug`, `filename`, and `encryptionKey`.
+1. Caller provides `source` (async iterable of `Uint8Array` chunks), `slug`, `filename`, and `encryptionKey`.
 2. git-cas validates the key.
 3. git-cas creates a streaming encryption context with a random nonce.
 4. The source stream is encrypted incrementally.
@@ -306,7 +309,7 @@ if (encryptionKey) {
 }
 ```
 
-- If `encryptionKey` is provided, validate it is a 32-byte Buffer/Uint8Array.
+- If `encryptionKey` is provided, validate it is a 32-byte `Uint8Array`.
 - If validation fails, throw `CasError` with code `INVALID_KEY_TYPE` or `INVALID_KEY_LENGTH`.
 
 **Step 2: Initialize Manifest Data**
@@ -437,14 +440,14 @@ const chunks = await this._readAndVerifyChunks(manifest.chunks);
 **Step 4: Concatenate Encrypted Chunks**
 
 ```javascript
-let buffer = Buffer.concat(chunks);
+let buffer = concatBytes(chunks);
 ```
 
 - All encrypted chunk buffers are concatenated into a single ciphertext buffer.
 
 **CRITICAL**: This operation loads the entire ciphertext into memory. For large files, this may cause memory exhaustion. See [Limitations](#limitations).
 
-**Step 5: Decrypt Buffer**
+**Step 5: Decrypt Bytes**
 
 ```javascript
 if (manifest.encryption?.encrypted) {
@@ -461,11 +464,11 @@ if (manifest.encryption?.encrypted) {
 - Set authentication tag via `setAuthTag()`.
 - Decrypt the ciphertext:
   ```javascript
-  const nonce = Buffer.from(meta.nonce, 'base64');
-  const tag = Buffer.from(meta.tag, 'base64');
+  const nonce = decodeBase64(meta.nonce);
+  const tag = decodeBase64(meta.tag);
   const decipher = createDecipheriv('aes-256-gcm', key, nonce);
   decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(buffer), decipher.final()]);
+  return concatBytes([decipher.update(buffer), decipher.final()]);
   ```
 - If `decipher.final()` throws (due to tag mismatch or corrupted ciphertext), catch and re-throw as `CasError` with code `INTEGRITY_ERROR`.
 
@@ -489,7 +492,7 @@ return { buffer, bytesWritten: buffer.length };
 
 Every chunk (encrypted or unencrypted) is protected by a SHA-256 digest:
 
-- **Digest computation**: When a chunk is stored, `crypto.createHash('sha256').update(buf).digest('hex')` is computed and stored in the manifest.
+- **Digest computation**: When a chunk is stored, its SHA-256 digest is computed and stored in the manifest. (The actual implementation uses the async `CryptoPort.sha256()` abstraction for runtime portability, not a direct `node:crypto` call.)
 - **Digest verification**: When a chunk is read during `restore()` or `verifyIntegrity()`, the digest is recomputed and compared.
 
 ### When Digests Are Verified
@@ -533,13 +536,14 @@ Every chunk (encrypted or unencrypted) is protected by a SHA-256 digest:
 **Issue**: The `whole` scheme concatenates all encrypted chunks into a single buffer before decryption:
 
 ```javascript
-let buffer = Buffer.concat(chunks);
+let buffer = concatBytes(chunks);
 ```
 
 **Impact**:
 
 - For large encrypted files (e.g., 1GB+), this can cause memory exhaustion.
-- Node.js has a maximum buffer size of ~2GB (depending on architecture).
+- JavaScript runtimes have finite typed-array allocation limits, so this path is
+  bounded by `maxRestoreBufferSize`.
 
 **Workaround**:
 
@@ -779,25 +783,25 @@ throw new CasError('Encryption key must be 32 bytes, got 16', 'INVALID_KEY_LENGT
 
 **Thrown when**:
 
-- An encryption key is provided but is not a `Buffer` or `Uint8Array`.
+- An encryption key is provided but is not a `Uint8Array`.
 
 **Example**:
 
 ```javascript
-throw new CasError('Encryption key must be a Buffer or Uint8Array', 'INVALID_KEY_TYPE');
+throw new CasError('Encryption key must be a Uint8Array', 'INVALID_KEY_TYPE');
 ```
 
 **Possible causes**:
 
-- Passing a string instead of a Buffer (e.g., `"my-secret-key"` instead of `Buffer.from("my-secret-key")`).
+- Passing a string instead of decoded bytes.
 - Passing a base64-encoded string without decoding it first.
 
 **Recommended action**:
 
-- Ensure keys are stored as `Buffer` or `Uint8Array`.
+- Ensure keys are stored as `Uint8Array`.
 - If keys are stored as hex/base64 strings, decode them before passing to git-cas:
   ```javascript
-  const key = Buffer.from(keyBase64, 'base64');
+  const key = decodeBase64(keyBase64);
   ```
 
 ### `MISSING_KEY`

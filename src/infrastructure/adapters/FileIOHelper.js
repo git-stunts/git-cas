@@ -17,12 +17,12 @@ import CasError from '../../domain/errors/CasError.js';
  * @param {string} options.filePath - Absolute or relative path to the file.
  * @param {string} options.slug - Logical identifier for the stored asset.
  * @param {string} [options.filename] - Override filename (defaults to basename of filePath).
- * @param {Buffer} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
+ * @param {Uint8Array} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
  * @param {string} [options.passphrase] - Derive encryption key from passphrase.
  * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
  * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
  * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
- * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients.
+ * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients.
  * @returns {Promise<import('../../domain/value-objects/Manifest.js').default>} The resulting manifest.
  */
 export async function storeFile(service, { filePath, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients }) {
@@ -47,7 +47,7 @@ export async function storeFile(service, { filePath, slug, filename, encryptionK
  * @param {import('../../domain/services/CasService.js').default} service - Initialized CasService.
  * @param {Object} options
  * @param {import('../../domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
- * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+ * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
  * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
  * @param {string} options.outputPath - Destination file path.
  * @returns {Promise<{ bytesWritten: number }>}
@@ -83,7 +83,7 @@ export async function restoreFile(service, { manifest, encryptionKey, passphrase
  * stay intact without publishing partial output.
  *
  * @param {import('../../domain/services/CasService.js').default} service
- * @param {{ manifest: import('../../domain/value-objects/Manifest.js').default, outputPath: string, source: AsyncIterable<Buffer>, encryptionMeta?: import('../../domain/value-objects/Manifest.js').EncryptionMeta }} options
+ * @param {{ manifest: import('../../domain/value-objects/Manifest.js').default, outputPath: string, source: AsyncIterable<Uint8Array>, encryptionMeta?: import('../../domain/value-objects/Manifest.js').EncryptionMeta }} options
  * @returns {Promise<{ bytesWritten: number }>}
  */
 async function restoreBufferedFile(service, {

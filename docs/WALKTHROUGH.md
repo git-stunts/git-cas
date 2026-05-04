@@ -83,7 +83,7 @@ import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
 // Point at a Git repository
-const git = new GitPlumbing({ cwd: './my-repo' });
+const git = GitPlumbing.createDefault({ cwd: './my-repo' });
 const cas = new ContentAddressableStore({ plumbing: git });
 
 // Store vacation.jpg under the slug "photos/vacation"
@@ -168,12 +168,13 @@ construction time. If you try to create a `Manifest` with missing or
 malformed fields, an error is thrown immediately.
 
 For encrypted manifests, that validation is intentionally strict: only
-legacy/explicit `whole-v1` and explicit `framed-v1` AES-256-GCM metadata are
-accepted, and malformed nonce/tag or missing `frameBytes` values are rejected
-before restore-time service logic runs.
+`whole` and `framed` AES-256-GCM metadata are accepted, and malformed
+nonce/tag or missing `frameBytes` values are rejected before restore-time
+service logic runs. Legacy scheme identifiers (`whole-v1`, `framed-v1`, etc.)
+are no longer accepted and throw `LEGACY_SCHEME`.
 
 When encryption is used, the manifest gains an additional `encryption` field.
-For `whole-v1`, it looks like this:
+For `whole`, it looks like this:
 
 ```json
 {
@@ -182,7 +183,7 @@ For `whole-v1`, it looks like this:
   "size": 524288,
   "chunks": [ ... ],
   "encryption": {
-    "scheme": "whole-v1",
+    "scheme": "whole",
     "algorithm": "aes-256-gcm",
     "nonce": "base64-encoded-nonce",
     "tag": "base64-encoded-auth-tag",
@@ -256,7 +257,7 @@ use cases, the default is a good balance.
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
-const git = new GitPlumbing({ cwd: './assets-repo' });
+const git = GitPlumbing.createDefault({ cwd: './assets-repo' });
 const cas = new ContentAddressableStore({ plumbing: git });
 
 const manifest = await cas.storeFile({
@@ -318,16 +319,16 @@ specified output path.
 For plaintext assets, this uses `restoreStream()` and writes chunk-by-chunk with
 bounded memory. When the persistence adapter supports `readBlobStream()`, the
 plaintext chunk path prefers that stream-native read seam before falling back
-to `readBlob()` for compatibility. For `whole-v1` and compression-buffered
+to `readBlob()` for compatibility. For `whole` and compression-buffered
 modes, `restoreFile()` now writes through a bounded temp-file path: verified
 bytes flow into whole-object decryption and optional gunzip, then the
 destination is renamed into place only after the pipeline succeeds. For
 generic async byte consumers, `restoreStream()` is still the compatibility
-truth surface: `whole-v1` buffers after chunk verification so it can
-authenticate the full ciphertext as one unit, while `framed-v1` restores
+truth surface: `whole` buffers after chunk verification so it can
+authenticate the full ciphertext as one unit, while `framed` restores
 authenticated plaintext incrementally. If compression is combined with
-`framed-v1`, restore streams through gunzip after frame-by-frame decryption.
-On Web Crypto runtimes, that `whole-v1` decrypt step is still internally
+`framed`, restore streams through gunzip after frame-by-frame decryption.
+On Web Crypto runtimes, that `whole` decrypt step is still internally
 one-shot. The improvement is bounded behavior, not true whole-object streaming.
 
 ```js
@@ -428,32 +429,31 @@ const manifest = await cas.storeFile({
 
 console.log(manifest.encryption);
 // {
-//   scheme: 'framed-v1',
+//   scheme: 'framed',
 //   algorithm: 'aes-256-gcm',
 //   frameBytes: 65536,
 //   encrypted: true
 // }
 ```
 
-New encrypted writes now default to `framed-v1`, which authenticates each
-stored frame independently. The nonce and tag live inside the serialized
-payload rather than as top-level manifest fields, so the manifest records
-`frameBytes` instead.
+New encrypted writes default to `framed`, which authenticates each stored
+frame independently. The nonce and tag live inside the serialized payload
+rather than as top-level manifest fields, so the manifest records `frameBytes`
+instead. When using CDC chunking with encryption, the default is `convergent`.
 
-If you need the older compatibility whole-object format, opt into `whole-v1`
-explicitly:
+If you need the whole-object format, opt into `whole` explicitly:
 
 ```js
 const manifest = await cas.storeFile({
   filePath: './vacation.jpg',
   slug: 'photos/vacation-whole',
   encryptionKey,
-  encryption: { scheme: 'whole-v1' },
+  encryption: { scheme: 'whole' },
 });
 
 console.log(manifest.encryption);
 // {
-//   scheme: 'whole-v1',
+//   scheme: 'whole',
 //   algorithm: 'aes-256-gcm',
 //   nonce: 'dGhpcyBpcyBhIG5vbmNl',
 //   tag: 'YXV0aGVudGljYXRpb24gdGFn',
@@ -461,8 +461,9 @@ console.log(manifest.encryption);
 // }
 ```
 
-Legacy encrypted manifests without a `scheme` field are still treated as
-implicit `whole-v1` during restore for backward compatibility.
+Legacy encrypted manifests with version-suffixed scheme names (e.g.,
+`whole-v1`, `framed-v2`) are no longer accepted and throw `LEGACY_SCHEME`.
+Run `npm run upgrade` to migrate.
 
 ### Encrypted Restore
 
@@ -511,7 +512,7 @@ import { readFileSync } from 'node:fs';
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
-const git = new GitPlumbing({ cwd: './assets-repo' });
+const git = GitPlumbing.createDefault({ cwd: './assets-repo' });
 const cas = new ContentAddressableStore({ plumbing: git });
 const encryptionKey = readFileSync('./vacation.key');
 
@@ -1692,8 +1693,8 @@ appropriate crypto adapter:
 - **Bun**: `BunCryptoAdapter` (uses `Bun.CryptoHasher`)
 - **Deno**: `WebCryptoAdapter` (uses `crypto.subtle`)
 
-Runtime truth: `framed-v1` is the streaming-encrypted mode across all of these.
-For `whole-v1`, Node and Bun provide the stronger low-memory file-restore path,
+Runtime truth: `framed` is the streaming-encrypted mode across all of these.
+For `whole`, Node and Bun provide the stronger low-memory file-restore path,
 while Deno/Web Crypto remains bounded-buffer because AES-GCM decrypt is still a
 one-shot operation there.
 

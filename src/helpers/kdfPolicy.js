@@ -1,5 +1,6 @@
 import CasError from '../domain/errors/CasError.js';
 import { isCanonicalBase64 } from './canonicalBase64.js';
+import { base64DecodedLength } from '../domain/encoding/base64.js';
 
 export const DEFAULT_PBKDF2_ITERATIONS = 600_000;
 export const DEFAULT_SCRYPT_COST = 131_072;
@@ -169,7 +170,7 @@ const MIN_SALT_BYTES = 16;
 
 export function prepareStoredKdfOptions(kdf, { source }) {
   assertCanonicalBase64(kdf.salt, 'salt', source);
-  const saltBytes = Buffer.from(kdf.salt, 'base64').length;
+  const saltBytes = base64DecodedLength(kdf.salt);
   if (saltBytes < MIN_SALT_BYTES) {
     buildPolicyError(
       `${source} KDF salt must be at least ${MIN_SALT_BYTES} bytes, got ${saltBytes}`,

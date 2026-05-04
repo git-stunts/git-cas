@@ -117,7 +117,7 @@ describe('restoreStream – plaintext round-trips', () => {
     const original = randomBytes(3072);
     const manifest = await storeBuffer(service, original);
     const restored = await collectStream(service.restoreStream({ manifest }));
-    expect(restored.equals(original)).toBe(true);
+    expect(Buffer.from(restored).equals(original)).toBe(true);
   });
 
   it('handles 0-byte file', async () => {
@@ -132,7 +132,7 @@ describe('restoreStream – plaintext round-trips', () => {
     const original = randomBytes(512);
     const manifest = await storeBuffer(service, original);
     const restored = await collectStream(service.restoreStream({ manifest }));
-    expect(restored.equals(original)).toBe(true);
+    expect(Buffer.from(restored).equals(original)).toBe(true);
   });
 
   it('handles exact-multiple chunk file', async () => {
@@ -140,7 +140,7 @@ describe('restoreStream – plaintext round-trips', () => {
     const original = randomBytes(2048);
     const manifest = await storeBuffer(service, original);
     const restored = await collectStream(service.restoreStream({ manifest }));
-    expect(restored.equals(original)).toBe(true);
+    expect(Buffer.from(restored).equals(original)).toBe(true);
   });
 });
 
@@ -151,7 +151,7 @@ describe('restoreStream – encrypted / compressed', () => {
     const key = randomBytes(32);
     const manifest = await storeBuffer(service, original, { encryptionKey: key });
     const restored = await collectStream(service.restoreStream({ manifest, encryptionKey: key }));
-    expect(restored.equals(original)).toBe(true);
+    expect(Buffer.from(restored).equals(original)).toBe(true);
   });
 
   it('round-trips framed encrypted file', async () => {
@@ -164,7 +164,7 @@ describe('restoreStream – encrypted / compressed', () => {
     });
 
     const restored = await collectStream(service.restoreStream({ manifest, encryptionKey: key }));
-    expect(restored.equals(original)).toBe(true);
+    expect(Buffer.from(restored).equals(original)).toBe(true);
   });
 
   it('round-trips compressed file', async () => {
@@ -172,7 +172,7 @@ describe('restoreStream – encrypted / compressed', () => {
     const original = Buffer.alloc(4096, 'A');
     const manifest = await storeBuffer(service, original, { compression: { algorithm: 'gzip' } });
     const restored = await collectStream(service.restoreStream({ manifest }));
-    expect(restored.equals(original)).toBe(true);
+    expect(Buffer.from(restored).equals(original)).toBe(true);
   });
 
   it('round-trips encrypted + compressed file', async () => {
@@ -183,7 +183,7 @@ describe('restoreStream – encrypted / compressed', () => {
       encryptionKey: key, compression: { algorithm: 'gzip' },
     });
     const restored = await collectStream(service.restoreStream({ manifest, encryptionKey: key }));
-    expect(restored.equals(original)).toBe(true);
+    expect(Buffer.from(restored).equals(original)).toBe(true);
   });
 });
 
@@ -221,7 +221,7 @@ describe('restoreStream – consistency with restore()', () => {
     const manifest = await storeBuffer(service, original);
     const { buffer } = await service.restore({ manifest });
     const streamed = await collectStream(service.restoreStream({ manifest }));
-    expect(buffer.equals(streamed)).toBe(true);
+    expect(Buffer.from(buffer).equals(streamed)).toBe(true);
   });
 });
 
@@ -262,7 +262,7 @@ describe('restoreStream – framed streaming behavior', () => {
 
     expect(firstResult).not.toBe('timed-out');
     expect(firstResult.done).toBe(false);
-    expect(firstResult.value.equals(firstFrame)).toBe(true);
+    expect(Buffer.from(firstResult.value).equals(firstFrame)).toBe(true);
     expect(readCountRef.count).toBeLessThan(manifest.chunks.length);
 
     gate.resolve();

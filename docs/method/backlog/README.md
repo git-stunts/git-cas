@@ -9,6 +9,8 @@ The lane is the priority:
 - `up-next/` — likely after the current pull
 - `cool-ideas/` — interesting, not committed
 - `bad-code/` — debt that works but bothers us
+- `v6.0.0/` — release gate items (must complete before tag/publish)
+- `v6.x-tui/` — post-6.0 TUI modernization work for the v6 release line
 
 Backlog filenames use legend prefixes when they belong to a named domain and do
 not use numeric IDs.
@@ -27,6 +29,37 @@ not use numeric IDs.
 
 - none currently
 
+### `v6.0.0/` (release gate)
+
+Active:
+
+1. [REL — Version Bump](./v6.0.0/REL_version-bump.md) — tag/publish gate; JSR publication is deferred externally
+
+Resolved:
+
+- [REL — Migration Script](./v6.0.0/REL_migration-script.md) — `npm run upgrade` with dry-run + execute modes
+- [REL — Breaking Changes Doc](./v6.0.0/REL_breaking-changes-doc.md) — `UPGRADING.md` with migration guide
+- [REL — Docs Accuracy Audit](./v6.0.0/REL_docs-accuracy-audit.md) — GUIDE examples and tracked Markdown links covered by tests
+- [REL — Signpost Rewrite](./v6.0.0/REL_signpost-rewrite.md) — README, BEARING, VISION, STATUS for v6
+
+### `v6.x-tui/` (Bijou v5 TUI modernization)
+
+Post-6.0 minor release line, not a v6.0.0 tag blocker.
+
+1. [TUI-001 — Framed App Shell](./v6.x-tui/TUI_framed-app-shell.md) — Foundation: `createFramedApp()` + `startApp()`
+2. [TUI-002 — boxV3 -> boxSurface](./v6.x-tui/TUI_box-surface-migration.md) — Breaking API fix (Small)
+3. [TUI-003 — Status Bar](./v6.x-tui/TUI_status-bar.md) — Persistent bottom bar
+4. [TUI-004 — Toast Notifications](./v6.x-tui/TUI_toast-notifications.md) — Replace custom toast with built-in
+5. [TUI-005 — Badge Components](./v6.x-tui/TUI_badge-components.md) — Bijou `badge` for encryption/compression tags
+6. [TUI-006 — Layout Primitives](./v6.x-tui/TUI_layout-primitives.md) — hstack/vstack/flex/grid
+7. [TUI-007 — Help Overlay](./v6.x-tui/TUI_help-overlay.md) — `?` key -> full keybinding reference
+8. [TUI-008 — Merkle DAG Viewer](./v6.x-tui/TUI_merkle-dag-viewer.md) — `dagPane` for manifest structure
+9. [TUI-009 — Interactive Store Wizard](./v6.x-tui/TUI_store-wizard.md) — Guided store flow inside TUI
+10. [TUI-010 — Pager Scrollable Content](./v6.x-tui/TUI_pager-scrollable-content.md) — Scrollable detail pane
+11. [TUI-011 — Accordion Detail Pane](./v6.x-tui/TUI_accordion-detail-pane.md) — Collapsible manifest sections
+12. [TUI-012 — Animated Transitions](./v6.x-tui/TUI_animated-transitions.md) — Spring physics + transition shaders
+13. [TUI-013 — Full-Screen Detail View](./v6.x-tui/TUI_fullscreen-detail-view.md) — Replace split pane with list/detail drill-in
+
 ### `cool-ideas/`
 
 Active:
@@ -36,6 +69,11 @@ Active:
 - [TR — Manifest Diffing](./cool-ideas/TR_manifest-diffing.md) ✅
 - [TR — Parallel Chunk Restore](./cool-ideas/TR_parallel-chunk-restore.md) ✅
 - [TR — Content-Aware Chunking](./cool-ideas/TR_content-aware-chunking.md)
+- [TUI — CLI Adaptive Table](./cool-ideas/TUI_cli-adaptive-table.md)
+- [TUI — Operation Feed Drawer](./cool-ideas/TUI_operation-feed-drawer.md)
+- [TUI — OS Keychain Auto-Discovery](./cool-ideas/TUI_os-keychain-auto-discovery.md)
+- [TUI — Segmented Manifest View](./cool-ideas/TUI_segmented-manifest-view.md)
+- [TUI — Title Screen Stats](./cool-ideas/TUI_title-screen-stats.md)
 
 Resolved — `security/audit-fixes` branch:
 
@@ -48,6 +86,11 @@ Resolved — `security/audit-fixes` branch:
 - [SEC — Manifest-Level Integrity Hash](./cool-ideas/SEC_manifest-integrity-hash.md) ✅
 
 ### `bad-code/`
+
+Active:
+
+- [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md)
+- [SEC — Vault Passphrase Verifier Gap](./bad-code/SEC_vault-passphrase-verifier-gap.md)
 
 Resolved — `security/audit-fixes` branch:
 

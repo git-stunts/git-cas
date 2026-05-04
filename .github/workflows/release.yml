@@ -67,27 +67,8 @@ jobs:
       - name: Publish to npm
         run: npm publish --provenance --access public
 
-  publish-jsr:
-    needs: [validate, test]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Publish to JSR
-        run: pnpm dlx jsr publish
-
   github-release:
-    needs: [validate, publish-npm, publish-jsr]
+    needs: [validate, publish-npm]
     runs-on: ubuntu-latest
     permissions:
       contents: write

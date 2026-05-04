@@ -118,7 +118,7 @@ describe('FileIOHelper – storeFile stream forwarding', () => {
 
     const result = await storeFile(mockService, { filePath, slug: 'test-slug' });
     expect(result).toEqual({ slug: 'test-slug' });
-    expect(capturedOpts.source.equals(data)).toBe(true);
+    expect(Buffer.from(capturedOpts.source).equals(data)).toBe(true);
     expect(capturedOpts.slug).toBe('test-slug');
     expect(capturedOpts.filename).toBe('input.bin');
   });
@@ -220,7 +220,7 @@ describe('FileIOHelper – restoreFile bounded publication seam', () => {
 
     expect(bytesWritten).toBe(chunk.length);
     const written = readFileSync(outputPath);
-    expect(written.equals(chunk)).toBe(true);
+    expect(Buffer.from(written).equals(chunk)).toBe(true);
   });
 });
 

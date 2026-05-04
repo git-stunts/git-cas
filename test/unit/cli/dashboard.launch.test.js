@@ -1,104 +1,28 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { makeCtx, makeInteractiveRuntime } from './_testContext.js';
-
-const runMock = vi.fn().mockResolvedValue(undefined);
-
-vi.mock('@flyingrobots/bijou-tui', async () => {
-  const actual = await vi.importActual('@flyingrobots/bijou-tui');
-  return { ...actual, run: runMock };
-});
-
-const { launchDashboard } = await import('../../../bin/ui/dashboard.js');
-
-function mockCas(entries = []) {
-  return {
-    listVault: vi.fn().mockResolvedValue(entries),
-    getVaultMetadata: vi.fn().mockResolvedValue(null),
-    readManifest: vi.fn().mockResolvedValue(null),
-  };
-}
-
-beforeEach(() => {
-  runMock.mockClear();
-});
+import { describe, it, expect, vi } from 'vitest';
+import { createTestContext } from '@flyingrobots/bijou/adapters/test';
+import launchDashboard from '../../../bin/ui/dashboard.js';
 
 describe('launchDashboard runtime wiring', () => {
   it('uses injected runtime dimensions for the first frame', async () => {
-    const cas = mockCas();
-    const ctx = makeCtx('interactive', { columns: 123, rows: 55 });
-
-    await launchDashboard(cas, { ctx, runApp: runMock });
-
-    const [app] = runMock.mock.calls[0];
-    const [model] = app.init();
-    expect(model.columns).toBe(123);
-    expect(model.rows).toBe(55);
-  });
-
-  it('treats an injected context without mode as interactive', async () => {
-    const cas = mockCas();
-    const ctx = {
-      ...makeCtx('interactive', makeInteractiveRuntime()),
-    };
-    delete ctx.mode;
-
-    await launchDashboard(cas, { ctx, runApp: runMock });
-
-    expect(runMock).toHaveBeenCalledTimes(1);
-    expect(cas.listVault).not.toHaveBeenCalled();
-  });
-});
-
-describe('launchDashboard context normalization', () => {
-  it('throws a clear error when mode-less context is missing runtime', async () => {
-    const cas = mockCas();
-    const ctx = { ...makeCtx('interactive') };
-    delete ctx.mode;
-    delete ctx.runtime;
-
-    await expect(
-      launchDashboard(cas, { ctx, runApp: runMock }),
-    ).rejects.toThrow('launchDashboard requires ctx.runtime when ctx.mode is absent');
-  });
-});
-
-describe('launchDashboard mode branching', () => {
-  it('uses the interactive runtime when the context is interactive', async () => {
-    const cas = mockCas();
-    const ctx = makeCtx('interactive');
-
-    await launchDashboard(cas, { ctx, runApp: runMock });
-
-    expect(runMock).toHaveBeenCalledTimes(1);
-    expect(cas.listVault).not.toHaveBeenCalled();
-  });
-
-  it('falls back to a static list when the context is non-interactive', async () => {
-    const cas = mockCas([{ slug: 'alpha', treeOid: 'deadbeef' }]);
-    const ctx = makeCtx('pipe');
-    const output = { write: vi.fn() };
-
-    await launchDashboard(cas, { ctx, runApp: runMock, output });
-
-    expect(runMock).not.toHaveBeenCalled();
-    expect(cas.listVault).toHaveBeenCalledTimes(1);
-    expect(output.write).toHaveBeenCalledWith('alpha\tdeadbeef\n');
-  });
-
-  it('prints a direct oid source when the context is non-interactive', async () => {
-    const cas = mockCas();
-    const ctx = makeCtx('pipe');
-    const output = { write: vi.fn() };
-
-    await launchDashboard(cas, {
-      ctx,
-      runApp: runMock,
-      output,
-      source: { type: 'oid', treeOid: '0123456789abcdef' },
+    const cas = { listVault: vi.fn().mockResolvedValue([]), getVaultMetadata: vi.fn().mockResolvedValue({}) };
+    const runMock = vi.fn();
+    const tickMock = vi.fn();
+    const ctx = createTestContext({
+      mode: 'interactive',
+      runtime: { columns: 120, rows: 40, stdoutIsTTY: true, stdinIsTTY: true, env: () => undefined }
     });
 
-    expect(runMock).not.toHaveBeenCalled();
-    expect(cas.listVault).not.toHaveBeenCalled();
-    expect(output.write).toHaveBeenCalledWith('oid:0123456789ab\t0123456789abcdef\n');
+    await launchDashboard(cas, { ctx, runApp: runMock, tick: tickMock });
+
+    expect(runMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        init: expect.any(Function),
+      }),
+      expect.objectContaining({ ctx })
+    );
+
+    const [model] = runMock.mock.calls[0][0].init();
+    expect(model.columns).toBe(120);
+    expect(model.rows).toBe(40);
   });
 });

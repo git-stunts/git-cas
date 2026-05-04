@@ -1,95 +1,82 @@
 /**
- * TEA app shell for the vault dashboard.
+ * TEA app shell for the V6 git-cas cockpit.
  */
 
+import { startApp as bijouStartApp } from '@flyingrobots/bijou-node';
 import {
-  run, quit, tick, createKeyMap,
-  createNavigableTableState, navTableFocusNext, navTableFocusPrev, navTablePageDown, navTablePageUp,
-  createSplitPaneState, splitPaneFocusNext, splitPaneResizeBy,
-  createCommandPaletteState, cpFilter, cpFocusNext, cpFocusPrev, cpPageDown, cpPageUp, cpSelectedItem, commandPaletteKeyMap,
-  animate,
+  cpFilter,
+  cpFocusNext,
+  cpFocusPrev,
+  cpPageDown,
+  cpPageUp,
+  cpSelectedItem,
+  createCommandPaletteState,
+  createNavigableTableState,
+  createNotificationState,
+  navTableFocusNext,
+  navTableFocusPrev,
+  navTablePageDown,
+  navTablePageUp,
+  notificationsNeedTick,
+  pushNotification,
+  quit,
+  tick as bijouTick,
+  tickNotifications,
 } from '@flyingrobots/bijou-tui';
-import { loadEntriesCmd, loadManifestCmd, loadRefsCmd, loadStatsCmd, loadDoctorCmd, loadTreemapCmd, readSourceEntries } from './dashboard-cmds.js';
-import { createCliTuiContext, detectCliTuiMode } from './context.js';
-import { renderDashboard } from './dashboard-view.js';
+import { renderDashboard, tableSchema } from './dashboard-view.js';
+import { createCliTuiContext } from './context.js';
+import { formatTabSeparated } from './vault-list.js';
+import {
+  loadBranchCmd,
+  loadDoctorCmd,
+  loadEntriesCmd,
+  loadManifestCmd,
+  loadRefsCmd,
+  loadStatsCmd,
+  loadTreemapCmd,
+  readSourceEntries,
+} from './dashboard-cmds.js';
+import { createWizardState, wizardHandleKey } from './store-wizard.js';
+import { createFeedState } from './blocks/operation-feed.js';
+import { shortenSha } from './components/short-sha.js';
+
+/** @typedef {import('../index.js').default} ContentAddressableStore */
+/** @typedef {import('../src/domain/value-objects/Manifest.js').default} Manifest */
+/** @typedef {import('../src/domain/services/VaultService.js').VaultEntry} VaultEntry */
+/** @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext */
+/** @typedef {import('@flyingrobots/bijou-tui').CommandPaletteState} CommandPaletteState */
+/** @typedef {import('@flyingrobots/bijou-tui').NavigableTableState} NavigableTableState */
+/** @typedef {import('@flyingrobots/bijou-tui').NotificationState} NotificationState */
+/** @typedef {import('./store-wizard.js').StoreWizardState} StoreWizardState */
+/** @typedef {import('./blocks/operation-feed.js').OperationFeedState} OperationFeedState */
 
 /**
- * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
- * @typedef {import('@flyingrobots/bijou-tui').KeyMsg} KeyMsg
- * @typedef {import('@flyingrobots/bijou-tui').ResizeMsg} ResizeMsg
- * @typedef {import('@flyingrobots/bijou-tui').Cmd<DashMsg>} DashCmd
- * @typedef {import('@flyingrobots/bijou-tui').KeyMap<DashAction>} DashKeyMap
- * @typedef {import('@flyingrobots/bijou-tui').NavigableTableState} NavigableTableState
- * @typedef {import('@flyingrobots/bijou-tui').SplitPaneState} SplitPaneState
- * @typedef {import('@flyingrobots/bijou-tui').CommandPaletteState} CommandPaletteState
- * @typedef {import('../../index.js').default} ContentAddressableStore
- * @typedef {import('../../src/domain/value-objects/Manifest.js').default} Manifest
- * @typedef {import('./dashboard-cmds.js').TreemapScope} TreemapScope
- * @typedef {import('./dashboard-cmds.js').TreemapWorktreeMode} TreemapWorktreeMode
- * @typedef {import('./dashboard-cmds.js').TreemapPathNode} TreemapPathNode
- * @typedef {import('./dashboard-cmds.js').RepoTreemapTile} RepoTreemapTile
- * @typedef {import('./dashboard-cmds.js').RefInventory} RefInventory
- * @typedef {import('./dashboard-cmds.js').RefInventoryItem} RefInventoryItem
- * @typedef {{ slug: string, treeOid: string }} VaultEntry
- * @typedef {'error' | 'warning' | 'info' | 'success'} ToastLevel
- * @typedef {'entering' | 'steady' | 'exiting'} ToastPhase
- * @typedef {{ id: number, level: ToastLevel, title: string, message: string, phase: ToastPhase, progress: number }} ToastRecord
+ * @typedef {'title' | 'password' | 'dashboard'} AppPhase
+ * @typedef {'explorer' | 'atlas' | 'operations'} WorkspaceId
+ * @typedef {'ledger' | 'manifest' | 'merkle'} ExplorerMode
+ * @typedef {'table' | 'tree' | 'dag'} MerkleMode
  * @typedef {{ type: 'vault' } | { type: 'ref', ref: string } | { type: 'oid', treeOid: string }} DashSource
- * @typedef {'idle' | 'loading' | 'ready' | 'error'} LoadState
- */
-
-/**
- * @typedef {{ type: 'quit' }
- *   | { type: 'move', delta: number }
- *   | { type: 'page', delta: number }
- *   | { type: 'select' }
- *   | { type: 'filter-start' }
- *   | { type: 'scroll-detail', delta: number }
- *   | { type: 'split-focus' }
- *   | { type: 'split-resize', delta: number }
- *   | { type: 'open-palette' }
- *   | { type: 'open-stats' }
- *   | { type: 'open-doctor' }
- *   | { type: 'open-treemap' }
- *   | { type: 'open-refs' }
- *   | { type: 'toggle-treemap-scope' }
- *   | { type: 'toggle-treemap-worktree' }
- *   | { type: 'treemap-drill-in' }
- *   | { type: 'treemap-drill-out' }
- *   | { type: 'overlay-close' }
- * } DashAction
- */
-
-/**
- * @typedef {{ type: 'focus-next' }
- *   | { type: 'focus-prev' }
- *   | { type: 'page-down' }
- *   | { type: 'page-up' }
- *   | { type: 'select' }
- *   | { type: 'close' }
- * } PaletteAction
- */
-
-/**
- * @typedef {{ type: 'loaded-entries', entries: VaultEntry[], metadata: any, source: DashSource }
- *   | { type: 'loaded-manifest', slug: string, manifest: Manifest, source: DashSource }
- *   | { type: 'loaded-refs', refs: RefInventory }
- *   | { type: 'loaded-stats', stats: any, source: DashSource }
- *   | { type: 'loaded-doctor', report: any, source: DashSource }
- *   | { type: 'loaded-treemap', report: any }
- *   | { type: 'toast-progress', id: number, progress: number }
- *   | { type: 'toast-expire', id: number }
- *   | { type: 'dismiss-toast', id: number }
- *   | { type: 'load-error', source: string, slug?: string, forSource?: DashSource, scopeId?: TreemapScope, worktreeMode?: TreemapWorktreeMode, drillPath?: TreemapPathNode[], error: string }
- * } DashMsg
  */
 
 /**
  * @typedef {Object} DashModel
+ * @property {AppPhase} phase
+ * @property {number} titleTimeMs
+ * @property {number} lastTickTime
+ * @property {number} fps
+ * @property {boolean} showPerfHud
+ * @property {number} vaultEntryCount
+ * @property {string} passphrase
+ * @property {string | null} authError
  * @property {string} status
  * @property {number} columns
  * @property {number} rows
  * @property {DashSource} source
+ * @property {WorkspaceId} workspace
+ * @property {ExplorerMode} explorerMode
+ * @property {MerkleMode} merkleMode
+ * @property {'ledger' | 'detail'} focusPane
+ * @property {number} chunkFocus
  * @property {VaultEntry[]} entries
  * @property {VaultEntry[]} filtered
  * @property {string} filterText
@@ -97,670 +84,193 @@ import { renderDashboard } from './dashboard-view.js';
  * @property {any} metadata
  * @property {Map<string, Manifest>} manifestCache
  * @property {string | null} loadingSlug
- * @property {number} detailScroll
  * @property {string | null} error
  * @property {NavigableTableState} table
- * @property {NavigableTableState} refsTable
- * @property {RefInventoryItem[]} refsItems
- * @property {SplitPaneState} splitPane
  * @property {CommandPaletteState | null} palette
- * @property {'stats' | 'doctor' | 'treemap' | 'refs' | null} activeDrawer
- * @property {LoadState} refsStatus
+ * @property {boolean} showHelp
+ * @property {boolean} promptEnter
+ * @property {boolean} quitConfirm
+ * @property {any} refsStatus
+ * @property {any | null} refsInventory
  * @property {string | null} refsError
- * @property {LoadState} statsStatus
+ * @property {any} statsStatus
  * @property {any | null} statsReport
  * @property {string | null} statsError
- * @property {LoadState} doctorStatus
+ * @property {any} doctorStatus
  * @property {any | null} doctorReport
  * @property {string | null} doctorError
- * @property {TreemapScope} treemapScope
- * @property {TreemapWorktreeMode} treemapWorktreeMode
- * @property {TreemapPathNode[]} treemapPath
+ * @property {any} treemapScope
+ * @property {any} treemapWorktreeMode
+ * @property {any[]} treemapPath
  * @property {number} treemapFocus
- * @property {LoadState} treemapStatus
+ * @property {any} treemapStatus
  * @property {any | null} treemapReport
  * @property {string | null} treemapError
- * @property {ToastRecord[]} toasts
- * @property {number} nextToastId
+ * @property {NotificationState} notifications
+ * @property {OperationFeedState} operationFeed
+ * @property {StoreWizardState | null} storeWizard
+ * @property {string | null} gitBranch
+ * @property {Buffer | null} vaultEncryptionKey
+ * @property {boolean} settingsOpen
  */
 
 /**
  * @typedef {Object} DashDeps
- * @property {DashKeyMap} keyMap
  * @property {ContentAddressableStore} cas
  * @property {BijouContext} ctx
- * @property {string | undefined} [cwdLabel]
+ * @property {string} cwdLabel
  * @property {DashSource} source
+ * @property {(ms: number, msg: any) => any} tick
  */
 
-/**
- * Create keyboard bindings for normal mode.
- *
- * @returns {DashKeyMap}
- */
-export function createKeyBindings() {
-  return createKeyMap()
-    .bind('q', 'Quit', { type: 'quit' })
-    .bind('j', 'Down', { type: 'move', delta: 1 })
-    .bind('down', 'Down', { type: 'move', delta: 1 })
-    .bind('k', 'Up', { type: 'move', delta: -1 })
-    .bind('up', 'Up', { type: 'move', delta: -1 })
-    .bind('d', 'Page down', { type: 'page', delta: 1 })
-    .bind('pagedown', 'Page down', { type: 'page', delta: 1 })
-    .bind('u', 'Page up', { type: 'page', delta: -1 })
-    .bind('pageup', 'Page up', { type: 'page', delta: -1 })
-    .bind('enter', 'Load', { type: 'select' })
-    .bind('/', 'Filter', { type: 'filter-start' })
-    .bind('tab', 'Focus pane', { type: 'split-focus' })
-    .bind('shift+h', 'Narrow pane', { type: 'split-resize', delta: -4 })
-    .bind('shift+l', 'Widen pane', { type: 'split-resize', delta: 4 })
-    .bind('ctrl+p', 'Palette', { type: 'open-palette' })
-    .bind(':', 'Palette', { type: 'open-palette' })
-    .bind('s', 'Stats', { type: 'open-stats' })
-    .bind('g', 'Doctor', { type: 'open-doctor' })
-    .bind('t', 'Treemap', { type: 'open-treemap' })
-    .bind('r', 'Refs', { type: 'open-refs' })
-    .bind('shift+t', 'Treemap scope', { type: 'toggle-treemap-scope' })
-    .bind('i', 'Treemap files', { type: 'toggle-treemap-worktree' })
-    .bind('shift+=', 'Treemap descend', { type: 'treemap-drill-in' })
-    .bind('-', 'Treemap ascend', { type: 'treemap-drill-out' })
-    .bind('escape', 'Close overlay', { type: 'overlay-close' })
-    .bind('shift+j', 'Scroll down', { type: 'scroll-detail', delta: 3 })
-    .bind('shift+k', 'Scroll up', { type: 'scroll-detail', delta: -3 });
-}
+const TITLE_TICK_MS = 33;
+const NOTIFICATION_TICK_MS = 40;
 
-const TABLE_COLUMNS = [
-  { header: 'Slug', width: 20 },
-  { header: 'Size', width: 8, align: 'right' },
-  { header: 'Chunks', width: 6, align: 'right' },
-  { header: 'Crypto', width: 7 },
-  { header: 'Format', width: 10 },
-  { header: 'Profile', width: 12 },
+const FULL_COLUMNS = [
+  { header: 'Slug' },
+  { header: 'Tree OID' },
+  { header: 'Size' },
+  { header: 'Chunks' },
+  { header: 'Crypto' },
+  { header: 'Format' },
+  { header: 'State' },
 ];
 
-const DASH_HEADER_ROWS = 4;
-const DASH_FOOTER_ROWS = 4;
-const PANE_BORDER_ROWS = 2;
-const LIST_META_ROWS = 2;
-const SPLIT_MIN_LIST_WIDTH = 28;
-const SPLIT_MIN_DETAIL_WIDTH = 32;
-const SPLIT_DIVIDER_SIZE = 1;
-const TOAST_LIMIT = 4;
-const TOAST_TTL_MS = 6000;
-const TOAST_ENTER_MS = 180;
-const TOAST_EXIT_MS = 180;
-
-const PALETTE_ITEMS = [
-  {
-    id: 'refs',
-    label: 'Browse Refs',
-    description: 'List refs by namespace and switch the dashboard source to a CAS-backed ref',
-    category: 'View',
-    shortcut: 'r',
-  },
-  {
-    id: 'treemap',
-    label: 'Open Repo Treemap',
-    description: 'Full-screen semantic atlas of the repo, refs, vault, and active source',
-    category: 'View',
-    shortcut: 't',
-  },
-  {
-    id: 'treemap-scope',
-    label: 'Toggle Treemap Scope',
-    description: 'Switch the treemap between repository and source views',
-    category: 'View',
-    shortcut: 'T',
-  },
-  {
-    id: 'treemap-worktree',
-    label: 'Toggle Repo Files',
-    description: 'Switch repository treemap files between git ls-files and ignored paths',
-    category: 'View',
-    shortcut: 'i',
-  },
-  {
-    id: 'treemap-drill-in',
-    label: 'Treemap Descend',
-    description: 'Drill into the focused treemap region',
-    category: 'View',
-    shortcut: '+',
-  },
-  {
-    id: 'treemap-drill-out',
-    label: 'Treemap Ascend',
-    description: 'Return to the parent treemap level',
-    category: 'View',
-    shortcut: '-',
-  },
-  {
-    id: 'stats',
-    label: 'Open Source Stats',
-    description: 'Logical size, dedup ratio, and format coverage',
-    category: 'View',
-    shortcut: 's',
-  },
-  {
-    id: 'doctor',
-    label: 'Open Doctor Report',
-    description: 'Health summary and vault issues',
-    category: 'View',
-    shortcut: 'g',
-  },
-  {
-    id: 'focus-entries',
-    label: 'Focus Entries Pane',
-    description: 'Move focus back to the explorer table',
-    category: 'Pane',
-    shortcut: 'tab',
-  },
-  {
-    id: 'focus-inspector',
-    label: 'Focus Inspector Pane',
-    description: 'Move focus to the manifest inspector',
-    category: 'Pane',
-  },
-  {
-    id: 'close-drawer',
-    label: 'Close Active View',
-    description: 'Leave treemap view or dismiss the stats or doctor overlay',
-    category: 'View',
-    shortcut: 'esc',
-  },
-];
-
-const paletteKeyMap = commandPaletteKeyMap({
-  focusNext: { type: 'focus-next' },
-  focusPrev: { type: 'focus-prev' },
-  pageDown: { type: 'page-down' },
-  pageUp: { type: 'page-up' },
-  select: { type: 'select' },
-  close: { type: 'close' },
-});
-
-/**
- * Format manifest bytes as a compact human-readable string for the explorer table.
- *
- * @param {number} bytes
- * @returns {string}
- */
 function formatSize(bytes) {
+  if (!Number.isFinite(bytes)) { return '-'; }
   if (bytes < 1024) { return `${bytes}B`; }
   if (bytes < 1024 * 1024) { return `${(bytes / 1024).toFixed(1)}K`; }
   if (bytes < 1024 * 1024 * 1024) { return `${(bytes / (1024 * 1024)).toFixed(1)}M`; }
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}G`;
 }
 
-/**
- * Table viewport height based on the full dashboard frame.
- *
- * @param {number} rows
- * @returns {number}
- */
-function tableHeight(rows) {
-  return Math.max(1, rows - DASH_HEADER_ROWS - DASH_FOOTER_ROWS - PANE_BORDER_ROWS - LIST_META_ROWS);
+function manifestData(manifest) {
+  return manifest?.toJSON ? manifest.toJSON() : manifest;
 }
 
-/**
- * Clamp table scroll so the focused row remains visible.
- *
- * @param {{ focusRow: number, scrollY: number, height: number, totalRows: number }} options
- * @returns {number}
- */
-function adjustTableScroll(options) {
-  let nextScroll = options.scrollY;
-  if (options.focusRow < nextScroll) {
-    nextScroll = options.focusRow;
-  } else if (options.focusRow >= nextScroll + options.height) {
-    nextScroll = options.focusRow - options.height + 1;
+function manifestFor(entry, manifestCache) {
+  return entry ? manifestData(manifestCache.get(entry.slug)) : null;
+}
+
+function cryptoLabel(manifest) {
+  if (!manifest) { return '-'; }
+  if (manifest.encryption?.encrypted || manifest.encryption?.recipients?.length || manifest.encryption) {
+    return 'encrypted';
   }
-  return Math.min(nextScroll, Math.max(0, options.totalRows - options.height));
+  return 'plain';
 }
 
-/**
- * Build explorer table rows from the filtered vault entries.
- *
- * @param {VaultEntry[]} entries
- * @param {Map<string, Manifest>} manifestCache
- * @returns {string[][]}
- */
+function formatLabel(manifest) {
+  if (!manifest) { return '-'; }
+  return manifest.formatVersion ?? (manifest.version ? `v${manifest.version}` : 'manifest');
+}
+
+function chunkLabel(manifest) {
+  if (!manifest) { return '-'; }
+  const chunks = manifest.chunks?.length ?? 0;
+  const subManifests = manifest.subManifests?.length ?? 0;
+  return subManifests > 0 ? `${chunks}+${subManifests}` : String(chunks);
+}
+
+function rowForEntry(entry, manifestCache) {
+  const manifest = manifestFor(entry, manifestCache);
+  return [
+    entry.slug,
+    shortenSha(entry.treeOid),
+    formatSize(manifest?.size),
+    chunkLabel(manifest),
+    cryptoLabel(manifest),
+    formatLabel(manifest),
+    manifest ? 'loaded' : 'pending',
+  ];
+}
+
 function buildTableRows(entries, manifestCache) {
-  return entries.map((entry) => {
-    const manifest = manifestCache.get(entry.slug);
-    if (!manifest) {
-      return [entry.slug, '...', '...', '...', '...', 'loading'];
-    }
-    const m = manifest.toJSON ? manifest.toJSON() : manifest;
-    const crypto = m.encryption ? 'enc' : 'plain';
-    const format = m.compression ? m.compression.algorithm : 'raw';
-    const profile = m.subManifests?.length ? `${format} merkle` : `${format} single`;
-    return [
-      entry.slug,
-      formatSize(m.size ?? 0),
-      String(m.chunks?.length ?? 0),
-      crypto,
-      format,
-      profile,
-    ];
-  });
+  return entries.map((entry) => rowForEntry(entry, manifestCache));
 }
 
-/**
- * Synchronize derived table rows and viewport metrics after a model change.
- *
- * @param {NavigableTableState} table
- * @param {{
- *   entries?: VaultEntry[],
- *   manifestCache?: Map<string, Manifest>,
- *   rows?: number,
- *   focusRow?: number,
- *   scrollY?: number,
- * }} updates
- * @returns {NavigableTableState}
- */
-function syncTable(table, updates = {}) {
-  const rows = buildTableRows(updates.entries ?? [], updates.manifestCache ?? new Map());
-  const height = tableHeight(updates.rows ?? 24);
-  const focusRow = Math.max(0, Math.min(updates.focusRow ?? table.focusRow, rows.length - 1));
-  const scrollY = adjustTableScroll({
-    focusRow,
-    scrollY: updates.scrollY ?? table.scrollY,
-    height,
-    totalRows: rows.length,
-  });
-  return {
-    ...table,
-    rows,
-    height,
-    focusRow,
-    scrollY,
-  };
+function tableHeight(rows) {
+  return Math.max(4, Math.min(18, Math.max(1, rows - 10)));
 }
 
-/**
- * Return true when two dashboard sources describe the same target.
- *
- * @param {DashSource} left
- * @param {DashSource} right
- * @returns {boolean}
- */
 function sourceEquals(left, right) {
-  if (left.type !== right.type) {
-    return false;
-  }
-  if (left.type === 'vault') {
-    return true;
-  }
-  if (left.type === 'ref' && right.type === 'ref') {
-    return left.ref === right.ref;
-  }
-  return left.type === 'oid' && right.type === 'oid' && left.treeOid === right.treeOid;
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
-/**
- * Return true when two treemap drill paths describe the same level.
- *
- * @param {TreemapPathNode[]} left
- * @param {TreemapPathNode[]} right
- * @returns {boolean}
- */
-function treemapPathEquals(left, right) {
-  if (left.length !== right.length) {
-    return false;
-  }
-  return left.every((node, index) =>
-    node.kind === right[index]?.kind
-    && node.label === right[index]?.label
-    && node.segments.length === right[index]?.segments.length
-    && node.segments.every((segment, segmentIndex) => segment === right[index]?.segments[segmentIndex]));
-}
-
-/**
- * Clamp treemap focus to the current tile list.
- *
- * @param {number} focus
- * @param {RepoTreemapTile[]} tiles
- * @returns {number}
- */
-function clampTreemapFocus(focus, tiles) {
-  return Math.max(0, Math.min(focus, tiles.length - 1));
-}
-
-/**
- * Return the selected treemap tile from the current report.
- *
- * @param {DashModel} model
- * @returns {RepoTreemapTile | null}
- */
-function selectedTreemapTile(model) {
-  return model.treemapReport?.tiles[clampTreemapFocus(model.treemapFocus, model.treemapReport?.tiles ?? [])] ?? null;
-}
-
-/**
- * Build rows for the refs browser table.
- *
- * @param {RefInventoryItem[]} refs
- * @returns {string[][]}
- */
-function buildRefRows(refs) {
-  return refs.map((ref) => [
-    ref.namespace,
-    ref.ref,
-    ref.browsable ? ref.resolution : 'opaque',
-    String(ref.entryCount),
-    ref.oid.slice(0, 12),
-  ]);
-}
-
-/**
- * Synchronize refs-browser rows and viewport metrics after a model change.
- *
- * @param {NavigableTableState} table
- * @param {{
- *   refs?: RefInventoryItem[],
- *   rows?: number,
- *   focusRow?: number,
- *   scrollY?: number,
- * }} updates
- * @returns {NavigableTableState}
- */
-function syncRefsTable(table, updates = {}) {
-  const rows = buildRefRows(updates.refs ?? []);
-  const height = tableHeight(updates.rows ?? 24);
-  const focusRow = Math.max(0, Math.min(updates.focusRow ?? table.focusRow, rows.length - 1));
-  const scrollY = adjustTableScroll({
-    focusRow,
-    scrollY: updates.scrollY ?? table.scrollY,
-    height,
-    totalRows: rows.length,
+function filterEntries(entries, filterText, manifestCache) {
+  const query = filterText.trim().toLowerCase();
+  if (!query) { return entries; }
+  return entries.filter((entry) => {
+    const manifest = manifestFor(entry, manifestCache);
+    const haystack = [
+      entry.slug,
+      entry.treeOid,
+      manifest?.integrity,
+      manifest?.hash,
+      ...(manifest?.chunks ?? []).flatMap((chunk) => [chunk.digest, chunk.blob]),
+    ].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(query);
   });
+}
+
+function syncExplorer(model, patch = {}) {
+  const next = { ...model, ...patch };
+  const filtered = filterEntries(next.entries, next.filterText, next.manifestCache);
+  const table = createNavigableTableState({
+    columns: FULL_COLUMNS,
+    rows: buildTableRows(filtered, next.manifestCache),
+    height: tableHeight(next.rows),
+    focusRow: Math.min(next.table?.focusRow ?? 0, Math.max(0, filtered.length - 1)),
+    scrollY: next.table?.scrollY ?? 0,
+  });
+  return { ...next, filtered, table };
+}
+
+function selectedEntry(model) {
+  return model.filtered[Math.min(model.table.focusRow, Math.max(0, model.filtered.length - 1))] ?? null;
+}
+
+function selectedManifest(model) {
+  return manifestFor(selectedEntry(model), model.manifestCache);
+}
+
+function maybeLoadSelectedManifest(model, deps) {
+  const entry = selectedEntry(model);
+  if (!entry || model.manifestCache.has(entry.slug) || model.loadingSlug === entry.slug) {
+    return null;
+  }
+  return loadManifestCmd(deps.cas, { slug: entry.slug, treeOid: entry.treeOid, source: model.source });
+}
+
+function createShellState(columns, rows, source) {
   return {
-    ...table,
-    rows,
-    height,
-    focusRow,
-    scrollY,
-  };
-}
-
-/**
- * Palette viewport height based on terminal rows.
- *
- * @param {number} rows
- * @returns {number}
- */
-function paletteHeight(rows) {
-  return Math.max(5, Math.min(10, rows - 10));
-}
-
-/**
- * Create a fresh command palette state for the dashboard.
- *
- * @param {number} rows
- * @returns {CommandPaletteState}
- */
-function createPalette(rows) {
-  return createCommandPaletteState(PALETTE_ITEMS, paletteHeight(rows));
-}
-
-/**
- * Replace the palette state on the model.
- *
- * @param {DashModel} model
- * @param {CommandPaletteState | null} palette
- * @returns {[DashModel, DashCmd[]]}
- */
-function setPalette(model, palette) {
-  return [{ ...model, palette }, []];
-}
-
-/**
- * Add a toast notification and schedule its dismissal.
- *
- * @param {DashModel} model
- * @param {{ level: ToastLevel, title: string, message: string }} toastSpec
- * @returns {[DashModel, DashCmd[]]}
- */
-function addToast(model, toastSpec) {
-  const id = model.nextToastId;
-  const toast = { id, ...toastSpec, phase: 'entering', progress: 0 };
-  return [{
-    ...model,
-    nextToastId: id + 1,
-    toasts: [toast, ...model.toasts].slice(0, TOAST_LIMIT),
-  }, [
-    animateToast(id, 0, 1),
-    /** @type {DashCmd} */ (tick(TOAST_TTL_MS, { type: 'toast-expire', id })),
-  ]];
-}
-
-/**
- * Dismiss a toast by id.
- *
- * @param {DashModel} model
- * @param {number} id
- * @returns {[DashModel, DashCmd[]]}
- */
-function dismissToast(model, id) {
-  return [{
-    ...model,
-    toasts: model.toasts.filter((toast) => toast.id !== id),
-  }, []];
-}
-
-/**
- * Animate one toast progress value.
- *
- * @param {number} id
- * @param {number} from
- * @param {number} to
- * @returns {DashCmd}
- */
-function animateToast(id, from, to) {
-  const duration = from < to ? TOAST_ENTER_MS : TOAST_EXIT_MS;
-  return /** @type {DashCmd} */ (animate({
-    type: 'tween',
-    from,
-    to,
-    duration,
-    onFrame: (progress) => ({ type: 'toast-progress', id, progress }),
-  }));
-}
-
-/**
- * Update one toast record by id.
- *
- * @param {DashModel} model
- * @param {number} id
- * @param {(toast: ToastRecord) => ToastRecord} updater
- * @returns {DashModel}
- */
-function updateToast(model, id, updater) {
-  let changed = false;
-  const toasts = model.toasts.map((toast) => {
-    if (toast.id !== id) {
-      return toast;
-    }
-    changed = true;
-    return updater(toast);
-  });
-  return changed ? { ...model, toasts } : model;
-}
-
-/**
- * Begin toast exit animation when a toast is dismissed or expires.
- *
- * @param {DashModel} model
- * @param {number} id
- * @returns {[DashModel, DashCmd[]]}
- */
-function startToastExit(model, id) {
-  const toast = model.toasts.find((entry) => entry.id === id);
-  if (!toast) {
-    return [model, []];
-  }
-  if (toast.phase === 'exiting') {
-    return [model, []];
-  }
-  const nextModel = updateToast(model, id, (entry) => ({
-    ...entry,
-    phase: 'exiting',
-  }));
-  return [nextModel, [
-    animateToast(id, toast.progress, 0),
-    /** @type {DashCmd} */ (tick(TOAST_EXIT_MS + 16, { type: 'dismiss-toast', id })),
-  ]];
-}
-
-/**
- * Return true when a treemap load message is stale for the current model.
- *
- * @param {{ scopeId?: TreemapScope, worktreeMode?: TreemapWorktreeMode, drillPath?: TreemapPathNode[] }} msg
- * @param {DashModel} model
- * @returns {boolean}
- */
-function isStaleTreemapLoad(msg, model) {
-  if (msg.scopeId && msg.scopeId !== model.treemapScope) {
-    return true;
-  }
-  if (msg.drillPath && !treemapPathEquals(msg.drillPath, model.treemapPath)) {
-    return true;
-  }
-  return msg.scopeId === 'repository'
-    && Boolean(msg.worktreeMode)
-    && msg.worktreeMode !== model.treemapWorktreeMode;
-}
-
-/**
- * Return true when a load/error message was emitted for a source that is no
- * longer active on the dashboard.
- *
- * @param {{ forSource?: DashSource }} msg
- * @param {DashModel} model
- * @returns {boolean}
- */
-function isStaleSourceLoad(msg, model) {
-  return Boolean(msg.forSource) && !sourceEquals(msg.forSource, model.source);
-}
-
-/**
- * Apply load/error state for source-scoped async operations.
- *
- * @param {DashMsg & { type: 'load-error' }} msg
- * @param {DashModel} model
- * @returns {DashModel}
- */
-function applySourceLoadErrorState(msg, model) {
-  if (msg.source === 'entries') {
-    return isStaleSourceLoad(msg, model) ? model : { ...model, status: 'error', error: msg.error };
-  }
-  if (msg.source === 'manifest') {
-    return isStaleSourceLoad(msg, model)
-      ? model
-      : { ...model, loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug };
-  }
-  if (msg.source === 'stats') {
-    return isStaleSourceLoad(msg, model) ? model : { ...model, statsStatus: 'error', statsError: msg.error };
-  }
-  if (msg.source === 'doctor') {
-    return isStaleSourceLoad(msg, model) ? model : { ...model, doctorStatus: 'error', doctorError: msg.error };
-  }
-  return model;
-}
-
-/**
- * Apply state changes caused by an async load error.
- *
- * @param {DashMsg & { type: 'load-error' }} msg
- * @param {DashModel} model
- * @returns {DashModel}
- */
-function applyLoadErrorState(msg, model) {
-  if (msg.source === 'refs') {
-    return { ...model, refsStatus: 'error', refsError: msg.error };
-  }
-  if (msg.source === 'treemap') {
-    return isStaleTreemapLoad(msg, model) ? model : { ...model, treemapStatus: 'error', treemapError: msg.error };
-  }
-  if (['entries', 'manifest', 'stats', 'doctor'].includes(msg.source)) {
-    return applySourceLoadErrorState(msg, model);
-  }
-  return { ...model, status: 'error', error: msg.error };
-}
-
-/**
- * Human-readable toast title for async load errors.
- *
- * @param {DashMsg & { type: 'load-error' }} msg
- * @returns {string}
- */
-function loadErrorTitle(msg) {
-  if (msg.source === 'manifest') {
-    return msg.slug ? `Failed to load ${msg.slug}` : 'Failed to load manifest';
-  }
-  if (msg.source === 'stats') {
-    return 'Failed to load source stats';
-  }
-  if (msg.source === 'doctor') {
-    return 'Failed to load doctor report';
-  }
-  if (msg.source === 'refs') {
-    return 'Failed to load refs';
-  }
-  if (msg.source === 'treemap') {
-    return 'Failed to load repo treemap';
-  }
-  return 'Failed to load entries';
-}
-
-/**
- * Create the initial explorer table state.
- *
- * @param {number} rows
- * @returns {NavigableTableState}
- */
-function createInitTable(rows) {
-  return createNavigableTableState({
-    columns: TABLE_COLUMNS,
-    rows: [],
-    height: tableHeight(rows),
-  });
-}
-
-/**
- * Create the initial refs-browser table state.
- *
- * @param {number} rows
- * @returns {NavigableTableState}
- */
-function createInitRefsTable(rows) {
-  return createNavigableTableState({
-    columns: [
-      { header: 'Namespace', width: 14 },
-      { header: 'Ref', width: 34 },
-      { header: 'Kind', width: 10 },
-      { header: 'Entries', width: 7, align: 'right' },
-      { header: 'OID', width: 12 },
-    ],
-    rows: [],
-    height: tableHeight(rows),
-  });
-}
-
-/**
- * Create the initial model.
- *
- * @param {BijouContext} ctx
- * @param {DashSource} source
- * @returns {DashModel}
- */
-function createInitModel(ctx, source) {
-  const rows = ctx.runtime.rows ?? 24;
-  return {
-    status: 'loading',
-    columns: ctx.runtime.columns ?? 80,
+    phase: 'title',
+    titleTimeMs: 0,
+    lastTickTime: 0,
+    fps: 0,
+    showPerfHud: false,
+    vaultEntryCount: 0,
+    passphrase: '',
+    authError: null,
+    status: 'checking vault',
+    columns,
     rows,
     source,
+    workspace: 'explorer',
+    explorerMode: 'ledger',
+    merkleMode: 'table',
+    focusPane: 'ledger',
+    chunkFocus: 0,
+    promptEnter: false,
+    quitConfirm: false,
+    gitBranch: null,
+    vaultEncryptionKey: null,
+    settingsOpen: false,
+  };
+}
+
+function createExplorerState(rows) {
+  return {
     entries: [],
     filtered: [],
     filterText: '',
@@ -768,15 +278,17 @@ function createInitModel(ctx, source) {
     metadata: null,
     manifestCache: new Map(),
     loadingSlug: null,
-    detailScroll: 0,
     error: null,
-    table: createInitTable(rows),
-    refsTable: createInitRefsTable(rows),
-    refsItems: [],
-    splitPane: createSplitPaneState({ ratio: 0.37, focused: 'a' }),
+    table: createNavigableTableState({ columns: FULL_COLUMNS, rows: [], height: tableHeight(rows) }),
     palette: null,
-    activeDrawer: null,
+    showHelp: false,
+  };
+}
+
+function createServiceState() {
+  return {
     refsStatus: 'idle',
+    refsInventory: null,
     refsError: null,
     statsStatus: 'idle',
     statsReport: null,
@@ -791,1264 +303,780 @@ function createInitModel(ctx, source) {
     treemapStatus: 'idle',
     treemapReport: null,
     treemapError: null,
-    toasts: [],
-    nextToastId: 1,
+    notifications: createNotificationState(),
+    operationFeed: createFeedState(),
+    storeWizard: null,
   };
 }
 
-/**
- * Handle actions that are specific to full-screen refs mode.
- *
- * @param {DashAction} action
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]] | null}
- */
-function handleRefsViewAction(action, model, deps) {
-  if (model.activeDrawer !== 'refs') {
-    return null;
-  }
-  if (action.type === 'move') {
-    return handleRefsMove(action, model);
-  }
-  if (action.type === 'page') {
-    return handleRefsPage(action, model);
-  }
-  if (action.type === 'select') {
-    return handleRefSelect(model, deps);
-  }
-  if (isBlockedByTreemapView(action)) {
-    return [model, []];
-  }
-  return null;
-}
-
-/**
- * Handle cursor movement inside the treemap view.
- *
- * @param {{ type: 'move', delta: number }} action
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleTreemapMove(action, model) {
-  const total = model.treemapReport?.tiles.length ?? 0;
-  if (total === 0) {
-    return [model, []];
-  }
-  const treemapFocus = (model.treemapFocus + action.delta + total) % total;
-  return [{ ...model, treemapFocus }, []];
-}
-
-/**
- * Handle page-wise movement inside the treemap view.
- *
- * @param {{ type: 'page', delta: number }} action
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleTreemapPage(action, model) {
-  const total = model.treemapReport?.tiles.length ?? 0;
-  if (total === 0) {
-    return [model, []];
-  }
-  const pageSize = Math.max(1, Math.min(8, model.rows - 16));
-  const treemapFocus = clampTreemapFocus(model.treemapFocus + (action.delta * pageSize), model.treemapReport?.tiles ?? []);
-  return [{ ...model, treemapFocus }, []];
-}
-
-/**
- * Descend into the focused treemap region when it has child nodes.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleTreemapDrillIn(model, deps) {
-  const tile = selectedTreemapTile(model);
-  if (!tile) {
-    return [model, []];
-  }
-  if (!tile.drillable || !tile.path) {
-    return addToast(model, {
-      level: 'info',
-      title: 'Leaf region',
-      message: `${tile.label} does not have a deeper treemap level.`,
-    });
-  }
-
-  const nextModel = {
-    ...model,
-    treemapPath: [...model.treemapPath, tile.path],
-    treemapFocus: 0,
-    activeDrawer: 'treemap',
-    palette: null,
-  };
-  if (treemapReportMatches(nextModel, model.treemapReport)) {
-    return [{
-      ...nextModel,
-      treemapStatus: 'ready',
-      treemapError: null,
-    }, []];
-  }
-  return [{
-    ...nextModel,
-    treemapStatus: 'loading',
-    treemapError: null,
-  }, [treemapLoad(nextModel, deps)]];
-}
-
-/**
- * Ascend to the parent treemap level.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleTreemapDrillOut(model, deps) {
-  if (model.treemapPath.length === 0) {
-    return [model, []];
-  }
-  const nextModel = {
-    ...model,
-    treemapPath: model.treemapPath.slice(0, -1),
-    treemapFocus: 0,
-    activeDrawer: 'treemap',
-    palette: null,
-  };
-  if (treemapReportMatches(nextModel, model.treemapReport)) {
-    return [{
-      ...nextModel,
-      treemapStatus: 'ready',
-      treemapError: null,
-    }, []];
-  }
-  return [{
-    ...nextModel,
-    treemapStatus: 'loading',
-    treemapError: null,
-  }, [treemapLoad(nextModel, deps)]];
-}
-
-/**
- * Handle actions that are specific to the full-screen treemap view.
- *
- * @param {DashAction} action
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]] | null}
- */
-function handleTreemapViewAction(action, model, deps) {
-  if (model.activeDrawer !== 'treemap') {
-    return null;
-  }
-  if (action.type === 'move') {
-    return handleTreemapMove(action, model);
-  }
-  if (action.type === 'page') {
-    return handleTreemapPage(action, model);
-  }
-  if (action.type === 'select' || action.type === 'treemap-drill-in') {
-    return handleTreemapDrillIn(model, deps);
-  }
-  if (action.type === 'treemap-drill-out') {
-    return handleTreemapDrillOut(model, deps);
-  }
-  return null;
-}
-
-/**
- * Apply filter text to entries.
- *
- * @param {VaultEntry[]} entries
- * @param {string} text
- * @returns {VaultEntry[]}
- */
-function applyFilter(entries, text) {
-  if (!text) { return entries; }
-  return entries.filter((/** @type {VaultEntry} */ e) => e.slug.includes(text));
-}
-
-/**
- * Handle the loaded-entries message.
- *
- * @param {DashMsg & { type: 'loaded-entries' }} msg
- * @param {DashModel} model
- * @param {ContentAddressableStore} cas
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleLoadedEntries(msg, model, cas) {
-  if (!sourceEquals(msg.source, model.source)) {
-    return [model, []];
-  }
-  const filtered = applyFilter(msg.entries, model.filterText);
-  const table = syncTable(model.table, {
-    entries: filtered,
-    manifestCache: model.manifestCache,
-    rows: model.rows,
+function createInitModel(ctx, source) {
+  const rows = ctx.runtime.rows ?? 24;
+  const columns = ctx.runtime.columns ?? 80;
+  return syncExplorer({
+    ...createShellState(columns, rows, source),
+    ...createExplorerState(rows),
+    ...createServiceState(),
   });
-  const cmds = /** @type {DashCmd[]} */ (msg.entries.map((/** @type {VaultEntry} */ e) => loadManifestCmd(cas, {
-    slug: e.slug,
-    treeOid: e.treeOid,
-    source: msg.source,
-  })));
+}
+
+function checkVaultAuthCmd(cas) {
+  return async () => {
+    let metadata = null;
+    try {
+      metadata = await cas.getVaultMetadata();
+    } catch {
+      metadata = null;
+    }
+    if (metadata?.encryption) {
+      return { type: 'vault-auth-check', encrypted: true, entryCount: 0, metadata };
+    }
+    try {
+      const all = await cas.listVault();
+      return { type: 'vault-auth-check', encrypted: Boolean(metadata?.encryption), entryCount: all.length, metadata };
+    } catch {
+      return { type: 'vault-auth-check', encrypted: false, entryCount: 0, metadata: null };
+    }
+  };
+}
+
+async function deriveVaultKey(cas, metadata, passphrase) {
+  const kdf = metadata?.encryption?.kdf;
+  if (!kdf) { throw new Error('Missing vault encryption KDF metadata'); }
+  const { key } = await cas.deriveKey({
+    passphrase,
+    salt: Buffer.from(kdf.salt, 'base64'),
+    algorithm: kdf.algorithm,
+    iterations: kdf.iterations,
+    cost: kdf.cost,
+    blockSize: kdf.blockSize,
+    parallelization: kdf.parallelization,
+    keyLength: kdf.keyLength,
+  });
+  return key;
+}
+
+async function verifyVaultKeyAgainstEntries(cas, entries, encryptionKey) {
+  for (const entry of entries) {
+    const manifest = await cas.readManifest({ treeOid: entry.treeOid });
+    const data = manifestData(manifest);
+    if (data?.encryption?.encrypted || data?.encryption) {
+      return await cas.verifyIntegrity(manifest, { encryptionKey });
+    }
+  }
+  return true;
+}
+
+function verifyPassphraseCmd(cas, passphrase) {
+  return async () => {
+    try {
+      const metadata = await cas.getVaultMetadata();
+      const encryptionKey = await deriveVaultKey(cas, metadata, passphrase);
+      const entries = await cas.listVault({ encryptionKey });
+      const ok = await verifyVaultKeyAgainstEntries(cas, entries, encryptionKey);
+      return ok
+        ? { type: 'vault-auth-ok', encryptionKey }
+        : { type: 'vault-auth-fail', error: 'Wrong passphrase' };
+    } catch (err) {
+      const authErrorCodes = ['INTEGRITY_ERROR', 'DEK_UNWRAP_FAILED', 'MISSING_KEY', 'NO_MATCHING_RECIPIENT'];
+      const msg = authErrorCodes.includes(err.code) ? 'Wrong passphrase' : (err.message ?? String(err));
+      return { type: 'vault-auth-fail', error: msg };
+    }
+  };
+}
+
+function casForModel(cas, model) {
+  if (!model.vaultEncryptionKey) { return cas; }
+  return new Proxy(cas, {
+    get(target, prop, receiver) {
+      if (prop === 'listVault') {
+        return (options = {}) => target.listVault({ ...options, encryptionKey: model.vaultEncryptionKey });
+      }
+      if (prop === 'addToVault') {
+        return (options = {}) => target.addToVault({ ...options, encryptionKey: model.vaultEncryptionKey });
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
+function runStoreWizardCmd(cas, wizard) {
+  return async () => {
+    try {
+      if (wizard.encryption !== 'none') {
+        return {
+          type: 'store-error',
+          error: 'The TUI store path currently supports plaintext store plans only. Use the CLI for passphrase or convergent encryption.',
+        };
+      }
+      const manifest = await cas.storeFile({
+        filePath: wizard.filePath,
+        slug: wizard.slug,
+        ...(wizard.compression ? { compression: { algorithm: 'gzip' } } : {}),
+      });
+      const treeOid = await cas.createTree({ manifest });
+      await cas.addToVault({ slug: wizard.slug, treeOid, force: true });
+      return { type: 'store-complete', slug: wizard.slug, treeOid, manifest };
+    } catch (err) {
+      return { type: 'store-error', error: err.message ?? String(err) };
+    }
+  };
+}
+
+function enterDashboard(model, deps) {
+  const cas = casForModel(deps.cas, model);
   return [{
     ...model,
-    status: 'ready',
-    entries: msg.entries,
-    filtered,
+    phase: 'dashboard',
+    promptEnter: false,
+    authError: null,
+    status: 'loading entries',
+  }, [
+    loadEntriesCmd(cas, model.source),
+    loadBranchCmd(cas),
+    loadRefsCmd(cas),
+  ]];
+}
+
+function pushToast(model, spec) {
+  return {
+    ...model,
+    notifications: pushNotification(model.notifications, {
+      variant: 'TOAST',
+      placement: 'LOWER_RIGHT',
+      width: 42,
+      ...spec,
+    }, Date.now()),
+  };
+}
+
+function notificationTick(model, deps) {
+  return notificationsNeedTick(model.notifications)
+    ? [deps.tick(NOTIFICATION_TICK_MS, { type: 'notification-tick' })]
+    : [];
+}
+
+function handleTickMsg(msg, model, deps) {
+  if (msg.type === 'notification-tick') {
+    const next = { ...model, notifications: tickNotifications(model.notifications, Date.now()) };
+    return [next, notificationTick(next, deps)];
+  }
+  if (msg.type !== 'title-tick' || (model.phase !== 'title' && model.phase !== 'password')) {
+    return [model, []];
+  }
+  const now = Date.now();
+  const elapsed = now - (model.lastTickTime || now);
+  const fps = elapsed > 0 ? Math.round(1000 / elapsed) : 0;
+  return [{
+    ...model,
+    titleTimeMs: (model.titleTimeMs || 0) + TITLE_TICK_MS,
+    lastTickTime: now,
+    fps: model.lastTickTime ? fps : 0,
+  }, [deps.tick(TITLE_TICK_MS, { type: 'title-tick' })]];
+}
+
+function handleVaultAuthCheck(msg, model) {
+  if (msg.encrypted) {
+    return [{
+      ...model,
+      phase: 'password',
+      metadata: msg.metadata,
+      vaultEntryCount: msg.entryCount,
+      status: 'vault locked',
+    }, []];
+  }
+  return [{
+    ...model,
     metadata: msg.metadata,
-    loadingSlug: null,
-    table,
-  }, cmds];
-}
-
-/**
- * Handle a loaded-manifest message.
- *
- * @param {DashMsg & { type: 'loaded-manifest' }} msg
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleLoadedManifest(msg, model) {
-  if (!sourceEquals(msg.source, model.source)) {
-    return [model, []];
-  }
-  const cache = new Map(model.manifestCache);
-  cache.set(msg.slug, msg.manifest);
-  const table = syncTable(model.table, {
-    entries: model.filtered,
-    manifestCache: cache,
-    rows: model.rows,
-  });
-  return [{
-    ...model,
-    manifestCache: cache,
-    loadingSlug: model.loadingSlug === msg.slug ? null : model.loadingSlug,
-    table,
+    promptEnter: true,
+    vaultEntryCount: msg.entryCount,
+    status: 'vault ready',
   }, []];
 }
 
-/**
- * Handle cursor movement.
- *
- * @param {{ type: 'move', delta: number }} msg
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleMove(msg, model) {
-  const table = msg.delta > 0 ? navTableFocusNext(model.table) : navTableFocusPrev(model.table);
-  return [{ ...model, table, detailScroll: 0 }, []];
+function handleLoadedEntries(msg, model, deps) {
+  if (!sourceEquals(msg.source, model.source)) { return [model, []]; }
+  const next = syncExplorer(model, {
+    entries: msg.entries,
+    metadata: msg.metadata,
+    status: `${msg.entries.length} entries`,
+    error: null,
+  });
+  const manifestCmd = maybeLoadSelectedManifest(next, deps);
+  return [next, [
+    loadStatsCmd(deps.cas, msg.entries, model.source),
+    ...(manifestCmd ? [manifestCmd] : []),
+  ]];
 }
 
-/**
- * Handle page-wise table navigation.
- *
- * @param {{ type: 'page', delta: number }} msg
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handlePage(msg, model) {
-  const table = msg.delta > 0 ? navTablePageDown(model.table) : navTablePageUp(model.table);
-  return [{ ...model, table, detailScroll: 0 }, []];
+function handleLoadedManifest(msg, model) {
+  if (!sourceEquals(msg.source, model.source)) { return [model, []]; }
+  const manifestCache = new Map(model.manifestCache);
+  manifestCache.set(msg.slug, msg.manifest);
+  return [syncExplorer(model, { manifestCache, loadingSlug: null }), []];
 }
 
-/**
- * Handle filter key input in filter mode.
- *
- * @param {KeyMsg} msg
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleFilterKey(msg, model) {
-  if (msg.key === 'escape' || msg.key === 'enter') {
-    return [{ ...model, filtering: false }, []];
+function handleLoadError(msg, model) {
+  let next = model;
+  const error = msg.error ?? 'Unknown dashboard error';
+  if (msg.source === 'entries') {
+    next = { ...next, status: 'entry load failed', error };
+  } else if (msg.source === 'manifest') {
+    next = { ...next, loadingSlug: null, error };
+  } else if (msg.source === 'refs') {
+    next = { ...next, refsStatus: 'error', refsError: error };
+  } else if (msg.source === 'stats') {
+    next = { ...next, statsStatus: 'error', statsError: error };
+  } else if (msg.source === 'doctor') {
+    next = { ...next, doctorStatus: 'error', doctorError: error };
+  } else if (msg.source === 'treemap') {
+    next = { ...next, treemapStatus: 'error', treemapError: error };
+  }
+  return [pushToast(next, { title: 'Dashboard load failed', message: error, tone: 'ERROR' }), []];
+}
+
+function handleAuthOkMsg(_msg, model, deps) {
+  return enterDashboard({ ...model, vaultEncryptionKey: _msg.encryptionKey ?? null }, deps);
+}
+
+function handleAuthFailMsg(msg, model) {
+  return [{ ...model, authError: msg.error, passphrase: '' }, []];
+}
+
+function handleLoadedRefsMsg(msg, model) {
+  return [{ ...model, refsStatus: 'ready', refsInventory: msg.refs, refsError: null }, []];
+}
+
+function handleLoadedStatsMsg(msg, model) {
+  if (!sourceEquals(msg.source, model.source)) { return [model, []]; }
+  return [{ ...model, statsStatus: 'ready', statsReport: msg.stats, statsError: null }, []];
+}
+
+function handleLoadedDoctorMsg(msg, model) {
+  if (!sourceEquals(msg.source, model.source)) { return [model, []]; }
+  return [{ ...model, doctorStatus: 'ready', doctorReport: msg.report, doctorError: null }, []];
+}
+
+function handleLoadedTreemapMsg(msg, model) {
+  return [{ ...model, treemapStatus: 'ready', treemapReport: msg.report, treemapFocus: 0, treemapError: null }, []];
+}
+
+function handleLoadedBranchMsg(msg, model) {
+  return [{ ...model, gitBranch: msg.branch }, []];
+}
+
+function handleStoreCompleteMsg(msg, model, deps) {
+  const manifestCache = new Map(model.manifestCache);
+  manifestCache.set(msg.slug, msg.manifest);
+  const next = pushToast({
+    ...syncExplorer(model, { manifestCache, storeWizard: null }),
+    operationFeed: completeLatestOperation(model.operationFeed, msg.slug, null),
+  }, { title: 'Stored asset', message: `${msg.slug} -> ${shortenSha(msg.treeOid)}`, tone: 'SUCCESS' });
+  return [next, [loadEntriesCmd(casForModel(deps.cas, model), model.source), ...notificationTick(next, deps)]];
+}
+
+function handleStoreErrorMsg(msg, model, deps) {
+  const next = pushToast({
+    ...model,
+    storeWizard: model.storeWizard ? { ...model.storeWizard, step: 'error', error: msg.error } : null,
+    operationFeed: completeLatestOperation(model.operationFeed, model.storeWizard?.slug ?? 'store', msg.error),
+  }, { title: 'Store failed', message: msg.error, tone: 'ERROR' });
+  return [next, notificationTick(next, deps)];
+}
+
+const APP_MSG_HANDLERS = {
+  'notification-tick': handleTickMsg,
+  'title-tick': handleTickMsg,
+  'vault-auth-check': handleVaultAuthCheck,
+  'vault-auth-ok': handleAuthOkMsg,
+  'vault-auth-fail': handleAuthFailMsg,
+  'loaded-entries': handleLoadedEntries,
+  'loaded-manifest': handleLoadedManifest,
+  'loaded-refs': handleLoadedRefsMsg,
+  'loaded-stats': handleLoadedStatsMsg,
+  'loaded-doctor': handleLoadedDoctorMsg,
+  'loaded-treemap': handleLoadedTreemapMsg,
+  'loaded-branch': handleLoadedBranchMsg,
+  'store-complete': handleStoreCompleteMsg,
+  'store-error': handleStoreErrorMsg,
+  'load-error': handleLoadError,
+};
+
+function handleAppMsg(msg, model, deps) {
+  const handler = APP_MSG_HANDLERS[msg.type];
+  return handler ? handler(msg, model, deps) : [model, []];
+}
+
+function handleTitleKey(msg, model, deps) {
+  if (msg.key === '`') { return [{ ...model, showPerfHud: !model.showPerfHud }, []]; }
+  if (msg.key === 'q' || msg.key === 'escape') { return [model, [quit()]]; }
+  if (msg.key === 'enter' && model.promptEnter) { return enterDashboard(model, deps); }
+  return [model, []];
+}
+
+function handlePasswordKey(msg, model, deps) {
+  if (msg.key === '`') { return [{ ...model, showPerfHud: !model.showPerfHud }, []]; }
+  if (msg.key === 'escape') { return [model, [quit()]]; }
+  if (msg.key === 'enter') {
+    return [{ ...model, authError: null }, [verifyPassphraseCmd(deps.cas, model.passphrase)]];
   }
   if (msg.key === 'backspace') {
-    const text = model.filterText.slice(0, -1);
-    const filtered = applyFilter(model.entries, text);
-    const table = syncTable(model.table, {
-      entries: filtered,
-      manifestCache: model.manifestCache,
-      rows: model.rows,
-      focusRow: 0,
-      scrollY: 0,
-    });
-    return [{ ...model, filterText: text, filtered, table }, []];
+    return [{ ...model, passphrase: model.passphrase.slice(0, -1) }, []];
   }
   if (msg.key.length === 1) {
-    const text = model.filterText + msg.key;
-    const filtered = applyFilter(model.entries, text);
-    const table = syncTable(model.table, {
-      entries: filtered,
-      manifestCache: model.manifestCache,
-      rows: model.rows,
-      focusRow: 0,
-      scrollY: 0,
-    });
-    return [{ ...model, filterText: text, filtered, table }, []];
+    return [{ ...model, passphrase: model.passphrase + msg.key }, []];
   }
   return [model, []];
 }
 
-/**
- * Handle select (enter key) to load manifest.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleSelect(model, deps) {
-  const entry = model.filtered[model.table.focusRow];
-  if (!entry) {
-    return [model, []];
-  }
-  if (model.manifestCache.has(entry.slug)) {
-    return [{ ...model, splitPane: { ...model.splitPane, focused: 'b' } }, []];
-  }
-  const cmd = /** @type {DashCmd} */ (loadManifestCmd(deps.cas, {
-    slug: entry.slug,
-    treeOid: entry.treeOid,
-    source: model.source,
-  }));
-  return [{
-    ...model,
-    loadingSlug: entry.slug,
-    splitPane: { ...model.splitPane, focused: 'b' },
-  }, [cmd]];
+function buildPaletteItems(model) {
+  return model.entries.map((entry) => {
+    const manifest = manifestFor(entry, model.manifestCache);
+    const digests = (manifest?.chunks ?? [])
+      .slice(0, 4)
+      .flatMap((chunk) => [chunk.digest, chunk.blob])
+      .filter(Boolean)
+      .join(' ');
+    return {
+      id: entry.slug,
+      label: entry.slug,
+      category: 'asset',
+      description: `${entry.treeOid} ${manifest?.integrity ?? ''} ${digests}`.trim(),
+      shortcut: 'enter',
+    };
+  });
 }
 
-/**
- * Open the refs browser and trigger a load when needed.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function openRefsDrawer(model, deps) {
-  if (model.refsStatus === 'ready' || model.refsStatus === 'loading') {
-    return [{
-      ...model,
-      activeDrawer: 'refs',
-      palette: null,
-    }, []];
-  }
-  return [{
-    ...model,
-    activeDrawer: 'refs',
-    palette: null,
-    refsStatus: 'loading',
-    refsError: null,
-  }, [/** @type {DashCmd} */ (loadRefsCmd(deps.cas))]];
-}
-
-/**
- * Open the stats drawer and trigger a load when needed.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function openStatsDrawer(model, deps) {
-  if (model.statsStatus === 'ready' || model.statsStatus === 'loading') {
-    return [{
-      ...model,
-      activeDrawer: 'stats',
-      palette: null,
-    }, []];
-  }
-  return [{
-    ...model,
-    activeDrawer: 'stats',
-    palette: null,
-    statsStatus: 'loading',
-    statsError: null,
-  }, [/** @type {DashCmd} */ (loadStatsCmd(deps.cas, model.entries, model.source))]];
-}
-
-/**
- * Open the doctor drawer and trigger a load when needed.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function openDoctorDrawer(model, deps) {
-  if (model.doctorStatus === 'ready' || model.doctorStatus === 'loading') {
-    return [{
-      ...model,
-      activeDrawer: 'doctor',
-      palette: null,
-    }, []];
-  }
-  return [{
-    ...model,
-    activeDrawer: 'doctor',
-    palette: null,
-    doctorStatus: 'loading',
-    doctorError: null,
-  }, [/** @type {DashCmd} */ (loadDoctorCmd(deps.cas, model.source, model.entries))]];
-}
-
-/**
- * Build a treemap load command from the current dashboard state.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {{ scope?: TreemapScope, worktreeMode?: TreemapWorktreeMode, drillPath?: TreemapPathNode[] }} [overrides]
- * @returns {DashCmd}
- */
-function treemapLoad(model, deps, overrides = {}) {
-  return /** @type {DashCmd} */ (loadTreemapCmd(deps.cas, {
-    source: model.source,
-    scope: overrides.scope ?? model.treemapScope,
-    worktreeMode: overrides.worktreeMode ?? model.treemapWorktreeMode,
-    drillPath: overrides.drillPath ?? model.treemapPath,
-  }));
-}
-
-/**
- * Open the repo treemap view and trigger a load when needed.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function openTreemapDrawer(model, deps) {
-  if (treemapReportMatches(model, model.treemapReport)) {
-    return [{
-      ...model,
-      activeDrawer: 'treemap',
-      palette: null,
-    }, []];
-  }
-  if (model.treemapStatus === 'loading') {
-    return [{
-      ...model,
-      activeDrawer: 'treemap',
-      palette: null,
-    }, []];
-  }
-  return [{
-    ...model,
-    activeDrawer: 'treemap',
-    palette: null,
-    treemapStatus: 'loading',
-    treemapError: null,
-  }, [treemapLoad(model, deps)]];
-}
-
-/**
- * Keep the refs browser state stable while a source switch reloads entries.
- *
- * @param {DashModel} model
- * @returns {{ refsStatus: LoadState, refsItems: RefInventoryItem[], refsTable: NavigableTableState }}
- */
-function preserveRefsState(model) {
+function openPalette(model) {
   return {
-    refsStatus: model.refsStatus,
-    refsItems: model.refsItems,
-    refsTable: syncRefsTable(model.refsTable, {
-      refs: model.refsItems,
-      rows: model.rows,
-      focusRow: model.refsTable.focusRow,
-      scrollY: model.refsTable.scrollY,
-    }),
+    ...model,
+    palette: createCommandPaletteState(buildPaletteItems(model), 9),
+    showHelp: false,
   };
 }
 
-/**
- * Reset source-scoped explorer state ahead of loading a different source.
- *
- * @param {DashModel} model
- * @param {DashSource} source
- * @returns {DashModel}
- */
-function buildSourceSwitchModel(model, source) {
-  const clearedTable = syncTable(model.table, {
-    entries: [],
-    manifestCache: new Map(),
-    rows: model.rows,
-    focusRow: 0,
-    scrollY: 0,
-  });
-
-  return {
-    ...model,
-    ...preserveRefsState(model),
+function selectPaletteItem(model, deps) {
+  const item = cpSelectedItem(model.palette);
+  if (!item) { return [{ ...model, palette: null }, []]; }
+  const selected = model.entries.find((entry) => entry.slug === item.id);
+  const next = syncExplorer(model, {
+    workspace: 'explorer',
+    explorerMode: 'manifest',
     palette: null,
-    activeDrawer: null,
-    source,
-    status: 'loading',
-    entries: [],
-    filtered: [],
-    filterText: '',
+    filterText: selected ? selected.slug : model.filterText,
     filtering: false,
-    metadata: null,
-    manifestCache: new Map(),
-    loadingSlug: null,
-    detailScroll: 0,
-    error: null,
-    table: clearedTable,
-    splitPane: { ...model.splitPane, focused: 'a' },
-    statsStatus: 'idle',
-    statsReport: null,
-    statsError: null,
-    doctorStatus: 'idle',
-    doctorReport: null,
-    doctorError: null,
-    treemapStatus: 'idle',
-    treemapReport: null,
-    treemapError: null,
-    treemapPath: [],
-    treemapFocus: 0,
-  };
+  });
+  const manifestCmd = maybeLoadSelectedManifest(next, deps);
+  return [next, manifestCmd ? [manifestCmd] : []];
 }
 
-/**
- * Toggle the treemap between repository and source scopes.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function toggleTreemapScope(model, deps) {
-  const treemapScope = model.treemapScope === 'repository' ? 'source' : 'repository';
-  const nextModel = {
-    ...model,
-    treemapScope,
-    treemapPath: [],
-    treemapFocus: 0,
-  };
-  if (treemapReportMatches(nextModel, model.treemapReport)) {
-    return [{
-      ...nextModel,
-      activeDrawer: 'treemap',
-      palette: null,
-      treemapStatus: 'ready',
-      treemapError: null,
-    }, []];
-  }
-  return [{
-    ...nextModel,
-    activeDrawer: 'treemap',
-    palette: null,
-    treemapStatus: 'loading',
-    treemapError: null,
-  }, [treemapLoad(nextModel, deps)]];
+const PALETTE_ACTIONS = {
+  close: (_msg, model) => [{ ...model, palette: null }, []],
+  select: (_msg, model, deps) => selectPaletteItem(model, deps),
+  next: (_msg, model) => [{ ...model, palette: cpFocusNext(model.palette) }, []],
+  previous: (_msg, model) => [{ ...model, palette: cpFocusPrev(model.palette) }, []],
+  pageDown: (_msg, model) => [{ ...model, palette: cpPageDown(model.palette) }, []],
+  pageUp: (_msg, model) => [{ ...model, palette: cpPageUp(model.palette) }, []],
+};
+
+const PALETTE_KEY_ACTIONS = {
+  escape: 'close',
+  enter: 'select',
+  down: 'next',
+  up: 'previous',
+  pagedown: 'pageDown',
+  pageup: 'pageUp',
+};
+
+function paletteAction(msg) {
+  if (msg.ctrl && msg.key === 'n') { return 'next'; }
+  if (msg.ctrl && msg.key === 'p') { return 'previous'; }
+  if (msg.ctrl && msg.key === 'd') { return 'pageDown'; }
+  if (msg.ctrl && msg.key === 'u') { return 'pageUp'; }
+  return PALETTE_KEY_ACTIONS[msg.key] ?? null;
 }
 
-/**
- * Toggle repository treemap file visibility between tracked and ignored paths.
- *
- * This control is repository-specific, so switching visibility also returns the
- * view to repository scope when needed.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function toggleTreemapWorktreeMode(model, deps) {
-  const treemapWorktreeMode = model.treemapWorktreeMode === 'tracked' ? 'ignored' : 'tracked';
-  const nextModel = {
-    ...model,
-    treemapScope: 'repository',
-    treemapWorktreeMode,
-    treemapPath: [],
-    treemapFocus: 0,
-    activeDrawer: 'treemap',
-    palette: null,
-  };
-  if (treemapReportMatches(nextModel, model.treemapReport)) {
-    return [{
-      ...nextModel,
-      treemapStatus: 'ready',
-      treemapError: null,
-    }, []];
-  }
-  return [{
-    ...nextModel,
-    treemapStatus: 'loading',
-    treemapError: null,
-  }, [treemapLoad(nextModel, deps)]];
+function paletteQueryForKey(msg, palette) {
+  if (msg.key === 'backspace') { return palette.query.slice(0, -1); }
+  if (msg.key.length === 1 && !msg.ctrl && !msg.alt) { return `${palette.query}${msg.key}`; }
+  return null;
 }
 
-/**
- * Close the command palette or active view, whichever is visible.
- *
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function closeOverlay(model) {
-  if (model.palette) {
-    return [{ ...model, palette: null }, []];
+function handlePaletteKey(msg, model, deps) {
+  if (!model.palette) { return [model, []]; }
+  const action = paletteAction(msg);
+  if (action) { return PALETTE_ACTIONS[action](msg, model, deps); }
+  const query = paletteQueryForKey(msg, model.palette);
+  return query === null
+    ? [model, []]
+    : [{ ...model, palette: cpFilter(model.palette, query) }, []];
+}
+
+function handleFilterKey(msg, model) {
+  if (msg.key === 'escape') { return [syncExplorer(model, { filtering: false }), []]; }
+  if (msg.key === 'enter') { return [syncExplorer(model, { filtering: false }), []]; }
+  if (msg.key === 'backspace') {
+    return [syncExplorer(model, { filterText: model.filterText.slice(0, -1) }), []];
   }
-  if (model.activeDrawer) {
-    return [{ ...model, activeDrawer: null }, []];
-  }
-  if (model.toasts.length > 0) {
-    return startToastExit(model, model.toasts[0].id);
+  if (msg.key.length === 1 && !msg.ctrl && !msg.alt) {
+    return [syncExplorer(model, { filterText: `${model.filterText}${msg.key}` }), []];
   }
   return [model, []];
 }
 
-/**
- * Focus a specific split pane from the command palette.
- *
- * @param {DashModel} model
- * @param {'a' | 'b'} pane
- * @returns {[DashModel, DashCmd[]]}
- */
-function focusPane(model, pane) {
-  return [{
-    ...model,
-    palette: null,
-    splitPane: { ...model.splitPane, focused: pane },
-  }, []];
+const LEDGER_NAVIGATORS = {
+  j: navTableFocusNext,
+  down: navTableFocusNext,
+  k: navTableFocusPrev,
+  up: navTableFocusPrev,
+  d: navTablePageDown,
+  pagedown: navTablePageDown,
+  u: navTablePageUp,
+  pageup: navTablePageUp,
+};
+
+function handleExplorerNavigation(msg, model, deps) {
+  if (model.focusPane !== 'ledger') { return null; }
+  const navigate = LEDGER_NAVIGATORS[msg.key];
+  if (!navigate) { return null; }
+  const next = { ...model, table: navigate(model.table), chunkFocus: 0 };
+  const manifestCmd = maybeLoadSelectedManifest(next, deps);
+  return [next, manifestCmd ? [manifestCmd] : []];
 }
 
-/**
- * Close the active view from the command palette.
- *
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function closeDrawerFromPalette(model) {
-  return [{
-    ...model,
-    palette: null,
-    activeDrawer: null,
-  }, []];
+function selectedChunks(model) {
+  return selectedManifest(model)?.chunks ?? [];
 }
 
-/**
- * Switch the dashboard to a new source and reload explorer entries for it.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @param {DashSource} source
- * @returns {[DashModel, DashCmd[]]}
- */
-function switchSource(model, deps, source) {
-  if (sourceEquals(model.source, source)) {
+function clampChunkFocus(model, nextFocus) {
+  const chunks = selectedChunks(model);
+  return Math.max(0, Math.min(nextFocus, Math.max(0, chunks.length - 1)));
+}
+
+function chunkPageStep(model) {
+  return Math.max(1, Math.min(24, model.rows - 14));
+}
+
+function moveChunkFocus(model, delta) {
+  return [{ ...model, chunkFocus: clampChunkFocus(model, model.chunkFocus + delta) }, []];
+}
+
+function detailDeltaForKey(key, model) {
+  if (key === 'j' || key === 'down') { return 1; }
+  if (key === 'k' || key === 'up') { return -1; }
+  if (key === 'd' || key === 'pagedown') { return chunkPageStep(model); }
+  if (key === 'u' || key === 'pageup') { return -chunkPageStep(model); }
+  return null;
+}
+
+function handleDetailNavigation(msg, model) {
+  if (model.focusPane !== 'detail' || model.explorerMode === 'ledger') { return null; }
+  if (selectedChunks(model).length === 0) { return null; }
+  const delta = detailDeltaForKey(msg.key, model);
+  if (delta !== null) { return moveChunkFocus(model, delta); }
+  if (msg.key === 'g') { return [{ ...model, chunkFocus: 0 }, []]; }
+  return null;
+}
+
+function switchWorkspace(model, workspace, deps) {
+  const next = { ...model, workspace, showHelp: false };
+  if (workspace === 'atlas' && next.treemapStatus === 'idle') {
+    const cas = casForModel(deps.cas, next);
+    return [{ ...next, treemapStatus: 'loading' }, [loadTreemapCmd(cas, {
+      source: next.source,
+      scope: next.treemapScope,
+      worktreeMode: next.treemapWorktreeMode,
+      drillPath: next.treemapPath,
+    })]];
+  }
+  if (workspace === 'operations' && next.statsStatus === 'idle') {
+    return [{ ...next, statsStatus: 'loading' }, [loadStatsCmd(deps.cas, next.entries, next.source)]];
+  }
+  return [next, []];
+}
+
+function handleWorkspaceKey(msg, model, deps) {
+  if (msg.key === '1' || msg.key === 'e') { return switchWorkspace(model, 'explorer', deps); }
+  if (msg.key === '2' || msg.key === 'a') { return switchWorkspace(model, 'atlas', deps); }
+  if (msg.key === '3' || msg.key === 'o') { return switchWorkspace(model, 'operations', deps); }
+  return null;
+}
+
+function toggleExplorerDetail(model, deps) {
+  const enteringDetail = model.explorerMode === 'ledger';
+  const next = {
+    ...model,
+    explorerMode: enteringDetail ? 'manifest' : 'ledger',
+    focusPane: enteringDetail ? 'detail' : 'ledger',
+  };
+  const manifestCmd = maybeLoadSelectedManifest(next, deps);
+  return [next, manifestCmd ? [manifestCmd] : []];
+}
+
+function cycleMerkleMode(model) {
+  const modes = /** @type {MerkleMode[]} */ (['table', 'tree', 'dag']);
+  const nextMode = modes[(modes.indexOf(model.merkleMode) + 1) % modes.length];
+  return [{ ...model, explorerMode: 'merkle', merkleMode: nextMode, focusPane: 'detail' }, []];
+}
+
+function toggleInspectorMode(model, deps) {
+  const next = {
+    ...model,
+    explorerMode: model.explorerMode === 'manifest' ? 'merkle' : 'manifest',
+    focusPane: 'detail',
+  };
+  const manifestCmd = maybeLoadSelectedManifest(next, deps);
+  return [next, manifestCmd ? [manifestCmd] : []];
+}
+
+function handleExplorerModeKey(msg, model, deps) {
+  if (msg.key === 'enter') { return toggleExplorerDetail(model, deps); }
+  if (msg.key === 'm') { return cycleMerkleMode(model); }
+  if (msg.key === 'i') { return toggleInspectorMode(model, deps); }
+  return null;
+}
+
+function handleExplorerKey(msg, model, deps) {
+  if (msg.key === 'tab') {
+    return [{ ...model, focusPane: model.focusPane === 'ledger' ? 'detail' : 'ledger' }, []];
+  }
+  const detailNav = handleDetailNavigation(msg, model);
+  if (detailNav) { return detailNav; }
+  const nav = handleExplorerNavigation(msg, model, deps);
+  if (nav) { return nav; }
+  return handleExplorerModeKey(msg, model, deps);
+}
+
+function reloadTreemap(model, deps, patch = {}) {
+  const next = { ...model, ...patch, treemapStatus: 'loading', treemapError: null };
+  return [next, [loadTreemapCmd(casForModel(deps.cas, next), {
+    source: next.source,
+    scope: next.treemapScope,
+    worktreeMode: next.treemapWorktreeMode,
+    drillPath: next.treemapPath,
+  })]];
+}
+
+function focusAtlasTile(model, delta) {
+  const tiles = model.treemapReport?.tiles ?? [];
+  const maxFocus = Math.max(0, tiles.length - 1);
+  return [{ ...model, treemapFocus: Math.max(0, Math.min(model.treemapFocus + delta, maxFocus)) }, []];
+}
+
+function drillIntoAtlasTile(model, deps) {
+  const tile = model.treemapReport?.tiles?.[model.treemapFocus];
+  return tile?.drillable && tile.path
+    ? reloadTreemap(model, deps, { treemapPath: [...model.treemapPath, tile.path] })
+    : null;
+}
+
+function drillOutAtlasTile(model, deps) {
+  return model.treemapPath.length > 0
+    ? reloadTreemap(model, deps, { treemapPath: model.treemapPath.slice(0, -1) })
+    : null;
+}
+
+const ATLAS_KEY_ACTIONS = {
+  j: 'next',
+  down: 'next',
+  k: 'previous',
+  up: 'previous',
+  t: 'scope',
+  i: 'worktreeMode',
+  r: 'reload',
+  '+': 'drillIn',
+  enter: 'drillIn',
+  '-': 'drillOut',
+  backspace: 'drillOut',
+};
+
+const ATLAS_ACTIONS = {
+  next: (_msg, model) => focusAtlasTile(model, 1),
+  previous: (_msg, model) => focusAtlasTile(model, -1),
+  scope: (_msg, model, deps) => reloadTreemap(model, deps, { treemapScope: model.treemapScope === 'repository' ? 'source' : 'repository', treemapPath: [] }),
+  worktreeMode: (_msg, model, deps) => reloadTreemap(model, deps, { treemapWorktreeMode: model.treemapWorktreeMode === 'tracked' ? 'ignored' : 'tracked', treemapPath: [] }),
+  reload: (_msg, model, deps) => reloadTreemap(model, deps),
+  drillIn: (_msg, model, deps) => drillIntoAtlasTile(model, deps),
+  drillOut: (_msg, model, deps) => drillOutAtlasTile(model, deps),
+};
+
+function handleAtlasKey(msg, model, deps) {
+  const action = ATLAS_KEY_ACTIONS[msg.key];
+  return action ? ATLAS_ACTIONS[action](msg, model, deps) : null;
+}
+
+function startOperation(operationFeed, slug) {
+  return {
+    ...operationFeed,
+    entries: [{
+      id: `store-${slug}-${Date.now()}`,
+      type: 'store',
+      slug,
+      status: 'running',
+      startTime: Date.now(),
+      endTime: null,
+      chunksTotal: 0,
+      chunksProcessed: 0,
+      error: null,
+    }, ...operationFeed.entries].slice(0, operationFeed.maxEntries),
+  };
+}
+
+function completeLatestOperation(operationFeed, slug, error) {
+  return {
+    ...operationFeed,
+    entries: operationFeed.entries.map((entry, index) => {
+      if (index !== 0 || entry.slug !== slug) { return entry; }
+      return {
+        ...entry,
+        status: error ? 'error' : 'done',
+        endTime: Date.now(),
+        error,
+      };
+    }),
+  };
+}
+
+function handleWizardKey(msg, model, deps) {
+  if (!model.storeWizard) { return null; }
+  if (msg.key === 'escape') {
+    return [{ ...model, storeWizard: null }, []];
+  }
+  const nextWizard = wizardHandleKey(model.storeWizard, msg.key);
+  if (nextWizard.step === 'storing') {
     return [{
       ...model,
-      palette: null,
-      activeDrawer: null,
-    }, []];
+      storeWizard: nextWizard,
+      operationFeed: startOperation(model.operationFeed, nextWizard.slug),
+    }, [runStoreWizardCmd(casForModel(deps.cas, model), nextWizard)]];
   }
-  return [buildSourceSwitchModel(model, source), [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas, source))]];
+  return [{ ...model, storeWizard: nextWizard }, []];
 }
 
-/**
- * Handle cursor movement inside the refs browser.
- *
- * @param {{ type: 'move', delta: number }} action
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleRefsMove(action, model) {
-  const refsTable = action.delta > 0 ? navTableFocusNext(model.refsTable) : navTableFocusPrev(model.refsTable);
-  return [{ ...model, refsTable }, []];
-}
-
-/**
- * Handle page-wise movement inside the refs browser.
- *
- * @param {{ type: 'page', delta: number }} action
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleRefsPage(action, model) {
-  const refsTable = action.delta > 0 ? navTablePageDown(model.refsTable) : navTablePageUp(model.refsTable);
-  return [{ ...model, refsTable }, []];
-}
-
-/**
- * Switch the dashboard source to the focused ref when it resolves to CAS data.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleRefSelect(model, deps) {
-  const ref = model.refsItems[model.refsTable.focusRow];
-  if (!ref) {
-    return [model, []];
+function handleOperationsKey(msg, model, deps) {
+  if (msg.key === 'n') { return [{ ...model, storeWizard: createWizardState() }, []]; }
+  if (msg.key === 's') {
+    return [{ ...model, statsStatus: 'loading', statsError: null }, [loadStatsCmd(deps.cas, model.entries, model.source)]];
   }
-  if (!ref.browsable || !ref.source) {
-    return addToast(model, {
-      level: 'warning',
-      title: 'Ref is not browsable',
-      message: `${ref.ref} does not currently resolve to CAS entries.`,
-    });
-  }
-  return switchSource(model, deps, ref.source);
-}
-
-/**
- * Apply the focused command palette item.
- *
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function handlePaletteSelect(model, deps) {
-  const item = model.palette ? cpSelectedItem(model.palette) : undefined;
-  if (!item) {
-    return [{ ...model, palette: null }, []];
-  }
-  const handlers = {
-    refs: () => openRefsDrawer(model, deps),
-    treemap: () => openTreemapDrawer(model, deps),
-    'treemap-scope': () => toggleTreemapScope(model, deps),
-    'treemap-worktree': () => toggleTreemapWorktreeMode(model, deps),
-    'treemap-drill-in': () => handleTreemapDrillIn(model, deps),
-    'treemap-drill-out': () => handleTreemapDrillOut(model, deps),
-    stats: () => openStatsDrawer(model, deps),
-    doctor: () => openDoctorDrawer(model, deps),
-    'focus-entries': () => focusPane(model, 'a'),
-    'focus-inspector': () => focusPane(model, 'b'),
-    'close-drawer': () => closeDrawerFromPalette(model),
-  };
-  if (item.id in handlers) {
-    return handlers[item.id]();
-  }
-  return [{ ...model, palette: null }, []];
-}
-
-/**
- * Apply palette navigation actions emitted by the palette keymap.
- *
- * @param {PaletteAction} action
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function handlePaletteAction(action, model, deps) {
-  if (!model.palette) {
-    return [model, []];
-  }
-  switch (action.type) {
-    case 'focus-next':
-      return setPalette(model, cpFocusNext(model.palette));
-    case 'focus-prev':
-      return setPalette(model, cpFocusPrev(model.palette));
-    case 'page-down':
-      return setPalette(model, cpPageDown(model.palette));
-    case 'page-up':
-      return setPalette(model, cpPageUp(model.palette));
-    case 'select':
-      return handlePaletteSelect(model, deps);
-    case 'close':
-      return setPalette(model, null);
-    default:
-      return [model, []];
-  }
-}
-
-/**
- * Update the palette query while keeping focus/scroll logic inside Bijou.
- *
- * @param {DashModel} model
- * @param {string} query
- * @returns {[DashModel, DashCmd[]]}
- */
-function filterPalette(model, query) {
-  if (!model.palette) {
-    return [model, []];
-  }
-  return setPalette(model, cpFilter(model.palette, query));
-}
-
-/**
- * Return true when the key should append to the palette query.
- *
- * @param {KeyMsg} msg
- * @returns {boolean}
- */
-function isPaletteQueryKey(msg) {
-  return msg.key.length === 1 && !msg.ctrl && !msg.alt;
-}
-
-/**
- * Route key input while the command palette is open.
- *
- * @param {KeyMsg} msg
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function handlePaletteKey(msg, model, deps) {
-  if (!model.palette) {
-    return [model, []];
-  }
-  const action = /** @type {PaletteAction | undefined} */ (paletteKeyMap.handle(msg));
-  if (action) {
-    return handlePaletteAction(action, model, deps);
-  }
-  if (msg.key === 'backspace') {
-    return filterPalette(model, model.palette.query.slice(0, -1));
-  }
-  if (isPaletteQueryKey(msg)) {
-    return filterPalette(model, model.palette.query + msg.key);
-  }
-  return [model, []];
-}
-
-/**
- * Start filter mode with the full entry set visible.
- *
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function startFilter(model) {
-  const filtered = model.entries;
-  const table = syncTable(model.table, {
-    entries: filtered,
-    manifestCache: model.manifestCache,
-    rows: model.rows,
-    focusRow: 0,
-    scrollY: 0,
-  });
-  return [{ ...model, filtering: true, filterText: '', filtered, table }, []];
-}
-
-/**
- * Resize the currently focused split pane.
- *
- * @param {DashModel} model
- * @param {number} delta
- * @returns {[DashModel, DashCmd[]]}
- */
-function resizeSplitPane(model, delta) {
-  const signedDelta = model.splitPane.focused === 'a' ? delta : -delta;
-  const splitPane = splitPaneResizeBy(model.splitPane, signedDelta, {
-    total: model.columns,
-    minA: SPLIT_MIN_LIST_WIDTH,
-    minB: SPLIT_MIN_DETAIL_WIDTH,
-    dividerSize: SPLIT_DIVIDER_SIZE,
-  });
-  return [{ ...model, splitPane }, []];
-}
-
-/**
- * Handle overlay-related actions.
- *
- * @param {DashAction} action
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]] | null}
- */
-function handleOverlayAction(action, model, deps) {
-  const handlers = {
-    'open-palette': () => setPalette(model, createPalette(model.rows)),
-    'open-stats': () => openStatsDrawer(model, deps),
-    'open-doctor': () => openDoctorDrawer(model, deps),
-    'open-refs': () => openRefsDrawer(model, deps),
-    'open-treemap': () => openTreemapDrawer(model, deps),
-    'toggle-treemap-scope': () => toggleTreemapScope(model, deps),
-    'toggle-treemap-worktree': () => toggleTreemapWorktreeMode(model, deps),
-    'treemap-drill-in': () => handleTreemapDrillIn(model, deps),
-    'treemap-drill-out': () => handleTreemapDrillOut(model, deps),
-    'overlay-close': () => closeOverlay(model),
-  };
-  return action.type in handlers ? handlers[action.type]() : null;
-}
-
-/**
- * Handle non-overlay layout and navigation actions.
- *
- * @param {DashAction} action
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]] | null}
- */
-function handleLayoutAction(action, model) {
-  if (action.type === 'filter-start') {
-    return startFilter(model);
-  }
-  if (action.type === 'scroll-detail') {
-    const scroll = Math.max(0, model.detailScroll + action.delta);
-    return [{ ...model, detailScroll: scroll }, []];
-  }
-  if (action.type === 'split-focus') {
-    return [{ ...model, splitPane: splitPaneFocusNext(model.splitPane) }, []];
-  }
-  if (action.type === 'split-resize') {
-    return resizeSplitPane(model, action.delta);
+  if (msg.key === 'x') {
+    return [{ ...model, doctorStatus: 'loading', doctorError: null }, [loadDoctorCmd(deps.cas, model.source, model.entries)]];
   }
   return null;
 }
 
-/**
- * Return true when explorer-only actions should be ignored in treemap view.
- *
- * @param {DashAction} action
- * @returns {boolean}
- */
-function isBlockedByTreemapView(action) {
-  return action.type === 'move'
-    || action.type === 'page'
-    || action.type === 'select'
-    || action.type === 'filter-start'
-    || action.type === 'scroll-detail'
-    || action.type === 'split-focus'
-    || action.type === 'split-resize';
+function handleQuitConfirmKey(msg, model) {
+  if (msg.key === 'y' || msg.key === 'enter') { return [model, [quit()]]; }
+  if (msg.key === 'n' || msg.key === 'escape' || msg.key === 'q') {
+    return [{ ...model, quitConfirm: false }, []];
+  }
+  return [model, []];
 }
 
-/**
- * Handle the primary keymap actions that do not require further routing.
- *
- * @param {DashAction} action
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]] | null}
- */
-function handlePrimaryAction(action, model, deps) {
-  if (action.type === 'quit') {
-    return [model, [quit()]];
+function clearDashboardOverlays(model) {
+  return {
+    ...model,
+    showHelp: false,
+    storeWizard: null,
+    palette: null,
+    filtering: false,
+    quitConfirm: false,
+    settingsOpen: false,
+  };
+}
+
+function handleOverlayShortcut(msg, model) {
+  if (msg.key === 'escape') { return [clearDashboardOverlays(model), []]; }
+  if (msg.key === 'f2') { return [{ ...model, settingsOpen: !model.settingsOpen, showHelp: false, palette: null }, []]; }
+  if (msg.key === '?' || (msg.shift && msg.key === '/')) {
+    return [{ ...model, showHelp: !model.showHelp, palette: null }, []];
   }
-  if (action.type === 'move') {
-    return handleMove(action, model);
-  }
-  if (action.type === 'page') {
-    return handlePage(action, model);
-  }
-  if (action.type === 'select') {
-    return handleSelect(model, deps);
-  }
+  if (msg.key === 'q') { return [{ ...model, quitConfirm: true }, []]; }
   return null;
 }
 
-/**
- * Handle keymap actions.
- *
- * @param {DashAction} action
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleAction(action, model, deps) {
-  const refsResult = handleRefsViewAction(action, model, deps);
-  if (refsResult) {
-    return refsResult;
+function handleSearchShortcut(msg, model) {
+  if (msg.key === '/' && !msg.ctrl) {
+    return [syncExplorer(model, { workspace: 'explorer', filtering: true, palette: null }), []];
   }
-  const treemapResult = handleTreemapViewAction(action, model, deps);
-  if (treemapResult) {
-    return treemapResult;
-  }
-  if (model.activeDrawer === 'treemap' && isBlockedByTreemapView(action)) {
-    return [model, []];
-  }
-  const primaryResult = handlePrimaryAction(action, model, deps);
-  if (primaryResult) {
-    return primaryResult;
-  }
-  const overlayResult = handleOverlayAction(action, model, deps);
-  if (overlayResult) { return overlayResult; }
-  const layoutResult = handleLayoutAction(action, model);
-  if (layoutResult) { return layoutResult; }
-  return [model, []];
+  if ((msg.ctrl && msg.key === 'p') || msg.key === ':') { return [openPalette(model), []]; }
+  return null;
 }
 
-/**
- * Handle successful report loads.
- *
- * @param {DashMsg} msg
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleLoadedReport(msg, model) {
-  if (msg.type === 'loaded-refs') {
-    return handleLoadedRefs(msg, model);
-  }
-  if (msg.type === 'loaded-stats') {
-    return handleLoadedStats(msg, model);
-  }
-  if (msg.type === 'loaded-doctor') {
-    return handleLoadedDoctor(msg, model);
-  }
-  if (msg.type === 'loaded-treemap') {
-    return handleLoadedTreemap(msg, model);
-  }
-  return [model, []];
+function handleGlobalDashboardKey(msg, model, deps) {
+  const overlay = handleOverlayShortcut(msg, model);
+  if (overlay) { return overlay; }
+  const search = handleSearchShortcut(msg, model);
+  if (search) { return search; }
+  return handleWorkspaceKey(msg, model, deps);
 }
 
-/**
- * Store a loaded refs inventory.
- *
- * @param {Extract<DashMsg, { type: 'loaded-refs' }>} msg
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleLoadedRefs(msg, model) {
-  return [{
-    ...model,
-    refsStatus: 'ready',
-    refsItems: msg.refs.refs,
-    refsError: null,
-    refsTable: syncRefsTable(model.refsTable, {
-      refs: msg.refs.refs,
-      rows: model.rows,
-      focusRow: 0,
-      scrollY: 0,
-    }),
-  }, []];
+const WORKSPACE_KEY_HANDLERS = {
+  explorer: handleExplorerKey,
+  atlas: handleAtlasKey,
+  operations: handleOperationsKey,
+};
+
+function handleWorkspaceSpecificKey(msg, model, deps) {
+  const handler = WORKSPACE_KEY_HANDLERS[model.workspace];
+  return handler ? handler(msg, model, deps) : null;
 }
 
-/**
- * Store a loaded stats report if it still matches the active source.
- *
- * @param {Extract<DashMsg, { type: 'loaded-stats' }>} msg
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleLoadedStats(msg, model) {
-  if (!sourceEquals(msg.source, model.source)) {
-    return [model, []];
-  }
-  return [{
-    ...model,
-    statsStatus: 'ready',
-    statsReport: msg.stats,
-    statsError: null,
-  }, []];
+function handleDashboardKey(msg, model, deps) {
+  if (model.quitConfirm) { return handleQuitConfirmKey(msg, model); }
+  if (model.palette) { return handlePaletteKey(msg, model, deps); }
+  const wizard = handleWizardKey(msg, model, deps);
+  if (wizard) { return wizard; }
+  if (model.filtering) { return handleFilterKey(msg, model); }
+  const global = handleGlobalDashboardKey(msg, model, deps);
+  return global ?? handleWorkspaceSpecificKey(msg, model, deps) ?? [model, []];
 }
 
-/**
- * Store a loaded doctor report if it still matches the active source.
- *
- * @param {Extract<DashMsg, { type: 'loaded-doctor' }>} msg
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleLoadedDoctor(msg, model) {
-  if (!sourceEquals(msg.source, model.source)) {
-    return [model, []];
-  }
-  return [{
-    ...model,
-    doctorStatus: 'ready',
-    doctorReport: msg.report,
-    doctorError: null,
-  }, []];
-}
-
-/**
- * Store a loaded treemap report if it still matches the active view state.
- *
- * @param {Extract<DashMsg, { type: 'loaded-treemap' }>} msg
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleLoadedTreemap(msg, model) {
-  if (!treemapReportMatches(model, msg.report)) {
-    return [model, []];
-  }
-  return [{
-    ...model,
-    treemapStatus: 'ready',
-    treemapReport: msg.report,
-    treemapError: null,
-    treemapFocus: clampTreemapFocus(model.treemapFocus, msg.report.tiles ?? []),
-  }, []];
-}
-
-/**
- * Handle load errors from async dashboard commands.
- *
- * @param {DashMsg & { type: 'load-error' }} msg
- * @param {DashModel} model
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleLoadError(msg, model) {
-  if (isStaleSourceLoad(msg, model)) {
-    return [model, []];
-  }
-  if (msg.source === 'treemap' && isStaleTreemapLoad(msg, model)) {
-    return [model, []];
-  }
-  return addToast(applyLoadErrorState(msg, model), {
-    level: 'error',
-    title: loadErrorTitle(msg),
-    message: msg.error,
-  });
-}
-
-/**
- * Handle app-level messages (data loading results).
- *
- * @param {DashMsg} msg
- * @param {DashModel} model
- * @param {ContentAddressableStore} cas
- * @returns {[DashModel, DashCmd[]]}
- */
-function handleAppMsg(msg, model, cas) {
-  if (msg.type === 'loaded-entries') { return handleLoadedEntries(msg, model, cas); }
-  if (msg.type === 'loaded-manifest') { return handleLoadedManifest(msg, model); }
-  if (msg.type === 'toast-progress') {
-    return [updateToast(model, msg.id, (toast) => ({
-      ...toast,
-      progress: Math.max(0, Math.min(1, msg.progress)),
-      phase: msg.progress >= 1 && toast.phase === 'entering' ? 'steady' : toast.phase,
-    })), []];
-  }
-  if (msg.type === 'toast-expire') {
-    return startToastExit(model, msg.id);
-  }
-  if (msg.type === 'dismiss-toast') { return dismissToast(model, msg.id); }
-  if (msg.type === 'load-error') { return handleLoadError(msg, model); }
-  return handleLoadedReport(msg, model);
-}
-
-/**
- * Normalize punctuation key runtime differences across terminals.
- *
- * Bijou's descriptor parser can match `shift+=`, but some live terminals emit
- * the printable `+` and `_` characters directly instead of the unshifted key
- * plus a modifier flag. Accept both representations for treemap drill keys.
- *
- * @param {KeyMsg} msg
- * @returns {DashAction | undefined}
- */
-function runtimeSymbolAction(msg) {
-  if (msg.ctrl || msg.alt) {
-    return undefined;
-  }
-  if (msg.key === '+' || (msg.key === '=' && msg.shift)) {
-    return { type: 'treemap-drill-in' };
-  }
-  if (msg.key === '-' || msg.key === '_') {
-    return { type: 'treemap-drill-out' };
-  }
-  return undefined;
-}
-
-/**
- * Route all update messages to the appropriate handler.
- *
- * @param {KeyMsg | ResizeMsg | DashMsg} msg
- * @param {DashModel} model
- * @param {DashDeps} deps
- * @returns {[DashModel, DashCmd[]]}
- */
 function handleUpdate(msg, model, deps) {
-  if (msg.type === 'key' && model.palette) {
-    return handlePaletteKey(msg, model, deps);
-  }
-  if (msg.type === 'key' && model.filtering) {
-    return handleFilterKey(msg, model);
-  }
   if (msg.type === 'key') {
-    const action = runtimeSymbolAction(msg) ?? deps.keyMap.handle(msg);
-    if (action) { return handleAction(action, model, deps); }
-    return [model, []];
+    if (model.phase === 'title') { return handleTitleKey(msg, model, deps); }
+    if (model.phase === 'password') { return handlePasswordKey(msg, model, deps); }
+    return handleDashboardKey(msg, model, deps);
   }
   if (msg.type === 'resize') {
-    const table = syncTable(model.table, {
-      entries: model.filtered,
-      manifestCache: model.manifestCache,
-      rows: msg.rows,
-    });
-    const refsTable = syncRefsTable(model.refsTable, {
-      refs: model.refsItems,
-      rows: msg.rows,
-    });
-    const palette = model.palette
-      ? {
-        ...model.palette,
-        height: paletteHeight(msg.rows),
-      }
-      : null;
-    return [{ ...model, columns: msg.columns, rows: msg.rows, table, refsTable, palette }, []];
+    return [syncExplorer(model, { columns: msg.columns, rows: msg.rows }), []];
   }
-  return handleAppMsg(/** @type {DashMsg} */ (msg), model, deps.cas);
+  return handleAppMsg(msg, model, deps);
 }
 
-/**
- * Return true when a treemap report matches the current view state.
- *
- * @param {{ treemapScope: TreemapScope, treemapWorktreeMode: TreemapWorktreeMode }} model
- * @param {{ scope?: TreemapScope, worktreeMode?: TreemapWorktreeMode } | null | undefined} report
- * @returns {boolean}
- */
-function treemapReportMatches(model, report) {
-  if (!report || report.scope !== model.treemapScope || !sourceEquals(report.source, model.source) || !treemapPathEquals(report.drillPath ?? [], model.treemapPath)) {
-    return false;
-  }
-  if (report.scope !== 'repository') {
-    return true;
-  }
-  return report.worktreeMode === model.treemapWorktreeMode;
-}
-
-/**
- * Create the TEA app object for the dashboard.
- *
- * @param {DashDeps} deps
- * @returns {import('@flyingrobots/bijou-tui').App<DashModel, DashMsg>}
- */
 export function createDashboardApp(deps) {
   return {
-    init: () => /** @type {[DashModel, DashCmd[]]} */ ([createInitModel(deps.ctx, deps.source), [/** @type {DashCmd} */ (loadEntriesCmd(deps.cas, deps.source))]]),
-    update: (/** @type {KeyMsg | ResizeMsg | DashMsg} */ msg, /** @type {DashModel} */ model) => handleUpdate(msg, model, deps),
-    view: (/** @type {DashModel} */ model) => renderDashboard(model, deps),
+    init: () => [createInitModel(deps.ctx, deps.source), [
+      checkVaultAuthCmd(deps.cas),
+      deps.tick(TITLE_TICK_MS, { type: 'title-tick' }),
+    ]],
+    update: (msg, model) => handleUpdate(msg, model, deps),
+    view: (model) => renderDashboard(model, deps),
   };
 }
 
-/**
- * Print static list for non-TTY environments.
- *
- * @param {ContentAddressableStore} cas Content-addressable store read by printStaticList.
- * @param {DashSource} source Dashboard source used by printStaticList to choose entries.
- * @param {Pick<NodeJS.WriteStream, 'write'> | NodeJS.WriteStream} [output=process.stdout] Output stream used by printStaticList to write each entry.
- */
-async function printStaticList(cas, source, output = process.stdout) {
+async function printStaticList(cas, source, output) {
   const { entries } = await readSourceEntries(cas, source);
-  for (const { slug, treeOid } of entries) {
-    output.write(`${slug}\t${treeOid}\n`);
-  }
+  output.write(formatTabSeparated(entries));
 }
 
-/**
- * Ensure launchDashboard has a mode before branching on interactive behavior.
- *
- * @param {BijouContext} ctx
- * @returns {BijouContext}
- */
 function normalizeLaunchContext(ctx) {
-  const candidate = /** @type {BijouContext & { mode?: import('@flyingrobots/bijou').OutputMode }} */ (ctx);
-  if (candidate.mode) {
-    return candidate;
+  if (!ctx.mode && !ctx.runtime) {
+    throw new Error('launchDashboard requires ctx.runtime when ctx.mode is absent');
   }
-  if (!candidate.runtime) {
-    throw new TypeError('launchDashboard requires ctx.runtime when ctx.mode is absent');
-  }
-  return {
-    ...candidate,
-    mode: detectCliTuiMode(candidate.runtime),
-  };
+  return ctx;
 }
 
-/**
- * Launch the interactive vault dashboard.
- *
- * @param {ContentAddressableStore} cas
- * @param {{
- *   ctx?: BijouContext,
- *   runApp?: typeof run,
-  *   cwd?: string,
- *   source?: DashSource,
- *   output?: Pick<NodeJS.WriteStream, 'write'>,
- * }} [options]
- */
 export async function launchDashboard(cas, options = {}) {
   const ctx = options.ctx ? normalizeLaunchContext(options.ctx) : createCliTuiContext();
   const source = options.source ?? { type: 'vault' };
   if (ctx.mode !== 'interactive') {
-    return printStaticList(cas, source, options.output);
+    return printStaticList(cas, source, options.output || process.stdout);
   }
-  const keyMap = createKeyBindings();
-  const deps = { keyMap, cas, ctx, cwdLabel: options.cwd, source };
-  const runApp = options.runApp || run;
+  const dashTick = options.tick || bijouTick;
+  const deps = { cas, ctx, cwdLabel: options.cwd ?? process.cwd(), source, tick: dashTick };
+  const runApp = options.runApp || bijouStartApp;
   return runApp(createDashboardApp(deps), { ctx });
 }
+
+export { buildTableRows, selectedEntry, selectedManifest, tableSchema };
+export default launchDashboard;

@@ -4,6 +4,8 @@
 import CasError from '../errors/CasError.js';
 import buildKdfMetadata from '../helpers/buildKdfMetadata.js';
 import { prepareKdfOptions, prepareStoredKdfOptions } from '../../helpers/kdfPolicy.js';
+import { encodeHex } from '../encoding/hex.js';
+import { utf8ByteLength, utf8Decode, utf8Encode } from '../encoding/utf8.js';
 
 const VAULT_REF = 'refs/cas/vault';
 const MAX_CAS_RETRIES = 3;
@@ -124,7 +126,7 @@ export default class VaultService {
     if (seg === '.' || seg === '..') {
       throw new CasError('Slug contains "." or ".." segment', 'INVALID_SLUG', { slug });
     }
-    if (Buffer.byteLength(seg, 'utf8') > 255) {
+    if (utf8ByteLength(seg) > 255) {
       throw new CasError('Slug segment exceeds 255 bytes', 'INVALID_SLUG', { slug });
     }
     if (hasControlChars(seg)) {
@@ -144,7 +146,7 @@ export default class VaultService {
     if (slug.startsWith('/') || slug.endsWith('/')) {
       throw new CasError('Slug must not start or end with "/"', 'INVALID_SLUG', { slug });
     }
-    if (Buffer.byteLength(slug, 'utf8') > 1024) {
+    if (utf8ByteLength(slug) > 1024) {
       throw new CasError('Slug exceeds 1024 bytes total', 'INVALID_SLUG', { slug });
     }
     for (const seg of slug.split('/')) {
@@ -265,7 +267,7 @@ export default class VaultService {
    * Resolves HMAC tree entry names to slugs using the encrypted privacy index.
    * @param {Array<{ mode: string, type: string, oid: string, name: string }>} rawEntries - Raw tree entries.
    * @param {VaultMetadata} metadata - Vault metadata (must have privacy.indexMeta).
-   * @param {Buffer} encryptionKey - Vault encryption key.
+   * @param {Uint8Array} encryptionKey - Vault encryption key.
    * @returns {Promise<Map<string, string>>} Slug→treeOid map.
    */
   async #resolvePrivacyEntries(rawEntries, metadata, encryptionKey) {
@@ -312,7 +314,7 @@ export default class VaultService {
   /**
    * Reads the current vault state from refs/cas/vault.
    * @param {Object} [options]
-   * @param {Buffer} [options.encryptionKey] - Vault encryption key (required when privacy mode is enabled).
+   * @param {Uint8Array} [options.encryptionKey] - Vault encryption key (required when privacy mode is enabled).
    * @returns {Promise<VaultState>}
    */
   async readState({ encryptionKey } = {}) {
@@ -352,7 +354,7 @@ export default class VaultService {
    * @param {VaultMetadata} options.metadata - Vault metadata (.vault.json contents).
    * @param {string|null} options.parentCommitOid - Parent commit OID (null for first commit).
    * @param {string} options.message - Commit message.
-   * @param {Buffer} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
+   * @param {Uint8Array} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
    * @returns {Promise<{ commitOid: string }>}
    */
   async writeCommit({ entries, metadata, parentCommitOid, message, encryptionKey }) {
@@ -403,16 +405,16 @@ export default class VaultService {
    * Mutates `metaCopy.privacy.indexMeta` with encryption metadata.
    * @param {Map<string, string>} entries - Slug→treeOid map.
    * @param {VaultMetadata} metaCopy - Mutable metadata clone.
-   * @param {Buffer} encryptionKey - Vault encryption key.
+   * @param {Uint8Array} encryptionKey - Vault encryption key.
    * @returns {Promise<string[]>}
    */
   async #buildPrivacyTreeLines(entries, metaCopy, encryptionKey) {
-    const privacyKey = this.#derivePrivacyKey(encryptionKey);
+    const privacyKey = await this.#derivePrivacyKey(encryptionKey);
     const lines = [];
     const slugToHmac = new Map();
 
     for (const [slug, treeOid] of entries) {
-      const hmacName = this.#hmacSlug(privacyKey, slug);
+      const hmacName = await this.#hmacSlug(privacyKey, slug);
       slugToHmac.set(slug, hmacName);
       lines.push(`040000 tree ${treeOid}\t${hmacName}`);
     }
@@ -490,9 +492,9 @@ export default class VaultService {
    * from options — this is needed by `initVault` where the key is derived
    * inside the mutation.
    *
-   * @param {(context: { state: VaultState, draft: { entries: Map<string, string>, metadata: VaultMetadata } }) => { message: string, result?: Record<string, unknown>, encryptionKey?: Buffer }|Promise<{ message: string, result?: Record<string, unknown>, encryptionKey?: Buffer }>} mutationFn
+   * @param {(context: { state: VaultState, draft: { entries: Map<string, string>, metadata: VaultMetadata } }) => { message: string, result?: Record<string, unknown>, encryptionKey?: Uint8Array }|Promise<{ message: string, result?: Record<string, unknown>, encryptionKey?: Uint8Array }>} mutationFn
    * @param {Object} [options]
-   * @param {Buffer} [options.encryptionKey] - Vault encryption key (threaded to readState/writeCommit for privacy mode).
+   * @param {Uint8Array} [options.encryptionKey] - Vault encryption key (threaded to readState/writeCommit for privacy mode).
    * @returns {Promise<{ commitOid: string } & Record<string, unknown>>}
    */
   async #withVaultRetry(mutationFn, { encryptionKey } = {}) {
@@ -529,7 +531,7 @@ export default class VaultService {
 
   /**
    * Builds vault encryption metadata from KDF result.
-   * @param {Buffer} salt - KDF salt.
+   * @param {Uint8Array} salt - KDF salt.
    * @param {import('../../ports/CryptoPort.js').KdfParamSet} params - KDF parameters.
    * @returns {VaultEncryptionMeta}
    */
@@ -546,44 +548,44 @@ export default class VaultService {
 
   /**
    * Derives a privacy key from the vault encryption key.
-   * @param {Buffer} encryptionKey - 32-byte vault encryption key.
-   * @returns {Buffer} 32-byte privacy key.
+   * @param {Uint8Array} encryptionKey - 32-byte vault encryption key.
+   * @returns {Promise<Uint8Array>} 32-byte privacy key.
    */
-  #derivePrivacyKey(encryptionKey) {
-    return this.crypto.hmacSha256(encryptionKey, PRIVACY_DERIVATION_LABEL);
+  async #derivePrivacyKey(encryptionKey) {
+    return await Promise.resolve(this.crypto.hmacSha256(encryptionKey, utf8Encode(PRIVACY_DERIVATION_LABEL)));
   }
 
   /**
    * Computes the HMAC-SHA256 of a slug using the privacy key.
-   * @param {Buffer} privacyKey - 32-byte privacy key.
+   * @param {Uint8Array} privacyKey - 32-byte privacy key.
    * @param {string} slug - Vault slug.
-   * @returns {string} 64-char lowercase hex string.
+   * @returns {Promise<string>} 64-char lowercase hex string.
    */
-  #hmacSlug(privacyKey, slug) {
-    return this.crypto.hmacSha256(privacyKey, slug).toString('hex');
+  async #hmacSlug(privacyKey, slug) {
+    return encodeHex(await Promise.resolve(this.crypto.hmacSha256(privacyKey, utf8Encode(slug))));
   }
 
   /**
    * Encrypts the privacy index (slug→hmacName mapping).
    * @param {Map<string, string>} slugToHmac - Slug→HMAC name mapping.
-   * @param {Buffer} encryptionKey - 32-byte vault encryption key.
-   * @returns {Promise<{ buf: Buffer, meta: import('../../ports/CryptoPort.js').EncryptionMeta }>}
+   * @param {Uint8Array} encryptionKey - 32-byte vault encryption key.
+   * @returns {Promise<{ buf: Uint8Array, meta: import('../../ports/CryptoPort.js').EncryptionMeta }>}
    */
   async #encryptPrivacyIndex(slugToHmac, encryptionKey) {
     const json = JSON.stringify(Object.fromEntries(slugToHmac));
-    return await this.crypto.encryptBuffer(Buffer.from(json, 'utf8'), encryptionKey);
+    return await this.crypto.encryptBuffer(utf8Encode(json), encryptionKey);
   }
 
   /**
    * Decrypts the privacy index blob.
-   * @param {Buffer} blob - Encrypted index blob.
-   * @param {Buffer} encryptionKey - 32-byte vault encryption key.
+   * @param {Uint8Array} blob - Encrypted index blob.
+   * @param {Uint8Array} encryptionKey - 32-byte vault encryption key.
    * @param {import('../../ports/CryptoPort.js').EncryptionMeta} meta - Encryption metadata.
    * @returns {Promise<Map<string, string>>} slug→hmacName mapping.
    */
   async #decryptPrivacyIndex(blob, encryptionKey, meta) {
     const plaintext = await this.crypto.decryptBuffer(blob, encryptionKey, meta);
-    const obj = JSON.parse(plaintext.toString('utf8'));
+    const obj = JSON.parse(utf8Decode(plaintext));
     return new Map(Object.entries(obj));
   }
 
@@ -616,7 +618,7 @@ export default class VaultService {
       }
 
       draft.metadata = { version: 1 };
-      /** @type {Buffer|undefined} */
+      /** @type {Uint8Array|undefined} */
       let derivedKey;
       if (passphrase) {
         const options = prepareKdfOptions(kdfOptions, { source: 'vault-init' });
@@ -639,7 +641,7 @@ export default class VaultService {
    * @param {string} options.slug - Entry slug.
    * @param {string} options.treeOid - Git tree OID.
    * @param {boolean} [options.force=false] - Overwrite existing entry.
-   * @param {Buffer} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
+   * @param {Uint8Array} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
    * @returns {Promise<{ commitOid: string }>}
    */
   async addToVault({ slug, treeOid, force = false, encryptionKey }) {
@@ -677,7 +679,7 @@ export default class VaultService {
   /**
    * Lists all vault entries.
    * @param {Object} [options]
-   * @param {Buffer} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
+   * @param {Uint8Array} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
    * @returns {Promise<Array<{ slug: string, treeOid: string }>>}
    */
   async listVault({ encryptionKey } = {}) {
@@ -691,7 +693,7 @@ export default class VaultService {
    * Removes an entry from the vault.
    * @param {Object} options
    * @param {string} options.slug - Entry slug to remove.
-   * @param {Buffer} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
+   * @param {Uint8Array} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
    * @returns {Promise<{ commitOid: string, removedTreeOid: string }>}
    */
   async removeFromVault({ slug, encryptionKey }) {
@@ -721,7 +723,7 @@ export default class VaultService {
    * Resolves a vault entry slug to its tree OID.
    * @param {Object} options
    * @param {string} options.slug - Entry slug.
-   * @param {Buffer} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
+   * @param {Uint8Array} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
    * @returns {Promise<string>} The tree OID.
    */
   async resolveVaultEntry({ slug, encryptionKey }) {
@@ -741,7 +743,18 @@ export default class VaultService {
    * @returns {Promise<VaultMetadata|null>}
    */
   async getVaultMetadata() {
-    const { metadata } = await this.readState();
-    return metadata;
+    let commitOid;
+    try {
+      commitOid = await this.ref.resolveRef(VAULT_REF);
+    } catch {
+      return null;
+    }
+
+    const treeOid = await this.ref.resolveTree(commitOid);
+    const rawEntries = await this.persistence.readTree(treeOid);
+    const { metadataBlobOid } = VaultService.#parseTreeEntries(rawEntries);
+    return metadataBlobOid
+      ? await this.#readMetadataBlob(metadataBlobOid)
+      : null;
   }
 }

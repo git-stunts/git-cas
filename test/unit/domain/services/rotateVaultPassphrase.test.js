@@ -18,6 +18,9 @@ import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/Node
 import CasError from '../../../../src/domain/errors/CasError.js';
 
 const LONG_TEST_TIMEOUT_MS = 60000;
+const initialCrypto = await getTestCryptoAdapter();
+const SUPPORTS_SCRYPT = initialCrypto.supports('scrypt');
+const itScrypt = SUPPORTS_SCRYPT ? it : it.skip;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -32,7 +35,7 @@ function createRepo() {
 
 async function createDeps(repoDir) {
   const plumbing = createGitPlumbing({ cwd: repoDir });
-  const crypto = await getTestCryptoAdapter();
+  const crypto = initialCrypto;
   const persistence = new GitPersistenceAdapter({ plumbing });
   const ref = new GitRefAdapter({ plumbing });
   const service = new CasService({
@@ -124,7 +127,7 @@ describe('rotateVaultPassphrase – 3 envelope entries', () => {
       const treeOid = await vault.resolveVaultEntry({ slug: name });
       const manifest = await service.readManifest({ treeOid });
       const { buffer } = await service.restore({ manifest, encryptionKey: newKey });
-      expect(buffer.equals(originals[name])).toBe(true);
+      expect(Buffer.from(buffer).equals(originals[name])).toBe(true);
     }
   }, LONG_TEST_TIMEOUT_MS);
 });
@@ -219,7 +222,7 @@ describe('rotateVaultPassphrase – KDF options', () => {
   });
   afterEach(() => { if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); } });
 
-  it('kdfOptions.algorithm overrides existing algorithm', async () => {
+  itScrypt('kdfOptions.algorithm overrides existing algorithm', async () => {
     const oldPass = 'old-pass';
     const newPass = 'new-pass';
     await vault.initVault({ passphrase: oldPass, kdfOptions: { iterations: 100_000 } });

@@ -2,13 +2,16 @@
  * Manifest anatomy view — rich visual breakdown of a manifest.
  */
 
-import { box, table, tree } from '@flyingrobots/bijou';
+import { box } from '@flyingrobots/bijou';
 import { getCliContext } from './context.js';
-import { chipText, sectionHeading, themeText } from './theme.js';
+import { renderBadgeRow } from './blocks/asset-card.js';
+import { renderChunkTable, renderSubManifestTree } from './blocks/merkle-explorer.js';
+import { sectionHeading, themeText } from './theme.js';
 
 /**
  * @typedef {import('../../src/domain/value-objects/Manifest.js').ManifestData} ManifestData
  * @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext
+ * @typedef {import('@flyingrobots/bijou').AccordionSection} AccordionSection
  */
 
 /**
@@ -31,102 +34,114 @@ function formatBytes(bytes) {
 }
 
 /**
- * Build the header badges line.
+ * Format key-value pairs with aligned themed labels.
  *
- * @param {ManifestData} m
+ * @param {[string, string][]} rows
  * @param {BijouContext} ctx
  * @returns {string}
  */
-function renderBadges(m, ctx) {
-  const renderBadge = (label, tone = 'neutral') => chipText(ctx, label, tone);
-  const badges = [];
-  if (Number.isFinite(m.version)) {
-    badges.push(renderBadge(`v${m.version}`, 'brand'));
+function formatKv(rows, ctx) {
+  const maxKey = Math.max(...rows.map(([k]) => k.length));
+  return rows.map(([k, v]) => `  ${themeText(ctx, k.padEnd(maxKey), { tone: 'accent' })}  ${v}`).join('\n');
+}
+
+// Badge rendering delegated to blocks/asset-card.js (renderBadgeRow)
+
+/**
+ * Build the encryption section body.
+ *
+ * @param {NonNullable<ManifestData['encryption']>} enc
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+function encryptionBody(enc, ctx) {
+  /** @type {[string, string][]} */
+  const rows = [['algorithm', enc.algorithm]];
+  if (enc.kdf) {
+    rows.push(['kdf', enc.kdf.algorithm]);
+    if (enc.kdf.iterations) {
+      rows.push(['iterations', enc.kdf.iterations.toLocaleString()]);
+    }
+    if (enc.kdf.cost) {
+      rows.push(['cost', String(enc.kdf.cost)]);
+    }
   }
-  if (m.encryption) {
-    badges.push(renderBadge('encrypted', 'warning'));
+  if (enc.nonce) {
+    rows.push(['nonce', `${enc.nonce.slice(0, 16)}...`]);
   }
-  if (m.compression) {
-    badges.push(renderBadge(m.compression.algorithm, 'info'));
+  if (enc.tag) {
+    rows.push(['tag', `${enc.tag.slice(0, 16)}...`]);
   }
-  if (m.subManifests?.length) {
-    badges.push(renderBadge('merkle', 'accent'));
-  }
-  return badges.join(' ');
+  return box(formatKv(rows, ctx), { ctx });
 }
 
 /**
- * Build the encryption section.
+ * Build the encryption section (headed).
  *
  * @param {NonNullable<ManifestData['encryption']>} enc
  * @param {BijouContext} ctx
  * @returns {string}
  */
 function renderEncryptionSection(enc, ctx) {
-  const rows = [`  algorithm  ${enc.algorithm}`];
-  if (enc.kdf) {
-    rows.push(`  kdf        ${enc.kdf.algorithm}`);
-    if (enc.kdf.iterations) {
-      rows.push(`  iterations ${enc.kdf.iterations.toLocaleString()}`);
-    }
-    if (enc.kdf.cost) {
-      rows.push(`  cost       ${enc.kdf.cost}`);
-    }
-  }
-  if (enc.nonce) {
-    rows.push(`  nonce      ${enc.nonce.slice(0, 16)}...`);
-  }
-  if (enc.tag) {
-    rows.push(`  tag        ${enc.tag.slice(0, 16)}...`);
-  }
-  return `${sectionHeading(ctx, 'Encryption Profile', 'warning')}\n${box(rows.join('\n'), { ctx })}`;
+  return `${sectionHeading(ctx, 'Encryption Profile', 'warning')}\n${encryptionBody(enc, ctx)}`;
 }
 
 /**
- * Build the chunks section.
+ * Build the chunks section body.
  *
  * @param {ManifestData['chunks']} chunks
  * @param {BijouContext} ctx
  * @returns {string}
  */
-function renderChunksSection(chunks, ctx) {
-  const displayChunks = chunks.slice(0, 20);
-  const chunkRows = displayChunks.map((/** @type {{ index: number, size: number, digest: string, blob?: string }} */ c) => [
-    String(c.index),
-    formatBytes(c.size),
-    typeof c.digest === 'string' ? `${c.digest.slice(0, 12)}...` : '-',
-    typeof c.blob === 'string' ? `${c.blob.slice(0, 12)}...` : '-',
-  ]);
-  const chunkTable = table({
-    columns: [{ header: '#' }, { header: 'Size' }, { header: 'Digest' }, { header: 'Blob' }],
-    rows: chunkRows,
-    ctx,
-  });
-  const suffix = chunks.length > 20
-    ? `\n  ...and ${chunks.length - 20} more`
-    : '';
-  return `${sectionHeading(ctx, `Chunk Ledger (${chunks.length})`, 'info')}\n${chunkTable}${suffix}`;
+/**
+ * Build the chunks section (headed). Delegates to MerkleExplorer block.
+ *
+ * @param {ManifestData} m
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+function renderChunksSection(m, ctx) {
+  const chunks = m.chunks || [];
+  return `${sectionHeading(ctx, `Chunk Ledger (${chunks.length})`, 'info')}\n${renderChunkTable(m, ctx)}`;
 }
 
 /**
- * Build the metadata section.
+ * Build the metadata section body.
+ *
+ * @param {ManifestData} m
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+function metadataBody(m, ctx) {
+  const rows = [
+    ['slug', m.slug ?? '-'],
+    ['filename', m.filename ?? '-'],
+    ['size', formatBytes(m.size)],
+    ['chunks', String(m.chunks?.length ?? 0)],
+  ];
+  return box(formatKv(rows, ctx), { ctx });
+}
+
+/**
+ * Build the metadata section (headed).
  *
  * @param {ManifestData} m
  * @param {BijouContext} ctx
  * @returns {string}
  */
 function renderMetadataSection(m, ctx) {
-  const meta = [
-    `  slug      ${m.slug ?? '-'}`,
-    `  filename  ${m.filename ?? '-'}`,
-    `  size      ${formatBytes(m.size)}`,
-    `  chunks    ${m.chunks?.length ?? 0}`,
-  ];
-  return `${sectionHeading(ctx, 'Asset Metadata', 'brand')}\n${box(meta.join('\n'), { ctx })}`;
+  return `${sectionHeading(ctx, 'Asset Metadata', 'brand')}\n${metadataBody(m, ctx)}`;
 }
 
 /**
- * Build the sub-manifests section.
+ * Build the sub-manifests section body.
+ *
+ * @param {ManifestData} m
+ * @param {BijouContext} ctx
+ * @returns {string}
+ */
+/**
+ * Build the sub-manifests section (headed). Delegates to MerkleExplorer block.
  *
  * @param {ManifestData} m
  * @param {BijouContext} ctx
@@ -134,25 +149,22 @@ function renderMetadataSection(m, ctx) {
  */
 function renderSubManifestsSection(m, ctx) {
   const subs = m.subManifests || [];
-  const nodes = subs.map((/** @type {import('../../src/domain/value-objects/Manifest.js').SubManifestRef} */ sm, /** @type {number} */ i) => ({
-    label: `sub-${i}  ${sm.chunkCount} chunks  start: ${sm.startIndex}  oid: ${sm.oid.slice(0, 8)}...`,
-  }));
-  return `${sectionHeading(ctx, `Merkle Branches (${subs.length})`, 'accent')}\n${tree(nodes, { ctx })}`;
+  return `${sectionHeading(ctx, `Merkle Branches (${subs.length})`, 'accent')}\n${renderSubManifestTree(m, ctx)}`;
 }
 
 /**
  * Render a full manifest anatomy view.
  *
  * @param {Object} options
- * @param {ManifestData | { toJSON(): ManifestData }} options.manifest - The manifest (Manifest instance or plain ManifestData).
+ * @param {ManifestData} options.manifest - Pre-normalized manifest data.
  * @param {BijouContext} [options.ctx] - Optional bijou context override.
  * @returns {string}
  */
 export function renderManifestView({ manifest, ctx = getCliContext() }) {
-  const m = /** @type {ManifestData} */ ('toJSON' in manifest ? manifest.toJSON() : manifest);
-  const badges = renderBadges(m, ctx);
+  const m = manifest;
+  const badges = renderBadgeRow(m, ctx);
   const sections = [themeText(ctx, 'Manifest Ledger', { tone: 'brand' })];
-  if (badges.length > 0) {
+  if (badges) {
     sections.push(badges);
   }
   sections.push(renderMetadataSection(m, ctx));
@@ -167,8 +179,41 @@ export function renderManifestView({ manifest, ctx = getCliContext() }) {
     sections.push(renderSubManifestsSection(m, ctx));
   }
   if (m.chunks?.length) {
-    sections.push(renderChunksSection(m.chunks, ctx));
+    sections.push(renderChunksSection(m, ctx));
   }
 
   return `${sections.join('\n\n')}\n`;
+}
+
+/**
+ * Build structured accordion sections from manifest data.
+ *
+ * Each section has a title and content string. Metadata is expanded by
+ * default; all other sections are collapsed. Only sections relevant to the
+ * manifest are included (e.g. no encryption section for plaintext assets).
+ *
+ * @param {Object} options
+ * @param {ManifestData} options.manifest - Pre-normalized manifest data.
+ * @param {BijouContext} [options.ctx] - Optional bijou context override.
+ * @returns {AccordionSection[]}
+ */
+export function buildManifestSections({ manifest, ctx = getCliContext() }) {
+  const m = manifest;
+  /** @type {AccordionSection[]} */
+  const sections = [
+    { title: 'Asset Metadata', content: metadataBody(m, ctx), expanded: true },
+  ];
+  if (m.encryption) {
+    sections.push({ title: 'Encryption Profile', content: encryptionBody(m.encryption, ctx), expanded: true });
+  }
+  if (m.compression) {
+    sections.push({ title: 'Compression Profile', content: box(`  algorithm  ${m.compression.algorithm}`, { ctx }), expanded: true });
+  }
+  if (m.subManifests?.length) {
+    sections.push({ title: `Merkle Branches (${m.subManifests.length})`, content: renderSubManifestTree(m, ctx), expanded: true });
+  }
+  if (m.chunks?.length) {
+    sections.push({ title: `Chunk Ledger (${m.chunks.length})`, content: renderChunkTable(m, ctx), expanded: true });
+  }
+  return sections;
 }

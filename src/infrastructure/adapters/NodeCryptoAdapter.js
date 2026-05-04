@@ -69,14 +69,18 @@ export default class NodeCryptoAdapter extends CryptoPort {
   decryptBuffer(buffer, key, meta, aad) { // eslint-disable-line max-params
     this._validateKey(key);
     const { nonce, tag } = validateAesGcmMeta(meta);
-    const decipher = createDecipheriv(AES_GCM_ALGORITHM, key, nonce, {
-      authTagLength: AES_GCM_TAG_BYTES,
-    });
-    decipher.setAuthTag(tag);
-    if (aad) {
-      decipher.setAAD(aad);
+    try {
+      const decipher = createDecipheriv(AES_GCM_ALGORITHM, key, nonce, {
+        authTagLength: AES_GCM_TAG_BYTES,
+      });
+      decipher.setAuthTag(tag);
+      if (aad) {
+        decipher.setAAD(aad);
+      }
+      return Buffer.concat([decipher.update(buffer), decipher.final()]);
+    } catch (err) {
+      throw wrapDecryptError(err);
     }
-    return Buffer.concat([decipher.update(buffer), decipher.final()]);
   }
 
   /**

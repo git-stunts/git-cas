@@ -98,7 +98,7 @@ describe('CasService – default chunker', () => {
     const original = randomBytes(4096);
     const manifest = await storeBuffer(service, original);
     const { buffer } = await service.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
   it('produces same chunks as explicit FixedChunker', async () => {
@@ -138,7 +138,7 @@ describe('CasService – explicit FixedChunker', () => {
     const original = randomBytes(4096);
     const manifest = await storeBuffer(service, original);
     const { buffer } = await service.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
   it('fixed chunker manifest does NOT include chunking field', async () => {
@@ -172,7 +172,7 @@ describe('CasService – CdcChunker basics', () => {
     const original = randomBytes(8192);
     const manifest = await storeBuffer(service, original);
     const { buffer } = await service.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
   it('CDC chunks respect min/max bounds (except last)', async () => {
@@ -231,7 +231,7 @@ describe('CasService – CdcChunker with encryption/compression', () => {
     expect(manifest.encryption).toBeDefined();
     expect(manifest.chunking).toBeDefined();
     const { buffer } = await service.restore({ manifest, encryptionKey: key });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
   it('CDC with compression round-trips correctly', async () => {
@@ -244,7 +244,7 @@ describe('CasService – CdcChunker with encryption/compression', () => {
     expect(manifest.compression).toBeDefined();
     expect(manifest.chunking).toBeDefined();
     const { buffer } = await service.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
   it('CDC with concurrency round-trips correctly', async () => {
@@ -253,7 +253,7 @@ describe('CasService – CdcChunker with encryption/compression', () => {
     const original = randomBytes(16384);
     const manifest = await storeBuffer(service, original);
     const { buffer } = await service.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 });
 
@@ -290,6 +290,6 @@ describe('CasService – CDC with small file', () => {
     expect(manifest.chunks).toHaveLength(1);
     expect(manifest.chunks[0].size).toBe(512);
     const { buffer } = await service.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 });

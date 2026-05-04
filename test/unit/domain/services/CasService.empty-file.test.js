@@ -184,9 +184,9 @@ describe('CasService – empty file writeBlob createTree', () => {
 
     // createTree writes exactly one blob: the serialised manifest.
     expect(mockPersistence.writeBlob).toHaveBeenCalledTimes(1);
-    // The argument should be a JSON string (the encoded manifest).
+    // The argument should be JSON bytes (the encoded manifest).
     const writtenPayload = mockPersistence.writeBlob.mock.calls[0][0];
-    const parsed = JSON.parse(writtenPayload);
+    const parsed = JSON.parse(Buffer.from(writtenPayload).toString('utf8'));
     expect(parsed.slug).toBe('tree-empty');
     expect(parsed.chunks).toEqual([]);
   });

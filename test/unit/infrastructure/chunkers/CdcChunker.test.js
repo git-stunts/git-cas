@@ -142,7 +142,7 @@ describe('CdcChunker – edge cases', () => {
     const chunker = new CdcChunker({ minChunkSize: 64, maxChunkSize: 256, targetChunkSize: 128 });
     const chunks = await collect(chunker.chunk(asStream(Buffer.from([0x42]))));
     expect(chunks).toHaveLength(1);
-    expect(chunks[0]).toEqual(Buffer.from([0x42]));
+    expect([...chunks[0]]).toEqual([0x42]);
   });
 
   it('yields a single chunk when input < minChunkSize', async () => {
@@ -177,6 +177,17 @@ describe('CdcChunker – edge cases', () => {
       expect(chunks[i].length).toBeLessThanOrEqual(4096);
     }
     expect(chunks[chunks.length - 1].length).toBeLessThanOrEqual(4096);
+  });
+});
+
+describe('CdcChunker – Uint8Array source chunks', () => {
+  it('accepts Uint8Array source chunks without Buffer.copy', async () => {
+    const chunker = new CdcChunker({ minChunkSize: 4, maxChunkSize: 16, targetChunkSize: 8 });
+    const input = new Uint8Array([1, 2, 3, 4, 5, 6]);
+
+    const chunks = await collect(chunker.chunk(asStream(input)));
+
+    expect(Buffer.concat(chunks)).toEqual(Buffer.from(input));
   });
 });
 

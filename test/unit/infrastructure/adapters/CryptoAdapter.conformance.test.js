@@ -63,7 +63,7 @@ function registerKeyValidationTests(adapter, key) {
     const result = adapter.encryptBuffer(Buffer.from('hello'), key);
     expect(typeof result.then).toBe('function');
     const { buf, meta } = await result;
-    expect(buf).toBeInstanceOf(Buffer);
+    expect(buf).toBeInstanceOf(Uint8Array);
     expect(meta.encrypted).toBe(true);
   });
 
@@ -101,11 +101,11 @@ function registerDeterministicNonceTests(adapter, key) {
     const plaintext = Buffer.from('convergent round-trip');
     const nonce = Buffer.alloc(12, 0x42);
     const { buf, tag } = await Promise.resolve(adapter.encryptBufferWithNonce(plaintext, key, nonce));
-    expect(buf).toBeInstanceOf(Buffer);
-    expect(tag).toBeInstanceOf(Buffer);
+    expect(buf).toBeInstanceOf(Uint8Array);
+    expect(tag).toBeInstanceOf(Uint8Array);
     expect(tag.length).toBe(16);
     const decrypted = await Promise.resolve(adapter.decryptBufferWithNonceTag(buf, key, nonce, tag));
-    expect(decrypted.equals(plaintext)).toBe(true);
+    expect(Buffer.from(decrypted).equals(plaintext)).toBe(true);
   });
 
   it('encryptBufferWithNonce produces deterministic ciphertext', async () => {
@@ -113,8 +113,8 @@ function registerDeterministicNonceTests(adapter, key) {
     const nonce = Buffer.alloc(12, 0x99);
     const r1 = await Promise.resolve(adapter.encryptBufferWithNonce(plaintext, key, nonce));
     const r2 = await Promise.resolve(adapter.encryptBufferWithNonce(plaintext, key, nonce));
-    expect(r1.buf.equals(r2.buf)).toBe(true);
-    expect(r1.tag.equals(r2.tag)).toBe(true);
+    expect(Buffer.from(r1.buf).equals(r2.buf)).toBe(true);
+    expect(Buffer.from(r1.tag).equals(r2.tag)).toBe(true);
   });
 
   it('decryptBufferWithNonceTag rejects wrong key', async () => {

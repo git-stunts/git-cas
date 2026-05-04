@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PACKAGE_VERSION } from '../../../src/package-version.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.resolve(__dirname, '../../../bin/git-cas.js');
@@ -15,6 +16,10 @@ const RUNTIME_CMD = globalThis.Bun
     : ['node', BIN];
 
 describe('git-cas --version', () => {
+  it('keeps the package-version export in sync with package metadata', () => {
+    expect(PACKAGE_VERSION).toBe(version);
+  });
+
   it('matches package metadata', () => {
     const result = spawnSync(RUNTIME_CMD[0], [...RUNTIME_CMD.slice(1), '--version'], {
       encoding: 'utf8',
@@ -24,7 +29,10 @@ describe('git-cas --version', () => {
     expect(result.error).toBeUndefined();
     expect(result.signal).toBeNull();
     expect(result.status).toBe(0);
-    expect(`${result.stdout ?? ''}`.trim()).toBe(version);
+    const output = `${result.stdout ?? ''}`.trim();
+    expect(output.startsWith(version)).toBe(true);
+    // In dev: "5.3.3+abc1234" (version+sha). In CI/published: "5.3.3" or "5.3.3+abc1234".
+    expect(output).toMatch(new RegExp(`^${version.replace(/\./g, '\\.')}(\\+[0-9a-f]+)?$`));
     expect(`${result.stderr ?? ''}`).toBe('');
   });
 });

@@ -31,7 +31,9 @@ describe('CasService with Codecs', () => {
     const service = new CasService({ persistence: mockPersistence, crypto: testCrypto, codec: new JsonCodec(), observability: new SilentObserver(), chunker: new FixedChunker({ chunkSize: 256 * 1024 }), compressionAdapter: new NodeCompressionAdapter() });
     await service.createTree({ manifest: dummyManifest });
 
-    expect(mockPersistence.writeBlob).toHaveBeenCalledWith(expect.stringContaining('{'));
+    const payload = mockPersistence.writeBlob.mock.calls[0][0];
+    expect(payload).toBeInstanceOf(Uint8Array);
+    expect(Buffer.from(payload).toString('utf8')).toContain('{');
     expect(mockPersistence.writeTree).toHaveBeenCalledWith(expect.arrayContaining([
       expect.stringContaining('manifest.json')
     ]));
@@ -41,8 +43,7 @@ describe('CasService with Codecs', () => {
     const service = new CasService({ persistence: mockPersistence, crypto: testCrypto, codec: new CborCodec(), observability: new SilentObserver(), chunker: new FixedChunker({ chunkSize: 256 * 1024 }), compressionAdapter: new NodeCompressionAdapter() });
     await service.createTree({ manifest: dummyManifest });
 
-    // CBOR output is binary (Buffer), so we check for Buffer
-    expect(mockPersistence.writeBlob).toHaveBeenCalledWith(expect.any(Buffer));
+    expect(mockPersistence.writeBlob).toHaveBeenCalledWith(expect.any(Uint8Array));
     expect(mockPersistence.writeTree).toHaveBeenCalledWith(expect.arrayContaining([
       expect.stringContaining('manifest.cbor')
     ]));

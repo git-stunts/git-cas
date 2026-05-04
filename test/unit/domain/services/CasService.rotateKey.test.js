@@ -73,7 +73,7 @@ describe('CasService – rotateKey', () => { // eslint-disable-line max-lines-pe
 
     // New key works
     const { buffer } = await service.restore({ manifest: rotated, encryptionKey: aliceNew });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
 
     // Old key fails
     try {
@@ -146,11 +146,11 @@ describe('CasService – rotateKey', () => { // eslint-disable-line max-lines-pe
 
     // Alice's new key works
     const { buffer: buf1 } = await service.restore({ manifest: rotated, encryptionKey: aliceNew });
-    expect(buf1.equals(original)).toBe(true);
+    expect(Buffer.from(buf1).equals(original)).toBe(true);
 
     // Bob's key still works (unchanged)
     const { buffer: buf2 } = await service.restore({ manifest: rotated, encryptionKey: bob });
-    expect(buf2.equals(original)).toBe(true);
+    expect(Buffer.from(buf2).equals(original)).toBe(true);
 
     // Bob's entry is byte-identical
     expect(rotated.encryption.recipients[1].wrappedDek).toBe(manifest.encryption.recipients[1].wrappedDek);
@@ -177,7 +177,7 @@ describe('CasService – rotateKey', () => { // eslint-disable-line max-lines-pe
 
     // Alice's new key works
     const { buffer } = await service.restore({ manifest: rotated, encryptionKey: aliceNew });
-    expect(buffer.equals(Buffer.from('auto'))).toBe(true);
+    expect(Buffer.from(buffer).equals(Buffer.from('auto'))).toBe(true);
   });
 
   it('wrong oldKey → NO_MATCHING_RECIPIENT', async () => {
@@ -294,7 +294,7 @@ describe('CasService – rotateKey', () => { // eslint-disable-line max-lines-pe
 
     // Final key works
     const { buffer } = await service.restore({ manifest, encryptionKey: currentKey });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
 
     // A random older key fails
     try {

@@ -12,12 +12,14 @@ import { renderEncryptionCard } from './ui/encryption-card.js';
 import { renderHistoryTimeline } from './ui/history-timeline.js';
 import { renderManifestView } from './ui/manifest-view.js';
 import { renderHeatmap } from './ui/heatmap.js';
+import { surfaceToString } from '@flyingrobots/bijou';
 import {
   buildVaultStats,
   inspectVaultHealth,
-  renderDoctorReport,
   renderVaultStats,
 } from './ui/vault-report.js';
+import { renderHealthDashboard } from './ui/blocks/health-dashboard.js';
+import { getCliContext } from './ui/context.js';
 import { runAction } from './actions.js';
 import { runAgentCli } from './agent/cli.js';
 import { flushStdioAndExit, installBrokenPipeHandlers } from './io.js';
@@ -31,9 +33,11 @@ import {
 } from './passphrase-source.js';
 import { loadConfig, mergeConfig } from './config.js';
 
+import { resolveVersionString } from './build-version.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const { version: CLI_VERSION } = JSON.parse(
-  readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')
+const CLI_VERSION = resolveVersionString(
+  JSON.parse(readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')).version,
 );
 
 const getJson = () => program.opts().json;
@@ -55,7 +59,7 @@ program
  * Read a 32-byte raw encryption key from a file.
  *
  * @param {string} keyFilePath
- * @returns {Buffer}
+ * @returns {Uint8Array}
  */
 function readKeyFile(keyFilePath) {
   const buf = readFileSync(keyFilePath);
@@ -88,7 +92,7 @@ function createCas(cwd, opts = {}) {
  * @param {ContentAddressableStore} cas
  * @param {import('../index.js').VaultMetadata} metadata
  * @param {string} passphrase
- * @returns {Promise<Buffer>}
+ * @returns {Promise<Uint8Array>}
  */
 async function deriveVaultKey(cas, metadata, passphrase) {
   if (!metadata.encryption?.kdf) {
@@ -124,7 +128,7 @@ function validateCredentialSources(opts) {
  *
  * @param {ContentAddressableStore} cas
  * @param {Record<string, any>} opts
- * @returns {Promise<Buffer | undefined>}
+ * @returns {Promise<Uint8Array | undefined>}
  */
 async function resolveEncryptionKey(cas, opts) {
   if (opts.keyFile) {
@@ -166,8 +170,8 @@ function validateRestoreFlags(opts) {
  * @typedef {Object} StoreFileOpts
  * @property {string} filePath - Path to the file to store.
  * @property {string} slug - Asset slug identifier.
- * @property {Buffer} [encryptionKey] - 32-byte AES-256-GCM key.
- * @property {Array<{ label: string, key: Buffer }>} [recipients] - Envelope recipients.
+ * @property {Uint8Array} [encryptionKey] - 32-byte AES-256-GCM key.
+ * @property {Array<{ label: string, key: Uint8Array }>} [recipients] - Envelope recipients.
  */
 
 /**
@@ -197,8 +201,8 @@ async function buildStoreOpts(cas, file, opts) {
  * Format: label:keyfile
  *
  * @param {string} value
- * @param {Array<{ label: string, key: Buffer }>} [previous]
- * @returns {Array<{ label: string, key: Buffer }>}
+ * @param {Array<{ label: string, key: Uint8Array }>} [previous]
+ * @returns {Array<{ label: string, key: Uint8Array }>}
  */
 function parseRecipient(value, previous) {
   const sep = value.indexOf(':');
@@ -346,9 +350,9 @@ program
       if (json) {
         process.stdout.write(`${JSON.stringify(manifest.toJSON())}\n`);
       } else if (opts.heatmap) {
-        process.stdout.write(renderHeatmap({ manifest }));
+        process.stdout.write(renderHeatmap({ manifest: manifest.toJSON() }));
       } else if (process.stdout.isTTY) {
-        process.stdout.write(renderManifestView({ manifest }));
+        process.stdout.write(renderManifestView({ manifest: manifest.toJSON() }));
       } else {
         process.stdout.write(`${JSON.stringify(manifest.toJSON(), null, 2)}\n`);
       }
@@ -480,7 +484,8 @@ program
       if (json) {
         process.stdout.write(`${JSON.stringify(report)}\n`);
       } else {
-        process.stdout.write(renderDoctorReport(report));
+        const ctx = getCliContext();
+        process.stdout.write(`${renderHealthDashboard(report, ctx)}\n`);
       }
 
       if (report.status !== 'ok') {
@@ -640,7 +645,7 @@ vault
         process.stdout.write(`tree\t${treeOid}\n`);
         if (opts.encryption) {
           const metadata = await cas.getVaultMetadata();
-          process.stdout.write(`\n${renderEncryptionCard({ metadata })}\n`);
+          process.stdout.write(`\n${surfaceToString(renderEncryptionCard({ metadata }), getCliContext().style)}\n`);
         }
       }
     }, getJson)
@@ -800,7 +805,7 @@ program
       const oldKey = readKeyFile(opts.oldKeyFile);
       const newKey = readKeyFile(opts.newKeyFile);
 
-      /** @type {{ manifest: Manifest, oldKey: Buffer, newKey: Buffer, label?: string }} */
+      /** @type {{ manifest: Manifest, oldKey: Uint8Array, newKey: Uint8Array, label?: string }} */
       const rotateOpts = { manifest, oldKey, newKey };
       if (opts.label) {
         rotateOpts.label = opts.label;

@@ -11,9 +11,9 @@
  * Fetches chunks in parallel with a sliding window, yielding in order.
  *
  * @param {Array<{ index: number }>} chunks - Chunk metadata array (ordered).
- * @param {(chunk: { index: number }) => Promise<Buffer>} fetchFn - Async function to fetch a single chunk.
+ * @param {(chunk: { index: number }) => Promise<Uint8Array>} fetchFn - Async function to fetch a single chunk.
  * @param {number} concurrency - Maximum number of concurrent in-flight fetches.
- * @yields {Buffer} Chunk data in manifest order.
+ * @yields {Uint8Array} Chunk data in manifest order.
  */
 export default async function* prefetchChunks(chunks, fetchFn, concurrency) {
   if (chunks.length === 0) { return; }

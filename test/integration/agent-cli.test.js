@@ -34,6 +34,8 @@ const RUNTIME_CMD = globalThis.Bun
   : globalThis.Deno
     ? ['deno', 'run', '-A', BIN]
     : ['node', BIN];
+// Deno uses WebCryptoAdapter, which intentionally supports PBKDF2 but not scrypt.
+const REQUEST_PAYLOAD_KDF_ALGORITHM = RUNTIME_CMD[0] === 'deno' ? 'pbkdf2' : 'scrypt';
 
 /**
  * @param {string} cwd
@@ -1027,7 +1029,7 @@ function defineVaultRotateRequestPayloadTest() {
       JSON.stringify({
         oldPassphraseFile: oldPassphraseFile.filePath,
         newPassphraseFile: newPassphraseFile.filePath,
-        algorithm: 'scrypt',
+        algorithm: REQUEST_PAYLOAD_KDF_ALGORITHM,
       })
     );
 
@@ -1044,14 +1046,14 @@ function defineVaultRotateRequestPayloadTest() {
       updatedVault: true,
       rotatedCount: 1,
       skippedCount: 1,
-      kdfAlgorithm: 'scrypt',
+      kdfAlgorithm: REQUEST_PAYLOAD_KDF_ALGORITHM,
     });
     expect(stderrRows).toHaveLength(2);
     expect(stderrRows.every((row) => row.type === 'warning')).toBe(true);
     expect(stderrRows.every((row) => row.data.code === 'INSECURE_FILE_PERMISSIONS')).toBe(true);
 
     const metadata = await createCas(fixture.repoDir).getVaultMetadata();
-    expect(metadata?.encryption?.kdf?.algorithm).toBe('scrypt');
+    expect(metadata?.encryption?.kdf?.algorithm).toBe(REQUEST_PAYLOAD_KDF_ALGORITHM);
 
     cleanupTempDirs(
       fixture.repoDir,
@@ -1155,7 +1157,7 @@ function defineVaultInitEncryptedRequestPayloadTest() {
       requestPath,
       JSON.stringify({
         passphraseFile: passphraseFile.filePath,
-        algorithm: 'scrypt',
+        algorithm: REQUEST_PAYLOAD_KDF_ALGORITHM,
       })
     );
 
@@ -1168,7 +1170,7 @@ function defineVaultInitEncryptedRequestPayloadTest() {
     assertVaultInitResult(rows[1].data, {
       initializedVault: true,
       encrypted: true,
-      kdfAlgorithm: 'scrypt',
+      kdfAlgorithm: REQUEST_PAYLOAD_KDF_ALGORITHM,
     });
     expect(stderrRows).toHaveLength(1);
     expect(stderrRows[0]).toMatchObject({
@@ -1180,7 +1182,7 @@ function defineVaultInitEncryptedRequestPayloadTest() {
     });
 
     const metadata = await createCas(vaultRepoDir).getVaultMetadata();
-    expect(metadata?.encryption?.kdf?.algorithm).toBe('scrypt');
+    expect(metadata?.encryption?.kdf?.algorithm).toBe(REQUEST_PAYLOAD_KDF_ALGORITHM);
 
     cleanupTempDirs(vaultRepoDir, passphraseFile.dir);
   });

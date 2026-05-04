@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { surfaceToString } from '@flyingrobots/bijou';
 import { makeCtx } from './_testContext.js';
 
 vi.mock('../../../bin/ui/context.js', () => ({
@@ -7,22 +8,29 @@ vi.mock('../../../bin/ui/context.js', () => ({
 
 const { renderEncryptionCard } = await import('../../../bin/ui/encryption-card.js');
 
-describe('renderEncryptionCard', () => {
+describe('renderEncryptionCard basics', () => {
   it('renders no-encryption for null metadata', () => {
-    expect(renderEncryptionCard({ metadata: null })).toContain('No encryption configured');
+    const ctx = makeCtx();
+    const output = surfaceToString(renderEncryptionCard({ metadata: null }), ctx.style);
+    expect(output).toContain('No encryption configured');
   });
 
   it('renders no-encryption for metadata without encryption', () => {
-    expect(renderEncryptionCard({ metadata: { version: 1 } })).toContain('No encryption configured');
+    const ctx = makeCtx();
+    const output = surfaceToString(renderEncryptionCard({ metadata: { version: 1 } }), ctx.style);
+    expect(output).toContain('No encryption configured');
   });
+});
 
+describe('renderEncryptionCard details', () => {
   it('renders pbkdf2 details', () => {
-    const output = renderEncryptionCard({
+    const ctx = makeCtx();
+    const output = surfaceToString(renderEncryptionCard({
       metadata: {
         version: 1,
         encryption: { cipher: 'aes-256-gcm', kdf: { algorithm: 'pbkdf2', salt: 'c2FsdHNhbHRzYWx0', iterations: 600000, keyLength: 32 } },
       },
-    });
+    }), ctx.style);
     expect(output).toContain('aes-256-gcm');
     expect(output).toContain('pbkdf2');
     expect(output).toMatch(/600[,.]?000/);
@@ -31,24 +39,26 @@ describe('renderEncryptionCard', () => {
   });
 
   it('renders scrypt details', () => {
-    const output = renderEncryptionCard({
+    const ctx = makeCtx();
+    const output = surfaceToString(renderEncryptionCard({
       metadata: {
         version: 1,
         encryption: { cipher: 'aes-256-gcm', kdf: { algorithm: 'scrypt', salt: 'c2FsdHNhbHRzYWx0', cost: 16, blockSize: 8, parallelization: 1, keyLength: 32 } },
       },
-    });
+    }), ctx.style);
     expect(output).toContain('scrypt');
     expect(output).toContain('16');
   });
 
   it('shows unlocked badge', () => {
-    const output = renderEncryptionCard({
+    const ctx = makeCtx();
+    const output = surfaceToString(renderEncryptionCard({
       metadata: {
         version: 1,
         encryption: { cipher: 'aes-256-gcm', kdf: { algorithm: 'pbkdf2', salt: 'c2FsdHNhbHRzYWx0', iterations: 100000, keyLength: 32 } },
       },
       unlocked: true,
-    });
+    }), ctx.style);
     expect(output).toContain('unlocked');
   });
 });

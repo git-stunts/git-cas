@@ -202,7 +202,7 @@ describe('CasService Merkle – v2 full round-trip', () => {
     const { buffer: restored, bytesWritten } = await service.restore({ manifest: readBack });
 
     expect(bytesWritten).toBe(original.length);
-    expect(restored.equals(original)).toBe(true);
+    expect(Buffer.from(restored).equals(original)).toBe(true);
   });
 });
 
@@ -230,7 +230,7 @@ describe('CasService Merkle – v1 manifest backward compatibility', () => {
     expect(readBack.version).toBe(1);
 
     const { buffer: restored } = await service.restore({ manifest: readBack });
-    expect(restored.equals(original)).toBe(true);
+    expect(Buffer.from(restored).equals(original)).toBe(true);
   });
 });
 
@@ -453,7 +453,7 @@ describe('CasService Merkle – v2 with encryption round-trip', () => {
       encryptionKey,
     });
 
-    expect(restored.equals(original)).toBe(true);
+    expect(Buffer.from(restored).equals(original)).toBe(true);
   });
 });
 
@@ -500,7 +500,7 @@ describe('CasService Merkle – fuzz round-trip across various chunk counts', ()
       expect(readBack.chunks).toHaveLength(count);
 
       const { buffer: restored } = await service.restore({ manifest: readBack });
-      expect(restored.equals(original)).toBe(true);
+      expect(Buffer.from(restored).equals(original)).toBe(true);
     });
   }
 });
