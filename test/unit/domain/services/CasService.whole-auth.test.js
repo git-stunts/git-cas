@@ -75,7 +75,7 @@ describe('CasService — whole scheme auth boundary (Cryptographic Doom Principl
 
     // 3. Attempt restore and verify that decompressStream was NEVER called
     await expect(service.restore({ manifest: tamperedManifest, encryptionKey: key }))
-      .rejects.toThrow(/integrity/i);
+      .rejects.toMatchObject({ code: 'INTEGRITY_ERROR' });
 
     // This is where it should fail if it's not buffering correctly before decompression
     expect(compression.decompressCalls).toBe(0);
@@ -129,7 +129,7 @@ describe('CasService — whole scheme auth boundary (Cryptographic Doom Principl
 
      // 3. Attempt restore and verify that decompressStream was NEVER called
      await expect(service.createFileRestorePlan({ manifest: tamperedManifest, encryptionKey: key }))
-       .rejects.toThrow(/integrity/i);
+       .rejects.toMatchObject({ code: 'INTEGRITY_ERROR' });
 
      expect(compression.decompressCalls).toBe(0);
   });
