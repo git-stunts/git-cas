@@ -243,7 +243,7 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
 - **[Advanced Guide](./ADVANCED_GUIDE.md)**: CDC tuning, large-asset Merkle trees, and performance baselines.
 - **[Architecture](./ARCHITECTURE.md)**: The authoritative system map — Facade, Domain, Ports, and Adapters.
 - **[Security](./SECURITY.md)**: Threat models, trust boundaries, and encryption internals.
-- **[Agents](./AGENTS.md)**: JSONL agent protocol for CI/CD automation.
+- **[Agent API](./docs/API.md)**: JSONL agent protocol for CI/CD automation.
 - **[Workflow](./WORKFLOW.md)**: Repo work doctrine, cycles, and invariants.
 - **[Upgrading](./UPGRADING.md)**: Migration guide for v5 → v6.
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.

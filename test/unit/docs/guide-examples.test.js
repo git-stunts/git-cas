@@ -54,6 +54,21 @@ function initBareRepo(cwd) {
   }
 }
 
+function configureGitIdentity(gitDir) {
+  for (const [key, value] of [
+    ['user.email', 'git-cas-tests@example.com'],
+    ['user.name', 'git-cas tests'],
+  ]) {
+    const result = spawnSync('git', ['--git-dir', gitDir, 'config', key, value], { encoding: 'utf8' });
+    if (result.error) {
+      throw result.error;
+    }
+    if (result.status !== 0) {
+      throw new Error(`${result.stderr ?? result.stdout ?? `git config ${key} failed`}`.trim());
+    }
+  }
+}
+
 function expectBytesEqual(actual, expected) {
   expect(actual.length).toBe(expected.length);
   for (let index = 0; index < expected.length; index++) {
@@ -98,6 +113,7 @@ describe('GUIDE quick start', () => {
 
     try {
       initBareRepo(repoDir);
+      configureGitIdentity(repoDir);
       const inputPath = path.join(repoDir, 'photo.jpg');
       writeFileSync(inputPath, original);
 
