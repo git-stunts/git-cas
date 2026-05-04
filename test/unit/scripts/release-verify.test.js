@@ -234,7 +234,7 @@ describe('release verify package assertions', () => {
     expect(failure.step).toMatchObject({
       id: 'npm-pack',
       passed: false,
-      errorMessage: 'Package dry-run missing required file(s): build-info.json',
+      errorMessage: "Package dry-run missing required file(s): build-info.json (run 'pnpm run stamp' to generate build-info.json)",
     });
   });
 });
