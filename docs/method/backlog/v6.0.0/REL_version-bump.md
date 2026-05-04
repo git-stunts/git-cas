@@ -51,8 +51,10 @@ because the current `jsr`/Deno toolchain panics before package validation.
 - `.github/workflows/release.yml` now publishes npm and creates the GitHub Release only; JSR publication is intentionally deferred until the dry-run can pass.
 - PR #35 landed the release branch on `main` as `1d2ca5c` on 2026-05-04, and GitHub Actions CI passed on that merge commit.
 - Final pre-tag `npm run release:verify -- --skip-jsr` passed on 2026-05-04 after release-doc cleanup: 9/9 executable steps, 4531 observed tests, skipped `JSR publish dry-run`.
+- Post type/doc accuracy cleanup `npm run release:verify -- --skip-jsr` passed on 2026-05-04: 9/9 executable steps, 4537 observed tests, skipped `JSR publish dry-run`.
 
 ## Remaining Before Tag
 
+- Push the final pre-tag `main` commit if the operator approves pushing `main`.
 - Create an annotated `v6.0.0` tag on the final release commit after operator approval.
 - Push the tag so CI can publish npm and create the GitHub Release.

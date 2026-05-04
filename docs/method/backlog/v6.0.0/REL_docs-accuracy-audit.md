@@ -58,7 +58,11 @@ For each doc:
   fence parses, every JSON fence parses, the quick-start facade methods are on
   the public API, and the documented quick-start store/tree/vault/read/restore
   flow works against a real Git repository.
+- The pre-tag type/doc cleanup adds an explicit GUIDE/ADVANCED feature
+  coverage map, documents direct `CasService` port requirements, aligns README
+  and example docs with actual CLI commands, and locks declaration accuracy
+  with `test/unit/types/declaration-accuracy.test.js`.
 
 ## Status
 
-- [x] Resolved — `release/v6.0.0` branch
+- [x] Resolved — `main` pre-tag

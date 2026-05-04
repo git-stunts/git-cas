@@ -33,7 +33,7 @@ Initialize a vault and store your first asset.
 git init
 git-cas vault init
 git-cas store data.bin --slug assets/v1 --tree
-git-cas restore assets/v1 --output data-restored.bin
+git-cas restore --slug assets/v1 --out data-restored.bin
 ```
 
 ### 2. TUI Cockpit
@@ -147,17 +147,24 @@ The `git-cas` command-line interface exposes the full feature set:
 
 | Command | Purpose |
 |---|---|
-| `git-cas store` | Store a file or stream into the CAS |
-| `git-cas restore` | Restore content by slug or manifest |
-| `git-cas vault init` | Initialize a new vault |
-| `git-cas vault add` | Add an entry to the vault |
-| `git-cas vault list` | List vault entries |
-| `git-cas vault remove` | Remove a vault entry |
-| `git-cas vault dashboard` | Interactive TUI for vault navigation |
+| `git-cas store` | Store a file into the CAS |
+| `git-cas tree` | Create a Git tree from a manifest JSON file |
+| `git-cas inspect` | Inspect a stored manifest and optional chunk heatmap |
+| `git-cas restore` | Restore content by vault slug or tree OID |
+| `git-cas verify` | Verify chunk integrity for a stored asset |
 | `git-cas doctor` | Diagnose vault health and integrity |
-| `git-cas rotate-passphrase` | Rotate the vault passphrase |
+| `git-cas vault init` | Initialize a new vault |
+| `git-cas vault list` | List vault entries |
+| `git-cas vault stats` | Summarize vault size, dedupe, and encryption coverage |
+| `git-cas vault remove` | Remove a vault entry |
+| `git-cas vault info` | Show metadata for one vault entry |
+| `git-cas vault history` | Show vault commit history |
+| `git-cas vault rotate` | Rotate the vault passphrase |
+| `git-cas vault dashboard` | Interactive TUI for vault navigation |
+| `git-cas rotate` | Rotate an asset encryption key wrapper |
+| `git-cas recipient add/remove/list` | Manage envelope encryption recipients |
 
-**Agent CLI**: `git-cas agent` exposes a JSONL-based protocol for CI/CD automation and programmatic integrations. Commands are sent as JSON objects on stdin; responses stream back as newline-delimited JSON on stdout.
+**Agent CLI**: `git-cas agent` exposes the same store/tree/restore/inspect/verify/doctor/rotate/recipient/vault surface through a newline-delimited protocol for CI/CD automation and programmatic integrations. Request payloads can be passed through `--request <json>` or stdin; responses stream back as JSON events on stdout.
 
 ### Security Hardening
 
@@ -238,8 +245,8 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
 
 ## Documentation
 
-- **[Guide](./GUIDE.md)**: Orientation, long-form walkthrough, and vault management.
-- **[Advanced Guide](./ADVANCED_GUIDE.md)**: CDC tuning, large-asset Merkle trees, and performance baselines.
+- **[Guide](./GUIDE.md)**: Productive path, library/CLI usage, vault workflows, and the feature coverage map.
+- **[Advanced Guide](./ADVANCED_GUIDE.md)**: CDC internals, direct service contracts, security limits, operational tooling, and performance baselines.
 - **[Architecture](./ARCHITECTURE.md)**: The authoritative system map — Facade, Domain, Ports, and Adapters.
 - **[Security](./SECURITY.md)**: Threat models, trust boundaries, and encryption internals.
 - **[Agent API](./docs/API.md)**: JSONL agent protocol for CI/CD automation.

@@ -141,5 +141,3 @@ const app = {
 
 console.log('Starting git-cas V6 Mock-up...');
 await run(app, { ctx });
-nsole.log('Starting git-cas V6 Mock-up...');
-await run(app, { ctx });

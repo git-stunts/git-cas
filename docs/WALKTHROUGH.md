@@ -58,8 +58,10 @@ is written alongside them into a Git tree via `git mktree`. That tree OID can
 then be committed, tagged, or referenced like any other Git object. Restoring
 the file means reading the tree, parsing the manifest, fetching each blob,
 verifying SHA-256 digests, and concatenating the bytes back together. Optional
-AES-256-GCM encryption can be applied before chunking, so ciphertext is what
-lands in the object database -- plaintext never touches disk or the ODB.
+AES-256-GCM encryption controls what lands in the object database: `whole` and
+`framed` encrypt before chunk storage, while `convergent` encrypts each chunk
+deterministically to preserve CDC deduplication. Plaintext never touches the
+ODB.
 
 ---
 
@@ -167,11 +169,11 @@ Manifests are immutable value objects validated by a Zod schema at
 construction time. If you try to create a `Manifest` with missing or
 malformed fields, an error is thrown immediately.
 
-For encrypted manifests, that validation is intentionally strict: only
-`whole` and `framed` AES-256-GCM metadata are accepted, and malformed
-nonce/tag or missing `frameBytes` values are rejected before restore-time
-service logic runs. Legacy scheme identifiers (`whole-v1`, `framed-v1`, etc.)
-are no longer accepted and throw `LEGACY_SCHEME`.
+For encrypted manifests, that validation is intentionally strict: only current
+`whole`, `framed`, and `convergent` AES-256-GCM metadata are accepted, and
+malformed nonce/tag or missing `frameBytes` values are rejected before
+restore-time service logic runs. Legacy scheme identifiers (`whole-v1`,
+`framed-v1`, etc.) are no longer accepted and throw `LEGACY_SCHEME`.
 
 When encryption is used, the manifest gains an additional `encryption` field.
 For `whole`, it looks like this:
@@ -283,9 +285,11 @@ If you already have data in memory or coming from a non-file source, use
 `store()` directly instead of `storeFile()`:
 
 ```js
+const encoder = new TextEncoder();
+
 async function* generateData() {
-  yield Buffer.from('first batch of bytes...');
-  yield Buffer.from('second batch of bytes...');
+  yield encoder.encode('first batch of bytes...');
+  yield encoder.encode('second batch of bytes...');
 }
 
 const manifest = await cas.store({
@@ -339,7 +343,7 @@ await cas.restoreFile({
 // restored-vacation.jpg is now byte-identical to the original
 ```
 
-### Restoring to a Buffer
+### Restoring to Memory
 
 If you need the bytes in memory rather than on disk, use `restore()`:
 
@@ -347,6 +351,9 @@ If you need the bytes in memory rather than on disk, use `restore()`:
 const { buffer, bytesWritten } = await cas.restore({ manifest });
 console.log(`Restored ${bytesWritten} bytes into memory`);
 ```
+
+The returned `buffer` is a `Uint8Array`. In Node.js it can be wrapped with
+`Buffer.from(buffer)` when you need Buffer-specific helpers.
 
 ### Byte-Level Integrity Verification
 
@@ -436,10 +443,11 @@ console.log(manifest.encryption);
 // }
 ```
 
-New encrypted writes default to `framed`, which authenticates each stored
-frame independently. The nonce and tag live inside the serialized payload
-rather than as top-level manifest fields, so the manifest records `frameBytes`
-instead. When using CDC chunking with encryption, the default is `convergent`.
+Fixed-chunk encrypted writes default to `framed`, which authenticates each
+stored frame independently. The nonce and tag live inside the serialized
+payload rather than as top-level manifest fields, so the manifest records
+`frameBytes` instead. When using CDC chunking with encryption, the default is
+`convergent`.
 
 If you need the whole-object format, opt into `whole` explicitly:
 
@@ -497,10 +505,10 @@ CasError: Encryption key required to restore encrypted content
 
 ### Key Validation
 
-Keys must be a `Buffer` or `Uint8Array` of exactly 32 bytes. Violations
-produce clear errors:
+Keys must be a `Uint8Array` of exactly 32 bytes. Node `Buffer` values are
+accepted because they extend `Uint8Array`. Violations produce clear errors:
 
-- Non-buffer key: `INVALID_KEY_TYPE`
+- Non-`Uint8Array` key: `INVALID_KEY_TYPE`
 - Wrong length: `INVALID_KEY_LENGTH` (includes expected and actual lengths)
 
 ### Encrypted Tree Round-Trip
@@ -1349,7 +1357,9 @@ Facade (ContentAddressableStore)
   +-- Ports (interfaces)
   |     +-- GitPersistencePort  (writeBlob, writeTree, readBlobStream, readBlob, readTree)
   |     +-- CodecPort           (encode, decode, extension)
-  |     +-- CryptoPort          (sha256, randomBytes, encryptBuffer, decryptBuffer, createEncryptionStream)
+  |     +-- CryptoPort          (sha256, randomBytes, AES-GCM, HMAC, KDF)
+  |     +-- ChunkingPort        (chunk, strategy, params)
+  |     +-- CompressionPort     (buffer + stream compression/decompression)
   |     +-- ObservabilityPort   (metric, log, span)
   |
   +-- Infrastructure (adapters)
@@ -1359,6 +1369,8 @@ Facade (ContentAddressableStore)
         +-- NodeCryptoAdapter       (node:crypto)
         +-- BunCryptoAdapter        (Bun.CryptoHasher)
         +-- WebCryptoAdapter        (crypto.subtle)
+        +-- FixedChunker / CdcChunker
+        +-- NodeCompressionAdapter
         +-- SilentObserver          (no-op observability)
         +-- EventEmitterObserver    (Node event bridge)
         +-- StatsCollector          (metric accumulator)
@@ -1376,8 +1388,8 @@ method shapes rather than stable extension entrypoints.
 class GitPersistencePort {
   async writeBlob(content) {} // Returns Git OID
   async writeTree(entries) {} // Returns tree OID
-  async readBlobStream(oid) {} // Returns AsyncIterable<Buffer>
-  async readBlob(oid) {} // Returns Buffer
+  async readBlobStream(oid) {} // Returns AsyncIterable<Uint8Array>
+  async readBlob(oid) {} // Returns Uint8Array
   async readTree(treeOid) {} // Returns array of tree entries
 }
 ```
@@ -1386,7 +1398,7 @@ class GitPersistencePort {
 
 ```js
 class CodecPort {
-  encode(data) {} // Returns Buffer or string
+  encode(data) {} // Returns Uint8Array
   decode(buffer) {} // Returns object
   get extension() {} // Returns 'json', 'cbor', etc.
 }
@@ -1397,11 +1409,15 @@ class CodecPort {
 ```js
 class CryptoPort {
   sha256(buf) {} // Returns hex digest
-  randomBytes(n) {} // Returns Buffer
-  encryptBuffer(buffer, key) {} // Returns { buf, meta }
-  decryptBuffer(buffer, key, meta) {} // Returns Buffer
+  randomBytes(n) {} // Returns Uint8Array
+  encryptBuffer(buffer, key, aad) {} // Returns { buf, meta }
+  decryptBuffer(buffer, key, meta, aad) {} // Returns Uint8Array
   createEncryptionStream(key) {} // Returns { encrypt, finalize }
-  deriveKey(options) {} // Returns { key, salt, params }  (v2.0.0)
+  createDecryptionStream(key, meta) {} // Returns { decrypt }
+  hmacSha256(key, data) {} // Returns Uint8Array
+  encryptBufferWithNonce(buffer, key, nonce) {} // Returns { buf, tag }
+  decryptBufferWithNonceTag(buffer, key, nonce, tag) {} // Returns Uint8Array
+  deriveKey(options) {} // Returns { key, salt, params }
 }
 ```
 
@@ -1411,6 +1427,17 @@ To store chunks somewhere other than Git (for example S3, a database, or the
 local filesystem), implement the same persistence shape used by `CasService`:
 
 ```js
+function concatUint8Arrays(chunks) {
+  const size = chunks.reduce((total, chunk) => total + chunk.length, 0);
+  const out = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return out;
+}
+
 class S3PersistenceAdapter {
   async writeBlob(content) {
     const hash = computeHash(content);
@@ -1421,16 +1448,16 @@ class S3PersistenceAdapter {
   async *readBlobStream(oid) {
     const response = await s3.getObject({ Key: oid });
     for await (const chunk of response.Body) {
-      yield Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      yield chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
     }
   }
 
   async readBlob(oid) {
     const chunks = [];
     for await (const chunk of await this.readBlobStream(oid)) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      chunks.push(chunk);
     }
-    return Buffer.concat(chunks);
+    return concatUint8Arrays(chunks);
   }
 
   async writeTree(entries) {
@@ -1446,13 +1473,22 @@ class S3PersistenceAdapter {
 Then inject it:
 
 ```js
-import { CasService, JsonCodec, NodeCryptoAdapter, SilentObserver } from '@git-stunts/git-cas';
+import {
+  CasService,
+  FixedChunker,
+  JsonCodec,
+  NodeCompressionAdapter,
+  NodeCryptoAdapter,
+  SilentObserver,
+} from '@git-stunts/git-cas';
 
 const service = new CasService({
   persistence: new S3PersistenceAdapter(),
   codec: new JsonCodec(),
   crypto: new NodeCryptoAdapter(),
   observability: new SilentObserver(),
+  chunker: new FixedChunker({ chunkSize: 256 * 1024 }),
+  compressionAdapter: new NodeCompressionAdapter(),
 });
 ```
 
@@ -1577,7 +1613,7 @@ All errors thrown by `git-cas` are instances of `CasError`, which extends
 
 | Code                 | Meaning                                          | Typical `meta`                                            |
 | -------------------- | ------------------------------------------------ | --------------------------------------------------------- |
-| `INVALID_KEY_TYPE`   | Encryption key is not a Buffer or Uint8Array     | --                                                        |
+| `INVALID_KEY_TYPE`   | Encryption key is not a Uint8Array-compatible value | --                                                     |
 | `INVALID_KEY_LENGTH` | Encryption key is not 32 bytes                   | `{ expected: 32, actual: N }`                             |
 | `MISSING_KEY`        | Encrypted content restored without a key         | --                                                        |
 | `INTEGRITY_ERROR`    | Chunk digest mismatch or decryption auth failure | `{ chunkIndex, expected, actual }` or `{ originalError }` |
@@ -1716,13 +1752,12 @@ by your Git repository's object database and available memory.
 Plaintext restore can stream chunk-by-chunk, so memory usage is close to
 `chunkSize` plus normal I/O overhead. On modern persistence adapters that means
 chunk blobs can be read through `readBlobStream()` instead of forcing an early
-adapter-level `Buffer` materialization. Encrypted or compressed restore
-currently buffers and is bounded by `maxRestoreBufferSize` (default 512 MiB).
-On stream-native persistence adapters, that bound now applies to actual blob
-reads and streamed gunzip output rather than only manifest estimates. Custom
-persistence adapters must implement `readBlobStream()` to get that hard-limited
-buffered restore guarantee; the older `readBlob()` fallback remains plaintext
-compatibility only.
+adapter-level materialization. `framed`, `convergent`, and gzip restore paths
+stream through their authentication/decompression stages; `whole` preserves its
+whole-object authentication boundary and is bounded by `maxRestoreBufferSize`
+(default 512 MiB). Custom persistence adapters must implement
+`readBlobStream()` to get the hard-limited streaming and bounded restore
+guarantees.
 
 ### Q: I get "Chunk size must be an integer >= 1024 bytes"
 

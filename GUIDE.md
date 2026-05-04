@@ -32,6 +32,32 @@ Machine-facing agent CLI for structured CI/CD or agentic workflows.
 
 ---
 
+## Feature Coverage Map
+
+This guide and [ADVANCED_GUIDE.md](./ADVANCED_GUIDE.md) are the complete
+feature coverage pair. The quick path lives here; implementation mechanics,
+limits, and port contracts live in the advanced guide.
+
+| Feature Area | Covered Here | Advanced Coverage |
+|---|---|---|
+| Facade lifecycle, JSON/CBOR factories, full constructor | [Library Quick Start](#library-quick-start), [Configuration Reference](#configuration-reference) | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts) |
+| Direct `CasService` construction | [Configuration Reference](#configuration-reference) notes the facade/direct split | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts) |
+| File, stream, tree, vault-safe store workflows | [Store Operations](#store-operations), [Vault Management](#vault-management) | [Manifest Integrity Hash](./ADVANCED_GUIDE.md#manifest-integrity-hash), [Merkle Manifests](./ADVANCED_GUIDE.md#merkle-manifests) |
+| Restore modes and bounded memory behavior | [Restore Modes](#restore-modes) | [Parallel Chunk Restore](./ADVANCED_GUIDE.md#parallel-chunk-restore), [Streaming Decompression](./ADVANCED_GUIDE.md#streaming-decompression) |
+| Fixed chunking, CDC, FastCDC normalization | [Chunking](#chunking) | [Content-Defined Chunking (CDC)](./ADVANCED_GUIDE.md#content-defined-chunking-cdc) |
+| Encryption schemes and legacy migration | [Encryption](#encryption), [Migrating Legacy Encryption Schemes](#migrating-legacy-encryption-schemes) | [Encryption Schemes](./ADVANCED_GUIDE.md#encryption-schemes), [Convergent Encryption](./ADVANCED_GUIDE.md#convergent-encryption) |
+| Passphrases, PBKDF2, scrypt, KDF policy | [Passphrase-Based Encryption](#passphrase-based-encryption) | [KDF Policy](./ADVANCED_GUIDE.md#kdf-policy) |
+| Multi-recipient envelope encryption and key rotation | [Multi-Recipient (Envelope) Encryption](#multi-recipient-envelope-encryption), [Key and Recipient Management](#key-and-recipient-management) | [Envelope Encryption](./ADVANCED_GUIDE.md#envelope-encryption) |
+| Vault init/list/resolve/remove, metadata, rotation, privacy mode | [Vault Management](#vault-management), [Vault Privacy Mode](#vault-privacy-mode) | [Vault Privacy Mode](./ADVANCED_GUIDE.md#vault-privacy-mode) |
+| Compression and custom adapters | [Compression](#compression) | [CompressionPort Architecture](./ADVANCED_GUIDE.md#compressionport-architecture) |
+| Manifest versions, format version, integrity hash, diffing | [Manifest Features](#manifest-features), [Manifest Diffing](#manifest-diffing) | [Format Version](./ADVANCED_GUIDE.md#format-version), [Manifest Integrity Hash](./ADVANCED_GUIDE.md#manifest-integrity-hash), [Manifest Diffing](./ADVANCED_GUIDE.md#manifest-diffing) |
+| Inspection, verification, referenced chunk analysis, deprecated aliases | [Manifest Features](#manifest-features), [Inspection and Verification](#inspection-and-verification) | [Security Hardening Summary](./ADVANCED_GUIDE.md#security-hardening-summary) |
+| Human CLI, TUI dashboard, agent CLI | [CLI Reference](#cli-reference) | [Operational Tooling](./ADVANCED_GUIDE.md#operational-tooling) |
+| Runtime support, ports, custom adapters, resilience policy | [Architecture](#architecture) | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts), [Configuration Reference](./ADVANCED_GUIDE.md#configuration-reference) |
+| Release verification, migration, build stamping | [Migrating Legacy Encryption Schemes](#migrating-legacy-encryption-schemes) | [Operational Tooling](./ADVANCED_GUIDE.md#operational-tooling) |
+
+---
+
 ## Library Quick Start
 
 A complete init-store-tree-restore cycle:
@@ -373,6 +399,8 @@ import { CompressionPort } from '@git-stunts/git-cas';
 class BrotliAdapter extends CompressionPort {
   async compressBuffer(buffer) { /* ... */ }
   async decompressBuffer(buffer) { /* ... */ }
+  async *compressStream(source) { /* ... */ }
+  async *decompressStream(source) { /* ... */ }
 }
 
 const cas = new ContentAddressableStore({
@@ -634,8 +662,6 @@ All commands support `--json` for machine-readable output and `--quiet` to suppr
 | `--os-keychain-target <target>` | Read passphrase from OS keychain via `@git-stunts/vault` |
 | `--os-keychain-account <account>` | Keychain account namespace (default: `git-cas`) |
 | `--gzip` | Enable gzip compression |
-| `--scheme <whole\|framed\|convergent>` | Encryption scheme (default: `convergent` for CDC, `framed` otherwise) |
-| `--frame-bytes <n>` | Frame size for framed encryption (default 64 KiB) |
 | `--strategy <fixed\|cdc>` | Chunking strategy |
 | `--chunk-size <n>` | Chunk size in bytes |
 | `--target-chunk-size <n>` | CDC target chunk size |
@@ -715,13 +741,38 @@ All commands support `--json` for machine-readable output and `--quiet` to suppr
 
 ### Agent CLI
 
-Machine-facing commands for CI/CD and agentic workflows. Run `git-cas agent --help` for the full agent command surface. See [docs/API.md](./docs/API.md) for structured input/output schemas.
+Machine-facing commands for CI/CD and agentic workflows. The agent CLI returns newline-delimited protocol events on stdout and exits with stable status codes. It accepts the same core targets and credential sources as the human CLI.
+
+| Command | Description |
+|---|---|
+| `git-cas agent store <file> --slug <slug> --tree` | Store an asset and optionally vault it |
+| `git-cas agent tree --manifest <path>` | Create a Git tree from manifest JSON |
+| `git-cas agent restore --slug <slug> --out <path>` | Restore from a vault slug |
+| `git-cas agent restore --oid <tree-oid> --out <path>` | Restore from a direct tree OID |
+| `git-cas agent inspect --slug <slug>` | Return manifest JSON for a target |
+| `git-cas agent verify --slug <slug>` | Verify integrity and return an agent exit code |
+| `git-cas agent doctor` | Return a vault health report |
+| `git-cas agent rotate --slug <slug>` | Rotate a recipient/key wrapper |
+| `git-cas agent recipient add <slug>` | Add an envelope recipient |
+| `git-cas agent recipient remove <slug>` | Remove an envelope recipient |
+| `git-cas agent recipient list <slug>` | List envelope recipients |
+| `git-cas agent vault init` | Initialize the vault |
+| `git-cas agent vault list` | List vault entries |
+| `git-cas agent vault info <slug>` | Inspect a vault entry |
+| `git-cas agent vault history` | Return vault history |
+| `git-cas agent vault remove <slug>` | Remove a vault entry |
+| `git-cas agent vault rotate` | Rotate the vault passphrase |
+| `git-cas agent vault stats` | Return vault size/dedupe/encryption stats |
+
+Use `--request <json>` or stdin JSON for structured request payloads where a workflow needs machine-built inputs. See [docs/API.md](./docs/API.md) for the detailed protocol fields and response schemas.
 
 ---
 
 ## Configuration Reference
 
 ### Constructor Options
+
+This table describes the high-level `ContentAddressableStore` facade. The facade supplies `FixedChunker`, `NodeCompressionAdapter`, runtime crypto, and the package `formatVersion` automatically when those options are omitted. If you construct `CasService` directly, `chunker` and `compressionAdapter` are required injections; see [ADVANCED_GUIDE.md](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts).
 
 | Option | Type | Default | Description |
 |---|---|---|---|
@@ -737,7 +788,7 @@ Machine-facing commands for CI/CD and agentic workflows. Run `git-cas agent --he
 | `chunker` | `ChunkingPort` | `FixedChunker` | Pre-built chunker instance (advanced) |
 | `maxRestoreBufferSize` | `number` | `536870912` (512 MiB) | Max bytes for buffered restore |
 | `compressionAdapter` | `CompressionPort` | `NodeCompressionAdapter` | Compression adapter |
-| `formatVersion` | `string` | Package version | Semver string stamped into new manifests. Auto-set from package.json when using the facade. Only configurable via CasService directly. |
+| `formatVersion` | `string` | Package version | Semver string stamped into new manifests by the facade. Directly configurable only on `CasService`. |
 
 ### Encryption Options (Store)
 
@@ -745,6 +796,7 @@ Machine-facing commands for CI/CD and agentic workflows. Run `git-cas agent --he
 |---|---|---|---|
 | `scheme` | `'whole' \| 'framed' \| 'convergent'` | `convergent` (CDC) / `framed` (fixed) | Encryption scheme |
 | `frameBytes` | `number` | `65536` (64 KiB) | Frame size for `framed` scheme (max 64 MiB) |
+| `convergent` | `boolean` | Auto | Explicit convergent opt-in/opt-out when no `scheme` is provided |
 
 ### Chunking Config Object
 

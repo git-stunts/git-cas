@@ -153,9 +153,10 @@ Stores content from an async iterable source.
 - `filename` (required): `string` - Original filename
 - `encryptionKey` (optional): `Uint8Array` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase (alternative to `encryptionKey`)
-- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed`
-- `encryption.scheme` (optional): `'whole' | 'framed' | 'convergent'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode; `convergent` derives per-chunk keys from content, enabling deduplication across encrypted stores and is the default when using CDC chunking with encryption
+- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores default to `convergent` for CDC chunkers and `framed` otherwise
+- `encryption.scheme` (optional): `'whole' | 'framed' | 'convergent'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is the fixed-chunk default; `convergent` derives per-chunk keys from content, enabling deduplication across encrypted stores and is the default when using CDC chunking with encryption
 - `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed record (default `65536`)
+- `encryption.convergent` (optional): `boolean` - Explicit convergent opt-in/opt-out when `encryption.scheme` is omitted
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`). New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
 - `recipients` (optional): `Array<{ label: string, key: Uint8Array }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
@@ -212,9 +213,10 @@ Convenience method that opens a file and stores it.
 - `filename` (optional): `string` - Filename (defaults to basename of filePath)
 - `encryptionKey` (optional): `Uint8Array` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase
-- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed`
-- `encryption.scheme` (optional): `'whole' | 'framed' | 'convergent'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode; `convergent` derives per-chunk keys from content, enabling deduplication across encrypted stores and is the default when using CDC chunking with encryption
+- `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores default to `convergent` for CDC chunkers and `framed` otherwise
+- `encryption.scheme` (optional): `'whole' | 'framed' | 'convergent'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is the fixed-chunk default; `convergent` derives per-chunk keys from content, enabling deduplication across encrypted stores and is the default when using CDC chunking with encryption
 - `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed record (default `65536`)
+- `encryption.convergent` (optional): `boolean` - Explicit convergent opt-in/opt-out when `encryption.scheme` is omitted
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase`. New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
 - `recipients` (optional): `Array<{ label: string, key: Uint8Array }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
@@ -337,7 +339,8 @@ await cas.verifyIntegrity(manifest);
 Verifies the integrity of stored content by re-hashing all chunks. For
 encrypted manifests, pass the same decryption credentials you would use for
 `restore()` so the ciphertext is also authenticated. `whole` authenticates
-the full ciphertext as one unit; `framed` authenticates every stored frame.
+the full ciphertext as one unit, `framed` authenticates every stored frame,
+and `convergent` decrypts each chunk and verifies its plaintext digest.
 
 **Parameters:**
 

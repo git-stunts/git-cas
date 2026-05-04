@@ -149,7 +149,7 @@ nonce and authentication tag are stored in the manifest's `encryption` object.
 Limitations: the full ciphertext must fit in memory during restore (bounded by
 `maxRestoreBufferSize`, default 512 MiB). No incremental authentication.
 
-### framed (default for new encrypted stores)
+### framed (default for fixed encrypted stores)
 
 Per-frame authenticated encryption with independently verifiable records.
 Plaintext is split into fixed-size frames (default 64 KiB, max 64 MiB),
@@ -212,7 +212,7 @@ frame sequence, so any such tampering causes GCM authentication failure.
 
 | Scenario | Recommended Scheme |
 | :--- | :--- |
-| New encrypted stores | `framed` (default) |
+| Fixed chunking + encryption | `framed` (default) |
 | Large assets needing streaming restore | `framed` |
 | CDC with encryption (dedup-preserving) | `convergent` |
 | Single-envelope simplicity | `whole` |
@@ -371,16 +371,21 @@ Manifests may carry a `formatVersion` field -- a semver string (e.g.,
 field that distinguishes flat manifests from Merkle manifests.
 
 ```js
+import { FixedChunker, NodeCompressionAdapter } from '@git-stunts/git-cas';
+import CasService from '@git-stunts/git-cas/service';
+
 const cas = new CasService({
   persistence, codec, crypto, observability,
+  chunker: new FixedChunker({ chunkSize: 256 * 1024 }),
+  compressionAdapter: new NodeCompressionAdapter(),
   formatVersion: '6.0.0',
 });
 ```
 
 When present, `formatVersion` records which release of `git-cas` produced
 the manifest. It is validated against the regex `/^\d+\.\d+\.\d+$/` by the
-manifest schema. The field is optional and omitted when `formatVersion` is
-not configured on the service.
+manifest schema. The facade sets this from package metadata automatically;
+direct `CasService` callers provide it themselves when they want the stamp.
 
 ---
 
@@ -456,8 +461,13 @@ This guarantees that:
 Set `concurrency` on the `CasService` constructor:
 
 ```js
+import { FixedChunker, NodeCompressionAdapter } from '@git-stunts/git-cas';
+import CasService from '@git-stunts/git-cas/service';
+
 const cas = new CasService({
   persistence, codec, crypto, observability,
+  chunker: new FixedChunker({ chunkSize: 256 * 1024 }),
+  compressionAdapter: new NodeCompressionAdapter(),
   concurrency: 8,  // up to 8 parallel chunk reads
 });
 ```
@@ -679,8 +689,12 @@ The default adapter uses `node:zlib`:
 Pass a custom adapter via the `compressionAdapter` constructor option:
 
 ```js
+import { FixedChunker } from '@git-stunts/git-cas';
+import CasService from '@git-stunts/git-cas/service';
+
 const cas = new CasService({
   persistence, codec, crypto, observability,
+  chunker: new FixedChunker({ chunkSize: 256 * 1024 }),
   compressionAdapter: new MyBrotliAdapter(),
 });
 ```
@@ -688,6 +702,72 @@ const cas = new CasService({
 The only currently supported compression algorithm at the schema level is
 `gzip`. The port abstraction exists to support future Bun-native, Deno-native,
 or browser compression adapters without changing `CasService`.
+
+---
+
+## Direct CasService and Custom Port Contracts
+
+Most applications should use the `ContentAddressableStore` facade. It supplies
+Git persistence, runtime crypto, a JSON codec, a silent observer, fixed
+chunking, gzip compression, and package-version manifest stamping by default.
+Direct `CasService` construction is for tests, non-Git persistence experiments,
+or applications that own every adapter boundary.
+
+### Minimal Direct Service
+
+Direct `CasService` construction requires all domain ports, including the
+chunker and compression adapter. Those two are optional only on the facade.
+
+```js
+import {
+  FixedChunker,
+  JsonCodec,
+  NodeCompressionAdapter,
+  NodeCryptoAdapter,
+  SilentObserver,
+} from '@git-stunts/git-cas';
+import CasService from '@git-stunts/git-cas/service';
+
+const service = new CasService({
+  persistence,
+  codec: new JsonCodec(),
+  crypto: new NodeCryptoAdapter(),
+  observability: new SilentObserver(),
+  chunker: new FixedChunker({ chunkSize: 256 * 1024 }),
+  compressionAdapter: new NodeCompressionAdapter(),
+  formatVersion: '6.0.0',
+});
+```
+
+### Required Port Shape
+
+| Port | Required Surface | Notes |
+| :--- | :--- | :--- |
+| `GitPersistencePort` | `writeBlob`, `writeTree`, `readBlob`, `readBlobStream`, `readTree` | Return and consume `Uint8Array` streams; `readBlobStream()` is required for bounded restore paths. |
+| `CodecPort` | `encode`, `decode`, `extension` | `encode()` must return `Uint8Array`; JSON and CBOR are built in. |
+| `CryptoPort` | SHA-256, random bytes, AES-GCM buffer/stream methods, nonce/tag helpers, HMAC, KDF | `scrypt` support is runtime-dependent; Web Crypto adapters report capability errors where unsupported. |
+| `ObservabilityPort` | `metric`, `log`, `span` | Use `SilentObserver`, `EventEmitterObserver`, or `StatsCollector` unless you need custom telemetry. |
+| `ChunkingPort` | `chunk(source)`, `strategy`, `params` | Use `FixedChunker` or `CdcChunker`; direct service callers must inject one. |
+| `CompressionPort` | `compressBuffer`, `decompressBuffer`, `compressStream`, `decompressStream` | Direct service callers must inject one even if stores do not request compression. |
+
+The public byte contract is `Uint8Array`. Node `Buffer` values work at Node
+boundaries because `Buffer` extends `Uint8Array`, but custom adapters should
+not expose Buffer-only APIs in their portable contracts.
+
+### Runtime and Facade Split
+
+The facade owns infrastructure defaults:
+
+- `GitPersistenceAdapter` and `GitRefAdapter` wrap `@git-stunts/plumbing`.
+- `createCryptoAdapter()` chooses Node, Bun-compatible, or Web Crypto support.
+- `resolveChunker()` maps declarative `{ strategy: 'fixed' | 'cdc' }` config
+  into `FixedChunker` or `CdcChunker` instances.
+- `NodeCompressionAdapter` is the default compression adapter.
+- `formatVersion` is stamped from package metadata.
+
+The domain service owns behavior after the ports are injected. It validates
+constructor numeric ranges, rejects missing `chunker` and `compressionAdapter`,
+and keeps runtime-specific imports out of the domain.
 
 ---
 
@@ -711,6 +791,50 @@ row describes the fix and what it prevents.
 | 11 | AAD binding (always active on all schemes) | Cross-manifest blob substitution and frame reordering attacks |
 | 12 | Legacy scheme rejection at runtime | Downgrade to weaker v1/v2 scheme variants |
 | 13 | Convergent encryption post-decrypt digest verification | Chunk substitution or corruption after decryption |
+
+---
+
+## Operational Tooling
+
+The release and migration scripts are part of the supported operator surface.
+They are intentionally separate from the runtime library so production callers
+do not inherit release-time dependencies.
+
+### Migration
+
+```sh
+npm run upgrade
+node scripts/migrate-encryption.js --execute --passphrase my-secret
+node scripts/migrate-encryption.js --execute --key-file ./asset.key
+```
+
+The migration script is dry-run by default. It maps legacy v2 scheme names to
+current names when safe, and re-encrypts legacy v1 content when AAD must be
+added. Privacy-enabled vaults accept vault-specific passphrase/key options
+when the vault credential differs from the content credential.
+
+### Release Verification
+
+```sh
+npm test
+npx eslint .
+npm run release:verify -- --skip-jsr
+```
+
+`release:verify` checks package metadata, exports, docs, tests, pack contents,
+Docker runtime suites, and release-state invariants. Use `--skip-jsr` when JSR
+publication is intentionally deferred or unavailable.
+
+### Build Metadata
+
+```sh
+npm run stamp
+npm pack --dry-run
+```
+
+`npm run stamp` writes `build-info.json` from the current Git state. The file
+is included in the npm package and is regenerated by `prepublishOnly`; it
+should not be treated as source truth when the working tree has moved.
 
 ---
 
@@ -746,7 +870,9 @@ The following baselines are published for the current release line.
 
 ## Configuration Reference
 
-All `CasService` constructor options with types, defaults, and bounds.
+Direct `CasService` constructor options with types, defaults, and bounds. The
+high-level `ContentAddressableStore` facade supplies defaults for `chunker`,
+`compressionAdapter`, runtime crypto, and `formatVersion`.
 
 | Option | Type | Default | Bounds | Description |
 | :--- | :--- | :--- | :--- | :--- |
@@ -757,9 +883,9 @@ All `CasService` constructor options with types, defaults, and bounds.
 | `chunkSize` | `number` | `262144` (256 KiB) | Integer in `[1024, 104857600]` (1 KiB -- 100 MiB) | Chunk size for fixed chunking; warning above 10 MiB |
 | `merkleThreshold` | `number` | `1000` | Integer >= 1 | Chunk count above which Merkle manifests are used |
 | `concurrency` | `number` | `1` | Integer in `[1, 64]` | Max parallel chunk I/O operations (PrefetchWindow size) |
-| `chunker` | `ChunkingPort` | `FixedChunker` | -- | Chunking strategy instance (`FixedChunker` or `CdcChunker`) |
+| `chunker` | `ChunkingPort` | *required* | -- | Chunking strategy instance (`FixedChunker` or `CdcChunker`) |
 | `maxRestoreBufferSize` | `number` | `536870912` (512 MiB) | Integer >= 1024 | Max bytes for buffered restore (encrypted/compressed) |
-| `compressionAdapter` | `CompressionPort` | `NodeCompressionAdapter` | -- | Compression implementation |
+| `compressionAdapter` | `CompressionPort` | *required* | -- | Compression implementation |
 | `formatVersion` | `string` | -- | Semver (`/^\d+\.\d+\.\d+$/`) | Version stamp for new manifests (distinct from structural `version`) |
 
 ### store() Options
@@ -772,7 +898,7 @@ All `CasService` constructor options with types, defaults, and bounds.
 | `encryptionKey` | `Uint8Array` | -- | 32-byte key (mutually exclusive with `passphrase` and `recipients`) |
 | `passphrase` | `string` | -- | Derive key via KDF (mutually exclusive with `encryptionKey` and `recipients`) |
 | `encryption` | `object` | -- | `{ scheme?, frameBytes?, convergent? }` |
-| `encryption.scheme` | `string` | `'framed'` | `'whole'`, `'framed'`, or `'convergent'` |
+| `encryption.scheme` | `string` | Auto: `convergent` for CDC, `framed` otherwise | `'whole'`, `'framed'`, or `'convergent'` |
 | `encryption.frameBytes` | `number` | `65536` (64 KiB) | Frame size for the `framed` scheme; max 64 MiB |
 | `encryption.convergent` | `boolean` | -- | Explicit convergent opt-in/opt-out (auto-selected for CDC chunkers) |
 | `kdfOptions` | `object` | -- | `{ algorithm?, iterations?, cost?, blockSize?, parallelization? }` |

@@ -4,12 +4,14 @@ This directory contains runnable examples demonstrating the core features of `@g
 
 Audit status:
 
-| File                             | Recommendation | Notes                                                                                         |
-| -------------------------------- | -------------- | --------------------------------------------------------------------------------------------- |
-| `examples/README.md`             | Keep, refresh  | Canonical index for the examples surface; keep it accurate and scoped to maintained examples. |
-| `examples/store-and-restore.js`  | Keep, refresh  | Good first example; now uses the public `readManifest()` helper for tree-to-manifest reads.   |
-| `examples/encrypted-workflow.js` | Keep           | Still a useful end-to-end encryption example with current public APIs.                        |
-| `examples/progress-tracking.js`  | Keep           | Still the right observability example now that it teaches `EventEmitterObserver`.             |
+| File | Demonstrates | Notes |
+| --- | --- | --- |
+| `examples/store-and-restore.js` | Basic store/tree/read/restore/verify workflow | First example to run. Uses the public `readManifest()` helper for tree-to-manifest reads. |
+| `examples/encrypted-workflow.js` | Raw-key AES-256-GCM store/restore failure modes | Uses current `framed` default encryption metadata unless you select another scheme in code. |
+| `examples/progress-tracking.js` | `EventEmitterObserver` progress and integrity events | Shows the backward-compatible event bridge over the `ObservabilityPort`. |
+| `examples/v6-blocks/dashboard-v6.js` | Bijou TUI dashboard mock-up | Visual prototype for the v6 cockpit-style vault dashboard. |
+| `examples/v6-blocks/health-v6.js` | Bijou TUI health panel mock-up | Visual prototype for doctor/health reporting blocks. |
+| `examples/v6-blocks/merkle-v6.js` | Bijou TUI Merkle explorer mock-up | Visual prototype for table/tree/DAG Merkle manifest exploration. |
 
 ## Prerequisites
 
@@ -37,6 +39,9 @@ Each example is a standalone Node.js script that can be run directly:
 node store-and-restore.js
 node encrypted-workflow.js
 node progress-tracking.js
+node v6-blocks/dashboard-v6.js
+node v6-blocks/health-v6.js
+node v6-blocks/merkle-v6.js
 ```
 
 ## Examples Overview
@@ -107,6 +112,45 @@ This example shows how to track storage and restore operations using `EventEmitt
 - Building real-time progress indicators
 - Calculating percentages based on chunk counts
 
+### v6-blocks/dashboard-v6.js
+
+**Demonstrates:** Interactive TUI layout for the v6 vault cockpit
+
+This mock-up shows a keyboard-driven asset ledger and manifest inspector using
+the Bijou TUI stack. It is a visual example rather than a live vault reader.
+
+**Key concepts:**
+
+- Bijou surfaces and boxed panels
+- Keyboard focus movement
+- Asset metadata badges for scheme and manifest shape
+
+### v6-blocks/health-v6.js
+
+**Demonstrates:** Interactive TUI health reporting block
+
+This mock-up shows how vault health, reachability, encryption posture, and
+history events can be rendered as a compact operator panel.
+
+**Key concepts:**
+
+- Timeline rendering
+- Health and status badges
+- Help overlay behavior
+
+### v6-blocks/merkle-v6.js
+
+**Demonstrates:** Merkle manifest visualization concepts
+
+This mock-up shows table, tree, and DAG views for a Merkle manifest. It is a
+visual companion to the Merkle manifest docs, not a live Git object reader.
+
+**Key concepts:**
+
+- Segmented view modes
+- Sub-manifest hierarchy
+- DAG-style chunk reference display
+
 ## API Reference
 
 ### Factory Methods
@@ -127,7 +171,7 @@ const manifest = await cas.storeFile({
   filePath: '/path/to/file',
   slug: 'unique-identifier',
   filename: 'optional-name.txt',
-  encryptionKey: optionalKeyBuffer, // 32-byte Buffer
+  encryptionKey: optionalKeyBytes, // 32-byte Uint8Array
 });
 
 // Create a Git tree
@@ -140,14 +184,14 @@ const treeOid = await cas.createTree({ manifest });
 // Restore to disk
 await cas.restoreFile({
   manifest,
-  encryptionKey: optionalKeyBuffer,
+  encryptionKey: optionalKeyBytes,
   outputPath: '/path/to/output',
 });
 
-// Restore to memory (returns Buffer)
+// Restore to memory (returns Uint8Array)
 const { buffer, bytesWritten } = await cas.restore({
   manifest,
-  encryptionKey: optionalKeyBuffer,
+  encryptionKey: optionalKeyBytes,
 });
 ```
 
@@ -166,7 +210,8 @@ const manifest = await cas.readManifest({ treeOid });
 
 ## Encryption Keys
 
-Encryption keys must be 32-byte Buffers for AES-256-GCM:
+Encryption keys must be 32-byte `Uint8Array` values for AES-256-GCM. Node
+`Buffer` values also work because `Buffer` extends `Uint8Array`.
 
 ```javascript
 import { randomBytes } from 'node:crypto';

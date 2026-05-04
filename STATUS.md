@@ -1,7 +1,7 @@
 # STATUS
 
-**Last tagged release:** `v6.0.0` (`2026-05-04`)
-**Current release state:** `v6.0.0` on `main`; npm publish and GitHub Release are completed by the annotated tag workflow.
+**Last tagged release:** `v5.3.2` (`2026-03-15`)
+**Current release state:** `v6.0.0` prepared on `main`; the annotated tag has not been created yet.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -17,10 +17,12 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.0.0 artifact posture** — JSR publication is deferred because the current
-  `jsr`/Deno toolchain panics before package validation. The tag workflow
-  publishes npm and creates the GitHub Release; JSR can return in a later 6.x
-  maintenance change once its dry-run is healthy.
+- **v6.0.0 artifact posture** — pre-tag release prep and final local
+  verification are complete; the annotated tag has not been created. JSR
+  publication is deferred because the current `jsr`/Deno toolchain panics
+  before package validation. Once the operator approves the tag, the tag
+  workflow publishes npm and creates the GitHub Release; JSR can return in a
+  later 6.x maintenance change once its dry-run is healthy.
 - **v6.0.0 encryption scheme simplification** — `whole-v1`/`whole-v2` collapsed
   to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1`
   collapsed to `convergent`. AAD is now always on. Legacy scheme strings in
@@ -34,10 +36,12 @@
   manifests without throwing `LEGACY_SCHEME`, used by the migration script.
 - **Convergent encryption** — new default scheme for CDC + encryption that
   preserves deduplication across encrypted stores.
-- New encrypted stores default to `framed`, which provides an authenticated
-  streaming encrypted restore path. `whole` remains the explicit compatibility
-  whole-object mode for `restoreStream()`, while `restoreFile()` now has a
-  bounded temp-file restore path for `whole` and buffered compression modes.
+- Fixed-chunk encrypted stores default to `framed`, which provides an
+  authenticated streaming encrypted restore path. CDC encrypted stores default
+  to `convergent`, preserving deduplication across encrypted versions. `whole`
+  remains the explicit compatibility whole-object mode for `restoreStream()`,
+  while `restoreFile()` now has a bounded temp-file restore path for `whole`
+  and buffered compression modes.
 - Buffered `restoreStream()` / `restore()` now enforce `maxRestoreBufferSize`
   against streamed gunzip output and, on stream-native blob adapters, against
   actual blob reads instead of only manifest-estimated sizes.
