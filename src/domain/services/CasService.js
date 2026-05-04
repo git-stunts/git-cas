@@ -1548,7 +1548,24 @@ export default class CasService {
       const aad = this._isLegacyNoAad(manifest)
         ? undefined
         : buildWholeAad(manifest.slug);
-      source = this.crypto.createDecryptionStream(key, encryptionMeta, aad).decrypt(source);
+
+      if (encryptionMeta.scheme === SCHEME_WHOLE) {
+        // whole scheme authentication boundary: buffer entire ciphertext before decryption
+        const chunks = [];
+        for await (const chunk of source) {
+          chunks.push(chunk);
+        }
+        const ciphertext = concatBytes(chunks);
+        const plaintext = await this._decryptWithAad({
+          buffer: ciphertext,
+          key,
+          meta: encryptionMeta,
+          aad,
+        });
+        source = (async function* plaintextSource() { yield plaintext; })();
+      } else {
+        source = this.crypto.createDecryptionStream(key, encryptionMeta, aad).decrypt(source);
+      }
     }
 
     if (manifest.compression) {

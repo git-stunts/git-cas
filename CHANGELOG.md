@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
+- **JSR support removed** — The JSR registry publication workflow has been removed. `pnpm release:verify` now supports skipping JSR dry-runs via `--skip-jsr`. Consumers of the `@git-stunts/git-cas` JSR package should migrate to the npm package.
 - **Encryption scheme identifiers simplified** — `whole-v1`/`whole-v2` collapsed to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1` collapsed to `convergent`. Legacy v1/v2 scheme strings in stored manifests now throw `LEGACY_SCHEME` at `readManifest()` time with migration guidance. The `scheme` field in `ManifestSchema` is now required for all encryption metadata (previously optional for backward-compatible schemeless whole manifests).
 - **AAD is always on** — `whole` and `framed` encryption always bind slug-based AAD into the GCM tag. The v1 no-AAD path is removed.
 - **Core byte contract is now `Uint8Array`** — public and port byte surfaces now accept and return `Uint8Array` rather than Node-specific `Buffer` types. Node callers can continue passing `Buffer` values because `Buffer` extends `Uint8Array`, but restored data, chunkers, codecs, and Web Crypto adapter outputs should be treated as `Uint8Array`.

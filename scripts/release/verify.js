@@ -234,7 +234,7 @@ function validateRequiredFiles(step, output) {
     const missing = step.requiredFiles.filter((file) => !paths.has(file));
     return missing.length === 0
       ? null
-      : `Package dry-run missing required file(s): ${missing.join(', ')}`;
+      : `Package dry-run missing required file(s): ${missing.join(', ')} (run 'pnpm run stamp' to generate build-info.json)`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return `Could not parse npm pack JSON output: ${message}`;

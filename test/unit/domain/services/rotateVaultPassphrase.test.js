@@ -19,7 +19,7 @@ import CasError from '../../../../src/domain/errors/CasError.js';
 
 const LONG_TEST_TIMEOUT_MS = 60000;
 const initialCrypto = await getTestCryptoAdapter();
-const SUPPORTS_SCRYPT = initialCrypto.constructor.name !== 'WebCryptoAdapter';
+const SUPPORTS_SCRYPT = initialCrypto.supports('scrypt');
 const itScrypt = SUPPORTS_SCRYPT ? it : it.skip;
 
 // ---------------------------------------------------------------------------

@@ -41,6 +41,16 @@ import { encodeBase64 } from '../domain/encoding/base64.js';
  */
 export default class CryptoPort {
   /**
+   * Returns true if the adapter supports the given capability.
+   * @param {'scrypt'} capability
+   * @returns {boolean}
+   */
+  supports(capability) {
+    if (capability === 'scrypt') { return true; }
+    return false;
+  }
+
+  /**
    * Returns the SHA-256 hex digest of a buffer.
    * @param {Uint8Array} _buf - Data to hash.
    * @returns {Promise<string>} 64-char hex digest.

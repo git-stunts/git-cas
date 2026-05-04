@@ -12,6 +12,12 @@ import { encodeBase64 } from '../../domain/encoding/base64.js';
  * AES-GCM is a one-shot API (the GCM tag is computed over the entire plaintext).
  */
 export default class WebCryptoAdapter extends CryptoPort {
+  /** @override */
+  supports(capability) {
+    if (capability === 'scrypt') { return false; }
+    return super.supports(capability);
+  }
+
   /** @type {number} */
   #maxEncryptionBufferSize;
   /** @type {number} */
