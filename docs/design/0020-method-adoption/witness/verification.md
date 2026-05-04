@@ -16,9 +16,9 @@ Yes.
 
 ### Evidence
 
-- [WORKFLOW.md](../../../WORKFLOW.md) points directly to
+- [WORKFLOW.md](../../../../WORKFLOW.md) points directly to
   [docs/method/process.md](../../../method/process.md)
-- [docs/RELEASE.md](../../../docs/RELEASE.md) points directly to
+- [docs/RELEASE.md](../../../RELEASE.md) points directly to
   [docs/method/release.md](../../../method/release.md)
 - [docs/method/backlog/README.md](../../../method/backlog/README.md)
   lists the live lanes and current items

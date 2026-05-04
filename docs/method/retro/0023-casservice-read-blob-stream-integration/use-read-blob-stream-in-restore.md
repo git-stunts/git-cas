@@ -37,6 +37,6 @@ No design drift is visible inside this cycle.
 
 - No new `cool-ideas/` item was added in this cycle.
 - Existing follow-on streaming work remains captured in
-  [TR — Streaming Encrypted Restore](../../backlog/up-next/TR_streaming-encrypted-restore.md)
+  [TR — Streaming Encrypted Restore](../0027-framed-v1-streaming-restore/framed-v1-streaming-restore.md)
   and
   [TR — Streaming Decryption](../../backlog/cool-ideas/TR_streaming-decryption.md).

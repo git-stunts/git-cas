@@ -53,7 +53,7 @@ Integrate managed blob storage directly into your TypeScript or JavaScript appli
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
-const plumbing = new GitPlumbing({ cwd: '.' });
+const plumbing = GitPlumbing.createDefault({ cwd: '.' });
 const cas = ContentAddressableStore.createJson({ plumbing });
 
 const manifest = await cas.storeFile({ filePath: './asset.bin', slug: 'app/asset' });

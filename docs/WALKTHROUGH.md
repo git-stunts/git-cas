@@ -83,7 +83,7 @@ import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
 // Point at a Git repository
-const git = new GitPlumbing({ cwd: './my-repo' });
+const git = GitPlumbing.createDefault({ cwd: './my-repo' });
 const cas = new ContentAddressableStore({ plumbing: git });
 
 // Store vacation.jpg under the slug "photos/vacation"
@@ -257,7 +257,7 @@ use cases, the default is a good balance.
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
-const git = new GitPlumbing({ cwd: './assets-repo' });
+const git = GitPlumbing.createDefault({ cwd: './assets-repo' });
 const cas = new ContentAddressableStore({ plumbing: git });
 
 const manifest = await cas.storeFile({
@@ -512,7 +512,7 @@ import { readFileSync } from 'node:fs';
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
-const git = new GitPlumbing({ cwd: './assets-repo' });
+const git = GitPlumbing.createDefault({ cwd: './assets-repo' });
 const cas = new ContentAddressableStore({ plumbing: git });
 const encryptionKey = readFileSync('./vacation.key');
 

@@ -41,7 +41,7 @@ import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
 // 1. Initialize
-const plumbing = new GitPlumbing({ cwd: '/path/to/repo' });
+const plumbing = GitPlumbing.createDefault({ cwd: '/path/to/repo' });
 const cas = ContentAddressableStore.createJson({ plumbing });
 
 // 2. Store a file
@@ -188,14 +188,14 @@ crypto adapter; Web Crypto runtimes report a capability error for scrypt.
 
 ```js
 // Store with passphrase (PBKDF2)
-const manifest = await cas.storeFile({
+const pbkdf2Manifest = await cas.storeFile({
   filePath: './secret.pdf',
   slug: 'docs/secret',
   passphrase: 'my-strong-passphrase',
 });
 
 // Store with scrypt
-const manifest = await cas.storeFile({
+const scryptManifest = await cas.storeFile({
   filePath: './secret.pdf',
   slug: 'docs/secret',
   passphrase: 'my-strong-passphrase',
@@ -270,7 +270,7 @@ Override the default scheme:
 
 ```js
 // Force framed encryption (even with CDC chunking)
-const manifest = await cas.storeFile({
+const framedManifest = await cas.storeFile({
   filePath: './large-video.mp4',
   slug: 'media/video',
   encryptionKey: key,
@@ -281,7 +281,7 @@ const manifest = await cas.storeFile({
 });
 
 // Force whole-object encryption
-const manifest = await cas.storeFile({
+const wholeManifest = await cas.storeFile({
   filePath: './small-config.json',
   slug: 'config/app',
   encryptionKey: key,
@@ -390,20 +390,20 @@ Compare two manifests to find added, removed, and unchanged chunks. This is a pu
 ```js
 // Static method (requires class, not an instance)
 import CasService from '@git-stunts/git-cas/service';
-const diff = CasService.diffManifests(oldManifest, newManifest);
+const serviceDiff = CasService.diffManifests(oldManifest, newManifest);
 
 // Standalone function
 import { diffManifests } from '@git-stunts/git-cas';
-const diff = diffManifests(oldManifest, newManifest);
+const standaloneDiff = diffManifests(oldManifest, newManifest);
 
-console.log(diff.summary);
+console.log(standaloneDiff.summary);
 // => {
 //   addedCount: 3, removedCount: 1, unchangedCount: 42,
 //   addedBytes: 196608, removedBytes: 65536, unchangedBytes: 2752512,
 // }
-console.log(diff.added);     // Chunk[] -- new chunks in newManifest
-console.log(diff.removed);   // Chunk[] -- chunks only in oldManifest
-console.log(diff.unchanged); // Chunk[] -- chunks in both (by digest)
+console.log(standaloneDiff.added);     // Chunk[] -- new chunks in newManifest
+console.log(standaloneDiff.removed);   // Chunk[] -- chunks only in oldManifest
+console.log(standaloneDiff.unchanged); // Chunk[] -- chunks in both (by digest)
 ```
 
 ---

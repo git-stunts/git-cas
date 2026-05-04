@@ -60,7 +60,6 @@
 
 ## Active Queue Snapshot
 
-- [REL — Docs Accuracy Audit](./docs/method/backlog/v6.0.0/REL_docs-accuracy-audit.md)
 - [REL — Version Bump](./docs/method/backlog/v6.0.0/REL_version-bump.md)
 - [TUI — Store Wizard Execution Gap](./docs/method/backlog/bad-code/TUI_store-wizard-execution-gap.md)
 - [SEC — Vault Passphrase Verifier Gap](./docs/method/backlog/bad-code/SEC_vault-passphrase-verifier-gap.md)

@@ -31,18 +31,21 @@ after operator approval.
 ## Evidence
 
 - `npx eslint .` passed on 2026-05-04.
-- `npm test` passed on 2026-05-04: 117 files, 1336 passed, 2 skipped.
+- `npm test` passed on 2026-05-04: 119 files, 1341 passed, 2 skipped.
 - Node integration passed on 2026-05-04: 4 files, 152 passed.
-- Bun unit passed on 2026-05-04: 117 files, 1358 passed, 3 skipped.
+- Bun unit passed on 2026-05-04: 118 files passed, 1 file skipped; 1360 passed, 6 skipped.
 - Bun integration passed on 2026-05-04: 4 files, 152 passed.
-- Deno unit passed on 2026-05-04: 117 files, 1327 passed, 11 skipped.
+- Deno unit passed on 2026-05-04: 118 files passed, 1 file skipped; 1329 passed, 14 skipped.
 - Deno integration passed on 2026-05-04: 4 files, 152 passed.
+- `test/unit/docs/guide-examples.test.js` and `test/unit/docs/markdown-links.test.js`
+  now cover the `GUIDE.md` example proof and tracked Markdown link audit in a
+  full checkout; package Docker images skip file-audit assertions because
+  `.dockerignore` excludes `.git` and most Markdown.
 - `npm run upgrade` passed on 2026-05-04 in dry-run mode; no local vault found.
 - `npm pack --dry-run` passed on 2026-05-04 for `@git-stunts/git-cas@6.0.0`; tarball has 102 files and package size 193.3 kB.
 - `npx jsr publish --dry-run --allow-dirty` still fails before package validation completes because `jsr@0.14.2` invokes its downloaded Deno 2.6.7 binary and panics in `deno_ast@0.52.0` with overlapping text changes.
 
 ## Remaining Before Tag
 
-- Finish the remaining `REL_docs-accuracy-audit` proof items: compile/work all examples, resolve all cross-doc links, and test every `GUIDE.md` code example against the actual API.
 - Decide how to handle the external JSR dry-run blocker before publishing to JSR.
 - Land the release branch, create an annotated `v6.0.0` tag, and push the tag.

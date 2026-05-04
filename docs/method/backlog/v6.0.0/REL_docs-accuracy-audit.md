@@ -34,14 +34,14 @@ For each doc:
 
 - [x] No references to `whole-v1`, `framed-v1`, `whole-v2`, `framed-v2`, `convergent-v1` outside migration context
 - [x] No references to removed APIs or old defaults
-- [ ] All code examples compile/work with v6 API
-- [ ] All cross-doc links resolve to existing files
+- [x] All code examples compile/work with v6 API
+- [x] All cross-doc links resolve to existing files
 - [x] Version numbers updated where applicable
 
 ## Acceptance Criteria
 
 - [x] `grep -r 'whole-v1\|framed-v1' *.md docs/*.md` returns only migration-context hits
-- [ ] Every code example in GUIDE.md tested against actual API
+- [x] Every code example in GUIDE.md tested against actual API
 - [x] CHANGELOG has complete v6.0.0 section
 
 ## Evidence
@@ -52,10 +52,13 @@ For each doc:
   states as shipped behavior.
 - Package metadata, JSR metadata, and `src/package-version.js` now agree on
   `6.0.0`.
+- `test/unit/docs/markdown-links.test.js` scans every tracked Markdown file and
+  proves relative Markdown links point at existing files.
+- `test/unit/docs/guide-examples.test.js` proves every `GUIDE.md` JavaScript
+  fence parses, every JSON fence parses, the quick-start facade methods are on
+  the public API, and the documented quick-start store/tree/vault/read/restore
+  flow works against a real Git repository.
 
-## Remaining Proof
+## Status
 
-- GUIDE examples still need an executable harness or manual transcript before
-  the example checkbox can be closed.
-- A full repository markdown link audit is still open unless covered by the
-  final release verification transcript.
+- [x] Resolved — `release/v6.0.0` branch

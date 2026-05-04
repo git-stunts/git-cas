@@ -113,7 +113,7 @@ instead of pretending to replace them.
 
 ## Implementation Outline
 
-1. Move [GUIDE.md](../GUIDE.md) under `docs/`.
+1. Move [GUIDE.md](../../GUIDE.md) under `docs/`.
 2. Update front-door references so readers can still find it.
 3. Repair the stale public-surface examples and behavior claims that materially
    affect trust.

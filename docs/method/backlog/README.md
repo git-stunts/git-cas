@@ -32,13 +32,13 @@ not use numeric IDs.
 
 Active:
 
-1. [REL — Docs Accuracy Audit](./v6.0.0/REL_docs-accuracy-audit.md) — remaining GUIDE example proof and markdown link audit
-2. [REL — Version Bump](./v6.0.0/REL_version-bump.md) — tag/publish gate plus external JSR dry-run blocker
+1. [REL — Version Bump](./v6.0.0/REL_version-bump.md) — tag/publish gate plus external JSR dry-run blocker
 
 Resolved:
 
 - [REL — Migration Script](./v6.0.0/REL_migration-script.md) — `npm run upgrade` with dry-run + execute modes
 - [REL — Breaking Changes Doc](./v6.0.0/REL_breaking-changes-doc.md) — `UPGRADING.md` with migration guide
+- [REL — Docs Accuracy Audit](./v6.0.0/REL_docs-accuracy-audit.md) — GUIDE examples and tracked Markdown links covered by tests
 - [REL — Signpost Rewrite](./v6.0.0/REL_signpost-rewrite.md) — README, BEARING, VISION, STATUS for v6
 
 ### `v6.0.0-tui/` (Bijou v5 TUI modernization)
