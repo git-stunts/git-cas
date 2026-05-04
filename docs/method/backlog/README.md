@@ -64,6 +64,9 @@ Post-6.0 minor release line, not a v6.0.0 tag blocker.
 
 Active:
 
+- [DX — One-step CAS Opener](./cool-ideas/DX_open-cas-helper.md)
+- [OPS — Release-Gate Docs and Examples Drift Guard](./cool-ideas/OPS_release-doc-drift-guard.md)
+- [TR — Adaptive Framed-Encryption Sizing](./cool-ideas/TR_adaptive-frame-sizing.md)
 - [TR — Convergent Encryption](./cool-ideas/TR_convergent-encryption.md) ✅
 - [TR — Browser Compression Adapter](./cool-ideas/TR_browser-compression-adapter.md)
 - [TR — Manifest Diffing](./cool-ideas/TR_manifest-diffing.md) ✅
@@ -89,6 +92,12 @@ Resolved — `security/audit-fixes` branch:
 
 Active:
 
+- [DOC — API Reference Plumbing Constructor Drift](./bad-code/DOC_api-plumbing-constructor-drift.md)
+- [DOC — Examples Uint8Array Drift](./bad-code/DOC_examples-uint8array-drift.md)
+- [DOC — Threat Model Scheme Drift](./bad-code/DOC_threat-model-scheme-drift.md)
+- [RL — Agent CLI Module Size](./bad-code/RL_agent-cli-module-size.md)
+- [SEC — Inline Passphrase Flags](./bad-code/SEC_inline-passphrase-flags.md)
+- [TR — CasService Decomposition Pressure](./bad-code/TR_casservice-decomposition-pressure.md)
 - [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md)
 - [SEC — Vault Passphrase Verifier Gap](./bad-code/SEC_vault-passphrase-verifier-gap.md)
 
