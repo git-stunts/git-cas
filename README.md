@@ -4,7 +4,7 @@
 >
 > `git-cas` addresses this by making artifact distribution inherit Git’s existing replication model, allowing binaries to be stored, verified, and transported anywhere Git can operate, including mirrored networks, constrained environments, or fully offline contexts.
 
-An industrial-grade Content-Addressable Storage (CAS) engine backed by Git’s object database. Stored content is chunked, deduplicated, and optionally encrypted — keeping high-fidelity assets and security-sensitive files directly within your repository history.
+`git-cas` 6.0.0 is an industrial-grade Content-Addressable Storage (CAS) engine backed by Git’s object database. Stored content is chunked, deduplicated, and optionally encrypted — keeping high-fidelity assets and security-sensitive files directly within your repository history.
 
 `git-cas` is designed for the architect who demands mathematical certainty and the operator who needs a stable foundation for artifact storage. It scales from simple binary blob management to multi-recipient envelope-encrypted vaults with key rotation, privacy-mode slug hashing, and Merkle-style manifests for assets of any size.
 

@@ -7,6 +7,11 @@ implementation details, see [SECURITY.md](../SECURITY.md). For attacker models,
 trust boundaries, exposed metadata, and explicit non-goals, see
 [docs/THREAT_MODEL.md](./THREAT_MODEL.md).
 
+All public byte-oriented APIs use `Uint8Array`. Node callers can still pass
+`Buffer` instances because `Buffer` extends `Uint8Array`, but portable code
+should treat restored data, chunker output, codec output, and keys as
+`Uint8Array`.
+
 ## Table of Contents
 
 1. [ContentAddressableStore](#contentaddressablestore)
@@ -46,7 +51,7 @@ new ContentAddressableStore(options);
 **Example:**
 
 ```javascript
-import ContentAddressableStore from 'git-cas';
+import ContentAddressableStore from '@git-stunts/git-cas';
 import Plumbing from '@git-stunts/plumbing';
 
 const plumbing = await Plumbing.create({ repoPath: '/path/to/repo' });
@@ -143,23 +148,23 @@ Stores content from an async iterable source.
 
 **Parameters:**
 
-- `source` (required): `AsyncIterable<Buffer>` - Content stream
+- `source` (required): `AsyncIterable<Uint8Array>` - Content stream
 - `slug` (required): `string` - Unique identifier for the asset
 - `filename` (required): `string` - Original filename
-- `encryptionKey` (optional): `Buffer` - 32-byte encryption key
+- `encryptionKey` (optional): `Uint8Array` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase (alternative to `encryptionKey`)
 - `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed`
 - `encryption.scheme` (optional): `'whole' | 'framed' | 'convergent'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode; `convergent` derives per-chunk keys from content, enabling deduplication across encrypted stores and is the default when using CDC chunking with encryption
 - `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed record (default `65536`)
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`). New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
-- `recipients` (optional): `Array<{ label: string, key: Buffer }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
+- `recipients` (optional): `Array<{ label: string, key: Uint8Array }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
 
 **Returns:** `Promise<Manifest>`
 
 **Throws:**
 
-- `CasError` with code `INVALID_KEY_TYPE` if encryptionKey is not a Buffer
+- `CasError` with code `INVALID_KEY_TYPE` if encryptionKey is not a Uint8Array
 - `CasError` with code `INVALID_KEY_LENGTH` if encryptionKey is not 32 bytes
 - `CasError` with code `STREAM_ERROR` if the source stream fails
 - `CasError` with code `INVALID_OPTIONS` if both `passphrase` and `encryptionKey` are provided
@@ -205,14 +210,14 @@ Convenience method that opens a file and stores it.
 - `filePath` (required): `string` - Path to file
 - `slug` (required): `string` - Unique identifier for the asset
 - `filename` (optional): `string` - Filename (defaults to basename of filePath)
-- `encryptionKey` (optional): `Buffer` - 32-byte encryption key
+- `encryptionKey` (optional): `Uint8Array` - 32-byte encryption key
 - `passphrase` (optional): `string` - Derive encryption key from passphrase
 - `encryption` (optional): `Object` - Explicit encryption mode selection for encrypted stores. If omitted, encrypted stores now default to `framed`
 - `encryption.scheme` (optional): `'whole' | 'framed' | 'convergent'` - `whole` is the explicit compatibility whole-object AES-GCM format; `framed` stores independently authenticated frames so restore can stream verified plaintext incrementally and is now the default encrypted-write mode; `convergent` derives per-chunk keys from content, enabling deduplication across encrypted stores and is the default when using CDC chunking with encryption
 - `encryption.frameBytes` (optional): `number` - Plaintext bytes per framed record (default `65536`)
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase`. New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
-- `recipients` (optional): `Array<{ label: string, key: Buffer }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
+- `recipients` (optional): `Array<{ label: string, key: Uint8Array }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
 
 **Returns:** `Promise<Manifest>`
 
@@ -243,15 +248,15 @@ frame-by-frame and only the final `restore()` collector buffers the result.
 **Parameters:**
 
 - `manifest` (required): `Manifest` - Manifest object
-- `encryptionKey` (optional): `Buffer` - 32-byte encryption key (required if content is encrypted)
+- `encryptionKey` (optional): `Uint8Array` - 32-byte encryption key (required if content is encrypted)
 - `passphrase` (optional): `string` - Passphrase for KDF-based decryption (alternative to `encryptionKey`)
 
-**Returns:** `Promise<{ buffer: Buffer, bytesWritten: number }>`
+**Returns:** `Promise<{ buffer: Uint8Array, bytesWritten: number }>`
 
 **Throws:**
 
 - `CasError` with code `MISSING_KEY` if content is encrypted but no key provided
-- `CasError` with code `INVALID_KEY_TYPE` if encryptionKey is not a Buffer
+- `CasError` with code `INVALID_KEY_TYPE` if encryptionKey is not a Uint8Array
 - `CasError` with code `INVALID_KEY_LENGTH` if encryptionKey is not 32 bytes
 - `CasError` with code `INTEGRITY_ERROR` if chunk digest verification fails
 - `CasError` with code `INTEGRITY_ERROR` if decryption fails
@@ -286,7 +291,7 @@ guard.
 **Parameters:**
 
 - `manifest` (required): `Manifest` - Manifest object
-- `encryptionKey` (optional): `Buffer` - 32-byte encryption key
+- `encryptionKey` (optional): `Uint8Array` - 32-byte encryption key
 - `passphrase` (optional): `string` - Passphrase for KDF-based decryption
 - `outputPath` (required): `string` - Path to write the restored file
 
@@ -338,7 +343,7 @@ the full ciphertext as one unit; `framed` authenticates every stored frame.
 
 - `manifest` (required): `Manifest` - Manifest object
 - `options` (optional): `object`
-- `options.encryptionKey` (optional): `Buffer` - 32-byte key for encrypted manifests
+- `options.encryptionKey` (optional): `Uint8Array` - 32-byte key for encrypted manifests
 - `options.passphrase` (optional): `string` - Passphrase for KDF-based encrypted manifests
 
 **Returns:** `Promise<boolean>` - True if all chunks pass verification
@@ -395,17 +400,17 @@ console.log(manifest.chunks); // array of Chunk objects
 const stream = cas.restoreStream({ manifest, encryptionKey, passphrase });
 ```
 
-Restores content from a manifest as an async iterable of Buffer chunks.
+Restores content from a manifest as an async iterable of Uint8Array chunks.
 
 For unencrypted, uncompressed files this is true per-chunk streaming with O(chunkSize) memory. `whole` encrypted paths still collect internally before yielding, while `framed` encrypted payloads authenticate and emit plaintext incrementally.
 
 **Parameters:**
 
 - `manifest` (required): `Manifest` - Manifest object
-- `encryptionKey` (optional): `Buffer` - 32-byte encryption key (required if content is encrypted)
+- `encryptionKey` (optional): `Uint8Array` - 32-byte encryption key (required if content is encrypted)
 - `passphrase` (optional): `string` - Passphrase for KDF-based decryption (alternative to `encryptionKey`)
 
-**Returns:** `AsyncIterable<Buffer>`
+**Returns:** `AsyncIterable<Uint8Array>`
 
 **Throws:**
 
@@ -479,8 +484,8 @@ Adds a recipient to an envelope-encrypted manifest. Unwraps the DEK using `exist
 **Parameters:**
 
 - `manifest` (required): `Manifest` - Envelope-encrypted manifest
-- `existingKey` (required): `Buffer` - KEK of an existing recipient (used to unwrap the DEK)
-- `newRecipientKey` (required): `Buffer` - KEK for the new recipient
+- `existingKey` (required): `Uint8Array` - KEK of an existing recipient (used to unwrap the DEK)
+- `newRecipientKey` (required): `Uint8Array` - KEK for the new recipient
 - `label` (required): `string` - Label for the new recipient
 
 **Returns:** `Promise<Manifest>` - Updated manifest with the new recipient entry
@@ -615,12 +620,15 @@ console.log(`Asset "${slug}" has ${chunksOrphaned} chunks to clean up`);
 await cas.deriveKey(options);
 ```
 
-Derives an encryption key from a passphrase using PBKDF2 or scrypt.
+Derives an encryption key from a passphrase using PBKDF2 or scrypt. PBKDF2 is
+available across Node, Bun, and Web Crypto runtimes. scrypt requires a
+Node/Bun-compatible crypto adapter; Web Crypto runtimes report an explicit
+capability error.
 
 **Parameters:**
 
 - `options.passphrase` (required): `string` - The passphrase
-- `options.salt` (optional): `Buffer` - Salt (random if omitted)
+- `options.salt` (optional): `Uint8Array` - Salt (random if omitted)
 - `options.algorithm` (optional): `'pbkdf2' | 'scrypt'` - KDF algorithm (default: `'pbkdf2'`)
 - `options.iterations` (optional): `number` - PBKDF2 iterations (default: 600000)
 - `options.cost` (optional): `number` - scrypt cost parameter N (default: 131072)
@@ -628,7 +636,7 @@ Derives an encryption key from a passphrase using PBKDF2 or scrypt.
 - `options.parallelization` (optional): `number` - scrypt parallelization p (default: 1)
 - `options.keyLength` (optional): `number` - Derived key length (default: 32)
 
-**Returns:** `Promise<{ key: Buffer, salt: Buffer, params: Object }>`
+**Returns:** `Promise<{ key: Uint8Array, salt: Uint8Array, params: Object }>`
 
 - `key` — the derived 32-byte encryption key
 - `salt` — the salt used (save this for re-derivation)
@@ -694,21 +702,21 @@ Encrypts a buffer using AES-256-GCM.
 
 **Parameters:**
 
-- `buffer` (required): `Buffer` - Data to encrypt
-- `key` (required): `Buffer` - 32-byte encryption key
+- `buffer` (required): `Uint8Array` - Data to encrypt
+- `key` (required): `Uint8Array` - 32-byte encryption key
 
-**Returns:** `Promise<{ buf: Buffer, meta: Object }>`
+**Returns:** `Promise<{ buf: Uint8Array, meta: Object }>`
 
 **Throws:**
 
-- `CasError` with code `INVALID_KEY_TYPE` if key is not a Buffer
+- `CasError` with code `INVALID_KEY_TYPE` if key is not a Uint8Array
 - `CasError` with code `INVALID_KEY_LENGTH` if key is not 32 bytes
 
 **Example:**
 
 ```javascript
 const { buf, meta } = await cas.encrypt({
-  buffer: Buffer.from('secret data'),
+  buffer: new TextEncoder().encode('secret data'),
   key: crypto.randomBytes(32),
 });
 ```
@@ -723,11 +731,11 @@ Decrypts a buffer using AES-256-GCM.
 
 **Parameters:**
 
-- `buffer` (required): `Buffer` - Encrypted data
-- `key` (required): `Buffer` - 32-byte encryption key
+- `buffer` (required): `Uint8Array` - Encrypted data
+- `key` (required): `Uint8Array` - 32-byte encryption key
 - `meta` (required): `Object` - Encryption metadata (from encrypt result)
 
-**Returns:** `Promise<Buffer>` - Decrypted data
+**Returns:** `Promise<Uint8Array>` - Decrypted data
 
 **Throws:**
 
@@ -750,8 +758,8 @@ Rotates a recipient's encryption key without re-encrypting data blobs. Unwraps t
 **Parameters:**
 
 - `manifest` (required): `Manifest` - Envelope-encrypted manifest
-- `oldKey` (required): `Buffer` - Current 32-byte KEK
-- `newKey` (required): `Buffer` - New 32-byte KEK
+- `oldKey` (required): `Uint8Array` - Current 32-byte KEK
+- `newKey` (required): `Uint8Array` - New 32-byte KEK
 - `label` (optional): `string` - If provided, only rotate the named recipient
 
 **Returns:** `Promise<Manifest>` - Updated manifest with re-wrapped DEK and incremented `keyVersion`
@@ -1274,7 +1282,7 @@ Creates a named restore plan for file publication without leaking internal helpe
 **Parameters:**
 
 - `manifest` (required): `Manifest` - The file manifest
-- `encryptionKey` (optional): `Buffer` - 32-byte encryption key
+- `encryptionKey` (optional): `Uint8Array` - 32-byte encryption key
 - `passphrase` (optional): `string` - Passphrase for KDF-based decryption
 
 **Returns:** `Promise<FileRestorePlan>`
@@ -1282,7 +1290,7 @@ Creates a named restore plan for file publication without leaking internal helpe
 ```typescript
 interface FileRestorePlan {
   mode: 'stream' | 'bounded-file';
-  source: AsyncIterable<Buffer>;
+  source: AsyncIterable<Uint8Array>;
   encryptionMeta?: EncryptionMeta;
 }
 ```
@@ -1546,7 +1554,7 @@ Writes content as a Git blob.
 
 **Parameters:**
 
-- `content`: `Buffer | string` - Content to store
+- `content`: `Uint8Array` - Content to store
 
 **Returns:** `Promise<string>` - Git blob OID
 
@@ -1576,7 +1584,7 @@ Reads a Git blob.
 
 - `oid`: `string` - Git blob OID
 
-**Returns:** `Promise<Buffer>` - Blob content
+**Returns:** `Promise<Uint8Array>` - Blob content
 
 ##### readBlobStream
 
@@ -1584,7 +1592,7 @@ Reads a Git blob.
 await port.readBlobStream(oid);
 ```
 
-Reads a Git blob as an async stream of `Buffer` chunks.
+Reads a Git blob as an async stream of `Uint8Array` chunks.
 
 For custom persistence adapters, this method is required for hard-limited
 buffered restore modes such as `whole` encrypted restore and buffered
@@ -1595,7 +1603,7 @@ plaintext restore only.
 
 - `oid`: `string` - Git blob OID
 
-**Returns:** `Promise<AsyncIterable<Buffer>>` - Blob byte stream
+**Returns:** `Promise<AsyncIterable<Uint8Array>>` - Blob byte stream
 
 ##### readTree
 
@@ -1614,9 +1622,7 @@ Reads a Git tree object.
 **Example Implementation:**
 
 ```javascript
-import GitPersistencePort from 'git-cas/src/ports/GitPersistencePort.js';
-
-class CustomGitAdapter extends GitPersistencePort {
+class CustomGitAdapter {
   async writeBlob(content) {
     // Implementation
   }
@@ -1651,13 +1657,13 @@ Interface for encoding/decoding manifest data.
 port.encode(data);
 ```
 
-Encodes data to Buffer or string.
+Encodes data to bytes.
 
 **Parameters:**
 
 - `data`: `Object` - Data to encode
 
-**Returns:** `Buffer | string` - Encoded data
+**Returns:** `Uint8Array` - Encoded data
 
 ##### decode
 
@@ -1665,11 +1671,11 @@ Encodes data to Buffer or string.
 port.decode(buffer);
 ```
 
-Decodes data from Buffer or string.
+Decodes data from bytes.
 
 **Parameters:**
 
-- `buffer`: `Buffer | string` - Encoded data
+- `buffer`: `Uint8Array` - Encoded data
 
 **Returns:** `Object` - Decoded data
 
@@ -1688,15 +1694,13 @@ File extension for this codec (e.g., 'json', 'cbor').
 **Example Implementation:**
 
 ```javascript
-import CodecPort from 'git-cas/src/ports/CodecPort.js';
-
-class XmlCodec extends CodecPort {
+class XmlCodec {
   encode(data) {
-    return convertToXml(data);
+    return new TextEncoder().encode(convertToXml(data));
   }
 
   decode(buffer) {
-    return parseXml(buffer.toString('utf8'));
+    return parseXml(new TextDecoder().decode(buffer));
   }
 
   get extension() {
@@ -1721,7 +1725,7 @@ Computes SHA-256 hash.
 
 **Parameters:**
 
-- `buf`: `Buffer` - Data to hash
+- `buf`: `Uint8Array` - Data to hash
 
 **Returns:** `Promise<string>` - 64-character hex digest
 
@@ -1737,7 +1741,7 @@ Generates cryptographically random bytes.
 
 - `n`: `number` - Number of bytes
 
-**Returns:** `Buffer` - Random bytes
+**Returns:** `Uint8Array` - Random bytes
 
 ##### encryptBuffer
 
@@ -1749,11 +1753,11 @@ Encrypts a buffer using AES-256-GCM.
 
 **Parameters:**
 
-- `buffer`: `Buffer` - Data to encrypt
-- `key`: `Buffer` - 32-byte encryption key
-- `aad` (optional): `Buffer | Uint8Array` - Additional authenticated data (AAD)
+- `buffer`: `Uint8Array` - Data to encrypt
+- `key`: `Uint8Array` - 32-byte encryption key
+- `aad` (optional): `Uint8Array` - Additional authenticated data (AAD)
 
-**Returns:** `{ buf: Buffer, meta: { algorithm: string, nonce: string, tag: string, encrypted: boolean } } | Promise<...>`
+**Returns:** `{ buf: Uint8Array, meta: { algorithm: string, nonce: string, tag: string, encrypted: boolean } } | Promise<...>`
 
 ##### decryptBuffer
 
@@ -1765,12 +1769,12 @@ Decrypts a buffer using AES-256-GCM.
 
 **Parameters:**
 
-- `buffer`: `Buffer` - Encrypted data
-- `key`: `Buffer` - 32-byte encryption key
+- `buffer`: `Uint8Array` - Encrypted data
+- `key`: `Uint8Array` - 32-byte encryption key
 - `meta`: `Object` - Encryption metadata with `algorithm`, `nonce`, `tag`, `encrypted`
-- `aad` (optional): `Buffer | Uint8Array` - Additional authenticated data (AAD). Must match the AAD used during encryption
+- `aad` (optional): `Uint8Array` - Additional authenticated data (AAD). Must match the AAD used during encryption
 
-**Returns:** `Buffer | Promise<Buffer>` - Decrypted data
+**Returns:** `Uint8Array | Promise<Uint8Array>` - Decrypted data
 
 **Throws:** On authentication failure
 
@@ -1784,12 +1788,12 @@ Creates a streaming encryption context.
 
 **Parameters:**
 
-- `key`: `Buffer` - 32-byte encryption key
-- `aad` (optional): `Buffer | Uint8Array` - Additional authenticated data (AAD)
+- `key`: `Uint8Array` - 32-byte encryption key
+- `aad` (optional): `Uint8Array` - Additional authenticated data (AAD)
 
 **Returns:** `{ encrypt: Function, finalize: Function }`
 
-- `encrypt`: `(source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>` - Transform function
+- `encrypt`: `(source: AsyncIterable<Uint8Array>) => AsyncIterable<Uint8Array>` - Transform function
 - `finalize`: `() => { algorithm: string, nonce: string, tag: string, encrypted: boolean }` - Get metadata
 
 ##### createDecryptionStream
@@ -1802,13 +1806,13 @@ Creates a streaming decryption context. The returned stream may yield tentative 
 
 **Parameters:**
 
-- `key`: `Buffer` - 32-byte encryption key
+- `key`: `Uint8Array` - 32-byte encryption key
 - `meta`: `Object` - Encryption metadata from the encrypt operation
-- `aad` (optional): `Buffer | Uint8Array` - Additional authenticated data (AAD). Must match the AAD used during encryption
+- `aad` (optional): `Uint8Array` - Additional authenticated data (AAD). Must match the AAD used during encryption
 
 **Returns:** `{ decrypt: Function }`
 
-- `decrypt`: `(source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>` - Transform function
+- `decrypt`: `(source: AsyncIterable<Uint8Array>) => AsyncIterable<Uint8Array>` - Transform function
 
 ##### hmacSha256
 
@@ -1820,10 +1824,10 @@ Computes HMAC-SHA256 of the given data with the given key.
 
 **Parameters:**
 
-- `key`: `Buffer | Uint8Array` - HMAC key
-- `data`: `Buffer | Uint8Array | string` - Data to authenticate
+- `key`: `Uint8Array` - HMAC key
+- `data`: `Uint8Array` - Data to authenticate
 
-**Returns:** `Buffer` - 32-byte HMAC digest
+**Returns:** `Uint8Array` - 32-byte HMAC digest
 
 ##### encryptBufferWithNonce
 
@@ -1835,11 +1839,11 @@ Encrypts a buffer using AES-256-GCM with a caller-provided nonce. Used by conver
 
 **Parameters:**
 
-- `buffer`: `Buffer | Uint8Array` - Plaintext to encrypt
-- `key`: `Buffer | Uint8Array` - 32-byte encryption key
-- `nonce`: `Buffer | Uint8Array` - 12-byte nonce (IV)
+- `buffer`: `Uint8Array` - Plaintext to encrypt
+- `key`: `Uint8Array` - 32-byte encryption key
+- `nonce`: `Uint8Array` - 12-byte nonce (IV)
 
-**Returns:** `{ buf: Buffer, tag: Buffer } | Promise<{ buf: Buffer, tag: Buffer }>`
+**Returns:** `{ buf: Uint8Array, tag: Uint8Array } | Promise<{ buf: Uint8Array, tag: Uint8Array }>`
 
 ##### decryptBufferWithNonceTag
 
@@ -1851,12 +1855,12 @@ Decrypts a buffer using AES-256-GCM with explicit nonce and tag. Used by converg
 
 **Parameters:**
 
-- `buffer`: `Buffer | Uint8Array` - Ciphertext to decrypt
-- `key`: `Buffer | Uint8Array` - 32-byte encryption key
-- `nonce`: `Buffer | Uint8Array` - 12-byte nonce (IV)
-- `tag`: `Buffer | Uint8Array` - 16-byte GCM authentication tag
+- `buffer`: `Uint8Array` - Ciphertext to decrypt
+- `key`: `Uint8Array` - 32-byte encryption key
+- `nonce`: `Uint8Array` - 12-byte nonce (IV)
+- `tag`: `Uint8Array` - 16-byte GCM authentication tag
 
-**Returns:** `Buffer | Promise<Buffer>`
+**Returns:** `Uint8Array | Promise<Uint8Array>`
 
 **Throws:** On authentication failure
 
@@ -1866,12 +1870,15 @@ Decrypts a buffer using AES-256-GCM with explicit nonce and tag. Used by converg
 await port.deriveKey(options);
 ```
 
-Derives an encryption key from a passphrase using PBKDF2 or scrypt.
+Derives an encryption key from a passphrase using PBKDF2 or scrypt. PBKDF2 is
+available across Node, Bun, and Web Crypto runtimes. scrypt requires a
+Node/Bun-compatible crypto adapter; Web Crypto runtimes report an explicit
+capability error.
 
 **Parameters:**
 
 - `options.passphrase`: `string` - The passphrase
-- `options.salt` (optional): `Buffer` - Salt (random if omitted)
+- `options.salt` (optional): `Uint8Array` - Salt (random if omitted)
 - `options.algorithm` (optional): `'pbkdf2' | 'scrypt'` - KDF algorithm (default: `'pbkdf2'`)
 - `options.iterations` (optional): `number` - PBKDF2 iterations (default: `600000`)
 - `options.cost` (optional): `number` - scrypt cost N (default: `131072`)
@@ -1883,12 +1890,12 @@ Derives an encryption key from a passphrase using PBKDF2 or scrypt.
 KDF metadata happens in `store()`, `restore()`, `initVault()`, and
 `rotateVaultPassphrase()`.
 
-**Returns:** `Promise<{ key: Buffer, salt: Buffer, params: Object }>`
+**Returns:** `Promise<{ key: Uint8Array, salt: Uint8Array, params: Object }>`
 
 **Example Implementation:**
 
 ```javascript
-import CryptoPort from 'git-cas/src/ports/CryptoPort.js';
+import { CryptoPort } from '@git-stunts/git-cas';
 
 class CustomCryptoAdapter extends CryptoPort {
   sha256(buf) {
@@ -1942,7 +1949,7 @@ Built-in codec implementations.
 JSON codec for manifest serialization.
 
 ```javascript
-import { JsonCodec } from 'git-cas';
+import { JsonCodec } from '@git-stunts/git-cas';
 
 const codec = new JsonCodec();
 const encoded = codec.encode({ key: 'value' });
@@ -1955,7 +1962,7 @@ console.log(codec.extension); // 'json'
 CBOR codec for compact binary serialization.
 
 ```javascript
-import { CborCodec } from 'git-cas';
+import { CborCodec } from '@git-stunts/git-cas';
 
 const codec = new CborCodec();
 const encoded = codec.encode({ key: 'value' });
@@ -1969,9 +1976,8 @@ All errors thrown by git-cas are instances of `CasError`.
 
 ### CasError
 
-```javascript
-import CasError from 'git-cas/src/domain/errors/CasError.js';
-```
+`CasError` is the runtime error class used internally. Public callers normally
+branch on the stable `code` field rather than importing the internal class.
 
 #### Constructor
 
@@ -1997,7 +2003,7 @@ new CasError(message, code, meta);
 
 | Code                                  | Description                                                                | Thrown By                                                                     |
 | ------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `INVALID_KEY_TYPE`                    | Encryption key must be a Buffer or Uint8Array                              | `encrypt()`, `decrypt()`, `store()`, `restore()`                              |
+| `INVALID_KEY_TYPE`                    | Encryption key must be a Uint8Array                              | `encrypt()`, `decrypt()`, `store()`, `restore()`                              |
 | `INVALID_KEY_LENGTH`                  | Encryption key must be exactly 32 bytes                                    | `encrypt()`, `decrypt()`, `store()`, `restore()`                              |
 | `MISSING_KEY`                         | Encryption key required to restore encrypted content but none was provided | `restore()`                                                                   |
 | `INTEGRITY_ERROR`                     | Chunk digest verification failed or decryption authentication failed       | `restore()`, `verifyIntegrity()`, `decrypt()`                                 |
@@ -2006,8 +2012,8 @@ new CasError(message, code, meta);
 | `KDF_POLICY_VIOLATION`               | KDF parameters fell outside the accepted policy window                     | `store()`, `restore()`, `initVault()`, `rotateVaultPassphrase()`, `readState()` |
 | `STREAM_ERROR`                        | Stream error occurred during store operation                               | `store()`                                                                     |
 | `STORE_ERROR`                         | Chunk write failed during store after dispatch                             | `store()`                                                                     |
-| `MANIFEST_NOT_FOUND`                  | No manifest entry found in the Git tree                                    | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()`                     |
-| `GIT_ERROR`                           | Underlying Git plumbing command failed                                     | `readManifest()`, `deleteAsset()`, `findOrphanedChunks()`                     |
+| `MANIFEST_NOT_FOUND`                  | No manifest entry found in the Git tree                                    | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`               |
+| `GIT_ERROR`                           | Underlying Git plumbing command failed                                     | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`               |
 | `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value            | `store()`, `restore()`                                                        |
 | `INVALID_SLUG`                        | Slug fails validation (empty, control chars, `..` segments, etc.)          | `addToVault()`                                                                |
 | `VAULT_ENTRY_NOT_FOUND`               | Slug does not exist in vault                                               | `removeFromVault()`, `resolveVaultEntry()`                                    |
@@ -2027,12 +2033,10 @@ new CasError(message, code, meta);
 **Example:**
 
 ```javascript
-import CasError from 'git-cas/src/domain/errors/CasError.js';
-
 try {
   await cas.restore({ manifest, encryptionKey });
 } catch (err) {
-  if (err instanceof CasError) {
+  if (err && typeof err === 'object' && 'code' in err) {
     console.error('CAS Error:', err.code);
     console.error('Message:', err.message);
     console.error('Meta:', err.meta);

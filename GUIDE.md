@@ -183,6 +183,9 @@ const { buffer } = await cas.restore({
 
 Derives a key using PBKDF2 (default) or scrypt:
 
+PBKDF2 works across Node, Bun, and Deno/Web Crypto. scrypt requires a Node/Bun
+crypto adapter; Web Crypto runtimes report a capability error for scrypt.
+
 ```js
 // Store with passphrase (PBKDF2)
 const manifest = await cas.storeFile({
@@ -505,7 +508,7 @@ Manifests are versioned value objects that describe a stored asset:
 - **v1**: Flat chunk list with SHA-256 integrity hashes.
 - **v2**: Merkle sub-manifest support for large files. Activated when chunk count exceeds `merkleThreshold` (default 1000).
 
-Each manifest also carries an optional `formatVersion` field -- a semver string (e.g. `"5.2.0"`) stamped by the library version that created it. This enables forward-compatible tooling to detect which features a manifest may use.
+Each manifest also carries an optional `formatVersion` field -- a semver string (e.g. `"6.0.0"`) stamped by the library version that created it. This enables forward-compatible tooling to detect which features a manifest may use.
 
 ### Reading a Manifest
 
@@ -518,7 +521,7 @@ console.log(manifest.size);          // total bytes
 console.log(manifest.chunks.length); // number of chunks
 console.log(manifest.encryption);    // encryption metadata or undefined
 console.log(manifest.compression);   // compression metadata or undefined
-console.log(manifest.formatVersion); // '5.2.0' or undefined (older manifests)
+console.log(manifest.formatVersion); // '6.0.0' or undefined (older manifests)
 ```
 
 ### Inspecting an Asset

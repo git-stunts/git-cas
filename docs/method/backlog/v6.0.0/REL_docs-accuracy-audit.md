@@ -33,13 +33,29 @@ no stale API signatures, no broken code examples.
 For each doc:
 
 - [x] No references to `whole-v1`, `framed-v1`, `whole-v2`, `framed-v2`, `convergent-v1` outside migration context
-- [ ] No references to removed APIs or old defaults
+- [x] No references to removed APIs or old defaults
 - [ ] All code examples compile/work with v6 API
 - [ ] All cross-doc links resolve to existing files
-- [ ] Version numbers updated where applicable
+- [x] Version numbers updated where applicable
 
 ## Acceptance Criteria
 
 - [x] `grep -r 'whole-v1\|framed-v1' *.md docs/*.md` returns only migration-context hits
 - [ ] Every code example in GUIDE.md tested against actual API
-- [ ] CHANGELOG has complete v6.0.0 section
+- [x] CHANGELOG has complete v6.0.0 section
+
+## Evidence
+
+- Public byte docs now describe `Uint8Array` as the core contract and keep
+  Node `Buffer` references at adapter/boundary or historical-changelog context.
+- The v6 changelog no longer advertises intermediate `whole-v2`/`framed-v2`
+  states as shipped behavior.
+- Package metadata, JSR metadata, and `src/package-version.js` now agree on
+  `6.0.0`.
+
+## Remaining Proof
+
+- GUIDE examples still need an executable harness or manual transcript before
+  the example checkbox can be closed.
+- A full repository markdown link audit is still open unless covered by the
+  final release verification transcript.

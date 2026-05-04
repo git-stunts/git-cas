@@ -13,7 +13,7 @@ Fresh planning now follows the METHOD:
 ## Current Reality
 
 - **Last tagged release:** `v5.3.2` (`2026-03-15`)
-- **Current package version on `main`:** `v5.3.3`
+- **Current release candidate:** `v6.0.0` on `release/v6.0.0`
 - **Supported runtimes:** Node.js 22.x, Bun, Deno
 - **Human surface reality:** the human CLI and TUI are substantial and already
   ahead of some older planning docs.
@@ -26,10 +26,11 @@ Fresh planning now follows the METHOD:
 
 See the live backlog for exact lane placement:
 
-- [TR — Empty-State Phrasing Consistency](./docs/method/backlog/asap/TR_empty-state-phrasing-consistency.md)
-- [TR — Streaming Encrypted Restore](./docs/method/backlog/up-next/TR_streaming-encrypted-restore.md)
-- [TR — Platform-Agnostic CLI Plan](./docs/method/backlog/up-next/TR_platform-agnostic-cli-plan.md)
-- [TR — CasService Decomposition Plan](./docs/method/backlog/bad-code/TR_casservice-decomposition-plan.md)
+- [REL — Docs Accuracy Audit](./docs/method/backlog/v6.0.0/REL_docs-accuracy-audit.md)
+- [REL — Signpost Rewrite](./docs/method/backlog/v6.0.0/REL_signpost-rewrite.md)
+- [REL — Version Bump](./docs/method/backlog/v6.0.0/REL_version-bump.md)
+- [TUI — Store Wizard Execution Gap](./docs/method/backlog/bad-code/TUI_store-wizard-execution-gap.md)
+- [SEC — Vault Passphrase Verifier Gap](./docs/method/backlog/bad-code/SEC_vault-passphrase-verifier-gap.md)
 
 ## How To Read This File
 

@@ -1,7 +1,7 @@
 # STATUS
 
 **Last tagged release:** `v5.3.2` (`2026-03-15`)
-**Current pre-release version:** `v6.0.0` (on `release/v6.0.0`)
+**Current release candidate:** `v6.0.0` (on `release/v6.0.0`)
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -60,7 +60,10 @@
 
 ## Active Queue Snapshot
 
-- [TR — Platform Dependency Leaks](./docs/method/backlog/bad-code/TR_platform-dependency-leaks.md)
+- [REL — Docs Accuracy Audit](./docs/method/backlog/v6.0.0/REL_docs-accuracy-audit.md)
+- [REL — Version Bump](./docs/method/backlog/v6.0.0/REL_version-bump.md)
+- [TUI — Store Wizard Execution Gap](./docs/method/backlog/bad-code/TUI_store-wizard-execution-gap.md)
+- [SEC — Vault Passphrase Verifier Gap](./docs/method/backlog/bad-code/SEC_vault-passphrase-verifier-gap.md)
 
 ## Read Next
 

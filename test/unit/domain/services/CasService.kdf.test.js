@@ -10,6 +10,9 @@ import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/Node
 
 const testCrypto = await getTestCryptoAdapter();
 const SLOW_KDF_TEST_TIMEOUT_MS = 20000;
+const SUPPORTS_SCRYPT = testCrypto.constructor.name !== 'WebCryptoAdapter';
+const itScrypt = SUPPORTS_SCRYPT ? it : it.skip;
+const itNoScrypt = SUPPORTS_SCRYPT ? it.skip : it;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -64,9 +67,9 @@ describe('CasService.deriveKey() – pbkdf2', () => {
   it('deriveKey with pbkdf2 returns 32-byte key', async () => {
     const result = await service.deriveKey({ passphrase: 'test-passphrase' });
 
-    expect(Buffer.isBuffer(result.key)).toBe(true);
+    expect(result.key).toBeInstanceOf(Uint8Array);
     expect(result.key.length).toBe(32);
-    expect(Buffer.isBuffer(result.salt)).toBe(true);
+    expect(result.salt).toBeInstanceOf(Uint8Array);
     expect(result.salt.length).toBe(32);
     expect(result.params).toBeDefined();
     expect(result.params.algorithm).toBe('pbkdf2');
@@ -87,15 +90,15 @@ describe('CasService.deriveKey() – scrypt', () => {
     ({ service } = setup());
   });
 
-  it('deriveKey with scrypt returns 32-byte key', async () => {
+  itScrypt('deriveKey with scrypt returns 32-byte key', async () => {
     const result = await service.deriveKey({
       passphrase: 'test-passphrase',
       algorithm: 'scrypt',
     });
 
-    expect(Buffer.isBuffer(result.key)).toBe(true);
+    expect(result.key).toBeInstanceOf(Uint8Array);
     expect(result.key.length).toBe(32);
-    expect(Buffer.isBuffer(result.salt)).toBe(true);
+    expect(result.salt).toBeInstanceOf(Uint8Array);
     expect(result.salt.length).toBe(32);
     expect(result.params).toBeDefined();
     expect(result.params.algorithm).toBe('scrypt');
@@ -106,6 +109,13 @@ describe('CasService.deriveKey() – scrypt', () => {
     // scrypt params should NOT have iterations
     expect(result.params.iterations).toBeUndefined();
   }, SLOW_KDF_TEST_TIMEOUT_MS);
+
+  itNoScrypt('reports scrypt unavailability on WebCrypto runtimes', async () => {
+    await expect(service.deriveKey({
+      passphrase: 'test-passphrase',
+      algorithm: 'scrypt',
+    })).rejects.toThrow(/scrypt KDF is unavailable in WebCryptoAdapter/);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -128,7 +138,7 @@ describe('CasService.deriveKey() – determinism', () => {
     expect(Buffer.from(result1.key).equals(result2.key)).toBe(true);
   });
 
-  it('same passphrase + salt yields same key with scrypt', async () => {
+  itScrypt('same passphrase + salt yields same key with scrypt', async () => {
     const salt = randomBytes(32);
     const passphrase = 'deterministic-passphrase-scrypt';
 
@@ -160,7 +170,7 @@ describe('CasService.deriveKey() – different salts', () => {
     expect(Buffer.from(result1.key).equals(result2.key)).toBe(false);
   });
 
-  it('different salts yield different keys with scrypt', async () => {
+  itScrypt('different salts yield different keys with scrypt', async () => {
     const passphrase = 'same-passphrase-scrypt';
     const salt1 = randomBytes(32);
     const salt2 = randomBytes(32);
@@ -315,7 +325,7 @@ describe('CasService – manifest KDF metadata (scrypt)', () => {
     ({ service } = setup());
   });
 
-  it('manifest includes KDF params in encryption metadata', async () => {
+  itScrypt('manifest includes KDF params in encryption metadata', async () => {
     const manifest = await service.store({
       source: bufferSource(Buffer.from('scrypt metadata check')),
       slug: 'kdf-meta-scrypt',
@@ -345,7 +355,7 @@ describe('CasService – scrypt passphrase round-trip', () => {
     ({ service } = setup());
   });
 
-  it('passphrase store with scrypt + restore round-trip', async () => {
+  itScrypt('passphrase store with scrypt + restore round-trip', async () => {
     const original = Buffer.from('scrypt round-trip content');
     const manifest = await service.store({
       source: bufferSource(original),
@@ -360,7 +370,7 @@ describe('CasService – scrypt passphrase round-trip', () => {
     expect(Buffer.from(buffer).equals(original)).toBe(true);
   }, SLOW_KDF_TEST_TIMEOUT_MS);
 
-  it('scrypt round-trip with multi-chunk data', async () => {
+  itScrypt('scrypt round-trip with multi-chunk data', async () => {
     const original = randomBytes(3 * 1024);
     const manifest = await service.store({
       source: bufferSource(original),
@@ -383,7 +393,7 @@ describe('CasService – wrong scrypt passphrase', () => {
     ({ service } = setup());
   });
 
-  it('wrong passphrase with scrypt fails with INTEGRITY_ERROR', async () => {
+  itScrypt('wrong passphrase with scrypt fails with INTEGRITY_ERROR', async () => {
     const manifest = await service.store({
       source: bufferSource(Buffer.from('scrypt integrity test')),
       slug: 'kdf-scrypt-wrong',
@@ -425,7 +435,7 @@ describe('CasService – passphrase + compression round-trip', () => {
     expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
-  it('passphrase + compression round-trip with scrypt', async () => {
+  itScrypt('passphrase + compression round-trip with scrypt', async () => {
     const original = Buffer.alloc(3072, 'compressible-pattern-');
     const manifest = await service.store({
       source: bufferSource(original),

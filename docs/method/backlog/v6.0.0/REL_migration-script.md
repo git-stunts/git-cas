@@ -38,6 +38,13 @@ migrates them to v6.0.0 format.
 - [x] `npm run upgrade -- --execute` migrates all entries
 - [x] v2 schemes are renamed without re-encryption
 - [x] v1 schemes are re-encrypted with AAD
-- [ ] Migrated manifests load cleanly in v6
+- [x] Migrated manifests load cleanly in v6
 - [x] Original blobs are not deleted (GC-safe)
 - [x] Works on Node 22+
+
+## Evidence
+
+- `test/unit/domain/encryption/migration.test.js` now proves a fast-migrated
+  `whole-v2` manifest is rejected before migration, rewritten by
+  `migrateFast()`, and accepted by normal v6 `readManifest()` with
+  `formatVersion: "6.0.0"`.

@@ -27,12 +27,20 @@ branch.
 ## STATUS.md
 - Version: 6.0.0
 - Honest state: what works, what's known-limited
-- Active queue: empty (post-release)
+- Active queue: release gates until tag, then empty post-release
 - Link to UPGRADING.md for migration
 
 ## Acceptance Criteria
 
-- [ ] All four docs rewritten
-- [ ] No in-progress language ("this branch", "security/audit-fixes")
+- [x] All four docs rewritten
+- [x] No in-progress language ("this branch", "security/audit-fixes")
 - [x] Version references say 6.0.0
-- [ ] UPGRADING.md linked from README
+- [x] UPGRADING.md linked from README
+
+## Evidence
+
+- README leads with the v6.0.0 product identity and links UPGRADING.
+- BEARING and VISION describe the simplified scheme architecture, convergent
+  encryption, and the platform-agnostic `Uint8Array` core.
+- STATUS is explicit that `v6.0.0` is the current release candidate and keeps
+  the remaining release gates visible until tag/publish.

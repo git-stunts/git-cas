@@ -59,7 +59,7 @@ program
  * Read a 32-byte raw encryption key from a file.
  *
  * @param {string} keyFilePath
- * @returns {Buffer}
+ * @returns {Uint8Array}
  */
 function readKeyFile(keyFilePath) {
   const buf = readFileSync(keyFilePath);
@@ -92,7 +92,7 @@ function createCas(cwd, opts = {}) {
  * @param {ContentAddressableStore} cas
  * @param {import('../index.js').VaultMetadata} metadata
  * @param {string} passphrase
- * @returns {Promise<Buffer>}
+ * @returns {Promise<Uint8Array>}
  */
 async function deriveVaultKey(cas, metadata, passphrase) {
   if (!metadata.encryption?.kdf) {
@@ -128,7 +128,7 @@ function validateCredentialSources(opts) {
  *
  * @param {ContentAddressableStore} cas
  * @param {Record<string, any>} opts
- * @returns {Promise<Buffer | undefined>}
+ * @returns {Promise<Uint8Array | undefined>}
  */
 async function resolveEncryptionKey(cas, opts) {
   if (opts.keyFile) {
@@ -170,8 +170,8 @@ function validateRestoreFlags(opts) {
  * @typedef {Object} StoreFileOpts
  * @property {string} filePath - Path to the file to store.
  * @property {string} slug - Asset slug identifier.
- * @property {Buffer} [encryptionKey] - 32-byte AES-256-GCM key.
- * @property {Array<{ label: string, key: Buffer }>} [recipients] - Envelope recipients.
+ * @property {Uint8Array} [encryptionKey] - 32-byte AES-256-GCM key.
+ * @property {Array<{ label: string, key: Uint8Array }>} [recipients] - Envelope recipients.
  */
 
 /**
@@ -201,8 +201,8 @@ async function buildStoreOpts(cas, file, opts) {
  * Format: label:keyfile
  *
  * @param {string} value
- * @param {Array<{ label: string, key: Buffer }>} [previous]
- * @returns {Array<{ label: string, key: Buffer }>}
+ * @param {Array<{ label: string, key: Uint8Array }>} [previous]
+ * @returns {Array<{ label: string, key: Uint8Array }>}
  */
 function parseRecipient(value, previous) {
   const sep = value.indexOf(':');
@@ -805,7 +805,7 @@ program
       const oldKey = readKeyFile(opts.oldKeyFile);
       const newKey = readKeyFile(opts.newKeyFile);
 
-      /** @type {{ manifest: Manifest, oldKey: Buffer, newKey: Buffer, label?: string }} */
+      /** @type {{ manifest: Manifest, oldKey: Uint8Array, newKey: Uint8Array, label?: string }} */
       const rotateOpts = { manifest, oldKey, newKey };
       if (opts.label) {
         rotateOpts.label = opts.label;

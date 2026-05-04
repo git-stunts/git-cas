@@ -9,7 +9,7 @@ The lane is the priority:
 - `up-next/` — likely after the current pull
 - `cool-ideas/` — interesting, not committed
 - `bad-code/` — debt that works but bothers us
-- `v6.0.0/` — release gate items (must complete before version bump)
+- `v6.0.0/` — release gate items (must complete before tag/publish)
 
 Backlog filenames use legend prefixes when they belong to a named domain and do
 not use numeric IDs.
@@ -30,11 +30,16 @@ not use numeric IDs.
 
 ### `v6.0.0/` (release gate)
 
-1. [REL — Migration Script](./v6.0.0/REL_migration-script.md) — `npm run upgrade` with dry-run + execute modes
-2. [REL — Breaking Changes Doc](./v6.0.0/REL_breaking-changes-doc.md) — `UPGRADING.md` with migration guide
-3. [REL — Docs Accuracy Audit](./v6.0.0/REL_docs-accuracy-audit.md) — verify all docs against v6 API
-4. [REL — Signpost Rewrite](./v6.0.0/REL_signpost-rewrite.md) — README, BEARING, VISION, STATUS for v6
-5. [REL — Version Bump](./v6.0.0/REL_version-bump.md) — bump, tag, publish (blocked by 1-4)
+Active:
+
+1. [REL — Docs Accuracy Audit](./v6.0.0/REL_docs-accuracy-audit.md) — remaining GUIDE example proof and markdown link audit
+2. [REL — Version Bump](./v6.0.0/REL_version-bump.md) — tag/publish gate plus external JSR dry-run blocker
+
+Resolved:
+
+- [REL — Migration Script](./v6.0.0/REL_migration-script.md) — `npm run upgrade` with dry-run + execute modes
+- [REL — Breaking Changes Doc](./v6.0.0/REL_breaking-changes-doc.md) — `UPGRADING.md` with migration guide
+- [REL — Signpost Rewrite](./v6.0.0/REL_signpost-rewrite.md) — README, BEARING, VISION, STATUS for v6
 
 ### `v6.0.0-tui/` (Bijou v5 TUI modernization)
 
