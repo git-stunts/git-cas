@@ -110,7 +110,7 @@ function drawLine({ x0, y0, x1, y1, color }) {
 function drawPoint({ x, y, color, radius = 1 }) {
   const ix = Math.round(((x / 1.6) + 1) * 0.5 * (bufferW - 1));
   const iy = Math.round(((y / 1.2) + 1) * 0.5 * (bufferH - 1));
-  
+
   for (let dy = -radius; dy <= radius; dy++) {
     for (let dx = -radius; dx <= radius; dx++) {
       const cx = ix + dx;
@@ -133,11 +133,11 @@ function rasterizeFrame(time) {
     const headProj = project3D({ x: Math.cos(theta), y: Math.sin(theta), z: fitnessState[i], elevation, azimuth });
 
     drawLine({ x0: baseProj.px, y0: baseProj.py, x1: headProj.px, y1: headProj.py, color: STEM_INT });
-    
+
     const nextTheta = ((i + 1) / currentNumSpecies) * 2 * Math.PI + (time * 0.5);
     const nextBaseProj = project3D({ x: Math.cos(nextTheta), y: Math.sin(nextTheta), z: 0, elevation, azimuth });
     drawLine({ x0: baseProj.px, y0: baseProj.py, x1: nextBaseProj.px, y1: nextBaseProj.py, color: DR_INT });
-    
+
     drawPoint({ x: headProj.px, y: headProj.py, color: HEAD_INT });
   }
 }

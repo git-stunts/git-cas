@@ -37,11 +37,11 @@ function twilightHex(t) {
   const scaled = t * max;
   const idx = Math.floor(scaled);
   if (idx >= max) {return rgbToHex(TWILIGHT_STOPS[max][0], TWILIGHT_STOPS[max][1], TWILIGHT_STOPS[max][2]);}
-  
+
   const frac = scaled - idx;
   const c1 = TWILIGHT_STOPS[idx];
   const c2 = TWILIGHT_STOPS[idx + 1];
-  
+
   const r = Math.round(c1[0] + (c2[0] - c1[0]) * frac);
   const g = Math.round(c1[1] + (c2[1] - c1[1]) * frac);
   const b = Math.round(c1[2] + (c2[2] - c1[2]) * frac);
@@ -69,10 +69,10 @@ export function phasePortraitShader({ u, v, time }) {
     // Generate pseudo-random orbit
     const r = Math.sqrt(((i + 1) * 0.6180339887) % 1.0);
     const th = ((i + 1) * 2.39996) + time * (0.2 + i * 0.05);
-    
+
     const rx = r * Math.cos(th);
     const ry = r * Math.sin(th);
-    
+
     totalAngle += Math.atan2(zy - ry, zx - rx);
   }
 
@@ -81,7 +81,7 @@ export function phasePortraitShader({ u, v, time }) {
   if (ang < 0) {
     ang += 2 * Math.PI;
   }
-  
+
   // Normalize to 0..1 for colormap
   const t = ang / (2 * Math.PI);
 

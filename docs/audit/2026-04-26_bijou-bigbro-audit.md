@@ -3,7 +3,7 @@
 **Status:** Architectural Intervention Required (V4 → V6 Transition)
 
 ## 0. Executive Summary
-`git-cas` is an industrial-grade CAS engine with a TUI that currently feels like a "V4 artifact" surviving in a "V5/V6 world." While the TEA orchestration is robust, the visual layer relies heavily on **manual ANSI string concatenation** and **brittle geometric math**. 
+`git-cas` is an industrial-grade CAS engine with a TUI that currently feels like a "V4 artifact" surviving in a "V5/V6 world." While the TEA orchestration is robust, the visual layer relies heavily on **manual ANSI string concatenation** and **brittle geometric math**.
 
 This audit provides a blueprint for a **Block-Based TUI**, drawing inspiration from modern web UI libraries like **Mantine**. We will move away from "rendering strings" and toward "composing structured surfaces."
 
@@ -63,7 +63,7 @@ Currently uses a toast system.
 - **Problem:** The UI feels "jittery" because different panes use different internal padding rules.
 
 ### The Mentorship
-Bijou v5/v6 demands a **2-cell rhythm**. 
+Bijou v5/v6 demands a **2-cell rhythm**.
 1. **Rule of 2:** Gaps between major sections should always be 2 cells.
 2. **Constraint-First:** Use `Surface.constrain({ width, height })` instead of manual clamping in business logic.
 3. **Semantic Spacing:** Use `row([A, gap(2), B])` instead of `A + '  ' + B`.
@@ -80,7 +80,7 @@ Bijou v5/v6 demands a **2-cell rhythm**.
 
 ### Opportunity: `git-cas doctor`
 - **Current:** Text report.
-- **Proposal:** A **HealthDashboard** block. Use `badge()` for status and a `timeline()` for the vault commit history. 
+- **Proposal:** A **HealthDashboard** block. Use `badge()` for status and a `timeline()` for the vault commit history.
 
 ### Opportunity: `git-cas inspect --heatmap`
 - **Finding:** Heatmap is a custom renderer.
@@ -95,8 +95,8 @@ Bijou v5/v6 demands a **2-cell rhythm**.
 - **Problem:** Key routing is handled manually.
 
 ### The BigBro Way
-Use **View Stack Focus**. 
-- Each "Block" should declare its own `KeyMap`. 
+Use **View Stack Focus**.
+- Each "Block" should declare its own `KeyMap`.
 - The `RuntimeEngine` should route input to the **Topmost Focused Block**.
 - **Mantine Inspiration:** Focus management should be "built-in" to the block (e.g., a `ModalBlock` automatically traps focus).
 

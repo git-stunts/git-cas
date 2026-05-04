@@ -33,7 +33,7 @@ function text(str, ctx) {
 function MerkleLensBlock({ mode, ctx, width, height }) {
   const innerWidth = width - 2;
   const modes = ['TABLE', 'TREE', 'DAG'];
-  const segmentControl = hstackSurface(1, ...modes.map(m => 
+  const segmentControl = hstackSurface(1, ...modes.map(m =>
     badge(m, { variant: m === mode ? 'brand' : 'muted', ctx })
   ));
 
@@ -99,7 +99,7 @@ const app = {
       return [{ ...model, showHelp: !model.showHelp }, []];
     }
     if (model.showHelp) return [model, []];
-    
+
     if (msg.type === 'key' && msg.key === 'tab') {
       const modes = ['TABLE', 'TREE', 'DAG'];
       const nextIdx = (modes.indexOf(model.mode) + 1) % modes.length;
@@ -113,11 +113,11 @@ const app = {
 
     const headerStr = `git-cas Merkle Lens | [Tab] Toggle Mode | [?] Help | [q] Quit\n`;
     const header = text(headerStr, ctx);
-    
+
     const bodyHeight = height - header.height;
     const body = MerkleLensBlock({ mode: model.mode, ctx, width, height: bodyHeight });
     const screen = vstackSurface(header, body);
-    
+
     if (model.showHelp) {
       const help = HelpOverlay({ ctx });
       screen.blit(help, Math.max(0, Math.floor((width - help.width) / 2)), Math.max(0, Math.floor((height - help.height) / 2)));

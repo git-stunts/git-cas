@@ -118,7 +118,7 @@ export default class CasService {
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
    * @param {import('../../ports/ChunkingPort.js').default} [options.chunker] - Chunking strategy (default FixedChunker).
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max bytes for buffered restore (default 512 MiB).
-   * @param {import('../../ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter (default NodeCompressionAdapter).
+   * @param {import('../../ports/CompressionPort.js').default} options.compressionAdapter - Compression adapter.
    * @param {string} [options.formatVersion] - Semver version stamped into new manifests.
    * @param {boolean} [options.legacyMode=false] - When true, allows reading manifests with legacy encryption schemes (v1/v2) without throwing.
    */

@@ -77,10 +77,17 @@ export const RELEASE_STEPS = [
     testCount: true,
   },
   {
+    id: 'stamp-build',
+    label: 'Build metadata stamp',
+    command: 'pnpm',
+    args: ['run', 'stamp'],
+  },
+  {
     id: 'npm-pack',
     label: 'npm pack dry-run',
     command: 'npm',
-    args: ['pack', '--dry-run'],
+    args: ['pack', '--dry-run', '--json'],
+    requiredFiles: ['build-info.json'],
   },
   {
     id: 'jsr-publish',
@@ -111,6 +118,24 @@ export function extractVitestTestCount(output = '') {
   const normalized = stripAnsi(output);
   const match = normalized.match(/Tests\s+(\d+)\s+passed/iu);
   return match ? Number.parseInt(match[1], 10) : null;
+}
+
+/**
+ * Extract package file paths from `npm pack --json` output.
+ *
+ * @param {string} output
+ * @returns {string[]}
+ */
+export function extractNpmPackFilePaths(output = '') {
+  const normalized = stripAnsi(output).trim();
+  if (!normalized) { return []; }
+  const parsed = JSON.parse(normalized);
+  const packEntries = Array.isArray(parsed) ? parsed : [parsed];
+  return packEntries.flatMap((entry) =>
+    Array.isArray(entry.files)
+      ? entry.files.map((file) => file.path)
+      : []
+  );
 }
 
 export function renderMarkdownSummary({ version, results, totalTests, skippedSteps = [] }) {
@@ -186,14 +211,34 @@ export function releaseStepsFor({ skipJsr = false } = {}) {
 function buildStepResult(step, outcome) {
   const combinedOutput = `${outcome.stdout ?? ''}${outcome.stderr ?? ''}`;
   const signal = outcome.signal ?? null;
+  const fileAssertionError = validateRequiredFiles(step, combinedOutput);
   return {
     ...step,
     code: outcome.code,
     signal,
-    passed: outcome.code === 0 && signal === null,
+    passed: outcome.code === 0 && signal === null && fileAssertionError === null,
     tests: step.testCount ? extractVitestTestCount(combinedOutput) : null,
-    errorMessage: outcome.errorMessage ?? null,
+    errorMessage: outcome.errorMessage ?? fileAssertionError,
   };
+}
+
+/**
+ * @param {typeof RELEASE_STEPS[number]} step
+ * @param {string} output
+ * @returns {string|null}
+ */
+function validateRequiredFiles(step, output) {
+  if (!step.requiredFiles) { return null; }
+  try {
+    const paths = new Set(extractNpmPackFilePaths(output));
+    const missing = step.requiredFiles.filter((file) => !paths.has(file));
+    return missing.length === 0
+      ? null
+      : `Package dry-run missing required file(s): ${missing.join(', ')}`;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return `Could not parse npm pack JSON output: ${message}`;
+  }
 }
 
 /**

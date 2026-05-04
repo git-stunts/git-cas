@@ -7,9 +7,9 @@ describe('launchDashboard runtime wiring', () => {
     const cas = { listVault: vi.fn().mockResolvedValue([]), getVaultMetadata: vi.fn().mockResolvedValue({}) };
     const runMock = vi.fn();
     const tickMock = vi.fn();
-    const ctx = createTestContext({ 
-      mode: 'interactive', 
-      runtime: { columns: 120, rows: 40, stdoutIsTTY: true, stdinIsTTY: true, env: () => undefined } 
+    const ctx = createTestContext({
+      mode: 'interactive',
+      runtime: { columns: 120, rows: 40, stdoutIsTTY: true, stdinIsTTY: true, env: () => undefined }
     });
 
     await launchDashboard(cas, { ctx, runApp: runMock, tick: tickMock });
@@ -20,7 +20,7 @@ describe('launchDashboard runtime wiring', () => {
       }),
       expect.objectContaining({ ctx })
     );
-    
+
     const [model] = runMock.mock.calls[0][0].init();
     expect(model.columns).toBe(120);
     expect(model.rows).toBe(40);

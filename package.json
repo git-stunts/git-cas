@@ -18,7 +18,7 @@
     "build-info.json",
     "bin/",
     "src/",
-    "scripts/",
+    "scripts/migrate-encryption.js",
     "README.md",
     "UPGRADING.md",
     "LICENSE",

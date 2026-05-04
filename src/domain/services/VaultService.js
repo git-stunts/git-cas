@@ -743,7 +743,18 @@ export default class VaultService {
    * @returns {Promise<VaultMetadata|null>}
    */
   async getVaultMetadata() {
-    const { metadata } = await this.readState();
-    return metadata;
+    let commitOid;
+    try {
+      commitOid = await this.ref.resolveRef(VAULT_REF);
+    } catch {
+      return null;
+    }
+
+    const treeOid = await this.ref.resolveTree(commitOid);
+    const rawEntries = await this.persistence.readTree(treeOid);
+    const { metadataBlobOid } = VaultService.#parseTreeEntries(rawEntries);
+    return metadataBlobOid
+      ? await this.#readMetadataBlob(metadataBlobOid)
+      : null;
   }
 }

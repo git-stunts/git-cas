@@ -11,7 +11,7 @@ If you have an existing vault with encrypted assets:
 npm run upgrade
 
 # Apply the migration
-npm run upgrade -- --execute --passphrase <your-vault-passphrase>
+npm run upgrade -- --execute --passphrase <your-content-passphrase>
 ```
 
 If you only use the library API (no vault), skip to [API Changes](#api-changes).
@@ -54,12 +54,26 @@ npm run upgrade
 
 # Execute: migrate all vault entries
 npm run upgrade -- --execute --passphrase <passphrase>
+
+# Or migrate entries encrypted with a raw 32-byte key
+npm run upgrade -- --execute --key-file ./asset.key
 ```
 
 The migration script has two modes:
 
 - **Fast mode** (v2 schemes + convergent): renames the scheme in the manifest metadata. No re-encryption. Seconds.
-- **Full mode** (v1 schemes): restores through the legacy pipeline (decrypts without AAD), then re-stores with the current scheme (encrypts with AAD). Requires passphrase.
+- **Full mode** (v1 schemes): restores through the legacy pipeline (decrypts without AAD), then re-stores with the current scheme (encrypts with AAD). Requires `--passphrase` or `--key-file`.
+
+Privacy-enabled vaults need the vault encryption key to list and update slugs.
+If the vault passphrase differs from the content passphrase, pass
+`--vault-passphrase`, `--vault-passphrase-file`, or `--vault-key-file`.
+When no explicit vault key option is provided, `--passphrase` is reused for the
+privacy vault.
+
+Recipient-encrypted v1 manifests are not automatically full-migrated because
+preserving recipient access requires the original recipient key set. Re-store
+those assets with current recipients after restoring them with a matching
+recipient key.
 
 Original blobs are never deleted — Git's garbage collection only removes unreferenced objects after `git gc`.
 
@@ -202,7 +216,8 @@ These are new capabilities that don't require migration:
 CasError: Legacy encryption scheme "whole-v1" is no longer supported.
 ```
 
-Run `npm run upgrade -- --execute --passphrase <pass>` to migrate.
+Run `npm run upgrade -- --execute --passphrase <pass>` or
+`npm run upgrade -- --execute --key-file <path>` to migrate.
 
 ### `KDF_POLICY_VIOLATION` on deriveKey
 

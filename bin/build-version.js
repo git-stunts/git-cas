@@ -16,7 +16,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * Reads the git SHA from build-info.json (published package).
  * @returns {string|null}
  */
-function readStampedSha() {
+export function readStampedSha() {
   try {
     const info = JSON.parse(
       readFileSync(path.resolve(__dirname, '../build-info.json'), 'utf8'),
@@ -31,7 +31,7 @@ function readStampedSha() {
  * Reads the git SHA from the live repo (development).
  * @returns {string|null}
  */
-function readGitSha() {
+export function readGitSha() {
   try {
     return execSync('git rev-parse --short HEAD', {
       encoding: 'utf8',
@@ -47,7 +47,10 @@ function readGitSha() {
  * @param {string} semver - The package version from package.json.
  * @returns {string}
  */
-export function resolveVersionString(semver) {
-  const sha = readStampedSha() || readGitSha();
+export function resolveVersionString(
+  semver,
+  { readGitSha: readGit = readGitSha, readStampedSha: readStamped = readStampedSha } = {}
+) {
+  const sha = readGit() || readStamped();
   return sha ? `${semver}+${sha}` : semver;
 }

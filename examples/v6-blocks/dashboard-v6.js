@@ -24,7 +24,7 @@ function AssetLedgerBlock({ entries, selectedIndex, ctx, width, height }) {
   const innerWidth = width - 2;
   const rows = entries.map((entry, i) => {
     const isFocused = i === selectedIndex;
-    
+
     return hstackSurface(1,
       text(isFocused ? ctx.style.styled(ctx.semantic('primary'), '▸') : ' ', ctx),
       text(ctx.style.styled(ctx.semantic(isFocused ? 'primary' : 'muted'), (entry.slug.length > 15 ? entry.slug.slice(0, 15) + '...' : entry.slug).padEnd(18)), ctx),
@@ -50,7 +50,7 @@ function AssetLedgerBlock({ entries, selectedIndex, ctx, width, height }) {
  */
 function InspectorBlock({ entry, ctx, width, height }) {
   const innerWidth = width - 2;
-  
+
   if (!entry) {
     const bg = createSurface(innerWidth, height - 2);
     bg.blit(text('Select an asset to inspect.', ctx), 0, 0);
@@ -110,7 +110,7 @@ const app = {
       return [{ ...model, showHelp: !model.showHelp }, []];
     }
     if (model.showHelp) return [model, []];
-    
+
     if (msg.type === 'key' && (msg.key === 'j' || msg.key === 'down')) {
       return [{ ...model, selectedIndex: Math.min(model.selectedIndex + 1, ENTRIES.length - 1) }, []];
     }
@@ -125,14 +125,14 @@ const app = {
 
     const headerStr = `git-cas V6 Cockpit | [j/k] Move Focus | [?] Help | [q] Quit\n`;
     const header = text(headerStr, ctx);
-    
+
     const bodyHeight = height - header.height;
     const sidebarWidth = Math.floor(width * 0.4);
     const contentWidth = width - sidebarWidth - 2;
 
     const sidebar = AssetLedgerBlock({ entries: ENTRIES, selectedIndex: model.selectedIndex, ctx, width: sidebarWidth, height: bodyHeight });
     const content = InspectorBlock({ entry: ENTRIES[model.selectedIndex], ctx, width: contentWidth, height: bodyHeight });
-    
+
     const body = hstackSurface(2, sidebar, content);
 
     return vstackSurface(header, body);

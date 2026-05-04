@@ -58,7 +58,7 @@ This document represents the "crawl under the porch" architectural inspection of
 **Purpose:** Output for `git-cas vault stats` and `git-cas doctor`.
 
 ### 🛑 Architectural & Sludge Violations
-- **The "PadEnd" Anti-Pattern:** `renderKeyValueLines` calculates max label length and calls `label.padEnd(labelWidth)`. This is manual table-rendering sludge. 
+- **The "PadEnd" Anti-Pattern:** `renderKeyValueLines` calculates max label length and calls `label.padEnd(labelWidth)`. This is manual table-rendering sludge.
 - **View/Domain Mixing:** `inspectVaultHealth` executes domain queries (`cas.getVaultService()`) in the same file that exports `renderDoctorReport`.
 
 ### 🛠 V6 Prescription

@@ -16,12 +16,14 @@
  *     --cwd <dir>        Git working directory (default: .)
  *     --execute           Actually perform migration (default: dry-run)
  *     --passphrase <p>    Passphrase for re-encryption of v1 schemes
+ *     --key-file <path>   Raw 32-byte key file for re-encryption of v1 schemes
  *
  * @module
  */
 
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import ContentAddressableStore from '../index.js';
 import { createGitPlumbing } from '../src/infrastructure/createGitPlumbing.js';
 import CasService from '../src/domain/services/CasService.js';
@@ -39,6 +41,10 @@ const ARGS_CONFIG = {
     cwd: { type: 'string', default: '.' },
     execute: { type: 'boolean', default: false },
     passphrase: { type: 'string' },
+    'key-file': { type: 'string' },
+    'vault-passphrase': { type: 'string' },
+    'vault-passphrase-file': { type: 'string' },
+    'vault-key-file': { type: 'string' },
     help: { type: 'boolean', default: false },
   },
 };
@@ -48,7 +54,29 @@ function printUsage() {
   console.log('  --cwd <dir>        Git working directory (default: .)');
   console.log('  --execute          Perform migration (default: dry-run)');
   console.log('  --passphrase <p>   Passphrase for v1 re-encryption');
+  console.log('  --key-file <path>  Raw 32-byte key file for v1 re-encryption');
+  console.log('  --vault-passphrase <p>       Privacy-vault passphrase');
+  console.log('  --vault-passphrase-file <path>  Read privacy-vault passphrase from file');
+  console.log('  --vault-key-file <path>      Raw 32-byte privacy-vault key file');
   console.log('  --help             Show this help');
+}
+
+/**
+ * Converts parseArgs hyphenated option names into the internal option shape.
+ * @param {Record<string, any>} values
+ * @returns {Record<string, any>}
+ */
+function normalizeCliOptions(values) {
+  return {
+    cwd: values.cwd,
+    execute: values.execute,
+    passphrase: values.passphrase,
+    keyFile: values['key-file'],
+    vaultPassphrase: values['vault-passphrase'],
+    vaultPassphraseFile: values['vault-passphrase-file'],
+    vaultKeyFile: values['vault-key-file'],
+    help: values.help,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +184,12 @@ async function migrateFast({ service, rawService, raw, treeOid, persistence, cod
  */
 async function migrateFull({ legacyService, service, treeOid, keyOpts, deps, codec }) {
   const manifest = await legacyService.readManifest({ treeOid });
+  if (manifest.encryption?.recipients?.length > 0) {
+    throw new Error(
+      'Full migration for recipient-encrypted legacy manifests is not automatic. ' +
+      'Re-store the asset with current recipients so recipient access is preserved.',
+    );
+  }
   const source = legacyService.restoreStream({ manifest, ...keyOpts });
 
   // If the manifest has non-default chunking, build a writer service with
@@ -244,28 +278,74 @@ async function migrateEntry(ctx, entry, opts) {
     });
   }
 
-  if (result.newTreeOid) {
-    await ctx.vault.addToVault({
-      slug: entry.slug,
-      treeOid: result.newTreeOid,
-      force: true,
-    });
-  }
+  await updateVaultForMigration({ ctx, entry, result, opts });
 
   return result;
 }
 
 /**
+ * @param {Object} args
+ * @param {Object} args.ctx
+ * @param {{ slug: string }} args.entry
+ * @param {{ newTreeOid: string|null }} args.result
+ * @param {{ vaultEncryptionKey?: Uint8Array }} args.opts
+ */
+async function updateVaultForMigration({ ctx, entry, result, opts }) {
+  if (!result.newTreeOid) { return; }
+  await ctx.vault.addToVault({
+    slug: entry.slug,
+    treeOid: result.newTreeOid,
+    force: true,
+    encryptionKey: opts.vaultEncryptionKey,
+  });
+}
+
+/**
+ * Reads a 32-byte raw key file.
+ * @param {string} keyFilePath
+ * @returns {Uint8Array}
+ */
+function readKeyFile(keyFilePath) {
+  const key = readFileSync(keyFilePath);
+  if (key.length !== 32) {
+    throw new Error(`Invalid key length: expected 32 bytes, got ${key.length} (${keyFilePath})`);
+  }
+  return key;
+}
+
+/**
+ * Reads a passphrase file and strips one trailing line ending.
+ * @param {string} filePath
+ * @returns {string}
+ */
+function readPassphraseFile(filePath) {
+  const passphrase = readFileSync(filePath, 'utf8').replace(/\r?\n$/u, '');
+  if (!passphrase.trim()) {
+    throw new Error(`Passphrase file is empty: ${filePath}`);
+  }
+  return passphrase;
+}
+
+/**
  * Builds key options for full-mode migration.
- * @param {{ passphrase?: string }} opts - CLI options containing passphrase.
+ * @param {{ passphrase?: string, keyFile?: string, encryptionKey?: Uint8Array }} opts - CLI options containing key material.
  * @param {{ scheme: string|undefined, mode: string, reason: string }} classification - Entry classification.
- * @returns {{ passphrase: string }} Key options for re-encryption.
+ * @returns {{ passphrase: string }|{ encryptionKey: Uint8Array }} Key options for re-encryption.
  */
 function buildKeyOpts(opts, classification) {
+  if (opts.passphrase && (opts.keyFile || opts.encryptionKey)) {
+    throw new Error('Provide --passphrase or --key-file, not both.');
+  }
+  if (opts.encryptionKey) {
+    return { encryptionKey: opts.encryptionKey };
+  }
+  if (opts.keyFile) {
+    return { encryptionKey: readKeyFile(opts.keyFile) };
+  }
   if (!opts.passphrase) {
     throw new Error(
       `Entry requires re-encryption (${classification.scheme}) ` +
-      'but no --passphrase was provided.',
+      'but no --passphrase or --key-file was provided.',
     );
   }
   return { passphrase: opts.passphrase };
@@ -328,7 +408,7 @@ async function createMigrationContext(plumbing) {
     });
   }
 
-  return { services, legacyServices, rawServices, codecs, deps, vault, persistence: deps.persistence };
+  return { cas, services, legacyServices, rawServices, codecs, deps, vault, persistence: deps.persistence };
 }
 
 /**
@@ -367,6 +447,61 @@ async function buildLegacyDeps(plumbing) {
   };
 }
 
+/**
+ * Derives the vault encryption key from vault metadata and passphrase.
+ * @param {ContentAddressableStore} cas
+ * @param {Object} metadata
+ * @param {string} passphrase
+ * @returns {Promise<Uint8Array>}
+ */
+async function deriveVaultKey(cas, metadata, passphrase) {
+  const kdf = metadata.encryption?.kdf;
+  if (!kdf) {
+    throw new Error('Privacy vault metadata is missing KDF configuration.');
+  }
+  const { key } = await cas.deriveKey({
+    passphrase,
+    salt: Buffer.from(kdf.salt, 'base64'),
+    algorithm: kdf.algorithm,
+    iterations: kdf.iterations,
+    cost: kdf.cost,
+    blockSize: kdf.blockSize,
+    parallelization: kdf.parallelization,
+    keyLength: kdf.keyLength,
+  });
+  return key;
+}
+
+/**
+ * Resolves the key needed to enumerate/update privacy-enabled vaults.
+ * @param {Object} ctx - Migration context.
+ * @param {Record<string, any>} opts - Normalized migration options.
+ * @returns {Promise<Uint8Array|undefined>}
+ */
+async function resolveVaultEncryptionKey(ctx, opts) {
+  const metadata = await ctx.vault.getVaultMetadata();
+  if (!metadata?.privacy?.enabled) {
+    return undefined;
+  }
+  if (opts.vaultKeyFile) {
+    return readKeyFile(opts.vaultKeyFile);
+  }
+
+  const passphrase = opts.vaultPassphraseFile
+    ? readPassphraseFile(opts.vaultPassphraseFile)
+    : opts.vaultPassphrase || opts.passphrase;
+
+  if (!passphrase) {
+    throw new Error(
+      'Privacy mode is enabled. Provide --vault-passphrase, ' +
+      '--vault-passphrase-file, --vault-key-file, or --passphrase if the ' +
+      'content and vault passphrases are the same.',
+    );
+  }
+
+  return await deriveVaultKey(ctx.cas, metadata, passphrase);
+}
+
 // ---------------------------------------------------------------------------
 // Reporting
 // ---------------------------------------------------------------------------
@@ -401,13 +536,13 @@ function printReport(results, execute) {
 // Main
 // ---------------------------------------------------------------------------
 
-async function listVaultEntries(vault) {
-  const entries = await vault.listVault();
-  return entries.length === 0 ? null : entries;
+async function listVaultEntries(vault, { encryptionKey } = {}) {
+  return await vault.listVault({ encryptionKey });
 }
 
 async function main() {
-  const { values: opts } = parseArgs(ARGS_CONFIG);
+  const { values } = parseArgs(ARGS_CONFIG);
+  const opts = normalizeCliOptions(values);
 
   if (opts.help) {
     printUsage();
@@ -420,16 +555,15 @@ async function main() {
 
   const plumbing = createGitPlumbing({ cwd });
   const ctx = await createMigrationContext(plumbing);
+  opts.vaultEncryptionKey = await resolveVaultEncryptionKey(ctx, opts);
 
-  const entries = await listVaultEntries(ctx.vault);
-
-  if (entries === null) {
-    console.log('No vault found — nothing to migrate.');
-    return;
-  }
+  const entries = await listVaultEntries(ctx.vault, { encryptionKey: opts.vaultEncryptionKey });
 
   if (entries.length === 0) {
-    console.log('Vault is empty — nothing to migrate.');
+    const metadata = await ctx.vault.getVaultMetadata();
+    console.log(metadata === null
+      ? 'No vault found — nothing to migrate.'
+      : 'Vault is empty — nothing to migrate.');
     return;
   }
 
@@ -448,9 +582,13 @@ export {
   classifyEntry,
   migrateFast,
   migrateFull,
+  migrateEntry,
   buildKeyOpts,
   createMigrationContext,
   detectCodec,
+  listVaultEntries,
+  normalizeCliOptions,
+  resolveVaultEncryptionKey,
 };
 
 if (process.argv[1]?.endsWith('migrate-encryption.js')) {

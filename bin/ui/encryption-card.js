@@ -58,7 +58,7 @@ export function renderEncryptionCard({ metadata, unlocked = false }) {
 
   const rows = buildKdfRows(metadata.encryption);
   const maxKey = Math.max(...rows.map(([k]) => k.length));
-  
+
   const kvSurfaces = rows.map(([k, v]) => {
     const label = themeText(ctx, k.padEnd(maxKey), { tone: 'accent' });
     return hstackSurface(2,
@@ -72,7 +72,7 @@ export function renderEncryptionCard({ metadata, unlocked = false }) {
     variant: unlocked ? 'success' : 'danger',
     ctx,
   });
-  
+
   const statusLabel = themeText(ctx, 'status'.padEnd(maxKey), { tone: 'accent' });
   const statusRow = hstackSurface(2,
     createSurface(2, 1),

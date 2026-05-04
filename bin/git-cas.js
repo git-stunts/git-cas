@@ -33,7 +33,7 @@ import {
 } from './passphrase-source.js';
 import { loadConfig, mergeConfig } from './config.js';
 
-import { resolveVersionString } from '../src/build-version.js';
+import { resolveVersionString } from './build-version.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_VERSION = resolveVersionString(

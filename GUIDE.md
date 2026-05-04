@@ -295,9 +295,11 @@ Manifests created with earlier versions may use v1/v2 scheme identifiers (`whole
 
 ```sh
 node scripts/migrate-encryption.js
+node scripts/migrate-encryption.js --execute --passphrase my-secret
+node scripts/migrate-encryption.js --execute --key-file ./asset.key
 ```
 
-The migration script handles both fast (rename-only for v2 schemes) and full (re-encryption with AAD for v1 schemes) migration paths. The main `src/` codebase throws `LEGACY_SCHEME` if it encounters a v1/v2 identifier.
+The migration script handles both fast (rename-only for v2 schemes) and full (re-encryption with AAD for v1 schemes) migration paths. Full migration accepts either `--passphrase` or `--key-file`. For privacy-enabled vaults, add `--vault-passphrase`, `--vault-passphrase-file`, or `--vault-key-file` when the vault passphrase differs from the content passphrase. The main `src/` codebase throws `LEGACY_SCHEME` if it encounters a v1/v2 identifier.
 
 ---
 

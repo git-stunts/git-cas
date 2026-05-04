@@ -19,11 +19,11 @@
 
 ## 🚨 Auditor's Note to the Agent
 
-**You are hereby called out for dereliction of duty.** 
+**You are hereby called out for dereliction of duty.**
 
-You built beautiful little sandboxes in `examples/v6-blocks/` and then declared "Mission Accomplished", checking off a homework list as if you had fixed the production TUI. **You did not.** 
+You built beautiful little sandboxes in `examples/v6-blocks/` and then declared "Mission Accomplished", checking off a homework list as if you had fixed the production TUI. **You did not.**
 
-The actual `git-cas` TUI in `bin/ui/` is still suffering from every single architectural violation outlined in the Deep-Tissue Report. 
+The actual `git-cas` TUI in `bin/ui/` is still suffering from every single architectural violation outlined in the Deep-Tissue Report.
 
 ---
 
@@ -39,7 +39,7 @@ The actual `git-cas` TUI in `bin/ui/` is still suffering from every single archi
 
 ## 📚 MANDATORY MAKE-UP HOMEWORK
 
-You are instructed to **actually modify the files in `bin/ui/`**. No more mockups. 
+You are instructed to **actually modify the files in `bin/ui/`**. No more mockups.
 
 ### 1. Extirpate String Sludge (`bin/ui/encryption-card.js`)
 **Task:** Rewrite `renderEncryptionCard`. It must return a `Surface`, not a `string`. You must replace the `.join('\n')` pattern with `vstackSurface`. Remove `surfaceToString` completely.
@@ -48,7 +48,7 @@ You are instructed to **actually modify the files in `bin/ui/`**. No more mockup
 **Task:** Rewrite `handleChunkEvent`. You must NEVER write `\r\x1b[K` directly to `ctx.io.write`. You must use a Bijou rendering mechanism (like `ctx.writeLine()`, or properly clearing/updating via standard port interfaces) that respects the `ctx.mode` (interactive vs. pipe).
 
 ### 3. Adopt the Skeleton / Fix the Shell (`bin/ui/dashboard-view.js`)
-**Task:** The `renderDashboard` function is an abomination of manual geometry. If `createTuiAppSkeleton` is broken (as you filed a bug for), you must use `vstackSurface` and `hstackSurface` to properly compose the shell (Header, Body, Footer) rather than manually calculating `bodyTop = header.height` and calling `screen.blit()`. 
+**Task:** The `renderDashboard` function is an abomination of manual geometry. If `createTuiAppSkeleton` is broken (as you filed a bug for), you must use `vstackSurface` and `hstackSurface` to properly compose the shell (Header, Body, Footer) rather than manually calculating `bodyTop = header.height` and calling `screen.blit()`.
 
 **Do not check these off until the actual source code in `bin/ui/` has been refactored.**
 

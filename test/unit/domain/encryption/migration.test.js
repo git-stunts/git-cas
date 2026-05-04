@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { migrateFast } from '../../../../scripts/migrate-encryption.js';
+import {
+  buildKeyOpts,
+  listVaultEntries,
+  migrateEntry,
+  migrateFast,
+  migrateFull,
+} from '../../../../scripts/migrate-encryption.js';
 import {
   isLegacyScheme, mapToCurrentScheme, isLegacyNoAad,
 } from '../../../../src/domain/encryption/schemes.js';
@@ -107,6 +113,83 @@ describe('migration execution: fast-migrated manifests load in v6', () => {
   });
 });
 
+describe('migration execution: full migration orchestration', () => {
+  it('restores with the legacy service, re-stores with the current service, and updates vault with privacy key', async () => {
+    const harness = createFullMigrationHarness();
+
+    const result = await migrateEntry(
+      harness.ctx,
+      { slug: 'legacy-full', treeOid: 'tree-old' },
+      {
+        execute: true,
+        encryptionKey: harness.assetKey,
+        vaultEncryptionKey: harness.vaultKey,
+      },
+    );
+
+    expectFullMigrationResult(harness, result);
+  });
+});
+
+describe('migration execution: recipient legacy manifests', () => {
+  it('refuses full migration for recipient-encrypted legacy manifests', async () => {
+    const manifest = recipientLegacyManifest();
+    const legacyService = {
+      readManifest: vi.fn(async () => manifest),
+      restoreStream: vi.fn(),
+    };
+
+    await expect(migrateFull({
+      legacyService,
+      service: {},
+      treeOid: 'tree-old',
+      keyOpts: { encryptionKey: new Uint8Array(32).fill(1) },
+      deps: {},
+      codec: new JsonCodec(),
+    })).rejects.toThrow(/recipient-encrypted legacy manifests/u);
+
+    expect(legacyService.restoreStream).not.toHaveBeenCalled();
+  });
+});
+
+describe('migration credentials and vault listing', () => {
+  it('passes privacy vault keys through listVault', async () => {
+    const encryptionKey = new Uint8Array(32).fill(9);
+    const vault = {
+      listVault: vi.fn(async () => []),
+    };
+
+    await expect(listVaultEntries(vault, { encryptionKey })).resolves.toEqual([]);
+    expect(vault.listVault).toHaveBeenCalledWith({ encryptionKey });
+  });
+
+  it('builds direct key options and rejects ambiguous full-migration credentials', () => {
+    const encryptionKey = new Uint8Array(32).fill(3);
+    const classification = { scheme: 'whole-v1', mode: 'full', reason: 'v1' };
+
+    expect(buildKeyOpts({ encryptionKey }, classification)).toEqual({ encryptionKey });
+    expect(() => buildKeyOpts({ passphrase: 'secret', encryptionKey }, classification))
+      .toThrow(/Provide --passphrase or --key-file/u);
+  });
+});
+
+function expectFullMigrationResult(harness, result) {
+  const { assetKey, vaultKey, legacyService, sourceChunks, restored, vault, manifest } = harness;
+
+    expect(result).toMatchObject({ mode: 'full', newTreeOid: 'tree-new' });
+    expect(legacyService.restoreStream).toHaveBeenCalledWith({
+      manifest,
+      encryptionKey: assetKey,
+    });
+    expect(sourceChunks).toEqual([restored]);
+    expect(vault.addToVault).toHaveBeenCalledWith({
+      slug: 'legacy-full',
+      treeOid: 'tree-new',
+      force: true,
+      encryptionKey: vaultKey,
+    });
+}
+
 function legacyWholeV2Manifest() {
   return {
     slug: 'legacy-fast',
@@ -176,6 +259,100 @@ function inMemoryManifestPersistence(codec, raw) {
   };
 
   return { persistence, treeOid };
+}
+
+function createFullMigrationHarness() {
+  const assetKey = new Uint8Array(32).fill(7);
+  const vaultKey = new Uint8Array(32).fill(8);
+  const restored = new Uint8Array([1, 2, 3, 4]);
+  const manifest = legacyWholeManifest();
+  const sourceChunks = [];
+  const service = fullMigrationWriterService({ assetKey, sourceChunks });
+  const legacyService = {
+    readManifest: vi.fn(async () => manifest),
+    restoreStream: vi.fn(() => asyncChunks([restored])),
+  };
+  const vault = {
+    addToVault: vi.fn(async () => ({ commitOid: 'vault-commit' })),
+  };
+
+  return {
+    assetKey,
+    vaultKey,
+    restored,
+    manifest,
+    sourceChunks,
+    legacyService,
+    vault,
+    ctx: fullMigrationContext({ legacyService, service, vault }),
+  };
+}
+
+function fullMigrationWriterService({ assetKey, sourceChunks }) {
+  const newManifest = { slug: 'legacy-full', filename: 'legacy.bin' };
+  return {
+    store: vi.fn(async (opts) => {
+      for await (const chunk of opts.source) {
+        sourceChunks.push(chunk);
+      }
+      expect(opts.encryptionKey).toBe(assetKey);
+      expect(opts.encryption).toEqual({ scheme: 'whole' });
+      return newManifest;
+    }),
+    createTree: vi.fn(async ({ manifest: created }) => {
+      expect(created).toBe(newManifest);
+      return 'tree-new';
+    }),
+  };
+}
+
+function fullMigrationContext({ legacyService, service, vault }) {
+  return {
+    persistence: manifestTreePersistence(),
+    rawServices: {
+      json: { readManifestRaw: vi.fn(async () => ({ encryption: { scheme: 'whole-v1' } })) },
+    },
+    legacyServices: { json: legacyService },
+    services: { json: service },
+    codecs: { json: new JsonCodec() },
+    deps: {},
+    vault,
+  };
+}
+
+function legacyWholeManifest() {
+  return {
+    slug: 'legacy-full',
+    filename: 'legacy.bin',
+    encryption: { scheme: 'whole' },
+    chunks: [],
+  };
+}
+
+function recipientLegacyManifest() {
+  return {
+    slug: 'recipient-full',
+    filename: 'recipient.bin',
+    encryption: {
+      scheme: 'whole',
+      recipients: [{ label: 'alice', wrappedDek: 'x', nonce: 'n', tag: 't' }],
+    },
+    chunks: [],
+  };
+}
+
+function manifestTreePersistence() {
+  return {
+    readTree: vi.fn(async () => [
+      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+    ]),
+  };
+}
+
+async function* asyncChunks(chunks) {
+  for (const chunk of chunks) {
+    yield chunk;
+  }
 }
 
 function parseTreeEntry(entry) {

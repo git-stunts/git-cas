@@ -24,7 +24,7 @@ function text(str, ctx) {
  */
 function HealthReportBlock({ ctx, width, height }) {
   const innerWidth = width - 2;
-  
+
   const timelineStr = timeline(EVENTS, { ctx });
   const timelineLines = timelineStr.split('\n');
   const timelineSurface = parseAnsiToSurface(timelineStr, innerWidth, timelineLines.length);
@@ -81,7 +81,7 @@ const app = {
       return [{ ...model, showHelp: !model.showHelp }, []];
     }
     if (model.showHelp) return [model, []];
-    
+
     return [model, []];
   },
   view(model) {
@@ -90,11 +90,11 @@ const app = {
 
     const headerStr = `git-cas Health Monitor | [?] Help | [q] Quit\n`;
     const header = text(headerStr, ctx);
-    
+
     const bodyHeight = height - header.height;
     const body = HealthReportBlock({ ctx, width, height: bodyHeight });
     const screen = vstackSurface(header, body);
-    
+
     if (model.showHelp) {
       const help = HelpOverlay({ ctx });
       screen.blit(help, Math.max(0, Math.floor((width - help.width) / 2)), Math.max(0, Math.floor((height - help.height) / 2)));

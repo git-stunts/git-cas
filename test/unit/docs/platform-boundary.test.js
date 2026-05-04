@@ -13,6 +13,10 @@ const PLATFORM_NEUTRAL_DIRS = [
   'src/infrastructure/codecs',
 ];
 
+const PLATFORM_NEUTRAL_ROOT_DIRS = [
+  'src',
+];
+
 const FORBIDDEN_CORE_PATTERNS = [
   { name: 'node imports', pattern: /(?:from\s+|import\s*\()\s*['"]node:/ },
   { name: 'Buffer runtime APIs', pattern: /\bBuffer\s*[.(]/ },
@@ -26,7 +30,7 @@ describe('platform boundary', () => {
   it('keeps domain, ports, helpers, chunkers, and codecs free of platform APIs', () => {
     const violations = [];
 
-    for (const file of collectFiles(PLATFORM_NEUTRAL_DIRS)) {
+    for (const file of collectPlatformNeutralFiles()) {
       const source = stripComments(readFileSync(file, 'utf8'));
       for (const { name, pattern } of FORBIDDEN_CORE_PATTERNS) {
         if (pattern.test(source)) {
@@ -48,8 +52,29 @@ describe('platform boundary', () => {
  * @param {string[]} dirs
  * @returns {string[]}
  */
+function collectPlatformNeutralFiles() {
+  return [
+    ...collectFiles(PLATFORM_NEUTRAL_DIRS),
+    ...PLATFORM_NEUTRAL_ROOT_DIRS.flatMap((dir) => rootFiles(path.join(repoRoot, dir))),
+  ];
+}
+
+/**
+ * @param {string[]} dirs
+ * @returns {string[]}
+ */
 function collectFiles(dirs) {
   return dirs.flatMap((dir) => walk(path.join(repoRoot, dir)));
+}
+
+/**
+ * @param {string} dir
+ * @returns {string[]}
+ */
+function rootFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.[cm]?js$/.test(entry.name))
+    .map((entry) => path.join(dir, entry.name));
 }
 
 /**

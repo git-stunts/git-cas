@@ -31,7 +31,7 @@ The TUI is organized into three primary **Workspaces**.
 
 ### Workspace A: The Explorer (Primary)
 **Purpose:** Navigation and Inspection.
-- **Features:** 
+- **Features:**
     - Full-text slug filtering.
     - Responsive asset ledger (Table).
     - Deep-tissue manifest inspection (Merkle DAG).

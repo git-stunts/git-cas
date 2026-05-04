@@ -7,7 +7,7 @@ describe('launchDashboard default context path', () => {
     const cas = { listVault: vi.fn().mockResolvedValue([]), getVaultMetadata: vi.fn().mockResolvedValue({}) };
     const runMock = vi.fn();
     const tickMock = vi.fn();
-    const ctx = createTestContext({ 
+    const ctx = createTestContext({
       mode: 'interactive',
       runtime: { stdoutIsTTY: true, stdinIsTTY: true, env: (k) => k === 'NO_COLOR' ? '1' : undefined }
     });

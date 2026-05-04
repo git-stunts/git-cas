@@ -134,9 +134,9 @@ export function merkleTreeShader({ u, v, time, uniforms }) {
   const px = Math.floor(u * (bufferW - 1));
   const py = Math.floor(v * (bufferH - 1));
   const colorInt = frameBuffer[py * bufferW + px];
-  return { 
-    char: colorInt === COLORS.BG ? ' ' : '█', 
-    fg: INT_TO_HEX[colorInt] || '#1d252b', 
-    bg: '#1d252b' 
+  return {
+    char: colorInt === COLORS.BG ? ' ' : '█',
+    fg: INT_TO_HEX[colorInt] || '#1d252b',
+    bg: '#1d252b'
   };
 }
