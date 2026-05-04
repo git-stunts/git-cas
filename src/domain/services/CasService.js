@@ -116,7 +116,7 @@ export default class CasService {
    * @param {number} [options.chunkSize=262144] - 256 KiB
    * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
-   * @param {import('../../ports/ChunkingPort.js').default} [options.chunker] - Chunking strategy (default FixedChunker).
+   * @param {import('../../ports/ChunkingPort.js').default} options.chunker - Chunking strategy.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max bytes for buffered restore (default 512 MiB).
    * @param {import('../../ports/CompressionPort.js').default} options.compressionAdapter - Compression adapter.
    * @param {string} [options.formatVersion] - Semver version stamped into new manifests.

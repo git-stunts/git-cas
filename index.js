@@ -229,7 +229,7 @@ export default class ContentAddressableStore {
    * @param {string} [options.filename] - Override filename (defaults to basename of filePath).
    * @param {Uint8Array} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
    * @param {string} [options.passphrase] - Derive encryption key from passphrase.
-   * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
+   * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number, convergent?: boolean }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
@@ -248,7 +248,7 @@ export default class ContentAddressableStore {
    * @param {string} options.filename - Filename for the manifest.
    * @param {Uint8Array} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
    * @param {string} [options.passphrase] - Derive encryption key from passphrase.
-   * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
+   * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number, convergent?: boolean }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).

@@ -87,9 +87,9 @@ export interface CasServiceOptions {
   chunkSize?: number;
   merkleThreshold?: number;
   concurrency?: number;
-  chunker?: ChunkingPort;
+  chunker: ChunkingPort;
   maxRestoreBufferSize?: number;
-  compressionAdapter?: CompressionPort;
+  compressionAdapter: CompressionPort;
   formatVersion?: string;
   /** When true, allows reading manifests with legacy encryption schemes (v1/v2). */
   legacyMode?: boolean;
@@ -122,6 +122,8 @@ export interface VerifyIntegrityOptions {
 export interface StoreEncryptionOptions {
   scheme?: EncryptionScheme;
   frameBytes?: number;
+  /** Explicit convergent opt-in/opt-out; defaults on for CDC chunkers. */
+  convergent?: boolean;
 }
 
 export interface FileRestorePlan {
