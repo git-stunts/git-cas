@@ -49,7 +49,10 @@ because the current `jsr`/Deno toolchain panics before package validation.
 - `npm run release:verify -- --skip-jsr` is the current release-candidate sanity command while that upstream JSR toolchain blocker remains active. Its report records the skipped JSR step explicitly.
 - `npm run release:verify -- --skip-jsr` passed on 2026-05-04: 8/8 executable steps, 4495 observed tests, skipped `JSR publish dry-run`.
 - `.github/workflows/release.yml` now publishes npm and creates the GitHub Release only; JSR publication is intentionally deferred until the dry-run can pass.
+- PR #35 landed the release branch on `main` as `1d2ca5c` on 2026-05-04, and GitHub Actions CI passed on that merge commit.
+- Final pre-tag `npm run release:verify -- --skip-jsr` passed on 2026-05-04 after release-doc cleanup: 9/9 executable steps, 4531 observed tests, skipped `JSR publish dry-run`.
 
 ## Remaining Before Tag
 
-- Land the release branch, create an annotated `v6.0.0` tag, and push the tag.
+- Create an annotated `v6.0.0` tag on the final release commit after operator approval.
+- Push the tag so CI can publish npm and create the GitHub Release.

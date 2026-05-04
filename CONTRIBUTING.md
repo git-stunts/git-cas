@@ -235,7 +235,7 @@ Local testing policy:
 - `npm test` is the default fast suite
 - `npx eslint .` must stay clean
 - integration tests run through Docker-backed runtime targets
-- `pnpm release:verify` is the release truth source
+- `npm run release:verify` is the release truth source
 - install hooks with `bash scripts/install-hooks.sh`
 
 ## Human Surface Guardrails

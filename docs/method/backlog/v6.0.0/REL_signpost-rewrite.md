@@ -42,5 +42,6 @@ branch.
 - README leads with the v6.0.0 product identity and links UPGRADING.
 - BEARING and VISION describe the simplified scheme architecture, convergent
   encryption, and the platform-agnostic `Uint8Array` core.
-- STATUS is explicit that `v6.0.0` is the current release candidate and keeps
-  the remaining release gates visible until tag/publish.
+- STATUS is explicit that `v6.0.0` is the release line on `main`, that the
+  annotated tag workflow owns npm publish and GitHub Release creation, and that
+  JSR remains deferred until the dry-run can pass.

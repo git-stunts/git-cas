@@ -1,7 +1,7 @@
 # STATUS
 
-**Last tagged release:** `v5.3.2` (`2026-03-15`)
-**Current release candidate:** `v6.0.0` (on `release/v6.0.0`)
+**Last tagged release:** `v6.0.0` (`2026-05-04`)
+**Current release state:** `v6.0.0` on `main`; npm publish and GitHub Release are completed by the annotated tag workflow.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -17,7 +17,7 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.0.0 release posture** — JSR publication is deferred because the current
+- **v6.0.0 artifact posture** — JSR publication is deferred because the current
   `jsr`/Deno toolchain panics before package validation. The tag workflow
   publishes npm and creates the GitHub Release; JSR can return in a later 6.x
   maintenance change once its dry-run is healthy.

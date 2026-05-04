@@ -5,11 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [6.0.0] — Unreleased
+## [6.0.0] — 2026-05-04
 
 ### Breaking Changes
 
-- **JSR support removed** — The JSR registry publication workflow has been removed. `pnpm release:verify` now supports skipping JSR dry-runs via `--skip-jsr`. Consumers of the `@git-stunts/git-cas` JSR package should migrate to the npm package.
+- **JSR support removed** — The JSR registry publication workflow has been removed. `npm run release:verify -- --skip-jsr` now supports skipping JSR dry-runs. Consumers of the `@git-stunts/git-cas` JSR package should migrate to the npm package.
 - **Encryption scheme identifiers simplified** — `whole-v1`/`whole-v2` collapsed to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1` collapsed to `convergent`. Legacy v1/v2 scheme strings in stored manifests now throw `LEGACY_SCHEME` at `readManifest()` time with migration guidance. The `scheme` field in `ManifestSchema` is now required for all encryption metadata (previously optional for backward-compatible schemeless whole manifests).
 - **AAD is always on** — `whole` and `framed` encryption always bind slug-based AAD into the GCM tag. The v1 no-AAD path is removed.
 - **Core byte contract is now `Uint8Array`** — public and port byte surfaces now accept and return `Uint8Array` rather than Node-specific `Buffer` types. Node callers can continue passing `Buffer` values because `Buffer` extends `Uint8Array`, but restored data, chunkers, codecs, and Web Crypto adapter outputs should be treated as `Uint8Array`.
@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Workflow model** — added [WORKFLOW.md](./WORKFLOW.md), explicit legends/backlog/invariants directories, and a cycle-first planning model for fresh work.
 - **Review automation baseline** — added `.github/CODEOWNERS` with repo-wide ownership for `@git-stunts`.
 - **Release runbook** — added `docs/RELEASE.md` and linked it from `CONTRIBUTING.md` as the canonical patch-release workflow.
-- **`pnpm release:verify`** — new maintainer-facing release helper runs the full release checklist, captures observed test counts, and prints a Markdown summary that can be pasted into release notes or changelog prep.
+- **`npm run release:verify`** — new maintainer-facing release helper runs the full release checklist, captures observed test counts, and prints a Markdown summary that can be pasted into release notes or changelog prep.
 - **JSR-deferred release verification** — `npm run release:verify -- --skip-jsr` now supports release-candidate sanity checks when the external JSR/Deno toolchain is broken, records skipped steps in Markdown and JSON summaries, and keeps the v6.0.0 tag workflow focused on npm plus GitHub Release publication.
 - **`git cas vault stats`** — new vault summary command reports logical size, chunk references, dedupe ratio, encryption coverage, compression usage, and chunking strategy breakdowns.
 - **`git cas doctor`** — new diagnostics command scans `refs/cas/vault`, validates every referenced manifest, and exits non-zero with structured issue output when it finds broken entries or a missing vault ref.
@@ -92,7 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CLI credential edge cases** — `store --recipient` now ignores ambient `GIT_CAS_PASSPHRASE` state when no explicit vault passphrase flag/file was provided, store/restore/init now reject ambiguous explicit credential combinations consistently, `vault init --algorithm` no longer silently falls back to plaintext without a passphrase source, and `vault rotate` now rejects whitespace-only old/new passphrase inputs instead of treating them as valid credentials.
 - **Bun blob writes in Git persistence** — `GitPersistenceAdapter.writeBlob()` now hashes temp files instead of piping large buffers through `git hash-object --stdin` under Bun, avoiding unhandled `EPIPE` failures during real Git-backed stores.
 - **Release verification runner failures** — `runReleaseVerify()` now converts thrown step-runner errors into structured step failures with a `ReleaseVerifyError` summary instead of letting raw exceptions escape.
-- **Machine-readable release verification** — `pnpm release:verify --json` now emits structured JSON on both success and failure paths, making CI automation and release-note tooling consume the same verification source of truth.
+- **Machine-readable release verification** — `npm run release:verify -- --json` now emits structured JSON on both success and failure paths, making CI automation and release-note tooling consume the same verification source of truth.
 - **Dashboard launch context normalization** — `launchDashboard()` now treats injected Bijou contexts without an explicit `mode` as interactive, avoiding an incorrect static fallback, and the CLI mode tests now lock the `BIJOU_ACCESSIBLE` and `TERM=dumb` branches.
 
 ## [5.3.2] — 2026-03-15

@@ -9,7 +9,6 @@
 `git-cas` is designed for the architect who demands mathematical certainty and the operator who needs a stable foundation for artifact storage. It scales from simple binary blob management to multi-recipient envelope-encrypted vaults with key rotation, privacy-mode slug hashing, and Merkle-style manifests for assets of any size.
 
 [![npm version](https://img.shields.io/npm/v/@git-stunts/git-cas)](https://www.npmjs.com/package/@git-stunts/git-cas)
-[![JSR version](https://jsr.io/badges/@git-stunts/git-cas)](https://jsr.io/@git-stunts/git-cas)
 [![License](https://img.shields.io/github/license/git-stunts/git-cas)](./LICENSE)
 
 ![git-cas demo](./docs/demo.gif)
