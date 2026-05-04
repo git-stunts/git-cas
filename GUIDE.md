@@ -110,8 +110,8 @@ Stores data from any async iterable:
 
 ```js
 async function* generateData() {
-  yield Buffer.from('chunk one');
-  yield Buffer.from('chunk two');
+  yield new TextEncoder().encode('chunk one');
+  yield new TextEncoder().encode('chunk two');
 }
 
 const manifest = await cas.store({
@@ -583,7 +583,7 @@ const { bytesWritten } = await cas.restoreFile({
 
 ### `restoreStream({ manifest })` -- Async Iterable
 
-Returns an async iterable of `Buffer` chunks. Best for large files, piping to other streams, or memory-constrained environments.
+Returns an async iterable of `Uint8Array` chunks. Best for large files, piping to other streams, or memory-constrained environments.
 
 ```js
 const manifest = await cas.readManifest({ treeOid });

@@ -5,6 +5,7 @@
 
 import z from 'zod';
 import { isCanonicalBase64 } from '../../helpers/canonicalBase64.js';
+import { base64DecodedLength } from '../encoding/base64.js';
 
 function base64BytesSchema(field, byteLength) {
   return z.string()
@@ -12,7 +13,7 @@ function base64BytesSchema(field, byteLength) {
     .refine((value) => isCanonicalBase64(value), {
       message: `${field} must be canonical base64`,
     })
-    .refine((value) => Buffer.from(value, 'base64').length === byteLength, {
+    .refine((value) => isCanonicalBase64(value) && base64DecodedLength(value) === byteLength, {
       message: `${field} must decode to ${byteLength} bytes`,
     });
 }

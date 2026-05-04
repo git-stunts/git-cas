@@ -43,10 +43,11 @@ What exists now:
 - **Plaintext + gzip streaming.** Compressed unencrypted data now uses
   `_restoreCompressedStreaming` instead of the buffered path, eliminating the
   `maxRestoreBufferSize` constraint for this case.
-- **Fully hexagonal architecture.** All platform dependencies (`node:zlib`,
-  `node:crypto`, `node:stream`) are extracted behind abstract ports
-  (`CompressionPort`, `CryptoPort`, `ChunkingPort`). `CasService` has zero
-  direct platform imports.
+- **Fully hexagonal architecture.** Domain services, ports, helpers, chunkers,
+  and codecs use `Uint8Array` as the byte contract and are guarded against
+  platform APIs (`node:*`, `Buffer` runtime methods, runtime globals, Node
+  streams). Runtime dependencies live in adapters such as `NodeCryptoAdapter`,
+  `NodeCompressionAdapter`, Git/file I/O adapters, and the CLI.
 - **Hardened security posture.** Eleven audit-driven fixes plus KDF salt
   validation hardening, store write failure normalization, and unified vault
   mutation retry.
@@ -71,7 +72,7 @@ These were the active tensions from the previous bearing. All resolved.
   `maxDecryptionBufferSize` on `WebCryptoAdapter`. The buffered path is still
   not mechanically identical to Node/Bun streaming, but the bound is enforced
   and documented.
-- **Buffer Limits** — `whole restoreStream()` enforces actual buffered-read
+- **Buffered Restore Limits** — `whole restoreStream()` enforces actual buffered-read
   and decompression limits. `framed` provides true streaming restore for callers
   who need unbounded payloads.
 - **Vault Contention** — all vault mutations (`initVault`, `addToVault`,

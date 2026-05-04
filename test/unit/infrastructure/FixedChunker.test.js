@@ -132,8 +132,8 @@ describe('FixedChunker', () => { // eslint-disable-line max-lines-per-function
     const chunks = await collect(chunker.chunk(source));
 
     expect(chunks).toHaveLength(3);
-    expect(chunks[0]).toEqual(Buffer.from([1, 2, 3, 4]));
-    expect(chunks[1]).toEqual(Buffer.from([5, 6, 7, 8]));
-    expect(chunks[2]).toEqual(Buffer.from([9, 10]));
+    expect([...chunks[0]]).toEqual([1, 2, 3, 4]);
+    expect([...chunks[1]]).toEqual([5, 6, 7, 8]);
+    expect([...chunks[2]]).toEqual([9, 10]);
   });
 });

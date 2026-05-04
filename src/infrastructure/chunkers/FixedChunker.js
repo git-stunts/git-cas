@@ -1,4 +1,5 @@
 import ChunkingPort from '../../ports/ChunkingPort.js';
+import { copyBytes, normalizeByteChunk } from '../../domain/bytes/ByteLayout.js';
 
 /**
  * {@link ChunkingPort} implementation that splits data into fixed-size chunks.
@@ -40,30 +41,37 @@ export default class FixedChunker extends ChunkingPort {
 
   /**
    * @override
-   * @param {AsyncIterable<Buffer>} source - The input byte stream.
-   * @yields {Buffer}
+   * @param {AsyncIterable<Uint8Array>} source - The input byte stream.
+   * @yields {Uint8Array}
    */
   async *chunk(source) {
     const cs = this.#chunkSize;
-    const buf = Buffer.allocUnsafe(cs);
+    const buf = new Uint8Array(cs);
     let offset = 0;
 
-    for await (const data of source) {
+    for await (const chunk of source) {
+      const data = normalizeByteChunk(chunk);
       let srcPos = 0;
       while (srcPos < data.length) {
         const n = Math.min(cs - offset, data.length - srcPos);
-        data.copy(buf, offset, srcPos, srcPos + n);
+        copyBytes({
+          source: data,
+          target: buf,
+          targetOffset: offset,
+          sourceStart: srcPos,
+          sourceEnd: srcPos + n,
+        });
         offset += n;
         srcPos += n;
         if (offset === cs) {
-          yield Buffer.from(buf);
+          yield new Uint8Array(buf);
           offset = 0;
         }
       }
     }
 
     if (offset > 0) {
-      yield Buffer.from(buf.subarray(0, offset));
+      yield new Uint8Array(buf.subarray(0, offset));
     }
   }
 }

@@ -223,6 +223,10 @@ Runtime note: `framed` is the honest cross-runtime streaming answer. On Node and
 
 **Ports** define the contracts. **Adapters** implement them for specific runtimes. Swap any adapter without touching domain logic.
 
+The core byte contract is `Uint8Array`. Node `Buffer` values still work at the
+Node boundary because `Buffer` extends `Uint8Array`, but the domain, ports,
+chunkers, codecs, and shared helpers do not depend on Node-specific byte APIs.
+
 ## Multi-Runtime Support
 
 | Runtime | Version | Crypto Backend | Status |

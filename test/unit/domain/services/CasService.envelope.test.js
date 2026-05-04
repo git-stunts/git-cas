@@ -87,7 +87,7 @@ describe('CasService – envelope encryption (single recipient)', () => {
     expect(manifest.encryption.recipients[0].label).toBe('alice');
 
     const { buffer } = await service.restore({ manifest, encryptionKey: kek });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 });
 
@@ -117,7 +117,7 @@ describe('CasService – envelope encryption (multi-recipient)', () => { // esli
 
     for (const key of keys) {
       const { buffer } = await service.restore({ manifest, encryptionKey: key });
-      expect(buffer.equals(original)).toBe(true);
+      expect(Buffer.from(buffer).equals(original)).toBe(true);
     }
   });
 
@@ -186,7 +186,7 @@ describe('CasService – envelope encryption (backward compat)', () => {
     expect(manifest.encryption.recipients).toBeUndefined();
 
     const { buffer } = await service.restore({ manifest, encryptionKey: key });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
   it('unencrypted manifest restores without key', async () => {
@@ -199,7 +199,7 @@ describe('CasService – envelope encryption (backward compat)', () => {
     });
 
     const { buffer } = await service.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 });
 
@@ -225,7 +225,7 @@ describe('CasService – envelope encryption (edge cases)', () => { // eslint-di
 
     for (const key of keys) {
       const { buffer } = await service.restore({ manifest, encryptionKey: key });
-      expect(buffer.equals(original)).toBe(true);
+      expect(Buffer.from(buffer).equals(original)).toBe(true);
     }
   });
 
@@ -319,7 +319,7 @@ describe('CasService – envelope encryption (edge cases)', () => { // eslint-di
     expect(manifest.compression).toEqual({ algorithm: 'gzip' });
 
     const { buffer } = await service.restore({ manifest, encryptionKey: kek });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   }, SLOW_ENVELOPE_TEST_TIMEOUT_MS);
 });
 
@@ -346,7 +346,7 @@ describe('CasService – envelope encryption (fuzz round-trips)', () => {
 
       const idx = rng(3);
       const { buffer } = await service.restore({ manifest, encryptionKey: keys[idx] });
-      expect(buffer.equals(original)).toBe(true);
+      expect(Buffer.from(buffer).equals(original)).toBe(true);
     }
   });
 });

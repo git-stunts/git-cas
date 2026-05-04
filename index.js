@@ -6,7 +6,6 @@
 // ---------------------------------------------------------------------------
 // Imports used in the class body
 // ---------------------------------------------------------------------------
-import { createRequire } from 'node:module';
 import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
 import rotateVaultPassphrase from './src/domain/services/rotateVaultPassphrase.js';
@@ -20,9 +19,9 @@ import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
 import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
 import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
 import NodeCompressionAdapter from './src/infrastructure/adapters/NodeCompressionAdapter.js';
+import { PACKAGE_VERSION } from './src/package-version.js';
 
-const require = createRequire(import.meta.url);
-const { version: PKG_VERSION } = require('./package.json');
+const PKG_VERSION = PACKAGE_VERSION;
 
 // ---------------------------------------------------------------------------
 // Re-exports — modules used in the class body
@@ -198,11 +197,11 @@ export default class ContentAddressableStore {
   }
 
   /**
-   * Encrypts a buffer using AES-256-GCM.
+   * Encrypts bytes using AES-256-GCM.
    * @param {Object} options
-   * @param {Buffer} options.buffer - Plaintext data to encrypt.
-   * @param {Buffer} options.key - 32-byte encryption key.
-   * @returns {Promise<{ buf: Buffer, meta: { algorithm: string, nonce: string, tag: string, encrypted: boolean } }>}
+   * @param {Uint8Array} options.buffer - Plaintext data to encrypt.
+   * @param {Uint8Array} options.key - 32-byte encryption key.
+   * @returns {Promise<{ buf: Uint8Array, meta: { algorithm: string, nonce: string, tag: string, encrypted: boolean } }>}
    */
   async encrypt(options) {
     const service = await this.#getService();
@@ -210,12 +209,12 @@ export default class ContentAddressableStore {
   }
 
   /**
-   * Decrypts a buffer. Returns it unchanged if `meta.encrypted` is falsy.
+   * Decrypts bytes. Returns them unchanged if `meta.encrypted` is falsy.
    * @param {Object} options
-   * @param {Buffer} options.buffer - Ciphertext to decrypt.
-   * @param {Buffer} options.key - 32-byte encryption key.
+   * @param {Uint8Array} options.buffer - Ciphertext to decrypt.
+   * @param {Uint8Array} options.key - 32-byte encryption key.
    * @param {{ encrypted: boolean, algorithm: string, nonce: string, tag: string }} options.meta - Encryption metadata.
-   * @returns {Promise<Buffer>}
+   * @returns {Promise<Uint8Array>}
    */
   async decrypt(options) {
     const service = await this.#getService();
@@ -228,12 +227,12 @@ export default class ContentAddressableStore {
    * @param {string} options.filePath - Absolute or relative path to the file.
    * @param {string} options.slug - Logical identifier for the stored asset.
    * @param {string} [options.filename] - Override filename (defaults to basename of filePath).
-   * @param {Buffer} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
+   * @param {Uint8Array} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
    * @param {string} [options.passphrase] - Derive encryption key from passphrase.
    * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
-   * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
+   * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
   async storeFile(options) {
@@ -244,15 +243,15 @@ export default class ContentAddressableStore {
   /**
    * Stores an async iterable source in Git as chunked blobs.
    * @param {Object} options
-   * @param {AsyncIterable<Buffer>} options.source - Data to store.
+   * @param {AsyncIterable<Uint8Array>} options.source - Data to store.
    * @param {string} options.slug - Logical identifier for the stored asset.
    * @param {string} options.filename - Filename for the manifest.
-   * @param {Buffer} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
+   * @param {Uint8Array} [options.encryptionKey] - 32-byte key for AES-256-GCM encryption.
    * @param {string} [options.passphrase] - Derive encryption key from passphrase.
    * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
-   * @param {Array<{label: string, key: Buffer}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
+   * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
   async store(options) {
@@ -264,7 +263,7 @@ export default class ContentAddressableStore {
    * Restores a file from its manifest and writes it to disk.
    * @param {Object} options
    * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
-   * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * @param {string} options.outputPath - Destination file path.
    * @returns {Promise<{ bytesWritten: number }>}
@@ -275,12 +274,12 @@ export default class ContentAddressableStore {
   }
 
   /**
-   * Restores a file from its manifest, returning the buffer directly.
+   * Restores a file from its manifest, returning the bytes directly.
    * @param {Object} options
    * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
-   * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
-   * @returns {Promise<{ buffer: Buffer, bytesWritten: number }>}
+   * @returns {Promise<{ buffer: Uint8Array, bytesWritten: number }>}
    */
   async restore(options) {
     const service = await this.#getService();
@@ -288,12 +287,12 @@ export default class ContentAddressableStore {
   }
 
   /**
-   * Restores a file from its manifest as an async iterable of Buffer chunks.
+   * Restores a file from its manifest as an async iterable of byte chunks.
    * @param {Object} options
    * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
-   * @param {Buffer} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
+   * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
-   * @returns {AsyncIterable<Buffer>}
+   * @returns {AsyncIterable<Uint8Array>}
    */
   async *restoreStream(options) {
     const service = await this.#getService();
@@ -314,7 +313,7 @@ export default class ContentAddressableStore {
   /**
    * Verifies the integrity of a stored file by re-hashing its chunks.
    * @param {import('./src/domain/value-objects/Manifest.js').default} manifest - The file manifest.
-   * @param {{ encryptionKey?: Buffer, passphrase?: string }} [options] - Optional decryption credentials for encrypted manifests.
+   * @param {{ encryptionKey?: Uint8Array, passphrase?: string }} [options] - Optional decryption credentials for encrypted manifests.
    * @returns {Promise<boolean>} `true` if all chunks pass verification.
    */
   async verifyIntegrity(manifest, options) {
@@ -392,14 +391,14 @@ export default class ContentAddressableStore {
    * Derives an encryption key from a passphrase using PBKDF2 or scrypt.
    * @param {Object} options
    * @param {string} options.passphrase - The passphrase.
-   * @param {Buffer} [options.salt] - Salt (random if omitted).
+   * @param {Uint8Array} [options.salt] - Salt (random if omitted).
    * @param {'pbkdf2'|'scrypt'} [options.algorithm='pbkdf2'] - KDF algorithm.
    * @param {number} [options.iterations] - PBKDF2 iterations.
    * @param {number} [options.cost] - scrypt cost (N).
    * @param {number} [options.blockSize] - scrypt block size (r).
    * @param {number} [options.parallelization] - scrypt parallelization (p).
    * @param {number} [options.keyLength=32] - Derived key length.
-   * @returns {Promise<{ key: Buffer, salt: Buffer, params: Object }>}
+   * @returns {Promise<{ key: Uint8Array, salt: Uint8Array, params: Object }>}
    */
   async deriveKey(options) {
     const service = await this.#getService();
@@ -414,8 +413,8 @@ export default class ContentAddressableStore {
    * Adds a recipient to an envelope-encrypted manifest.
    * @param {Object} options
    * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest
-   * @param {Buffer} options.existingKey - KEK of an existing recipient.
-   * @param {Buffer} options.newRecipientKey - KEK for the new recipient.
+   * @param {Uint8Array} options.existingKey - KEK of an existing recipient.
+   * @param {Uint8Array} options.newRecipientKey - KEK for the new recipient.
    * @param {string} options.label - Label for the new recipient.
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
    */
@@ -450,8 +449,8 @@ export default class ContentAddressableStore {
    * Rotates a recipient's key without re-encrypting data blobs.
    * @param {Object} options
    * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest
-   * @param {Buffer} options.oldKey - Current KEK of the recipient to rotate.
-   * @param {Buffer} options.newKey - New KEK to wrap the DEK with.
+   * @param {Uint8Array} options.oldKey - Current KEK of the recipient to rotate.
+   * @param {Uint8Array} options.newKey - New KEK to wrap the DEK with.
    * @param {string} [options.label] - If provided, only rotate the named recipient.
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
    */

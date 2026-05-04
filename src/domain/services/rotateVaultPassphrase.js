@@ -1,6 +1,7 @@
 import CasError from '../errors/CasError.js';
 import buildKdfMetadata from '../helpers/buildKdfMetadata.js';
 import { prepareKdfOptions, prepareStoredKdfOptions } from '../../helpers/kdfPolicy.js';
+import { decodeBase64 } from '../encoding/base64.js';
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_BASE_MS = 50;
@@ -11,13 +12,13 @@ const DEFAULT_RETRY_BASE_MS = 50;
  * @param {import('./CasService.js').default} service - CasService instance.
  * @param {string} passphrase - The passphrase.
  * @param {Object} kdf - Stored KDF params (algorithm, salt, iterations, etc.).
- * @returns {Promise<Buffer>} The derived KEK.
+ * @returns {Promise<Uint8Array>} The derived KEK.
  */
 async function deriveKekFromKdf(service, passphrase, kdf) {
   const params = prepareStoredKdfOptions(kdf, { source: 'vault-metadata' });
   const { key } = await service.deriveKey({
     passphrase,
-    salt: Buffer.from(kdf.salt, 'base64'),
+    salt: decodeBase64(kdf.salt),
     ...params,
   });
   return key;
@@ -29,8 +30,8 @@ async function deriveKekFromKdf(service, passphrase, kdf) {
  * @param {Object} options
  * @param {import('./CasService.js').default} options.service - CasService instance.
  * @param {Map<string, string>} options.entries - Vault entries (slug → treeOid).
- * @param {Buffer} options.oldKek - Old key-encryption key.
- * @param {Buffer} options.newKek - New key-encryption key.
+ * @param {Uint8Array} options.oldKek - Old key-encryption key.
+ * @param {Uint8Array} options.newKek - New key-encryption key.
  * @returns {Promise<{ updatedEntries: Map<string, string>, rotatedSlugs: string[], skippedSlugs: string[] }>}
  */
 async function rotateEntries({ service, entries, oldKek, newKek }) {
@@ -68,7 +69,7 @@ function isRetryableConflict(err, attempt, maxRetries) {
  * Builds updated vault metadata with new KDF params.
  *
  * @param {Object} metadata - Existing vault metadata.
- * @param {Buffer} newSalt - New KDF salt.
+ * @param {Uint8Array} newSalt - New KDF salt.
  * @param {Object} newParams - New KDF parameters.
  * @returns {Object} Updated metadata.
  */

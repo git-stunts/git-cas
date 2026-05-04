@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Encryption scheme identifiers simplified** — `whole-v1`/`whole-v2` collapsed to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1` collapsed to `convergent`. Legacy v1/v2 scheme strings in stored manifests now throw `LEGACY_SCHEME` at `readManifest()` time with migration guidance. The `scheme` field in `ManifestSchema` is now required for all encryption metadata (previously optional for backward-compatible schemeless whole manifests).
 - **AAD is always on** — `whole` and `framed` encryption always bind slug-based AAD into the GCM tag. The v1 no-AAD path is removed.
+- **Core byte contract is now `Uint8Array`** — public and port byte surfaces now accept and return `Uint8Array` rather than Node-specific `Buffer` types. Node callers can continue passing `Buffer` values because `Buffer` extends `Uint8Array`, but restored data, chunkers, codecs, and Web Crypto adapter outputs should be treated as `Uint8Array`.
+- **WebCryptoAdapter no longer falls back to Node for scrypt** — Web Crypto does not provide scrypt. The Web adapter now reports that capability gap instead of dynamically importing `node:crypto`.
 - See [UPGRADING.md](./UPGRADING.md) for the full migration guide.
 
 ### Added
@@ -50,6 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Platform-neutral core byte pipeline** — `CasService`, `KeyResolver`, `VaultService`, convergent encryption, manifest/KDF metadata helpers, schemas, codecs, and fixed/CDC chunkers now use pure `Uint8Array` byte helpers and protocol encoders instead of `Buffer` methods. `store()` now has regression coverage for `Readable.from([new Uint8Array(...)])` in both fixed and CDC chunking modes.
+- **Architecture guard added** — `test/unit/docs/platform-boundary.test.js` now fails if platform-neutral source directories introduce `node:*` imports, `Buffer` runtime APIs, runtime globals, platform text codecs, or Node stream classes.
+- **WebCryptoAdapter HMAC is Web Crypto native** — HMAC-SHA256 now uses `crypto.subtle.sign()` instead of importing Node crypto into the Web adapter.
 - **Plaintext+compressed restore is now streaming** — compressed unencrypted data uses `_restoreCompressedStreaming` instead of the buffered path, eliminating the `maxRestoreBufferSize` constraint for this case.
 - **`formatVersion` stamped into new manifests** — new manifests include a `formatVersion` field carrying the package semver at store time. The field is optional on read for backward compatibility with older manifests.
 - **`CryptoPort._buildMeta` default scheme** — changed from `'whole-v1'` to `'whole'`.

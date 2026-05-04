@@ -113,7 +113,7 @@ describe('CasService convergent encryption — round-trip', () => {
     expect(manifest.encryption.scheme).toBe('convergent');
     expect(manifest.encryption.algorithm).toBe('aes-256-gcm');
     expect(manifest.encryption.encrypted).toBe(true);
-    expect(buffer.equals(data)).toBe(true);
+    expect(Buffer.from(buffer).equals(data)).toBe(true);
   });
 
   it('round-trips small data (single chunk)', async () => {
@@ -124,7 +124,7 @@ describe('CasService convergent encryption — round-trip', () => {
     const { manifest, buffer } = await storeAndRestore(service, data, { encryptionKey: key });
 
     expect(manifest.encryption.scheme).toBe('convergent');
-    expect(buffer.equals(data)).toBe(true);
+    expect(Buffer.from(buffer).equals(data)).toBe(true);
   });
 
   it('round-trips empty-ish single chunk', async () => {
@@ -135,7 +135,7 @@ describe('CasService convergent encryption — round-trip', () => {
     const { manifest, buffer } = await storeAndRestore(service, data, { encryptionKey: key });
 
     expect(manifest.encryption.scheme).toBe('convergent');
-    expect(buffer.equals(data)).toBe(true);
+    expect(Buffer.from(buffer).equals(data)).toBe(true);
   });
 });
 
@@ -318,7 +318,7 @@ describe('CasService convergent encryption — fixed chunking', () => {
     });
 
     expect(manifest.encryption.scheme).toBe('convergent');
-    expect(buffer.equals(data)).toBe(true);
+    expect(Buffer.from(buffer).equals(data)).toBe(true);
   });
 });
 
@@ -337,7 +337,7 @@ describe('CasService convergent encryption — backward compatibility', () => {
     });
 
     expect(manifest.encryption.scheme).toBe('framed');
-    expect(buffer.equals(data)).toBe(true);
+    expect(Buffer.from(buffer).equals(data)).toBe(true);
   });
 
   it('whole manifests still restore correctly', async () => {
@@ -351,7 +351,7 @@ describe('CasService convergent encryption — backward compatibility', () => {
     });
 
     expect(manifest.encryption.scheme).toBe('whole');
-    expect(buffer.equals(data)).toBe(true);
+    expect(Buffer.from(buffer).equals(data)).toBe(true);
   });
 });
 
@@ -377,7 +377,7 @@ describe('CasService convergent encryption — compression', () => {
     const { buffer } = await service.restore({
       manifest, encryptionKey: key,
     });
-    expect(buffer.equals(data)).toBe(true);
+    expect(Buffer.from(buffer).equals(data)).toBe(true);
   });
 });
 
@@ -400,7 +400,7 @@ describe('CasService convergent encryption — passphrase', () => {
     const { buffer } = await service.restore({
       manifest, passphrase: 'test-passphrase-123',
     });
-    expect(buffer.equals(data)).toBe(true);
+    expect(Buffer.from(buffer).equals(data)).toBe(true);
   });
 });
 
@@ -473,7 +473,7 @@ describe('CasService convergent encryption — explicit scheme', () => {
     });
 
     expect(manifest.encryption.scheme).toBe('convergent');
-    expect(buffer.equals(data)).toBe(true);
+    expect(Buffer.from(buffer).equals(data)).toBe(true);
   });
 });
 

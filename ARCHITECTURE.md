@@ -190,7 +190,7 @@ with methods that throw "not implemented" by default.
 - **`ChunkingPort`** — strategy interface for fixed-size and content-defined
   chunking.
 - **`CodecPort`** — manifest serialization and deserialization.
-- **`CompressionPort`** — compress/decompress for both buffers and streams.
+- **`CompressionPort`** — compress/decompress for both byte arrays and streams.
 - **`ObservabilityPort`** — metrics, logs, and spans without binding the domain
   to any runtime event API.
 
@@ -337,6 +337,11 @@ The core architecture is designed so the domain does not care whether it is
 running on Node, Bun, or a Web Crypto-capable environment. Runtime differences
 are isolated in the infrastructure adapters and selected by the facade or CLI
 bootstrapping code.
+
+The core byte contract is `Uint8Array`. Node's `Buffer` may appear inside Node
+adapters because it is a `Uint8Array` subclass, but domain services, ports,
+helpers, chunkers, and codecs do not depend on `Buffer` methods or `node:*`
+imports. `test/unit/docs/platform-boundary.test.js` enforces that boundary.
 
 The repo enforces this with a real Node, Bun, and Deno test matrix.
 

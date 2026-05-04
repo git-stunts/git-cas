@@ -125,7 +125,7 @@ describe('CasService.deriveKey() – determinism', () => {
     const result1 = await service.deriveKey({ passphrase, salt });
     const result2 = await service.deriveKey({ passphrase, salt });
 
-    expect(result1.key.equals(result2.key)).toBe(true);
+    expect(Buffer.from(result1.key).equals(result2.key)).toBe(true);
   });
 
   it('same passphrase + salt yields same key with scrypt', async () => {
@@ -135,7 +135,7 @@ describe('CasService.deriveKey() – determinism', () => {
     const result1 = await service.deriveKey({ passphrase, salt, algorithm: 'scrypt' });
     const result2 = await service.deriveKey({ passphrase, salt, algorithm: 'scrypt' });
 
-    expect(result1.key.equals(result2.key)).toBe(true);
+    expect(Buffer.from(result1.key).equals(result2.key)).toBe(true);
   }, SLOW_KDF_TEST_TIMEOUT_MS);
 });
 
@@ -157,7 +157,7 @@ describe('CasService.deriveKey() – different salts', () => {
     const result1 = await service.deriveKey({ passphrase, salt: salt1 });
     const result2 = await service.deriveKey({ passphrase, salt: salt2 });
 
-    expect(result1.key.equals(result2.key)).toBe(false);
+    expect(Buffer.from(result1.key).equals(result2.key)).toBe(false);
   });
 
   it('different salts yield different keys with scrypt', async () => {
@@ -168,7 +168,7 @@ describe('CasService.deriveKey() – different salts', () => {
     const result1 = await service.deriveKey({ passphrase, salt: salt1, algorithm: 'scrypt' });
     const result2 = await service.deriveKey({ passphrase, salt: salt2, algorithm: 'scrypt' });
 
-    expect(result1.key.equals(result2.key)).toBe(false);
+    expect(Buffer.from(result1.key).equals(result2.key)).toBe(false);
   }, SLOW_KDF_TEST_TIMEOUT_MS);
 });
 
@@ -199,7 +199,7 @@ describe('CasService – passphrase store/restore round-trip', () => {
     expect(manifest.encryption.kdf).toBeDefined();
 
     const { buffer, bytesWritten } = await service.restore({ manifest, passphrase });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
     expect(bytesWritten).toBe(original.length);
   });
 });
@@ -224,7 +224,7 @@ describe('CasService – passphrase multi-chunk round-trip', () => {
     expect(manifest.encryption.kdf).toBeDefined();
 
     const { buffer } = await service.restore({ manifest, passphrase: 'multi-chunk-passphrase' });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
   it('round-trips an exact chunk-boundary file with passphrase', async () => {
@@ -239,7 +239,7 @@ describe('CasService – passphrase multi-chunk round-trip', () => {
     expect(manifest.chunks.length).toBeGreaterThan(1);
 
     const { buffer } = await service.restore({ manifest, passphrase: 'exact-boundary' });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 });
 
@@ -357,7 +357,7 @@ describe('CasService – scrypt passphrase round-trip', () => {
 
     expect(manifest.encryption.kdf.algorithm).toBe('scrypt');
     const { buffer } = await service.restore({ manifest, passphrase: 'scrypt-passphrase' });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   }, SLOW_KDF_TEST_TIMEOUT_MS);
 
   it('scrypt round-trip with multi-chunk data', async () => {
@@ -372,7 +372,7 @@ describe('CasService – scrypt passphrase round-trip', () => {
 
     expect(manifest.chunks.length).toBeGreaterThan(1);
     const { buffer } = await service.restore({ manifest, passphrase: 'scrypt-multi-chunk' });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   }, SLOW_KDF_TEST_TIMEOUT_MS);
 });
 
@@ -422,7 +422,7 @@ describe('CasService – passphrase + compression round-trip', () => {
     expect(manifest.compression.algorithm).toBe('gzip');
 
     const { buffer } = await service.restore({ manifest, passphrase: 'compress-and-encrypt' });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
   it('passphrase + compression round-trip with scrypt', async () => {
@@ -438,7 +438,7 @@ describe('CasService – passphrase + compression round-trip', () => {
 
     expect(manifest.encryption.kdf.algorithm).toBe('scrypt');
     const { buffer } = await service.restore({ manifest, passphrase: 'scrypt-compress' });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   }, SLOW_KDF_TEST_TIMEOUT_MS);
 });
 
@@ -460,7 +460,7 @@ describe('CasService – passphrase + compression edge cases', () => {
     });
 
     const { buffer } = await service.restore({ manifest, passphrase: 'random-compress-encrypt' });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
   it('wrong passphrase with compression fails with INTEGRITY_ERROR', async () => {

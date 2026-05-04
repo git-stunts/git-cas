@@ -16,6 +16,7 @@
  */
 
 import ChunkingPort from '../../ports/ChunkingPort.js';
+import { copyBytes, normalizeByteChunk } from '../../domain/bytes/ByteLayout.js';
 
 // ---------------------------------------------------------------------------
 // Buzhash byte-table (256 entries, deterministic)
@@ -73,7 +74,7 @@ const WINDOW_MASK = WINDOW_SIZE - 1; // 63, for fast modulo
  * @property {Uint8Array} win    - Sliding window ring buffer.
  * @property {number} winPos     - Current write position in `win`.
  * @property {number} hashFed    - Bytes fed since last reset.
- * @property {Buffer} chunkBuf   - Pre-allocated chunk output buffer.
+ * @property {Uint8Array} chunkBuf - Pre-allocated chunk output buffer.
  * @property {number} chunkLen   - Bytes written to chunkBuf so far.
  * @property {number} minSize    - Minimum chunk size.
  * @property {number} maxSize    - Maximum chunk size.
@@ -105,7 +106,7 @@ function resetState(st) {
  * Uses a simplified hash update (no outgoing-byte removal).
  *
  * @param {ChunkState} st
- * @param {Buffer} buf   - Source buffer being processed.
+ * @param {Uint8Array} buf - Source bytes being processed.
  * @param {number} srcPos - Current read offset in `buf`.
  * @returns {number} Updated srcPos.
  */
@@ -133,7 +134,7 @@ function fillWindow(st, buf, srcPos) {
  * Bulk-copies bytes into the chunk buffer while updating the hash.
  *
  * @param {ChunkState} st
- * @param {Buffer} buf
+ * @param {Uint8Array} buf
  * @param {number} srcPos
  * @returns {number} Updated srcPos.
  */
@@ -144,8 +145,13 @@ function feedPreMin(st, buf, srcPos) {
   const end = srcPos + n;
   const table = BUZ_TABLE;
 
-  // Bulk-copy into chunk buffer
-  buf.copy(st.chunkBuf, st.chunkLen, srcPos, end);
+  copyBytes({
+    source: buf,
+    target: st.chunkBuf,
+    targetOffset: st.chunkLen,
+    sourceStart: srcPos,
+    sourceEnd: end,
+  });
 
   // Feed bytes into rolling hash (window is full)
   while (srcPos < end) {
@@ -163,7 +169,7 @@ function feedPreMin(st, buf, srcPos) {
  * Phase 3 — scan for a content-defined boundary in [minSize, maxSize).
  *
  * @param {ChunkState} st
- * @param {Buffer} buf
+ * @param {Uint8Array} buf
  * @param {number} srcPos
  * @returns {{ srcPos: number, found: boolean }}
  */
@@ -209,11 +215,11 @@ function scanBoundary(st, buf, srcPos) {
  * was found within this buffer).
  *
  * @param {ChunkState} st
- * @param {Buffer} buf
- * @returns {Buffer[]} Completed chunks ready to yield.
+ * @param {Uint8Array} buf
+ * @returns {Uint8Array[]} Completed chunks ready to yield.
  */
 function processBuf(st, buf) {
-  /** @type {Buffer[]} */
+  /** @type {Uint8Array[]} */
   const completed = [];
   let srcPos = 0;
 
@@ -234,7 +240,7 @@ function processBuf(st, buf) {
     srcPos = result.srcPos;
 
     if (result.found || st.chunkLen >= st.maxSize) {
-      completed.push(Buffer.from(st.chunkBuf.subarray(0, st.chunkLen)));
+      completed.push(new Uint8Array(st.chunkBuf.subarray(0, st.chunkLen)));
       resetState(st);
     }
   }
@@ -333,12 +339,12 @@ export default class CdcChunker extends ChunkingPort {
   /**
    * Splits an async byte stream into content-defined chunks.
    *
-   * Yields `Buffer` instances.  The caller may concatenate them or write
+   * Yields `Uint8Array` instances. The caller may concatenate them or write
    * each one directly to storage.
    *
    * @override
-   * @param {AsyncIterable<Buffer>} source - Incoming byte stream.
-   * @yields {Buffer} Content-defined chunks.
+   * @param {AsyncIterable<Uint8Array>} source - Incoming byte stream.
+   * @yields {Uint8Array} Content-defined chunks.
    */
   async *chunk(source) {
     /** @type {ChunkState} */
@@ -347,7 +353,7 @@ export default class CdcChunker extends ChunkingPort {
       win: new Uint8Array(WINDOW_SIZE),
       winPos: 0,
       hashFed: 0,
-      chunkBuf: Buffer.allocUnsafe(this.#maxChunkSize),
+      chunkBuf: new Uint8Array(this.#maxChunkSize),
       chunkLen: 0,
       minSize: this.#minChunkSize,
       maxSize: this.#maxChunkSize,
@@ -358,14 +364,15 @@ export default class CdcChunker extends ChunkingPort {
       normalized: this.#normalized,
     };
 
-    for await (const buf of source) {
+    for await (const chunk of source) {
+      const buf = normalizeByteChunk(chunk);
       const chunks = processBuf(st, buf);
       for (const c of chunks) { yield c; }
     }
 
     // Flush final partial chunk (may be < minSize — allowed for EOF).
     if (st.chunkLen > 0) {
-      yield Buffer.from(st.chunkBuf.subarray(0, st.chunkLen));
+      yield new Uint8Array(st.chunkBuf.subarray(0, st.chunkLen));
     }
   }
 }

@@ -91,7 +91,7 @@ describe('CasService.restore() – plaintext round-trip', () => {
 
     const { buffer, bytesWritten } = await service.restore({ manifest });
 
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
     expect(bytesWritten).toBe(original.length);
   });
 
@@ -102,7 +102,7 @@ describe('CasService.restore() – plaintext round-trip', () => {
 
     const { buffer, bytesWritten } = await service.restore({ manifest });
 
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
     expect(bytesWritten).toBe(original.length);
   });
 
@@ -112,7 +112,7 @@ describe('CasService.restore() – plaintext round-trip', () => {
     expect(manifest.chunks.length).toBe(2);
 
     const { buffer } = await service.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 });
 
@@ -139,7 +139,7 @@ describe('CasService.restore() – encrypted round-trip', () => {
       encryptionKey: key,
     });
 
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
     expect(bytesWritten).toBe(original.length);
   });
 
@@ -149,7 +149,7 @@ describe('CasService.restore() – encrypted round-trip', () => {
     const manifest = await storeBuffer(service, original, { encryptionKey: key });
 
     const { buffer } = await service.restore({ manifest, encryptionKey: key });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 });
 
@@ -398,7 +398,7 @@ describe('CasService.restore() – fuzz round-trip', () => {
 
       const manifest = await storeBuffer(service, original);
       const { buffer } = await service.restore({ manifest });
-      expect(buffer.equals(original)).toBe(true);
+      expect(Buffer.from(buffer).equals(original)).toBe(true);
     });
   }
 
@@ -411,7 +411,7 @@ describe('CasService.restore() – fuzz round-trip', () => {
 
       const manifest = await storeBuffer(service, original, { encryptionKey: key });
       const { buffer } = await service.restore({ manifest, encryptionKey: key });
-      expect(buffer.equals(original)).toBe(true);
+      expect(Buffer.from(buffer).equals(original)).toBe(true);
     });
   }
 });

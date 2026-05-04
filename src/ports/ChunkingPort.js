@@ -35,9 +35,9 @@ export default class ChunkingPort {
    * Splits an async byte stream into chunks.
    *
    * @abstract
-   * @param {AsyncIterable<Buffer>} _source - The input byte stream.
-   * @yields {Buffer} Chunks of data whose size depends on the strategy.
-   * @returns {AsyncGenerator<Buffer>}
+   * @param {AsyncIterable<Uint8Array>} _source - The input byte stream.
+   * @yields {Uint8Array} Chunks of data whose size depends on the strategy.
+   * @returns {AsyncGenerator<Uint8Array>}
    */
   async *chunk(_source) { // eslint-disable-line require-yield
     throw new Error('Not implemented');

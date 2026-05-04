@@ -18,20 +18,20 @@ export type { CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasS
 
 /** Abstract port for compression and decompression of buffers and streams. */
 export declare class CompressionPortBase {
-  compressBuffer(buffer: Buffer): Promise<Buffer>;
-  decompressBuffer(buffer: Buffer): Promise<Buffer>;
-  compressStream(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
-  decompressStream(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
+  compressBuffer(buffer: Uint8Array): Promise<Uint8Array>;
+  decompressBuffer(buffer: Uint8Array): Promise<Uint8Array>;
+  compressStream(source: AsyncIterable<Uint8Array>): AsyncIterable<Uint8Array>;
+  decompressStream(source: AsyncIterable<Uint8Array>): AsyncIterable<Uint8Array>;
 }
 
-/** Node.js compression adapter using node:zlib (gzip/gunzip). */
+/** Node.js compression adapter using gzip/gunzip. */
 export declare class NodeCompressionAdapter extends CompressionPortBase {}
 
 /** Abstract port for splitting a byte stream into chunks. */
 export declare class ChunkingPort {
   get strategy(): string;
   get params(): Record<string, unknown>;
-  chunk(source: AsyncIterable<Buffer>): AsyncIterable<Buffer>;
+  chunk(source: AsyncIterable<Uint8Array>): AsyncIterable<Uint8Array>;
 }
 
 /** Fixed-size chunking adapter. */
@@ -55,42 +55,42 @@ export declare class CdcChunker extends ChunkingPort {
 
 /** Abstract port for cryptographic operations. */
 export declare class CryptoPortBase {
-  sha256(buf: Buffer): Promise<string>;
-  randomBytes(n: number): Buffer;
+  sha256(buf: Uint8Array): Promise<string>;
+  randomBytes(n: number): Uint8Array;
   encryptBuffer(
-    buffer: Buffer,
-    key: Buffer,
-    aad?: Buffer | Uint8Array,
-  ): { buf: Buffer; meta: EncryptionMeta } | Promise<{ buf: Buffer; meta: EncryptionMeta }>;
-  decryptBuffer(buffer: Buffer, key: Buffer, meta: EncryptionMeta, aad?: Buffer | Uint8Array): Buffer | Promise<Buffer>;
-  createEncryptionStream(key: Buffer, aad?: Buffer | Uint8Array): {
-    encrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
+    buffer: Uint8Array,
+    key: Uint8Array,
+    aad?: Uint8Array,
+  ): { buf: Uint8Array; meta: EncryptionMeta } | Promise<{ buf: Uint8Array; meta: EncryptionMeta }>;
+  decryptBuffer(buffer: Uint8Array, key: Uint8Array, meta: EncryptionMeta, aad?: Uint8Array): Uint8Array | Promise<Uint8Array>;
+  createEncryptionStream(key: Uint8Array, aad?: Uint8Array): {
+    encrypt: (source: AsyncIterable<Uint8Array>) => AsyncIterable<Uint8Array>;
     finalize: () => EncryptionMeta;
   };
-  createDecryptionStream(key: Buffer, meta: EncryptionMeta, aad?: Buffer | Uint8Array): {
-    decrypt: (source: AsyncIterable<Buffer>) => AsyncIterable<Buffer>;
+  createDecryptionStream(key: Uint8Array, meta: EncryptionMeta, aad?: Uint8Array): {
+    decrypt: (source: AsyncIterable<Uint8Array>) => AsyncIterable<Uint8Array>;
   };
-  hmacSha256(key: Buffer | Uint8Array, data: Buffer | Uint8Array | string): Buffer;
+  hmacSha256(key: Uint8Array, data: Uint8Array): Uint8Array | Promise<Uint8Array>;
   encryptBufferWithNonce(
-    buffer: Buffer | Uint8Array,
-    key: Buffer | Uint8Array,
-    nonce: Buffer | Uint8Array,
-  ): { buf: Buffer; tag: Buffer } | Promise<{ buf: Buffer; tag: Buffer }>;
+    buffer: Uint8Array,
+    key: Uint8Array,
+    nonce: Uint8Array,
+  ): { buf: Uint8Array; tag: Uint8Array } | Promise<{ buf: Uint8Array; tag: Uint8Array }>;
   decryptBufferWithNonceTag(
-    buffer: Buffer | Uint8Array,
-    key: Buffer | Uint8Array,
-    nonce: Buffer | Uint8Array,
-    tag: Buffer | Uint8Array,
-  ): Buffer | Promise<Buffer>;
+    buffer: Uint8Array,
+    key: Uint8Array,
+    nonce: Uint8Array,
+    tag: Uint8Array,
+  ): Uint8Array | Promise<Uint8Array>;
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }
 
 /** Abstract port for persisting data to Git's object database. */
 export declare class GitPersistencePortBase {
-  writeBlob(content: Buffer | string): Promise<string>;
+  writeBlob(content: Uint8Array): Promise<string>;
   writeTree(entries: string[]): Promise<string>;
-  readBlob(oid: string): Promise<Buffer>;
-  readBlobStream(oid: string): Promise<AsyncIterable<Buffer>>;
+  readBlob(oid: string): Promise<Uint8Array>;
+  readBlobStream(oid: string): Promise<AsyncIterable<Uint8Array>>;
   readTree(
     treeOid: string,
   ): Promise<Array<{ mode: string; type: string; oid: string; name: string }>>;
@@ -129,8 +129,8 @@ export declare class NodeCryptoAdapter extends CryptoPortBase {
 
 /** Abstract codec interface for manifest serialization. */
 export declare class CodecPortBase {
-  encode(data: object): Buffer | string;
-  decode(buffer: Buffer | string): object;
+  encode(data: object): Uint8Array;
+  decode(buffer: Uint8Array): object;
   get extension(): string;
 }
 
@@ -259,7 +259,7 @@ export declare class VaultService {
   /** Reads the current vault state from refs/cas/vault. */
   readState(options?: {
     /** Vault encryption key (required when privacy mode is enabled). */
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
   }): Promise<VaultState>;
 
   /** Writes a new vault commit and updates the ref atomically. */
@@ -269,7 +269,7 @@ export declare class VaultService {
     parentCommitOid: string | null;
     message: string;
     /** Vault encryption key (required when privacy mode is enabled). */
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
   }): Promise<{ commitOid: string }>;
 
   /** Initializes the vault, optionally with encryption and privacy mode. */
@@ -286,27 +286,27 @@ export declare class VaultService {
     treeOid: string;
     force?: boolean;
     /** Vault encryption key (required when privacy mode is enabled). */
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
   }): Promise<{ commitOid: string }>;
 
   /** Lists all vault entries sorted by slug. */
   listVault(options?: {
     /** Vault encryption key (required when privacy mode is enabled). */
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
   }): Promise<VaultEntry[]>;
 
   /** Removes an entry from the vault. */
   removeFromVault(options: {
     slug: string;
     /** Vault encryption key (required when privacy mode is enabled). */
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
   }): Promise<{ commitOid: string; removedTreeOid: string }>;
 
   /** Resolves a vault entry slug to its tree OID. */
   resolveVaultEntry(options: {
     slug: string;
     /** Vault encryption key (required when privacy mode is enabled). */
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
   }): Promise<string>;
 
   /** Returns the vault metadata, or null if no vault exists. */
@@ -367,58 +367,58 @@ export default class ContentAddressableStore {
   static diffManifests(oldManifest: Manifest, newManifest: Manifest): ManifestDiffResult;
 
   encrypt(options: {
-    buffer: Buffer;
-    key: Buffer;
-  }): Promise<{ buf: Buffer; meta: EncryptionMeta }>;
+    buffer: Uint8Array;
+    key: Uint8Array;
+  }): Promise<{ buf: Uint8Array; meta: EncryptionMeta }>;
 
   decrypt(options: {
-    buffer: Buffer;
-    key: Buffer;
+    buffer: Uint8Array;
+    key: Uint8Array;
     meta: EncryptionMeta;
-  }): Promise<Buffer>;
+  }): Promise<Uint8Array>;
 
   storeFile(options: {
     filePath: string;
     slug: string;
     filename?: string;
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
     passphrase?: string;
     encryption?: StoreEncryptionOptions;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
-    recipients?: Array<{ label: string; key: Buffer }>;
+    recipients?: Array<{ label: string; key: Uint8Array }>;
   }): Promise<Manifest>;
 
   store(options: {
-    source: AsyncIterable<Buffer>;
+    source: AsyncIterable<Uint8Array>;
     slug: string;
     filename: string;
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
     passphrase?: string;
     encryption?: StoreEncryptionOptions;
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
-    recipients?: Array<{ label: string; key: Buffer }>;
+    recipients?: Array<{ label: string; key: Uint8Array }>;
   }): Promise<Manifest>;
 
   restoreFile(options: {
     manifest: Manifest;
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
     passphrase?: string;
     outputPath: string;
   }): Promise<{ bytesWritten: number }>;
 
   restore(options: {
     manifest: Manifest;
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
     passphrase?: string;
-  }): Promise<{ buffer: Buffer; bytesWritten: number }>;
+  }): Promise<{ buffer: Uint8Array; bytesWritten: number }>;
 
   restoreStream(options: {
     manifest: Manifest;
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
     passphrase?: string;
-  }): AsyncIterable<Buffer>;
+  }): AsyncIterable<Uint8Array>;
 
   createTree(options: { manifest: Manifest }): Promise<string>;
 
@@ -448,8 +448,8 @@ export default class ContentAddressableStore {
 
   addRecipient(options: {
     manifest: Manifest;
-    existingKey: Buffer;
-    newRecipientKey: Buffer;
+    existingKey: Uint8Array;
+    newRecipientKey: Uint8Array;
     label: string;
   }): Promise<Manifest>;
 
@@ -462,8 +462,8 @@ export default class ContentAddressableStore {
 
   rotateKey(options: {
     manifest: Manifest;
-    oldKey: Buffer;
-    newKey: Buffer;
+    oldKey: Uint8Array;
+    newKey: Uint8Array;
     label?: string;
   }): Promise<Manifest>;
 
@@ -483,24 +483,24 @@ export default class ContentAddressableStore {
     treeOid: string;
     force?: boolean;
     /** Vault encryption key (required when privacy mode is enabled). */
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
   }): Promise<{ commitOid: string }>;
 
   listVault(options?: {
     /** Vault encryption key (required when privacy mode is enabled). */
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
   }): Promise<VaultEntry[]>;
 
   removeFromVault(options: {
     slug: string;
     /** Vault encryption key (required when privacy mode is enabled). */
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
   }): Promise<{ commitOid: string; removedTreeOid: string }>;
 
   resolveVaultEntry(options: {
     slug: string;
     /** Vault encryption key (required when privacy mode is enabled). */
-    encryptionKey?: Buffer;
+    encryptionKey?: Uint8Array;
   }): Promise<string>;
 
   getVaultMetadata(): Promise<VaultMetadata | null>;

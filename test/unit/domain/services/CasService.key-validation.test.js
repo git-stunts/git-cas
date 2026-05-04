@@ -114,7 +114,7 @@ describe('CasService key validation – encrypt() invalid key type', () => {
       await service.encrypt({ buffer: plaintext, key });
     } catch (err) {
       expect(err.code).toBe('INVALID_KEY_TYPE');
-      expect(err.message).toContain('must be a Buffer or Uint8Array');
+      expect(err.message).toContain('must be a Uint8Array');
     }
   });
 
@@ -125,7 +125,7 @@ describe('CasService key validation – encrypt() invalid key type', () => {
       await service.encrypt({ buffer: plaintext, key });
     } catch (err) {
       expect(err.code).toBe('INVALID_KEY_TYPE');
-      expect(err.message).toContain('must be a Buffer or Uint8Array');
+      expect(err.message).toContain('must be a Uint8Array');
     }
   });
 
@@ -136,7 +136,7 @@ describe('CasService key validation – encrypt() invalid key type', () => {
       await service.encrypt({ buffer: plaintext, key });
     } catch (err) {
       expect(err.code).toBe('INVALID_KEY_TYPE');
-      expect(err.message).toContain('must be a Buffer or Uint8Array');
+      expect(err.message).toContain('must be a Uint8Array');
     }
   });
 });

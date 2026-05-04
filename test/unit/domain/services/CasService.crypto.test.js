@@ -43,28 +43,28 @@ describe('CasService encryption – round-trip golden path', () => {
     const plaintext = Buffer.alloc(0);
     const { buf, meta } = await service.encrypt({ buffer: plaintext, key });
     const decrypted = await service.decrypt({ buffer: buf, key, meta });
-    expect(decrypted.equals(plaintext)).toBe(true);
+    expect(Buffer.from(decrypted).equals(plaintext)).toBe(true);
   });
 
   it('encrypts then decrypts a 1-byte buffer', async () => {
     const plaintext = Buffer.from([0x42]);
     const { buf, meta } = await service.encrypt({ buffer: plaintext, key });
     const decrypted = await service.decrypt({ buffer: buf, key, meta });
-    expect(decrypted.equals(plaintext)).toBe(true);
+    expect(Buffer.from(decrypted).equals(plaintext)).toBe(true);
   });
 
   it('encrypts then decrypts a 1 KB buffer', async () => {
     const plaintext = randomBytes(1024);
     const { buf, meta } = await service.encrypt({ buffer: plaintext, key });
     const decrypted = await service.decrypt({ buffer: buf, key, meta });
-    expect(decrypted.equals(plaintext)).toBe(true);
+    expect(Buffer.from(decrypted).equals(plaintext)).toBe(true);
   });
 
   it('encrypts then decrypts a 1 MB buffer', async () => {
     const plaintext = randomBytes(1024 * 1024);
     const { buf, meta } = await service.encrypt({ buffer: plaintext, key });
     const decrypted = await service.decrypt({ buffer: buf, key, meta });
-    expect(decrypted.equals(plaintext)).toBe(true);
+    expect(Buffer.from(decrypted).equals(plaintext)).toBe(true);
   });
 });
 
@@ -170,13 +170,13 @@ describe('CasService encryption – passthrough', () => {
   it('returns buffer unchanged when meta.encrypted is false', async () => {
     const buffer = Buffer.from('not encrypted');
     const result = await service.decrypt({ buffer, key: undefined, meta: { encrypted: false } });
-    expect(result.equals(buffer)).toBe(true);
+    expect(Buffer.from(result).equals(buffer)).toBe(true);
   });
 
   it('returns buffer unchanged when meta is undefined', async () => {
     const buffer = Buffer.from('no meta at all');
     const result = await service.decrypt({ buffer, key: undefined, meta: undefined });
-    expect(result.equals(buffer)).toBe(true);
+    expect(Buffer.from(result).equals(buffer)).toBe(true);
   });
 });
 
@@ -203,7 +203,7 @@ describe('CasService encryption – fuzz round-trip', () => {
 
       const { buf, meta } = await service.encrypt({ buffer: plaintext, key });
       const decrypted = await service.decrypt({ buffer: buf, key, meta });
-      expect(decrypted.equals(plaintext)).toBe(true);
+      expect(Buffer.from(decrypted).equals(plaintext)).toBe(true);
     });
   }
 });

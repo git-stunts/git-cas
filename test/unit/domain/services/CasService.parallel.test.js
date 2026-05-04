@@ -162,7 +162,7 @@ describe('Parallel I/O – sequential baseline', () => {
     const original = randomBytes(4096);
     const manifest = await storeBuffer(service, original);
     const { buffer } = await service.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 });
 
@@ -172,7 +172,7 @@ describe('Parallel I/O – concurrent store+restore', () => {
     const original = randomBytes(8192);
     const manifest = await storeBuffer(service, original);
     const { buffer } = await service.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
   it('concurrency: 4 — chunks are in order', async () => {
@@ -221,7 +221,7 @@ describe('Parallel I/O – encrypted + compressed', () => {
       encryptionKey: key, compression: { algorithm: 'gzip' },
     });
     const { buffer } = await service.restore({ manifest, encryptionKey: key });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 
   it('1-chunk file with concurrency: 10', async () => {
@@ -229,7 +229,7 @@ describe('Parallel I/O – encrypted + compressed', () => {
     const original = randomBytes(512);
     const manifest = await storeBuffer(service, original);
     const { buffer } = await service.restore({ manifest });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 });
 

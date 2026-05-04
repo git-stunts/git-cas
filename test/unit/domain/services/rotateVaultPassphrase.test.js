@@ -124,7 +124,7 @@ describe('rotateVaultPassphrase – 3 envelope entries', () => {
       const treeOid = await vault.resolveVaultEntry({ slug: name });
       const manifest = await service.readManifest({ treeOid });
       const { buffer } = await service.restore({ manifest, encryptionKey: newKey });
-      expect(buffer.equals(originals[name])).toBe(true);
+      expect(Buffer.from(buffer).equals(originals[name])).toBe(true);
     }
   }, LONG_TEST_TIMEOUT_MS);
 });

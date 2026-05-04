@@ -114,7 +114,7 @@ describe('CasService compression – store+restore round-trip', () => {
 
     const { buffer, bytesWritten } = await service.restore({ manifest });
 
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
     expect(bytesWritten).toBe(original.length);
   });
 });
@@ -162,7 +162,7 @@ describe('CasService compression – compression + encryption round-trip', () =>
     expect(manifest.compression).toBeDefined();
     expect(manifest.encryption).toBeDefined();
     expect(manifest.encryption.encrypted).toBe(true);
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
     expect(bytesWritten).toBe(original.length);
   });
 
@@ -174,7 +174,7 @@ describe('CasService compression – compression + encryption round-trip', () =>
 
     expect(manifest.compression).toBeDefined();
     expect(manifest.encryption.scheme).toBe('framed');
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
     expect(bytesWritten).toBe(original.length);
   });
 });
@@ -225,7 +225,7 @@ describe('CasService compression – incompressible data', () => {
 
     const { buffer, bytesWritten } = await service.restore({ manifest });
 
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
     expect(bytesWritten).toBe(original.length);
   });
 });
@@ -280,7 +280,7 @@ describe('CasService compression – backward compatibility', () => {
 
     const { buffer, bytesWritten } = await service.restore({ manifest });
 
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
     expect(bytesWritten).toBe(original.length);
   });
 
@@ -297,7 +297,7 @@ describe('CasService compression – backward compatibility', () => {
 
     const { buffer } = await service.restore({ manifest, encryptionKey: key });
 
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   });
 });
 
@@ -348,7 +348,7 @@ describe('CasService compression – fuzz round-trip across sizes', () => {
 
       const { buffer } = await service.restore({ manifest });
 
-      expect(buffer.equals(original)).toBe(true);
+      expect(Buffer.from(buffer).equals(original)).toBe(true);
     });
   }
 
@@ -367,7 +367,7 @@ describe('CasService compression – fuzz round-trip across sizes', () => {
 
       const { buffer } = await service.restore({ manifest, encryptionKey: key });
 
-      expect(buffer.equals(original)).toBe(true);
+      expect(Buffer.from(buffer).equals(original)).toBe(true);
     }, size >= 5000 ? SLOW_COMPRESSION_TEST_TIMEOUT_MS : undefined);
   }
 });

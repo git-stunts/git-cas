@@ -81,7 +81,7 @@ describe('CasService – addRecipient', () => { // eslint-disable-line max-lines
     // Both keys can restore
     for (const key of [alice, bob]) {
       const { buffer } = await service.restore({ manifest: updated, encryptionKey: key });
-      expect(buffer.equals(original)).toBe(true);
+      expect(Buffer.from(buffer).equals(original)).toBe(true);
     }
   });
 
@@ -189,7 +189,7 @@ describe('CasService – removeRecipient', () => { // eslint-disable-line max-li
 
     // Alice can still restore
     const { buffer } = await service.restore({ manifest: updated, encryptionKey: alice });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
 
     // Bob cannot
     try {

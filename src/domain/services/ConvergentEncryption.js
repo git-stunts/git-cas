@@ -8,6 +8,8 @@
  * Receives a CryptoPort via constructor injection — no platform dependencies.
  */
 import CasError from '../errors/CasError.js';
+import { concatBytes } from '../bytes/ByteLayout.js';
+import { utf8Encode } from '../encoding/utf8.js';
 
 const GCM_TAG_BYTES = 16;
 
@@ -33,50 +35,56 @@ export default class ConvergentEncryption {
 
   /**
    * Derives the per-chunk AES-256 key from the master key and chunk digest.
-   * @param {Buffer} masterKey
+   * @param {Uint8Array} masterKey
    * @param {string} digest - 64-char hex SHA-256 of the plaintext chunk.
-   * @returns {Buffer} 32-byte derived key.
+   * @returns {Promise<Uint8Array>} 32-byte derived key.
    */
-  deriveChunkKey(masterKey, digest) {
-    return this.#crypto.hmacSha256(masterKey, `git-cas-convergent-key:${digest}`).subarray(0, 32);
+  async deriveChunkKey(masterKey, digest) {
+    const digestBytes = await Promise.resolve(
+      this.#crypto.hmacSha256(masterKey, utf8Encode(`git-cas-convergent-key:${digest}`)),
+    );
+    return digestBytes.subarray(0, 32);
   }
 
   /**
    * Derives the per-chunk 12-byte nonce from the master key and chunk digest.
-   * @param {Buffer} masterKey
+   * @param {Uint8Array} masterKey
    * @param {string} digest - 64-char hex SHA-256 of the plaintext chunk.
-   * @returns {Buffer} 12-byte derived nonce.
+   * @returns {Promise<Uint8Array>} 12-byte derived nonce.
    */
-  deriveChunkNonce(masterKey, digest) {
-    return this.#crypto.hmacSha256(masterKey, `git-cas-convergent-nonce:${digest}`).subarray(0, 12);
+  async deriveChunkNonce(masterKey, digest) {
+    const digestBytes = await Promise.resolve(
+      this.#crypto.hmacSha256(masterKey, utf8Encode(`git-cas-convergent-nonce:${digest}`)),
+    );
+    return digestBytes.subarray(0, 12);
   }
 
   /**
    * Encrypts a plaintext chunk for convergent storage.
    *
-   * @param {Buffer} plaintext - Chunk data.
-   * @param {Buffer} masterKey - Convergent master key.
+   * @param {Uint8Array} plaintext - Chunk data.
+   * @param {Uint8Array} masterKey - Convergent master key.
    * @param {string} digest - SHA-256 hex digest of plaintext.
-   * @returns {Promise<Buffer>} Blob data: ciphertext || 16-byte GCM tag.
+   * @returns {Promise<Uint8Array>} Blob data: ciphertext || 16-byte GCM tag.
    */
   async encryptChunk(plaintext, masterKey, digest) {
-    const key = this.deriveChunkKey(masterKey, digest);
-    const nonce = this.deriveChunkNonce(masterKey, digest);
+    const key = await this.deriveChunkKey(masterKey, digest);
+    const nonce = await this.deriveChunkNonce(masterKey, digest);
     const { buf, tag } = await Promise.resolve(
       this.#crypto.encryptBufferWithNonce(plaintext, key, nonce),
     );
-    return Buffer.concat([buf, tag]);
+    return concatBytes([buf, tag]);
   }
 
   /**
    * Decrypts a convergent-encrypted chunk and verifies its plaintext digest.
    *
    * @param {Object} options
-   * @param {Buffer} options.blob - Encrypted blob (ciphertext || 16-byte tag).
-   * @param {Buffer} options.masterKey - Convergent master key.
+   * @param {Uint8Array} options.blob - Encrypted blob (ciphertext || 16-byte tag).
+   * @param {Uint8Array} options.masterKey - Convergent master key.
    * @param {string} options.expectedDigest - Expected SHA-256 hex digest of plaintext.
    * @param {number} options.chunkIndex - Chunk index (for error context).
-   * @returns {Promise<Buffer>} Verified plaintext.
+   * @returns {Promise<Uint8Array>} Verified plaintext.
    * @throws {CasError} INTEGRITY_ERROR on decryption failure or digest mismatch.
    */
   async decryptAndVerifyChunk({ blob, masterKey, expectedDigest, chunkIndex }) {
@@ -89,8 +97,8 @@ export default class ConvergentEncryption {
     }
     const ciphertext = blob.subarray(0, -GCM_TAG_BYTES);
     const tag = blob.subarray(-GCM_TAG_BYTES);
-    const key = this.deriveChunkKey(masterKey, expectedDigest);
-    const nonce = this.deriveChunkNonce(masterKey, expectedDigest);
+    const key = await this.deriveChunkKey(masterKey, expectedDigest);
+    const nonce = await this.deriveChunkNonce(masterKey, expectedDigest);
 
     let plaintext;
     try {

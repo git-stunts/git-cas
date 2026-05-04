@@ -432,13 +432,13 @@ describe('CryptoPort.hmacSha256', () => {
     const result2 = crypto.hmacSha256(TEST_KEY, 'hello');
     expect(Buffer.isBuffer(result1)).toBe(true);
     expect(result1.length).toBe(32);
-    expect(result1.equals(result2)).toBe(true);
+    expect(Buffer.from(result1).equals(result2)).toBe(true);
   });
 
   it('produces different output for different data', () => {
     const crypto = mockCrypto();
     const a = crypto.hmacSha256(TEST_KEY, 'alpha');
     const b = crypto.hmacSha256(TEST_KEY, 'beta');
-    expect(a.equals(b)).toBe(false);
+    expect(Buffer.from(a).equals(b)).toBe(false);
   });
 });

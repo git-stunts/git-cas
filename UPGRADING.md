@@ -85,6 +85,22 @@ Original blobs are never deleted — Git's garbage collection only removes unref
 
 ## API Changes
 
+### Byte Types
+
+Public byte-oriented APIs now use `Uint8Array` instead of Node-specific
+`Buffer` types:
+
+- `store({ source })` expects `AsyncIterable<Uint8Array>`.
+- `restore()` returns `{ buffer: Uint8Array, bytesWritten }`.
+- `restoreStream()` yields `Uint8Array` chunks.
+- Port implementations for crypto, compression, chunking, persistence, and
+  codecs should accept and return `Uint8Array`.
+
+Node callers can still pass `Buffer` values because `Buffer` is a
+`Uint8Array` subclass. Code that calls `buffer.equals(...)` on restore results
+should compare with `Buffer.from(buffer).equals(...)` or use a runtime-neutral
+byte comparison helper.
+
 ### CasService Constructor (Library Users)
 
 **If you use `ContentAddressableStore` (the facade):** No changes needed. The facade handles all defaults.
@@ -113,11 +129,11 @@ If you implement a custom `CryptoPort`, you must add these methods:
 
 ```js
 // HMAC-SHA256 (used by vault privacy mode)
-hmacSha256(key, data) { /* return 32-byte Buffer */ }
+hmacSha256(key, data) { /* return 32-byte Uint8Array or Promise<Uint8Array> */ }
 
 // Deterministic encryption (used by convergent encryption)
 encryptBufferWithNonce(buffer, key, nonce) { /* return { buf, tag } */ }
-decryptBufferWithNonceTag(buffer, key, nonce, tag) { /* return Buffer */ }
+decryptBufferWithNonceTag(buffer, key, nonce, tag) { /* return Uint8Array */ }
 ```
 
 The shipped adapters (`NodeCryptoAdapter`, `BunCryptoAdapter`, `WebCryptoAdapter`) already implement these.

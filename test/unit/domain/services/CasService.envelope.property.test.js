@@ -85,7 +85,7 @@ async function assertEnvelopeRoundTrip(original, recipients) {
       manifest,
       encryptionKey: recipient.key,
     });
-    expect(buffer.equals(original)).toBe(true);
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   }
 }
 

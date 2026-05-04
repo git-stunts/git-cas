@@ -54,14 +54,14 @@ describe('CryptoPort._validateKey()', () => {
   });
 
   it('throws INVALID_KEY_TYPE for a string', () => {
-    expect(() => port._validateKey('not-a-buffer')).toThrow('Buffer or Uint8Array');
+    expect(() => port._validateKey('not-a-buffer')).toThrow('Uint8Array');
     try { port._validateKey('not-a-buffer'); } catch (err) {
       expect(err.code).toBe('INVALID_KEY_TYPE');
     }
   });
 
   it('throws INVALID_KEY_TYPE for a number', () => {
-    expect(() => port._validateKey(42)).toThrow('Buffer or Uint8Array');
+    expect(() => port._validateKey(42)).toThrow('Uint8Array');
   });
 
   it('throws INVALID_KEY_LENGTH for wrong length Buffer', () => {

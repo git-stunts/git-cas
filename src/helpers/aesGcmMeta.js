@@ -1,24 +1,9 @@
 import CasError from '../domain/errors/CasError.js';
+import { decodeBase64, encodeBase64, isCanonicalBase64 } from '../domain/encoding/base64.js';
 
 export const AES_GCM_ALGORITHM = 'aes-256-gcm';
 export const AES_GCM_NONCE_BYTES = 12;
 export const AES_GCM_TAG_BYTES = 16;
-
-const CANONICAL_BASE64_RE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-
-function encodeBase64(bytes) {
-  if (globalThis.Buffer) {
-    return Buffer.from(bytes).toString('base64');
-  }
-  return globalThis.btoa(String.fromCharCode(...new Uint8Array(bytes)));
-}
-
-function decodeBase64(value) {
-  if (globalThis.Buffer) {
-    return Buffer.from(value, 'base64');
-  }
-  return Uint8Array.from(globalThis.atob(value), (char) => char.charCodeAt(0));
-}
 
 function invalidMeta(message, meta) {
   return new CasError(`Invalid AES-GCM metadata: ${message}`, 'INTEGRITY_ERROR', {
@@ -31,7 +16,7 @@ function decodeField(field, value, byteLength) {
   if (typeof value !== 'string' || value.length === 0) {
     throw invalidMeta(`${field} must be a non-empty base64 string`, { field });
   }
-  if (!CANONICAL_BASE64_RE.test(value)) {
+  if (!isCanonicalBase64(value)) {
     throw invalidMeta(`${field} must be canonical base64`, { field });
   }
   const decoded = decodeBase64(value);

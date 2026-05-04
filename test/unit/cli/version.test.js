@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PACKAGE_VERSION } from '../../../src/package-version.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.resolve(__dirname, '../../../bin/git-cas.js');
@@ -15,6 +16,10 @@ const RUNTIME_CMD = globalThis.Bun
     : ['node', BIN];
 
 describe('git-cas --version', () => {
+  it('keeps the package-version export in sync with package metadata', () => {
+    expect(PACKAGE_VERSION).toBe(version);
+  });
+
   it('matches package metadata', () => {
     const result = spawnSync(RUNTIME_CMD[0], [...RUNTIME_CMD.slice(1), '--version'], {
       encoding: 'utf8',
