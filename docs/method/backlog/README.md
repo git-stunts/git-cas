@@ -93,7 +93,6 @@ Resolved — `security/audit-fixes` branch:
 Active:
 
 - [RL — Agent CLI Module Size](./bad-code/RL_agent-cli-module-size.md)
-- [SEC — Inline Passphrase Flags](./bad-code/SEC_inline-passphrase-flags.md)
 - [TR — CasService Decomposition Pressure](./bad-code/TR_casservice-decomposition-pressure.md)
 - [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md)
 - [SEC — Vault Passphrase Verifier Gap](./bad-code/SEC_vault-passphrase-verifier-gap.md)
@@ -103,6 +102,7 @@ Resolved — 2026-05-05 release-truth cleanup:
 - [DOC — API Reference Plumbing Constructor Drift](./bad-code/DOC_api-plumbing-constructor-drift.md) ✅
 - [DOC — Examples Uint8Array Drift](./bad-code/DOC_examples-uint8array-drift.md) ✅
 - [DOC — Threat Model Scheme Drift](./bad-code/DOC_threat-model-scheme-drift.md) ✅
+- [SEC — Inline Passphrase Flags](./bad-code/SEC_inline-passphrase-flags.md) ✅
 - [SEC — Vault Nonce Exhaustion Cap](./bad-code/SEC_vault-nonce-exhaustion-cap.md) ✅
 
 Resolved — `security/audit-fixes` branch:

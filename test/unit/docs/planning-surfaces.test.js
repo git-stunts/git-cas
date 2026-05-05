@@ -26,6 +26,21 @@ function markdownLinks(markdown) {
   return [...markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map((match) => match[1]);
 }
 
+function statusLine(markdown) {
+  return markdown.match(/^-\s+\*\*Status\*\*:\s*(.+)$/mu)?.[1] ?? '';
+}
+
+function activeLinksForLane(markdown, lane) {
+  const body = sectionBody(markdown, `### \`${lane}/\``);
+  const activeStart = body.indexOf('Active:');
+  if (activeStart === -1) {
+    return [];
+  }
+  const activeBody = body.slice(activeStart);
+  const resolvedStart = activeBody.indexOf('\nResolved');
+  return markdownLinks(resolvedStart === -1 ? activeBody : activeBody.slice(0, resolvedStart));
+}
+
 function laneFiles(lane) {
   return readdirSync(path.join(repoRoot, 'docs/method/backlog', lane))
     .filter((name) => !name.startsWith('.'))
@@ -76,6 +91,15 @@ describe('planning surfaces', () => { // eslint-disable-line max-lines-per-funct
       .sort();
 
     expect(links).toEqual(cycleDirs());
+  });
+
+  it('does not list resolved bad-code cards under Active', () => {
+    const backlog = read('docs/method/backlog/README.md');
+    const resolvedActiveCards = activeLinksForLane(backlog, 'bad-code')
+      .map((link) => path.normalize(path.join('docs/method/backlog', link)))
+      .filter((file) => statusLine(read(file)).startsWith('Resolved'));
+
+    expect(resolvedActiveCards).toEqual([]);
   });
 
   it('keeps current legend backlog links pointed at real backlog files', () => {
