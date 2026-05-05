@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`CryptoPort.encryptBufferWithNonce(buffer, key, nonce)`** — new abstract method for AES-256-GCM encryption with a caller-provided nonce. Implemented in `NodeCryptoAdapter`, `BunCryptoAdapter`, and `WebCryptoAdapter`. Used by convergent encryption for deterministic ciphertext.
 - **`CryptoPort.decryptBufferWithNonceTag(buffer, key, nonce, tag)`** — new abstract method for AES-256-GCM decryption with explicit nonce and tag. Implemented in all three crypto adapters.
 - **Vault privacy mode** — opt-in HMAC slug masking for vault tree entries. When enabled via `initVault({ passphrase, privacy: true })`, tree entry names become `HMAC-SHA256(privacyKey, slug)` (64-char hex), preventing metadata discovery by anyone with repo read access. A privacy key is derived deterministically from the vault encryption key via `HMAC-SHA256(encryptionKey, "git-cas-privacy-v1")`. An encrypted `.privacy-index` blob stores the slug-to-HMAC mapping for listing/enumeration. Privacy mode requires vault encryption. All public vault methods (`addToVault`, `removeFromVault`, `listVault`, `resolveVaultEntry`) accept an optional `encryptionKey` parameter for privacy-enabled vaults.
+- **Encrypted vault passphrase verifier** — new encrypted vaults store an
+  AES-GCM verifier in `.vault.json`, `readState({ encryptionKey })` validates
+  it when a key is supplied, CLI/agent vault passphrase flows reject wrong
+  passphrases before accepting empty-vault writes, and legacy encrypted vaults
+  gain verifier metadata on the next keyed vault write.
 - **`CryptoPort.hmacSha256(key, data)`** — new abstract method implemented by the runtime crypto adapters. Works across Node.js, Bun, and Web Crypto runtimes. Returns a 32-byte HMAC-SHA256 digest.
 - **AES-GCM AAD (Additional Authenticated Data) support** — `CryptoPort`, `NodeCryptoAdapter`, `BunCryptoAdapter`, and `WebCryptoAdapter` now accept an optional `aad` parameter on `encryptBuffer`, `decryptBuffer`, `createEncryptionStream`, and `createDecryptionStream`. `whole` and `framed` stores always provide AAD from the manifest slug context so ciphertext cannot be moved across manifests without authentication failure. `_buildMeta` now defaults to the current `whole` scheme identifier.
 - **Agent CLI OS-keychain passphrase sources** — `git cas agent` now accepts explicit OS-keychain passphrase lookup for vault-derived key flows, including `osKeychainTarget` / `osKeychainAccount` on store, restore, and vault init, plus distinct old/new keychain sources for vault rotation.
@@ -110,6 +115,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vault tree state by unchanged tree OID, returns defensive copies to callers,
   and invalidates automatically when the vault ref resolves to a different tree.
 - **Vault metadata validation** — malformed vault `encryptionCount` metadata is rejected before encrypted vault writes can corrupt nonce accounting or bypass the configured encryption-count cap.
+- **Vault passphrase rotation verifier preservation** — vault passphrase
+  rotation now authenticates the old key against verifier metadata when present
+  and writes a fresh verifier for the new key.
 - **Migration credential hardening** — the migration script now reads full-migration passphrases from `--passphrase-file <path>` or `--passphrase-file -`, rejects ambiguous credential sources, and warns on inline migration passphrases.
 - **npm package documentation surface** — the published package now excludes internal audit, METHOD backlog, archive, and unused media artifacts while preserving the public docs and demo media linked from README.
 - **Reporting paths** — SUPPORT, CODE_OF_CONDUCT, and SECURITY now publish concrete support, conduct, and vulnerability reporting paths instead of referring to absent maintainer/reporting channels.

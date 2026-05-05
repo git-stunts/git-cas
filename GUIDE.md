@@ -505,8 +505,14 @@ const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphras
 
 ```js
 const metadata = await cas.getVaultMetadata();
-// => { version: 1, encryption: { cipher: 'aes-256-gcm', kdf: { ... } } }
+// => { version: 1, encryption: { cipher: 'aes-256-gcm', kdf: { ... }, verifier: { ... } } }
 ```
+
+Encrypted v6 vaults include a verifier in `.vault.json`, so tools can reject a
+wrong passphrase even before the vault contains entries. Normal CLI and facade
+flows verify derived vault keys automatically. Custom tools that derive vault
+keys themselves should call `verifyVaultKey({ encryptionKey })` before using the
+key.
 
 ---
 

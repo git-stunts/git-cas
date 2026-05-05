@@ -219,6 +219,13 @@ export interface VaultEntry {
   treeOid: string;
 }
 
+/** Encrypted vault key verifier stored in .vault.json. */
+export interface VaultEncryptionVerifier {
+  version: 1;
+  ciphertext: string;
+  meta: EncryptionMeta;
+}
+
 /** Vault metadata stored in .vault.json. */
 export interface VaultMetadata {
   version: number;
@@ -235,6 +242,8 @@ export interface VaultMetadata {
       parallelization?: number;
       keyLength: number;
     };
+    /** Encrypted verifier used to authenticate an empty encrypted vault. */
+    verifier?: VaultEncryptionVerifier;
   };
   /** Privacy mode configuration. When enabled, vault slugs are HMAC-masked in the Git tree. */
   privacy?: {
@@ -319,6 +328,11 @@ export declare class VaultService {
     /** Vault encryption key (required when privacy mode is enabled). */
     encryptionKey?: Uint8Array;
   }): Promise<string>;
+
+  /** Verifies a vault encryption key when verifier metadata exists. */
+  verifyVaultKey(options: {
+    encryptionKey: Uint8Array;
+  }): Promise<{ verified: boolean; requiresMigration: boolean }>;
 
   /** Returns the vault metadata, or null if no vault exists. */
   getVaultMetadata(): Promise<VaultMetadata | null>;
@@ -507,6 +521,10 @@ export default class ContentAddressableStore {
     /** Vault encryption key (required when privacy mode is enabled). */
     encryptionKey?: Uint8Array;
   }): Promise<string>;
+
+  verifyVaultKey(options: {
+    encryptionKey: Uint8Array;
+  }): Promise<{ verified: boolean; requiresMigration: boolean }>;
 
   getVaultMetadata(): Promise<VaultMetadata | null>;
 

@@ -3,6 +3,7 @@
 - **File**: `src/domain/services/VaultService.js`
 - **Severity**: Medium
 - **Category**: Authentication ambiguity for empty encrypted vaults
+- **Status**: Resolved for v6.0.0
 
 ## Description
 
@@ -24,8 +25,17 @@ asset content.
 
 ## Follow-Up
 
-- Add a metadata-level verifier encrypted or MACed by the vault key during
+- Added a metadata-level AES-GCM verifier encrypted by the vault key during
   `initVault`.
-- Validate the verifier before accepting a passphrase in CLI, agent, and TUI
-  unlock paths.
-- Add migration behavior for existing encrypted vaults that lack a verifier.
+- `readState({ encryptionKey })`, `verifyVaultKey({ encryptionKey })`, human CLI
+  passphrase flows, agent passphrase flows, and vault passphrase rotation now
+  validate the verifier when it exists.
+- Existing encrypted vaults that lack a verifier remain readable and gain the
+  verifier on the next vault write that supplies the vault encryption key.
+
+## Residual Note
+
+Legacy encrypted vaults that have no verifier cannot be authenticated
+retroactively while they are still empty; there is no prior ciphertext to check.
+The first keyed write creates the verifier, and future wrong passphrases fail
+before empty-vault writes are accepted.

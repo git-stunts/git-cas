@@ -85,6 +85,26 @@ recipient key.
 
 Original blobs are never deleted — Git's garbage collection only removes unreferenced objects after `git gc`.
 
+### Vault Passphrase Verifier Migration
+
+New encrypted vaults write `encryption.verifier` into `.vault.json`. The
+verifier lets `git-cas` reject a wrong vault passphrase even when the encrypted
+vault has no entries yet.
+
+Existing encrypted vaults from older release candidates may not have verifier
+metadata. They continue to work. The next vault write that provides the vault
+encryption key, such as:
+
+```bash
+printf '%s\n' '<vault-passphrase>' \
+  | git-cas store ./asset.bin --tree --slug assets/example --vault-passphrase-file -
+```
+
+adds the verifier automatically. If you are maintaining custom tooling that
+derives vault keys manually, call `verifyVaultKey({ encryptionKey })` after
+derivation. A result with `requiresMigration: true` means the vault predates the
+verifier and the next keyed vault write will add it.
+
 ---
 
 ## Default Scheme Changes

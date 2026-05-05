@@ -696,6 +696,7 @@ async function deriveVaultKey(cas, metadata, passphrase) {
     parallelization: kdf.parallelization,
     keyLength: kdf.keyLength,
   });
+  await cas.verifyVaultKey({ encryptionKey: key });
   return key;
 }
 
@@ -1615,6 +1616,7 @@ async function storeCommand(args, stdin, session) {
     stdin,
     onWarning: (warning) => session.writeWarning(warning),
   });
+  const vaultEncryptionKey = encryptionKey && !input.keyFile ? encryptionKey : undefined;
   const manifest = await cas.storeFile({
     filePath: input.file,
     slug: input.slug,
@@ -1630,6 +1632,7 @@ async function storeCommand(args, stdin, session) {
       slug: input.slug,
       treeOid,
       force: Boolean(input.force),
+      ...(vaultEncryptionKey ? { encryptionKey: vaultEncryptionKey } : {}),
     }));
   }
 

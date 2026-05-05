@@ -97,7 +97,6 @@ Active:
 - [RL — Agent CLI Module Size](./bad-code/RL_agent-cli-module-size.md)
 - [TR — CasService Decomposition Pressure](./bad-code/TR_casservice-decomposition-pressure.md)
 - [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md)
-- [SEC — Vault Passphrase Verifier Gap](./bad-code/SEC_vault-passphrase-verifier-gap.md)
 
 Resolved — 2026-05-05 release-truth cleanup:
 
@@ -106,6 +105,7 @@ Resolved — 2026-05-05 release-truth cleanup:
 - [DOC — Threat Model Scheme Drift](./bad-code/DOC_threat-model-scheme-drift.md) ✅
 - [SEC — Inline Passphrase Flags](./bad-code/SEC_inline-passphrase-flags.md) ✅
 - [SEC — Vault Nonce Exhaustion Cap](./bad-code/SEC_vault-nonce-exhaustion-cap.md) ✅
+- [SEC — Vault Passphrase Verifier Gap](./bad-code/SEC_vault-passphrase-verifier-gap.md) ✅
 
 Resolved — `security/audit-fixes` branch:
 

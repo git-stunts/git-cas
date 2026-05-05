@@ -401,6 +401,7 @@ describe('rotateVaultPassphrase – KDF policy', () => {
         iterations: 100_000,
         keyLength: 32,
       })),
+      verifyVaultKey: vi.fn().mockResolvedValue({ verified: true, requiresMigration: false }),
     };
 
     await expect(

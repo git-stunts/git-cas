@@ -541,6 +541,12 @@ export default class ContentAddressableStore {
     return vault.resolveVaultEntry(options);
   }
 
+  /** @see VaultService#verifyVaultKey */
+  async verifyVaultKey(options) {
+    const vault = await this.#getVault();
+    return vault.verifyVaultKey(options);
+  }
+
   /** @see VaultService#getVaultMetadata */
   async getVaultMetadata() {
     const vault = await this.#getVault();

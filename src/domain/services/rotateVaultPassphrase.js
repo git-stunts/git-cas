@@ -113,6 +113,7 @@ export default async function rotateVaultPassphrase(
 
     const { kdf } = state.metadata.encryption;
     const oldKek = await deriveKekFromKdf(service, oldPassphrase, kdf);
+    await vault.verifyVaultKey({ encryptionKey: oldKek });
     const nextKdfOptions = prepareKdfOptions(
       { ...kdfOptions, algorithm: kdfOptions?.algorithm || kdf.algorithm },
       { source: 'vault-rotation' },
@@ -131,6 +132,7 @@ export default async function rotateVaultPassphrase(
         metadata: newMetadata,
         parentCommitOid: state.parentCommitOid,
         message: `vault: rotate passphrase (${result.rotatedSlugs.length} rotated, ${result.skippedSlugs.length} skipped)`,
+        encryptionKey: newKek,
       });
       return { commitOid, rotatedSlugs: result.rotatedSlugs, skippedSlugs: result.skippedSlugs };
     } catch (err) {

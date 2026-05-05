@@ -4,6 +4,8 @@
 import CasError from '../errors/CasError.js';
 import buildKdfMetadata from '../helpers/buildKdfMetadata.js';
 import { prepareKdfOptions, prepareStoredKdfOptions } from '../../helpers/kdfPolicy.js';
+import validateAesGcmMeta from '../../helpers/aesGcmMeta.js';
+import { decodeBase64, encodeBase64 } from '../encoding/base64.js';
 import { encodeHex } from '../encoding/hex.js';
 import { utf8ByteLength, utf8Decode, utf8Encode } from '../encoding/utf8.js';
 
@@ -12,12 +14,23 @@ const MAX_CAS_RETRIES = 3;
 const CAS_RETRY_BASE_MS = 50;
 const PRIVACY_DERIVATION_LABEL = 'git-cas-privacy-v1';
 const PRIVACY_INDEX_ENTRY = '.privacy-index';
+const VAULT_VERIFIER_PLAINTEXT = utf8Encode('git-cas-vault-verifier-v1');
+const VAULT_VERIFIER_AAD = utf8Encode('git-cas-vault-verifier-metadata-v1');
+
+/**
+ * Vault key verifier stored in .vault.json.
+ * @typedef {Object} VaultEncryptionVerifier
+ * @property {number} version - Verifier format version.
+ * @property {string} ciphertext - Base64 ciphertext of the verifier plaintext.
+ * @property {import('../../ports/CryptoPort.js').EncryptionMeta} meta - AES-GCM metadata.
+ */
 
 /**
  * Vault encryption metadata stored in .vault.json.
  * @typedef {Object} VaultEncryptionMeta
  * @property {string} cipher - Cipher algorithm (e.g. 'aes-256-gcm').
  * @property {{ algorithm: string, salt: string, iterations?: number, cost?: number, blockSize?: number, parallelization?: number, keyLength: number }} kdf - KDF parameters.
+ * @property {VaultEncryptionVerifier} [verifier] - Encrypted verifier for the vault key.
  */
 
 /**
@@ -52,6 +65,7 @@ const PRIVACY_INDEX_ENTRY = '.privacy-index';
  * @property {VaultMetadata|null} metadata - Parsed vault metadata.
  * @property {Map<string, string>|null} plainEntries - Parsed plain slug entries.
  * @property {WeakMap<Uint8Array, Map<string, string>>} privacyEntriesByKey - Privacy entries by key object.
+ * @property {WeakSet<Uint8Array>} verifiedEncryptionKeys - Vault keys already checked against metadata.
  */
 
 /**
@@ -198,6 +212,43 @@ export default class VaultService {
       );
     }
     VaultService.#validateStoredKdf(kdf, metadata);
+    if (encryption.verifier !== undefined) {
+      VaultService.#validateVerifier(encryption.verifier, metadata);
+    }
+  }
+
+  /**
+   * Validates encrypted vault verifier metadata.
+   * @param {VaultEncryptionVerifier} verifier
+   * @param {VaultMetadata} metadata
+   */
+  static #validateVerifier(verifier, metadata) {
+    const invalid = (
+      typeof verifier !== 'object' ||
+      verifier === null ||
+      verifier.version !== 1 ||
+      typeof verifier.ciphertext !== 'string' ||
+      typeof verifier.meta !== 'object' ||
+      verifier.meta === null
+    );
+    if (invalid) {
+      throw new CasError(
+        'Vault encryption verifier metadata missing required fields',
+        'VAULT_METADATA_INVALID',
+        { metadata, field: 'encryption.verifier' },
+      );
+    }
+
+    try {
+      decodeBase64(verifier.ciphertext);
+      validateAesGcmMeta(verifier.meta);
+    } catch (err) {
+      throw new CasError(
+        `Vault encryption verifier metadata invalid: ${/** @type {Error} */ (err).message}`,
+        'VAULT_METADATA_INVALID',
+        { metadata, field: 'encryption.verifier', originalError: err },
+      );
+    }
   }
 
   /**
@@ -336,6 +387,7 @@ export default class VaultService {
       metadata,
       plainEntries: null,
       privacyEntriesByKey: new WeakMap(),
+      verifiedEncryptionKeys: new WeakSet(),
     };
     this.#stateCache.set(treeOid, loaded);
     return loaded;
@@ -364,6 +416,23 @@ export default class VaultService {
       parentCommitOid,
       metadata: VaultService.#cloneReadMetadata(metadata),
     };
+  }
+
+  /**
+   * Builds public vault state from a cached plain vault tree.
+   * @param {CachedVaultTree} cached
+   * @param {string} commitOid
+   * @returns {VaultState}
+   */
+  static #plainStateFromCache(cached, commitOid) {
+    if (!cached.plainEntries) {
+      cached.plainEntries = VaultService.#parseTreeEntries(cached.rawEntries).entries;
+    }
+    return VaultService.#stateFromCache({
+      entries: cached.plainEntries,
+      parentCommitOid: commitOid,
+      metadata: cached.metadata,
+    });
   }
 
   /**
@@ -415,6 +484,53 @@ export default class VaultService {
   }
 
   /**
+   * Builds public vault state from a cached privacy-enabled vault tree.
+   * @param {CachedVaultTree} cached
+   * @param {string} commitOid
+   * @param {Uint8Array|undefined} encryptionKey
+   * @returns {Promise<VaultState>}
+   */
+  async #privacyStateFromCache(cached, commitOid, encryptionKey) {
+    if (!encryptionKey) {
+      throw new CasError(
+        'Privacy mode is enabled — encryption key is required to read vault state',
+        'VAULT_PRIVACY_KEY_REQUIRED',
+      );
+    }
+    let entries = cached.privacyEntriesByKey.get(encryptionKey);
+    if (!entries) {
+      entries = await this.#resolvePrivacyEntries(
+        cached.rawEntries,
+        /** @type {VaultMetadata} */ (cached.metadata),
+        encryptionKey,
+      );
+      cached.privacyEntriesByKey.set(encryptionKey, entries);
+    }
+    return VaultService.#stateFromCache({
+      entries,
+      parentCommitOid: commitOid,
+      metadata: cached.metadata,
+    });
+  }
+
+  /**
+   * Builds public vault state from cached tree data.
+   * @param {CachedVaultTree} cached
+   * @param {string} commitOid
+   * @param {Uint8Array|undefined} encryptionKey
+   * @returns {Promise<VaultState>}
+   */
+  async #stateForCachedTree(cached, commitOid, encryptionKey) {
+    if (cached.metadata?.encryption && encryptionKey) {
+      await this.#verifyCachedEncryptionKey(cached, encryptionKey);
+    }
+    if (cached.metadata?.privacy?.enabled) {
+      return await this.#privacyStateFromCache(cached, commitOid, encryptionKey);
+    }
+    return VaultService.#plainStateFromCache(cached, commitOid);
+  }
+
+  /**
    * Reads the current vault state from refs/cas/vault.
    * @param {Object} [options]
    * @param {Uint8Array} [options.encryptionKey] - Vault encryption key (required when privacy mode is enabled).
@@ -430,31 +546,7 @@ export default class VaultService {
 
     const treeOid = await this.ref.resolveTree(commitOid);
     const cached = await this.#readCachedVaultTree(treeOid);
-    const { metadata } = cached;
-
-    if (metadata?.privacy?.enabled) {
-      if (!encryptionKey) {
-        throw new CasError(
-          'Privacy mode is enabled — encryption key is required to read vault state',
-          'VAULT_PRIVACY_KEY_REQUIRED',
-        );
-      }
-      let entries = cached.privacyEntriesByKey.get(encryptionKey);
-      if (!entries) {
-        entries = await this.#resolvePrivacyEntries(cached.rawEntries, metadata, encryptionKey);
-        cached.privacyEntriesByKey.set(encryptionKey, entries);
-      }
-      return VaultService.#stateFromCache({ entries, parentCommitOid: commitOid, metadata });
-    }
-
-    if (!cached.plainEntries) {
-      cached.plainEntries = VaultService.#parseTreeEntries(cached.rawEntries).entries;
-    }
-    return VaultService.#stateFromCache({
-      entries: cached.plainEntries,
-      parentCommitOid: commitOid,
-      metadata,
-    });
+    return await this.#stateForCachedTree(cached, commitOid, encryptionKey);
   }
 
   /**
@@ -478,6 +570,13 @@ export default class VaultService {
     }
 
     const metaCopy = JSON.parse(JSON.stringify(metadata));
+    if (metaCopy.encryption && encryptionKey) {
+      if (metaCopy.encryption.verifier) {
+        await this.#verifyEncryptionVerifier(metaCopy, encryptionKey);
+      } else {
+        metaCopy.encryption.verifier = await this.#createEncryptionVerifier(encryptionKey);
+      }
+    }
     const treeLines = privacyEnabled
       ? await this.#buildPrivacyTreeLines(entries, metaCopy, encryptionKey)
       : VaultService.#buildPlainTreeLines(entries);
@@ -584,6 +683,12 @@ export default class VaultService {
         ? {
           ...metadata.encryption,
           kdf: { ...metadata.encryption.kdf },
+          verifier: metadata.encryption.verifier
+            ? {
+              ...metadata.encryption.verifier,
+              meta: { ...metadata.encryption.verifier.meta },
+            }
+            : undefined,
         }
         : undefined,
       privacy: metadata.privacy
@@ -699,6 +804,98 @@ export default class VaultService {
     return new Map(Object.entries(obj));
   }
 
+  /**
+   * Creates encrypted verifier metadata for a vault key.
+   * @param {Uint8Array} encryptionKey
+   * @returns {Promise<VaultEncryptionVerifier>}
+   */
+  async #createEncryptionVerifier(encryptionKey) {
+    const { buf, meta } = await this.crypto.encryptBuffer(
+      VAULT_VERIFIER_PLAINTEXT,
+      encryptionKey,
+      VAULT_VERIFIER_AAD,
+    );
+    return {
+      version: 1,
+      ciphertext: encodeBase64(buf),
+      meta,
+    };
+  }
+
+  /**
+   * @param {Uint8Array} a
+   * @param {Uint8Array} b
+   * @returns {boolean}
+   */
+  static #bytesEqual(a, b) {
+    if (a.length !== b.length) {
+      return false;
+    }
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) {
+      diff |= a[i] ^ b[i];
+    }
+    return diff === 0;
+  }
+
+  /**
+   * Verifies a key against encrypted vault verifier metadata when present.
+   * @param {VaultMetadata} metadata
+   * @param {Uint8Array} encryptionKey
+   * @returns {Promise<boolean>} True when verifier metadata was present and validated.
+   */
+  async #verifyEncryptionVerifier(metadata, encryptionKey) {
+    const verifier = metadata.encryption?.verifier;
+    if (!verifier) {
+      return false;
+    }
+
+    let plaintext;
+    try {
+      plaintext = await this.crypto.decryptBuffer(
+        decodeBase64(verifier.ciphertext),
+        encryptionKey,
+        verifier.meta,
+        VAULT_VERIFIER_AAD,
+      );
+    } catch (err) {
+      throw new CasError(
+        'Vault passphrase verification failed',
+        'INTEGRITY_ERROR',
+        { originalError: err, verifier: 'vault-metadata' },
+      );
+    }
+
+    if (!VaultService.#bytesEqual(plaintext, VAULT_VERIFIER_PLAINTEXT)) {
+      throw new CasError(
+        'Vault passphrase verification failed',
+        'INTEGRITY_ERROR',
+        { verifier: 'vault-metadata', reason: 'plaintext-mismatch' },
+      );
+    }
+    return true;
+  }
+
+  /**
+   * Verifies and memoizes an encryption key for cached vault metadata.
+   * @param {CachedVaultTree} cached
+   * @param {Uint8Array} encryptionKey
+   * @returns {Promise<boolean>}
+   */
+  async #verifyCachedEncryptionKey(cached, encryptionKey) {
+    if (!cached.metadata?.encryption) {
+      return false;
+    }
+    if (cached.verifiedEncryptionKeys.has(encryptionKey)) {
+      return true;
+    }
+    const verified = await this.#verifyEncryptionVerifier(cached.metadata, encryptionKey);
+    if (verified) {
+      cached.verifiedEncryptionKeys.add(encryptionKey);
+    }
+    return verified;
+  }
+
   // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
@@ -734,6 +931,7 @@ export default class VaultService {
         const options = prepareKdfOptions(kdfOptions, { source: 'vault-init' });
         const { key, salt, params } = await this.crypto.deriveKey({ passphrase, ...options });
         draft.metadata.encryption = VaultService.#buildEncryptionMeta(salt, params);
+        draft.metadata.encryption.verifier = await this.#createEncryptionVerifier(key);
         derivedKey = key;
       }
 
@@ -857,6 +1055,24 @@ export default class VaultService {
       );
     }
     return /** @type {string} */ (entries.get(slug));
+  }
+
+  /**
+   * Verifies a vault encryption key against metadata when verifier data exists.
+   * @param {Object} options
+   * @param {Uint8Array} options.encryptionKey - Vault encryption key to verify.
+   * @returns {Promise<{ verified: boolean, requiresMigration: boolean }>}
+   */
+  async verifyVaultKey({ encryptionKey }) {
+    const state = await this.readState({ encryptionKey });
+    if (!state.metadata?.encryption) {
+      throw new CasError('Vault is not encrypted', 'VAULT_METADATA_INVALID');
+    }
+    const verified = Boolean(state.metadata.encryption.verifier);
+    return {
+      verified,
+      requiresMigration: !verified,
+    };
   }
 
   /**

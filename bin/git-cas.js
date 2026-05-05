@@ -109,6 +109,7 @@ async function deriveVaultKey(cas, metadata, passphrase) {
     blockSize: kdf.blockSize,
     parallelization: kdf.parallelization,
   });
+  await cas.verifyVaultKey({ encryptionKey: key });
   return key;
 }
 
@@ -172,6 +173,7 @@ function validateRestoreFlags(opts) {
  * @property {string} filePath - Path to the file to store.
  * @property {string} slug - Asset slug identifier.
  * @property {Uint8Array} [encryptionKey] - 32-byte AES-256-GCM key.
+ * @property {Uint8Array} [vaultEncryptionKey] - Vault key derived from a vault passphrase source.
  * @property {Array<{ label: string, key: Uint8Array }>} [recipients] - Envelope recipients.
  */
 
@@ -192,6 +194,9 @@ async function buildStoreOpts(cas, file, opts) {
     const encryptionKey = await resolveEncryptionKey(cas, opts);
     if (encryptionKey) {
       storeOpts.encryptionKey = encryptionKey;
+      if (!opts.keyFile) {
+        storeOpts.vaultEncryptionKey = encryptionKey;
+      }
     }
   }
   return storeOpts;
@@ -232,6 +237,11 @@ const parseIntFlag = (v) => {
   }
   return n;
 };
+
+/** @param {boolean} json */
+function shouldSuppressProgress(json) {
+  return Boolean(program.opts().quiet || json);
+}
 
 program
   .command('store <file>')
@@ -277,7 +287,7 @@ program
         throw new Error('--force requires --tree');
       }
       const json = program.opts().json;
-      const quiet = program.opts().quiet || json;
+      const quiet = shouldSuppressProgress(json);
       const observer = new EventEmitterObserver();
 
       const config = loadConfig(opts.cwd);
@@ -297,7 +307,12 @@ program
 
       if (opts.tree) {
         const treeOid = await cas.createTree({ manifest });
-        await cas.addToVault({ slug: opts.slug, treeOid, force: !!opts.force });
+        await cas.addToVault({
+          slug: opts.slug,
+          treeOid,
+          force: !!opts.force,
+          ...(storeOpts.vaultEncryptionKey ? { encryptionKey: storeOpts.vaultEncryptionKey } : {}),
+        });
         process.stdout.write(json ? `${JSON.stringify({ treeOid })}\n` : `${treeOid}\n`);
       } else {
         const output = json

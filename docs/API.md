@@ -896,6 +896,12 @@ interface VaultEntry {
 #### VaultMetadata
 
 ```typescript
+interface VaultEncryptionVerifier {
+  version: 1;
+  ciphertext: string;
+  meta: EncryptionMeta;
+}
+
 interface VaultMetadata {
   version: number;
   encryption?: {
@@ -909,9 +915,16 @@ interface VaultMetadata {
       parallelization?: number;
       keyLength: number;
     };
+    verifier?: VaultEncryptionVerifier;
   };
+  encryptionCount?: number;
 }
 ```
+
+Encrypted vaults created by v6 include `encryption.verifier`, an AES-GCM
+encrypted metadata verifier that authenticates a derived vault key even when the
+vault has no entries yet. Older encrypted vaults may lack the field; `git-cas`
+adds it on the next vault write that provides the vault encryption key.
 
 ### Methods
 
@@ -1044,6 +1057,31 @@ Resolves a vault entry slug to its tree OID.
 const treeOid = await cas.resolveVaultEntry({ slug: 'demo/hello' });
 const manifest = await cas.readManifest({ treeOid });
 ```
+
+#### verifyVaultKey
+
+```javascript
+await cas.verifyVaultKey({ encryptionKey });
+```
+
+Verifies a derived vault encryption key against verifier metadata when the
+vault has a verifier. This is primarily useful for tools that derive keys
+themselves from `getVaultMetadata()` and `deriveKey()`.
+
+**Parameters:**
+
+- `encryptionKey` (required): `Uint8Array` - Derived vault encryption key
+
+**Returns:** `Promise<{ verified: boolean, requiresMigration: boolean }>`
+
+`verified` is `true` when verifier metadata exists and the key authenticated.
+`requiresMigration` is `true` for older encrypted vaults that have no verifier
+yet; the next keyed vault write adds the verifier.
+
+**Throws:**
+
+- `CasError` with code `INTEGRITY_ERROR` if verifier authentication fails
+- `CasError` with code `VAULT_METADATA_INVALID` if the vault is not encrypted
 
 #### getVaultMetadata
 

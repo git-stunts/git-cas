@@ -1269,6 +1269,11 @@ The vault stores the KDF policy (algorithm, salt, iterations). The actual
 encryption is still per-entry AES-256-GCM via the existing `store()`/`restore()`
 paths -- the vault just provides the key-derivation policy.
 
+Encrypted v6 vault metadata also stores a small AES-GCM verifier. The verifier
+lets the CLI and agent reject a wrong vault passphrase before accepting writes
+to an otherwise empty encrypted vault. Older encrypted vaults that lack this
+field gain it on the next vault write that supplies the vault encryption key.
+
 `--os-keychain-target` is a human CLI convenience implemented through
 `@git-stunts/vault`. It keeps the passphrase in OS-native secure storage while
 leaving the library API unchanged.

@@ -393,6 +393,24 @@ describe('vault CLI — encrypted workflow', () => { // eslint-disable-line max-
     expect(out).toMatch(/^[0-9a-f]{40}$/);
   });
 
+  it('encrypted store rejects a wrong passphrase before adding an empty-vault entry', () => {
+    const result = runCli(
+      [
+        'store',
+        encInputFile,
+        '--tree',
+        '--slug',
+        'enc/wrong-passphrase',
+        '--vault-passphrase',
+        'wrong-passphrase',
+      ],
+      encRepoDir,
+    );
+
+    expect(result.status).toBe(1);
+    expect(`${result.stderr ?? ''}`).toContain('Vault passphrase verification failed');
+  });
+
   it('vault rotate rejects whitespace-only old passphrases', () => {
     const result = runCli(
       ['vault', 'rotate', '--old-passphrase', '   ', '--new-passphrase', 'next-passphrase'],

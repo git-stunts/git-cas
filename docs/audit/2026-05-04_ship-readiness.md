@@ -240,11 +240,13 @@ TUI-specific work may defer to the v6.x release line.
   step.
 - **Additional Crypto Safety Follow-Up:** Encrypted vault writes now hard-stop
   with `VAULT_NONCE_EXHAUSTED` when the nonce budget is exhausted (`db94701`).
+- **Vulnerability 2 - Empty Vault Passphrase Verifier:** New encrypted vaults
+  store AES-GCM verifier metadata, keyed CLI/agent/vault reads authenticate it,
+  and legacy encrypted vaults gain verifier metadata on the next keyed vault
+  write.
 
 ### Still Open - v6.0.0 Blockers
 
-- **Vulnerability 2 - Empty Vault Passphrase Verifier:** Add vault metadata that
-  can authenticate a passphrase even when an encrypted vault has no entries.
 - **Medium Maintainability Work:** Modularize `CasService.js` and
   `bin/agent/cli.js` before tagging v6.0.0.
 

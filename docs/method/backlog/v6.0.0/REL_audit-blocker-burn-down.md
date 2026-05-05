@@ -22,7 +22,7 @@ annotated `v6.0.0` tag.
   service options.
 - [x] Pin `commander` and preserve CLI flag/help regression coverage.
 - [x] Add a long-form store/restore pipeline state-machine document.
-- [ ] Add an empty-vault passphrase verifier and migration behavior.
+- [x] Add an empty-vault passphrase verifier and migration behavior.
 - [x] Make `scripts/release/verify.js` directly execute maintained examples.
 - [ ] Split `bin/agent/cli.js` command implementations out of the protocol
   shell.

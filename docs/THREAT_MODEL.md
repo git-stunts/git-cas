@@ -185,6 +185,11 @@ It does expose:
 
 The vault passphrase does not make the vault index itself opaque. It provides
 KDF-backed key derivation context used by vault-oriented encryption workflows.
+Encrypted vault metadata includes a verifier so clients can reject an incorrect
+derived vault key even when the vault has no entries. That verifier is not a
+secret container: an offline attacker who can read `.vault.json` can still run
+password guesses against the stored KDF parameters and verifier, so vault
+passphrases need high entropy.
 
 ### Manifest Exposure
 

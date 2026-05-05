@@ -1101,7 +1101,7 @@ function defineVaultRotateWrongPassphraseTest() {
       ],
       fixture.repoDir
     );
-    expect(result.status).toBe(1);
+    expect(result.status).toBe(3);
 
     const stdoutRows = parseJsonl(result.stdout);
     const stderrRows = parseJsonl(result.stderr);
@@ -1112,8 +1112,8 @@ function defineVaultRotateWrongPassphraseTest() {
       command: 'vault.rotate',
       type: 'error',
       data: {
-        code: 'NO_MATCHING_RECIPIENT',
-        message: 'No recipient entry could be unwrapped with the provided key',
+        code: 'INTEGRITY_ERROR',
+        message: expect.stringContaining('Vault passphrase verification failed'),
       },
     });
 
@@ -1492,6 +1492,39 @@ function defineEncryptedStoreWithPassphraseTest() {
     expect(result.stdout).not.toContain(vaultPassphrase);
 
     rmSync(storeInputDir, { recursive: true, force: true });
+  });
+}
+
+function defineEncryptedStoreWrongPassphraseTest() {
+  it('encrypted store rejects a wrong vault passphrase before adding an empty-vault entry', () => {
+    const input = tempFile(Buffer.from('relay wrong passphrase\n'));
+    const result = runAgentCli(
+      [
+        'store',
+        input.filePath,
+        '--slug',
+        'enc/wrong-passphrase',
+        '--tree',
+        '--vault-passphrase',
+        'wrong-passphrase',
+      ],
+      encRepoDir
+    );
+
+    expect(result.status).toBe(3);
+    const stdoutRows = parseJsonl(result.stdout);
+    const stderrRows = parseJsonl(result.stderr);
+    expect(stdoutRows.map((row) => row.type)).toEqual(['start', 'end']);
+    expect(stderrRows[0]).toMatchObject({
+      command: 'store',
+      type: 'error',
+      data: {
+        code: 'INTEGRITY_ERROR',
+        message: expect.stringContaining('Vault passphrase verification failed'),
+      },
+    });
+
+    rmSync(input.dir, { recursive: true, force: true });
   });
 }
 
@@ -2081,6 +2114,10 @@ describe('agent CLI protocol — restore write flow', defineRestoreWriteFlowTest
 describe(
   'agent CLI protocol — encrypted store (vault passphrase)',
   defineEncryptedStoreWithPassphraseTest
+);
+describe(
+  'agent CLI protocol — encrypted store (wrong vault passphrase)',
+  defineEncryptedStoreWrongPassphraseTest
 );
 describe(
   'agent CLI protocol — encrypted restore (vault passphrase)',

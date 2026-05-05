@@ -868,6 +868,7 @@ row describes the fix and what it prevents.
 | 11 | AAD binding (always active on all schemes) | Cross-manifest blob substitution and frame reordering attacks |
 | 12 | Legacy scheme rejection at runtime | Downgrade to weaker v1/v2 scheme variants |
 | 13 | Convergent encryption post-decrypt digest verification | Chunk substitution or corruption after decryption |
+| 14 | Encrypted vault key verifier in `.vault.json` | Wrong passphrase accepted for an empty encrypted vault |
 
 ---
 

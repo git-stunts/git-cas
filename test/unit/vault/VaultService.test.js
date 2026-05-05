@@ -33,6 +33,16 @@ function mockCrypto() {
       salt: Buffer.from('test-salt'),
       params: { algorithm: 'pbkdf2', iterations: 100000, keyLength: 32 },
     }),
+    encryptBuffer: vi.fn().mockResolvedValue({
+      buf: Buffer.from('git-cas-vault-verifier-v1'),
+      meta: {
+        algorithm: 'aes-256-gcm',
+        nonce: 'AAAAAAAAAAAAAAAA',
+        tag: 'AAAAAAAAAAAAAAAAAAAAAA==',
+        encrypted: true,
+      },
+    }),
+    decryptBuffer: vi.fn().mockResolvedValue(Buffer.from('git-cas-vault-verifier-v1')),
   };
 }
 

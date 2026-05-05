@@ -132,6 +132,9 @@ The vault is a GC-safe named asset index stored at `refs/cas/vault`. It is the c
 - **Encryption**: Vault entries can be encrypted with a passphrase.
 - **Privacy mode**: HMAC-hashed slug names prevent metadata discovery — an observer cannot determine what assets are stored without the passphrase.
 - **Encryption count tracking**: The vault tracks how many times each entry has been encrypted under the current nonce context, issuing rotation warnings as limits approach.
+- **Passphrase verifier**: Encrypted vault metadata authenticates the derived
+  vault key even before the first entry is added, so wrong passphrases fail
+  before empty-vault writes are accepted.
 - **Passphrase rotation**: Rotate the vault passphrase across all entries in a single operation without re-encrypting data blobs.
 - **Optimistic concurrency**: Vault writes use compare-and-swap semantics with automatic retry on conflict, ensuring safe concurrent access.
 

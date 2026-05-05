@@ -48,6 +48,18 @@ git-cas tracks encryption operations via `encryptionCount` in vault metadata. Wh
 
 **Recommended key rotation frequency**: Rotate the vault passphrase (or encryption key) before `encryptionCount` reaches 2^31, or every 90 days, whichever comes first.
 
+### Vault Passphrase Verification
+
+Encrypted vaults store an AES-GCM verifier in `.vault.json`. When a caller
+derives a vault key from a passphrase and provides it to `readState()`,
+`verifyVaultKey()`, CLI store/restore flows, agent store/restore flows, or vault
+passphrase rotation, git-cas authenticates that key before accepting it.
+
+This closes the empty-vault ambiguity: a wrong passphrase now fails with
+`INTEGRITY_ERROR` before a new encrypted vault entry can be added. Existing
+encrypted vaults that predate the verifier remain readable; the next vault write
+that supplies a vault encryption key writes verifier metadata for future checks.
+
 ### KDF Parameter Guidance
 
 When using passphrase-based encryption, git-cas derives keys using PBKDF2 or scrypt.
