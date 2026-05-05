@@ -235,6 +235,9 @@ TUI-specific work may defer to the v6.x release line.
 - **Operational Gap 2 - Standard Docs:** Added `CODE_OF_CONDUCT.md`,
   `SUPPORT.md`, and `docs/EXTENDING.md`, and verified package inclusion
   (`2398e95`).
+- **Operational Gap 1 - Release Script Example Execution:**
+  `scripts/release/verify.js` now runs every maintained example as a release-gate
+  step.
 - **Additional Crypto Safety Follow-Up:** Encrypted vault writes now hard-stop
   with `VAULT_NONCE_EXHAUSTED` when the nonce budget is exhausted (`db94701`).
 
@@ -242,8 +245,6 @@ TUI-specific work may defer to the v6.x release line.
 
 - **Vulnerability 2 - Empty Vault Passphrase Verifier:** Add vault metadata that
   can authenticate a passphrase even when an encrypted vault has no entries.
-- **Operational Gap 1 - Release Script Example Execution:** Make
-  `scripts/release/verify.js` directly execute every maintained example.
 - **Medium Maintainability Work:** Modularize `CasService.js` and
   `bin/agent/cli.js` before tagging v6.0.0.
 

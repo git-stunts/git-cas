@@ -42,6 +42,24 @@ export const RELEASE_STEPS = [
     testCount: true,
   },
   {
+    id: 'example-store-and-restore',
+    label: 'Example: store-and-restore',
+    command: 'node',
+    args: ['examples/store-and-restore.js'],
+  },
+  {
+    id: 'example-encrypted-workflow',
+    label: 'Example: encrypted-workflow',
+    command: 'node',
+    args: ['examples/encrypted-workflow.js'],
+  },
+  {
+    id: 'example-progress-tracking',
+    label: 'Example: progress-tracking',
+    command: 'node',
+    args: ['examples/progress-tracking.js'],
+  },
+  {
     id: 'unit-bun',
     label: 'Unit Tests (Bun)',
     command: 'docker',

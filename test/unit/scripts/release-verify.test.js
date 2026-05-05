@@ -1,3 +1,5 @@
+import { readdirSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 import {
   RELEASE_STEPS,
@@ -10,6 +12,7 @@ import {
 } from '../../../scripts/release/verify.js';
 
 const QUIET_LOGGER = { line() {} };
+const EXAMPLES_DIR = path.resolve(process.cwd(), 'examples');
 
 /**
  * Create a successful release-step runner.
@@ -106,6 +109,18 @@ function successfulStepStdout(step, testCount = 5) {
   return '';
 }
 
+/**
+ * Count the release steps through and including the named step.
+ *
+ * @param {string} id
+ * @returns {number}
+ */
+function stepCallCountThrough(id) {
+  const index = RELEASE_STEPS.findIndex((step) => step.id === id);
+  expect(index).toBeGreaterThanOrEqual(0);
+  return index + 1;
+}
+
 describe('release verify helpers', () => {
   it('parses Vitest test counts from ANSI-colored output', () => {
     const output = '\u001b[32mTests\u001b[39m  147 passed (147)';
@@ -154,6 +169,18 @@ describe('release verify helpers', () => {
 });
 
 describe('release verify execution', () => {
+  it('executes maintained examples as release-gate steps', () => {
+    const expectedExamplePaths = readdirSync(EXAMPLES_DIR)
+      .filter((file) => file.endsWith('.js'))
+      .map((file) => path.posix.join('examples', file))
+      .sort();
+    const exampleSteps = RELEASE_STEPS.filter((step) => step.id.startsWith('example-'));
+    const examplePaths = exampleSteps.map((step) => step.args[0]).sort();
+
+    expect(examplePaths).toEqual(expectedExamplePaths);
+    expect(exampleSteps.every((step) => step.command === 'node')).toBe(true);
+  });
+
   it('runs the release steps in order and aggregates test counts', async () => {
     const runner = makeSuccessRunner();
 
@@ -197,7 +224,7 @@ describe('release verify failures', () => {
     expect(failure.name).toBe('ReleaseVerifyError');
     expect(failure.step).toMatchObject({ id: 'unit-bun', passed: false });
     expect(failure.summary).toContain('| Unit Tests (Bun) | FAIL | 5 |');
-    expect(runner).toHaveBeenCalledTimes(3);
+    expect(runner).toHaveBeenCalledTimes(stepCallCountThrough('unit-bun'));
   });
 
   it('converts thrown runner errors into structured release failures', async () => {
@@ -212,7 +239,7 @@ describe('release verify failures', () => {
       errorMessage: 'runner exploded',
     });
     expect(failure.summary).toContain('| Unit Tests (Bun) | FAIL |');
-    expect(runner).toHaveBeenCalledTimes(3);
+    expect(runner).toHaveBeenCalledTimes(stepCallCountThrough('unit-bun'));
   });
 
 });

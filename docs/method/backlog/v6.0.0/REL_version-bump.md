@@ -56,6 +56,8 @@ because the current `jsr`/Deno toolchain panics before package validation.
 - `npm run upgrade` passed on 2026-05-04 in dry-run mode; no local vault found.
 - `npx jsr publish --dry-run --allow-dirty` still fails before package validation completes because `jsr@0.14.2` invokes its downloaded Deno 2.6.7 binary and panics in `deno_ast@0.52.0` with overlapping text changes.
 - `npm run release:verify -- --skip-jsr` is the current release-candidate sanity command while that upstream JSR toolchain blocker remains active. Its report records the skipped JSR step explicitly.
+- `scripts/release/verify.js` now executes every maintained example before the
+  multi-runtime test matrix, so stale examples are part of the pre-tag gate.
 - `npm run release:verify -- --skip-jsr` passed on 2026-05-04: 8/8 executable steps, 4495 observed tests, skipped `JSR publish dry-run`.
 - `.github/workflows/release.yml` now publishes npm and creates the GitHub Release only; JSR publication is intentionally deferred until the dry-run can pass.
 - PR #35 landed the release branch on `main` as `1d2ca5c` on 2026-05-04, and GitHub Actions CI passed on that merge commit.
