@@ -517,9 +517,29 @@ export default class CasService {
   _resolveAutoEncryptionScheme(encryption, frameBytes) {
     const convergentExplicit = encryption?.convergent;
     if (convergentExplicit === true || (convergentExplicit !== false && this.chunker.strategy === 'cdc')) {
+      if (convergentExplicit !== true && this.chunker.strategy === 'cdc') {
+        this._warnAutoConvergentCdc();
+      }
       return { scheme: SCHEME_CONVERGENT };
     }
     return this._resolveFramedStoreEncryptionConfig(frameBytes);
+  }
+
+  /**
+   * Warns when CDC encrypted storage implicitly selects deterministic convergent encryption.
+   * @private
+   */
+  _warnAutoConvergentCdc() {
+    this.observability.log(
+      'warn',
+      'CDC encrypted store auto-selected deterministic convergent encryption to preserve deduplication',
+      {
+        strategy: 'cdc',
+        selectedScheme: SCHEME_CONVERGENT,
+        deterministic: true,
+        optOut: 'Use encryption.scheme "framed" or "whole", or encryption.convergent false.',
+      },
+    );
   }
 
   /**

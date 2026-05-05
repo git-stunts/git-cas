@@ -97,6 +97,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Facade factory option forwarding** — `createJson()` and `createCbor()` now
   pass advanced facade options through to the underlying service instead of
   silently dropping them.
+- **Convergent auto-selection observability** — CDC encrypted stores now warn
+  when deterministic `convergent` encryption is selected implicitly.
 - **Vault metadata validation** — malformed vault `encryptionCount` metadata is rejected before encrypted vault writes can corrupt nonce accounting or bypass the configured encryption-count cap.
 - **Migration credential hardening** — the migration script now reads full-migration passphrases from `--passphrase-file <path>` or `--passphrase-file -`, rejects ambiguous credential sources, and warns on inline migration passphrases.
 - **npm package documentation surface** — the published package now excludes internal audit, METHOD backlog, archive, and unused media artifacts while preserving the public docs and demo media linked from README.

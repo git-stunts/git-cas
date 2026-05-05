@@ -10,7 +10,7 @@ annotated `v6.0.0` tag.
 ## Blockers
 
 - [x] Add `ContentAddressableStore.open({ cwd })` and update first-contact docs.
-- [ ] Emit an observability warning when CDC auto-selects deterministic
+- [x] Emit an observability warning when CDC auto-selects deterministic
   `convergent` encryption.
 - [ ] Extract `CasService.js` store/restore orchestration enough to remove the
   current audit blocker.

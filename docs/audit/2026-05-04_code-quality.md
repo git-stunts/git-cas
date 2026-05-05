@@ -146,11 +146,12 @@ post-tag backlog work.
 - **2.2 Customization:** `createJson()` and `createCbor()` now forward facade
   options such as `chunking`, `observability`, `compressionAdapter`,
   `merkleThreshold`, `concurrency`, and `maxRestoreBufferSize`.
+- **1.2 Principle of Least Astonishment:** CDC encrypted stores now emit an
+  observability warning when they auto-select deterministic `convergent`
+  encryption.
 
 ### Still Open - v6.0.0 Blockers
 
-- Emit an observability warning when CDC auto-selects deterministic
-  `convergent` encryption.
 - Decompose `CasService.js` store/restore orchestration enough to remove the
   current audit blocker.
 - Extract Git tree-entry formatting out of `CasService.js`.
