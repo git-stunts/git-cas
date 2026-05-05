@@ -33,7 +33,8 @@ not use numeric IDs.
 
 Active:
 
-1. [REL — Version Bump](./v6.0.0/REL_version-bump.md) — tag/publish gate; JSR publication is deferred externally
+1. [REL — Audit Blocker Burn-Down](./v6.0.0/REL_audit-blocker-burn-down.md) — all non-TUI May 4 audit leftovers now block `v6.0.0`
+2. [REL — Version Bump](./v6.0.0/REL_version-bump.md) — tag/publish gate; JSR publication is deferred externally
 
 Resolved:
 
@@ -59,6 +60,7 @@ Post-6.0 minor release line, not a v6.0.0 tag blocker.
 11. [TUI-011 — Accordion Detail Pane](./v6.x-tui/TUI_accordion-detail-pane.md) — Collapsible manifest sections
 12. [TUI-012 — Animated Transitions](./v6.x-tui/TUI_animated-transitions.md) — Spring physics + transition shaders
 13. [TUI-013 — Full-Screen Detail View](./v6.x-tui/TUI_fullscreen-detail-view.md) — Replace split pane with list/detail drill-in
+14. [TUI-014 — Orphaned-Chunk Health Check](./v6.x-tui/TUI_orphaned-chunk-health-check.md) — Dashboard-visible CAS reachability health
 
 ### `cool-ideas/`
 

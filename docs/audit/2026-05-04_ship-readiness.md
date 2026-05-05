@@ -216,9 +216,10 @@ Ship only after addressing the **High** severity risks (Broken examples and stal
 
 ## Remediation Addendum - 2026-05-05
 
-**Status:** In progress. The high-severity pre-tag blockers identified in this
-report have been addressed in follow-up commits. Tagging still requires the
-normal final release validation pass and explicit operator approval.
+**Status:** In progress. The original high-severity documentation and example
+blockers have been addressed in follow-up commits. Per operator decision on
+2026-05-05, every remaining non-TUI audit finding now blocks v6.0.0; only
+TUI-specific work may defer to the v6.x release line.
 
 ### Resolved Since Audit Target
 
@@ -237,15 +238,16 @@ normal final release validation pass and explicit operator approval.
 - **Additional Crypto Safety Follow-Up:** Encrypted vault writes now hard-stop
   with `VAULT_NONCE_EXHAUSTED` when the nonce budget is exhausted (`db94701`).
 
-### Still Open Or Deferred
+### Still Open - v6.0.0 Blockers
 
-- **Vulnerability 2 - Empty Vault Passphrase Verifier:** Remains a future
-  security hardening item. It is useful, but not required to tag v6.0.0 because
-  encrypted content still authenticates once entries exist.
-- **Operational Gap 1 - Release Script Example Execution:** Example drift is now
-  covered by focused regression tests, but `scripts/release/verify.js` still
-  does not directly execute every maintained example.
-- **Operational Gap 3 - TUI Orphaned-Chunk Health Check:** Deferred to the
-  v6.x TUI backlog.
-- **Medium Maintainability Work:** `CasService.js` and `bin/agent/cli.js`
-  modularization remain post-v6 maintenance priorities, not tag blockers.
+- **Vulnerability 2 - Empty Vault Passphrase Verifier:** Add vault metadata that
+  can authenticate a passphrase even when an encrypted vault has no entries.
+- **Operational Gap 1 - Release Script Example Execution:** Make
+  `scripts/release/verify.js` directly execute every maintained example.
+- **Medium Maintainability Work:** Modularize `CasService.js` and
+  `bin/agent/cli.js` before tagging v6.0.0.
+
+### Deferred To v6.x
+
+- **Operational Gap 3 - TUI Orphaned-Chunk Health Check:** Deferred to
+  [TUI — Orphaned-Chunk Health Check](../method/backlog/v6.x-tui/TUI_orphaned-chunk-health-check.md).

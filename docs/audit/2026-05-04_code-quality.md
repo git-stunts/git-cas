@@ -121,8 +121,9 @@ related_reports:
 ## Remediation Addendum - 2026-05-05
 
 **Status:** In progress. The pre-tag safety and documentation-usability items
-identified in this audit have been mitigated; larger maintainability refactors
-remain intentionally deferred beyond the v6.0.0 tag.
+identified in this audit have been mitigated. Per operator decision on
+2026-05-05, the remaining non-TUI findings are now v6.0.0 blockers instead of
+post-tag backlog work.
 
 ### Resolved Since Audit Target
 
@@ -139,12 +140,16 @@ remain intentionally deferred beyond the v6.0.0 tag.
   flags now warn, help text discourages argv secrets, and maintained docs prefer
   stdin/env/keychain/file passphrase sources (`b01e5ba`).
 
-### Still Open Or Deferred
+### Still Open - v6.0.0 Blockers
 
-- `ContentAddressableStore.open({ cwd })` remains a DX improvement, not a
-  v6.0.0 blocker.
-- Auto-selected `convergent` encryption warning remains a POLA improvement for a
-  future hardening pass.
-- `CasService.js` restore/store decomposition, Git tree-entry extraction,
-  in-memory persistence adapter, vault-state caching, factory option expansion,
-  and `commander` pinning remain backlog-level maintainability work.
+- Add `ContentAddressableStore.open({ cwd })`.
+- Emit an observability warning when CDC auto-selects deterministic
+  `convergent` encryption.
+- Decompose `CasService.js` store/restore orchestration enough to remove the
+  current audit blocker.
+- Extract Git tree-entry formatting out of `CasService.js`.
+- Add an in-memory persistence adapter for fast domain workflow tests.
+- Add vault-state caching for unchanged vault tree OIDs.
+- Expand `createJson` / `createCbor` factory options to cover underlying service
+  options.
+- Pin `commander` and preserve CLI flag/help regression coverage.

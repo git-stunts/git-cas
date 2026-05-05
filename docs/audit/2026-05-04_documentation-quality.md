@@ -91,7 +91,8 @@ related_reports:
 ## Remediation Addendum - 2026-05-05
 
 **Status:** In progress. The release-blocking documentation drift has been
-corrected; remaining items are polish or future DX improvements.
+corrected. Per operator decision on 2026-05-05, the remaining non-TUI audit
+items are now v6.0.0 blockers instead of future polish.
 
 ### Resolved Since Audit Target
 
@@ -109,10 +110,8 @@ corrected; remaining items are polish or future DX improvements.
 - **Release-State Truth:** The changelog remains explicitly pre-tagged as
   `[6.0.0] — Unreleased` until the operator approves tagging (`f1ef0e5`).
 
-### Still Open Or Deferred
+### Still Open - v6.0.0 Blockers
 
-- `ContentAddressableStore.open({ cwd })` remains the largest TTV improvement.
-- A dedicated long-form store/restore pipeline state-machine document would
-  still improve maintainer onboarding, though `ADVANCED_GUIDE.md`,
-  `ARCHITECTURE.md`, and `docs/EXTENDING.md` now cover the public extension
-  surface.
+- Add `ContentAddressableStore.open({ cwd })`.
+- Add a dedicated long-form store/restore pipeline state-machine document for
+  maintainer onboarding.

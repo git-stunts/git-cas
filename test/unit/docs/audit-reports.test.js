@@ -68,3 +68,22 @@ describe('audit reports', () => {
     }
   });
 });
+
+describe('audit blocker classification', () => {
+  it('keeps non-TUI audit leftovers classified as v6 blockers', () => {
+    const reports = [
+      read('docs/audit/2026-05-04_code-quality.md'),
+      read('docs/audit/2026-05-04_documentation-quality.md'),
+      read('docs/audit/2026-05-04_ship-readiness.md'),
+    ];
+
+    const combined = reports.join('\n');
+
+    expect(combined).toContain('Still Open - v6.0.0 Blockers');
+    expect(combined).toContain('Deferred To v6.x');
+    expect(combined).toContain('TUI — Orphaned-Chunk Health Check');
+    expect(combined).not.toContain('not required to tag v6.0.0');
+    expect(combined).not.toContain('not a v6.0.0 blocker');
+    expect(combined).not.toContain('remain post-v6 maintenance priorities, not tag blockers');
+  });
+});
