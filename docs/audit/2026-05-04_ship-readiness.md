@@ -244,11 +244,15 @@ TUI-specific work may defer to the v6.x release line.
   store AES-GCM verifier metadata, keyed CLI/agent/vault reads authenticate it,
   and legacy encrypted vaults gain verifier metadata on the next keyed vault
   write.
+- **Violation 3 - Agent CLI Module Size:** `bin/agent/cli.js` now owns only the
+  agent protocol shell and exit-code mapping. Command handlers live under
+  `bin/agent/commands/`, shared request and credential-input helpers live in
+  `bin/agent/input.js`, and a module-boundary regression test guards the split.
 
 ### Still Open - v6.0.0 Blockers
 
-- **Medium Maintainability Work:** Modularize `CasService.js` and
-  `bin/agent/cli.js` before tagging v6.0.0.
+- **Medium Maintainability Work:** Modularize `CasService.js` enough to remove
+  the remaining orchestration-hotspot blocker before tagging v6.0.0.
 
 ### Deferred To v6.x
 

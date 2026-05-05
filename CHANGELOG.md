@@ -114,6 +114,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vault state read caching** — `VaultService.readState()` now caches parsed
   vault tree state by unchanged tree OID, returns defensive copies to callers,
   and invalidates automatically when the vault ref resolves to a different tree.
+- **Agent CLI module boundary** — `bin/agent/cli.js` is now a thin protocol
+  shell, command handlers live under `bin/agent/commands/`, shared request and
+  credential-input helpers live in `bin/agent/input.js`, and a module-boundary
+  regression test guards the split.
 - **Vault metadata validation** — malformed vault `encryptionCount` metadata is rejected before encrypted vault writes can corrupt nonce accounting or bypass the configured encryption-count cap.
 - **Vault passphrase rotation verifier preservation** — vault passphrase
   rotation now authenticates the old key against verifier metadata when present

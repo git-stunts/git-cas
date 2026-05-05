@@ -3,12 +3,13 @@
 - **File**: `bin/agent/cli.js`
 - **Severity**: Medium
 - **Category**: Machine-surface maintainability
+- **Status**: Resolved for v6.0.0
 
 ## Description
 
-`bin/agent/cli.js` is over 2,200 lines and currently owns request parsing,
-input normalization, protocol session writes, command dispatch, credential
-resolution, filesystem input reads, and every agent command implementation.
+`bin/agent/cli.js` used to be over 2,200 lines and owned request parsing, input
+normalization, protocol session writes, command dispatch, credential resolution,
+filesystem input reads, and every agent command implementation.
 
 ## Why It Bothers Us
 
@@ -19,8 +20,17 @@ semantics.
 
 ## Follow-Up
 
-- Move command implementations under `bin/agent/commands/`.
-- Keep protocol/session handling in `bin/agent/cli.js`.
-- Move shared request parsing into `bin/agent/input.js`.
-- Add a module-boundary test that `bin/agent/cli.js` no longer imports the CAS
+- [x] Move command implementations under `bin/agent/commands/`.
+- [x] Keep protocol/session handling in `bin/agent/cli.js`.
+- [x] Move shared request parsing into `bin/agent/input.js`.
+- [x] Add a module-boundary test that `bin/agent/cli.js` no longer imports the CAS
   facade directly.
+
+## Resolution
+
+The agent entrypoint now resolves command names, creates the JSONL protocol
+session, maps exceptions to stable exit codes, and delegates implementation to
+`executeAgentCommand()` in `bin/agent/commands/index.js`. Shared request parsing,
+local input-file reads, credential-source validation, and start-payload
+sanitization live in `bin/agent/input.js`, with
+`test/unit/cli/agent-module-boundary.test.js` preserving the boundary.

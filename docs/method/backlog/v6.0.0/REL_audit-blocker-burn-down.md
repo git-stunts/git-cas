@@ -24,7 +24,7 @@ annotated `v6.0.0` tag.
 - [x] Add a long-form store/restore pipeline state-machine document.
 - [x] Add an empty-vault passphrase verifier and migration behavior.
 - [x] Make `scripts/release/verify.js` directly execute maintained examples.
-- [ ] Split `bin/agent/cli.js` command implementations out of the protocol
+- [x] Split `bin/agent/cli.js` command implementations out of the protocol
   shell.
 
 ## Deferred To v6.x

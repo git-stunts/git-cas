@@ -94,9 +94,12 @@ Resolved — `security/audit-fixes` branch:
 
 Active:
 
-- [RL — Agent CLI Module Size](./bad-code/RL_agent-cli-module-size.md)
 - [TR — CasService Decomposition Pressure](./bad-code/TR_casservice-decomposition-pressure.md)
 - [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md)
+
+Resolved — 2026-05-05 agent boundary cleanup:
+
+- [RL — Agent CLI Module Size](./bad-code/RL_agent-cli-module-size.md) ✅
 
 Resolved — 2026-05-05 release-truth cleanup:
 

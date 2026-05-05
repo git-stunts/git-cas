@@ -73,6 +73,11 @@ flowchart TD
     Engine --> Persistence
 ```
 
+The machine-facing agent entrypoint is intentionally narrow:
+`bin/agent/cli.js` owns command-name resolution, protocol session lifecycle, and
+exit-code mapping. Command behavior lives under `bin/agent/commands/`, while
+shared request parsing and credential-input helpers live in `bin/agent/input.js`.
+
 ## Store Pipeline
 
 ```
