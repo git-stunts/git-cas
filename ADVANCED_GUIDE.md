@@ -5,6 +5,97 @@ orientation and the productive-fast path, start with the [GUIDE.md](./GUIDE.md).
 
 ---
 
+```insta-toc
+---
+title:
+  name:
+  level:
+  center:
+exclude:
+style:
+  listType:
+omit:
+levels:
+  min:
+  max:
+---
+
+# Table of Contents
+
+- Advanced Guide -- git-cas
+    - Content-Defined Chunking (CDC)
+        - Algorithm Overview
+        - Buzhash Rolling Hash
+        - Mask Derivation
+        - FastCDC Dual-Mask Normalization
+        - Default Parameters
+        - Encryption Penalty
+    - Encryption Schemes
+        - Legacy Scheme Rejection
+        - whole
+        - framed (default for fixed encrypted stores)
+        - convergent
+        - Why AAD Matters
+        - Scheme Selection
+        - Auto-Selection
+    - Convergent Encryption
+        - Key Derivation
+        - Blob Format
+        - Restore Verification
+        - Trade-offs
+    - KDF Policy
+        - PBKDF2-SHA512
+        - scrypt
+        - Enforcement Points
+    - Manifest Integrity Hash
+        - Computation (store)
+        - Verification (read)
+        - What It Catches
+        - Backward Compatibility
+    - Format Version
+    - Manifest Diffing
+        - Return Value
+        - Use Cases
+        - Example
+    - Parallel Chunk Restore
+        - How It Works
+        - Configuration
+    - Merkle Manifests
+        - Structure
+        - Git Tree Layout
+        - Validation
+        - Limits
+    - Vault Privacy Mode
+        - How It Works
+        - Requirements
+        - Limitations
+    - Envelope Encryption
+        - Multi-Recipient Model
+        - Trial Decryption
+        - Key Rotation
+        - Adding and Removing Recipients
+    - Streaming Decompression
+    - CompressionPort Architecture
+        - Port Interface
+        - NodeCompressionAdapter
+        - Pluggability
+    - Direct CasService and Custom Port Contracts
+        - Minimal Direct Service
+        - Required Port Shape
+        - Runtime and Facade Split
+    - Security Hardening Summary
+    - Operational Tooling
+        - Migration
+        - Release Verification
+        - Build Metadata
+    - Performance Baselines
+    - Configuration Reference
+        - store() Options
+        - CdcChunker Options
+```
+
+---
+
 ## Content-Defined Chunking (CDC)
 
 `git-cas` ships two chunking strategies: **fixed** (default) and **CDC**
