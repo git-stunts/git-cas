@@ -2,9 +2,6 @@
 node_modules
 npm-debug.log
 .gitignore
-*.md
-!README.md
-!ARCHITECTURE.md
 .DS_Store
 coverage
 .vscode

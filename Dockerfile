@@ -33,6 +33,7 @@ CMD ["pnpm", "vitest", "run", "test/unit"]
 
 # --- Bun ---
 FROM ubuntu-base AS bun
+COPY --from=node-runtime /usr/local/ /usr/local/
 COPY --from=bun-runtime /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=bun-runtime /usr/local/bin/bunx /usr/local/bin/bunx
 WORKDIR /app
@@ -48,7 +49,7 @@ CMD ["bunx", "vitest", "run", "test/unit"]
 # --- Deno ---
 FROM ubuntu-base AS deno
 COPY --from=deno-runtime /usr/bin/deno /usr/local/bin/deno
-COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-runtime /usr/local/ /usr/local/
 WORKDIR /app
 COPY package.json ./
 RUN deno install --allow-scripts || true
