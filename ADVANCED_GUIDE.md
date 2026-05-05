@@ -205,9 +205,11 @@ preserve deduplication across encrypted versions -- see the
 
 ## Encryption Schemes
 
-`git-cas` supports three AES-256-GCM encryption schemes. All use 256-bit keys,
-96-bit random nonces, and 128-bit authentication tags. AAD (Additional
-Authenticated Data) binding is always active -- there are no non-AAD variants.
+`git-cas` supports three AES-256-GCM encryption schemes. All use 256-bit keys
+and 128-bit authentication tags. `whole` and `framed` use fresh 96-bit random
+nonces; `convergent` derives per-chunk keys and nonces deterministically from
+the plaintext content hash. AAD (Additional Authenticated Data) binding is
+always active -- there are no non-AAD variants.
 
 The single source of truth for scheme identifiers is
 `src/domain/encryption/schemes.js`.

@@ -78,7 +78,10 @@ CDC is the default for deduplication workloads. **FastCDC dual-mask normalizatio
 
 ### Encryption
 
-All encryption uses **AES-256-GCM** with 12-byte random nonces and 16-byte authentication tags.
+Encryption uses **AES-256-GCM** with 16-byte authentication tags. `whole` and
+`framed` use fresh random 96-bit nonces; `convergent` derives per-chunk keys
+and nonces deterministically from the plaintext content hash to preserve
+deduplication.
 
 Three encryption schemes are supported:
 

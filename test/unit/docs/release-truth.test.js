@@ -47,4 +47,17 @@ describe('release truth docs and examples', () => {
     expect(threatModel).not.toContain('When `convergent-v1` encryption is active');
     expect(threatModel).not.toContain('use `framed-v2` or `whole-v2` instead');
   });
+
+  it('keeps nonce documentation precise for convergent encryption', () => {
+    const readme = read('README.md');
+    const advancedGuide = read('ADVANCED_GUIDE.md');
+
+    expect(readme).not.toContain('All encryption uses **AES-256-GCM** with 12-byte random nonces');
+    expect(readme).toMatch(/`whole`\s+and\s+`framed`\s+use fresh random 96-bit nonces/);
+    expect(readme).toMatch(/`convergent`\s+derives per-chunk keys\s+and nonces/);
+
+    expect(advancedGuide).not.toContain('All use 256-bit keys,\n96-bit random nonces');
+    expect(advancedGuide).toMatch(/`whole`\s+and\s+`framed`\s+use fresh 96-bit random\s+nonces/);
+    expect(advancedGuide).toMatch(/`convergent`\s+derives per-chunk keys and nonces deterministically/);
+  });
 });
