@@ -139,6 +139,8 @@ post-tag backlog work.
 - **Security Footgun From Related Ship Audit:** Inline human CLI passphrase
   flags now warn, help text discourages argv secrets, and maintained docs prefer
   stdin/env/keychain/file passphrase sources (`b01e5ba`).
+- **4.3 Dependency Health:** `commander` is pinned to an exact version and CLI
+  help regression coverage now guards passphrase-source help text.
 
 ### Still Open - v6.0.0 Blockers
 
@@ -152,4 +154,3 @@ post-tag backlog work.
 - Add vault-state caching for unchanged vault tree OIDs.
 - Expand `createJson` / `createCbor` factory options to cover underlying service
   options.
-- Pin `commander` and preserve CLI flag/help regression coverage.

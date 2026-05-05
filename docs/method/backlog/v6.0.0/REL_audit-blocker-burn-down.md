@@ -20,7 +20,7 @@ annotated `v6.0.0` tag.
 - [ ] Add vault-state caching for unchanged vault tree OIDs.
 - [ ] Expand `createJson` / `createCbor` factory options to cover the underlying
   service options.
-- [ ] Pin `commander` and preserve CLI flag/help regression coverage.
+- [x] Pin `commander` and preserve CLI flag/help regression coverage.
 - [ ] Add a long-form store/restore pipeline state-machine document.
 - [ ] Add an empty-vault passphrase verifier and migration behavior.
 - [x] Make `scripts/release/verify.js` directly execute maintained examples.
