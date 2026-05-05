@@ -19,11 +19,11 @@ methodology:
   manual_review_hours: 4
   false_positive_rate: "8%"
 summary:
-  total_findings: 10
+  total_findings: 11
   severity_count:
     critical: 0
     high: 2
-    medium: 6
+    medium: 7
     low: 2
   remediation_status: "Pending"
 related_reports:

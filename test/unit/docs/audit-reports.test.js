@@ -17,6 +17,19 @@ function boundedSection(markdown, start, end) {
   return markdown.slice(startIndex, endIndex === -1 ? undefined : endIndex);
 }
 
+function summaryCounts(markdown) {
+  const match = markdown.match(/summary:\n\s+total_findings: (\d+)\n\s+severity_count:\n\s+critical: (\d+)\n\s+high: (\d+)\n\s+medium: (\d+)\n\s+low: (\d+)/);
+  if (!match) {
+    throw new Error('Missing summary counts');
+  }
+  const [, total, critical, high, medium, low] = match.map(Number);
+  return { total, critical, high, medium, low };
+}
+
+function countMatches(markdown, pattern) {
+  return [...markdown.matchAll(pattern)].length;
+}
+
 describe('audit reports', () => {
   it('keeps ship-readiness code-quality violations actionable with rewrite snippets', () => {
     const report = read('docs/audit/2026-05-04_ship-readiness.md');
@@ -28,6 +41,30 @@ describe('audit reports', () => {
       expect(section, `Violation ${violation}`).toContain(`**Original Code Snippet ${violation}:**`);
       expect(section, `Violation ${violation}`).toContain(`**Simplified Rewrite ${violation}:**`);
       expect(section, `Violation ${violation}`).toContain(`**Mitigation Prompt ${violation + 3}:**`);
+    }
+  });
+
+  it('keeps audit summary finding counts reconciled with report bodies', () => {
+    const codeQuality = read('docs/audit/2026-05-04_code-quality.md');
+    const shipReadiness = read('docs/audit/2026-05-04_ship-readiness.md');
+
+    const reports = [
+      {
+        name: 'code quality',
+        markdown: codeQuality,
+        bodyCount: countMatches(codeQuality, /^### [1-4]\.\d\./gm),
+      },
+      {
+        name: 'ship readiness',
+        markdown: shipReadiness,
+        bodyCount: countMatches(shipReadiness, /^\*\*(Issue|Violation|Risk|Vulnerability|Gap) \d+:/gm),
+      },
+    ];
+
+    for (const report of reports) {
+      const counts = summaryCounts(report.markdown);
+      expect(counts.total, report.name).toBe(report.bodyCount);
+      expect(counts.critical + counts.high + counts.medium + counts.low, report.name).toBe(counts.total);
     }
   });
 });
