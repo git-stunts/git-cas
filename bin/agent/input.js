@@ -2,11 +2,13 @@ import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import ContentAddressableStore from '../../index.js';
+import Slug from '../../src/domain/value-objects/Slug.js';
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 import {
-  hasAgentPassphraseSource,
-  validateAgentPassphraseSource,
-} from './passphrase-source.js';
+  hasAgentVaultPassphraseSource,
+  readKeyFile as readCredentialKeyFile,
+  validateAgentCredentialSources,
+} from '../credentials.js';
 
 const REQUEST_OPTION = { request: { type: 'string' } };
 const INPUT_ALIAS_MAP = Object.freeze({
@@ -496,9 +498,10 @@ export function resolveTarget(input) {
   if (!input.slug && !input.oid) {
     throw invalidInput('Provide --slug <slug> or --oid <tree-oid>');
   }
+  const slug = input.slug ? Slug.from(input.slug).toString() : undefined;
   return {
     cwd: input.cwd || '.',
-    ...(input.slug ? { slug: input.slug } : {}),
+    ...(slug ? { slug } : {}),
     ...(input.oid ? { oid: input.oid } : {}),
   };
 }
@@ -514,7 +517,7 @@ export function resolveSlugTarget(input) {
 
   return {
     cwd: input.cwd || '.',
-    slug: input.slug,
+    slug: Slug.from(input.slug).toString(),
   };
 }
 
@@ -556,11 +559,10 @@ export async function resolveTree(input) {
  * @returns {Buffer}
  */
 export function readKeyFile(keyFilePath) {
-  const key = readBinaryInputFile(keyFilePath, 'key file');
-  if (key.length !== 32) {
-    throw invalidInput(`Invalid key length: expected 32 bytes, got ${key.length} (${keyFilePath})`);
-  }
-  return key;
+  return readCredentialKeyFile(keyFilePath, {
+    readFile: (filePath) => readBinaryInputFile(filePath, 'key file'),
+    errorFactory: invalidInput,
+  });
 }
 
 /**
@@ -606,30 +608,12 @@ export async function readAgentPassphraseFile(filePath, { stdin, onWarning } = {
  * @returns {boolean}
  */
 export function hasVaultPassphraseSource(input) {
-  return hasAgentPassphraseSource({
-    inlineValue: input.vaultPassphrase,
-    fileValue: input.vaultPassphraseFile,
-    osKeychainTarget: input.osKeychainTarget,
-  });
+  return hasAgentVaultPassphraseSource(input);
 }
 
 /**
  * @param {Record<string, any>} input
  */
 export function validateCredentialSources(input) {
-  validateAgentPassphraseSource({
-    inlineValue: input.vaultPassphrase,
-    fileValue: input.vaultPassphraseFile,
-    osKeychainTarget: input.osKeychainTarget,
-    osKeychainAccount: input.osKeychainAccount,
-    inlineFlag: '--vault-passphrase',
-    fileFlag: '--vault-passphrase-file',
-    keychainTargetFlag: '--os-keychain-target',
-    keychainAccountFlag: '--os-keychain-account',
-    label: 'vault passphrase source',
-    errorFactory: invalidInput,
-  });
-  if (input.keyFile && hasVaultPassphraseSource(input)) {
-    throw invalidInput('Provide --key-file or a vault passphrase source, not both');
-  }
+  validateAgentCredentialSources(input, { errorFactory: invalidInput });
 }

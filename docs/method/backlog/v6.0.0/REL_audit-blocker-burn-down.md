@@ -26,10 +26,17 @@ annotated `v6.0.0` tag.
 - [x] Make `scripts/release/verify.js` directly execute maintained examples.
 - [x] Split `bin/agent/cli.js` command implementations out of the protocol
   shell.
+- [x] Extract shared CLI/agent credential helpers.
+- [x] Promote vault slug validation and tree-entry encoding into a `Slug`
+  value object.
+- [x] Align `@flyingrobots/bijou-*` caretaker dependency ranges.
+- [x] Centralize `CasService` required-port constructor validation.
 
 ## Deferred To v6.x
 
 - [TUI — Orphaned-Chunk Health Check](../v6.x-tui/TUI_orphaned-chunk-health-check.md)
+- CasService byte-level restore-handler extraction remains deferred to v6.1.0
+  by operator directive.
 
 ## Done When
 

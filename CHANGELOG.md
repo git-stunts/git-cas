@@ -64,6 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Platform-neutral core byte pipeline** — `CasService`, `KeyResolver`, `VaultService`, convergent encryption, manifest/KDF metadata helpers, schemas, codecs, and fixed/CDC chunkers now use pure `Uint8Array` byte helpers and protocol encoders instead of `Buffer` methods. `store()` now has regression coverage for `Readable.from([new Uint8Array(...)])` in both fixed and CDC chunking modes.
+- **Slug value object** — vault slug validation and plain vault tree-entry
+  percent encoding now live in `Slug`, including `.toTreePath()` for the Git
+  tree-entry representation used by `VaultService`.
 - **Architecture guard added** — `test/unit/docs/platform-boundary.test.js` now fails if platform-neutral source directories introduce `node:*` imports, `Buffer` runtime APIs, runtime globals, platform text codecs, or Node stream classes.
 - **WebCryptoAdapter HMAC is Web Crypto native** — HMAC-SHA256 now uses `crypto.subtle.sign()` instead of importing Node crypto into the Web adapter.
 - **Plaintext+compressed restore is now streaming** — compressed unencrypted data uses `_restoreCompressedStreaming` instead of the buffered path, eliminating the `maxRestoreBufferSize` constraint for this case.
@@ -98,7 +101,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Shared CLI/agent credential resolution** — human CLI and agent protocol
+  flows now use `bin/credentials.js` for key-file length checks, ambiguous
+  credential-source rejection, vault passphrase-derived key verification, and
+  encrypted-restore input classification.
 - **Type declaration accuracy** — `CasServiceOptions` now marks `chunker` and `compressionAdapter` as required for direct domain-service construction, and `StoreEncryptionOptions` exposes the supported `convergent` opt-in/opt-out flag.
+- **Constructor validation consistency** — direct `CasService` construction now
+  validates all required ports through the unified constructor argument
+  validator.
+- **Caretaker dependency ranges** — `@flyingrobots/bijou-*` dependencies now
+  use consistent `^5.0.0` ranges for the v6 release line.
 - **v6 documentation coverage** — README, GUIDE, ADVANCED_GUIDE, API docs, walkthrough docs, and examples now align with the actual v6 CLI, direct-service port requirements, `Uint8Array` byte contract, agent command surface, and CDC/convergent encryption defaults.
 - **Release documentation finalization** — added public v6.0.0 release notes, made README migration guidance more prominent for existing v5 users, and aligned UPGRADING examples with the safer `--passphrase-file` migration path.
 - **Release-gate hardening** — `npm run release:verify` now executes every maintained example, `commander` is pinned to an exact version, and CLI help regression coverage preserves passphrase-source guidance.

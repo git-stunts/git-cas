@@ -1,5 +1,6 @@
 import ContentAddressableStore from '../../../index.js';
 import Manifest from '../../../src/domain/value-objects/Manifest.js';
+import Slug from '../../../src/domain/value-objects/Slug.js';
 import { createGitPlumbing } from '../../../src/infrastructure/createGitPlumbing.js';
 import { buildVaultStats, inspectVaultHealth } from '../../ui/vault-report.js';
 import { filterEntries } from '../../ui/vault-list.js';
@@ -8,6 +9,10 @@ import {
   hasAgentPassphraseSource,
   validateAgentPassphraseSource,
 } from '../passphrase-source.js';
+import {
+  resolveAgentRestoreEncryptionKey,
+  resolveAgentStoreEncryptionKey,
+} from '../../credentials.js';
 import { AGENT_EXIT_CODES } from '../protocol.js';
 import {
   assignPositionals,
@@ -68,119 +73,6 @@ async function resolveVaultPassphrase(input, requestSource, options = {}) {
 }
 
 /**
- * @param {ContentAddressableStore} cas
- * @param {NonNullable<Awaited<ReturnType<ContentAddressableStore['getVaultMetadata']>>>} metadata
- * @param {string} passphrase
- * @returns {Promise<Buffer>}
- */
-async function deriveVaultKey(cas, metadata, passphrase) {
-  const { kdf } = metadata.encryption;
-  const { key } = await cas.deriveKey({
-    passphrase,
-    salt: Buffer.from(kdf.salt, 'base64'),
-    algorithm: kdf.algorithm,
-    iterations: kdf.iterations,
-    cost: kdf.cost,
-    blockSize: kdf.blockSize,
-    parallelization: kdf.parallelization,
-    keyLength: kdf.keyLength,
-  });
-  await cas.verifyVaultKey({ encryptionKey: key });
-  return key;
-}
-
-/**
- * @param {import('../../../index.js').default} cas
- * @param {Record<string, any>} input
- * @returns {Promise<Buffer | undefined>}
- */
-async function resolveStoreEncryptionKey(cas, input, options = {}) {
-  validateCredentialSources(input);
-  if (input.keyFile) {
-    return readKeyFile(input.keyFile);
-  }
-  const passphrase = await resolveVaultPassphrase(input, input.requestSource, options);
-  if (!passphrase) {
-    return undefined;
-  }
-  const metadata = await cas.getVaultMetadata();
-  if (!metadata?.encryption?.kdf) {
-    throw invalidInput('Vault passphrase source is only valid for encrypted vaults');
-  }
-  return await deriveVaultKey(cas, metadata, passphrase);
-}
-
-/**
- * @param {import('../../../src/domain/value-objects/Manifest.js').default} manifest
- * @returns {boolean}
- */
-function hasEnvelopeRecipients(manifest) {
-  return (
-    Array.isArray(manifest.encryption?.recipients) && manifest.encryption.recipients.length > 0
-  );
-}
-
-/**
- * @param {import('../../../src/domain/value-objects/Manifest.js').default} manifest
- * @param {Awaited<ReturnType<ContentAddressableStore['getVaultMetadata']>>} metadata
- * @returns {string[]}
- */
-function getRestoreRequiredInputs(manifest, metadata) {
-  if (hasEnvelopeRecipients(manifest)) {
-    return ['keyFile'];
-  }
-  if (metadata?.encryption?.kdf) {
-    return ['keyFile', 'vaultPassphrase', 'vaultPassphraseFile', 'osKeychainTarget'];
-  }
-  return ['keyFile'];
-}
-
-/**
- * @param {{
- *   cas: ContentAddressableStore,
- *   manifest: import('../../../src/domain/value-objects/Manifest.js').default,
- *   input: Record<string, any>,
- *   requestSource?: string,
- *   treeOid: string,
- * }} options
- * @returns {Promise<Buffer | undefined>}
- */
-async function resolveRestoreEncryptionKey({ cas, manifest, input, requestSource, treeOid }) {
-  validateCredentialSources(input);
-  if (input.keyFile) {
-    return readKeyFile(input.keyFile);
-  }
-
-  const metadata = await cas.getVaultMetadata();
-  const passphrase = await resolveVaultPassphrase(input, requestSource, {
-    stdin: input.stdin,
-    onWarning: input.onWarning,
-  });
-
-  if (passphrase) {
-    if (hasEnvelopeRecipients(manifest)) {
-      throw invalidInput(
-        'Vault passphrase source cannot decrypt recipient-encrypted assets; provide --key-file'
-      );
-    }
-    if (!metadata?.encryption?.kdf) {
-      throw invalidInput('Vault passphrase source is only valid for encrypted vaults');
-    }
-    return await deriveVaultKey(cas, metadata, passphrase);
-  }
-
-  if (!manifest.encryption?.encrypted) {
-    return undefined;
-  }
-
-  throw needsInput('Encrypted restore requires --key-file or a vault passphrase source', {
-    requiredInputs: getRestoreRequiredInputs(manifest, metadata),
-    slug: input.slug || manifest.slug,
-    treeOid,
-  });
-}
-
-/**
  * @param {string[]} args
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<Record<string, any>>}
@@ -222,6 +114,7 @@ function validateStoreInput(input) {
   if (!input.slug) {
     throw invalidInput('Provide --slug <slug>');
   }
+  input.slug = Slug.from(input.slug).toString();
   if (input.force && !input.tree) {
     throw invalidInput('--force requires --tree');
   }
@@ -930,6 +823,67 @@ function buildRestoreOutcome({ manifest, treeOid, outputPath, bytesWritten }) {
 }
 
 /**
+ * @param {{
+ *   cas: ContentAddressableStore,
+ *   input: Record<string, any>,
+ *   stdin: NodeJS.ReadStream,
+ *   session: ReturnType<typeof import('../protocol.js').createAgentSession>,
+ * }} params
+ * @returns {Promise<Uint8Array | undefined>}
+ */
+async function readStoreEncryptionKey({ cas, input, stdin, session }) {
+  return await resolveAgentStoreEncryptionKey(cas, input, {
+    stdin,
+    onWarning: (warning) => session.writeWarning(warning),
+    readKeyFile,
+    resolveVaultPassphrase,
+    errorFactory: invalidInput,
+  });
+}
+
+/**
+ * @param {{
+ *   cas: ContentAddressableStore,
+ *   manifest: import('../../../src/domain/value-objects/Manifest.js').default,
+ *   input: Record<string, any>,
+ *   stdin: NodeJS.ReadStream,
+ *   session: ReturnType<typeof import('../protocol.js').createAgentSession>,
+ *   requestSource: string | undefined,
+ *   treeOid: string,
+ * }} params
+ * @returns {Promise<Uint8Array | undefined>}
+ */
+async function readRestoreEncryptionKey({
+  cas,
+  manifest,
+  input,
+  stdin,
+  session,
+  requestSource,
+  treeOid,
+}) {
+  return await resolveAgentRestoreEncryptionKey(
+    {
+      cas,
+      manifest,
+      input: {
+        ...input,
+        stdin,
+        onWarning: (warning) => session.writeWarning(warning),
+      },
+      requestSource,
+      treeOid,
+    },
+    {
+      readKeyFile,
+      resolveVaultPassphrase,
+      errorFactory: invalidInput,
+      needsInputFactory: needsInput,
+    }
+  );
+}
+
+/**
  * @param {string[]} args
  * @param {NodeJS.ReadStream} stdin
  * @returns {Promise<{ data: Record<string, any> }>}
@@ -957,10 +911,7 @@ async function storeCommand(args, stdin, session) {
   );
 
   const cas = createCas(input.cwd || '.');
-  const encryptionKey = await resolveStoreEncryptionKey(cas, input, {
-    stdin,
-    onWarning: (warning) => session.writeWarning(warning),
-  });
+  const encryptionKey = await readStoreEncryptionKey({ cas, input, stdin, session });
   const vaultEncryptionKey = encryptionKey && !input.keyFile ? encryptionKey : undefined;
   const manifest = await cas.storeFile({
     filePath: input.file,
@@ -1028,14 +979,12 @@ async function restoreCommand(args, stdin, session) {
   );
   const { cas, treeOid } = await resolveTree(target);
   const manifest = await cas.readManifest({ treeOid });
-  const encryptionKey = await resolveRestoreEncryptionKey({
+  const encryptionKey = await readRestoreEncryptionKey({
     cas,
     manifest,
-    input: {
-      ...input,
-      stdin,
-      onWarning: (warning) => session.writeWarning(warning),
-    },
+    input,
+    stdin,
+    session,
     requestSource,
     treeOid,
   });
@@ -1360,6 +1309,7 @@ async function vaultRemoveCommand(args, stdin, session) {
   if (!values.slug) {
     throw invalidInput('Provide --slug <slug>');
   }
+  values.slug = Slug.from(values.slug).toString();
   writeAgentStart(session, selectStartInput(values, ['cwd', 'slug']));
 
   const cas = createCas(values.cwd || '.');
@@ -1466,6 +1416,7 @@ async function vaultInfoCommand(args, stdin, session) {
   if (!input.slug) {
     throw invalidInput('Provide a vault slug');
   }
+  input.slug = Slug.from(input.slug).toString();
   writeAgentStart(session, selectStartInput(input, ['cwd', 'slug', 'encryption']));
 
   const cas = createCas(input.cwd || '.');

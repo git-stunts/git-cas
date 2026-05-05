@@ -18,7 +18,7 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(@flyingrobots/bijou@5.0.0)
       '@flyingrobots/bijou-tui-app':
-        specifier: 5.0.0
+        specifier: ^5.0.0
         version: 5.0.0
       '@git-stunts/alfred':
         specifier: ^0.10.0

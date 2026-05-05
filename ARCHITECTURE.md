@@ -76,7 +76,10 @@ flowchart TD
 The machine-facing agent entrypoint is intentionally narrow:
 `bin/agent/cli.js` owns command-name resolution, protocol session lifecycle, and
 exit-code mapping. Command behavior lives under `bin/agent/commands/`, while
-shared request parsing and credential-input helpers live in `bin/agent/input.js`.
+shared request parsing helpers live in `bin/agent/input.js`. CLI and agent
+credential resolution share `bin/credentials.js` so raw key files,
+passphrase-derived vault keys, and encrypted restore input requirements stay
+consistent across human and machine command surfaces.
 
 ## Store Pipeline
 
@@ -127,9 +130,10 @@ The facade is orchestration glue. It is not the storage engine itself.
   `RestorePipeline`, and per-chunk encryption to `ConvergentEncryption`.
 
 - **`VaultService`** — manages the GC-safe vault ref (`refs/cas/vault`). Owns
-  slug validation, vault initialization, add/update/list/resolve/remove, privacy
-  mode, history-oriented state reads, and compare-and-swap ref updates with
-  retry on conflict.
+  vault initialization, add/update/list/resolve/remove, privacy mode,
+  history-oriented state reads, and compare-and-swap ref updates with retry on
+  conflict. It delegates slug validation and plain tree-entry encoding to the
+  `Slug` value object.
 
 - **`KeyResolver`** — resolves key sources: passphrase-derived keys via KDF,
   envelope recipient DEK wrapping and unwrapping. `CasService` delegates all key
@@ -159,6 +163,14 @@ The facade is orchestration glue. It is not the storage engine itself.
 
 - **`rotateVaultPassphrase`** — coordinates vault-wide passphrase rotation
   across all existing entries.
+
+#### Value Objects (`src/domain/value-objects/`)
+
+- **`Manifest`** — immutable representation of stored asset metadata.
+- **`Chunk`** — immutable representation of one manifest chunk entry.
+- **`Slug`** — immutable vault slug representation. It enforces vault slug
+  limits and exposes `.toTreePath()` for the percent-encoded Git tree-entry name
+  used by plain vault trees.
 
 #### Encryption (`src/domain/encryption/`)
 
@@ -333,12 +345,15 @@ containing:
 
 `VaultService` owns:
 
-- slug validation
 - vault initialization
 - add, update, list, resolve, remove, and history-oriented state reads
 - compare-and-swap ref updates with retry on conflict
 - vault metadata validation
 - privacy mode
+
+Vault slugs are validated and normalized with `Slug`. Plain vault trees encode
+slug names through `Slug.toTreePath()`; privacy-enabled vaults keep HMAC tree
+entry names and store the slug mapping inside the encrypted privacy index.
 
 Vault metadata can include passphrase-derived encryption configuration and
 related counters, but the vault still fundamentally acts as the durable

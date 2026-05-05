@@ -90,6 +90,10 @@ Resolved — `security/audit-fixes` branch:
 - [SEC — FastCDC Dual-Mask Normalization](./cool-ideas/SEC_fastcdc-dual-mask.md) ✅
 - [SEC — Manifest-Level Integrity Hash](./cool-ideas/SEC_manifest-integrity-hash.md) ✅
 
+Resolved — 2026-05-05 final v6 release polish:
+
+- [DX — Slug Tree-Path Helper](./cool-ideas/DX_slug-tree-path-helper.md) ✅
+
 ### `bad-code/`
 
 Active:
@@ -99,6 +103,10 @@ Active:
 Resolved — 2026-05-05 core orchestration cleanup:
 
 - [TR — CasService Decomposition Pressure](./bad-code/TR_casservice-decomposition-pressure.md) ✅
+
+Resolved — 2026-05-05 final v6 release polish:
+
+- [RL — Credential Resolution Duplication](./bad-code/RL_credential-resolution-duplication.md) ✅
 
 Resolved — 2026-05-05 agent boundary cleanup:
 

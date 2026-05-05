@@ -21,4 +21,14 @@ describe('dependency pins', () => {
     expect(isExactVersion(manifest.dependencies.commander)).toBe(true);
     expect(lockfile).toContain(`specifier: ${manifest.dependencies.commander}`);
   });
+
+  it('keeps Bijou family dependencies on the same caretaker range', () => {
+    const manifest = readJson('package.json');
+    const bijouDeps = Object.entries(manifest.dependencies)
+      .filter(([name]) => name.startsWith('@flyingrobots/bijou'))
+      .sort(([a], [b]) => a.localeCompare(b));
+
+    expect(bijouDeps.length).toBeGreaterThan(0);
+    expect(bijouDeps).toEqual(bijouDeps.map(([name]) => [name, '^5.0.0']));
+  });
 });

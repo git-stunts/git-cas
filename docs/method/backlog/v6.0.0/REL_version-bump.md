@@ -28,23 +28,24 @@ because the current `jsr`/Deno toolchain panics before package validation.
 - [x] CHANGELOG complete
 - [x] UPGRADING.md exists and is linked from README
 - [x] Migration script works (`npm run upgrade`)
-- [ ] Final `npm run release:verify -- --skip-jsr` has been run on the final
-  pre-tag commit
+- [x] Final `npm run release:verify -- --skip-jsr` has been run on the final
+  pre-tag candidate
 - [ ] Tag is annotated (not lightweight)
 
 ## Evidence
 
 - Previous full multi-runtime release verification passed on 2026-05-04 before
-  the release-doc correction pass. Re-run `npm run release:verify -- --skip-jsr`
-  on the final pre-tag commit before creating the annotated tag.
-- `origin/main` is pushed through `63d9bc1`; this release-doc correction commit
-  must still be pushed before tagging.
-- Pre-push `npx eslint .` passed on 2026-05-05 for `63d9bc1`.
-- Pre-push `npm test` passed on 2026-05-05 for `63d9bc1`: 130 files, 1390 passed, 2 skipped.
-- Current release-doc package guard expects the npm tarball has 114 entries after
-  adding `docs/releases/v6.0.0.md` and `docs/STORE_RESTORE_PIPELINE.md`, and
-  still excludes internal audit, archive, METHOD backlog, and unused media
-  artifacts.
+  the release-doc correction pass. The 2026-05-05 final local verification
+  below supersedes that earlier evidence for the current pre-tag candidate.
+- Current local pre-tag candidate includes the v6 release-readiness polish for
+  shared credentials, slug value-object extraction, dependency alignment, and
+  constructor validation. It has not been tagged.
+- Final local `npx eslint .` passed on 2026-05-05 after v6 readiness polish.
+- Final local `npm test` passed on 2026-05-05 after v6 readiness polish: 143
+  files, 1450 passed, 2 skipped.
+- Current release-doc package guard expects the npm tarball has 121 entries
+  after adding the shared credential helper and `Slug` value object, and still
+  excludes internal audit, archive, METHOD backlog, and unused media artifacts.
 - Node integration passed on 2026-05-04: 4 files, 152 passed.
 - Bun unit passed on 2026-05-04: 118 files passed, 1 file skipped; 1363 passed, 6 skipped.
 - Bun integration passed on 2026-05-04: 4 files, 152 passed.
@@ -64,10 +65,14 @@ because the current `jsr`/Deno toolchain panics before package validation.
 - PR #35 landed the release branch on `main` as `1d2ca5c` on 2026-05-04, and GitHub Actions CI passed on that merge commit.
 - Final pre-tag `npm run release:verify -- --skip-jsr` passed on 2026-05-04 after release-doc cleanup: 9/9 executable steps, 4531 observed tests, skipped `JSR publish dry-run`.
 - Post type/doc accuracy cleanup `npm run release:verify -- --skip-jsr` passed on 2026-05-04: 9/9 executable steps, 4537 observed tests, skipped `JSR publish dry-run`.
+- Exact `npm run release:verify` passed 12/13 steps on 2026-05-05 and failed
+  only at the known upstream JSR/Deno 2.6.7 `deno_ast` overlapping text-change
+  panic. It observed 4801 tests before the JSR dry-run failure.
+- Final local `npm run release:verify -- --skip-jsr` passed on 2026-05-05:
+  12/12 executable steps, 4801 observed tests, skipped `JSR publish dry-run`.
 
 ## Remaining Before Tag
 
-- Push this release-doc correction commit after review.
-- Run final `npm run release:verify -- --skip-jsr` on the synced final commit.
+- Push the final v6 release-polish commit after review.
 - Create an annotated `v6.0.0` tag on the final release commit after operator approval.
 - Push the tag so CI can publish npm and create the GitHub Release.

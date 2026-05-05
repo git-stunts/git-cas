@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { program, Option } from 'commander';
 import ContentAddressableStore, { EventEmitterObserver, CborCodec } from '../index.js';
 import Manifest from '../src/domain/value-objects/Manifest.js';
+import Slug from '../src/domain/value-objects/Slug.js';
 import { createGitPlumbing } from '../src/infrastructure/createGitPlumbing.js';
 import { createStoreProgress, createRestoreProgress } from './ui/progress.js';
 import { renderEncryptionCard } from './ui/encryption-card.js';
@@ -27,11 +28,14 @@ import { filterEntries, formatTable, formatTabSeparated } from './ui/vault-list.
 import { readPassphraseFile } from './ui/passphrase-prompt.js';
 import {
   hasExplicitPassphraseSource,
-  hasPassphraseSource,
   resolvePassphrase,
-  validatePassphraseSources,
   warnInlinePassphraseArgs,
 } from './passphrase-source.js';
+import {
+  readKeyFile,
+  resolveCliEncryptionKey as resolveEncryptionKey,
+  validateCliCredentialSources as validateCredentialSources,
+} from './credentials.js';
 import { loadConfig, mergeConfig } from './config.js';
 
 import { resolveVersionString } from './build-version.js';
@@ -57,20 +61,6 @@ program
   .option('--json', 'Output results as JSON');
 
 /**
- * Read a 32-byte raw encryption key from a file.
- *
- * @param {string} keyFilePath
- * @returns {Uint8Array}
- */
-function readKeyFile(keyFilePath) {
-  const buf = readFileSync(keyFilePath);
-  if (buf.length !== 32) {
-    throw new Error(`Invalid key length: expected 32 bytes, got ${buf.length} (${keyFilePath})`);
-  }
-  return buf;
-}
-
-/**
  * Create a CAS instance for the given working directory.
  *
  * @param {string} cwd
@@ -88,69 +78,6 @@ function createCas(cwd, opts = {}) {
 }
 
 /**
- * Derive the encryption key from vault metadata + passphrase.
- *
- * @param {ContentAddressableStore} cas
- * @param {import('../index.js').VaultMetadata} metadata
- * @param {string} passphrase
- * @returns {Promise<Uint8Array>}
- */
-async function deriveVaultKey(cas, metadata, passphrase) {
-  if (!metadata.encryption?.kdf) {
-    throw new Error('Missing or malformed encryption metadata');
-  }
-  const { kdf } = metadata.encryption;
-  const { key } = await cas.deriveKey({
-    passphrase,
-    salt: Buffer.from(kdf.salt, 'base64'),
-    algorithm: /** @type {"pbkdf2" | "scrypt"} */ (kdf.algorithm),
-    iterations: kdf.iterations,
-    cost: kdf.cost,
-    blockSize: kdf.blockSize,
-    parallelization: kdf.parallelization,
-  });
-  await cas.verifyVaultKey({ encryptionKey: key });
-  return key;
-}
-
-/**
- * Validate human CLI credential sources so explicit-but-empty values still count as provided.
- *
- * @param {Record<string, any>} opts
- */
-function validateCredentialSources(opts) {
-  validatePassphraseSources(opts);
-  if (opts.keyFile !== undefined && hasExplicitPassphraseSource(opts)) {
-    throw new Error('Provide --key-file or a vault passphrase source, not both');
-  }
-}
-
-/**
- * Resolve encryption key from --key-file or --vault-passphrase / GIT_CAS_PASSPHRASE.
- *
- * @param {ContentAddressableStore} cas
- * @param {Record<string, any>} opts
- * @returns {Promise<Uint8Array | undefined>}
- */
-async function resolveEncryptionKey(cas, opts) {
-  if (opts.keyFile) {
-    return readKeyFile(opts.keyFile);
-  }
-  const metadata = await cas.getVaultMetadata();
-  if (!metadata?.encryption) {
-    if (hasPassphraseSource(opts)) {
-      process.stderr.write('warning: passphrase ignored (vault is not encrypted)\n');
-    }
-    return undefined;
-  }
-  const passphrase = await resolvePassphrase(opts);
-  if (!passphrase) {
-    return undefined;
-  }
-  return deriveVaultKey(cas, metadata, passphrase);
-}
-
-/**
  * Validate --slug / --oid flags (exactly one required).
  *
  * @param {Record<string, any>} opts
@@ -162,6 +89,17 @@ function validateRestoreFlags(opts) {
   if (!opts.slug && !opts.oid) {
     throw new Error('Provide --slug <slug> or --oid <tree-oid>');
   }
+  if (opts.slug) {
+    Slug.validate(opts.slug);
+  }
+}
+
+/**
+ * @param {string} slug
+ * @returns {string}
+ */
+function normalizeSlug(slug) {
+  return Slug.from(slug).toString();
 }
 
 // ---------------------------------------------------------------------------
@@ -187,7 +125,7 @@ function validateRestoreFlags(opts) {
  */
 async function buildStoreOpts(cas, file, opts) {
   /** @type {StoreFileOpts} */
-  const storeOpts = { filePath: file, slug: opts.slug };
+  const storeOpts = { filePath: file, slug: Slug.from(opts.slug).toString() };
   if (opts.recipient) {
     storeOpts.recipients = opts.recipient;
   } else {
@@ -308,7 +246,7 @@ program
       if (opts.tree) {
         const treeOid = await cas.createTree({ manifest });
         await cas.addToVault({
-          slug: opts.slug,
+          slug: storeOpts.slug,
           treeOid,
           force: !!opts.force,
           ...(storeOpts.vaultEncryptionKey ? { encryptionKey: storeOpts.vaultEncryptionKey } : {}),
@@ -626,7 +564,8 @@ vault
   .action(
     runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
       const cas = createCas(opts.cwd);
-      const { commitOid, removedTreeOid } = await cas.removeFromVault({ slug });
+      const vaultSlug = normalizeSlug(slug);
+      const { commitOid, removedTreeOid } = await cas.removeFromVault({ slug: vaultSlug });
       const json = program.opts().json;
       if (json) {
         process.stdout.write(`${JSON.stringify({ commitOid, removedTreeOid })}\n`);
@@ -647,11 +586,12 @@ vault
   .action(
     runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
       const cas = createCas(opts.cwd);
-      const treeOid = await cas.resolveVaultEntry({ slug });
+      const vaultSlug = normalizeSlug(slug);
+      const treeOid = await cas.resolveVaultEntry({ slug: vaultSlug });
       const json = program.opts().json;
       if (json) {
         /** @type {Record<string, any>} */
-        const result = { slug, treeOid };
+        const result = { slug: vaultSlug, treeOid };
         if (opts.encryption) {
           const metadata = await cas.getVaultMetadata();
           if (metadata?.encryption) {
@@ -660,7 +600,7 @@ vault
         }
         process.stdout.write(`${JSON.stringify(result)}\n`);
       } else {
-        process.stdout.write(`slug\t${slug}\n`);
+        process.stdout.write(`slug\t${vaultSlug}\n`);
         process.stdout.write(`tree\t${treeOid}\n`);
         if (opts.encryption) {
           const metadata = await cas.getVaultMetadata();
@@ -836,7 +776,7 @@ program
 
       if (opts.slug) {
         const newTreeOid = await cas.createTree({ manifest: updated });
-        await cas.addToVault({ slug: opts.slug, treeOid: newTreeOid, force: true });
+        await cas.addToVault({ slug: normalizeSlug(opts.slug), treeOid: newTreeOid, force: true });
         if (json) {
           process.stdout.write(
             `${JSON.stringify({ treeOid: newTreeOid, keyVersion: updated.encryption?.keyVersion })}\n`
@@ -867,7 +807,8 @@ recipient
   .action(
     runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
       const cas = createCas(opts.cwd);
-      const treeOid = await cas.resolveVaultEntry({ slug });
+      const vaultSlug = normalizeSlug(slug);
+      const treeOid = await cas.resolveVaultEntry({ slug: vaultSlug });
       const manifest = await cas.readManifest({ treeOid });
 
       const existingKey = readKeyFile(opts.existingKeyFile);
@@ -881,7 +822,7 @@ recipient
       });
 
       const newTreeOid = await cas.createTree({ manifest: updated });
-      await cas.addToVault({ slug, treeOid: newTreeOid, force: true });
+      await cas.addToVault({ slug: vaultSlug, treeOid: newTreeOid, force: true });
 
       const json = program.opts().json;
       if (json) {
@@ -900,13 +841,14 @@ recipient
   .action(
     runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
       const cas = createCas(opts.cwd);
-      const treeOid = await cas.resolveVaultEntry({ slug });
+      const vaultSlug = normalizeSlug(slug);
+      const treeOid = await cas.resolveVaultEntry({ slug: vaultSlug });
       const manifest = await cas.readManifest({ treeOid });
 
       const updated = await cas.removeRecipient({ manifest, label: opts.label });
 
       const newTreeOid = await cas.createTree({ manifest: updated });
-      await cas.addToVault({ slug, treeOid: newTreeOid, force: true });
+      await cas.addToVault({ slug: vaultSlug, treeOid: newTreeOid, force: true });
 
       const json = program.opts().json;
       if (json) {
@@ -924,7 +866,8 @@ recipient
   .action(
     runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
       const cas = createCas(opts.cwd);
-      const treeOid = await cas.resolveVaultEntry({ slug });
+      const vaultSlug = normalizeSlug(slug);
+      const treeOid = await cas.resolveVaultEntry({ slug: vaultSlug });
       const manifest = await cas.readManifest({ treeOid });
 
       const labels = await cas.listRecipients(manifest);

@@ -129,7 +129,14 @@ export default class CasService {
    */
   constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024, compressionAdapter, formatVersion, legacyMode = false }) {
     CasService._validateObservability(observability);
-    CasService.#validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize });
+    CasService.#validateConstructorArgs({
+      chunkSize,
+      merkleThreshold,
+      concurrency,
+      maxRestoreBufferSize,
+      chunker,
+      compressionAdapter,
+    });
     this.persistence = persistence;
     this.codec = codec;
     this.crypto = crypto;
@@ -137,12 +144,6 @@ export default class CasService {
     this.chunkSize = chunkSize;
     if (chunkSize > 10 * 1024 * 1024) {
       observability.log('warn', `Chunk size ${chunkSize} exceeds 10 MiB — consider a smaller value`, { chunkSize });
-    }
-    if (!chunker) {
-      throw new Error('chunker is required — inject a ChunkingPort instance');
-    }
-    if (!compressionAdapter) {
-      throw new Error('compressionAdapter is required — inject a CompressionPort instance');
     }
     /** @type {import('../../ports/ChunkingPort.js').default} */
     this.chunker = chunker;
@@ -168,11 +169,24 @@ export default class CasService {
     }
   }
 
-  static #validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize }) {
+  static #validateConstructorArgs({
+    chunkSize,
+    merkleThreshold,
+    concurrency,
+    maxRestoreBufferSize,
+    chunker,
+    compressionAdapter,
+  }) {
     CasService.#assertIntRange({ value: chunkSize, min: 1024, max: 100 * 1024 * 1024, label: 'chunkSize' });
     CasService.#assertIntRange({ value: merkleThreshold, min: 1, max: Number.MAX_SAFE_INTEGER, label: 'merkleThreshold' });
     CasService.#assertIntRange({ value: concurrency, min: 1, max: 64, label: 'concurrency' });
     CasService.#assertIntRange({ value: maxRestoreBufferSize, min: 1024, max: Number.MAX_SAFE_INTEGER, label: 'maxRestoreBufferSize' });
+    if (!chunker) {
+      throw new Error('chunker is required — inject a ChunkingPort instance');
+    }
+    if (!compressionAdapter) {
+      throw new Error('compressionAdapter is required — inject a CompressionPort instance');
+    }
   }
 
   /**

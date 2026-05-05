@@ -7,7 +7,8 @@ import { prepareKdfOptions, prepareStoredKdfOptions } from '../../helpers/kdfPol
 import validateAesGcmMeta from '../../helpers/aesGcmMeta.js';
 import { decodeBase64, encodeBase64 } from '../encoding/base64.js';
 import { encodeHex } from '../encoding/hex.js';
-import { utf8ByteLength, utf8Decode, utf8Encode } from '../encoding/utf8.js';
+import { utf8Decode, utf8Encode } from '../encoding/utf8.js';
+import Slug from '../value-objects/Slug.js';
 
 const VAULT_REF = 'refs/cas/vault';
 const MAX_CAS_RETRIES = 3;
@@ -69,47 +70,6 @@ const VAULT_VERIFIER_AAD = utf8Encode('git-cas-vault-verifier-metadata-v1');
  */
 
 /**
- * Percent-encodes a vault slug for use as a git tree entry name.
- * Git tree entry names cannot contain '/'.
- * @param {string} slug
- * @returns {string}
- */
-function encodeSlug(slug) {
-  if (hasControlChars(slug)) {
-    throw new CasError(
-      'Slug contains control characters — refusing to encode for mktree',
-      'INVALID_SLUG',
-      { slug },
-    );
-  }
-  return slug.replaceAll('%', '%25').replaceAll('/', '%2F');
-}
-
-/**
- * Decodes a percent-encoded tree entry name back to a vault slug.
- * @param {string} name
- * @returns {string}
- */
-function decodeSlug(name) {
-  return name.replaceAll('%2F', '/').replaceAll('%25', '%');
-}
-
-/**
- * Returns true if the string contains ASCII control characters (0x00–0x1f, 0x7f).
- * @param {string} str
- * @returns {boolean}
- */
-function hasControlChars(str) {
-  for (let i = 0; i < str.length; i++) {
-    const code = str.charCodeAt(i);
-    if (code <= 0x1f || code === 0x7f) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
  * Domain service for vault operations.
  *
  * The vault is a GC-safe ref-based index that maps slugs to Git tree OIDs.
@@ -149,48 +109,13 @@ export default class VaultService {
     this.observability = observability || { metric() {}, log() {}, span: () => ({ end() {} }) };
   }
 
-  // ---------------------------------------------------------------------------
-  // Slug validation
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Validates a single slug segment.
-   * @param {string} seg - Segment to validate.
-   * @param {string} slug - Full slug (for error context).
-   */
-  static #validateSegment(seg, slug) {
-    if (seg.length === 0) {
-      throw new CasError('Slug contains empty segment', 'INVALID_SLUG', { slug });
-    }
-    if (seg === '.' || seg === '..') {
-      throw new CasError('Slug contains "." or ".." segment', 'INVALID_SLUG', { slug });
-    }
-    if (utf8ByteLength(seg) > 255) {
-      throw new CasError('Slug segment exceeds 255 bytes', 'INVALID_SLUG', { slug });
-    }
-    if (hasControlChars(seg)) {
-      throw new CasError('Slug contains control characters', 'INVALID_SLUG', { slug });
-    }
-  }
-
   /**
    * Validates a vault slug.
    * @param {string} slug
    * @throws {CasError} INVALID_SLUG if the slug is invalid.
    */
   validateSlug(slug) {
-    if (typeof slug !== 'string' || slug.length === 0) {
-      throw new CasError('Slug must be a non-empty string', 'INVALID_SLUG', { slug });
-    }
-    if (slug.startsWith('/') || slug.endsWith('/')) {
-      throw new CasError('Slug must not start or end with "/"', 'INVALID_SLUG', { slug });
-    }
-    if (utf8ByteLength(slug) > 1024) {
-      throw new CasError('Slug exceeds 1024 bytes total', 'INVALID_SLUG', { slug });
-    }
-    for (const seg of slug.split('/')) {
-      VaultService.#validateSegment(seg, slug);
-    }
+    Slug.validate(slug);
   }
 
   // ---------------------------------------------------------------------------
@@ -359,7 +284,7 @@ export default class VaultService {
       } else {
         // When privacy is enabled, entry names are raw HMAC hashes — store as-is.
         // When privacy is disabled, decode percent-encoded slugs.
-        const key = privacyEnabled ? entry.name : decodeSlug(entry.name);
+        const key = privacyEnabled ? entry.name : Slug.from(Slug.decode(entry.name)).toString();
         entries.set(key, entry.oid);
       }
     }
@@ -604,7 +529,7 @@ export default class VaultService {
   static #buildPlainTreeLines(entries) {
     const lines = [];
     for (const [slug, treeOid] of entries) {
-      lines.push(`040000 tree ${treeOid}\t${encodeSlug(slug)}`);
+      lines.push(`040000 tree ${treeOid}\t${Slug.from(slug).toTreePath()}`);
     }
     return lines;
   }
@@ -953,18 +878,18 @@ export default class VaultService {
    * @returns {Promise<{ commitOid: string }>}
    */
   async addToVault({ slug, treeOid, force = false, encryptionKey }) {
-    this.validateSlug(slug);
+    const vaultSlug = Slug.from(slug).toString();
 
     return await this.#withVaultRetry(({ draft }) => {
-      if (draft.entries.has(slug) && !force) {
+      if (draft.entries.has(vaultSlug) && !force) {
         throw new CasError(
-          `Vault entry "${slug}" already exists (use force to overwrite)`,
+          `Vault entry "${vaultSlug}" already exists (use force to overwrite)`,
           'VAULT_ENTRY_EXISTS',
-          { slug },
+          { slug: vaultSlug },
         );
       }
-      const isUpdate = draft.entries.has(slug);
-      draft.entries.set(slug, treeOid);
+      const isUpdate = draft.entries.has(vaultSlug);
+      draft.entries.set(vaultSlug, treeOid);
       if (draft.metadata.encryption) {
         // Tracks nonce-relevant operations: every addToVault on an encrypted
         // vault implies an encryption occurred at the store layer.
@@ -990,7 +915,7 @@ export default class VaultService {
         }
       }
       return {
-        message: isUpdate ? `vault: update ${slug}` : `vault: add ${slug}`,
+        message: isUpdate ? `vault: update ${vaultSlug}` : `vault: add ${vaultSlug}`,
       };
     }, { encryptionKey });
   }
@@ -1016,18 +941,19 @@ export default class VaultService {
    * @returns {Promise<{ commitOid: string, removedTreeOid: string }>}
    */
   async removeFromVault({ slug, encryptionKey }) {
+    const vaultSlug = Slug.from(slug).toString();
     const result = await this.#withVaultRetry(({ draft }) => {
-      if (!draft.entries.has(slug)) {
+      if (!draft.entries.has(vaultSlug)) {
         throw new CasError(
-          `Vault entry "${slug}" not found`,
+          `Vault entry "${vaultSlug}" not found`,
           'VAULT_ENTRY_NOT_FOUND',
-          { slug },
+          { slug: vaultSlug },
         );
       }
-      const removedTreeOid = /** @type {string} */ (draft.entries.get(slug));
-      draft.entries.delete(slug);
+      const removedTreeOid = /** @type {string} */ (draft.entries.get(vaultSlug));
+      draft.entries.delete(vaultSlug);
       return {
-        message: `vault: remove ${slug}`,
+        message: `vault: remove ${vaultSlug}`,
         result: { removedTreeOid },
       };
     }, { encryptionKey });
@@ -1046,15 +972,16 @@ export default class VaultService {
    * @returns {Promise<string>} The tree OID.
    */
   async resolveVaultEntry({ slug, encryptionKey }) {
+    const vaultSlug = Slug.from(slug).toString();
     const { entries } = await this.readState({ encryptionKey });
-    if (!entries.has(slug)) {
+    if (!entries.has(vaultSlug)) {
       throw new CasError(
-        `Vault entry "${slug}" not found`,
+        `Vault entry "${vaultSlug}" not found`,
         'VAULT_ENTRY_NOT_FOUND',
-        { slug },
+        { slug: vaultSlug },
       );
     }
-    return /** @type {string} */ (entries.get(slug));
+    return /** @type {string} */ (entries.get(vaultSlug));
   }
 
   /**

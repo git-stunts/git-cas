@@ -86,4 +86,16 @@ describe('audit blocker classification', () => {
     expect(combined).not.toContain('not a v6.0.0 blocker');
     expect(combined).not.toContain('remain post-v6 maintenance priorities, not tag blockers');
   });
+
+  it('marks the v6 release readiness polish findings resolved except the deferred CasService handler extraction', () => {
+    const report = read('docs/audit/2026-05-05_v6-release-readiness.md');
+
+    for (const issue of ['ISSUE-002', 'ISSUE-003', 'ISSUE-004', 'ISSUE-005']) {
+      expect(report).toContain(`### ${issue}`);
+      expect(report).toContain(`**Resolution Status:** RESOLVED`);
+    }
+
+    expect(report).toContain('### ISSUE-001');
+    expect(report).toContain('**Resolution Status:** DEFERRED TO v6.1.0');
+  });
 });
