@@ -152,10 +152,12 @@ post-tag backlog work.
 - **3.2 Separation of Concerns:** Git tree-entry formatting now lives in
   `GitTreeBuilder`, leaving `CasService` to request tree layouts instead of
   owning raw Git entry strings.
+- **3.3 Testability:** Added a `MemoryPersistenceAdapter` test helper and a
+  domain workflow proof that stores, publishes, reads, and restores without Git
+  subprocesses.
 
 ### Still Open - v6.0.0 Blockers
 
 - Decompose `CasService.js` store/restore orchestration enough to remove the
   current audit blocker.
-- Add an in-memory persistence adapter for fast domain workflow tests.
 - Add vault-state caching for unchanged vault tree OIDs.

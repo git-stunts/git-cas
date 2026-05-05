@@ -15,7 +15,7 @@ annotated `v6.0.0` tag.
 - [ ] Extract `CasService.js` store/restore orchestration enough to remove the
   current audit blocker.
 - [x] Extract Git tree-entry formatting out of `CasService.js`.
-- [ ] Add a `MemoryPersistenceAdapter` test helper and prove a domain workflow
+- [x] Add a `MemoryPersistenceAdapter` test helper and prove a domain workflow
   without Git subprocesses.
 - [ ] Add vault-state caching for unchanged vault tree OIDs.
 - [x] Expand `createJson` / `createCbor` factory options to cover the underlying
