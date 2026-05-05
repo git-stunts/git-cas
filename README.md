@@ -254,8 +254,8 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
 - **[Extending](./docs/EXTENDING.md)**: Custom adapter contracts and extension-point checklist.
 - **[Security](./SECURITY.md)**: Threat models, trust boundaries, and encryption internals.
 - **[Agent API](./docs/API.md)**: JSONL agent protocol for CI/CD automation.
-- **[Workflow](./WORKFLOW.md)**: Repo work doctrine, cycles, and invariants.
-- **[Contributing](./CONTRIBUTING.md)**, **[Code of Conduct](./CODE_OF_CONDUCT.md)**, and **[Support](./SUPPORT.md)**: Project participation and help paths.
+- **[Workflow](https://github.com/git-stunts/git-cas/blob/main/WORKFLOW.md)**: Repo work doctrine, cycles, and invariants.
+- **[Contributing](https://github.com/git-stunts/git-cas/blob/main/CONTRIBUTING.md)**, **[Code of Conduct](./CODE_OF_CONDUCT.md)**, and **[Support](./SUPPORT.md)**: Project participation and help paths.
 - **[Upgrading](./UPGRADING.md)**: Migration guide for v5 → v6.
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.
 

@@ -428,5 +428,5 @@ Use these docs for adjacent truth:
   - crypto and security guidance
 - [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md)
   - threat model, assets, and trust boundaries
-- [WORKFLOW.md](./WORKFLOW.md)
+- [WORKFLOW.md](https://github.com/git-stunts/git-cas/blob/main/WORKFLOW.md)
   - current planning and delivery model

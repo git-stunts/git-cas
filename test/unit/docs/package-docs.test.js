@@ -4,13 +4,34 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
+const requiredStandardDocs = [
+  'CODE_OF_CONDUCT.md',
+  'SUPPORT.md',
+  'docs/EXTENDING.md',
+];
+const forbiddenPackagePrefixes = [
+  'docs/audit/',
+  'docs/archive/',
+  'docs/method/',
+];
+const forbiddenPackageFiles = [
+  'docs/cli.gif',
+  'docs/vault.gif',
+];
 
 function read(relPath) {
   return readFileSync(path.join(repoRoot, relPath), 'utf8');
 }
 
-function packageFiles() {
-  return JSON.parse(read('package.json')).files ?? [];
+let packedFileCache;
+
+function packedFiles() {
+  if (!packedFileCache) {
+    const output = execFileSync('npm', ['pack', '--dry-run', '--json'], { encoding: 'utf8' });
+    const [pack] = JSON.parse(output);
+    packedFileCache = new Set(pack.files.map((file) => file.path));
+  }
+  return packedFileCache;
 }
 
 function stripCodeFences(markdown) {
@@ -34,19 +55,8 @@ function markdownTargets(markdown) {
     .map((target) => target.replace(/^\.\//, ''));
 }
 
-function isIncludedByPackageFiles(target, files) {
-  return files.some((entry) => {
-    if (entry === target) {
-      return true;
-    }
-    const directory = entry.endsWith('/') ? entry : `${entry}/`;
-    return target.startsWith(directory);
-  });
-}
-
-function trackedMarkdownFiles() {
-  const output = execFileSync('git', ['ls-files', '*.md'], { encoding: 'utf8' }).trim();
-  return output ? output.split('\n') : [];
+function isPackaged(target, files) {
+  return files.has(target);
 }
 
 function normalizeTarget(sourceFile, target) {
@@ -57,47 +67,78 @@ function shouldShipWithDocs(target) {
   return target.endsWith('.md') || target.startsWith('docs/') || target.startsWith('examples/');
 }
 
-function packagedMarkdownFiles(files) {
-  return trackedMarkdownFiles().filter((file) => isIncludedByPackageFiles(file, files));
+function publicPackagedMarkdownFiles(files) {
+  return [
+    'README.md',
+    'GUIDE.md',
+    'ADVANCED_GUIDE.md',
+    'ARCHITECTURE.md',
+    'SECURITY.md',
+    'SUPPORT.md',
+    'CODE_OF_CONDUCT.md',
+    'UPGRADING.md',
+    'docs/API.md',
+    'docs/EXTENDING.md',
+    'docs/THREAT_MODEL.md',
+    'docs/WALKTHROUGH.md',
+  ].filter((file) => files.has(file));
 }
 
 function unpackagedLinkedDocs(sourceFile, files) {
   return markdownTargets(read(sourceFile))
     .map((target) => normalizeTarget(sourceFile, target))
     .filter(shouldShipWithDocs)
-    .filter((target) => !isIncludedByPackageFiles(target, files))
+    .filter((target) => !isPackaged(target, files))
     .map((target) => `${sourceFile} -> ${target}`);
+}
+
+function isForbiddenPackageArtifact(file) {
+  if (forbiddenPackageFiles.includes(file)) {
+    return true;
+  }
+  for (const prefix of forbiddenPackagePrefixes) {
+    if (file.startsWith(prefix)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 describe('package documentation surface', () => {
   it('keeps standard repository docs present and packaged', () => {
-    const files = packageFiles();
-    const requiredDocs = [
-      'CODE_OF_CONDUCT.md',
-      'SUPPORT.md',
-      'docs/EXTENDING.md',
-    ];
+    const files = packedFiles();
 
-    const missing = requiredDocs.filter((file) => !existsSync(path.join(repoRoot, file)));
-    const unpackaged = requiredDocs.filter((file) => !isIncludedByPackageFiles(file, files));
+    const missing = requiredStandardDocs.filter((file) => !existsSync(path.join(repoRoot, file)));
+    const unpackaged = requiredStandardDocs.filter((file) => !isPackaged(file, files));
 
     expect(missing).toEqual([]);
     expect(unpackaged).toEqual([]);
   });
 
   it('keeps README relative documentation links inside the npm package', () => {
-    const files = packageFiles();
+    const files = packedFiles();
     const missing = markdownTargets(read('README.md'))
       .filter((target) => target.endsWith('.md') || target.startsWith('docs/'))
-      .filter((target) => !isIncludedByPackageFiles(target, files));
+      .filter((target) => !isPackaged(target, files));
 
     expect(missing).toEqual([]);
   });
 
-  it('keeps local documentation links closed across packaged Markdown files', () => {
-    const files = packageFiles();
-    const missing = packagedMarkdownFiles(files).flatMap((file) => unpackagedLinkedDocs(file, files));
+  it('keeps local documentation links closed across public packaged Markdown files', () => {
+    const files = packedFiles();
+    const missing = publicPackagedMarkdownFiles(files)
+      .flatMap((file) => unpackagedLinkedDocs(file, files));
 
     expect(missing).toEqual([]);
+  });
+});
+
+describe('package internal artifact exclusions', () => {
+  it('keeps internal audit, planning, archive, and unused media out of the npm package', () => {
+    const files = [...packedFiles()];
+    const leaked = files.filter(isForbiddenPackageArtifact);
+
+    expect(leaked).toEqual([]);
+    expect(files).toContain('docs/demo.gif');
   });
 });
