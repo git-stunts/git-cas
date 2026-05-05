@@ -112,3 +112,28 @@ describe('16.13: Nonce usage tracking — exhaustion cap', () => {
     expect(ref.updateRef).not.toHaveBeenCalled();
   });
 });
+
+describe('16.13: Nonce usage tracking — metadata validation', () => {
+  it.each([
+    ['string count', '5'],
+    ['negative count', -1],
+    ['fractional count', 1.5],
+    ['unsafe count', Number.MAX_SAFE_INTEGER + 1],
+    ['over-budget count', VaultService.ENCRYPTION_COUNT_MAX + 1],
+  ])('rejects malformed encryptionCount metadata: %s', async (_label, encryptionCount) => {
+    const meta = encryptedMetadata({ encryptionCount });
+    const { vault, persistence, ref } = setup(meta);
+
+    await expect(vault.addToVault({ slug: 'asset-invalid-count', treeOid: 'tree-invalid' }))
+      .rejects.toMatchObject({
+        code: 'VAULT_METADATA_INVALID',
+        meta: expect.objectContaining({
+          field: 'encryptionCount',
+          value: encryptionCount,
+        }),
+      });
+
+    expect(persistence.writeBlob).not.toHaveBeenCalled();
+    expect(ref.updateRef).not.toHaveBeenCalled();
+  });
+});

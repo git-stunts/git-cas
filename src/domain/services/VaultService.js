@@ -25,6 +25,7 @@ const PRIVACY_INDEX_ENTRY = '.privacy-index';
  * @typedef {Object} VaultMetadata
  * @property {number} version - Metadata version (currently 1).
  * @property {VaultEncryptionMeta} [encryption] - Encryption configuration.
+ * @property {number} [encryptionCount] - Number of encrypted vault writes under the current key.
  */
 
 /**
@@ -199,6 +200,32 @@ export default class VaultService {
   }
 
   /**
+   * Validates nonce-budget metadata.
+   * @param {VaultMetadata} metadata - Full metadata (for error context).
+   */
+  static #validateEncryptionCount(metadata) {
+    if (metadata.encryptionCount === undefined) {
+      return;
+    }
+    if (
+      !Number.isSafeInteger(metadata.encryptionCount) ||
+      metadata.encryptionCount < 0 ||
+      metadata.encryptionCount > VaultService.ENCRYPTION_COUNT_MAX
+    ) {
+      throw new CasError(
+        `Vault encryptionCount metadata must be a non-negative safe integer no greater than ${VaultService.ENCRYPTION_COUNT_MAX}`,
+        'VAULT_METADATA_INVALID',
+        {
+          metadata,
+          field: 'encryptionCount',
+          value: metadata.encryptionCount,
+          maxEncryptionCount: VaultService.ENCRYPTION_COUNT_MAX,
+        },
+      );
+    }
+  }
+
+  /**
    * Validates vault metadata object structure.
    * @param {VaultMetadata} metadata - Metadata to validate.
    */
@@ -213,6 +240,7 @@ export default class VaultService {
     if (metadata.encryption) {
       VaultService.#validateEncryption(metadata.encryption, metadata);
     }
+    VaultService.#validateEncryptionCount(metadata);
   }
 
   /**
