@@ -18,9 +18,9 @@ support.
 
 ## Reporting
 
-Report conduct concerns privately to the maintainer listed in
-[SUPPORT.md](./SUPPORT.md). Include the relevant links, screenshots, timestamps,
-and a concise description of what happened.
+Report conduct concerns privately to
+[James Ross](mailto:james@flyingrobots.dev). Include the relevant links,
+screenshots, timestamps, and a concise description of what happened.
 
 Security vulnerabilities are not conduct reports. Follow
 [SECURITY.md](./SECURITY.md) for vulnerability handling.

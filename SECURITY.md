@@ -7,16 +7,34 @@ metadata, and non-goals, see [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md).
 
 ## Table of Contents
 
-1. [Operational Limits](#operational-limits)
-2. [Threat Model](#threat-model)
-3. [Cryptographic Design](#cryptographic-design)
-4. [Key Handling](#key-handling)
-5. [Encryption Flow](#encryption-flow)
-6. [Decryption Flow](#decryption-flow)
-7. [Chunk Digest Verification](#chunk-digest-verification)
-8. [Limitations](#limitations)
-9. [Git Object Immutability](#git-object-immutability)
-10. [Error Codes for Security Operations](#error-codes-for-security-operations)
+1. [Reporting Vulnerabilities](#reporting-vulnerabilities)
+2. [Operational Limits](#operational-limits)
+3. [Threat Model](#threat-model)
+4. [Cryptographic Design](#cryptographic-design)
+5. [Key Handling](#key-handling)
+6. [Encryption Flow](#encryption-flow)
+7. [Decryption Flow](#decryption-flow)
+8. [Chunk Digest Verification](#chunk-digest-verification)
+9. [Limitations](#limitations)
+10. [Git Object Immutability](#git-object-immutability)
+11. [Error Codes for Security Operations](#error-codes-for-security-operations)
+
+---
+
+## Reporting Vulnerabilities
+
+Do not open public issues for suspected vulnerabilities. Email
+[James Ross](mailto:james@flyingrobots.dev) with:
+
+- affected `git-cas` version or commit
+- runtime and operating system
+- minimal reproduction or exploit sketch
+- expected impact and affected workflows
+- known mitigations or workarounds, if any
+
+The maintainer will acknowledge valid private reports as capacity allows and
+will coordinate disclosure timing before public issue or release-note details
+are posted.
 
 ---
 

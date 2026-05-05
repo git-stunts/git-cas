@@ -3,6 +3,14 @@
 This project is maintained as an open-source library and CLI. Support is
 best-effort unless a separate commercial agreement exists.
 
+## Maintainer Contact
+
+Primary maintainer: [James Ross](mailto:james@flyingrobots.dev).
+
+Use GitHub issues for normal bugs, documentation corrections, and feature
+requests. Use private email for conduct reports, suspected vulnerabilities, or
+anything that should not be posted publicly.
+
 ## Before Opening an Issue
 
 Check these documents first:
@@ -35,9 +43,9 @@ contents, or unreduced proprietary artifacts into public issues.
 
 ## Security Reports
 
-Do not open public issues for suspected vulnerabilities. Use the reporting path
-in [SECURITY.md](./SECURITY.md) and include a minimal reproduction, impact
-assessment, affected versions, and any known mitigations.
+Do not open public issues for suspected vulnerabilities. Use the private
+reporting path in [SECURITY.md](./SECURITY.md) and include a minimal
+reproduction, impact assessment, affected versions, and any known mitigations.
 
 ## Expected Response
 
