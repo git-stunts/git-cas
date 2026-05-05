@@ -1282,9 +1282,17 @@ export default class CasService {
     if (!this._supportsReadBlobStream()) {
       if (maxBytes !== undefined) {
         throw new CasError(
-          'Buffered restore safety requires persistence.readBlobStream()',
+          'Buffered restore safety requires persistence.readBlobStream() so ' +
+          'encrypted/compressed restore can enforce maxRestoreBufferSize with ' +
+          'memory-safe chunk reads. Implement readBlobStream() on the adapter ' +
+          'or use a GitPersistenceAdapter-backed facade. See docs/EXTENDING.md#persistence-adapter-requirements.',
           'PERSISTENCE_CAPABILITY_REQUIRED',
-          { capability: 'readBlobStream', mode: 'buffered-restore', oid },
+          {
+            capability: 'readBlobStream',
+            mode: 'buffered-restore',
+            oid,
+            docs: 'docs/EXTENDING.md#persistence-adapter-requirements',
+          },
         );
       }
       const blob = await this.persistence.readBlob(oid);

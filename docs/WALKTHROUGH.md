@@ -1624,7 +1624,7 @@ All errors thrown by `git-cas` are instances of `CasError`, which extends
 | `INVALID_KEY_LENGTH` | Encryption key is not 32 bytes                   | `{ expected: 32, actual: N }`                             |
 | `MISSING_KEY`        | Encrypted content restored without a key         | --                                                        |
 | `INTEGRITY_ERROR`    | Chunk digest mismatch or decryption auth failure | `{ chunkIndex, expected, actual }` or `{ originalError }` |
-| `PERSISTENCE_CAPABILITY_REQUIRED` | Buffered restore requires `readBlobStream()` support | `{ capability, mode, oid }` |
+| `PERSISTENCE_CAPABILITY_REQUIRED` | Buffered restore requires `readBlobStream()` so `maxRestoreBufferSize` can be enforced with memory-safe reads | `{ capability, mode, oid, docs }` |
 | `KDF_POLICY_VIOLATION` | KDF parameters fell outside the accepted policy | `{ source, field, value, min?, max?, expected? }`         |
 | `STREAM_ERROR`       | Error reading from source stream during store    | `{ chunksDispatched, orphanedBlobs, originalError }`      |
 | `STORE_ERROR`        | Error writing a dispatched chunk during store    | `{ chunksDispatched, orphanedBlobs, failedIndex, originalError }` |

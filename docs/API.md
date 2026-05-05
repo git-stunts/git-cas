@@ -2015,7 +2015,7 @@ new CasError(message, code, meta);
 | `INVALID_KEY_LENGTH`                  | Encryption key must be exactly 32 bytes                                    | `encrypt()`, `decrypt()`, `store()`, `restore()`                              |
 | `MISSING_KEY`                         | Encryption key required to restore encrypted content but none was provided | `restore()`                                                                   |
 | `INTEGRITY_ERROR`                     | Chunk digest verification failed or decryption authentication failed       | `restore()`, `verifyIntegrity()`, `decrypt()`                                 |
-| `PERSISTENCE_CAPABILITY_REQUIRED`     | Buffered restore mode requires `readBlobStream()` on the persistence adapter | `restore()`, `restoreStream()`                                              |
+| `PERSISTENCE_CAPABILITY_REQUIRED`     | Buffered restore mode requires `readBlobStream()` so `maxRestoreBufferSize` can be enforced with memory-safe reads | `restore()`, `restoreStream()`                                              |
 | `DECRYPTION_BUFFER_EXCEEDED`          | Web Crypto whole-object decrypt exceeded the configured buffer limit       | `createDecryptionStream()` via Web Crypto restore paths                       |
 | `KDF_POLICY_VIOLATION`               | KDF parameters fell outside the accepted policy window                     | `store()`, `restore()`, `initVault()`, `rotateVaultPassphrase()`, `readState()` |
 | `STREAM_ERROR`                        | Stream error occurred during store operation                               | `store()`                                                                     |

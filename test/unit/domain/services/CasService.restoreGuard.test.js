@@ -137,15 +137,21 @@ describe('CasService — buffered restore adapter capability', () => {
       encryption: { scheme: 'whole' },
     });
 
-    await expect(
-      service.restoreStream({ manifest, encryptionKey: key }).next(),
-    ).rejects.toMatchObject({
-      code: 'PERSISTENCE_CAPABILITY_REQUIRED',
-      meta: expect.objectContaining({
-        capability: 'readBlobStream',
-        mode: 'buffered-restore',
-      }),
-    });
+    try {
+      await service.restoreStream({ manifest, encryptionKey: key }).next();
+      expect.unreachable('should have required readBlobStream()');
+    } catch (err) {
+      expect(err).toMatchObject({
+        code: 'PERSISTENCE_CAPABILITY_REQUIRED',
+        meta: expect.objectContaining({
+          capability: 'readBlobStream',
+          mode: 'buffered-restore',
+        }),
+      });
+      expect(err.message).toContain('memory-safe');
+      expect(err.message).toContain('maxRestoreBufferSize');
+      expect(err.message).toContain('docs/EXTENDING.md');
+    }
     expect(mockPersistence.readBlob).not.toHaveBeenCalled();
   });
 });
