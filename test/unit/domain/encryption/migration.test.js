@@ -1,4 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   buildKeyOpts,
   listVaultEntries,
@@ -152,7 +156,7 @@ describe('migration execution: recipient legacy manifests', () => {
   });
 });
 
-describe('migration credentials and vault listing', () => {
+describe('migration vault listing', () => {
   it('passes privacy vault keys through listVault', async () => {
     const encryptionKey = new Uint8Array(32).fill(9);
     const vault = {
@@ -162,14 +166,55 @@ describe('migration credentials and vault listing', () => {
     await expect(listVaultEntries(vault, { encryptionKey })).resolves.toEqual([]);
     expect(vault.listVault).toHaveBeenCalledWith({ encryptionKey });
   });
+});
 
+describe('migration credentials', () => {
   it('builds direct key options and rejects ambiguous full-migration credentials', () => {
     const encryptionKey = new Uint8Array(32).fill(3);
     const classification = { scheme: 'whole-v1', mode: 'full', reason: 'v1' };
 
     expect(buildKeyOpts({ encryptionKey }, classification)).toEqual({ encryptionKey });
     expect(() => buildKeyOpts({ passphrase: 'secret', encryptionKey }, classification))
-      .toThrow(/Provide --passphrase or --key-file/u);
+      .toThrow(/Provide exactly one full-migration credential source/u);
+  });
+
+  it('reads full-migration passphrases from a file source', () => {
+    const classification = { scheme: 'whole-v1', mode: 'full', reason: 'v1' };
+    const fixture = createPassphraseFile('asset-secret\n');
+
+    try {
+      expect(buildKeyOpts({ passphraseFile: fixture.filePath }, classification))
+        .toEqual({ passphrase: 'asset-secret' });
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it('rejects ambiguous passphrase file and inline passphrase sources', () => {
+    const classification = { scheme: 'whole-v1', mode: 'full', reason: 'v1' };
+    const fixture = createPassphraseFile('asset-secret\n');
+
+    try {
+      expect(() => buildKeyOpts({
+        passphrase: 'inline-secret',
+        passphraseFile: fixture.filePath,
+      }, classification)).toThrow(/Provide exactly one full-migration credential source/u);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+});
+
+describe('migration help', () => {
+  it('documents safer passphrase sources in migration help', () => {
+    const help = execFileSync(process.execPath, [
+      'scripts/migrate-encryption.js',
+      '--help',
+    ], { encoding: 'utf8' });
+
+    expect(help).toContain('--passphrase-file <path>');
+    expect(help).toContain('prefer --passphrase-file - or --key-file');
+    expect(help).toContain('prefer --vault-passphrase-file - or --vault-key-file');
   });
 });
 
@@ -359,4 +404,14 @@ function parseTreeEntry(entry) {
   const tab = entry.indexOf('\t');
   const [mode, type, oid] = entry.slice(0, tab).split(' ');
   return { mode, type, oid, name: entry.slice(tab + 1) };
+}
+
+function createPassphraseFile(content) {
+  const dir = mkdtempSync(join(tmpdir(), 'git-cas-migrate-passphrase-'));
+  const filePath = join(dir, 'passphrase.txt');
+  writeFileSync(filePath, content);
+  return {
+    filePath,
+    cleanup: () => rmSync(dir, { recursive: true, force: true }),
+  };
 }

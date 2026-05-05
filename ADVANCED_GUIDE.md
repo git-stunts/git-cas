@@ -881,14 +881,18 @@ do not inherit release-time dependencies.
 
 ```sh
 npm run upgrade
-node scripts/migrate-encryption.js --execute --passphrase my-secret
+printf '%s\n' 'my-secret' | node scripts/migrate-encryption.js --execute --passphrase-file -
 node scripts/migrate-encryption.js --execute --key-file ./asset.key
 ```
 
 The migration script is dry-run by default. It maps legacy v2 scheme names to
 current names when safe, and re-encrypts legacy v1 content when AAD must be
-added. Privacy-enabled vaults accept vault-specific passphrase/key options
-when the vault credential differs from the content credential.
+added. Prefer `--passphrase-file -`, `--passphrase-file <path>`, or
+`--key-file` for full migrations. Inline `--passphrase` is accepted for
+compatibility, but prints a warning because it can leak through shell history
+and process listings. Privacy-enabled vaults accept vault-specific
+passphrase/key options when the vault credential differs from the content
+credential; prefer `--vault-passphrase-file` or `--vault-key-file` there too.
 
 ### Release Verification
 

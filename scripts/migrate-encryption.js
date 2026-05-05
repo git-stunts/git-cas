@@ -15,7 +15,8 @@
  *   node scripts/migrate-encryption.js [options]
  *     --cwd <dir>        Git working directory (default: .)
  *     --execute           Actually perform migration (default: dry-run)
- *     --passphrase <p>    Passphrase for re-encryption of v1 schemes
+ *     --passphrase-file <path>  Passphrase file for v1 re-encryption (- for stdin)
+ *     --passphrase <p>    Inline passphrase for v1 re-encryption; warns
  *     --key-file <path>   Raw 32-byte key file for re-encryption of v1 schemes
  *
  * @module
@@ -41,6 +42,7 @@ const ARGS_CONFIG = {
     cwd: { type: 'string', default: '.' },
     execute: { type: 'boolean', default: false },
     passphrase: { type: 'string' },
+    'passphrase-file': { type: 'string' },
     'key-file': { type: 'string' },
     'vault-passphrase': { type: 'string' },
     'vault-passphrase-file': { type: 'string' },
@@ -53,10 +55,11 @@ function printUsage() {
   console.log('Usage: node scripts/migrate-encryption.js [options]');
   console.log('  --cwd <dir>        Git working directory (default: .)');
   console.log('  --execute          Perform migration (default: dry-run)');
-  console.log('  --passphrase <p>   Passphrase for v1 re-encryption');
+  console.log('  --passphrase-file <path>  Read v1 re-encryption passphrase from file (- for stdin)');
+  console.log('  --passphrase <p>   Inline v1 passphrase; warns, prefer --passphrase-file - or --key-file');
   console.log('  --key-file <path>  Raw 32-byte key file for v1 re-encryption');
-  console.log('  --vault-passphrase <p>       Privacy-vault passphrase');
-  console.log('  --vault-passphrase-file <path>  Read privacy-vault passphrase from file');
+  console.log('  --vault-passphrase-file <path>  Read privacy-vault passphrase from file (- for stdin)');
+  console.log('  --vault-passphrase <p>       Inline privacy-vault passphrase; warns, prefer --vault-passphrase-file - or --vault-key-file');
   console.log('  --vault-key-file <path>      Raw 32-byte privacy-vault key file');
   console.log('  --help             Show this help');
 }
@@ -71,12 +74,47 @@ function normalizeCliOptions(values) {
     cwd: values.cwd,
     execute: values.execute,
     passphrase: values.passphrase,
+    passphraseFile: values['passphrase-file'],
     keyFile: values['key-file'],
     vaultPassphrase: values['vault-passphrase'],
     vaultPassphraseFile: values['vault-passphrase-file'],
     vaultKeyFile: values['vault-key-file'],
     help: values.help,
   };
+}
+
+/**
+ * Creates warnings for inline secret sources that can leak through shell
+ * history and process listings.
+ * @param {{ passphrase?: string, vaultPassphrase?: string }} opts
+ * @returns {string[]}
+ */
+function inlinePassphraseWarnings(opts) {
+  const warnings = [];
+  if (opts.passphrase) {
+    warnings.push(
+      'warning: --passphrase exposes secrets through shell history and process listings; ' +
+      'prefer --passphrase-file - or --key-file',
+    );
+  }
+  if (opts.vaultPassphrase) {
+    warnings.push(
+      'warning: --vault-passphrase exposes secrets through shell history and process listings; ' +
+      'prefer --vault-passphrase-file - or --vault-key-file',
+    );
+  }
+  return warnings;
+}
+
+/**
+ * Emits warnings for inline passphrase arguments.
+ * @param {{ passphrase?: string, vaultPassphrase?: string }} opts
+ * @param {(message: string) => void} write
+ */
+function warnInlinePassphraseArgs(opts, write = process.stderr.write.bind(process.stderr)) {
+  for (const warning of inlinePassphraseWarnings(opts)) {
+    write(`${warning}\n`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -319,22 +357,38 @@ function readKeyFile(keyFilePath) {
  * @returns {string}
  */
 function readPassphraseFile(filePath) {
-  const passphrase = readFileSync(filePath, 'utf8').replace(/\r?\n$/u, '');
+  const label = filePath === '-' ? 'stdin' : filePath;
+  const passphrase = readFileSync(filePath === '-' ? 0 : filePath, 'utf8').replace(/\r?\n$/u, '');
   if (!passphrase.trim()) {
-    throw new Error(`Passphrase file is empty: ${filePath}`);
+    throw new Error(`Passphrase file is empty: ${label}`);
   }
   return passphrase;
 }
 
 /**
  * Builds key options for full-mode migration.
- * @param {{ passphrase?: string, keyFile?: string, encryptionKey?: Uint8Array }} opts - CLI options containing key material.
+ * @param {{
+ *   passphrase?: string,
+ *   passphraseFile?: string,
+ *   keyFile?: string,
+ *   encryptionKey?: Uint8Array
+ * }} opts - CLI options containing key material.
  * @param {{ scheme: string|undefined, mode: string, reason: string }} classification - Entry classification.
  * @returns {{ passphrase: string }|{ encryptionKey: Uint8Array }} Key options for re-encryption.
  */
 function buildKeyOpts(opts, classification) {
-  if (opts.passphrase && (opts.keyFile || opts.encryptionKey)) {
-    throw new Error('Provide --passphrase or --key-file, not both.');
+  const sourceCount = [
+    opts.passphrase,
+    opts.passphraseFile,
+    opts.keyFile,
+    opts.encryptionKey,
+  ].filter((value) => value !== undefined && value !== null && value !== '').length;
+
+  if (sourceCount > 1) {
+    throw new Error(
+      'Provide exactly one full-migration credential source: ' +
+      '--passphrase, --passphrase-file, --key-file, or injected encryptionKey.',
+    );
   }
   if (opts.encryptionKey) {
     return { encryptionKey: opts.encryptionKey };
@@ -342,10 +396,13 @@ function buildKeyOpts(opts, classification) {
   if (opts.keyFile) {
     return { encryptionKey: readKeyFile(opts.keyFile) };
   }
+  if (opts.passphraseFile) {
+    return { passphrase: readPassphraseFile(opts.passphraseFile) };
+  }
   if (!opts.passphrase) {
     throw new Error(
       `Entry requires re-encryption (${classification.scheme}) ` +
-      'but no --passphrase or --key-file was provided.',
+      'but no --passphrase, --passphrase-file, or --key-file was provided.',
     );
   }
   return { passphrase: opts.passphrase };
@@ -489,17 +546,38 @@ async function resolveVaultEncryptionKey(ctx, opts) {
 
   const passphrase = opts.vaultPassphraseFile
     ? readPassphraseFile(opts.vaultPassphraseFile)
-    : opts.vaultPassphrase || opts.passphrase;
+    : opts.vaultPassphrase || resolveContentPassphraseFallback(opts);
 
   if (!passphrase) {
     throw new Error(
       'Privacy mode is enabled. Provide --vault-passphrase, ' +
-      '--vault-passphrase-file, --vault-key-file, or --passphrase if the ' +
+      '--vault-passphrase-file, --vault-key-file, --passphrase-file, or --passphrase if the ' +
       'content and vault passphrases are the same.',
     );
   }
 
   return await deriveVaultKey(ctx.cas, metadata, passphrase);
+}
+
+/**
+ * Resolves the content passphrase as a fallback for vault migration when the
+ * same passphrase protects both content and the privacy vault.
+ * @param {{ passphrase?: string, passphraseFile?: string }} opts
+ * @returns {string|undefined}
+ */
+function resolveContentPassphraseFallback(opts) {
+  const sourceCount = [opts.passphrase, opts.passphraseFile]
+    .filter((value) => value !== undefined && value !== null && value !== '').length;
+  if (sourceCount > 1) {
+    throw new Error(
+      'Provide exactly one content passphrase fallback for privacy migration: ' +
+      '--passphrase or --passphrase-file.',
+    );
+  }
+  if (opts.passphraseFile) {
+    return readPassphraseFile(opts.passphraseFile);
+  }
+  return opts.passphrase;
 }
 
 // ---------------------------------------------------------------------------
@@ -543,6 +621,7 @@ async function listVaultEntries(vault, { encryptionKey } = {}) {
 async function main() {
   const { values } = parseArgs(ARGS_CONFIG);
   const opts = normalizeCliOptions(values);
+  warnInlinePassphraseArgs(opts);
 
   if (opts.help) {
     printUsage();
@@ -586,9 +665,11 @@ export {
   buildKeyOpts,
   createMigrationContext,
   detectCodec,
+  inlinePassphraseWarnings,
   listVaultEntries,
   normalizeCliOptions,
   resolveVaultEncryptionKey,
+  warnInlinePassphraseArgs,
 };
 
 if (process.argv[1]?.endsWith('migrate-encryption.js')) {

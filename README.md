@@ -91,7 +91,7 @@ Three encryption schemes are supported:
 | `framed` | Bounded frames | Slug + frame index | Default for fixed-chunk encrypted stores — streaming decrypt with per-frame AAD binding |
 | `convergent` | Per-chunk deterministic | Derived from content hash | **Default for CDC + encryption** — preserves deduplication across encrypted stores. Implemented as a standalone `ConvergentEncryption` service. |
 
-Legacy schemes (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) are no longer accepted and throw a `LEGACY_SCHEME` error. Run `npm run upgrade` (or `node scripts/migrate-encryption.js`) to migrate existing vault entries. The script auto-detects whether each entry needs a rename-only (fast) or full re-encryption (v1 schemes without AAD), accepts either `--passphrase` or `--key-file` for full migrations, supports privacy-vault key options, and defaults to dry-run mode.
+Legacy schemes (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) are no longer accepted and throw a `LEGACY_SCHEME` error. Run `npm run upgrade` (or `node scripts/migrate-encryption.js`) to migrate existing vault entries. The script auto-detects whether each entry needs a rename-only (fast) or full re-encryption (v1 schemes without AAD), accepts `--passphrase-file`, `--key-file`, or warning-emitting inline `--passphrase` for full migrations, supports privacy-vault key options, and defaults to dry-run mode.
 
 **Envelope encryption** wraps a random Data Encryption Key (DEK) with one or more Key Encryption Keys (KEKs). Each recipient is labeled, enabling multi-recipient access to the same encrypted content. Key rotation replaces the KEK wrapping without re-encrypting data blobs.
 
