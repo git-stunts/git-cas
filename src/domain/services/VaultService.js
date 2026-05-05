@@ -95,6 +95,9 @@ export default class VaultService {
   /** @type {number} Nonce usage warning threshold (2^31). */
   static ENCRYPTION_COUNT_WARN = 2 ** 31;
 
+  /** @type {number} Maximum encrypted vault writes before key rotation is required (2^32 - 1). */
+  static ENCRYPTION_COUNT_MAX = 2 ** 32 - 1;
+
   /**
    * @param {Object} options
    * @param {import('../../ports/GitPersistencePort.js').default} options.persistence
@@ -660,7 +663,18 @@ export default class VaultService {
       if (draft.metadata.encryption) {
         // Tracks nonce-relevant operations: every addToVault on an encrypted
         // vault implies an encryption occurred at the store layer.
-        draft.metadata.encryptionCount = (draft.metadata.encryptionCount || 0) + 1;
+        const currentCount = draft.metadata.encryptionCount || 0;
+        if (currentCount >= VaultService.ENCRYPTION_COUNT_MAX) {
+          throw new CasError(
+            `Vault encryption nonce budget exhausted (${currentCount}/${VaultService.ENCRYPTION_COUNT_MAX}); rotate your vault key before storing more encrypted assets`,
+            'VAULT_NONCE_EXHAUSTED',
+            {
+              encryptionCount: currentCount,
+              maxEncryptionCount: VaultService.ENCRYPTION_COUNT_MAX,
+            },
+          );
+        }
+        draft.metadata.encryptionCount = currentCount + 1;
         if (draft.metadata.encryptionCount >= VaultService.ENCRYPTION_COUNT_WARN) {
           this.observability.log(
             'warn',

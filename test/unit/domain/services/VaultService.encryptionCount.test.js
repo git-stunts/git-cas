@@ -93,3 +93,22 @@ describe('16.13: Nonce usage tracking — threshold warning', () => {
     expect(writtenMetadata).not.toHaveProperty('encryptionCount');
   });
 });
+
+describe('16.13: Nonce usage tracking — exhaustion cap', () => {
+  it('refuses encrypted vault writes after nonce budget is exhausted', async () => {
+    const meta = encryptedMetadata({ encryptionCount: VaultService.ENCRYPTION_COUNT_MAX });
+    const { vault, persistence, ref } = setup(meta);
+
+    await expect(vault.addToVault({ slug: 'asset-exhausted', treeOid: 'tree-x' }))
+      .rejects.toMatchObject({
+        code: 'VAULT_NONCE_EXHAUSTED',
+        meta: {
+          encryptionCount: VaultService.ENCRYPTION_COUNT_MAX,
+          maxEncryptionCount: VaultService.ENCRYPTION_COUNT_MAX,
+        },
+      });
+
+    expect(persistence.writeBlob).not.toHaveBeenCalled();
+    expect(ref.updateRef).not.toHaveBeenCalled();
+  });
+});
