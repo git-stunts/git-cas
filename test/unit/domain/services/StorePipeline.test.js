@@ -133,13 +133,15 @@ describe('StorePipeline write failure metadata', () => {
 });
 
 describe('CasService store-write boundary', () => {
-  it('delegates semaphore-based store scheduling to StorePipeline', () => {
-    const source = read('src/domain/services/CasService.js');
+  it('keeps semaphore-based store scheduling behind ChunkRepository and StorePipeline', () => {
+    const casService = read('src/domain/services/CasService.js');
+    const chunkRepository = read('src/domain/services/ChunkRepository.js');
 
-    expect(source).toContain("from './StorePipeline.js'");
-    expect(source).not.toContain("from './Semaphore.js'");
-    expect(source).not.toContain('_launchChunkWrite');
-    expect(source).not.toContain('_readNextStoreChunk');
-    expect(source).not.toContain('_buildStoreWriteError');
+    expect(chunkRepository).toContain("from './StorePipeline.js'");
+    expect(casService).not.toContain("from './StorePipeline.js'");
+    expect(casService).not.toContain("from './Semaphore.js'");
+    expect(casService).not.toContain('_launchChunkWrite');
+    expect(casService).not.toContain('_readNextStoreChunk');
+    expect(casService).not.toContain('_buildStoreWriteError');
   });
 });

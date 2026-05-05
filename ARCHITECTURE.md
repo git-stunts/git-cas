@@ -123,11 +123,12 @@ The facade is orchestration glue. It is not the storage engine itself.
 
 #### Services (`src/domain/services/`)
 
-- **`CasService`** — primary domain service. Orchestrates the store and restore
-  pipelines, manifest and tree creation, inspection, and recipient/key
-  operations. Delegates key resolution to `KeyResolver`, store write
-  coordination to `StorePipeline`, restore strategy selection to
-  `RestorePipeline`, and per-chunk encryption to `ConvergentEncryption`.
+- **`CasService`** — primary domain facade. It is now a lean orchestrator that
+  wires ports and delegates byte-level behavior to runtime strategy entities.
+  It keeps the public store, restore, manifest, inspection, and recipient/key
+  API stable while delegating key resolution, chunk I/O, manifest/tree I/O,
+  compression, integrity verification, recipient mutation, and store/restore
+  strategy execution to dedicated domain classes.
 
 - **`VaultService`** — manages the GC-safe vault ref (`refs/cas/vault`). Owns
   vault initialization, add/update/list/resolve/remove, privacy mode,
@@ -147,9 +148,28 @@ The facade is orchestration glue. It is not the storage engine itself.
   backpressure, in-flight write tracking, ordered manifest entry append, and
   store-phase error metadata.
 
-- **`RestorePipeline`** — restore strategy selector and dispatcher. Chooses
-  streaming, buffered, framed, convergent, or compressed handlers without
-  embedding a strategy switch in `CasService`.
+- **`ChunkRepository`** — chunk blob write/read boundary. Owns digest
+  verification, per-chunk convergent encryption hooks, read-size enforcement,
+  and prefetch-backed chunk iteration. It uses `StorePipeline` for bounded
+  chunk write scheduling.
+
+- **`CompressionStreams`** — domain compression boundary. Delegates gzip
+  compression/decompression to the injected `CompressionPort` and normalizes
+  decompression failures into domain errors.
+
+- **`ManifestRepository`** — manifest serialization, tree publication, Merkle
+  sub-manifest handling, manifest hash verification, and legacy-scheme readback
+  boundary.
+
+- **`RecipientService`** — envelope recipient add/remove/list/rotation policy.
+  It depends on `KeyResolver` for DEK wrapping and unwrapping.
+
+- **`IntegrityVerifier`** — verify-only chunk and authentication boundary for
+  plaintext, whole, framed, and convergent encrypted manifests.
+
+- **`RestorePipeline`** — retained as the earlier extracted strategy
+  classifier/dispatcher and covered by tests. New restore byte execution flows
+  use runtime strategy entities in `src/domain/strategies/`.
 
 - **`ManifestDiff`** — pure function for chunk-level manifest comparison.
   Reports added, removed, and unchanged chunks between two manifests.
@@ -388,6 +408,7 @@ Extracted in v6:
 - chunk write scheduling
 - backpressure and in-flight orchestration
 - source-vs-sink store error normalization
+- chunk blob writes and digest verification moved behind `ChunkRepository`
 
 Why first:
 
@@ -398,16 +419,20 @@ Why first:
 Current boundary:
 
 - `StorePipeline` owns scheduling and write-phase metadata.
-- `CasService` keeps public store policy, encryption selection, and manifest
-  finalization.
+- `ChunkRepository` owns chunk I/O and verification.
+- store byte execution lives in `StorePlain`, `StoreConvergent`, `StoreFramed`,
+  and `StoreWhole`.
+- `CasService` keeps public store policy and manifest finalization.
 
 ### 2. Manifest and tree publication
 
-Extract second:
+Resolved in v6:
 
 - manifest assembly
 - chunk-tree entry construction
 - Merkle sub-manifest publication
+- manifest hash verification
+- legacy manifest scheme mapping
 
 Why second:
 
@@ -417,7 +442,7 @@ Why second:
 
 ### 3. Recipient mutation flows
 
-Extract third:
+Resolved in v6:
 
 - recipient add/remove
 - key rotation manifest rewriting
@@ -430,24 +455,25 @@ Why third:
 
 ### 4. Restore pipeline extraction
 
-Partially extracted in v6:
+Resolved in v6:
 
 - restore strategy classification
 - restore handler dispatch
-
-Keep extracting later:
-
 - chunk read and verify
 - buffered vs streaming restore planning
 - gzip and stream bridging
 - framed vs whole-object decrypt routing
+- convergent, framed, whole, compressed, and plaintext restore byte handlers
 
-Why last:
+Current boundary:
 
-- restore byte paths still carry the most authentication-sensitive code
-- byte-executor extraction should happen separately from strategy dispatch
-- the repo already has a named file-restore seam, so this area is safer than it
-  was, but still not the first extraction target
+- `RestoreStrategy` selects runtime strategy entities without a scheme switch in
+  `CasService`.
+- `RestoreWhole` preserves whole-object authentication boundaries for buffered
+  restore and file publication.
+- `RestoreFramed` owns framed record parsing and authenticated frame streaming.
+- `RestoreConvergent` owns per-chunk convergent decrypt/verify flow.
+- `IntegrityVerifier` owns verify-only authentication checks.
 
 ### Non-goals
 

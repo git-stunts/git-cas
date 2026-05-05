@@ -1,0 +1,151 @@
+import Manifest from '../value-objects/Manifest.js';
+import CasError from '../errors/CasError.js';
+
+/**
+ * Envelope recipient mutation boundary.
+ */
+export default class RecipientService {
+  #crypto;
+  #keyResolver;
+
+  /**
+   * @param {Object} options
+   * @param {import('../../ports/CryptoPort.js').default} options.crypto
+   * @param {import('./KeyResolver.js').default} options.keyResolver
+   */
+  constructor({ crypto, keyResolver }) {
+    this.#crypto = crypto;
+    this.#keyResolver = keyResolver;
+  }
+
+  /**
+   * @param {{ manifest: import('../value-objects/Manifest.js').default, existingKey: Uint8Array, newRecipientKey: Uint8Array, label: string }} options
+   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   */
+  async addRecipient({ manifest, existingKey, newRecipientKey, label }) {
+    const recipients = this.#requireRecipients(manifest);
+    if (recipients.some((recipient) => recipient.label === label)) {
+      throw new CasError(`Recipient "${label}" already exists`, 'RECIPIENT_ALREADY_EXISTS', { label });
+    }
+
+    this.#crypto._validateKey(existingKey);
+    this.#crypto._validateKey(newRecipientKey);
+
+    let dek;
+    try {
+      dek = await this.#keyResolver.resolveKeyForRecipients(manifest, existingKey);
+    } catch (err) {
+      if (err instanceof CasError && err.code === 'NO_MATCHING_RECIPIENT') {
+        throw new CasError('Failed to unwrap DEK: authentication failed', 'DEK_UNWRAP_FAILED', { originalError: err });
+      }
+      throw err;
+    }
+
+    const newEntry = { label, ...(await this.#keyResolver.wrapDek(dek, newRecipientKey)) };
+    const json = manifest.toJSON();
+    const updatedEncryption = {
+      ...json.encryption,
+      recipients: [...recipients.map((recipient) => ({ ...recipient })), newEntry],
+    };
+
+    return new Manifest({ ...json, encryption: updatedEncryption });
+  }
+
+  /**
+   * @param {{ manifest: import('../value-objects/Manifest.js').default, label: string }} options
+   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   */
+  async removeRecipient({ manifest, label }) {
+    const recipients = this.#requireRecipients(manifest);
+    if (!recipients.some((recipient) => recipient.label === label)) {
+      throw new CasError(`Recipient "${label}" not found`, 'RECIPIENT_NOT_FOUND', { label });
+    }
+    if (recipients.length === 1) {
+      throw new CasError('Cannot remove the last recipient', 'CANNOT_REMOVE_LAST_RECIPIENT');
+    }
+
+    const filtered = recipients.filter((recipient) => recipient.label !== label).map((recipient) => ({ ...recipient }));
+    if (filtered.length === 0) {
+      throw new CasError('Cannot remove the last recipient', 'CANNOT_REMOVE_LAST_RECIPIENT');
+    }
+    const json = manifest.toJSON();
+    return new Manifest({ ...json, encryption: { ...json.encryption, recipients: filtered } });
+  }
+
+  /**
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @returns {string[]}
+   */
+  listRecipients(manifest) {
+    return (manifest.encryption?.recipients || []).map((recipient) => recipient.label);
+  }
+
+  /**
+   * @param {{ manifest: import('../value-objects/Manifest.js').default, oldKey: Uint8Array, newKey: Uint8Array, label?: string }} options
+   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   */
+  async rotateKey({ manifest, oldKey, newKey, label }) {
+    const recipients = manifest.encryption?.recipients;
+    if (!recipients || recipients.length === 0) {
+      throw new CasError('Key rotation requires envelope encryption (recipients)', 'ROTATION_NOT_SUPPORTED');
+    }
+
+    this.#crypto._validateKey(oldKey);
+    this.#crypto._validateKey(newKey);
+
+    const { matchIndex, dek } = label
+      ? await this.#findRecipientByLabel(recipients, label, oldKey)
+      : await this.#findRecipientByKey(recipients, oldKey);
+
+    return this.#buildRotatedManifest({ manifest, recipients, matchIndex, dek, newKey });
+  }
+
+  #requireRecipients(manifest) {
+    const recipients = manifest.encryption?.recipients;
+    if (!recipients || recipients.length === 0) {
+      throw new CasError('Manifest does not use envelope encryption (no recipients)', 'INVALID_OPTIONS');
+    }
+    return recipients;
+  }
+
+  async #findRecipientByLabel(recipients, label, oldKey) {
+    const matchIndex = recipients.findIndex((recipient) => recipient.label === label);
+    if (matchIndex === -1) {
+      throw new CasError(`Recipient "${label}" not found`, 'RECIPIENT_NOT_FOUND', { label });
+    }
+    const dek = await this.#keyResolver.unwrapDek(recipients[matchIndex], oldKey);
+    return { matchIndex, dek };
+  }
+
+  async #findRecipientByKey(recipients, oldKey) {
+    for (let index = 0; index < recipients.length; index++) {
+      try {
+        const dek = await this.#keyResolver.unwrapDek(recipients[index], oldKey);
+        return { matchIndex: index, dek };
+      } catch (err) {
+        if (!(err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED')) {
+          throw err;
+        }
+      }
+    }
+    throw new CasError('No recipient entry could be unwrapped with the provided key', 'NO_MATCHING_RECIPIENT');
+  }
+
+  async #buildRotatedManifest({ manifest, recipients, matchIndex, dek, newKey }) {
+    const newWrapped = await this.#keyResolver.wrapDek(dek, newKey);
+    const manifestKeyVersion = (manifest.encryption.keyVersion || 0) + 1;
+    const recipientKeyVersion = (recipients[matchIndex].keyVersion || 0) + 1;
+    const json = manifest.toJSON();
+    const updatedRecipients = recipients.map((recipient, index) => {
+      if (index === matchIndex) {
+        return { ...recipient, ...newWrapped, keyVersion: recipientKeyVersion };
+      }
+      return { ...recipient };
+    });
+
+    return new Manifest({
+      ...json,
+      encryption: { ...json.encryption, recipients: updatedRecipients, keyVersion: manifestKeyVersion },
+    });
+  }
+}

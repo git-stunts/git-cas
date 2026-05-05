@@ -77,10 +77,11 @@ describe('RestorePipeline dispatch', () => {
 });
 
 describe('CasService restore strategy boundary', () => {
-  it('delegates restore strategy selection to RestorePipeline', () => {
+  it('delegates restore strategy selection to runtime strategy entities', () => {
     const source = read('src/domain/services/CasService.js');
 
-    expect(source).toContain("from './RestorePipeline.js'");
+    expect(source).toContain("from '../strategies/RestoreStrategy.js'");
+    expect(source).not.toContain("from './RestorePipeline.js'");
     expect(source).not.toContain('_classifyRestoreStrategy');
     expect(source).not.toContain('_executeRestoreStrategy');
     expect(source).not.toContain("case 'convergent'");

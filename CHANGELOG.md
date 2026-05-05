@@ -63,6 +63,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CasService de-sludged into runtime strategy boundaries** — `CasService.js`
+  is now a lean facade under 500 lines. Byte-level chunk I/O, compression,
+  manifest/tree publication, integrity verification, recipient mutation, framed
+  record parsing, and store/restore strategy execution now live in dedicated
+  domain services and strategy entities with direct unit coverage. Public
+  `CasService` store/restore/manifest/recipient APIs are unchanged.
 - **Platform-neutral core byte pipeline** — `CasService`, `KeyResolver`, `VaultService`, convergent encryption, manifest/KDF metadata helpers, schemas, codecs, and fixed/CDC chunkers now use pure `Uint8Array` byte helpers and protocol encoders instead of `Buffer` methods. `store()` now has regression coverage for `Readable.from([new Uint8Array(...)])` in both fixed and CDC chunking modes.
 - **Slug value object** — vault slug validation and plain vault tree-entry
   percent encoding now live in `Slug`, including `.toTreePath()` for the Git
