@@ -98,6 +98,7 @@ Resolved — 2026-05-05 final v6 release polish:
 
 Active:
 
+- [BAD-CODE-001 — CasService God Object](./bad-code/BAD-CODE-001_casservice-god-object.md)
 - [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md)
 
 Resolved — 2026-05-05 core orchestration cleanup:
