@@ -14,7 +14,7 @@ annotated `v6.0.0` tag.
   `convergent` encryption.
 - [ ] Extract `CasService.js` store/restore orchestration enough to remove the
   current audit blocker.
-- [ ] Extract Git tree-entry formatting out of `CasService.js`.
+- [x] Extract Git tree-entry formatting out of `CasService.js`.
 - [ ] Add a `MemoryPersistenceAdapter` test helper and prove a domain workflow
   without Git subprocesses.
 - [ ] Add vault-state caching for unchanged vault tree OIDs.

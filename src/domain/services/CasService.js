@@ -11,6 +11,10 @@ import KeyResolver from './KeyResolver.js';
 import ConvergentEncryption from './ConvergentEncryption.js';
 import diffManifests from './ManifestDiff.js';
 import prefetchChunks from './PrefetchWindow.js';
+import {
+  buildFlatManifestTreeEntries,
+  buildMerkleTreeEntries,
+} from './GitTreeBuilder.js';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import {
   concatBytes,
@@ -1156,32 +1160,6 @@ export default class CasService {
   }
 
   /**
-   * Builds unique chunk blob tree entries in first-seen order.
-   *
-   * Tree entries keep chunk blobs reachable in Git. The manifest remains the
-   * authoritative ordered list of chunk occurrences, so repeated digests only
-   * need one tree entry.
-   *
-   * @private
-   * @param {import('../value-objects/Chunk.js').default[]} chunks
-   * @returns {string[]}
-   */
-  _createChunkTreeEntries(chunks) {
-    const treeEntries = [];
-    const seenDigests = new Set();
-
-    for (const chunk of chunks) {
-      if (seenDigests.has(chunk.digest)) {
-        continue;
-      }
-      seenDigests.add(chunk.digest);
-      treeEntries.push(`100644 blob ${chunk.blob}\t${chunk.digest}`);
-    }
-
-    return treeEntries;
-  }
-
-  /**
    * Creates a Git tree object from a manifest.
    *
    * The tree contains the serialized manifest file and one blob entry per
@@ -1204,10 +1182,11 @@ export default class CasService {
     const serializedManifest = normalizeCodecBytes(this.codec.encode(manifestData));
     const manifestOid = await this.persistence.writeBlob(serializedManifest);
 
-    const treeEntries = [
-      `100644 blob ${manifestOid}\tmanifest.${this.codec.extension}`,
-      ...this._createChunkTreeEntries(chunks),
-    ];
+    const treeEntries = buildFlatManifestTreeEntries({
+      manifestOid,
+      chunks,
+      extension: this.codec.extension,
+    });
 
     return await this.persistence.writeTree(treeEntries);
   }
@@ -1248,15 +1227,12 @@ export default class CasService {
     const serializedRoot = normalizeCodecBytes(this.codec.encode(rootManifestData));
     const rootOid = await this.persistence.writeBlob(serializedRoot);
 
-    const subManifestEntries = subManifestRefs.map(
-      (ref, idx) => `100644 blob ${ref.oid}\tsub-manifest-${idx}.${this.codec.extension}`,
-    );
-
-    const treeEntries = [
-      `100644 blob ${rootOid}\tmanifest.${this.codec.extension}`,
-      ...subManifestEntries,
-      ...this._createChunkTreeEntries(chunks),
-    ];
+    const treeEntries = buildMerkleTreeEntries({
+      rootManifestOid: rootOid,
+      subManifests: subManifestRefs,
+      chunks,
+      extension: this.codec.extension,
+    });
 
     return await this.persistence.writeTree(treeEntries);
   }

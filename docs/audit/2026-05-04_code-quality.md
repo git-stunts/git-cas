@@ -149,11 +149,13 @@ post-tag backlog work.
 - **1.2 Principle of Least Astonishment:** CDC encrypted stores now emit an
   observability warning when they auto-select deterministic `convergent`
   encryption.
+- **3.2 Separation of Concerns:** Git tree-entry formatting now lives in
+  `GitTreeBuilder`, leaving `CasService` to request tree layouts instead of
+  owning raw Git entry strings.
 
 ### Still Open - v6.0.0 Blockers
 
 - Decompose `CasService.js` store/restore orchestration enough to remove the
   current audit blocker.
-- Extract Git tree-entry formatting out of `CasService.js`.
 - Add an in-memory persistence adapter for fast domain workflow tests.
 - Add vault-state caching for unchanged vault tree OIDs.
