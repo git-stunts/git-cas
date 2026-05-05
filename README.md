@@ -255,6 +255,7 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
 - **[Advanced Guide](./ADVANCED_GUIDE.md)**: CDC internals, direct service contracts, security limits, operational tooling, and performance baselines.
 - **[Architecture](./ARCHITECTURE.md)**: The authoritative system map — Facade, Domain, Ports, and Adapters.
 - **[Extending](./docs/EXTENDING.md)**: Custom adapter contracts and extension-point checklist.
+- **[Store/Restore Pipeline](./docs/STORE_RESTORE_PIPELINE.md)**: Maintainer state machines for byte storage, restore, tree publication, and vault boundaries.
 - **[Security](./SECURITY.md)**: Threat models, trust boundaries, and encryption internals.
 - **[Agent API](./docs/API.md)**: JSONL agent protocol for CI/CD automation.
 - **[Workflow](https://github.com/git-stunts/git-cas/blob/main/WORKFLOW.md)**: Repo work doctrine, cycles, and invariants.

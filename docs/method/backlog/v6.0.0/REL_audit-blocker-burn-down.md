@@ -21,7 +21,7 @@ annotated `v6.0.0` tag.
 - [x] Expand `createJson` / `createCbor` factory options to cover the underlying
   service options.
 - [x] Pin `commander` and preserve CLI flag/help regression coverage.
-- [ ] Add a long-form store/restore pipeline state-machine document.
+- [x] Add a long-form store/restore pipeline state-machine document.
 - [ ] Add an empty-vault passphrase verifier and migration behavior.
 - [x] Make `scripts/release/verify.js` directly execute maintained examples.
 - [ ] Split `bin/agent/cli.js` command implementations out of the protocol

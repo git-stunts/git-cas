@@ -111,8 +111,10 @@ items are now v6.0.0 blockers instead of future polish.
   `[6.0.0] — Unreleased` until the operator approves tagging (`f1ef0e5`).
 - **1.3 Time-to-Value Barrier:** `ContentAddressableStore.open({ cwd })` is now
   implemented and first-contact docs use it for the normal library quick start.
+- **2.3 Supplementary Documentation:** Added
+  `docs/STORE_RESTORE_PIPELINE.md` with maintainer state machines for store,
+  restore, tree publication, and vault boundaries.
 
 ### Still Open - v6.0.0 Blockers
 
-- Add a dedicated long-form store/restore pipeline state-machine document for
-  maintainer onboarding.
+No documentation-quality blockers remain open from this audit.

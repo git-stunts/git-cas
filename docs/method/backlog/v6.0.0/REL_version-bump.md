@@ -41,9 +41,10 @@ because the current `jsr`/Deno toolchain panics before package validation.
   must still be pushed before tagging.
 - Pre-push `npx eslint .` passed on 2026-05-05 for `63d9bc1`.
 - Pre-push `npm test` passed on 2026-05-05 for `63d9bc1`: 130 files, 1390 passed, 2 skipped.
-- Current release-doc package guard expects the npm tarball has 113 entries after
-  adding `docs/releases/v6.0.0.md` and still excludes internal audit, archive,
-  METHOD backlog, and unused media artifacts.
+- Current release-doc package guard expects the npm tarball has 114 entries after
+  adding `docs/releases/v6.0.0.md` and `docs/STORE_RESTORE_PIPELINE.md`, and
+  still excludes internal audit, archive, METHOD backlog, and unused media
+  artifacts.
 - Node integration passed on 2026-05-04: 4 files, 152 passed.
 - Bun unit passed on 2026-05-04: 118 files passed, 1 file skipped; 1363 passed, 6 skipped.
 - Bun integration passed on 2026-05-04: 4 files, 152 passed.

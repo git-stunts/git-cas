@@ -28,7 +28,7 @@ describe('release state docs', () => {
 
     expect(releaseCard).toContain('main` is pushed through `63d9bc1`');
     expect(releaseCard).toContain('130 files, 1390 passed, 2 skipped');
-    expect(releaseCard).toContain('tarball has 113 entries');
+    expect(releaseCard).toContain('tarball has 114 entries');
     expect(releaseCard).not.toContain('119 files, 1344 passed');
     expect(releaseCard).not.toContain('tarball has 102 files');
     expect(releaseCard).not.toContain('Push the final pre-tag `main` commit');

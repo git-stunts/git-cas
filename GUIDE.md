@@ -6,6 +6,7 @@ For security posture and threat model, see [SECURITY.md](./SECURITY.md).
 For architecture and port/adapter internals, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 For API reference, see [docs/API.md](./docs/API.md).
 For extension points and custom adapter checklists, see [docs/EXTENDING.md](./docs/EXTENDING.md).
+For store/restore state machines, see [docs/STORE_RESTORE_PIPELINE.md](./docs/STORE_RESTORE_PIPELINE.md).
 For advanced topics (benchmarks, Merkle trees, large-asset strategies), see [ADVANCED_GUIDE.md](./ADVANCED_GUIDE.md).
 
 ---
@@ -44,8 +45,8 @@ limits, and port contracts live in the advanced guide.
 |---|---|---|
 | Facade lifecycle, JSON/CBOR factories, full constructor | [Library Quick Start](#library-quick-start), [Configuration Reference](#configuration-reference) | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts) |
 | Direct `CasService` construction | [Configuration Reference](#configuration-reference) notes the facade/direct split | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts) |
-| File, stream, tree, vault-safe store workflows | [Store Operations](#store-operations), [Vault Management](#vault-management) | [Manifest Integrity Hash](./ADVANCED_GUIDE.md#manifest-integrity-hash), [Merkle Manifests](./ADVANCED_GUIDE.md#merkle-manifests) |
-| Restore modes and bounded memory behavior | [Restore Modes](#restore-modes) | [Parallel Chunk Restore](./ADVANCED_GUIDE.md#parallel-chunk-restore), [Streaming Decompression](./ADVANCED_GUIDE.md#streaming-decompression) |
+| File, stream, tree, vault-safe store workflows | [Store Operations](#store-operations), [Vault Management](#vault-management) | [Store/Restore Pipeline](./docs/STORE_RESTORE_PIPELINE.md), [Manifest Integrity Hash](./ADVANCED_GUIDE.md#manifest-integrity-hash), [Merkle Manifests](./ADVANCED_GUIDE.md#merkle-manifests) |
+| Restore modes and bounded memory behavior | [Restore Modes](#restore-modes) | [Store/Restore Pipeline](./docs/STORE_RESTORE_PIPELINE.md), [Parallel Chunk Restore](./ADVANCED_GUIDE.md#parallel-chunk-restore), [Streaming Decompression](./ADVANCED_GUIDE.md#streaming-decompression) |
 | Fixed chunking, CDC, FastCDC normalization | [Chunking](#chunking) | [Content-Defined Chunking (CDC)](./ADVANCED_GUIDE.md#content-defined-chunking-cdc) |
 | Encryption schemes and legacy migration | [Encryption](#encryption), [Migrating Legacy Encryption Schemes](#migrating-legacy-encryption-schemes) | [Encryption Schemes](./ADVANCED_GUIDE.md#encryption-schemes), [Convergent Encryption](./ADVANCED_GUIDE.md#convergent-encryption) |
 | Passphrases, PBKDF2, scrypt, KDF policy | [Passphrase-Based Encryption](#passphrase-based-encryption) | [KDF Policy](./ADVANCED_GUIDE.md#kdf-policy) |

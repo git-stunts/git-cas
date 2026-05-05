@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Migration script (`npm run upgrade`)** — fully implemented `scripts/migrate-encryption.js` for v6.0.0 encryption scheme upgrades. Two modes: **fast** (rename-only for v2 schemes and `convergent-v1`) and **full** (re-encryption for v1 whole/framed schemes that lacked AAD). Supports `--execute` (default dry-run), `--passphrase-file`, `--key-file`, privacy-vault key options, and `--cwd`. Inline `--passphrase` and `--vault-passphrase` remain compatibility paths and now warn because command-line arguments can leak through shell history, process listings, CI logs, and terminal transcripts. Reads every vault entry, classifies it, and reports what will/did change.
 - **`ContentAddressableStore.open({ cwd })`** — new default facade factory that
   constructs the Git plumbing adapter for normal application setup.
+- **Store/restore pipeline state-machine docs** — added
+  `docs/STORE_RESTORE_PIPELINE.md` as the maintainer map for store, restore,
+  tree publication, and vault boundaries.
 - **`CasService.readManifestRaw()`** — reads a manifest from a Git tree OID and returns the raw decoded object without Manifest construction or scheme assertion. Migration entry point for inspecting legacy manifests.
 - **`CasService` `legacyMode` constructor option** — when `true`, `readManifest()` maps legacy scheme identifiers (v1/v2) to their current names instead of throwing `LEGACY_SCHEME`. Legacy v1 manifests (no AAD) are correctly decrypted without AAD during restore.
 - **`mapToCurrentScheme()` and `isLegacyNoAad()` in `schemes.js`** — public helpers for mapping legacy scheme strings to current names and detecting v1 no-AAD schemes.
