@@ -20,6 +20,23 @@ function mockPlumbing() {
   };
 }
 
+function mockObservability() {
+  return {
+    metric: vi.fn(),
+    log: vi.fn(),
+    span: vi.fn(() => ({ end: vi.fn() })),
+  };
+}
+
+function mockCompressionAdapter() {
+  return {
+    compressBuffer: vi.fn(async (buffer) => buffer),
+    decompressBuffer: vi.fn(async (buffer) => buffer),
+    compressStream: vi.fn((source) => source),
+    decompressStream: vi.fn((source) => source),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
@@ -130,5 +147,59 @@ describe('Facade – raw chunker option', () => {
     const svc = await store.getService();
     expect(svc.chunker).toBe(customChunker);
     expect(svc.chunker.strategy).toBe('cdc');
+  });
+});
+
+describe('Facade – createJson factory options', () => {
+  it('createJson forwards advanced facade options', async () => {
+    const observability = mockObservability();
+    const compressionAdapter = mockCompressionAdapter();
+    const chunker = new CdcChunker({ targetChunkSize: 131072 });
+    const store = ContentAddressableStore.createJson({
+      plumbing: mockPlumbing(),
+      chunker,
+      observability,
+      compressionAdapter,
+      merkleThreshold: 7,
+      concurrency: 3,
+      maxRestoreBufferSize: 4096,
+    });
+
+    const svc = await store.getService();
+
+    expect(svc.codec.extension).toBe('json');
+    expect(svc.chunker).toBe(chunker);
+    expect(svc.observability).toBe(observability);
+    expect(svc.compressionAdapter).toBe(compressionAdapter);
+    expect(svc.merkleThreshold).toBe(7);
+    expect(svc.concurrency).toBe(3);
+    expect(svc.maxRestoreBufferSize).toBe(4096);
+  });
+});
+
+describe('Facade – createCbor factory options', () => {
+  it('createCbor forwards advanced facade options', async () => {
+    const observability = mockObservability();
+    const compressionAdapter = mockCompressionAdapter();
+    const store = ContentAddressableStore.createCbor({
+      plumbing: mockPlumbing(),
+      chunking: { strategy: 'fixed', chunkSize: 2048 },
+      observability,
+      compressionAdapter,
+      merkleThreshold: 9,
+      concurrency: 4,
+      maxRestoreBufferSize: 8192,
+    });
+
+    const svc = await store.getService();
+
+    expect(svc.codec.extension).toBe('cbor');
+    expect(svc.chunker).toBeInstanceOf(FixedChunker);
+    expect(svc.chunker.params).toEqual({ chunkSize: 2048 });
+    expect(svc.observability).toBe(observability);
+    expect(svc.compressionAdapter).toBe(compressionAdapter);
+    expect(svc.merkleThreshold).toBe(9);
+    expect(svc.concurrency).toBe(4);
+    expect(svc.maxRestoreBufferSize).toBe(8192);
   });
 });

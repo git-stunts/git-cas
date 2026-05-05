@@ -94,6 +94,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **v6 documentation coverage** — README, GUIDE, ADVANCED_GUIDE, API docs, walkthrough docs, and examples now align with the actual v6 CLI, direct-service port requirements, `Uint8Array` byte contract, agent command surface, and CDC/convergent encryption defaults.
 - **Release documentation finalization** — added public v6.0.0 release notes, made README migration guidance more prominent for existing v5 users, and aligned UPGRADING examples with the safer `--passphrase-file` migration path.
 - **Release-gate hardening** — `npm run release:verify` now executes every maintained example, `commander` is pinned to an exact version, and CLI help regression coverage preserves passphrase-source guidance.
+- **Facade factory option forwarding** — `createJson()` and `createCbor()` now
+  pass advanced facade options through to the underlying service instead of
+  silently dropping them.
 - **Vault metadata validation** — malformed vault `encryptionCount` metadata is rejected before encrypted vault writes can corrupt nonce accounting or bypass the configured encryption-count cap.
 - **Migration credential hardening** — the migration script now reads full-migration passphrases from `--passphrase-file <path>` or `--passphrase-file -`, rejects ambiguous credential sources, and warns on inline migration passphrases.
 - **npm package documentation surface** — the published package now excludes internal audit, METHOD backlog, archive, and unused media artifacts while preserving the public docs and demo media linked from README.

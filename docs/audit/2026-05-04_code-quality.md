@@ -143,6 +143,9 @@ post-tag backlog work.
   help regression coverage now guards passphrase-source help text.
 - **1.1 Time-to-Value:** `ContentAddressableStore.open({ cwd })` now constructs
   the default Git-backed JSON facade without caller-managed plumbing setup.
+- **2.2 Customization:** `createJson()` and `createCbor()` now forward facade
+  options such as `chunking`, `observability`, `compressionAdapter`,
+  `merkleThreshold`, `concurrency`, and `maxRestoreBufferSize`.
 
 ### Still Open - v6.0.0 Blockers
 
@@ -153,5 +156,3 @@ post-tag backlog work.
 - Extract Git tree-entry formatting out of `CasService.js`.
 - Add an in-memory persistence adapter for fast domain workflow tests.
 - Add vault-state caching for unchanged vault tree OIDs.
-- Expand `createJson` / `createCbor` factory options to cover underlying service
-  options.

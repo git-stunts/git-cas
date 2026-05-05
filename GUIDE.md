@@ -97,8 +97,8 @@ const { buffer } = await cas.restore({ manifest: readBack });
 
 `open()` accepts `cwd` plus the same facade options as the constructor except
 `plumbing`. Use `createJson()` or `createCbor()` when you already have a custom
-Git plumbing instance. Both explicit-plumbing factories accept optional
-`chunkSize` and `policy` (resilience policy from `@git-stunts/alfred`).
+Git plumbing instance. Both explicit-plumbing factories accept the same facade
+options as the constructor except `codec`, which is fixed by the factory name.
 
 ### Full Constructor
 

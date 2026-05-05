@@ -18,7 +18,7 @@ annotated `v6.0.0` tag.
 - [ ] Add a `MemoryPersistenceAdapter` test helper and prove a domain workflow
   without Git subprocesses.
 - [ ] Add vault-state caching for unchanged vault tree OIDs.
-- [ ] Expand `createJson` / `createCbor` factory options to cover the underlying
+- [x] Expand `createJson` / `createCbor` factory options to cover the underlying
   service options.
 - [x] Pin `commander` and preserve CLI flag/help regression coverage.
 - [ ] Add a long-form store/restore pipeline state-machine document.

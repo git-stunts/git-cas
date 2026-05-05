@@ -37,6 +37,7 @@ describe('release truth docs and examples', () => {
 
     expect(api).toContain('ContentAddressableStore.open({ cwd:');
     expect(api).toContain('Any other `ContentAddressableStore` constructor option except `plumbing`');
+    expect(api).toContain('Any other `ContentAddressableStore` constructor option except `codec`');
     expect(api).not.toContain('Plumbing.create({ repoPath');
   });
 

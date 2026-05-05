@@ -91,7 +91,7 @@ Use these factories when you already have a custom Git plumbing instance.
 #### createJson
 
 ```javascript
-ContentAddressableStore.createJson({ plumbing, chunkSize, policy });
+ContentAddressableStore.createJson({ plumbing, chunkSize, policy, chunking });
 ```
 
 Creates a CAS instance with JSON codec.
@@ -101,6 +101,7 @@ Creates a CAS instance with JSON codec.
 - `plumbing` (required): Plumbing instance
 - `chunkSize` (optional): Chunk size in bytes
 - `policy` (optional): Resilience policy
+- Any other `ContentAddressableStore` constructor option except `codec`
 
 **Returns:** `ContentAddressableStore`
 
@@ -113,7 +114,7 @@ const cas = ContentAddressableStore.createJson({ plumbing });
 #### createCbor
 
 ```javascript
-ContentAddressableStore.createCbor({ plumbing, chunkSize, policy });
+ContentAddressableStore.createCbor({ plumbing, chunkSize, policy, chunking });
 ```
 
 Creates a CAS instance with CBOR codec.
@@ -123,6 +124,7 @@ Creates a CAS instance with CBOR codec.
 - `plumbing` (required): Plumbing instance
 - `chunkSize` (optional): Chunk size in bytes
 - `policy` (optional): Resilience policy
+- Any other `ContentAddressableStore` constructor option except `codec`
 
 **Returns:** `ContentAddressableStore`
 

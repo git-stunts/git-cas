@@ -210,6 +210,9 @@ export interface ContentAddressableStoreOpenOptions extends Omit<ContentAddressa
   env?: string;
 }
 
+/** Options for codec-specific facade factories. */
+export type ContentAddressableStoreCodecFactoryOptions = Omit<ContentAddressableStoreOptions, "codec">;
+
 /** A single vault entry. */
 export interface VaultEntry {
   slug: string;
@@ -362,17 +365,9 @@ export default class ContentAddressableStore {
 
   static open(options?: ContentAddressableStoreOpenOptions): ContentAddressableStore;
 
-  static createJson(options: {
-    plumbing: unknown;
-    chunkSize?: number;
-    policy?: unknown;
-  }): ContentAddressableStore;
+  static createJson(options: ContentAddressableStoreCodecFactoryOptions): ContentAddressableStore;
 
-  static createCbor(options: {
-    plumbing: unknown;
-    chunkSize?: number;
-    policy?: unknown;
-  }): ContentAddressableStore;
+  static createCbor(options: ContentAddressableStoreCodecFactoryOptions): ContentAddressableStore;
 
   static diffManifests(oldManifest: Manifest, newManifest: Manifest): ManifestDiffResult;
 

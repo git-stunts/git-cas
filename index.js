@@ -200,10 +200,18 @@ export default class ContentAddressableStore {
    * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance.
    * @param {number} [options.chunkSize] - Chunk size in bytes.
    * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy.
+   * @param {import('./src/ports/CryptoPort.js').default} [options.crypto] - Crypto adapter.
+   * @param {import('./src/ports/ObservabilityPort.js').default} [options.observability] - Observability adapter.
+   * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
+   * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
+   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
+   * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
+   * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
+   * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
    * @returns {ContentAddressableStore}
    */
-  static createJson({ plumbing, chunkSize, policy }) {
-    return new ContentAddressableStore({ plumbing, chunkSize, codec: new JsonCodec(), policy });
+  static createJson({ plumbing, ...options }) {
+    return new ContentAddressableStore({ ...options, plumbing, codec: new JsonCodec() });
   }
 
   /**
@@ -212,10 +220,18 @@ export default class ContentAddressableStore {
    * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance.
    * @param {number} [options.chunkSize] - Chunk size in bytes.
    * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy.
+   * @param {import('./src/ports/CryptoPort.js').default} [options.crypto] - Crypto adapter.
+   * @param {import('./src/ports/ObservabilityPort.js').default} [options.observability] - Observability adapter.
+   * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
+   * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
+   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
+   * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
+   * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
+   * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
    * @returns {ContentAddressableStore}
    */
-  static createCbor({ plumbing, chunkSize, policy }) {
-    return new ContentAddressableStore({ plumbing, chunkSize, codec: new CborCodec(), policy });
+  static createCbor({ plumbing, ...options }) {
+    return new ContentAddressableStore({ ...options, plumbing, codec: new CborCodec() });
   }
 
   /**
