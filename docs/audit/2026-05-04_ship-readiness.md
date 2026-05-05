@@ -25,7 +25,7 @@ summary:
     high: 5
     medium: 6
     low: 3
-  remediation_status: "Pending"
+  remediation_status: "In-Progress"
 related_reports:
   previous_audit: "AUD-2026-04-11-SHIP-READINESS"
   tracking_ticket: "docs/method/backlog/bad-code/DOC_examples-uint8array-drift.md"
@@ -213,3 +213,39 @@ Ship only after addressing the **High** severity risks (Broken examples and stal
 - **Action 1 (High Urgency):** Fix examples and API documentation drift.
 - **Action 2 (High Urgency):** Update Threat Model and Security docs.
 - **Action 3 (Medium Urgency):** Modularize `CasService.js` to reduce technical debt before v6.1.0.
+
+## Remediation Addendum - 2026-05-05
+
+**Status:** In progress. The high-severity pre-tag blockers identified in this
+report have been addressed in follow-up commits. Tagging still requires the
+normal final release validation pass and explicit operator approval.
+
+### Resolved Since Audit Target
+
+- **Risk 1 - API Drift:** `docs/API.md` now uses the current
+  `GitPlumbing.createDefault({ cwd })` initialization path (`d238aa3`).
+- **Risk 2 - Broken Examples:** Maintained examples now execute under the v6
+  `Uint8Array` byte contract (`d238aa3`).
+- **Risk 3 - Threat Model Drift:** `docs/THREAT_MODEL.md` now describes the
+  current active scheme names (`d238aa3`).
+- **Vulnerability 1 - Inline Passphrase Exposure:** Human CLI inline passphrase
+  flags now emit warnings, help text discourages argv secrets, and docs prefer
+  stdin/env/keychain/file sources (`b01e5ba`).
+- **Operational Gap 2 - Standard Docs:** Added `CODE_OF_CONDUCT.md`,
+  `SUPPORT.md`, and `docs/EXTENDING.md`, and verified package inclusion
+  (`2398e95`).
+- **Additional Crypto Safety Follow-Up:** Encrypted vault writes now hard-stop
+  with `VAULT_NONCE_EXHAUSTED` when the nonce budget is exhausted (`db94701`).
+
+### Still Open Or Deferred
+
+- **Vulnerability 2 - Empty Vault Passphrase Verifier:** Remains a future
+  security hardening item. It is useful, but not required to tag v6.0.0 because
+  encrypted content still authenticates once entries exist.
+- **Operational Gap 1 - Release Script Example Execution:** Example drift is now
+  covered by focused regression tests, but `scripts/release/verify.js` still
+  does not directly execute every maintained example.
+- **Operational Gap 3 - TUI Orphaned-Chunk Health Check:** Deferred to the
+  v6.x TUI backlog.
+- **Medium Maintainability Work:** `CasService.js` and `bin/agent/cli.js`
+  modularization remain post-v6 maintenance priorities, not tag blockers.

@@ -25,7 +25,7 @@ summary:
     high: 2
     medium: 7
     low: 2
-  remediation_status: "Pending"
+  remediation_status: "In-Progress"
 related_reports:
   previous_audit: "AUD-2026-04-11-CODE-QUALITY"
   tracking_ticket: "docs/method/backlog/bad-code/TR_casservice-decomposition-pressure.md"
@@ -117,3 +117,34 @@ related_reports:
 ### 5.3. Mitigation Prompt
 
 - **Action Prompt (Strategic Priority):** `Perform a structural refactoring of CasService.js by extracting the Restore strategy logic into a dedicated RestoreService. This includes moving the classification logic, buffered/streaming restore implementations, and the Merkle-sub-manifest resolution. Ensure all CasService unit tests pass against the new modularized structure. This fixes the primary technical debt hotspot while maintaining the public API.`
+
+## Remediation Addendum - 2026-05-05
+
+**Status:** In progress. The pre-tag safety and documentation-usability items
+identified in this audit have been mitigated; larger maintainability refactors
+remain intentionally deferred beyond the v6.0.0 tag.
+
+### Resolved Since Audit Target
+
+- **1.3 Error Usability:** `PERSISTENCE_CAPABILITY_REQUIRED` now explains the
+  memory-safety reason for `readBlobStream()`, names `maxRestoreBufferSize`, and
+  links adapter authors to `docs/EXTENDING.md` (`62631ca`).
+- **2.1 Documentation Gap:** Added `docs/EXTENDING.md` with custom persistence,
+  codec, chunking, compression, crypto, and observability adapter guidance
+  (`2398e95`).
+- **4.1 Critical Flaw:** Added `VaultService.ENCRYPTION_COUNT_MAX` and a
+  `VAULT_NONCE_EXHAUSTED` guard that prevents encrypted vault writes after the
+  nonce budget is exhausted (`db94701`).
+- **Security Footgun From Related Ship Audit:** Inline human CLI passphrase
+  flags now warn, help text discourages argv secrets, and maintained docs prefer
+  stdin/env/keychain/file passphrase sources (`b01e5ba`).
+
+### Still Open Or Deferred
+
+- `ContentAddressableStore.open({ cwd })` remains a DX improvement, not a
+  v6.0.0 blocker.
+- Auto-selected `convergent` encryption warning remains a POLA improvement for a
+  future hardening pass.
+- `CasService.js` restore/store decomposition, Git tree-entry extraction,
+  in-memory persistence adapter, vault-state caching, factory option expansion,
+  and `commander` pinning remain backlog-level maintainability work.

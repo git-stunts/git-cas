@@ -25,7 +25,7 @@ summary:
     high: 3
     medium: 2
     low: 2
-  remediation_status: "Pending"
+  remediation_status: "In-Progress"
 related_reports:
   previous_audit: "AUD-2026-04-11-DOCUMENTATION-QUALITY"
   tracking_ticket: "docs/method/backlog/bad-code/DOC_examples-uint8array-drift.md"
@@ -87,3 +87,32 @@ related_reports:
 ### 3.3. Mitigation Prompt
 
 `Execute the documentation accuracy pass: fix v6-byte-contract drift in examples/ and docs/API.md, align scheme names in docs/THREAT_MODEL.md with src/domain/encryption/schemes.js, and create docs/EXTENDING.md plus CODE_OF_CONDUCT.md. Ensure all examples pass 'node examples/*.js' after modification.`
+
+## Remediation Addendum - 2026-05-05
+
+**Status:** In progress. The release-blocking documentation drift has been
+corrected; remaining items are polish or future DX improvements.
+
+### Resolved Since Audit Target
+
+- **1.1 Core Mismatch:** Maintained examples now honor the v6 `Uint8Array`
+  byte contract, and `docs/API.md` uses `GitPlumbing.createDefault({ cwd })`
+  instead of stale plumbing initialization (`d238aa3`).
+- **2.2 Missing Standard Documentation:** Added `docs/EXTENDING.md`,
+  `CODE_OF_CONDUCT.md`, and `SUPPORT.md`; README/GUIDE/ADVANCED_GUIDE now link
+  the extension and participation surfaces (`2398e95`).
+- **2.2 Security Documentation Drift:** Threat model wording was aligned with
+  current `whole`, `framed`, and `convergent` scheme names (`d238aa3`).
+- **Package Documentation Closure:** README-linked documentation and newly
+  required standard docs are covered by package-surface tests and npm pack
+  dry-run verification (`0bb67c4`, `2398e95`).
+- **Release-State Truth:** The changelog remains explicitly pre-tagged as
+  `[6.0.0] — Unreleased` until the operator approves tagging (`f1ef0e5`).
+
+### Still Open Or Deferred
+
+- `ContentAddressableStore.open({ cwd })` remains the largest TTV improvement.
+- A dedicated long-form store/restore pipeline state-machine document would
+  still improve maintainer onboarding, though `ADVANCED_GUIDE.md`,
+  `ARCHITECTURE.md`, and `docs/EXTENDING.md` now cover the public extension
+  surface.
