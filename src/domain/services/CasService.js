@@ -914,7 +914,7 @@ export default class CasService {
    * @param {string} options.filename
    * @param {Uint8Array} [options.encryptionKey]
    * @param {string} [options.passphrase] - Derive encryption key from passphrase instead.
-   * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number }} [options.encryption] - Explicit encryption scheme selection.
+   * @param {{ scheme?: 'whole'|'framed'|'convergent', frameBytes?: number, convergent?: boolean }} [options.encryption] - Explicit encryption scheme selection.
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).

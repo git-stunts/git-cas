@@ -8,6 +8,10 @@ function casServiceTypes() {
   return readFileSync(path.join(repoRoot, 'src/domain/services/CasService.d.ts'), 'utf8');
 }
 
+function read(relPath) {
+  return readFileSync(path.join(repoRoot, relPath), 'utf8');
+}
+
 function interfaceBody(source, name) {
   const match = source.match(new RegExp(`export interface ${name} \\{([\\s\\S]*?)\\n\\}`));
   if (!match) {
@@ -32,5 +36,16 @@ describe('Type declaration accuracy', () => {
     expect(options).toMatch(/\n\s+scheme\?: EncryptionScheme;/);
     expect(options).toMatch(/\n\s+frameBytes\?: number;/);
     expect(options).toMatch(/\n\s+convergent\?: boolean;/);
+  });
+
+  it('keeps runtime JSDoc store encryption shapes aligned with declarations', () => {
+    const encryptionShape = /@param \{\{ scheme\?: 'whole'\|'framed'\|'convergent', frameBytes\?: number, convergent\?: boolean \}\} \[options\.encryption\]/;
+
+    for (const relPath of [
+      'src/domain/services/CasService.js',
+      'src/infrastructure/adapters/FileIOHelper.js',
+    ]) {
+      expect(read(relPath), relPath).toMatch(encryptionShape);
+    }
   });
 });
