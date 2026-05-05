@@ -37,6 +37,24 @@ const PRIVACY_INDEX_ENTRY = '.privacy-index';
  */
 
 /**
+ * Git tree entry shape returned by the persistence port.
+ * @typedef {Object} VaultTreeEntry
+ * @property {string} mode - Git file mode.
+ * @property {string} type - Git object type.
+ * @property {string} oid - Git object OID.
+ * @property {string} name - Tree entry name.
+ */
+
+/**
+ * Cached parse-stable vault tree data.
+ * @typedef {Object} CachedVaultTree
+ * @property {VaultTreeEntry[]} rawEntries - Raw tree entries from persistence.
+ * @property {VaultMetadata|null} metadata - Parsed vault metadata.
+ * @property {Map<string, string>|null} plainEntries - Parsed plain slug entries.
+ * @property {WeakMap<Uint8Array, Map<string, string>>} privacyEntriesByKey - Privacy entries by key object.
+ */
+
+/**
  * Percent-encodes a vault slug for use as a git tree entry name.
  * Git tree entry names cannot contain '/'.
  * @param {string} slug
@@ -98,6 +116,9 @@ export default class VaultService {
 
   /** @type {number} Maximum encrypted vault writes before key rotation is required (2^32 - 1). */
   static ENCRYPTION_COUNT_MAX = 2 ** 32 - 1;
+
+  /** @type {Map<string, CachedVaultTree>} */
+  #stateCache = new Map();
 
   /**
    * @param {Object} options
@@ -270,7 +291,7 @@ export default class VaultService {
 
   /**
    * Separates vault tree entries into slug→OID map and metadata blob OID.
-   * @param {Array<{ mode: string, type: string, oid: string, name: string }>} treeEntries
+   * @param {VaultTreeEntry[]} treeEntries
    * @param {Object} [options]
    * @param {boolean} [options.privacyEnabled=false] - When true, entry names are HMAC hashes (skip decodeSlug).
    * @returns {{ entries: Map<string, string>, metadataBlobOid: string|null, privacyIndexBlobOid: string|null }}
@@ -295,8 +316,59 @@ export default class VaultService {
   }
 
   /**
+   * Loads and caches parse-stable vault tree data by tree OID.
+   * @param {string} treeOid
+   * @returns {Promise<CachedVaultTree>}
+   */
+  async #readCachedVaultTree(treeOid) {
+    const cached = this.#stateCache.get(treeOid);
+    if (cached) {
+      return cached;
+    }
+
+    const rawEntries = await this.persistence.readTree(treeOid);
+    const { metadataBlobOid } = VaultService.#parseTreeEntries(rawEntries);
+    const metadata = metadataBlobOid
+      ? await this.#readMetadataBlob(metadataBlobOid)
+      : null;
+    const loaded = {
+      rawEntries,
+      metadata,
+      plainEntries: null,
+      privacyEntriesByKey: new WeakMap(),
+    };
+    this.#stateCache.set(treeOid, loaded);
+    return loaded;
+  }
+
+  /**
+   * Clones metadata for public read-state results.
+   * @param {VaultMetadata|null} metadata
+   * @returns {VaultMetadata|null}
+   */
+  static #cloneReadMetadata(metadata) {
+    return metadata ? JSON.parse(JSON.stringify(metadata)) : null;
+  }
+
+  /**
+   * Builds a defensive VaultState from cached entries.
+   * @param {Object} options
+   * @param {Map<string, string>} options.entries
+   * @param {string} options.parentCommitOid
+   * @param {VaultMetadata|null} options.metadata
+   * @returns {VaultState}
+   */
+  static #stateFromCache({ entries, parentCommitOid, metadata }) {
+    return {
+      entries: new Map(entries),
+      parentCommitOid,
+      metadata: VaultService.#cloneReadMetadata(metadata),
+    };
+  }
+
+  /**
    * Resolves HMAC tree entry names to slugs using the encrypted privacy index.
-   * @param {Array<{ mode: string, type: string, oid: string, name: string }>} rawEntries - Raw tree entries.
+   * @param {VaultTreeEntry[]} rawEntries - Raw tree entries.
    * @param {VaultMetadata} metadata - Vault metadata (must have privacy.indexMeta).
    * @param {Uint8Array} encryptionKey - Vault encryption key.
    * @returns {Promise<Map<string, string>>} Slug→treeOid map.
@@ -357,11 +429,8 @@ export default class VaultService {
     }
 
     const treeOid = await this.ref.resolveTree(commitOid);
-    const rawEntries = await this.persistence.readTree(treeOid);
-    const { metadataBlobOid } = VaultService.#parseTreeEntries(rawEntries);
-    const metadata = metadataBlobOid
-      ? await this.#readMetadataBlob(metadataBlobOid)
-      : null;
+    const cached = await this.#readCachedVaultTree(treeOid);
+    const { metadata } = cached;
 
     if (metadata?.privacy?.enabled) {
       if (!encryptionKey) {
@@ -370,12 +439,22 @@ export default class VaultService {
           'VAULT_PRIVACY_KEY_REQUIRED',
         );
       }
-      const entries = await this.#resolvePrivacyEntries(rawEntries, metadata, encryptionKey);
-      return { entries, parentCommitOid: commitOid, metadata };
+      let entries = cached.privacyEntriesByKey.get(encryptionKey);
+      if (!entries) {
+        entries = await this.#resolvePrivacyEntries(cached.rawEntries, metadata, encryptionKey);
+        cached.privacyEntriesByKey.set(encryptionKey, entries);
+      }
+      return VaultService.#stateFromCache({ entries, parentCommitOid: commitOid, metadata });
     }
 
-    const { entries } = VaultService.#parseTreeEntries(rawEntries);
-    return { entries, parentCommitOid: commitOid, metadata };
+    if (!cached.plainEntries) {
+      cached.plainEntries = VaultService.#parseTreeEntries(cached.rawEntries).entries;
+    }
+    return VaultService.#stateFromCache({
+      entries: cached.plainEntries,
+      parentCommitOid: commitOid,
+      metadata,
+    });
   }
 
   /**

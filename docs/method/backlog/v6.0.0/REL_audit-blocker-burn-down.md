@@ -17,7 +17,7 @@ annotated `v6.0.0` tag.
 - [x] Extract Git tree-entry formatting out of `CasService.js`.
 - [x] Add a `MemoryPersistenceAdapter` test helper and prove a domain workflow
   without Git subprocesses.
-- [ ] Add vault-state caching for unchanged vault tree OIDs.
+- [x] Add vault-state caching for unchanged vault tree OIDs.
 - [x] Expand `createJson` / `createCbor` factory options to cover the underlying
   service options.
 - [x] Pin `commander` and preserve CLI flag/help regression coverage.

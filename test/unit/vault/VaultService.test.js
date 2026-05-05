@@ -183,6 +183,86 @@ describe('readState – decodes percent-encoded slugs', () => {
   });
 });
 
+describe('readState – cache unchanged tree', () => {
+  it('reuses parsed state for unchanged vault tree OIDs while preserving current commit parent', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    ref.resolveRef
+      .mockResolvedValueOnce('commit-oid-1')
+      .mockResolvedValueOnce('commit-oid-2');
+    ref.resolveTree.mockResolvedValue('tree-oid-1');
+    persistence.readTree.mockResolvedValue(treeEntries('meta-blob-oid', [
+      { mode: '040000', type: 'tree', oid: 'entry-tree-1', name: 'demo%2Fhello' },
+    ]));
+    persistence.readBlob.mockResolvedValue(Buffer.from(JSON.stringify({ version: 1 })));
+
+    const vault = createVault({ ref, persistence });
+    const first = await vault.readState();
+    const second = await vault.readState();
+
+    expect(first.parentCommitOid).toBe('commit-oid-1');
+    expect(second.parentCommitOid).toBe('commit-oid-2');
+    expect(second.entries.get('demo/hello')).toBe('entry-tree-1');
+    expect(persistence.readTree).toHaveBeenCalledOnce();
+    expect(persistence.readBlob).toHaveBeenCalledOnce();
+  });
+});
+
+describe('readState – cache invalidation', () => {
+  it('invalidates parsed state when the vault tree OID changes', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    ref.resolveRef
+      .mockResolvedValueOnce('commit-oid-1')
+      .mockResolvedValueOnce('commit-oid-2');
+    ref.resolveTree
+      .mockResolvedValueOnce('tree-oid-1')
+      .mockResolvedValueOnce('tree-oid-2');
+    persistence.readTree
+      .mockResolvedValueOnce(treeEntries('meta-blob-oid-1', [
+        { mode: '040000', type: 'tree', oid: 'entry-tree-1', name: 'old' },
+      ]))
+      .mockResolvedValueOnce(treeEntries('meta-blob-oid-2', [
+        { mode: '040000', type: 'tree', oid: 'entry-tree-2', name: 'new' },
+      ]));
+    persistence.readBlob
+      .mockResolvedValueOnce(Buffer.from(JSON.stringify({ version: 1 })))
+      .mockResolvedValueOnce(Buffer.from(JSON.stringify({ version: 1 })));
+
+    const vault = createVault({ ref, persistence });
+    const first = await vault.readState();
+    const second = await vault.readState();
+
+    expect(first.entries.get('old')).toBe('entry-tree-1');
+    expect(second.entries.get('new')).toBe('entry-tree-2');
+    expect(second.entries.has('old')).toBe(false);
+    expect(persistence.readTree).toHaveBeenCalledTimes(2);
+    expect(persistence.readBlob).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('readState – cache defensive copies', () => {
+  it('returns defensive copies from cached vault state', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    ref.resolveRef.mockResolvedValue('commit-oid-1');
+    ref.resolveTree.mockResolvedValue('tree-oid-1');
+    persistence.readTree.mockResolvedValue(treeEntries('meta-blob-oid', [
+      { mode: '040000', type: 'tree', oid: 'entry-tree-1', name: 'demo%2Fhello' },
+    ]));
+    persistence.readBlob.mockResolvedValue(Buffer.from(JSON.stringify({ version: 1 })));
+
+    const vault = createVault({ ref, persistence });
+    const first = await vault.readState();
+    first.entries.set('mutated', 'tree-mutated');
+    first.metadata.version = 99;
+
+    const second = await vault.readState();
+    expect(second.entries.has('mutated')).toBe(false);
+    expect(second.metadata).toEqual({ version: 1 });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // readState – metadata errors
 // ---------------------------------------------------------------------------

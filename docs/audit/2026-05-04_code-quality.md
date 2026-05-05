@@ -155,9 +155,11 @@ post-tag backlog work.
 - **3.3 Testability:** Added a `MemoryPersistenceAdapter` test helper and a
   domain workflow proof that stores, publishes, reads, and restores without Git
   subprocesses.
+- **4.2 Efficiency Sink:** `VaultService.readState()` now caches parse-stable
+  vault tree data by tree OID, returns defensive copies for public callers, and
+  reuses parsed state until `refs/cas/vault` resolves to a different tree.
 
 ### Still Open - v6.0.0 Blockers
 
 - Decompose `CasService.js` store/restore orchestration enough to remove the
   current audit blocker.
-- Add vault-state caching for unchanged vault tree OIDs.

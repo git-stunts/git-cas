@@ -106,6 +106,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sub-manifest, and chunk tree-entry construction to `GitTreeBuilder`.
 - **In-memory persistence test helper** — `MemoryPersistenceAdapter` now proves
   domain store/tree/read/restore workflows without Git subprocesses.
+- **Vault state read caching** — `VaultService.readState()` now caches parsed
+  vault tree state by unchanged tree OID, returns defensive copies to callers,
+  and invalidates automatically when the vault ref resolves to a different tree.
 - **Vault metadata validation** — malformed vault `encryptionCount` metadata is rejected before encrypted vault writes can corrupt nonce accounting or bypass the configured encryption-count cap.
 - **Migration credential hardening** — the migration script now reads full-migration passphrases from `--passphrase-file <path>` or `--passphrase-file -`, rejects ambiguous credential sources, and warns on inline migration passphrases.
 - **npm package documentation surface** — the published package now excludes internal audit, METHOD backlog, archive, and unused media artifacts while preserving the public docs and demo media linked from README.
