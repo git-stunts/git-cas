@@ -6,11 +6,12 @@
 import Manifest from '../value-objects/Manifest.js';
 import { ChunkSchema } from '../schemas/ManifestSchema.js';
 import CasError from '../errors/CasError.js';
-import Semaphore from './Semaphore.js';
 import KeyResolver from './KeyResolver.js';
 import ConvergentEncryption from './ConvergentEncryption.js';
 import diffManifests from './ManifestDiff.js';
 import prefetchChunks from './PrefetchWindow.js';
+import RestorePipeline from './RestorePipeline.js';
+import StorePipeline from './StorePipeline.js';
 import {
   buildFlatManifestTreeEntries,
   buildMerkleTreeEntries,
@@ -233,185 +234,13 @@ export default class CasService {
    * @throws {CasError} STREAM_ERROR if the source stream fails.
    */
   async _chunkAndStore(source, manifestData, { convergentKey } = {}) {
-    const sem = new Semaphore(this.concurrency);
-    const iterator = this.chunker.chunk(source)[Symbol.asyncIterator]();
-    const results = [];
-    const inFlight = new Set();
-    const orphanedBlobs = [];
-    const state = { nextIndex: 0, writeError: null, failedIndex: null };
-
-    while (true) {
-      // Acquire capacity before pulling the next chunk so slow writes apply
-      // backpressure all the way to the upstream source iterator.
-      await sem.acquire();
-
-      if (state.writeError) {
-        sem.release();
-        await this._closeAsyncIterator(iterator);
-        break;
-      }
-
-      const step = await this._readNextStoreChunk({
-        iterator, sem, inFlight, orphanedBlobs, nextIndex: state.nextIndex,
-      });
-
-      if (step.done) {
-        sem.release();
-        break;
-      }
-
-      this._launchChunkWrite({
-        buf: step.value, idx: state.nextIndex++, sem, results, orphanedBlobs, inFlight, state, convergentKey,
-      });
-    }
-
-    await this._awaitChunkWrites({ inFlight, state, orphanedBlobs });
-    this._appendChunkEntries(manifestData, results);
-  }
-
-  /**
-   * Starts one bounded chunk write and tracks its lifecycle.
-   * @private
-   */
-  _launchChunkWrite({ buf, idx, sem, results, orphanedBlobs, inFlight, state, convergentKey }) {
-    const task = (async () => {
-      try {
-        const entry = await this._storeChunk(buf, idx, convergentKey);
-        results[idx] = entry;
-        orphanedBlobs.push(entry.blob);
-      } finally {
-        sem.release();
-      }
-    })().catch((err) => {
-      state.writeError ??= err;
-      state.failedIndex ??= idx;
-      throw err;
+    const pipeline = new StorePipeline({
+      chunker: this.chunker,
+      concurrency: this.concurrency,
+      observability: this.observability,
+      storeChunk: (buf, index, key) => this._storeChunk(buf, index, key),
     });
-
-    inFlight.add(task);
-    task.then(
-      () => inFlight.delete(task),
-      () => inFlight.delete(task),
-    );
-  }
-
-  /**
-   * Reads the next chunk step and wraps source failures as STREAM_ERROR.
-   * @private
-   */
-  async _readNextStoreChunk({ iterator, sem, inFlight, orphanedBlobs, nextIndex }) {
-    try {
-      return await iterator.next();
-    } catch (err) {
-      sem.release();
-      await Promise.allSettled(inFlight);
-      await this._closeAsyncIterator(iterator);
-      throw this._buildStoreStreamError(err, nextIndex, orphanedBlobs);
-    }
-  }
-
-  /**
-   * Finalizes in-flight writes and rethrows the first write failure, if any.
-   * @private
-   */
-  async _awaitChunkWrites({ inFlight, state, orphanedBlobs }) {
-    const settled = await Promise.allSettled(inFlight);
-    if (state.writeError) {
-      throw this._buildStoreWriteError({
-        err: state.writeError,
-        nextIndex: state.nextIndex,
-        orphanedBlobs,
-        failedIndex: state.failedIndex,
-      });
-    }
-    for (const result of settled) {
-      if (result.status !== 'fulfilled') {
-        throw this._buildStoreWriteError({
-          err: result.reason,
-          nextIndex: state.nextIndex,
-          orphanedBlobs,
-          failedIndex: state.failedIndex,
-        });
-      }
-    }
-  }
-
-  /**
-   * Appends chunk entries to the manifest accumulator in index order.
-   * @private
-   */
-  _appendChunkEntries(manifestData, results) {
-    for (const entry of results) {
-      manifestData.chunks.push(entry);
-      manifestData.size += entry.size;
-    }
-  }
-
-  /**
-   * Closes an async iterator if it supports early termination.
-   * @private
-   */
-  async _closeAsyncIterator(iterator) {
-    if (typeof iterator.return !== 'function') {
-      return;
-    }
-    try {
-      await iterator.return();
-    } catch {
-      // Prefer surfacing the original store failure.
-    }
-  }
-
-  /**
-   * Normalizes store-stream failures and annotates them with orphaned blobs.
-   * @private
-   */
-  _buildStoreStreamError(err, nextIndex, orphanedBlobs) {
-    if (err instanceof CasError) {
-      err.meta = { ...err.meta, orphanedBlobs };
-      return err;
-    }
-
-    const casErr = new CasError(
-      `Stream error during store: ${err.message}`,
-      'STREAM_ERROR',
-      { chunksDispatched: nextIndex, orphanedBlobs, originalError: err },
-    );
-    this.observability.metric('error', {
-      code: casErr.code, message: casErr.message,
-      orphanedBlobs: orphanedBlobs.length,
-    });
-    return casErr;
-  }
-
-  /**
-   * Normalizes chunk-write failures and annotates them with write-phase state.
-   * @private
-   */
-  _buildStoreWriteError({ err, nextIndex, orphanedBlobs, failedIndex }) {
-    const writeMeta = {
-      chunksDispatched: nextIndex,
-      orphanedBlobs,
-      ...(failedIndex === null ? {} : { failedIndex }),
-    };
-
-    if (err instanceof CasError) {
-      err.meta = { ...err.meta, ...writeMeta };
-      return err;
-    }
-
-    const casErr = new CasError(
-      `Store write failed: ${err.message}`,
-      'STORE_ERROR',
-      { ...writeMeta, originalError: err },
-    );
-    this.observability.metric('error', {
-      code: casErr.code,
-      message: casErr.message,
-      orphanedBlobs: orphanedBlobs.length,
-      ...(failedIndex === null ? {} : { failedIndex }),
-    });
-    return casErr;
+    await pipeline.chunkAndStore(source, manifestData, { convergentKey });
   }
 
   /**
@@ -1476,46 +1305,24 @@ export default class CasService {
    * @returns {AsyncIterable<Uint8Array>}
    */
   async *_dispatchRestore(manifest, key, encryptionMeta) {
-    const scheme = encryptionMeta?.scheme;
-    const strategy = this._classifyRestoreStrategy(scheme, manifest);
-    yield* this._executeRestoreStrategy(strategy, { manifest, key, encryptionMeta });
-  }
-
-  /**
-   * Classifies which restore strategy to use based on scheme and compression.
-   * @private
-   * @param {string|undefined} scheme
-   * @param {import('../value-objects/Manifest.js').default} manifest
-   * @returns {'convergent'|'convergent-compressed'|'framed-compressed'|'framed'|'buffered'|'compressed-streaming'|'streaming'}
-   */
-  _classifyRestoreStrategy(scheme, manifest) {
-    if (scheme === SCHEME_CONVERGENT) {
-      return manifest.compression ? 'convergent-compressed' : 'convergent';
-    }
-    if (scheme === SCHEME_FRAMED) {
-      return manifest.compression ? 'framed-compressed' : 'framed';
-    }
-    if (scheme === SCHEME_WHOLE) { return 'buffered'; }
-    if (manifest.compression) { return 'compressed-streaming'; }
-    return 'streaming';
-  }
-
-  /**
-   * Executes the classified restore strategy.
-   * @private
-   * @param {string} strategy
-   * @param {{ manifest: import('../value-objects/Manifest.js').default, key?: Uint8Array, encryptionMeta?: Object }} ctx
-   */
-  async *_executeRestoreStrategy(strategy, { manifest, key, encryptionMeta }) {
-    switch (strategy) {
-      case 'convergent': yield* this._restoreConvergentStreaming(manifest, key); break;
-      case 'convergent-compressed': yield* this._restoreConvergentCompressed(manifest, key); break;
-      case 'framed-compressed': yield* this._restoreFramedCompressedStreaming(manifest, key, encryptionMeta); break;
-      case 'framed': yield* this._restoreFramedStreaming(manifest, key, encryptionMeta); break;
-      case 'buffered': yield* this._restoreBuffered(manifest, key, encryptionMeta); break;
-      case 'compressed-streaming': yield* this._restoreCompressedStreaming(manifest); break;
-      default: yield* this._restoreStreaming(manifest); break;
-    }
+    const pipeline = new RestorePipeline({
+      restoreConvergentStreaming: (ctx) => this._restoreConvergentStreaming(ctx.manifest, ctx.key),
+      restoreConvergentCompressed: (ctx) => this._restoreConvergentCompressed(ctx.manifest, ctx.key),
+      restoreFramedCompressedStreaming: (ctx) => this._restoreFramedCompressedStreaming(
+        ctx.manifest,
+        ctx.key,
+        ctx.encryptionMeta,
+      ),
+      restoreFramedStreaming: (ctx) => this._restoreFramedStreaming(
+        ctx.manifest,
+        ctx.key,
+        ctx.encryptionMeta,
+      ),
+      restoreBuffered: (ctx) => this._restoreBuffered(ctx.manifest, ctx.key, ctx.encryptionMeta),
+      restoreCompressedStreaming: (ctx) => this._restoreCompressedStreaming(ctx.manifest),
+      restoreStreaming: (ctx) => this._restoreStreaming(ctx.manifest),
+    });
+    yield* pipeline.restore({ manifest, key, encryptionMeta });
   }
 
   /**

@@ -25,7 +25,7 @@ summary:
     high: 5
     medium: 6
     low: 3
-  remediation_status: "In-Progress"
+  remediation_status: "Resolved"
 related_reports:
   previous_audit: "AUD-2026-04-11-SHIP-READINESS"
   tracking_ticket: "docs/method/backlog/bad-code/DOC_examples-uint8array-drift.md"
@@ -248,11 +248,13 @@ TUI-specific work may defer to the v6.x release line.
   agent protocol shell and exit-code mapping. Command handlers live under
   `bin/agent/commands/`, shared request and credential-input helpers live in
   `bin/agent/input.js`, and a module-boundary regression test guards the split.
+- **Medium Maintainability Work - CasService Decomposition:** Store write
+  scheduling and store error normalization now live in `StorePipeline`, while
+  restore strategy classification and dispatch live in `RestorePipeline`.
 
 ### Still Open - v6.0.0 Blockers
 
-- **Medium Maintainability Work:** Modularize `CasService.js` enough to remove
-  the remaining orchestration-hotspot blocker before tagging v6.0.0.
+- None.
 
 ### Deferred To v6.x
 

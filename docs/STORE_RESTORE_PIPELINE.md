@@ -176,13 +176,20 @@ Vault publication states:
 
 Future decomposition should preserve the state-machine boundaries above.
 
+Current extracted boundaries:
+
+- `StorePipeline` owns chunk dispatch, write-side backpressure, in-flight write
+  tracking, ordered manifest entry append, and store error metadata.
+- `RestorePipeline` owns restore strategy classification and handler dispatch.
+  The authentication-sensitive restore byte executors still live behind
+  `CasService` methods and should move only in a dedicated follow-up.
+
 Recommended service boundaries:
 
-- Store coordinator: validation, key resolution, scheme resolution, and
+- Store policy coordinator: validation, key resolution, scheme resolution, and
   manifest finalization.
-- Chunk writer: chunk dispatch, concurrency, digesting, blob writes, and orphan
-  metadata.
-- Restore planner: plan selection and capability checks.
+- Chunk writer: digesting, blob writes, and orphan metadata.
+- Restore planner: capability checks and file-restore planning.
 - Restore executors: streaming, framed, convergent, compressed, and buffered
   execution paths.
 - Tree publisher: manifest hashing, manifest blob writes, Merkle sub-manifest

@@ -122,8 +122,9 @@ The facade is orchestration glue. It is not the storage engine itself.
 
 - **`CasService`** — primary domain service. Orchestrates the store and restore
   pipelines, manifest and tree creation, inspection, and recipient/key
-  operations. Delegates key resolution to `KeyResolver` and per-chunk encryption
-  to `ConvergentEncryption`.
+  operations. Delegates key resolution to `KeyResolver`, store write
+  coordination to `StorePipeline`, restore strategy selection to
+  `RestorePipeline`, and per-chunk encryption to `ConvergentEncryption`.
 
 - **`VaultService`** — manages the GC-safe vault ref (`refs/cas/vault`). Owns
   slug validation, vault initialization, add/update/list/resolve/remove, privacy
@@ -138,6 +139,14 @@ The facade is orchestration glue. It is not the storage engine itself.
   decryption. Uses content-derived nonces so identical plaintext chunks produce
   identical ciphertext, preserving deduplication across chunked assets.
 
+- **`StorePipeline`** — bounded chunk-write coordinator. Owns semaphore-based
+  backpressure, in-flight write tracking, ordered manifest entry append, and
+  store-phase error metadata.
+
+- **`RestorePipeline`** — restore strategy selector and dispatcher. Chooses
+  streaming, buffered, framed, convergent, or compressed handlers without
+  embedding a strategy switch in `CasService`.
+
 - **`ManifestDiff`** — pure function for chunk-level manifest comparison.
   Reports added, removed, and unchanged chunks between two manifests.
 
@@ -145,7 +154,8 @@ The facade is orchestration glue. It is not the storage engine itself.
   during restore, keeping downstream consumers fed without unbounded memory
   growth.
 
-- **`Semaphore`** — concurrency limiter for parallel chunk writes during store.
+- **`Semaphore`** — concurrency limiter used by `StorePipeline` for parallel
+  chunk writes during store.
 
 - **`rotateVaultPassphrase`** — coordinates vault-wide passphrase rotation
   across all existing entries.
@@ -358,7 +368,7 @@ coupling while preserving the public `CasService` facade.
 
 ### 1. Store write coordination
 
-Extract first:
+Extracted in v6:
 
 - chunk write scheduling
 - backpressure and in-flight orchestration
@@ -369,6 +379,12 @@ Why first:
 - the tests already isolate this behavior well
 - the seam is mostly runtime-neutral
 - it reduces risk in the highest-churn write path
+
+Current boundary:
+
+- `StorePipeline` owns scheduling and write-phase metadata.
+- `CasService` keeps public store policy, encryption selection, and manifest
+  finalization.
 
 ### 2. Manifest and tree publication
 
@@ -399,7 +415,12 @@ Why third:
 
 ### 4. Restore pipeline extraction
 
-Extract last, after platform dependency cleanup:
+Partially extracted in v6:
+
+- restore strategy classification
+- restore handler dispatch
+
+Keep extracting later:
 
 - chunk read and verify
 - buffered vs streaming restore planning
@@ -408,8 +429,8 @@ Extract last, after platform dependency cleanup:
 
 Why last:
 
-- restore still carries the heaviest Node stream and zlib coupling
-- platform-port work should land before the restore internals are split apart
+- restore byte paths still carry the most authentication-sensitive code
+- byte-executor extraction should happen separately from strategy dispatch
 - the repo already has a named file-restore seam, so this area is safer than it
   was, but still not the first extraction target
 

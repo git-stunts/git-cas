@@ -111,6 +111,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sub-manifest, and chunk tree-entry construction to `GitTreeBuilder`.
 - **In-memory persistence test helper** — `MemoryPersistenceAdapter` now proves
   domain store/tree/read/restore workflows without Git subprocesses.
+- **CasService orchestration boundaries** — store write scheduling,
+  backpressure, in-flight write tracking, and store error normalization now live
+  in `StorePipeline`; restore strategy classification and handler dispatch now
+  live in `RestorePipeline`. The public `CasService` API is unchanged.
 - **Vault state read caching** — `VaultService.readState()` now caches parsed
   vault tree state by unchanged tree OID, returns defensive copies to callers,
   and invalidates automatically when the vault ref resolves to a different tree.

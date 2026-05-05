@@ -25,7 +25,7 @@ summary:
     high: 2
     medium: 7
     low: 2
-  remediation_status: "In-Progress"
+  remediation_status: "Resolved"
 related_reports:
   previous_audit: "AUD-2026-04-11-CODE-QUALITY"
   tracking_ticket: "docs/method/backlog/bad-code/TR_casservice-decomposition-pressure.md"
@@ -158,8 +158,13 @@ post-tag backlog work.
 - **4.2 Efficiency Sink:** `VaultService.readState()` now caches parse-stable
   vault tree data by tree OID, returns defensive copies for public callers, and
   reuses parsed state until `refs/cas/vault` resolves to a different tree.
+- **3.1 / 5.2 CasService Decomposition:** Store write scheduling,
+  backpressure, in-flight write tracking, and store error normalization now live
+  in `StorePipeline`; restore strategy classification and handler dispatch now
+  live in `RestorePipeline`. `CasService.js` keeps the public API but no longer
+  owns the semaphore-based store coordinator or the restore strategy switch.
 
 ### Still Open - v6.0.0 Blockers
 
-- Decompose `CasService.js` store/restore orchestration enough to remove the
-  current audit blocker.
+- None. The remaining deeper decomposition items are tracked as architectural
+  follow-up work rather than pre-tag blockers.

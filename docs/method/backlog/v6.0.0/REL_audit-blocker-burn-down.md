@@ -12,7 +12,7 @@ annotated `v6.0.0` tag.
 - [x] Add `ContentAddressableStore.open({ cwd })` and update first-contact docs.
 - [x] Emit an observability warning when CDC auto-selects deterministic
   `convergent` encryption.
-- [ ] Extract `CasService.js` store/restore orchestration enough to remove the
+- [x] Extract `CasService.js` store/restore orchestration enough to remove the
   current audit blocker.
 - [x] Extract Git tree-entry formatting out of `CasService.js`.
 - [x] Add a `MemoryPersistenceAdapter` test helper and prove a domain workflow
