@@ -3,7 +3,6 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
-import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '../../../index.js';
 
 const repoRoot = process.cwd();
@@ -101,6 +100,7 @@ describe('GUIDE examples', () => {
 
 describe('GUIDE quick start', () => {
   it('keeps the quick-start facade methods present on the public API', () => {
+    expect(typeof ContentAddressableStore.open).toBe('function');
     expect(typeof ContentAddressableStore.createJson).toBe('function');
     for (const method of ['storeFile', 'createTree', 'addToVault', 'readManifest', 'restore']) {
       expect(typeof ContentAddressableStore.prototype[method]).toBe('function');
@@ -117,8 +117,7 @@ describe('GUIDE quick start', () => {
       const inputPath = path.join(repoDir, 'photo.jpg');
       writeFileSync(inputPath, original);
 
-      const plumbing = GitPlumbing.createDefault({ cwd: repoDir });
-      const cas = ContentAddressableStore.createJson({ plumbing });
+      const cas = ContentAddressableStore.open({ cwd: repoDir });
       const manifest = await cas.storeFile({ filePath: inputPath, slug: 'photos/vacation' });
       const treeOid = await cas.createTree({ manifest });
       await cas.addToVault({ slug: 'photos/vacation', treeOid });

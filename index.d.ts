@@ -202,6 +202,14 @@ export interface ContentAddressableStoreOptions {
   maxRestoreBufferSize?: number;
 }
 
+/** Options for {@link ContentAddressableStore.open}. */
+export interface ContentAddressableStoreOpenOptions extends Omit<ContentAddressableStoreOptions, "plumbing"> {
+  /** Git working directory used to construct the default Git plumbing adapter. @default "." */
+  cwd?: string;
+  /** Optional shell-runner environment override for Git plumbing. */
+  env?: string;
+}
+
 /** A single vault entry. */
 export interface VaultEntry {
   slug: string;
@@ -351,6 +359,8 @@ export default class ContentAddressableStore {
 
   getService(): Promise<CasService>;
   getVaultService(): Promise<VaultService>;
+
+  static open(options?: ContentAddressableStoreOpenOptions): ContentAddressableStore;
 
   static createJson(options: {
     plumbing: unknown;

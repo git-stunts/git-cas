@@ -65,12 +65,10 @@ limits, and port contracts live in the advanced guide.
 A complete init-store-tree-restore cycle:
 
 ```js
-import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
 // 1. Initialize
-const plumbing = GitPlumbing.createDefault({ cwd: '/path/to/repo' });
-const cas = ContentAddressableStore.createJson({ plumbing });
+const cas = ContentAddressableStore.open({ cwd: '/path/to/repo' });
 
 // 2. Store a file
 const manifest = await cas.storeFile({
@@ -93,10 +91,14 @@ const { buffer } = await cas.restore({ manifest: readBack });
 
 | Factory | Codec | Use Case |
 |---|---|---|
+| `ContentAddressableStore.open({ cwd })` | JSON | Shortest normal application setup |
 | `ContentAddressableStore.createJson({ plumbing })` | JSON | Human-readable manifests, debugging |
 | `ContentAddressableStore.createCbor({ plumbing })` | CBOR | Compact binary manifests, production |
 
-Both accept optional `chunkSize` and `policy` (resilience policy from `@git-stunts/alfred`).
+`open()` accepts `cwd` plus the same facade options as the constructor except
+`plumbing`. Use `createJson()` or `createCbor()` when you already have a custom
+Git plumbing instance. Both explicit-plumbing factories accept optional
+`chunkSize` and `policy` (resilience policy from `@git-stunts/alfred`).
 
 ### Full Constructor
 

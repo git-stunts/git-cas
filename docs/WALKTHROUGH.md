@@ -75,18 +75,16 @@ ODB.
 ### Install
 
 ```bash
-npm install @git-stunts/git-cas @git-stunts/plumbing
+npm install @git-stunts/git-cas
 ```
 
 ### Minimal Working Example
 
 ```js
-import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
 // Point at a Git repository
-const git = GitPlumbing.createDefault({ cwd: './my-repo' });
-const cas = new ContentAddressableStore({ plumbing: git });
+const cas = ContentAddressableStore.open({ cwd: './my-repo' });
 
 // Store vacation.jpg under the slug "photos/vacation"
 const manifest = await cas.storeFile({

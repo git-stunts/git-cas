@@ -15,7 +15,6 @@ import { randomBytes } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
-import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore, { EventEmitterObserver } from '@git-stunts/git-cas';
 
 function bytesEqual(actual, expected) {
@@ -111,8 +110,8 @@ console.log('  - integrity:fail');
 console.log('  - error');
 
 // Step 1: Store the file with progress tracking
-const cas = new ContentAddressableStore({
-  plumbing: GitPlumbing.createDefault({ cwd: repoDir }),
+const cas = ContentAddressableStore.open({
+  cwd: repoDir,
   chunkSize: 128 * 1024,
   observability: observer,
 });

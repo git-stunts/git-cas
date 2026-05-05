@@ -32,10 +32,11 @@ describe('release truth docs and examples', () => {
     expect(result.stdout).toContain(expectedOutput);
   }, 30_000);
 
-  it('keeps the API quick-start plumbing constructor aligned with @git-stunts/plumbing', () => {
+  it('keeps the API quick-start on ContentAddressableStore.open', () => {
     const api = read('docs/API.md');
 
-    expect(api).toContain('GitPlumbing.createDefault({ cwd:');
+    expect(api).toContain('ContentAddressableStore.open({ cwd:');
+    expect(api).toContain('Any other `ContentAddressableStore` constructor option except `plumbing`');
     expect(api).not.toContain('Plumbing.create({ repoPath');
   });
 

@@ -15,7 +15,6 @@ import { randomBytes } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
-import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
 const utf8 = new TextDecoder();
@@ -39,9 +38,8 @@ const repoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-encrypted-'));
 console.log(`Created temporary repository: ${repoDir}`);
 execSync('git init --bare', { cwd: repoDir, stdio: 'ignore' });
 
-// Initialize plumbing and CAS
-const plumbing = GitPlumbing.createDefault({ cwd: repoDir });
-const cas = ContentAddressableStore.createJson({ plumbing });
+// Initialize CAS
+const cas = ContentAddressableStore.open({ cwd: repoDir });
 
 // Create a test file with sensitive content
 const testDir = mkdtempSync(path.join(os.tmpdir(), 'cas-test-'));

@@ -54,11 +54,9 @@ git-cas vault dashboard
 Integrate managed blob storage directly into your TypeScript or JavaScript application.
 
 ```js
-import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
-const plumbing = GitPlumbing.createDefault({ cwd: '.' });
-const cas = ContentAddressableStore.createJson({ plumbing });
+const cas = ContentAddressableStore.open({ cwd: '.' });
 
 const manifest = await cas.storeFile({ filePath: './asset.bin', slug: 'app/asset' });
 const treeOid = await cas.createTree({ manifest });

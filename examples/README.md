@@ -21,7 +21,7 @@ Audit status:
 
 - Node.js 22 or later
 - Git installed and available in PATH
-- `@git-stunts/git-cas` and `@git-stunts/plumbing` installed
+- `@git-stunts/git-cas` installed
 
 ## Setup
 
@@ -66,7 +66,7 @@ This example shows the complete lifecycle of storing and restoring a file:
 
 **Key concepts:**
 
-- `ContentAddressableStore.createJson()` factory
+- `ContentAddressableStore.open({ cwd })` factory
 - `storeFile()` to store files
 - `createTree()` to persist manifests in Git
 - `readManifest()` to reconstruct manifests from Git trees
@@ -161,9 +161,9 @@ visual companion to the Merkle manifest docs, not a live Git object reader.
 
 ```javascript
 // JSON codec (default)
-const cas = ContentAddressableStore.createJson({ plumbing });
+const cas = ContentAddressableStore.open({ cwd: '/path/to/repo' });
 
-// CBOR codec (binary)
+// CBOR codec (binary, with an explicit Git plumbing instance)
 const cas = ContentAddressableStore.createCbor({ plumbing });
 ```
 

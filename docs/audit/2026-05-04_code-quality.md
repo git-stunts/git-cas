@@ -141,10 +141,11 @@ post-tag backlog work.
   stdin/env/keychain/file passphrase sources (`b01e5ba`).
 - **4.3 Dependency Health:** `commander` is pinned to an exact version and CLI
   help regression coverage now guards passphrase-source help text.
+- **1.1 Time-to-Value:** `ContentAddressableStore.open({ cwd })` now constructs
+  the default Git-backed JSON facade without caller-managed plumbing setup.
 
 ### Still Open - v6.0.0 Blockers
 
-- Add `ContentAddressableStore.open({ cwd })`.
 - Emit an observability warning when CDC auto-selects deterministic
   `convergent` encryption.
 - Decompose `CasService.js` store/restore orchestration enough to remove the

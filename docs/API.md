@@ -27,6 +27,32 @@ should treat restored data, chunker output, codec output, and keys as
 
 The main facade class providing high-level API for content-addressable storage.
 
+### open
+
+```javascript
+ContentAddressableStore.open({ cwd, chunkSize, policy });
+```
+
+Creates the default JSON-codec facade from a Git working directory. This is the
+recommended entry point for normal application code.
+
+**Parameters:**
+
+- `cwd` (optional): Git working directory (default: `"."`)
+- `chunkSize` (optional): Chunk size in bytes
+- `policy` (optional): Resilience policy
+- Any other `ContentAddressableStore` constructor option except `plumbing`
+
+**Returns:** `ContentAddressableStore`
+
+**Example:**
+
+```javascript
+import ContentAddressableStore from '@git-stunts/git-cas';
+
+const cas = ContentAddressableStore.open({ cwd: '/path/to/repo' });
+```
+
 ### Constructor
 
 ```javascript
@@ -59,6 +85,8 @@ const cas = new ContentAddressableStore({ plumbing });
 ```
 
 ### Factory Methods
+
+Use these factories when you already have a custom Git plumbing instance.
 
 #### createJson
 

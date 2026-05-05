@@ -12,6 +12,7 @@ import rotateVaultPassphrase from './src/domain/services/rotateVaultPassphrase.j
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';
 import GitRefAdapter from './src/infrastructure/adapters/GitRefAdapter.js';
 import createCryptoAdapter from './src/infrastructure/adapters/createCryptoAdapter.js';
+import { createGitPlumbing } from './src/infrastructure/createGitPlumbing.js';
 import { storeFile, restoreFile } from './src/infrastructure/adapters/FileIOHelper.js';
 import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
@@ -162,6 +163,35 @@ export default class ContentAddressableStore {
    */
   async getVaultService() {
     return await this.#getVault();
+  }
+
+  /**
+   * Factory to create a default JSON CAS from a Git working directory.
+   *
+   * This is the shortest path for normal callers: the facade constructs the
+   * runtime-aware Git plumbing adapter and keeps all other options available.
+   *
+   * @param {Object} [options]
+   * @param {string} [options.cwd='.'] - Git working directory.
+   * @param {string} [options.env] - Shell runner environment override.
+   * @param {number} [options.chunkSize] - Chunk size in bytes.
+   * @param {import('./src/ports/CodecPort.js').default} [options.codec] - Manifest codec.
+   * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy.
+   * @param {import('./src/ports/CryptoPort.js').default} [options.crypto] - Crypto adapter.
+   * @param {import('./src/ports/ObservabilityPort.js').default} [options.observability] - Observability adapter.
+   * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
+   * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
+   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
+   * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
+   * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
+   * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
+   * @returns {ContentAddressableStore}
+   */
+  static open({ cwd = '.', env, ...options } = {}) {
+    return new ContentAddressableStore({
+      ...options,
+      plumbing: createGitPlumbing({ cwd, env }),
+    });
   }
 
   /**

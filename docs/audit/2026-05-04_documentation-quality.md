@@ -109,9 +109,10 @@ items are now v6.0.0 blockers instead of future polish.
   dry-run verification (`0bb67c4`, `2398e95`).
 - **Release-State Truth:** The changelog remains explicitly pre-tagged as
   `[6.0.0] — Unreleased` until the operator approves tagging (`f1ef0e5`).
+- **1.3 Time-to-Value Barrier:** `ContentAddressableStore.open({ cwd })` is now
+  implemented and first-contact docs use it for the normal library quick start.
 
 ### Still Open - v6.0.0 Blockers
 
-- Add `ContentAddressableStore.open({ cwd })`.
 - Add a dedicated long-form store/restore pipeline state-machine document for
   maintainer onboarding.
