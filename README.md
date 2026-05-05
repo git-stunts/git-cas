@@ -25,6 +25,11 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 
 ## Quick Start
 
+Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
+`npm run upgrade` in dry-run mode before restoring old encrypted vault entries.
+For the release overview, see the
+[v6.0.0 Release Notes](./docs/releases/v6.0.0.md).
+
 ### 1. CLI Usage
 
 Initialize a vault and store your first asset.
@@ -256,6 +261,7 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
 - **[Agent API](./docs/API.md)**: JSONL agent protocol for CI/CD automation.
 - **[Workflow](https://github.com/git-stunts/git-cas/blob/main/WORKFLOW.md)**: Repo work doctrine, cycles, and invariants.
 - **[Contributing](https://github.com/git-stunts/git-cas/blob/main/CONTRIBUTING.md)**, **[Code of Conduct](./CODE_OF_CONDUCT.md)**, and **[Support](./SUPPORT.md)**: Project participation and help paths.
+- **[v6.0.0 Release Notes](./docs/releases/v6.0.0.md)**: Major-release summary, upgrade call-to-action, and publication notes.
 - **[Upgrading](./UPGRADING.md)**: Migration guide for v5 → v6.
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.
 

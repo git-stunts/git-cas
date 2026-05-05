@@ -10,8 +10,8 @@ If you have an existing vault with encrypted assets:
 # See what needs migration (safe — no changes made)
 npm run upgrade
 
-# Apply the migration
-npm run upgrade -- --execute --passphrase <your-content-passphrase>
+# Apply the migration using stdin for the content passphrase
+printf '%s\n' '<your-content-passphrase>' | npm run upgrade -- --execute --passphrase-file -
 ```
 
 If you only use the library API (no vault), skip to [API Changes](#api-changes).
@@ -52,8 +52,11 @@ Run scripts/migrate-encryption.js to upgrade this manifest.
 # Dry-run: see what needs migration
 npm run upgrade
 
-# Execute: migrate all vault entries
-npm run upgrade -- --execute --passphrase <passphrase>
+# Execute: migrate all vault entries using stdin for the content passphrase
+printf '%s\n' '<passphrase>' | npm run upgrade -- --execute --passphrase-file -
+
+# Or read the content passphrase from a file
+npm run upgrade -- --execute --passphrase-file ./content-passphrase.txt
 
 # Or migrate entries encrypted with a raw 32-byte key
 npm run upgrade -- --execute --key-file ./asset.key
@@ -62,13 +65,18 @@ npm run upgrade -- --execute --key-file ./asset.key
 The migration script has two modes:
 
 - **Fast mode** (v2 schemes + convergent): renames the scheme in the manifest metadata. No re-encryption. Seconds.
-- **Full mode** (v1 schemes): restores through the legacy pipeline (decrypts without AAD), then re-stores with the current scheme (encrypts with AAD). Requires `--passphrase` or `--key-file`.
+- **Full mode** (v1 schemes): restores through the legacy pipeline (decrypts without AAD), then re-stores with the current scheme (encrypts with AAD). Requires exactly one content credential source: `--passphrase-file <path>`, `--key-file`, or inline `--passphrase` for compatibility.
 
 Privacy-enabled vaults need the vault encryption key to list and update slugs.
 If the vault passphrase differs from the content passphrase, pass
-`--vault-passphrase`, `--vault-passphrase-file`, or `--vault-key-file`.
-When no explicit vault key option is provided, `--passphrase` is reused for the
-privacy vault.
+`--vault-passphrase-file`, `--vault-key-file`, or inline `--vault-passphrase`
+for compatibility. When no explicit vault key option is provided, the content
+passphrase from `--passphrase-file` or `--passphrase` is reused for the privacy
+vault.
+
+Inline `--passphrase` and `--vault-passphrase` remain accepted, but they print a
+warning because command-line arguments can leak through shell history, process
+listings, CI logs, and terminal transcripts.
 
 Recipient-encrypted v1 manifests are not automatically full-migrated because
 preserving recipient access requires the original recipient key set. Re-store
@@ -216,7 +224,8 @@ These are new capabilities that don't require migration:
 CasError: Legacy encryption scheme "whole-v1" is no longer supported.
 ```
 
-Run `npm run upgrade -- --execute --passphrase <pass>` or
+Run `printf '%s\n' '<pass>' | npm run upgrade -- --execute --passphrase-file -`
+or
 `npm run upgrade -- --execute --key-file <path>` to migrate.
 
 ### `KDF_POLICY_VIOLATION` on deriveKey

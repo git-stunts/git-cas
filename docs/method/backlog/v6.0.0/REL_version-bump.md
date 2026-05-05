@@ -28,12 +28,22 @@ because the current `jsr`/Deno toolchain panics before package validation.
 - [x] CHANGELOG complete
 - [x] UPGRADING.md exists and is linked from README
 - [x] Migration script works (`npm run upgrade`)
+- [ ] Final `npm run release:verify -- --skip-jsr` has been run on the final
+  pre-tag commit
 - [ ] Tag is annotated (not lightweight)
 
 ## Evidence
 
-- `npx eslint .` passed on 2026-05-04.
-- `npm test` passed on 2026-05-04: 119 files, 1344 passed, 2 skipped.
+- Previous full multi-runtime release verification passed on 2026-05-04 before
+  the release-doc correction pass. Re-run `npm run release:verify -- --skip-jsr`
+  on the final pre-tag commit before creating the annotated tag.
+- `origin/main` is pushed through `63d9bc1`; this release-doc correction commit
+  must still be pushed before tagging.
+- Pre-push `npx eslint .` passed on 2026-05-05 for `63d9bc1`.
+- Pre-push `npm test` passed on 2026-05-05 for `63d9bc1`: 130 files, 1390 passed, 2 skipped.
+- Current release-doc package guard expects the npm tarball has 113 entries after
+  adding `docs/releases/v6.0.0.md` and still excludes internal audit, archive,
+  METHOD backlog, and unused media artifacts.
 - Node integration passed on 2026-05-04: 4 files, 152 passed.
 - Bun unit passed on 2026-05-04: 118 files passed, 1 file skipped; 1363 passed, 6 skipped.
 - Bun integration passed on 2026-05-04: 4 files, 152 passed.
@@ -44,7 +54,6 @@ because the current `jsr`/Deno toolchain panics before package validation.
   full checkout; package Docker images skip file-audit assertions because
   `.dockerignore` excludes `.git` and most Markdown.
 - `npm run upgrade` passed on 2026-05-04 in dry-run mode; no local vault found.
-- `npm pack --dry-run` passed on 2026-05-04 for `@git-stunts/git-cas@6.0.0`; tarball has 102 files and package size 193.7 kB.
 - `npx jsr publish --dry-run --allow-dirty` still fails before package validation completes because `jsr@0.14.2` invokes its downloaded Deno 2.6.7 binary and panics in `deno_ast@0.52.0` with overlapping text changes.
 - `npm run release:verify -- --skip-jsr` is the current release-candidate sanity command while that upstream JSR toolchain blocker remains active. Its report records the skipped JSR step explicitly.
 - `npm run release:verify -- --skip-jsr` passed on 2026-05-04: 8/8 executable steps, 4495 observed tests, skipped `JSR publish dry-run`.
@@ -55,6 +64,7 @@ because the current `jsr`/Deno toolchain panics before package validation.
 
 ## Remaining Before Tag
 
-- Push the final pre-tag `main` commit if the operator approves pushing `main`.
+- Push this release-doc correction commit after review.
+- Run final `npm run release:verify -- --skip-jsr` on the synced final commit.
 - Create an annotated `v6.0.0` tag on the final release commit after operator approval.
 - Push the tag so CI can publish npm and create the GitHub Release.

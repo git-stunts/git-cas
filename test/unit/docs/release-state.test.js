@@ -22,4 +22,15 @@ describe('release state docs', () => {
       expect(changelogHeading).not.toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
   });
+
+  it('keeps the v6 release checklist evidence current with the latest pushed candidate', () => {
+    const releaseCard = read('docs/method/backlog/v6.0.0/REL_version-bump.md');
+
+    expect(releaseCard).toContain('main` is pushed through `63d9bc1`');
+    expect(releaseCard).toContain('130 files, 1390 passed, 2 skipped');
+    expect(releaseCard).toContain('tarball has 113 entries');
+    expect(releaseCard).not.toContain('119 files, 1344 passed');
+    expect(releaseCard).not.toContain('tarball has 102 files');
+    expect(releaseCard).not.toContain('Push the final pre-tag `main` commit');
+  });
 });

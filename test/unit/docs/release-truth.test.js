@@ -62,6 +62,38 @@ describe('release truth docs and examples', () => {
   });
 });
 
+describe('v6 release documentation', () => {
+  it('keeps v6 migration instructions on safe passphrase sources', () => {
+    const upgrading = read('UPGRADING.md');
+
+    expect(upgrading).toContain('npm run upgrade -- --execute --passphrase-file -');
+    expect(upgrading).toContain('--passphrase-file <path>');
+    expect(upgrading).toContain('--vault-passphrase-file');
+    expect(upgrading).not.toMatch(/npm run upgrade -- --execute --passphrase\s+</u);
+  });
+
+  it('keeps public v6 release notes discoverable from the README', () => {
+    const readme = read('README.md');
+    const releaseNotes = read('docs/releases/v6.0.0.md');
+
+    expect(readme).toContain('[v6.0.0 Release Notes](./docs/releases/v6.0.0.md)');
+    expect(readme).toContain('[UPGRADING.md](./UPGRADING.md)');
+    expect(readme).toContain('Existing v5 users');
+    expect(releaseNotes).toContain('# git-cas v6.0.0 Release Notes');
+    expect(releaseNotes).toContain('npm run upgrade');
+    expect(releaseNotes).toContain('--passphrase-file -');
+  });
+
+  it('keeps the v6 changelog aligned with final migration hardening', () => {
+    const changelog = read('CHANGELOG.md');
+
+    expect(changelog).toContain('`--passphrase-file`');
+    expect(changelog).toContain('vault `encryptionCount` metadata');
+    expect(changelog).toContain('npm package documentation surface');
+    expect(changelog).toContain('concrete support, conduct, and vulnerability reporting paths');
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');

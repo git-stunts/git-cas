@@ -8,6 +8,7 @@ const requiredStandardDocs = [
   'CODE_OF_CONDUCT.md',
   'SUPPORT.md',
   'docs/EXTENDING.md',
+  'docs/releases/v6.0.0.md',
 ];
 const forbiddenPackagePrefixes = [
   'docs/audit/',
@@ -79,6 +80,7 @@ function publicPackagedMarkdownFiles(files) {
     'UPGRADING.md',
     'docs/API.md',
     'docs/EXTENDING.md',
+    'docs/releases/v6.0.0.md',
     'docs/THREAT_MODEL.md',
     'docs/WALKTHROUGH.md',
   ].filter((file) => files.has(file));
