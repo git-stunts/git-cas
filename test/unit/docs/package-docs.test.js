@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
@@ -70,6 +70,21 @@ function unpackagedLinkedDocs(sourceFile, files) {
 }
 
 describe('package documentation surface', () => {
+  it('keeps standard repository docs present and packaged', () => {
+    const files = packageFiles();
+    const requiredDocs = [
+      'CODE_OF_CONDUCT.md',
+      'SUPPORT.md',
+      'docs/EXTENDING.md',
+    ];
+
+    const missing = requiredDocs.filter((file) => !existsSync(path.join(repoRoot, file)));
+    const unpackaged = requiredDocs.filter((file) => !isIncludedByPackageFiles(file, files));
+
+    expect(missing).toEqual([]);
+    expect(unpackaged).toEqual([]);
+  });
+
   it('keeps README relative documentation links inside the npm package', () => {
     const files = packageFiles();
     const missing = markdownTargets(read('README.md'))

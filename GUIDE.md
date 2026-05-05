@@ -5,6 +5,7 @@ Comprehensive guide to `@git-stunts/git-cas` -- content-addressed storage backed
 For security posture and threat model, see [SECURITY.md](./SECURITY.md).
 For architecture and port/adapter internals, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 For API reference, see [docs/API.md](./docs/API.md).
+For extension points and custom adapter checklists, see [docs/EXTENDING.md](./docs/EXTENDING.md).
 For advanced topics (benchmarks, Merkle trees, large-asset strategies), see [ADVANCED_GUIDE.md](./ADVANCED_GUIDE.md).
 
 ---
@@ -15,6 +16,7 @@ For advanced topics (benchmarks, Merkle trees, large-asset strategies), see [ADV
 Embed content-addressed storage into your JavaScript/TypeScript application.
 - Start with [Library Quick Start](#library-quick-start) below.
 - Understand the port/adapter model: [ARCHITECTURE.md](./ARCHITECTURE.md).
+- Custom adapters: [docs/EXTENDING.md](./docs/EXTENDING.md).
 
 ### 2. CLI / TUI Usage
 Store, restore, and manage assets from the terminal.

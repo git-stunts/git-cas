@@ -787,7 +787,8 @@ Most applications should use the `ContentAddressableStore` facade. It supplies
 Git persistence, runtime crypto, a JSON codec, a silent observer, fixed
 chunking, gzip compression, and package-version manifest stamping by default.
 Direct `CasService` construction is for tests, non-Git persistence experiments,
-or applications that own every adapter boundary.
+or applications that own every adapter boundary. For a checklist-style guide to
+custom adapters, see [docs/EXTENDING.md](./docs/EXTENDING.md).
 
 ### Minimal Direct Service
 
