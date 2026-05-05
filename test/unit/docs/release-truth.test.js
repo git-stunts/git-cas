@@ -72,3 +72,12 @@ describe('advanced guide rendering', () => {
     expect(advancedGuide).toContain('- [Direct CasService and Custom Port Contracts](#direct-casservice-and-custom-port-contracts)');
   });
 });
+
+describe('examples README snippets', () => {
+  it('documents encrypted integrity verification with restore credentials', () => {
+    const examplesReadme = read('examples/README.md');
+
+    expect(examplesReadme).toContain('cas.verifyIntegrity(manifest, { encryptionKey: optionalKeyBytes })');
+    expect(examplesReadme).toContain('Encrypted manifests require the same credentials used for restore');
+  });
+});

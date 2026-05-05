@@ -202,9 +202,15 @@ const { buffer, bytesWritten } = await cas.restore({
 ### Verification
 
 ```javascript
-// Verify chunk integrity
+// Plaintext manifests: verify chunk integrity
 const isValid = await cas.verifyIntegrity(manifest);
+
+// Encrypted manifests: authenticate chunks with restore credentials
+const encryptedIsValid = await cas.verifyIntegrity(manifest, { encryptionKey: optionalKeyBytes });
 ```
+
+Encrypted manifests require the same credentials used for restore; without
+them, `verifyIntegrity()` returns `false` after authentication fails.
 
 ### Reading Manifests from Trees
 
