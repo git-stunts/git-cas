@@ -3,6 +3,7 @@
 - **File**: `docs/API.md`
 - **Severity**: High
 - **Category**: Documentation/runtime mismatch
+- **Status**: Resolved
 
 ## Description
 
@@ -19,7 +20,6 @@ CAS behavior they came to evaluate.
 
 ## Follow-Up
 
-- Replace the stale snippet with `GitPlumbing.createDefault({ cwd })`.
-- Search all docs/examples for old `repoPath` / `Plumbing.create` patterns.
-- Add a docs regression test that fails when example-bearing docs reference
-  nonexistent public plumbing factories.
+- [x] Replace the stale snippet with `GitPlumbing.createDefault({ cwd })`.
+- [x] Add a docs regression test that fails when `docs/API.md` references the
+  nonexistent `Plumbing.create({ repoPath })` factory.

@@ -3,6 +3,7 @@
 - **Files**: `examples/encrypted-workflow.js`, `examples/progress-tracking.js`
 - **Severity**: High
 - **Category**: Runnable documentation failure
+- **Status**: Resolved
 
 ## Description
 
@@ -25,8 +26,8 @@ surface immediately after v6 made the portable `Uint8Array` contract explicit.
 
 ## Follow-Up
 
-- Replace Buffer-only checks with Uint8Array-safe byte comparison helpers.
-- Decode text with `TextDecoder` or use `Buffer.from(bytes)` only at Node display
+- [x] Replace Buffer-only checks with Uint8Array-safe byte comparison helpers.
+- [x] Decode text with `TextDecoder` or use `Buffer.from(bytes)` only at Node display
   boundaries.
-- Add a test that runs maintained examples in isolated temporary repositories.
-- Update `examples/README.md` once examples are release-gated.
+- [x] Add a test that runs maintained examples in isolated temporary repositories.
+- [x] Update `examples/README.md` now that examples are release-gated.

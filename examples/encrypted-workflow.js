@@ -18,6 +18,20 @@ import os from 'node:os';
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
+const utf8 = new TextDecoder();
+
+function bytesEqual(actual, expected) {
+  if (actual.length !== expected.length) {
+    return false;
+  }
+  for (let index = 0; index < expected.length; index++) {
+    if (actual[index] !== expected[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 console.log('=== Encrypted Workflow Example ===\n');
 
 // Create a temporary bare Git repository
@@ -66,12 +80,17 @@ console.log('\n--- Step 3: Encryption metadata ---');
 if (manifest.encryption?.encrypted) {
   console.log('Encryption details:');
   console.log(`  Algorithm: ${manifest.encryption.algorithm || 'AES-256-GCM'}`);
-  const nonceBytes = manifest.encryption.nonce ? Buffer.from(manifest.encryption.nonce, 'base64') : null;
-  const tagBytes = manifest.encryption.tag ? Buffer.from(manifest.encryption.tag, 'base64') : null;
-  console.log(`  Nonce length: ${nonceBytes?.length || 0} bytes`);
-  console.log(`  Auth tag length: ${tagBytes?.length || 0} bytes`);
-
-  if (nonceBytes) {
+  console.log(`  Scheme: ${manifest.encryption.scheme}`);
+  if (manifest.encryption.scheme === 'framed') {
+    console.log(`  Frame size: ${manifest.encryption.frameBytes} bytes`);
+    console.log('  Nonce/auth tags: stored inside each encrypted frame');
+  } else if (manifest.encryption.scheme === 'convergent') {
+    console.log('  Nonce/auth tags: derived or stored per encrypted chunk blob');
+  } else {
+    const nonceBytes = manifest.encryption.nonce ? Buffer.from(manifest.encryption.nonce, 'base64') : null;
+    const tagBytes = manifest.encryption.tag ? Buffer.from(manifest.encryption.tag, 'base64') : null;
+    console.log(`  Nonce length: ${nonceBytes?.length || 0} bytes`);
+    console.log(`  Auth tag length: ${tagBytes?.length || 0} bytes`);
     console.log(`  Nonce (hex): ${nonceBytes.toString('hex')}`);
   }
 } else {
@@ -91,12 +110,13 @@ try {
     encryptionKey
   });
 
-  const decryptedContent = buffer.toString();
+  const decryptedContent = utf8.decode(buffer);
+  const contentMatches = bytesEqual(buffer, secretContent);
   console.log('Decryption successful!');
   console.log(`Restored content: "${decryptedContent}"`);
-  console.log(`Content matches: ${buffer.equals(secretContent) ? 'YES' : 'NO'}`);
+  console.log(`Content matches: ${contentMatches ? 'YES' : 'NO'}`);
 
-  if (!buffer.equals(secretContent)) {
+  if (!contentMatches) {
     console.error('ERROR: Decrypted content does not match original!');
     process.exit(1);
   }
@@ -149,9 +169,9 @@ try {
 
 // Step 7: Verify integrity of encrypted chunks
 console.log('\n--- Step 7: Verifying encrypted chunk integrity ---');
-const isValid = await cas.verifyIntegrity(manifest);
+const isValid = await cas.verifyIntegrity(manifest, { encryptionKey });
 console.log(`Integrity check: ${isValid ? 'PASSED' : 'FAILED'}`);
-console.log('Note: Integrity check verifies chunk digests, not decryption');
+console.log('Note: Integrity check verifies chunk digests and encrypted authentication with the supplied key');
 
 // Cleanup
 console.log('\n--- Cleanup ---');
@@ -164,5 +184,5 @@ console.log('\nKey takeaways:');
 console.log('- Encryption keys must be exactly 32 bytes (256 bits)');
 console.log('- Wrong keys produce INTEGRITY_ERROR during decryption');
 console.log('- Missing keys produce MISSING_KEY error');
-console.log('- Encryption metadata (IV, auth tag) is stored in the manifest');
-console.log('- Chunk integrity is verified independently of encryption');
+console.log('- Encryption metadata records the active scheme and required auth data');
+console.log('- Integrity verification checks chunk digests and encrypted authentication when a key is supplied');

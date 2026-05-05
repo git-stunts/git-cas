@@ -2,6 +2,10 @@
 
 This directory contains runnable examples demonstrating the core features of `@git-stunts/git-cas`.
 
+The maintained non-TUI examples are covered by
+`test/unit/docs/release-truth.test.js` so the public examples stay aligned with
+the current API contract.
+
 Audit status:
 
 | File | Demonstrates | Notes |

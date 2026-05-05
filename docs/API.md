@@ -52,9 +52,9 @@ new ContentAddressableStore(options);
 
 ```javascript
 import ContentAddressableStore from '@git-stunts/git-cas';
-import Plumbing from '@git-stunts/plumbing';
+import GitPlumbing from '@git-stunts/plumbing';
 
-const plumbing = await Plumbing.create({ repoPath: '/path/to/repo' });
+const plumbing = GitPlumbing.createDefault({ cwd: '/path/to/repo' });
 const cas = new ContentAddressableStore({ plumbing });
 ```
 

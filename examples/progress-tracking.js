@@ -18,6 +18,18 @@ import os from 'node:os';
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore, { EventEmitterObserver } from '@git-stunts/git-cas';
 
+function bytesEqual(actual, expected) {
+  if (actual.length !== expected.length) {
+    return false;
+  }
+  for (let index = 0; index < expected.length; index++) {
+    if (actual[index] !== expected[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 console.log('=== Progress Tracking Example ===\n');
 
 // Create a temporary bare Git repository
@@ -143,7 +155,7 @@ const restoreThroughputMBps = (progress.restore.bytes / 1024 / 1024) / (restoreT
 console.log(`Throughput: ${restoreThroughputMBps.toFixed(2)} MB/s`);
 
 // Verify content
-const contentMatches = buffer.equals(originalContent);
+const contentMatches = bytesEqual(buffer, originalContent);
 console.log(`Content verification: ${contentMatches ? 'PASSED' : 'FAILED'}`);
 
 if (!contentMatches) {

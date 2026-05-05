@@ -54,12 +54,17 @@ The following are not fully confidential simply because encryption is enabled:
 - vault metadata in `.vault.json`
 - the existence of stored assets and their relationship to particular slugs
 
-When `convergent-v1` encryption is active, identical plaintext chunks produce
-identical ciphertext blobs. An attacker with read access to the Git object
-database can observe that two manifests reference the same blob OID, inferring
-that those chunks contain identical plaintext. This is the well-known limitation
-of convergent encryption (Tahoe-LAFS, etc.). For scenarios where content
-equality itself is sensitive, use `framed-v2` or `whole-v2` instead.
+When `convergent` encryption is active, identical plaintext chunks encrypted
+with the same master key produce identical ciphertext blobs. An attacker with
+read access to the Git object database can observe that two manifests reference
+the same blob OID, inferring that those chunks contain identical plaintext. This
+is the well-known limitation of convergent encryption (Tahoe-LAFS, etc.). For
+scenarios where content equality itself is sensitive, use `framed` or `whole`
+instead.
+
+Legacy scheme identifiers such as `convergent-v1`, `framed-v2`, and `whole-v2`
+can appear in pre-v6 manifests only. They are migration inputs, not active
+scheme choices for new v6 writes.
 
 This is especially important for repository exposure scenarios: encrypted
 content can remain confidential while metadata remains visible.

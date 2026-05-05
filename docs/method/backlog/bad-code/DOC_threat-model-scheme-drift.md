@@ -3,6 +3,7 @@
 - **File**: `docs/THREAT_MODEL.md`
 - **Severity**: High
 - **Category**: Security documentation drift
+- **Status**: Resolved
 
 ## Description
 
@@ -19,8 +20,8 @@ simplification and can send users toward values the runtime rejects.
 
 ## Follow-Up
 
-- Rewrite the active scheme paragraph to use `convergent`, `framed`, and
+- [x] Rewrite the active scheme paragraph to use `convergent`, `framed`, and
   `whole`.
-- Move v1/v2 names into a migration-only note.
-- Add a docs guard that rejects active-use wording for legacy scheme identifiers
+- [x] Move v1/v2 names into a migration-only note.
+- [x] Add a docs guard that rejects active-use wording for legacy scheme identifiers
   outside migration/design/archive contexts.
