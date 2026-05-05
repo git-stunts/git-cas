@@ -60,7 +60,6 @@ describe('release truth docs and examples', () => {
     expect(advancedGuide).toMatch(/`whole`\s+and\s+`framed`\s+use fresh 96-bit random\s+nonces/);
     expect(advancedGuide).toMatch(/`convergent`\s+derives per-chunk keys and nonces deterministically/);
   });
-
 });
 
 describe('advanced guide rendering', () => {
