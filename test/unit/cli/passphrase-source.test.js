@@ -3,9 +3,11 @@ import {
   DEFAULT_OS_KEYCHAIN_ACCOUNT,
   hasExplicitPassphraseSource,
   hasPassphraseSource,
+  inlinePassphraseWarnings,
   resolveOsKeychainPassphrase,
   resolvePassphrase,
   validatePassphraseSources,
+  warnInlinePassphraseArgs,
 } from '../../../bin/passphrase-source.js';
 
 function makeImportVault(getSecret, assertAccount = () => {}) {
@@ -57,6 +59,37 @@ describe('hasPassphraseSource', () => {
 
   it('treats the OS-keychain target as an explicit source', () => {
     expect(hasExplicitPassphraseSource({ osKeychainTarget: 'demo/passphrase' })).toBe(true);
+  });
+});
+
+describe('inline passphrase warnings', () => {
+  it('warns for inline human CLI passphrase flags', () => {
+    expect(inlinePassphraseWarnings({
+      vaultPassphrase: 'secret',
+      oldPassphrase: 'old-secret',
+      newPassphrase: 'new-secret',
+    })).toEqual([
+      'warning: --vault-passphrase exposes secrets through shell history and process listings; prefer --vault-passphrase-file -, GIT_CAS_PASSPHRASE, or --os-keychain-target',
+      'warning: --old-passphrase exposes secrets through shell history and process listings; prefer --old-passphrase-file -',
+      'warning: --new-passphrase exposes secrets through shell history and process listings; prefer --new-passphrase-file -',
+    ]);
+  });
+
+  it('does not warn for file, env, or OS-keychain passphrase sources', () => {
+    expect(inlinePassphraseWarnings({
+      vaultPassphraseFile: '-',
+      osKeychainTarget: 'demo/passphrase',
+    })).toEqual([]);
+  });
+
+  it('writes each inline passphrase warning to stderr', () => {
+    const write = vi.fn();
+
+    warnInlinePassphraseArgs({ vaultPassphrase: 'secret' }, write);
+
+    expect(write).toHaveBeenCalledWith(
+      'warning: --vault-passphrase exposes secrets through shell history and process listings; prefer --vault-passphrase-file -, GIT_CAS_PASSPHRASE, or --os-keychain-target\n'
+    );
   });
 });
 

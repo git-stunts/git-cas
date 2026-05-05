@@ -1104,8 +1104,12 @@ Non-envelope entries (direct-key encryption) are skipped — they require manual
 # Rotate a single recipient's key
 git cas rotate --slug shared --old-key-file old.key --new-key-file new.key --label alice
 
-# Rotate vault passphrase
-git cas vault rotate --old-passphrase old-secret --new-passphrase new-secret
+# Rotate vault passphrase without exposing secrets in argv
+printf '%s\n' 'old-secret' > old-passphrase.txt
+printf '%s\n' 'new-secret' > new-passphrase.txt
+git cas vault rotate \
+  --old-passphrase-file old-passphrase.txt \
+  --new-passphrase-file new-passphrase.txt
 ```
 
 ---
@@ -1247,16 +1251,19 @@ When a vault is initialized with a passphrase, the CLI handles key
 derivation automatically:
 
 ```bash
+export GIT_CAS_PASSPHRASE='secret'
+
 # Initialize an encrypted vault
-git cas vault init --vault-passphrase "secret"
+git cas vault init
 
 # Store with vault-level encryption (key derived from vault config)
-git cas store ./vacation.jpg --slug photos/vacation --tree --vault-passphrase "secret"
+git cas store ./vacation.jpg --slug photos/vacation --tree
 
 # Restore using vault slug
-git cas restore --slug photos/vacation --out ./restored.jpg --vault-passphrase "secret"
+git cas restore --slug photos/vacation --out ./restored.jpg
 
-# Or pull the passphrase from the OS keychain
+# Or pull the passphrase from stdin or the OS keychain
+printf '%s\n' 'secret' | git cas restore --slug photos/vacation --out ./restored.jpg --vault-passphrase-file -
 git cas restore --slug photos/vacation --out ./restored.jpg --os-keychain-target photos/passphrase
 ```
 
@@ -1273,7 +1280,7 @@ leaving the library API unchanged.
 ```bash
 # Initialize vault (optionally with encryption)
 git cas vault init
-git cas vault init --vault-passphrase "secret" --algorithm pbkdf2
+printf '%s\n' 'secret' | git cas vault init --vault-passphrase-file - --algorithm pbkdf2
 git cas vault init --os-keychain-target photos/passphrase
 
 # List all vault entries (tab-separated slug + tree OID)

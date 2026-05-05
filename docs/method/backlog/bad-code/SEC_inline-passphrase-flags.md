@@ -1,5 +1,7 @@
 # SEC: Inline passphrase flags remain a normal documented path
 
+- **Status**: Resolved for v6 warning/documentation risk; major-version removal
+  remains optional future hardening
 - **Files**: `bin/git-cas.js`, `GUIDE.md`, `docs/API.md`, `docs/WALKTHROUGH.md`
 - **Severity**: High
 - **Category**: Secret exposure footgun
@@ -21,8 +23,8 @@ exist: passphrase files/stdin, `GIT_CAS_PASSPHRASE`, and OS keychain lookup.
 
 ## Follow-Up
 
-- Emit a warning whenever an inline passphrase flag is used.
-- Make docs examples prefer file/stdin/keychain/env sources.
-- Consider requiring an explicit `--allow-insecure-passphrase-arg` escape hatch
-  in the next major release.
-- Add CLI tests for warning behavior and non-warning safe sources.
+- Done: emit a warning whenever a human CLI inline passphrase flag is used.
+- Done: make maintained docs examples prefer file/stdin/keychain/env sources.
+- Done: add CLI-unit tests for warning behavior and non-warning safe sources.
+- Optional next-major hardening: require an explicit
+  `--allow-insecure-passphrase-arg` escape hatch or remove inline secret flags.

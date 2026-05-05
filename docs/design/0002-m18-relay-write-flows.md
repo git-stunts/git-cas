@@ -57,8 +57,8 @@ enough to preserve product behavior:
 - plaintext store is valid when no encryption source is supplied
 - vault-level encryption may be supplied by:
   - `--key-file <path>`
-  - `--vault-passphrase <pass>`
   - `--vault-passphrase-file <path|->`
+  - `--vault-passphrase <pass>` (accepted for compatibility; warns in the human CLI)
 
 `result` for a successful `store` must expose:
 
@@ -84,8 +84,8 @@ Required input:
 Credential sources:
 
 - `--key-file <path>`
-- `--vault-passphrase <pass>`
 - `--vault-passphrase-file <path|->`
+- `--vault-passphrase <pass>` (accepted for compatibility; warns in the human CLI)
 
 `result` for a successful `restore` must expose:
 

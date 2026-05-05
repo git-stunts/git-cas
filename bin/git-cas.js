@@ -30,6 +30,7 @@ import {
   hasPassphraseSource,
   resolvePassphrase,
   validatePassphraseSources,
+  warnInlinePassphraseArgs,
 } from './passphrase-source.js';
 import { loadConfig, mergeConfig } from './config.js';
 
@@ -242,7 +243,7 @@ program
   .option('--force', 'Overwrite existing vault entry')
   .option(
     '--vault-passphrase <pass>',
-    'Vault-level passphrase for encryption (prefer GIT_CAS_PASSPHRASE env var)'
+    'Vault-level passphrase for encryption (warns; prefer --vault-passphrase-file -, GIT_CAS_PASSPHRASE, or --os-keychain-target)'
   )
   .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
   .option(
@@ -265,6 +266,7 @@ program
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {string} */ file, /** @type {Record<string, any>} */ opts) => {
+      warnInlinePassphraseArgs(opts);
       validateCredentialSources(opts);
       if (opts.recipient && (opts.keyFile || hasExplicitPassphraseSource(opts))) {
         throw new Error(
@@ -371,7 +373,7 @@ program
   .option('--key-file <path>', 'Path to 32-byte raw encryption key file')
   .option(
     '--vault-passphrase <pass>',
-    'Vault-level passphrase for decryption (prefer GIT_CAS_PASSPHRASE env var)'
+    'Vault-level passphrase for decryption (warns; prefer --vault-passphrase-file -, GIT_CAS_PASSPHRASE, or --os-keychain-target)'
   )
   .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
   .option(
@@ -391,6 +393,7 @@ program
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
+      warnInlinePassphraseArgs(opts);
       validateCredentialSources(opts);
       validateRestoreFlags(opts);
       const quiet = program.opts().quiet || program.opts().json;
@@ -504,7 +507,7 @@ vault
   .description('Initialize the vault')
   .option(
     '--vault-passphrase <pass>',
-    'Passphrase for vault-level encryption (prefer GIT_CAS_PASSPHRASE env var)'
+    'Passphrase for vault-level encryption (warns; prefer --vault-passphrase-file -, GIT_CAS_PASSPHRASE, or --os-keychain-target)'
   )
   .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
   .option(
@@ -519,6 +522,7 @@ vault
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
+      warnInlinePassphraseArgs(opts);
       validateCredentialSources(opts);
       const cas = createCas(opts.cwd);
       /** @type {{ passphrase?: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
@@ -721,14 +725,15 @@ async function resolveRotatePassphrases(opts) {
 vault
   .command('rotate')
   .description('Rotate vault-level encryption passphrase')
-  .option('--old-passphrase <pass>', 'Current vault passphrase')
-  .option('--new-passphrase <pass>', 'New vault passphrase')
+  .option('--old-passphrase <pass>', 'Current vault passphrase (warns; prefer --old-passphrase-file -)')
+  .option('--new-passphrase <pass>', 'New vault passphrase (warns; prefer --new-passphrase-file -)')
   .option('--old-passphrase-file <path>', 'Read old passphrase from file (- for stdin)')
   .option('--new-passphrase-file <path>', 'Read new passphrase from file (- for stdin)')
   .addOption(new Option('--algorithm <alg>', 'KDF algorithm').choices(['pbkdf2', 'scrypt']))
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
+      warnInlinePassphraseArgs(opts);
       const { oldPassphrase, newPassphrase } = await resolveRotatePassphrases(opts);
       const cas = createCas(opts.cwd);
       /** @type {{ oldPassphrase: string, newPassphrase: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */

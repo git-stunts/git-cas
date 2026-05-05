@@ -90,10 +90,12 @@ vault commit changed.
 
 Relay adds:
 
-- `git cas agent vault rotate --old-passphrase <pass> --new-passphrase <pass>`
+- `git cas agent vault rotate --old-passphrase-file <path> --new-passphrase-file <path>`
 
 Optional:
 
+- `--old-passphrase <pass>` (direct request value; avoid for human shell usage)
+- `--new-passphrase <pass>` (direct request value; avoid for human shell usage)
 - `--old-passphrase-file <path>`
 - `--new-passphrase-file <path>`
 - `--algorithm <pbkdf2|scrypt>`

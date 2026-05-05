@@ -657,7 +657,7 @@ All commands support `--json` for machine-readable output and `--quiet` to suppr
 | `--force` | Overwrite existing vault entry (requires `--tree`) |
 | `--key-file <path>` | Path to 32-byte raw encryption key file |
 | `--recipient <label:keyfile>` | Envelope recipient (repeatable) |
-| `--vault-passphrase <pass>` | Vault passphrase (prefer `GIT_CAS_PASSPHRASE` env var) |
+| `--vault-passphrase <pass>` | Inline vault passphrase (accepted with warning; prefer `--vault-passphrase-file -`, `GIT_CAS_PASSPHRASE`, or `--os-keychain-target`) |
 | `--vault-passphrase-file <path>` | Read passphrase from file (`-` for stdin) |
 | `--os-keychain-target <target>` | Read passphrase from OS keychain via `@git-stunts/vault` |
 | `--os-keychain-account <account>` | Keychain account namespace (default: `git-cas`) |
@@ -680,8 +680,8 @@ All commands support `--json` for machine-readable output and `--quiet` to suppr
 | `--slug <slug>` | Resolve tree OID from vault slug |
 | `--oid <tree-oid>` | Direct tree OID |
 | `--key-file <path>` | Encryption key file |
-| `--vault-passphrase <pass>` | Vault passphrase |
-| `--vault-passphrase-file <path>` | Read passphrase from file |
+| `--vault-passphrase <pass>` | Inline vault passphrase (accepted with warning; prefer file/stdin, env, or keychain sources) |
+| `--vault-passphrase-file <path>` | Read passphrase from file (`-` for stdin) |
 | `--os-keychain-target <target>` | OS keychain passphrase source |
 | `--os-keychain-account <account>` | Keychain account namespace |
 | `--concurrency <n>` | Parallel chunk I/O |
@@ -705,8 +705,8 @@ All commands support `--json` for machine-readable output and `--quiet` to suppr
 
 | Flag | Description |
 |---|---|
-| `--vault-passphrase <pass>` | Enable encrypted vault |
-| `--vault-passphrase-file <path>` | Read passphrase from file |
+| `--vault-passphrase <pass>` | Enable encrypted vault from an inline passphrase (accepted with warning) |
+| `--vault-passphrase-file <path>` | Read passphrase from file (`-` for stdin) |
 | `--os-keychain-target <target>` | OS keychain passphrase source |
 | `--algorithm <pbkdf2\|scrypt>` | KDF algorithm |
 
@@ -714,10 +714,10 @@ All commands support `--json` for machine-readable output and `--quiet` to suppr
 
 | Flag | Description |
 |---|---|
-| `--old-passphrase <pass>` | Current vault passphrase |
-| `--new-passphrase <pass>` | New vault passphrase |
-| `--old-passphrase-file <path>` | Read old passphrase from file |
-| `--new-passphrase-file <path>` | Read new passphrase from file |
+| `--old-passphrase <pass>` | Current inline vault passphrase (accepted with warning) |
+| `--new-passphrase <pass>` | New inline vault passphrase (accepted with warning) |
+| `--old-passphrase-file <path>` | Read old passphrase from file (`-` for stdin) |
+| `--new-passphrase-file <path>` | Read new passphrase from file (`-` for stdin) |
 | `--algorithm <pbkdf2\|scrypt>` | KDF algorithm for new passphrase |
 
 ### Inspection and Verification

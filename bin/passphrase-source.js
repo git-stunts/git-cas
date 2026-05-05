@@ -2,6 +2,15 @@ import { readPassphraseFile, promptPassphrase } from './ui/passphrase-prompt.js'
 
 export const DEFAULT_OS_KEYCHAIN_ACCOUNT = 'git-cas';
 
+const INLINE_PASSPHRASE_WARNINGS = Object.freeze({
+  vaultPassphrase:
+    'warning: --vault-passphrase exposes secrets through shell history and process listings; prefer --vault-passphrase-file -, GIT_CAS_PASSPHRASE, or --os-keychain-target',
+  oldPassphrase:
+    'warning: --old-passphrase exposes secrets through shell history and process listings; prefer --old-passphrase-file -',
+  newPassphrase:
+    'warning: --new-passphrase exposes secrets through shell history and process listings; prefer --new-passphrase-file -',
+});
+
 /**
  * @param {string} value
  * @returns {string}
@@ -162,6 +171,29 @@ export function validatePassphraseSources(opts) {
   }
   if (opts.osKeychainAccount !== undefined && !String(opts.osKeychainAccount).trim()) {
     throw new Error('OS keychain account must not be empty');
+  }
+}
+
+/**
+ * @param {Record<string, any>} opts
+ * @returns {string[]}
+ */
+export function inlinePassphraseWarnings(opts) {
+  return Object.entries(INLINE_PASSPHRASE_WARNINGS)
+    .filter(([key]) => opts[key] !== undefined)
+    .map(([, warning]) => warning);
+}
+
+/**
+ * @param {Record<string, any>} opts
+ * @param {(message: string) => void} [write]
+ */
+export function warnInlinePassphraseArgs(
+  opts,
+  write = (message) => process.stderr.write(message)
+) {
+  for (const warning of inlinePassphraseWarnings(opts)) {
+    write(`${warning}\n`);
   }
 }
 

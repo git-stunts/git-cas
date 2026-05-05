@@ -1050,20 +1050,23 @@ Slugs are validated with the following rules:
 
 When a vault is initialized with a passphrase, the human CLI can derive an
 asset encryption key from the vault's KDF configuration when you supply
-`--vault-passphrase`, `--vault-passphrase-file`, or `--os-keychain-target`
-during store and restore:
+`GIT_CAS_PASSPHRASE`, `--vault-passphrase-file`, or `--os-keychain-target`
+during store and restore. The inline `--vault-passphrase` flag remains
+available for compatibility, but it prints a warning because command-line
+arguments can be captured by shell history and process listings:
 
 ```javascript
 // Initialize vault with encryption
 await cas.initVault({ passphrase: 'secret' });
 
 // Store with vault-configured passphrase derivation (human CLI convenience)
-// git-cas store file.txt --slug demo/hello --tree --vault-passphrase secret
+// GIT_CAS_PASSPHRASE=secret git-cas store file.txt --slug demo/hello --tree
 
 // Restore with vault-configured passphrase derivation
-// git-cas restore --slug demo/hello --out file.txt --vault-passphrase secret
+// GIT_CAS_PASSPHRASE=secret git-cas restore --slug demo/hello --out file.txt
 
-// Or resolve the vault passphrase from the OS keychain
+// Or resolve the vault passphrase from stdin or the OS keychain
+// printf '%s\n' 'secret' | git-cas restore --slug demo/hello --out file.txt --vault-passphrase-file -
 // git-cas restore --slug demo/hello --out file.txt --os-keychain-target demo/passphrase
 ```
 
@@ -1097,15 +1100,15 @@ request fields:
 
 ```bash
 git cas vault init                               # Initialize vault
-git cas vault init --vault-passphrase "secret"   # With encryption
+printf '%s\n' 'secret' | git cas vault init --vault-passphrase-file -
 git cas vault init --os-keychain-target demo/passphrase
 git cas vault list                               # List all entries
 git cas vault info <slug>                        # Show slug + tree OID
 git cas vault remove <slug>                      # Remove an entry
 git cas vault history                            # Show commit history
 git cas vault history -n 10                      # Last N commits
-git cas vault rotate --old-passphrase "old" --new-passphrase "new"
-git cas vault rotate --old-passphrase "old" --new-passphrase "new" --algorithm scrypt
+git cas vault rotate --old-passphrase-file old.txt --new-passphrase-file new.txt
+git cas vault rotate --old-passphrase-file old.txt --new-passphrase-file new.txt --algorithm scrypt
 ```
 
 ### CLI Key Rotation Commands
@@ -1137,12 +1140,14 @@ git cas rotate --slug demo/hello \
 
 #### `git cas vault rotate` flags
 
-| Flag                      | Description                                             |
-| ------------------------- | ------------------------------------------------------- |
-| `--old-passphrase <pass>` | Current vault passphrase (required)                     |
-| `--new-passphrase <pass>` | New vault passphrase (required)                         |
-| `--algorithm <alg>`       | KDF algorithm for new passphrase (`pbkdf2` or `scrypt`) |
-| `--cwd <dir>`             | Git working directory (default: `.`)                    |
+| Flag                          | Description                                             |
+| ----------------------------- | ------------------------------------------------------- |
+| `--old-passphrase <pass>`     | Current inline passphrase (warns; prefer file)          |
+| `--new-passphrase <pass>`     | New inline passphrase (warns; prefer file)              |
+| `--old-passphrase-file <path>` | Read current passphrase from file (`-` for stdin)      |
+| `--new-passphrase-file <path>` | Read new passphrase from file (`-` for stdin)          |
+| `--algorithm <alg>`           | KDF algorithm for new passphrase (`pbkdf2` or `scrypt`) |
+| `--cwd <dir>`                 | Git working directory (default: `.`)                    |
 
 ### Vault History
 
