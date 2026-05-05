@@ -61,6 +61,20 @@ related_reports:
 
 **Violation 1:** `CasService._executeRestoreStrategy` switch statement.
 - **Description:** A growing switchboard that violates the Open/Closed Principle.
+- **Original Code Snippet 1:**
+```js
+async *_executeRestoreStrategy(strategy, { manifest, key, encryptionMeta }) {
+  switch (strategy) {
+    case 'convergent': yield* this._restoreConvergentStreaming(manifest, key); break;
+    case 'convergent-compressed': yield* this._restoreConvergentCompressed(manifest, key); break;
+    case 'framed-compressed': yield* this._restoreFramedCompressedStreaming(manifest, key, encryptionMeta); break;
+    case 'framed': yield* this._restoreFramedStreaming(manifest, key, encryptionMeta); break;
+    case 'buffered': yield* this._restoreBuffered(manifest, key, encryptionMeta); break;
+    case 'compressed-streaming': yield* this._restoreCompressedStreaming(manifest); break;
+    default: yield* this._restoreStreaming(manifest); break;
+  }
+}
+```
 - **Simplified Rewrite 1:**
 ```js
 const RESTORE_STRATEGIES = {
@@ -77,10 +91,82 @@ async *_executeRestoreStrategy(strategy, ctx) {
 
 **Violation 2:** `VaultService.js` duplicate slug validation.
 - **Description:** `validateSlug` and `#validateSegment` are in the same file but repeat logic.
+- **Original Code Snippet 2:**
+```js
+validateSlug(slug) {
+  if (typeof slug !== 'string' || slug.length === 0) {
+    throw new CasError('Slug must be a non-empty string', 'INVALID_SLUG', { slug });
+  }
+  if (slug.startsWith('/') || slug.endsWith('/')) {
+    throw new CasError('Slug must not start or end with "/"', 'INVALID_SLUG', { slug });
+  }
+  for (const seg of slug.split('/')) {
+    VaultService.#validateSegment(seg, slug);
+  }
+}
+```
+- **Simplified Rewrite 2:**
+```js
+// src/domain/value-objects/Slug.js
+export function parseSlug(input) {
+  const slug = assertSlugString(input);
+  assertSlugBoundaries(slug);
+  assertSlugByteLength(slug);
+  for (const segment of slug.split('/')) {
+    assertSlugSegment(segment, slug);
+  }
+  return slug;
+}
+
+// VaultService.js
+validateSlug(slug) {
+  parseSlug(slug);
+}
+```
 - **Mitigation Prompt 5:** `Consolidate slug validation into a dedicated Slug value object in src/domain/value-objects/Slug.js. Update VaultService and CasService to use this value object, ensuring consistent character set and length enforcement.`
 
 **Violation 3:** `bin/agent/cli.js` module size (2.2k lines).
 - **Description:** Too much behavior in a single CLI script.
+- **Original Code Snippet 3:**
+```js
+const COMMAND_HANDLERS = Object.freeze({
+  store: storeCommand,
+  tree: treeCommand,
+  restore: restoreCommand,
+  rotate: rotateCommand,
+  inspect: inspectCommand,
+  verify: verifyCommand,
+  doctor: doctorCommand,
+  'recipient.add': recipientAddCommand,
+  'recipient.remove': recipientRemoveCommand,
+  'recipient.list': recipientListCommand,
+  'vault.init': vaultInitCommand,
+  'vault.list': vaultListCommand,
+  'vault.info': vaultInfoCommand,
+  'vault.history': vaultHistoryCommand,
+  'vault.remove': vaultRemoveCommand,
+  'vault.rotate': vaultRotateCommand,
+  'vault.stats': vaultStatsCommand,
+});
+```
+- **Simplified Rewrite 3:**
+```js
+// bin/agent/commands/index.js
+export const COMMAND_HANDLERS = Object.freeze({
+  store,
+  tree,
+  restore,
+  rotate,
+  inspect,
+  verify,
+  doctor,
+  ...recipientCommands,
+  ...vaultCommands,
+});
+
+// bin/agent/cli.js
+import { COMMAND_HANDLERS } from './commands/index.js';
+```
 - **Mitigation Prompt 6:** `Split bin/agent/cli.js by extracting individual command handlers (store, restore, vault) into separate modules under bin/agent/commands/. Keep the protocol handling in cli.js.`
 
 ## 2. PRODUCTION READINESS & RISK ASSESSMENT (EXHAUSTIVE)
