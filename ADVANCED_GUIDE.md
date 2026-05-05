@@ -5,94 +5,77 @@ orientation and the productive-fast path, start with the [GUIDE.md](./GUIDE.md).
 
 ---
 
-```insta-toc
----
-title:
-  name:
-  level:
-  center:
-exclude:
-style:
-  listType:
-omit:
-levels:
-  min:
-  max:
----
+## Table of Contents
 
-# Table of Contents
-
-- Advanced Guide -- git-cas
-    - Content-Defined Chunking (CDC)
-        - Algorithm Overview
-        - Buzhash Rolling Hash
-        - Mask Derivation
-        - FastCDC Dual-Mask Normalization
-        - Default Parameters
-        - Encryption Penalty
-    - Encryption Schemes
-        - Legacy Scheme Rejection
-        - whole
-        - framed (default for fixed encrypted stores)
-        - convergent
-        - Why AAD Matters
-        - Scheme Selection
-        - Auto-Selection
-    - Convergent Encryption
-        - Key Derivation
-        - Blob Format
-        - Restore Verification
-        - Trade-offs
-    - KDF Policy
-        - PBKDF2-SHA512
-        - scrypt
-        - Enforcement Points
-    - Manifest Integrity Hash
-        - Computation (store)
-        - Verification (read)
-        - What It Catches
-        - Backward Compatibility
-    - Format Version
-    - Manifest Diffing
-        - Return Value
-        - Use Cases
-        - Example
-    - Parallel Chunk Restore
-        - How It Works
-        - Configuration
-    - Merkle Manifests
-        - Structure
-        - Git Tree Layout
-        - Validation
-        - Limits
-    - Vault Privacy Mode
-        - How It Works
-        - Requirements
-        - Limitations
-    - Envelope Encryption
-        - Multi-Recipient Model
-        - Trial Decryption
-        - Key Rotation
-        - Adding and Removing Recipients
-    - Streaming Decompression
-    - CompressionPort Architecture
-        - Port Interface
-        - NodeCompressionAdapter
-        - Pluggability
-    - Direct CasService and Custom Port Contracts
-        - Minimal Direct Service
-        - Required Port Shape
-        - Runtime and Facade Split
-    - Security Hardening Summary
-    - Operational Tooling
-        - Migration
-        - Release Verification
-        - Build Metadata
-    - Performance Baselines
-    - Configuration Reference
-        - store() Options
-        - CdcChunker Options
-```
+- [Content-Defined Chunking (CDC)](#content-defined-chunking-cdc)
+  - [Algorithm Overview](#algorithm-overview)
+  - [Buzhash Rolling Hash](#buzhash-rolling-hash)
+  - [Mask Derivation](#mask-derivation)
+  - [FastCDC Dual-Mask Normalization](#fastcdc-dual-mask-normalization)
+  - [Default Parameters](#default-parameters)
+  - [Encryption Penalty](#encryption-penalty)
+- [Encryption Schemes](#encryption-schemes)
+  - [Legacy Scheme Rejection](#legacy-scheme-rejection)
+  - [whole](#whole)
+  - [framed (default for fixed encrypted stores)](#framed-default-for-fixed-encrypted-stores)
+  - [convergent](#convergent)
+  - [Why AAD Matters](#why-aad-matters)
+  - [Scheme Selection](#scheme-selection)
+  - [Auto-Selection](#auto-selection)
+- [Convergent Encryption](#convergent-encryption)
+  - [Key Derivation](#key-derivation)
+  - [Blob Format](#blob-format)
+  - [Restore Verification](#restore-verification)
+  - [Trade-offs](#trade-offs)
+- [KDF Policy](#kdf-policy)
+  - [PBKDF2-SHA512](#pbkdf2-sha512)
+  - [scrypt](#scrypt)
+  - [Enforcement Points](#enforcement-points)
+- [Manifest Integrity Hash](#manifest-integrity-hash)
+  - [Computation (store)](#computation-store)
+  - [Verification (read)](#verification-read)
+  - [What It Catches](#what-it-catches)
+  - [Backward Compatibility](#backward-compatibility)
+- [Format Version](#format-version)
+- [Manifest Diffing](#manifest-diffing)
+  - [Return Value](#return-value)
+  - [Use Cases](#use-cases)
+  - [Example](#example)
+- [Parallel Chunk Restore](#parallel-chunk-restore)
+  - [How It Works](#how-it-works)
+  - [Configuration](#configuration)
+- [Merkle Manifests](#merkle-manifests)
+  - [Structure](#structure)
+  - [Git Tree Layout](#git-tree-layout)
+  - [Validation](#validation)
+  - [Limits](#limits)
+- [Vault Privacy Mode](#vault-privacy-mode)
+  - [How It Works](#how-it-works)
+  - [Requirements](#requirements)
+  - [Limitations](#limitations)
+- [Envelope Encryption](#envelope-encryption)
+  - [Multi-Recipient Model](#multi-recipient-model)
+  - [Trial Decryption](#trial-decryption)
+  - [Key Rotation](#key-rotation)
+  - [Adding and Removing Recipients](#adding-and-removing-recipients)
+- [Streaming Decompression](#streaming-decompression)
+- [CompressionPort Architecture](#compressionport-architecture)
+  - [Port Interface](#port-interface)
+  - [NodeCompressionAdapter](#nodecompressionadapter)
+  - [Pluggability](#pluggability)
+- [Direct CasService and Custom Port Contracts](#direct-casservice-and-custom-port-contracts)
+  - [Minimal Direct Service](#minimal-direct-service)
+  - [Required Port Shape](#required-port-shape)
+  - [Runtime and Facade Split](#runtime-and-facade-split)
+- [Security Hardening Summary](#security-hardening-summary)
+- [Operational Tooling](#operational-tooling)
+  - [Migration](#migration)
+  - [Release Verification](#release-verification)
+  - [Build Metadata](#build-metadata)
+- [Performance Baselines](#performance-baselines)
+- [Configuration Reference](#configuration-reference)
+  - [store() Options](#store-options)
+  - [CdcChunker Options](#cdcchunker-options)
 
 ---
 

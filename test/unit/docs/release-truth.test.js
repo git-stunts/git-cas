@@ -60,4 +60,15 @@ describe('release truth docs and examples', () => {
     expect(advancedGuide).toMatch(/`whole`\s+and\s+`framed`\s+use fresh 96-bit random\s+nonces/);
     expect(advancedGuide).toMatch(/`convergent`\s+derives per-chunk keys and nonces deterministically/);
   });
+
+});
+
+describe('advanced guide rendering', () => {
+  it('keeps the table of contents rendered as Markdown links', () => {
+    const advancedGuide = read('ADVANCED_GUIDE.md');
+
+    expect(advancedGuide).not.toContain('```insta-toc');
+    expect(advancedGuide).toContain('- [Content-Defined Chunking (CDC)](#content-defined-chunking-cdc)');
+    expect(advancedGuide).toContain('- [Direct CasService and Custom Port Contracts](#direct-casservice-and-custom-port-contracts)');
+  });
 });
