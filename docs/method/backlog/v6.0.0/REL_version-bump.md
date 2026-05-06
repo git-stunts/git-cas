@@ -40,11 +40,13 @@ because the current `jsr`/Deno toolchain panics before package validation.
 - Current local pre-tag candidate includes the v6 release-readiness polish for
   shared credentials, slug value-object extraction, dependency alignment, and
   constructor validation. It has not been tagged.
-- Final local `npx eslint .` passed on 2026-05-05 after v6 readiness polish.
-- Final local `npm test` passed on 2026-05-05 after v6 readiness polish: 143
-  files, 1450 passed, 2 skipped.
-- Current release-doc package guard expects the npm tarball has 121 entries
-  after adding the shared credential helper and `Slug` value object, and still
+- Final local `npx eslint .` passed on 2026-05-05 after v6 readiness polish
+  and the release-build metadata guard.
+- Final local `npm test` passed on 2026-05-05 after the self-review and
+  release-build metadata guard: 168 files, 1502 passed, 2 skipped.
+- Current release-doc package guard expects the npm tarball has 166 entries
+  after adding the shared credential helper, `Slug` value object, strategy/error
+  extraction, outcome types, and the quiet `prepack` build-info hook. It still
   excludes internal audit, archive, METHOD backlog, and unused media artifacts.
 - Node integration passed on 2026-05-04: 4 files, 152 passed.
 - Bun unit passed on 2026-05-04: 118 files passed, 1 file skipped; 1363 passed, 6 skipped.
@@ -65,11 +67,15 @@ because the current `jsr`/Deno toolchain panics before package validation.
 - PR #35 landed the release branch on `main` as `1d2ca5c` on 2026-05-04, and GitHub Actions CI passed on that merge commit.
 - Final pre-tag `npm run release:verify -- --skip-jsr` passed on 2026-05-04 after release-doc cleanup: 9/9 executable steps, 4531 observed tests, skipped `JSR publish dry-run`.
 - Post type/doc accuracy cleanup `npm run release:verify -- --skip-jsr` passed on 2026-05-04: 9/9 executable steps, 4537 observed tests, skipped `JSR publish dry-run`.
-- Exact `npm run release:verify` passed 12/13 steps on 2026-05-05 and failed
-  only at the known upstream JSR/Deno 2.6.7 `deno_ast` overlapping text-change
-  panic. It observed 4801 tests before the JSR dry-run failure.
+- Exact `npm run release:verify` remains expected to fail only at the known
+  upstream JSR/Deno 2.6.7 `deno_ast` overlapping text-change panic.
 - Final local `npm run release:verify -- --skip-jsr` passed on 2026-05-05:
-  12/12 executable steps, 4801 observed tests, skipped `JSR publish dry-run`.
+  12/12 executable steps, 4957 observed tests, skipped `JSR publish dry-run`.
+  Step counts: Node unit 1502, Bun unit 1501, Deno unit 1492, and 154
+  integration tests on each of Node, Bun, and Deno.
+- `scripts/stamp-build.js` now supports quiet package lifecycle stamping and
+  no-`.git` package contexts by reusing existing `build-info.json` metadata when
+  git metadata is unavailable.
 
 ## Remaining Before Tag
 

@@ -147,13 +147,32 @@ export function extractVitestTestCount(output = '') {
 export function extractNpmPackFilePaths(output = '') {
   const normalized = stripAnsi(output).trim();
   if (!normalized) { return []; }
-  const parsed = JSON.parse(normalized);
+  const parsed = parseNpmPackJson(normalized);
   const packEntries = Array.isArray(parsed) ? parsed : [parsed];
   return packEntries.flatMap((entry) =>
     Array.isArray(entry.files)
       ? entry.files.map((file) => file.path)
       : []
   );
+}
+
+function parseNpmPackJson(output) {
+  try {
+    return JSON.parse(output);
+  } catch (error) {
+    const start = firstJsonStart(output);
+    const end = Math.max(output.lastIndexOf(']'), output.lastIndexOf('}'));
+    if (start === -1 || end <= start) {
+      throw error;
+    }
+    return JSON.parse(output.slice(start, end + 1));
+  }
+}
+
+function firstJsonStart(output) {
+  const starts = [output.indexOf('['), output.indexOf('{')]
+    .filter((index) => index !== -1);
+  return starts.length === 0 ? -1 : Math.min(...starts);
 }
 
 export function renderMarkdownSummary({ version, results, totalTests, skippedSteps = [] }) {

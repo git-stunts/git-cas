@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
@@ -30,5 +32,39 @@ describe('dependency pins', () => {
 
     expect(bijouDeps.length).toBeGreaterThan(0);
     expect(bijouDeps).toEqual(bijouDeps.map(([name]) => [name, '^5.0.0']));
+  });
+});
+
+describe('release package scripts', () => {
+  it('stamps build metadata before package dry-runs without contaminating npm pack JSON', () => {
+    const manifest = readJson('package.json');
+
+    expect(manifest.scripts.prepack).toBe('node scripts/stamp-build.js --quiet');
+  });
+
+  it('supports quiet build metadata stamping for JSON pack consumers', () => {
+    const output = execFileSync('node', ['scripts/stamp-build.js', '--quiet'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
+
+    expect(output).toBe('');
+  });
+
+  it('supports build metadata stamping outside git checkouts', () => {
+    const outsideGit = mkdtempSync(path.join(tmpdir(), 'git-cas-stamp-'));
+
+    try {
+      const output = execFileSync('node', [path.join(repoRoot, 'scripts/stamp-build.js'), '--quiet'], {
+        cwd: outsideGit,
+        encoding: 'utf8',
+      });
+      const buildInfo = readJson('build-info.json');
+
+      expect(output).toBe('');
+      expect(buildInfo.sha).toMatch(/^(?:unknown|[a-f0-9]{7,64})$/u);
+    } finally {
+      rmSync(outsideGit, { recursive: true, force: true });
+    }
   });
 });

@@ -27,10 +27,13 @@ describe('release state docs', () => {
     const releaseCard = read('docs/method/backlog/v6.0.0/REL_version-bump.md');
 
     expect(releaseCard).toContain('v6 release-readiness polish');
-    expect(releaseCard).toMatch(/143\s+files, 1450 passed, 2 skipped/);
-    expect(releaseCard).toContain('tarball has 121 entries');
-    expect(releaseCard).toContain('12/12 executable steps, 4801 observed tests');
-    expect(releaseCard).toContain('known upstream JSR/Deno 2.6.7');
+    expect(releaseCard).toMatch(/168\s+files, 1502 passed, 2 skipped/);
+    expect(releaseCard).toContain('tarball has 166 entries');
+    expect(releaseCard).toContain('12/12 executable steps, 4957 observed tests');
+    expect(releaseCard).toMatch(/known\s+upstream JSR\/Deno 2\.6\.7/);
+    expect(releaseCard).not.toContain('143 files, 1450 passed, 2 skipped');
+    expect(releaseCard).not.toContain('tarball has 121 entries');
+    expect(releaseCard).not.toContain('4801 observed tests');
     expect(releaseCard).not.toContain('main` is pushed through `63d9bc1`');
     expect(releaseCard).not.toContain('130 files, 1390 passed, 2 skipped');
     expect(releaseCard).not.toContain('tarball has 114 entries');

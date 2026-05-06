@@ -140,6 +140,19 @@ describe('release verify helpers', () => {
     expect(extractNpmPackFilePaths(output)).toEqual(['index.js', 'build-info.json']);
   });
 
+  it('extracts npm pack file paths when lifecycle output surrounds dry-run JSON', () => {
+    const output = [
+      '> @git-stunts/git-cas@6.0.0 prepack',
+      '> node scripts/stamp-build.js --quiet',
+      JSON.stringify([{ files: [{ path: 'index.js' }, { path: 'build-info.json' }] }]),
+      'npm notice package contains 2 files',
+    ].join('\n');
+
+    expect(extractNpmPackFilePaths(output)).toEqual(['index.js', 'build-info.json']);
+  });
+});
+
+describe('release verify summary rendering', () => {
   it('renders a markdown summary with total test counts', () => {
     const summary = renderMarkdownSummary({
       version: '5.3.3',
