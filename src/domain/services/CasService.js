@@ -27,8 +27,8 @@ import RestoreStrategy from '../strategies/RestoreStrategy.js';
 import ManifestRepository from './ManifestRepository.js';
 import RecipientService from './RecipientService.js';
 import IntegrityVerifier from './IntegrityVerifier.js';
-import RestoreOutcome from '../outcomes/RestoreOutcome.js';
-import StoreOutcome from '../outcomes/StoreOutcome.js';
+import RestoreSuccess from '../outcomes/RestoreSuccess.js';
+import StoreSuccess from '../outcomes/StoreSuccess.js';
 import diffManifests from './ManifestDiff.js';
 
 /**
@@ -273,7 +273,7 @@ export default class CasService {
       chunkCount: manifest.chunks.length,
       encrypted: !!keyInfo.key,
     });
-    return StoreOutcome.success(manifest).manifest;
+    return new StoreSuccess({ manifest }).manifest;
   }
 
   async _dispatchStore({ processedSource, manifestData, keyInfo, encryptionConfig }) {
@@ -314,7 +314,7 @@ export default class CasService {
     for await (const chunk of this.restoreStream({ manifest, encryptionKey, passphrase })) {
       chunks.push(chunk);
     }
-    return RestoreOutcome.fromChunks(chunks);
+    return RestoreSuccess.fromChunks(chunks);
   }
 
   async createFileRestorePlan({ manifest, encryptionKey, passphrase }) {

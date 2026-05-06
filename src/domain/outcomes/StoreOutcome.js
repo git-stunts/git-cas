@@ -1,20 +1,11 @@
 /**
- * Immutable store result.
+ * Base runtime store result.
  */
 export default class StoreOutcome {
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default }} options
+   * @param {{ ok: boolean }} options
    */
-  constructor({ manifest }) {
-    this.manifest = manifest;
-    Object.freeze(this);
-  }
-
-  /**
-   * @param {import('../value-objects/Manifest.js').default} manifest
-   * @returns {StoreOutcome}
-   */
-  static success(manifest) {
-    return new StoreOutcome({ manifest });
+  constructor({ ok }) {
+    this.ok = ok;
   }
 }
