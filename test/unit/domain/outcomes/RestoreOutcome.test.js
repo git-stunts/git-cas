@@ -20,6 +20,17 @@ describe('RestoreOutcome', () => {
     expect([...outcome.buffer]).toEqual([1, 2]);
   });
 
+  it('protects restored bytes from external mutation', () => {
+    const source = new Uint8Array([1, 2, 3]);
+    const outcome = new RestoreSuccess({ buffer: source });
+
+    source[0] = 9;
+    const returned = outcome.buffer;
+    returned[1] = 8;
+
+    expect([...outcome.buffer]).toEqual([1, 2, 3]);
+  });
+
   it('models failed restore results as a failure subtype', () => {
     const error = new Error('restore failed');
     const outcome = new RestoreFailure({ error });
