@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import Manifest from '../../../../src/domain/value-objects/Manifest.js';
 import ManifestRepository from '../../../../src/domain/services/ManifestRepository.js';
 import { utf8Encode } from '../../../../src/domain/encoding/utf8.js';
+import { InvalidOidError } from '../../../../src/domain/errors/index.js';
 
 describe('ManifestRepository', () => {
   it('publishes a flat manifest tree through injected persistence', async () => {
@@ -26,5 +27,22 @@ describe('ManifestRepository', () => {
 
     await expect(repository.createTree({ manifest })).resolves.toBe('d'.repeat(40));
     expect(writes).toHaveLength(1);
+  });
+
+  it('rejects invalid tree OIDs before reading persistence', async () => {
+    const persistence = {
+      readTree: vi.fn(),
+    };
+    const repository = new ManifestRepository({
+      codec: {},
+      crypto: {},
+      legacyMode: false,
+      merkleThreshold: 10,
+      persistence,
+    });
+
+    await expect(repository.readManifest({ treeOid: 'not-an-oid' }))
+      .rejects.toBeInstanceOf(InvalidOidError);
+    expect(persistence.readTree).not.toHaveBeenCalled();
   });
 });

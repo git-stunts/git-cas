@@ -1,4 +1,5 @@
 import Manifest from '../value-objects/Manifest.js';
+import Oid from '../value-objects/Oid.js';
 import { ChunkSchema } from '../schemas/ManifestSchema.js';
 import CasError from '../errors/CasError.js';
 import createCasError from '../errors/createCasError.js';
@@ -158,18 +159,19 @@ export default class ManifestRepository {
   }
 
   async #readManifestBlob(treeOid) {
+    const normalizedTreeOid = Oid.from(treeOid).toString();
     let entries;
     try {
-      entries = await this.#persistence.readTree(treeOid);
+      entries = await this.#persistence.readTree(normalizedTreeOid);
     } catch (err) {
       if (err instanceof CasError) {
         throw err;
       }
       const message = err instanceof Error ? err.message : String(err);
       throw createCasError(
-        `Failed to read tree ${treeOid}: ${message}`,
+        `Failed to read tree ${normalizedTreeOid}: ${message}`,
         'GIT_ERROR',
-        { treeOid, originalError: err },
+        { treeOid: normalizedTreeOid, originalError: err },
       );
     }
 
@@ -177,28 +179,30 @@ export default class ManifestRepository {
     const manifestEntry = entries.find((entry) => entry.name === manifestName);
     if (!manifestEntry) {
       throw createCasError(
-        `No manifest entry (${manifestName}) found in tree ${treeOid}`,
+        `No manifest entry (${manifestName}) found in tree ${normalizedTreeOid}`,
         'MANIFEST_NOT_FOUND',
-        { treeOid, expectedName: manifestName },
+        { treeOid: normalizedTreeOid, expectedName: manifestName },
       );
     }
+    const manifestOid = Oid.from(manifestEntry.oid).toString();
 
     try {
-      return await this.#persistence.readBlob(manifestEntry.oid);
+      return await this.#persistence.readBlob(manifestOid);
     } catch (err) {
       if (err instanceof CasError) {
         throw err;
       }
       const message = err instanceof Error ? err.message : String(err);
       throw createCasError(
-        `Failed to read manifest blob ${manifestEntry.oid}: ${message}`,
+        `Failed to read manifest blob ${manifestOid}: ${message}`,
         'GIT_ERROR',
-        { treeOid, manifestOid: manifestEntry.oid, originalError: err },
+        { treeOid: normalizedTreeOid, manifestOid, originalError: err },
       );
     }
   }
 
   async #verifyManifestHash(decoded, treeOid) {
+    const normalizedTreeOid = Oid.from(treeOid).toString();
     if (!decoded.manifestHash) {
       return;
     }
@@ -208,7 +212,7 @@ export default class ManifestRepository {
       throw createCasError(
         'Manifest integrity check failed: hash mismatch',
         'MANIFEST_INTEGRITY_ERROR',
-        { treeOid, slug: decoded.slug, expected: decoded.manifestHash, actual: computed },
+        { treeOid: normalizedTreeOid, slug: decoded.slug, expected: decoded.manifestHash, actual: computed },
       );
     }
   }
@@ -261,17 +265,19 @@ export default class ManifestRepository {
   }
 
   async #readSubManifestBlob(oid, treeOid) {
+    const subManifestOid = Oid.from(oid).toString();
+    const normalizedTreeOid = Oid.from(treeOid).toString();
     try {
-      return await this.#persistence.readBlob(oid);
+      return await this.#persistence.readBlob(subManifestOid);
     } catch (err) {
       if (err instanceof CasError) {
         throw err;
       }
       const message = err instanceof Error ? err.message : String(err);
       throw createCasError(
-        `Failed to read sub-manifest blob ${oid}: ${message}`,
+        `Failed to read sub-manifest blob ${subManifestOid}: ${message}`,
         'GIT_ERROR',
-        { treeOid, subManifestOid: oid, originalError: err },
+        { treeOid: normalizedTreeOid, subManifestOid, originalError: err },
       );
     }
   }

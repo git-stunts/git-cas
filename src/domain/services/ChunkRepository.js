@@ -3,6 +3,7 @@ import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import StorePipeline from './StorePipeline.js';
 import prefetchChunks from './PrefetchWindow.js';
 import { concatBytes, normalizeByteChunk } from '../bytes/ByteLayout.js';
+import Oid from '../value-objects/Oid.js';
 
 /**
  * Domain chunk I/O and digest verification boundary.
@@ -100,6 +101,7 @@ export default class ChunkRepository {
    * @returns {Promise<Uint8Array>}
    */
   async readChunkBlob(oid, { maxBytes } = {}) {
+    const blobOid = Oid.from(oid).toString();
     if (!this.supportsReadBlobStream()) {
       if (maxBytes !== undefined) {
         throw createCasError(
@@ -111,20 +113,20 @@ export default class ChunkRepository {
           {
             capability: 'readBlobStream',
             mode: 'buffered-restore',
-            oid,
+            oid: blobOid,
             docs: 'docs/EXTENDING.md#persistence-adapter-requirements',
           },
         );
       }
-      return normalizeByteChunk(await this.#persistence.readBlob(oid));
+      return normalizeByteChunk(await this.#persistence.readBlob(blobOid));
     }
 
     let total = 0;
     const chunks = [];
-    for await (const chunk of await this.#persistence.readBlobStream(oid)) {
+    for await (const chunk of await this.#persistence.readBlobStream(blobOid)) {
       const buf = normalizeByteChunk(chunk);
       total += buf.length;
-      this.assertBufferedReadLimit({ size: total, limit: maxBytes, oid });
+      this.assertBufferedReadLimit({ size: total, limit: maxBytes, oid: blobOid });
       chunks.push(buf);
     }
     return concatBytes(chunks);

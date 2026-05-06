@@ -19,6 +19,9 @@ function digestOf(seed) {
 /** Valid 40-char hex OIDs for blob fields. */
 const BLOB_0 = 'a'.repeat(40);
 const BLOB_1 = 'b'.repeat(40);
+const TREE_0 = 'c'.repeat(40);
+const TREE_1 = 'd'.repeat(40);
+const MANIFEST_OID = 'e'.repeat(40);
 
 function validManifestData(overrides = {}) {
   return {
@@ -67,12 +70,12 @@ describe('CasService.readManifest – golden path', () => {
   });
 
   it('reads and decodes manifest from tree', async () => {
-    const treeOid = 'tree-oid-123';
-    const manifestOid = 'manifest-oid-456';
+    const treeOid = TREE_0;
+    const manifestOid = MANIFEST_OID;
     const data = validManifestData();
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'other-oid', name: 'data.dat' },
+      { mode: '100644', type: 'blob', oid: BLOB_0, name: 'data.dat' },
       { mode: '100644', type: 'blob', oid: manifestOid, name: 'manifest.json' },
     ]);
     mockPersistence.readBlob.mockResolvedValue(Buffer.from(codec.encode(data)));
@@ -88,17 +91,17 @@ describe('CasService.readManifest – golden path', () => {
   });
 
   it('finds manifest entry regardless of position in tree', async () => {
-    const manifestOid = 'manifest-oid-456';
+    const manifestOid = MANIFEST_OID;
     const data = validManifestData();
 
     mockPersistence.readTree.mockResolvedValue([
       { mode: '100644', type: 'blob', oid: manifestOid, name: 'manifest.json' },
-      { mode: '100644', type: 'blob', oid: 'chunk-oid-1', name: digestOf('chunk-0') },
-      { mode: '100644', type: 'blob', oid: 'chunk-oid-2', name: digestOf('chunk-1') },
+      { mode: '100644', type: 'blob', oid: BLOB_0, name: digestOf('chunk-0') },
+      { mode: '100644', type: 'blob', oid: BLOB_1, name: digestOf('chunk-1') },
     ]);
     mockPersistence.readBlob.mockResolvedValue(Buffer.from(codec.encode(data)));
 
-    const result = await service.readManifest({ treeOid: 'tree-oid' });
+    const result = await service.readManifest({ treeOid: TREE_0 });
 
     expect(result).toBeInstanceOf(Manifest);
     expect(mockPersistence.readBlob).toHaveBeenCalledWith(manifestOid);
@@ -122,7 +125,7 @@ describe('CasService.readManifest – manifest not found (missing entry)', () =>
     ]);
 
     try {
-      await service.readManifest({ treeOid: 'tree-oid' });
+      await service.readManifest({ treeOid: TREE_0 });
       expect.unreachable('should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(CasError);
@@ -136,7 +139,7 @@ describe('CasService.readManifest – manifest not found (missing entry)', () =>
     mockPersistence.readTree.mockResolvedValue([]);
 
     try {
-      await service.readManifest({ treeOid: 'tree-oid' });
+      await service.readManifest({ treeOid: TREE_0 });
       expect.unreachable('should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(CasError);
@@ -162,7 +165,7 @@ describe('CasService.readManifest – manifest not found (wrong name)', () => {
     ]);
 
     try {
-      await service.readManifest({ treeOid: 'tree-oid' });
+      await service.readManifest({ treeOid: TREE_0 });
       expect.unreachable('should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(CasError);
@@ -176,7 +179,7 @@ describe('CasService.readManifest – manifest not found (wrong name)', () => {
     ]);
 
     try {
-      await service.readManifest({ treeOid: 'tree-oid' });
+      await service.readManifest({ treeOid: TREE_0 });
       expect.unreachable('should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(CasError);
@@ -199,23 +202,23 @@ describe('CasService.readManifest – corrupt data handling', () => { // eslint-
 
   it('throws when manifest JSON is unparseable', async () => {
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: MANIFEST_OID, name: 'manifest.json' },
     ]);
     mockPersistence.readBlob.mockResolvedValue(Buffer.from('{ invalid json }'));
 
-    await expect(service.readManifest({ treeOid: 'tree-oid' })).rejects.toThrow();
+    await expect(service.readManifest({ treeOid: TREE_0 })).rejects.toThrow();
   });
 
   it('throws when manifest data fails Zod validation', async () => {
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: MANIFEST_OID, name: 'manifest.json' },
     ]);
     // Valid JSON but missing required manifest fields
     mockPersistence.readBlob.mockResolvedValue(
       Buffer.from(codec.encode({ foo: 'bar' })),
     );
 
-    await expect(service.readManifest({ treeOid: 'tree-oid' })).rejects.toThrow(
+    await expect(service.readManifest({ treeOid: TREE_0 })).rejects.toThrow(
       /Invalid manifest data/,
     );
   });
@@ -227,7 +230,7 @@ describe('CasService.readManifest – corrupt data handling', () => { // eslint-
     ({ service, mockPersistence, codec } = setup(makeCodec()));
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: `manifest.${codec.extension}` },
+      { mode: '100644', type: 'blob', oid: MANIFEST_OID, name: `manifest.${codec.extension}` },
     ]);
     mockPersistence.readBlob.mockResolvedValue(Buffer.from(codec.encode(validManifestData({
       encryption: {
@@ -237,7 +240,7 @@ describe('CasService.readManifest – corrupt data handling', () => { // eslint-
       },
     }))));
 
-    await expect(service.readManifest({ treeOid: 'tree-oid' })).rejects.toThrow(
+    await expect(service.readManifest({ treeOid: TREE_0 })).rejects.toThrow(
       /Invalid manifest data/,
     );
   });
@@ -258,7 +261,7 @@ describe('CasService.readManifest – git error wrapping', () => {
     mockPersistence.readTree.mockRejectedValue(new Error('object not found'));
 
     try {
-      await service.readManifest({ treeOid: 'bad-oid' });
+      await service.readManifest({ treeOid: TREE_0 });
       expect.unreachable('should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(CasError);
@@ -270,12 +273,12 @@ describe('CasService.readManifest – git error wrapping', () => {
 
   it('wraps non-CasError from readBlob as GIT_ERROR', async () => {
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: MANIFEST_OID, name: 'manifest.json' },
     ]);
     mockPersistence.readBlob.mockRejectedValue(new Error('blob not found'));
 
     try {
-      await service.readManifest({ treeOid: 'tree-oid' });
+      await service.readManifest({ treeOid: TREE_0 });
       expect.unreachable('should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(CasError);
@@ -300,7 +303,7 @@ describe('CasService.readManifest – CasError passthrough', () => {
     mockPersistence.readTree.mockRejectedValue(original);
 
     try {
-      await service.readManifest({ treeOid: 'tree-oid' });
+      await service.readManifest({ treeOid: TREE_0 });
       expect.unreachable('should have thrown');
     } catch (err) {
       expect(err).toBe(original);
@@ -311,12 +314,12 @@ describe('CasService.readManifest – CasError passthrough', () => {
   it('re-throws CasError from readBlob as-is', async () => {
     const original = new CasError('Blob read failed', 'SOME_CAS_ERROR', {});
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: MANIFEST_OID, name: 'manifest.json' },
     ]);
     mockPersistence.readBlob.mockRejectedValue(original);
 
     try {
-      await service.readManifest({ treeOid: 'tree-oid' });
+      await service.readManifest({ treeOid: TREE_0 });
       expect.unreachable('should have thrown');
     } catch (err) {
       expect(err).toBe(original);
@@ -341,11 +344,11 @@ describe('CasService.readManifest – edge cases (empty & large)', () => {
     const data = validManifestData({ size: 0, chunks: [] });
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: MANIFEST_OID, name: 'manifest.json' },
     ]);
     mockPersistence.readBlob.mockResolvedValue(Buffer.from(codec.encode(data)));
 
-    const result = await service.readManifest({ treeOid: 'tree-oid' });
+    const result = await service.readManifest({ treeOid: TREE_0 });
 
     expect(result).toBeInstanceOf(Manifest);
     expect(result.chunks).toHaveLength(0);
@@ -362,17 +365,17 @@ describe('CasService.readManifest – edge cases (empty & large)', () => {
     }));
     const entries = [
       ...filler,
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: MANIFEST_OID, name: 'manifest.json' },
     ];
 
     mockPersistence.readTree.mockResolvedValue(entries);
     mockPersistence.readBlob.mockResolvedValue(Buffer.from(codec.encode(data)));
 
-    const result = await service.readManifest({ treeOid: 'tree-oid' });
+    const result = await service.readManifest({ treeOid: TREE_0 });
 
     expect(result).toBeInstanceOf(Manifest);
     expect(result.chunks).toHaveLength(2);
-    expect(mockPersistence.readBlob).toHaveBeenCalledWith('manifest-oid');
+    expect(mockPersistence.readBlob).toHaveBeenCalledWith(MANIFEST_OID);
   });
 });
 
@@ -391,10 +394,10 @@ describe('CasService.readManifest – edge cases (error meta)', () => {
     mockPersistence.readTree.mockResolvedValue([]);
 
     try {
-      await service.readManifest({ treeOid: 'specific-tree-oid' });
+      await service.readManifest({ treeOid: TREE_1 });
       expect.unreachable('should have thrown');
     } catch (err) {
-      expect(err.meta.treeOid).toBe('specific-tree-oid');
+      expect(err.meta.treeOid).toBe(TREE_1);
       expect(err.meta.expectedName).toBe('manifest.json');
     }
   });
