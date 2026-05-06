@@ -731,8 +731,10 @@ buffering the full decompressed payload in memory. This applies to:
 The streaming approach keeps memory usage proportional to the chunk/frame size
 rather than the total asset size. `whole` encrypted restores preserve the
 whole-object authentication boundary and still use the bounded buffered path
-for `restoreStream()` / `restore()`; `restoreFile()` uses a bounded temp-file
-plan.
+for `restoreStream()` / `restore()`. Uncompressed `whole` `restoreFile()` streams
+decryption into the temp-file publication path; `whole` + gzip preserves
+auth-before-decompress and may buffer the encrypted compressed payload before
+gunzip runs.
 
 ---
 
@@ -859,7 +861,7 @@ row describes the fix and what it prevents.
 | 2 | Algorithm allowlist (`aes-256-gcm` only) | Attacker substitutes a weaker or non-existent algorithm |
 | 3 | Nonce/tag format validation (canonical base64, correct byte length) | Malformed metadata crashes the runtime or produces garbage |
 | 4 | Framed record parse hardening (`ciphertextLength <= frameBytes`) | Oversized length field causes unbounded allocation |
-| 5 | `maxRestoreBufferSize` enforcement (pre-decrypt and post-decompress) | Unbounded memory allocation on large encrypted/compressed restores |
+| 5 | `maxRestoreBufferSize` enforcement for buffered `restore()` / `restoreStream()` paths | Unbounded memory allocation on large encrypted/compressed memory restores |
 | 6 | `maxEncryptionBufferSize` / `maxDecryptionBufferSize` for Web Crypto | One-shot Web Crypto API exhausts memory on large payloads |
 | 7 | KDF policy enforcement (bounded iterations, cost, salt, keyLength) | Attacker-controlled manifest requests extreme KDF work or weak params |
 | 8 | Manifest integrity hash (`manifestHash` field) | Silent manifest corruption or codec round-trip bugs |

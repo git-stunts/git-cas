@@ -145,7 +145,7 @@ Three restore surfaces cover different memory and latency profiles:
 | Method | Behavior | Bounded? |
 |---|---|---|
 | `restore()` | Buffered reassembly to memory | Yes — capped by `maxRestoreBufferSize` |
-| `restoreFile()` | Atomic temp-file write with auth-then-rename | Yes — streams through disk |
+| `restoreFile()` | Atomic temp-file write with auth-then-rename | Yes — streams through disk for plaintext, framed, convergent, and uncompressed whole |
 | `restoreStream()` | Async iterable yielding chunks | Yes — frame-by-frame for framed scheme |
 
 `restoreFile()` writes tentative plaintext to a temporary file, verifies authentication, and renames into place only after verification succeeds. For `framed`, all three surfaces provide true streaming restore with per-frame authentication. Parallel chunk restore is supported via a prefetch window (`PrefetchWindow`) when concurrency is greater than 1, enabling ordered parallel reads for faster restores.
@@ -196,10 +196,10 @@ Beyond the core encryption primitives, `git-cas` enforces a set of defensive lim
 |---|---|---|---|
 | Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. CDC + encryption defaults to `convergent` (per-chunk deterministic encryption preserving dedup). Fixed + encryption defaults to `framed`. |
 | Read: plaintext | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True chunk-by-chunk streaming restore. |
-| Read: encrypted `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is the buffered compatibility path. `restoreFile()` uses a bounded temp-file path: verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption, and renames into place only after auth succeeds. AAD (slug) is always bound. On Web Crypto runtimes this decrypt step is still one-shot internally, bounded by `maxDecryptionBufferSize`. |
+| Read: encrypted `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is the buffered compatibility path. Uncompressed `restoreFile()` verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption into a temp-file path, and renames into place only after auth succeeds. AAD (slug) is always bound. On Web Crypto runtimes this decrypt step is still one-shot internally, bounded by `maxDecryptionBufferSize`. |
 | Read: encrypted `framed` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True authenticated streaming restore. Plaintext is yielded frame-by-frame after each frame is verified. Per-frame AAD is always bound. |
 | Read: compressed-only | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Plaintext + gzip now streams end-to-end. `restoreFile()` streams gunzip output through a bounded temp-file path. |
-| Read: compressed + `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is buffered because auth completes at the end of whole-object AES-GCM. `restoreFile()` decrypts and gunzips through the bounded temp-file path. |
+| Read: compressed + `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Auth must complete before gunzip. `restoreFile()` therefore preserves the auth-before-decompress boundary and may buffer the encrypted compressed payload; use `framed` or `convergent` for large compressed encrypted assets. |
 | Read: compressed + `framed` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Streaming decrypt, then streaming gunzip. |
 | Read: encrypted `convergent` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True per-chunk streaming restore. Each chunk is decrypted individually using a key derived from its content hash. Parallel chunk restore via prefetch window when concurrency > 1. |
 | Read: compressed + `convergent` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Per-chunk convergent decrypt, then streaming gunzip. |

@@ -309,12 +309,16 @@ await cas.restoreFile({ manifest, encryptionKey, passphrase, outputPath });
 
 Restores content from a manifest and writes it to a file.
 
-For plaintext and `framed`, this writes from the streaming restore path.
-For `whole` and compression-buffered modes, `restoreFile()` now uses a
-bounded temp-file path: bytes are verified, decrypted, and optionally gunzipped
-into a temporary sibling path, then renamed into place only after the pipeline
-completes successfully. This improves file restores without changing the
-contract of `restoreStream()`, which remains buffered for `whole`.
+For plaintext, `framed`, `convergent`, and uncompressed `whole`, this writes
+from a streaming restore path. For `whole`, bytes are verified, streamed through
+AES-GCM decryption into a temporary sibling path, and renamed into place only
+after the pipeline completes successfully. This improves file restores without
+changing the contract of `restoreStream()`, which remains buffered for `whole`.
+
+For `whole` + gzip, authentication must complete before gunzip sees plaintext.
+That path preserves the auth-before-decompress boundary and may buffer the
+encrypted compressed payload; use `framed` or `convergent` for large compressed
+encrypted assets.
 On Web Crypto runtimes, the whole-object decrypt step is still internally
 one-shot; the parity improvement is that this path now stays bounded by the
 adapter's decryption buffer limit instead of collecting ciphertext without a

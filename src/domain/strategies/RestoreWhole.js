@@ -58,13 +58,17 @@ export default class RestoreWhole {
   async createBoundedSource({ manifest, key, encryptionMeta }) {
     let source = this.#chunks.iterVerifiedChunkBlobs(manifest);
     if (encryptionMeta) {
-      const plaintext = await this.#decryptWhole({
-        manifest,
-        ciphertext: concatBytes(await this.#collect(source)),
-        key,
-        encryptionMeta,
-      });
-      source = (async function* plaintextSource() { yield plaintext; })();
+      if (manifest.compression) {
+        const plaintext = await this.#decryptWhole({
+          manifest,
+          ciphertext: concatBytes(await this.#collect(source)),
+          key,
+          encryptionMeta,
+        });
+        source = (async function* plaintextSource() { yield plaintext; })();
+      } else {
+        source = this.#decryptWholeStream({ manifest, source, key, encryptionMeta });
+      }
     }
     if (manifest.compression) {
       source = this.#compression.decompress(source);
@@ -110,6 +114,11 @@ export default class RestoreWhole {
       }
       throw new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
     }
+  }
+
+  #decryptWholeStream({ manifest, source, key, encryptionMeta }) {
+    const aad = this.#isLegacyNoAad(manifest) ? undefined : buildWholeAad(manifest.slug);
+    return this.#crypto.createDecryptionStream(key, encryptionMeta, aad).decrypt(source);
   }
 
   async #collect(source) {
