@@ -5,6 +5,7 @@
  */
 import Manifest from '../value-objects/Manifest.js';
 import CasError from '../errors/CasError.js';
+import createCasError from '../errors/createCasError.js';
 import EncryptionMetadata from '../value-objects/EncryptionMetadata.js';
 import StoreEncryptionConfig from '../value-objects/StoreEncryptionConfig.js';
 import KeyResolver from './KeyResolver.js';
@@ -108,7 +109,7 @@ export default class CasService {
 
   static #assertIntRange({ value, min, max, label }) {
     if (!Number.isInteger(value) || value < min || value > max) {
-      throw new CasError(`${label} must be an integer in [${min}, ${max}]`, 'INVALID_OPTIONS', { label, value, min, max });
+      throw createCasError(`${label} must be an integer in [${min}, ${max}]`, 'INVALID_OPTIONS', { label, value, min, max });
     }
   }
 
@@ -118,16 +119,16 @@ export default class CasService {
     CasService.#assertIntRange({ value: concurrency, min: 1, max: 64, label: 'concurrency' });
     CasService.#assertIntRange({ value: maxRestoreBufferSize, min: 1024, max: Number.MAX_SAFE_INTEGER, label: 'maxRestoreBufferSize' });
     if (!chunker) {
-      throw new CasError('chunker is required — inject a ChunkingPort instance', 'INVALID_OPTIONS');
+      throw createCasError('chunker is required — inject a ChunkingPort instance', 'INVALID_OPTIONS');
     }
     if (!compressionAdapter) {
-      throw new CasError('compressionAdapter is required — inject a CompressionPort instance', 'INVALID_OPTIONS');
+      throw createCasError('compressionAdapter is required — inject a CompressionPort instance', 'INVALID_OPTIONS');
     }
   }
 
   static _validateObservability(observability) {
     if (!observability || typeof observability.metric !== 'function' || typeof observability.log !== 'function' || typeof observability.span !== 'function') {
-      throw new CasError('observability must implement ObservabilityPort', 'INVALID_OPTIONS');
+      throw createCasError('observability must implement ObservabilityPort', 'INVALID_OPTIONS');
     }
   }
 
@@ -189,7 +190,7 @@ export default class CasService {
       if (err instanceof CasError) {
         throw err;
       }
-      throw new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
+      throw createCasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
     }
   }
 
@@ -216,7 +217,7 @@ export default class CasService {
 
   _validateCompression(compression) {
     if (compression?.algorithm && compression.algorithm !== 'gzip') {
-      throw new CasError(`Unsupported compression algorithm: ${compression.algorithm}`, 'INVALID_OPTIONS');
+      throw createCasError(`Unsupported compression algorithm: ${compression.algorithm}`, 'INVALID_OPTIONS');
     }
   }
 
@@ -225,7 +226,7 @@ export default class CasService {
       return;
     }
     if (!['fixed', 'cdc'].includes(chunking.strategy)) {
-      throw new CasError(
+      throw createCasError(
         `Unsupported chunking strategy: ${chunking.strategy}`,
         'INVALID_CHUNKING_STRATEGY',
         { strategy: chunking.strategy },
@@ -248,10 +249,10 @@ export default class CasService {
    */
   async store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients }) {
     if (!source || typeof source[Symbol.asyncIterator] !== 'function') {
-      throw new CasError('source must be an async iterable', 'INVALID_OPTIONS', { sourceType: typeof source });
+      throw createCasError('source must be an async iterable', 'INVALID_OPTIONS', { sourceType: typeof source });
     }
     if (recipients && (encryptionKey || passphrase)) {
-      throw new CasError('Provide recipients or encryptionKey/passphrase, not both', 'INVALID_OPTIONS');
+      throw createCasError('Provide recipients or encryptionKey/passphrase, not both', 'INVALID_OPTIONS');
     }
     KeyResolver.validateKeySourceExclusive(encryptionKey, passphrase);
     this._validateCompression(compression);

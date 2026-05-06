@@ -1,4 +1,5 @@
 import CasError from '../errors/CasError.js';
+import createCasError from '../errors/createCasError.js';
 import { concatBytes } from '../bytes/ByteLayout.js';
 import { buildWholeAad } from './Aad.js';
 
@@ -79,7 +80,7 @@ export default class RestoreWhole {
   async #bufferRestore({ manifest, key, encryptionMeta }) {
     const totalSize = manifest.chunks.reduce((acc, c) => acc + c.size, 0);
     if (totalSize > this.#maxRestoreBufferSize) {
-      throw new CasError(
+      throw createCasError(
         `Encrypted/compressed restore would buffer ${totalSize} bytes ` +
         `(limit: ${this.#maxRestoreBufferSize}). Increase maxRestoreBufferSize ` +
         'or store without encryption.',
@@ -112,7 +113,7 @@ export default class RestoreWhole {
       if (err instanceof CasError) {
         throw err;
       }
-      throw new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
+      throw createCasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
     }
   }
 

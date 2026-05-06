@@ -1,4 +1,5 @@
 import CasError from '../errors/CasError.js';
+import createCasError from '../errors/createCasError.js';
 import { concatBytes, normalizeByteChunk, readUint32BE, writeUint32BE } from '../bytes/ByteLayout.js';
 import { decodeBase64, encodeBase64 } from '../encoding/base64.js';
 import { buildFramedAad } from './Aad.js';
@@ -103,7 +104,7 @@ export default class FramedRecordCodec {
     }
 
     if (pending.length > 0) {
-      throw new CasError(
+      throw createCasError(
         'Framed ciphertext is truncated or malformed',
         'INTEGRITY_ERROR',
         { reason: 'framed-record-parse', remainingBytes: pending.length },
@@ -119,7 +120,7 @@ export default class FramedRecordCodec {
   consume(pending, frameBytes) {
     const ciphertextLength = readUint32BE(pending, 0);
     if (ciphertextLength > frameBytes) {
-      throw new CasError(
+      throw createCasError(
         `Framed ciphertext length ${ciphertextLength} exceeds frameBytes ${frameBytes}`,
         'INTEGRITY_ERROR',
         { reason: 'framed-record-parse', ciphertextLength, frameBytes },
@@ -164,7 +165,7 @@ export default class FramedRecordCodec {
       if (err instanceof CasError) {
         throw err;
       }
-      throw new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
+      throw createCasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
     }
   }
 

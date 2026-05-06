@@ -1,4 +1,4 @@
-import CasError from '../errors/CasError.js';
+import createCasError from '../errors/createCasError.js';
 import {
   SCHEME_CONVERGENT,
   SCHEME_FRAMED,
@@ -48,7 +48,7 @@ export default class StoreEncryptionConfig {
       return StoreEncryptionConfig.#resolveAuto({ encryption, frameBytes, chunker, observability });
     }
 
-    throw new CasError(`Unsupported encryption scheme: ${scheme}`, 'INVALID_OPTIONS', { scheme });
+    throw createCasError(`Unsupported encryption scheme: ${scheme}`, 'INVALID_OPTIONS', { scheme });
   }
 
   /**
@@ -58,14 +58,14 @@ export default class StoreEncryptionConfig {
   static resolveFramed(frameBytes) {
     const normalizedFrameBytes = frameBytes ?? DEFAULT_FRAMED_FRAME_BYTES;
     if (!Number.isInteger(normalizedFrameBytes) || normalizedFrameBytes < 1) {
-      throw new CasError(
+      throw createCasError(
         'encryption.frameBytes must be a positive integer',
         'INVALID_OPTIONS',
         { frameBytes: normalizedFrameBytes },
       );
     }
     if (normalizedFrameBytes > MAX_FRAMED_FRAME_BYTES) {
-      throw new CasError(
+      throw createCasError(
         `encryption.frameBytes must not exceed ${MAX_FRAMED_FRAME_BYTES} bytes (64 MiB), got ${normalizedFrameBytes}`,
         'INVALID_OPTIONS',
         { frameBytes: normalizedFrameBytes, max: MAX_FRAMED_FRAME_BYTES },
@@ -96,14 +96,14 @@ export default class StoreEncryptionConfig {
 
   static #assertPrereqs({ hasEncryptionKey, scheme, frameBytes }) {
     if (!hasEncryptionKey && (scheme || frameBytes !== undefined)) {
-      throw new CasError(
+      throw createCasError(
         'encryption options require encryptionKey, passphrase, or recipients',
         'INVALID_OPTIONS',
         { scheme, frameBytes },
       );
     }
     if (frameBytes !== undefined && scheme === SCHEME_WHOLE) {
-      throw new CasError(
+      throw createCasError(
         `encryption.frameBytes is not supported for ${scheme} stores`,
         'INVALID_OPTIONS',
         { scheme, frameBytes },

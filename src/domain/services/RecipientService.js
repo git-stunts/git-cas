@@ -1,5 +1,6 @@
 import Manifest from '../value-objects/Manifest.js';
 import CasError from '../errors/CasError.js';
+import createCasError from '../errors/createCasError.js';
 
 /**
  * Envelope recipient mutation boundary.
@@ -25,7 +26,7 @@ export default class RecipientService {
   async addRecipient({ manifest, existingKey, newRecipientKey, label }) {
     const recipients = this.#requireRecipients(manifest);
     if (recipients.some((recipient) => recipient.label === label)) {
-      throw new CasError(`Recipient "${label}" already exists`, 'RECIPIENT_ALREADY_EXISTS', { label });
+      throw createCasError(`Recipient "${label}" already exists`, 'RECIPIENT_ALREADY_EXISTS', { label });
     }
 
     this.#crypto._validateKey(existingKey);
@@ -36,7 +37,7 @@ export default class RecipientService {
       dek = await this.#keyResolver.resolveKeyForRecipients(manifest, existingKey);
     } catch (err) {
       if (err instanceof CasError && err.code === 'NO_MATCHING_RECIPIENT') {
-        throw new CasError('Failed to unwrap DEK: authentication failed', 'DEK_UNWRAP_FAILED', { originalError: err });
+        throw createCasError('Failed to unwrap DEK: authentication failed', 'DEK_UNWRAP_FAILED', { originalError: err });
       }
       throw err;
     }
@@ -58,15 +59,15 @@ export default class RecipientService {
   async removeRecipient({ manifest, label }) {
     const recipients = this.#requireRecipients(manifest);
     if (!recipients.some((recipient) => recipient.label === label)) {
-      throw new CasError(`Recipient "${label}" not found`, 'RECIPIENT_NOT_FOUND', { label });
+      throw createCasError(`Recipient "${label}" not found`, 'RECIPIENT_NOT_FOUND', { label });
     }
     if (recipients.length === 1) {
-      throw new CasError('Cannot remove the last recipient', 'CANNOT_REMOVE_LAST_RECIPIENT');
+      throw createCasError('Cannot remove the last recipient', 'CANNOT_REMOVE_LAST_RECIPIENT');
     }
 
     const filtered = recipients.filter((recipient) => recipient.label !== label).map((recipient) => ({ ...recipient }));
     if (filtered.length === 0) {
-      throw new CasError('Cannot remove the last recipient', 'CANNOT_REMOVE_LAST_RECIPIENT');
+      throw createCasError('Cannot remove the last recipient', 'CANNOT_REMOVE_LAST_RECIPIENT');
     }
     const json = manifest.toJSON();
     return new Manifest({ ...json, encryption: { ...json.encryption, recipients: filtered } });
@@ -87,7 +88,7 @@ export default class RecipientService {
   async rotateKey({ manifest, oldKey, newKey, label }) {
     const recipients = manifest.encryption?.recipients;
     if (!recipients || recipients.length === 0) {
-      throw new CasError('Key rotation requires envelope encryption (recipients)', 'ROTATION_NOT_SUPPORTED');
+      throw createCasError('Key rotation requires envelope encryption (recipients)', 'ROTATION_NOT_SUPPORTED');
     }
 
     this.#crypto._validateKey(oldKey);
@@ -103,7 +104,7 @@ export default class RecipientService {
   #requireRecipients(manifest) {
     const recipients = manifest.encryption?.recipients;
     if (!recipients || recipients.length === 0) {
-      throw new CasError('Manifest does not use envelope encryption (no recipients)', 'INVALID_OPTIONS');
+      throw createCasError('Manifest does not use envelope encryption (no recipients)', 'INVALID_OPTIONS');
     }
     return recipients;
   }
@@ -111,7 +112,7 @@ export default class RecipientService {
   async #findRecipientByLabel(recipients, label, oldKey) {
     const matchIndex = recipients.findIndex((recipient) => recipient.label === label);
     if (matchIndex === -1) {
-      throw new CasError(`Recipient "${label}" not found`, 'RECIPIENT_NOT_FOUND', { label });
+      throw createCasError(`Recipient "${label}" not found`, 'RECIPIENT_NOT_FOUND', { label });
     }
     const dek = await this.#keyResolver.unwrapDek(recipients[matchIndex], oldKey);
     return { matchIndex, dek };
@@ -128,7 +129,7 @@ export default class RecipientService {
         }
       }
     }
-    throw new CasError('No recipient entry could be unwrapped with the provided key', 'NO_MATCHING_RECIPIENT');
+    throw createCasError('No recipient entry could be unwrapped with the provided key', 'NO_MATCHING_RECIPIENT');
   }
 
   async #buildRotatedManifest({ manifest, recipients, matchIndex, dek, newKey }) {

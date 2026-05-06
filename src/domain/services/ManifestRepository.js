@@ -1,6 +1,7 @@
 import Manifest from '../value-objects/Manifest.js';
 import { ChunkSchema } from '../schemas/ManifestSchema.js';
 import CasError from '../errors/CasError.js';
+import createCasError from '../errors/createCasError.js';
 import { normalizeCodecBytes, encodeForHash } from '../helpers/codecBytes.js';
 import {
   buildFlatManifestTreeEntries,
@@ -165,7 +166,7 @@ export default class ManifestRepository {
         throw err;
       }
       const message = err instanceof Error ? err.message : String(err);
-      throw new CasError(
+      throw createCasError(
         `Failed to read tree ${treeOid}: ${message}`,
         'GIT_ERROR',
         { treeOid, originalError: err },
@@ -175,7 +176,7 @@ export default class ManifestRepository {
     const manifestName = `manifest.${this.#codec.extension}`;
     const manifestEntry = entries.find((entry) => entry.name === manifestName);
     if (!manifestEntry) {
-      throw new CasError(
+      throw createCasError(
         `No manifest entry (${manifestName}) found in tree ${treeOid}`,
         'MANIFEST_NOT_FOUND',
         { treeOid, expectedName: manifestName },
@@ -189,7 +190,7 @@ export default class ManifestRepository {
         throw err;
       }
       const message = err instanceof Error ? err.message : String(err);
-      throw new CasError(
+      throw createCasError(
         `Failed to read manifest blob ${manifestEntry.oid}: ${message}`,
         'GIT_ERROR',
         { treeOid, manifestOid: manifestEntry.oid, originalError: err },
@@ -204,7 +205,7 @@ export default class ManifestRepository {
     const hashableBytes = encodeForHash(decoded, this.#codec);
     const computed = await this.#crypto.sha256(hashableBytes);
     if (computed !== decoded.manifestHash) {
-      throw new CasError(
+      throw createCasError(
         'Manifest integrity check failed: hash mismatch',
         'MANIFEST_INTEGRITY_ERROR',
         { treeOid, slug: decoded.slug, expected: decoded.manifestHash, actual: computed },
@@ -239,7 +240,7 @@ export default class ManifestRepository {
       const subBlob = await this.#readSubManifestBlob(ref.oid, treeOid);
       const subDecoded = this.#codec.decode(subBlob);
       if (subDecoded.chunks.length !== ref.chunkCount) {
-        throw new CasError(
+        throw createCasError(
           `Sub-manifest ${ref.oid} declares chunkCount ${ref.chunkCount} but contains ${subDecoded.chunks.length} chunks`,
           'MANIFEST_INTEGRITY_ERROR',
           { subManifestOid: ref.oid, declaredCount: ref.chunkCount, actualCount: subDecoded.chunks.length, treeOid },
@@ -249,7 +250,7 @@ export default class ManifestRepository {
         allChunks.push(...subDecoded.chunks.map((chunk) => ChunkSchema.parse(chunk)));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        throw new CasError(
+        throw createCasError(
           `Sub-manifest ${ref.oid} contains invalid chunk data: ${message}`,
           'MANIFEST_INTEGRITY_ERROR',
           { subManifestOid: ref.oid, treeOid, originalError: err },
@@ -267,7 +268,7 @@ export default class ManifestRepository {
         throw err;
       }
       const message = err instanceof Error ? err.message : String(err);
-      throw new CasError(
+      throw createCasError(
         `Failed to read sub-manifest blob ${oid}: ${message}`,
         'GIT_ERROR',
         { treeOid, subManifestOid: oid, originalError: err },

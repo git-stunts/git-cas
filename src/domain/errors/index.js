@@ -1,0 +1,17 @@
+export { default as CasError } from './CasError.js';
+export { default as CannotRemoveLastRecipientError } from './CannotRemoveLastRecipientError.js';
+export { default as DekUnwrapFailedError } from './DekUnwrapFailedError.js';
+export { default as GitError } from './GitError.js';
+export { default as IntegrityError } from './IntegrityError.js';
+export { default as InvalidChunkingStrategyError } from './InvalidChunkingStrategyError.js';
+export { default as InvalidOidError } from './InvalidOidError.js';
+export { default as InvalidOptionsError } from './InvalidOptionsError.js';
+export { default as ManifestIntegrityError } from './ManifestIntegrityError.js';
+export { default as ManifestNotFoundError } from './ManifestNotFoundError.js';
+export { default as NoMatchingRecipientError } from './NoMatchingRecipientError.js';
+export { default as PersistenceCapabilityRequiredError } from './PersistenceCapabilityRequiredError.js';
+export { default as RecipientAlreadyExistsError } from './RecipientAlreadyExistsError.js';
+export { default as RecipientNotFoundError } from './RecipientNotFoundError.js';
+export { default as RestoreTooLargeError } from './RestoreTooLargeError.js';
+export { default as RotationNotSupportedError } from './RotationNotSupportedError.js';
+export { default as createCasError } from './createCasError.js';

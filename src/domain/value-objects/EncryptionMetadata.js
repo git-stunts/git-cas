@@ -1,4 +1,4 @@
-import CasError from '../errors/CasError.js';
+import createCasError from '../errors/createCasError.js';
 import {
   SCHEME_CONVERGENT,
   SCHEME_FRAMED,
@@ -38,7 +38,7 @@ export default class EncryptionMetadata {
       return new EncryptionMetadata({ ...meta, scheme: SCHEME_CONVERGENT });
     }
 
-    throw new CasError(
+    throw createCasError(
       `Encrypted manifest uses unknown scheme: ${meta.scheme}`,
       'INTEGRITY_ERROR',
       { slug: manifest.slug, reason: 'manifest-encryption-scheme', scheme: meta.scheme },
@@ -47,14 +47,14 @@ export default class EncryptionMetadata {
 
   static #validateCommon(manifest, meta) {
     if (meta.encrypted !== true) {
-      throw new CasError(
+      throw createCasError(
         'Encrypted manifest metadata was downgraded or is invalid',
         'INTEGRITY_ERROR',
         { slug: manifest.slug, reason: 'manifest-encryption-downgrade' },
       );
     }
     if (meta.algorithm !== 'aes-256-gcm') {
-      throw new CasError(
+      throw createCasError(
         `Encrypted manifest uses unexpected algorithm: ${meta.algorithm}`,
         'INTEGRITY_ERROR',
         { slug: manifest.slug, reason: 'manifest-encryption-algorithm', algorithm: meta.algorithm },
@@ -64,7 +64,7 @@ export default class EncryptionMetadata {
 
   static #whole(manifest, meta) {
     if (typeof meta.nonce !== 'string' || meta.nonce.length === 0 || typeof meta.tag !== 'string' || meta.tag.length === 0) {
-      throw new CasError(
+      throw createCasError(
         'Whole encrypted manifest is missing nonce/tag metadata',
         'INTEGRITY_ERROR',
         { slug: manifest.slug, reason: 'manifest-encryption-meta' },
@@ -75,7 +75,7 @@ export default class EncryptionMetadata {
 
   static #framed(manifest, meta) {
     if (!Number.isInteger(meta.frameBytes) || meta.frameBytes < 1) {
-      throw new CasError(
+      throw createCasError(
         'Framed encrypted manifest is missing a valid frameBytes value',
         'INTEGRITY_ERROR',
         { slug: manifest.slug, reason: 'manifest-encryption-frame-bytes', frameBytes: meta.frameBytes },

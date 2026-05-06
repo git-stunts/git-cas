@@ -1,4 +1,4 @@
-import CasError from '../errors/CasError.js';
+import createCasError from '../errors/createCasError.js';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import StorePipeline from './StorePipeline.js';
 import prefetchChunks from './PrefetchWindow.js';
@@ -83,7 +83,7 @@ export default class ChunkRepository {
 
     const digest = await this.#hashBytes(rawBlob);
     if (digest !== chunk.digest) {
-      const err = new CasError(
+      const err = createCasError(
         `Chunk ${chunk.index} integrity check failed`,
         'INTEGRITY_ERROR',
         { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
@@ -102,7 +102,7 @@ export default class ChunkRepository {
   async readChunkBlob(oid, { maxBytes } = {}) {
     if (!this.supportsReadBlobStream()) {
       if (maxBytes !== undefined) {
-        throw new CasError(
+        throw createCasError(
           'Buffered restore safety requires persistence.readBlobStream() so ' +
           'encrypted/compressed restore can enforce maxRestoreBufferSize with ' +
           'memory-safe chunk reads. Implement readBlobStream() on the adapter ' +
@@ -164,7 +164,7 @@ export default class ChunkRepository {
     if (limit === undefined || size <= limit) {
       return;
     }
-    throw new CasError(
+    throw createCasError(
       `Buffered restore read ${size} bytes from blob ${oid} (limit: ${limit})`,
       'RESTORE_TOO_LARGE',
       { size, limit, oid, reason: 'chunk-blob-size' },
