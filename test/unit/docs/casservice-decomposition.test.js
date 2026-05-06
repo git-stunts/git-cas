@@ -3,6 +3,14 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
+const expectedStrategyFiles = [
+  'src/domain/strategies/StoreConvergent.js',
+  'src/domain/strategies/StoreFramed.js',
+  'src/domain/strategies/StoreWhole.js',
+  'src/domain/strategies/RestoreConvergent.js',
+  'src/domain/strategies/RestoreFramed.js',
+  'src/domain/strategies/RestoreWhole.js',
+];
 
 function read(relPath) {
   return readFileSync(path.join(repoRoot, relPath), 'utf8');
@@ -21,15 +29,6 @@ describe('CasService decomposition boundary', () => {
   });
 
   it('keeps byte-level store and restore strategies outside CasService', () => {
-    const expectedStrategyFiles = [
-      'src/domain/strategies/StoreConvergent.js',
-      'src/domain/strategies/StoreFramed.js',
-      'src/domain/strategies/StoreWhole.js',
-      'src/domain/strategies/RestoreConvergent.js',
-      'src/domain/strategies/RestoreFramed.js',
-      'src/domain/strategies/RestoreWhole.js',
-    ];
-
     for (const file of expectedStrategyFiles) {
       expect(read(file)).toContain('export default class');
     }
@@ -47,5 +46,16 @@ describe('CasService decomposition boundary', () => {
     expect(audit).not.toContain('The class is still 2300+ lines');
     expect(releaseBlocker).not.toContain('byte-level restore-handler extraction remains deferred');
     expect(status).not.toContain('SEC — Vault Passphrase Verifier Gap');
+  });
+
+  it('keeps architecture and backlog docs aligned with the extracted strategy layout', () => {
+    const architecture = read('ARCHITECTURE.md');
+    const guide = read('GUIDE.md');
+    const backlog = read('docs/method/backlog/bad-code/BAD-CODE-001_casservice-god-object.md');
+
+    expect(architecture.match(/^#### Value Objects \(`src\/domain\/value-objects\/`\)$/gm)).toHaveLength(1);
+    expect(guide).toMatch(/Lean domain\s+facade/);
+    expect(backlog).toContain('Create `src/domain/strategies/`');
+    expect(backlog).not.toContain('under `src/domain/services/`');
   });
 });

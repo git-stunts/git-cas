@@ -17,7 +17,7 @@ While `StorePipeline` and `RestorePipeline` orchestration was extracted during t
 
 ## Proposed Refactor
 
-1. **Extract Strategy Handlers:** Create a `strategies/` directory under `src/domain/services/`.
+1. **Extract Strategy Handlers:** Create `src/domain/strategies/`.
 2. **Modularize Restore:** Move `restoreConvergentStreaming`, `restoreFramedStreaming`, etc., into standalone strategy classes or function modules.
 3. **Modularize Store:** Move convergent chunk hashing and framed record construction into dedicated helpers.
 4. **Delegate:** Update `CasService` to delegate byte-level work to these specialized handlers.

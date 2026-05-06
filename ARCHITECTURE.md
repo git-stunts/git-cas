@@ -188,22 +188,20 @@ The facade is orchestration glue. It is not the storage engine itself.
 
 - **`Manifest`** — immutable representation of stored asset metadata.
 - **`Chunk`** — immutable representation of one manifest chunk entry.
+- **`Oid`** — immutable Git object identifier value with 40-hex validation.
 - **`Slug`** — immutable vault slug representation. It enforces vault slug
   limits and exposes `.toTreePath()` for the percent-encoded Git tree-entry name
   used by plain vault trees.
+- **`EncryptionMetadata`** — immutable encryption metadata boundary used by
+  strategies before crypto-port calls.
+- **`StoreEncryptionConfig`** — immutable store encryption policy resolved from
+  public options and key material.
 
 #### Encryption (`src/domain/encryption/`)
 
 - **`schemes.js`** — single source of truth for encryption scheme identifiers:
   `whole`, `framed`, `convergent`. Legacy scheme identifiers are recognized
   solely to produce actionable migration error messages.
-
-#### Value Objects (`src/domain/value-objects/`)
-
-- **`Manifest`** — immutable, deep-frozen, schema-validated representation of a
-  stored asset's chunk list and metadata.
-- **`Chunk`** — immutable, schema-validated representation of a single chunk's
-  digest, size, and blob OID.
 
 #### Schemas (`src/domain/schemas/`)
 

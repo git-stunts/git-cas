@@ -853,7 +853,9 @@ Place a `.casrc` JSON file at your repository root to set defaults. CLI flags al
 `git-cas` follows hexagonal architecture with four tiers:
 
 1. **Facade** (`index.js`) -- Public entry point. Manages lazy initialization and adaptive crypto.
-2. **CasService** (`src/domain/services/CasService.js`) -- Domain engine. Orchestrates chunking, encryption, compression, and manifest creation.
+2. **CasService** (`src/domain/services/CasService.js`) -- Lean domain
+   facade. Selects store/restore strategies, coordinates injected ports, and
+   delegates byte-level work to domain services and strategy entities.
 3. **VaultService** (`src/domain/services/VaultService.js`) -- Vault index. GC-safe ref-based asset reachability.
 4. **Ports** -- Pure interfaces isolating the domain from I/O: `GitPersistencePort`, `CryptoPort`, `ChunkingPort`, `CompressionPort`, `ObservabilityPort`.
 
