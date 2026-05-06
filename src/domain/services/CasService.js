@@ -30,6 +30,7 @@ import IntegrityVerifier from './IntegrityVerifier.js';
 import RestoreSuccess from '../outcomes/RestoreSuccess.js';
 import StoreSuccess from '../outcomes/StoreSuccess.js';
 import diffManifests from './ManifestDiff.js';
+import RedactingObservability from './RedactingObservability.js';
 
 /**
  * Domain service for Content Addressable Storage operations.
@@ -63,11 +64,12 @@ export default class CasService {
   constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024, compressionAdapter, formatVersion, legacyMode = false }) {
     CasService._validateObservability(observability);
     CasService.#validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize, chunker, compressionAdapter });
+    const safeObservability = RedactingObservability.wrap(observability);
 
     this.persistence = persistence;
     this.codec = codec;
     this.crypto = crypto;
-    this.observability = observability;
+    this.observability = safeObservability;
     this.chunkSize = chunkSize;
     this.chunker = chunker;
     this.compressionAdapter = compressionAdapter;
@@ -77,7 +79,7 @@ export default class CasService {
     this.maxRestoreBufferSize = maxRestoreBufferSize;
 
     if (chunkSize > 10 * 1024 * 1024) {
-      observability.log('warn', `Chunk size ${chunkSize} exceeds 10 MiB — consider a smaller value`, { chunkSize });
+      safeObservability.log('warn', `Chunk size ${chunkSize} exceeds 10 MiB — consider a smaller value`, { chunkSize });
     }
 
     this.#keyResolver = new KeyResolver(crypto);
@@ -88,10 +90,10 @@ export default class CasService {
       concurrency,
       convergent,
       hashBytes: (buf) => this._sha256(buf),
-      observability,
+      observability: safeObservability,
       persistence,
     });
-    this.#framed = new FramedRecordCodec({ crypto, observability });
+    this.#framed = new FramedRecordCodec({ crypto, observability: safeObservability });
     this.#manifestRepository = new ManifestRepository({ codec, crypto, legacyMode, merkleThreshold, persistence });
     this.#storeStrategies = this.#buildStoreStrategies({ crypto });
     this.#restoreStrategies = this.#buildRestoreStrategies({ crypto, maxRestoreBufferSize });
@@ -102,7 +104,7 @@ export default class CasService {
       framed: this.#framed,
       isLegacyNoAad: (manifest) => this._isLegacyNoAad(manifest),
       keyResolver: this.#keyResolver,
-      observability,
+      observability: safeObservability,
       validateEncryptionMeta: (manifest) => this._validatedEncryptionMeta(manifest),
     });
   }

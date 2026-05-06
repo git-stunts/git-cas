@@ -9,6 +9,7 @@ import { decodeBase64, encodeBase64 } from '../encoding/base64.js';
 import { encodeHex } from '../encoding/hex.js';
 import { utf8Decode, utf8Encode } from '../encoding/utf8.js';
 import Slug from '../value-objects/Slug.js';
+import RedactingObservability from './RedactingObservability.js';
 
 const VAULT_REF = 'refs/cas/vault';
 const MAX_CAS_RETRIES = 3;
@@ -106,7 +107,9 @@ export default class VaultService {
     this.ref = ref;
     this.crypto = crypto;
     /** @type {import('../../ports/ObservabilityPort.js').default} */
-    this.observability = observability || { metric() {}, log() {}, span: () => ({ end() {} }) };
+    this.observability = RedactingObservability.wrap(
+      observability || { metric() {}, log() {}, span: () => ({ end() {} }) },
+    );
   }
 
   /**
