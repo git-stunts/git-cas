@@ -35,8 +35,6 @@ annotated `v6.0.0` tag.
 ## Deferred To v6.x
 
 - [TUI — Orphaned-Chunk Health Check](../v6.x-tui/TUI_orphaned-chunk-health-check.md)
-- CasService byte-level restore-handler extraction remains deferred to v6.1.0
-  by operator directive.
 
 ## Done When
 

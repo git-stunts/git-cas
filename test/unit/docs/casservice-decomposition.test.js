@@ -34,4 +34,18 @@ describe('CasService decomposition boundary', () => {
       expect(read(file)).toContain('export default class');
     }
   });
+
+  it('keeps audit and status docs aligned with the completed de-sludge', () => {
+    const audit = read('docs/audit/2026-05-05_v6-release-readiness.md');
+    const releaseBlocker = read('docs/method/backlog/v6.0.0/REL_audit-blocker-burn-down.md');
+    const status = read('STATUS.md');
+
+    expect(audit).toContain('ISSUE-001: CasService.js Logic Leak');
+    expect(audit).toContain('Resolution Status:** RESOLVED');
+    expect(audit).toContain('`CasService.js` is now under 500 lines');
+    expect(audit).not.toContain('DEFERRED TO v6.1.0');
+    expect(audit).not.toContain('The class is still 2300+ lines');
+    expect(releaseBlocker).not.toContain('byte-level restore-handler extraction remains deferred');
+    expect(status).not.toContain('SEC — Vault Passphrase Verifier Gap');
+  });
 });
