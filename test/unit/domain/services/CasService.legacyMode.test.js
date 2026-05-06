@@ -18,6 +18,10 @@ function digestOf(seed) {
 const BLOB_0 = 'a'.repeat(40);
 const BLOB_1 = 'b'.repeat(40);
 
+function oid(label) {
+  return createHash('sha1').update(label).digest('hex');
+}
+
 function validEncryptedManifest(schemeOverride) {
   return {
     slug: 'test-asset',
@@ -57,8 +61,8 @@ function schemelessEncryptedManifest() {
 function setup({ legacyMode = false } = {}) {
   const codec = new JsonCodec();
   const mockPersistence = {
-    writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    writeBlob: vi.fn().mockResolvedValue(oid('mock-blob-oid')),
+    writeTree: vi.fn().mockResolvedValue(oid('mock-tree-oid')),
     readBlob: vi.fn(),
     readTree: vi.fn(),
   };
@@ -78,7 +82,7 @@ function setup({ legacyMode = false } = {}) {
 }
 
 function mockTreeAndBlob(mockPersistence, codec, data) {
-  const manifestOid = 'manifest-oid-456';
+  const manifestOid = oid('manifest-oid-456');
   mockPersistence.readTree.mockResolvedValue([
     { mode: '100644', type: 'blob', oid: manifestOid, name: 'manifest.json' },
   ]);
@@ -99,7 +103,7 @@ describe('CasService.readManifest – legacy scheme rejection', () => {
     mockTreeAndBlob(mockPersistence, codec, data);
 
     try {
-      await service.readManifest({ treeOid: 'tree-oid' });
+      await service.readManifest({ treeOid: oid('tree-oid') });
       expect.unreachable('should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(CasError);
@@ -120,7 +124,7 @@ describe('CasService.readManifest – legacyMode whole schemes', () => {
     const data = validEncryptedManifest(legacy);
     mockTreeAndBlob(mockPersistence, codec, data);
 
-    const result = await service.readManifest({ treeOid: 'tree-oid' });
+    const result = await service.readManifest({ treeOid: oid('tree-oid') });
 
     expect(result).toBeInstanceOf(Manifest);
     expect(result.encryption.scheme).toBe(current);
@@ -152,7 +156,7 @@ describe('CasService.readManifest – legacyMode framed schemes', () => {
     const { service, mockPersistence, codec } = setup({ legacyMode: true });
     mockTreeAndBlob(mockPersistence, codec, framedManifestData(legacy));
 
-    const result = await service.readManifest({ treeOid: 'tree-oid' });
+    const result = await service.readManifest({ treeOid: oid('tree-oid') });
 
     expect(result).toBeInstanceOf(Manifest);
     expect(result.encryption.scheme).toBe(current);
@@ -177,7 +181,7 @@ describe('CasService.readManifest – legacyMode convergent', () => {
     };
     mockTreeAndBlob(mockPersistence, codec, data);
 
-    const result = await service.readManifest({ treeOid: 'tree-oid' });
+    const result = await service.readManifest({ treeOid: oid('tree-oid') });
 
     expect(result).toBeInstanceOf(Manifest);
     expect(result.encryption.scheme).toBe('convergent');
@@ -193,7 +197,7 @@ describe('CasService.readManifestRaw', () => {
     const data = validEncryptedManifest('whole-v1');
     mockTreeAndBlob(mockPersistence, codec, data);
 
-    const raw = await service.readManifestRaw({ treeOid: 'tree-oid' });
+    const raw = await service.readManifestRaw({ treeOid: oid('tree-oid') });
 
     expect(raw).not.toBeInstanceOf(Manifest);
     expect(raw.slug).toBe('test-asset');
@@ -211,7 +215,7 @@ describe('CasService.readManifestRaw', () => {
     };
     mockTreeAndBlob(mockPersistence, codec, data);
 
-    const raw = await service.readManifestRaw({ treeOid: 'tree-oid' });
+    const raw = await service.readManifestRaw({ treeOid: oid('tree-oid') });
 
     expect(raw.encryption.scheme).toBe('framed-v2');
   });
@@ -221,7 +225,7 @@ describe('CasService.readManifestRaw', () => {
     const data = schemelessEncryptedManifest();
     mockTreeAndBlob(mockPersistence, codec, data);
 
-    const raw = await service.readManifestRaw({ treeOid: 'tree-oid' });
+    const raw = await service.readManifestRaw({ treeOid: oid('tree-oid') });
 
     expect(raw.encryption.algorithm).toBe('aes-256-gcm');
     expect(raw.encryption.scheme).toBeUndefined();
@@ -242,7 +246,7 @@ describe('CasService.readManifest – hash verified before scheme mapping', () =
     data.manifestHash = await testCrypto.sha256(Buffer.from(encoded));
     mockTreeAndBlob(mockPersistence, codec, data);
 
-    const result = await service.readManifest({ treeOid: 'tree-oid' });
+    const result = await service.readManifest({ treeOid: oid('tree-oid') });
     expect(result).toBeInstanceOf(Manifest);
     expect(result.encryption.scheme).toBe('whole');
   });

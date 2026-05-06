@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +23,10 @@ import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/Node
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
+
+function oid(label) {
+  return createHash('sha1').update(label).digest('hex');
+}
 
 // ---------------------------------------------------------------------------
 // Migration classification — documents semantics used by
@@ -123,7 +128,7 @@ describe('migration execution: full migration orchestration', () => {
 
     const result = await migrateEntry(
       harness.ctx,
-      { slug: 'legacy-full', treeOid: 'tree-old' },
+      { slug: 'legacy-full', treeOid: oid('tree-old') },
       {
         execute: true,
         encryptionKey: harness.assetKey,
@@ -146,7 +151,7 @@ describe('migration execution: recipient legacy manifests', () => {
     await expect(migrateFull({
       legacyService,
       service: {},
-      treeOid: 'tree-old',
+      treeOid: oid('tree-old'),
       keyOpts: { encryptionKey: new Uint8Array(32).fill(1) },
       deps: {},
       codec: new JsonCodec(),
@@ -221,7 +226,7 @@ describe('migration help', () => {
 function expectFullMigrationResult(harness, result) {
   const { assetKey, vaultKey, legacyService, sourceChunks, restored, vault, manifest } = harness;
 
-    expect(result).toMatchObject({ mode: 'full', newTreeOid: 'tree-new' });
+    expect(result).toMatchObject({ mode: 'full', newTreeOid: oid('tree-new') });
     expect(legacyService.restoreStream).toHaveBeenCalledWith({
       manifest,
       encryptionKey: assetKey,
@@ -229,7 +234,7 @@ function expectFullMigrationResult(harness, result) {
     expect(sourceChunks).toEqual([restored]);
     expect(vault.addToVault).toHaveBeenCalledWith({
       slug: 'legacy-full',
-      treeOid: 'tree-new',
+      treeOid: oid('tree-new'),
       force: true,
       encryptionKey: vaultKey,
     });
@@ -272,9 +277,13 @@ function buildService({ persistence, codec, legacyMode = false }) {
   });
 }
 
+function oidForSequence(prefix, sequence) {
+  return oid(`${prefix}-${sequence}`);
+}
+
 function inMemoryManifestPersistence(codec, raw) {
-  const treeOid = 'initial-tree';
-  const manifestOid = 'manifest-old';
+  const treeOid = oid('initial-tree');
+  const manifestOid = oid('manifest-old');
   const blobs = new Map([[manifestOid, codec.encode(raw)]]);
   const trees = new Map([
     [
@@ -287,20 +296,20 @@ function inMemoryManifestPersistence(codec, raw) {
   let treeSeq = 0;
   const persistence = {
     writeBlob: vi.fn(async (content) => {
-      const oid = `manifest-new-${++blobSeq}`;
-      blobs.set(oid, content);
-      return oid;
+      const objectOid = oidForSequence('manifest-new', ++blobSeq);
+      blobs.set(objectOid, content);
+      return objectOid;
     }),
     writeTree: vi.fn(async (entries) => {
-      const oid = `tree-new-${++treeSeq}`;
-      trees.set(oid, entries.map(parseTreeEntry));
-      return oid;
+      const objectOid = oidForSequence('tree-new', ++treeSeq);
+      trees.set(objectOid, entries.map(parseTreeEntry));
+      return objectOid;
     }),
-    readBlob: vi.fn(async (oid) => blobs.get(oid)),
-    readBlobStream: vi.fn(async function* (oid) {
-      yield blobs.get(oid);
+    readBlob: vi.fn(async (objectOid) => blobs.get(objectOid)),
+    readBlobStream: vi.fn(async function* (objectOid) {
+      yield blobs.get(objectOid);
     }),
-    readTree: vi.fn(async (oid) => trees.get(oid)),
+    readTree: vi.fn(async (objectOid) => trees.get(objectOid)),
   };
 
   return { persistence, treeOid };
@@ -346,7 +355,7 @@ function fullMigrationWriterService({ assetKey, sourceChunks }) {
     }),
     createTree: vi.fn(async ({ manifest: created }) => {
       expect(created).toBe(newManifest);
-      return 'tree-new';
+      return oid('tree-new');
     }),
   };
 }
@@ -389,7 +398,7 @@ function recipientLegacyManifest() {
 function manifestTreePersistence() {
   return {
     readTree: vi.fn(async () => [
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid'), name: 'manifest.json' },
     ]),
   };
 }
@@ -402,8 +411,8 @@ async function* asyncChunks(chunks) {
 
 function parseTreeEntry(entry) {
   const tab = entry.indexOf('\t');
-  const [mode, type, oid] = entry.slice(0, tab).split(' ');
-  return { mode, type, oid, name: entry.slice(tab + 1) };
+  const [mode, type, objectOid] = entry.slice(0, tab).split(' ');
+  return { mode, type, oid: objectOid, name: entry.slice(tab + 1) };
 }
 
 function createPassphraseFile(content) {

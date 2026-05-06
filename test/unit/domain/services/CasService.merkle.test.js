@@ -29,17 +29,17 @@ function setup(merkleThreshold = 5) {
   const crypto = testCrypto;
   const blobs = new Map();
   const trees = new Map();
-  let treeCounter = 0;
   const mockPersistence = {
     writeBlob: vi.fn().mockImplementation(async (content) => {
       const oid = await crypto.sha256(Buffer.isBuffer(content) ? content : Buffer.from(content));
       blobs.set(oid, Buffer.isBuffer(content) ? content : Buffer.from(content));
       return Promise.resolve(oid);
     }),
-    writeTree: vi.fn().mockImplementation((entries) => {
-      const oid = `tree-${treeCounter++}`;
+    writeTree: vi.fn().mockImplementation(async (entries) => {
+      const treeBytes = Buffer.from([...entries].join('\n'));
+      const oid = await crypto.sha256(treeBytes);
       trees.set(oid, entries);
-      return Promise.resolve(oid);
+      return oid;
     }),
     readBlob: vi.fn().mockImplementation((oid) => {
       const blob = blobs.get(oid);
@@ -100,7 +100,7 @@ describe('CasService Merkle – createTree produces v1 manifest when chunks <= t
     expect(manifest.chunks).toHaveLength(3);
 
     const treeOid = await service.createTree({ manifest });
-    expect(treeOid).toMatch(/^tree-/);
+    expect(treeOid).toMatch(/^[0-9a-f]{64}$/u);
 
     // Find the manifest blob in the store and decode it
     const manifestBlobContent = findManifestBlob(blobs, codec);
@@ -129,7 +129,7 @@ describe('CasService Merkle – createTree produces v2 Merkle manifest when chun
     expect(manifest.chunks).toHaveLength(6);
 
     const treeOid = await service.createTree({ manifest });
-    expect(treeOid).toMatch(/^tree-/);
+    expect(treeOid).toMatch(/^[0-9a-f]{64}$/u);
 
     // Decode the root manifest blob
     const rootManifest = findLastManifestBlob(blobs, codec);

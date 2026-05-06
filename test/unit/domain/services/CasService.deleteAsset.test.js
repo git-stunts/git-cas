@@ -14,6 +14,11 @@ const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 /** Generate a valid 40-char hex OID for a given index. */
 const blobOid = (i) => `${'abcdef'[i % 6]}`.repeat(40);
 
+/** Generate a deterministic valid 40-char hex OID from a label. */
+function oid(label) {
+  return createHash('sha1').update(label).digest('hex');
+}
+
 /**
  * Helper to create deterministic 64-char SHA-256 digests for test data.
  */
@@ -71,22 +76,22 @@ describe('CasService.deleteAsset() – golden path (multi-chunk)', () => {
     const manifestBlob = codec.encode(manifestData);
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid'), name: 'manifest.json' },
       { mode: '100644', type: 'blob', oid: blobOid(0), name: sha256Digest('chunk0') },
       { mode: '100644', type: 'blob', oid: blobOid(1), name: sha256Digest('chunk1') },
     ]);
 
     mockPersistence.readBlob.mockResolvedValue(manifestBlob);
 
-    const result = await service.deleteAsset({ treeOid: 'tree-abc123' });
+    const result = await service.deleteAsset({ treeOid: oid('tree-abc123') });
 
     expect(result).toEqual({
       slug: 'my-asset',
       chunksOrphaned: 2,
     });
 
-    expect(mockPersistence.readTree).toHaveBeenCalledWith('tree-abc123');
-    expect(mockPersistence.readBlob).toHaveBeenCalledWith('manifest-oid');
+    expect(mockPersistence.readTree).toHaveBeenCalledWith(oid('tree-abc123'));
+    expect(mockPersistence.readBlob).toHaveBeenCalledWith(oid('manifest-oid'));
   });
 });
 
@@ -115,13 +120,13 @@ describe('CasService.deleteAsset() – golden path (single-chunk)', () => {
     const manifestBlob = codec.encode(manifestData);
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid-2', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid-2'), name: 'manifest.json' },
       { mode: '100644', type: 'blob', oid: blobOid(0), name: sha256Digest('only-chunk') },
     ]);
 
     mockPersistence.readBlob.mockResolvedValue(manifestBlob);
 
-    const result = await service.deleteAsset({ treeOid: 'tree-xyz789' });
+    const result = await service.deleteAsset({ treeOid: oid('tree-xyz789') });
 
     expect(result).toEqual({
       slug: 'small-file',
@@ -163,7 +168,7 @@ describe('CasService.deleteAsset() – golden path (large manifest)', () => {
     const manifestBlob = codec.encode(manifestData);
 
     const treeEntries = [
-      { mode: '100644', type: 'blob', oid: 'manifest-oid-3', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid-3'), name: 'manifest.json' },
       ...chunks.map((c) => ({
         mode: '100644',
         type: 'blob',
@@ -175,7 +180,7 @@ describe('CasService.deleteAsset() – golden path (large manifest)', () => {
     mockPersistence.readTree.mockResolvedValue(treeEntries);
     mockPersistence.readBlob.mockResolvedValue(manifestBlob);
 
-    const result = await service.deleteAsset({ treeOid: 'tree-large' });
+    const result = await service.deleteAsset({ treeOid: oid('tree-large') });
 
     expect(result).toEqual({
       slug: 'large-asset',
@@ -207,12 +212,12 @@ describe('CasService.deleteAsset() – empty manifest', () => {
     const manifestBlob = codec.encode(manifestData);
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid-empty', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid-empty'), name: 'manifest.json' },
     ]);
 
     mockPersistence.readBlob.mockResolvedValue(manifestBlob);
 
-    const result = await service.deleteAsset({ treeOid: 'tree-empty' });
+    const result = await service.deleteAsset({ treeOid: oid('tree-empty') });
 
     expect(result).toEqual({
       slug: 'empty-asset',
@@ -238,15 +243,15 @@ describe('CasService.deleteAsset() – MANIFEST_NOT_FOUND errors', () => {
     ]);
 
     await expect(
-      service.deleteAsset({ treeOid: 'tree-no-manifest' }),
+      service.deleteAsset({ treeOid: oid('tree-no-manifest') }),
     ).rejects.toThrow(CasError);
 
     try {
-      await service.deleteAsset({ treeOid: 'tree-no-manifest' });
+      await service.deleteAsset({ treeOid: oid('tree-no-manifest') });
     } catch (err) {
       expect(err.code).toBe('MANIFEST_NOT_FOUND');
       expect(err.message).toContain('No manifest entry');
-      expect(err.meta.treeOid).toBe('tree-no-manifest');
+      expect(err.meta.treeOid).toBe(oid('tree-no-manifest'));
       expect(err.meta.expectedName).toBe('manifest.json');
     }
   });
@@ -255,14 +260,14 @@ describe('CasService.deleteAsset() – MANIFEST_NOT_FOUND errors', () => {
     mockPersistence.readTree.mockResolvedValue([]);
 
     await expect(
-      service.deleteAsset({ treeOid: 'tree-empty-tree' }),
+      service.deleteAsset({ treeOid: oid('tree-empty-tree') }),
     ).rejects.toThrow(CasError);
 
     try {
-      await service.deleteAsset({ treeOid: 'tree-empty-tree' });
+      await service.deleteAsset({ treeOid: oid('tree-empty-tree') });
     } catch (err) {
       expect(err.code).toBe('MANIFEST_NOT_FOUND');
-      expect(err.meta.treeOid).toBe('tree-empty-tree');
+      expect(err.meta.treeOid).toBe(oid('tree-empty-tree'));
     }
   });
 });
@@ -284,21 +289,21 @@ describe('CasService.deleteAsset() – GIT_ERROR propagation', () => {
     );
 
     await expect(
-      service.deleteAsset({ treeOid: 'tree-bad' }),
+      service.deleteAsset({ treeOid: oid('tree-bad') }),
     ).rejects.toThrow(CasError);
 
     try {
-      await service.deleteAsset({ treeOid: 'tree-bad' });
+      await service.deleteAsset({ treeOid: oid('tree-bad') });
     } catch (err) {
       expect(err.code).toBe('GIT_ERROR');
       expect(err.message).toContain('Failed to read tree');
-      expect(err.meta.treeOid).toBe('tree-bad');
+      expect(err.meta.treeOid).toBe(oid('tree-bad'));
     }
   });
 
   it('propagates GIT_ERROR when readBlob fails', async () => {
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'bad-manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('bad-manifest-oid'), name: 'manifest.json' },
     ]);
 
     mockPersistence.readBlob.mockRejectedValue(
@@ -306,16 +311,16 @@ describe('CasService.deleteAsset() – GIT_ERROR propagation', () => {
     );
 
     await expect(
-      service.deleteAsset({ treeOid: 'tree-corrupt' }),
+      service.deleteAsset({ treeOid: oid('tree-corrupt') }),
     ).rejects.toThrow(CasError);
 
     try {
-      await service.deleteAsset({ treeOid: 'tree-corrupt' });
+      await service.deleteAsset({ treeOid: oid('tree-corrupt') });
     } catch (err) {
       expect(err.code).toBe('GIT_ERROR');
       expect(err.message).toContain('Failed to read manifest blob');
-      expect(err.meta.treeOid).toBe('tree-corrupt');
-      expect(err.meta.manifestOid).toBe('bad-manifest-oid');
+      expect(err.meta.treeOid).toBe(oid('tree-corrupt'));
+      expect(err.meta.manifestOid).toBe(oid('bad-manifest-oid'));
     }
   });
 });
@@ -353,14 +358,14 @@ describe('CasService.deleteAsset() – encrypted manifest', () => {
     const manifestBlob = codec.encode(manifestData);
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'enc-manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('enc-manifest-oid'), name: 'manifest.json' },
       { mode: '100644', type: 'blob', oid: blobOid(0), name: sha256Digest('enc-chunk0') },
       { mode: '100644', type: 'blob', oid: blobOid(1), name: sha256Digest('enc-chunk1') },
     ]);
 
     mockPersistence.readBlob.mockResolvedValue(manifestBlob);
 
-    const result = await service.deleteAsset({ treeOid: 'tree-encrypted' });
+    const result = await service.deleteAsset({ treeOid: oid('tree-encrypted') });
 
     expect(result).toEqual({
       slug: 'encrypted-asset',
@@ -394,12 +399,12 @@ describe('CasService.deleteAsset() – slug with special characters', () => {
     const manifestBlob = codec.encode(manifestData);
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid'), name: 'manifest.json' },
     ]);
 
     mockPersistence.readBlob.mockResolvedValue(manifestBlob);
 
-    const result = await service.deleteAsset({ treeOid: 'tree-special' });
+    const result = await service.deleteAsset({ treeOid: oid('tree-special') });
 
     expect(result.slug).toBe('my-asset_v2.0');
   });
@@ -431,12 +436,12 @@ describe('CasService.deleteAsset() – very long slug', () => {
     const manifestBlob = codec.encode(manifestData);
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid'), name: 'manifest.json' },
     ]);
 
     mockPersistence.readBlob.mockResolvedValue(manifestBlob);
 
-    const result = await service.deleteAsset({ treeOid: 'tree-long-slug' });
+    const result = await service.deleteAsset({ treeOid: oid('tree-long-slug') });
 
     expect(result.slug).toBe(longSlug);
     expect(result.slug.length).toBe(256);

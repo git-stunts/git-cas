@@ -12,6 +12,10 @@ const testCrypto = await getTestCryptoAdapter();
 const B0 = 'a'.repeat(40);
 const B1 = 'b'.repeat(40);
 
+function oid(label) {
+  return digestOf(label);
+}
+
 function makeChunk(index, seed, blobOid) {
   return { index, size: 1024, digest: digestOf(seed), blob: blobOid };
 }
@@ -43,7 +47,7 @@ function setup() {
 function mockManifest(mockPersistence, manifest) {
   const codec = new JsonCodec();
   mockPersistence.readTree.mockResolvedValue([
-    { mode: '100644', type: 'blob', oid: 'mf-oid', name: 'manifest.json' },
+    { mode: '100644', type: 'blob', oid: oid('manifest'), name: 'manifest.json' },
   ]);
   mockPersistence.readBlob.mockResolvedValue(codec.encode(manifest));
 }
@@ -56,7 +60,7 @@ describe('16.7: inspectAsset (canonical name)', () => {
       chunks: [makeChunk(0, 'c0', B0), makeChunk(1, 'c1', B1)],
     };
     mockManifest(mockPersistence, manifest);
-    const result = await service.inspectAsset({ treeOid: 'tree-1' });
+    const result = await service.inspectAsset({ treeOid: oid('tree-1') });
     expect(result).toEqual({ slug: 'asset-1', chunksOrphaned: 2 });
   });
 });
@@ -69,7 +73,7 @@ describe('16.7: deleteAsset (deprecated alias)', () => {
       chunks: [makeChunk(0, 'd0', B0)],
     };
     mockManifest(mockPersistence, manifest);
-    const result = await service.deleteAsset({ treeOid: 'tree-2' });
+    const result = await service.deleteAsset({ treeOid: oid('tree-2') });
     expect(result).toEqual({ slug: 'asset-2', chunksOrphaned: 1 });
   });
 
@@ -79,7 +83,7 @@ describe('16.7: deleteAsset (deprecated alias)', () => {
       slug: 'x', filename: 'x.bin', size: 0, chunks: [],
     };
     mockManifest(mockPersistence, manifest);
-    await service.deleteAsset({ treeOid: 'tree-x' });
+    await service.deleteAsset({ treeOid: oid('tree-x') });
     expect(observability.log).toHaveBeenCalledWith(
       'warn', 'deleteAsset() is deprecated — use inspectAsset()',
     );
@@ -94,7 +98,7 @@ describe('16.7: collectReferencedChunks (canonical name)', () => {
       chunks: [makeChunk(0, 'e0', B0), makeChunk(1, 'e1', B1)],
     };
     mockManifest(mockPersistence, manifest);
-    const result = await service.collectReferencedChunks({ treeOids: ['tree-3'] });
+    const result = await service.collectReferencedChunks({ treeOids: [oid('tree-3')] });
     expect(result.referenced.size).toBe(2);
     expect(result.total).toBe(2);
   });
@@ -108,7 +112,7 @@ describe('16.7: findOrphanedChunks (deprecated alias)', () => {
       chunks: [makeChunk(0, 'f0', B0)],
     };
     mockManifest(mockPersistence, manifest);
-    const result = await service.findOrphanedChunks({ treeOids: ['tree-4'] });
+    const result = await service.findOrphanedChunks({ treeOids: [oid('tree-4')] });
     expect(result.referenced.size).toBe(1);
     expect(result.total).toBe(1);
   });
@@ -119,7 +123,7 @@ describe('16.7: findOrphanedChunks (deprecated alias)', () => {
       slug: 'y', filename: 'y.bin', size: 0, chunks: [],
     };
     mockManifest(mockPersistence, manifest);
-    await service.findOrphanedChunks({ treeOids: ['tree-y'] });
+    await service.findOrphanedChunks({ treeOids: [oid('tree-y')] });
     expect(observability.log).toHaveBeenCalledWith(
       'warn', 'findOrphanedChunks() is deprecated — use collectReferencedChunks()',
     );

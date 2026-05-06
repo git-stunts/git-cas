@@ -21,8 +21,8 @@ function oid(label) {
  */
 function setup() {
   const mockPersistence = {
-    writeBlob: vi.fn().mockResolvedValue('mock-blob-oid'),
-    writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
+    writeBlob: vi.fn().mockResolvedValue(oid('mock-blob-oid')),
+    writeTree: vi.fn().mockResolvedValue(oid('mock-tree-oid')),
     readBlob: vi.fn(),
     readTree: vi.fn(),
   };
@@ -113,7 +113,7 @@ function buildSharedChunkFixtures() {
       }),
     );
 
-    treeOids.push(`tree-${m}`);
+    treeOids.push(oid(`tree-${m}`));
   }
 
   return { treeOids, manifests };
@@ -142,13 +142,13 @@ describe('CasService – findOrphanedChunks – golden path (single manifest)', 
     });
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid-1', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid-1'), name: 'manifest.json' },
     ]);
     mockPersistence.readBlob.mockResolvedValue(
       Buffer.from(JSON.stringify(manifest)),
     );
 
-    const result = await service.findOrphanedChunks({ treeOids: ['tree-1'] });
+    const result = await service.findOrphanedChunks({ treeOids: [oid('tree-1')] });
 
     expect(result.referenced.size).toBe(2);
     expect(result.referenced.has(oid('blob-oid-1'))).toBe(true);
@@ -173,10 +173,10 @@ describe('CasService – findOrphanedChunks – golden path (dedup)', () => {
 
     mockPersistence.readTree
       .mockResolvedValueOnce([
-        { mode: '100644', type: 'blob', oid: 'manifest-oid-1', name: 'manifest.json' },
+        { mode: '100644', type: 'blob', oid: oid('manifest-oid-1'), name: 'manifest.json' },
       ])
       .mockResolvedValueOnce([
-        { mode: '100644', type: 'blob', oid: 'manifest-oid-2', name: 'manifest.json' },
+        { mode: '100644', type: 'blob', oid: oid('manifest-oid-2'), name: 'manifest.json' },
       ]);
 
     mockPersistence.readBlob
@@ -184,7 +184,7 @@ describe('CasService – findOrphanedChunks – golden path (dedup)', () => {
       .mockResolvedValueOnce(Buffer.from(JSON.stringify(manifest2)));
 
     const result = await service.findOrphanedChunks({
-      treeOids: ['tree-1', 'tree-2'],
+      treeOids: [oid('tree-1'), oid('tree-2')],
     });
 
     // 3 unique blobs: blob-shared, blob-unique-1, blob-unique-2
@@ -231,7 +231,7 @@ describe('CasService – findOrphanedChunks – golden path (identical chunks)',
     });
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid'), name: 'manifest.json' },
     ]);
 
     mockPersistence.readBlob
@@ -240,7 +240,7 @@ describe('CasService – findOrphanedChunks – golden path (identical chunks)',
       .mockResolvedValueOnce(Buffer.from(JSON.stringify(manifest3)));
 
     const result = await service.findOrphanedChunks({
-      treeOids: ['tree-1', 'tree-2', 'tree-3'],
+      treeOids: [oid('tree-1'), oid('tree-2'), oid('tree-3')],
     });
 
     // Only 1 unique blob
@@ -271,13 +271,13 @@ describe('CasService – findOrphanedChunks – golden path (empty manifest)', (
     });
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid'), name: 'manifest.json' },
     ]);
     mockPersistence.readBlob.mockResolvedValue(
       Buffer.from(JSON.stringify(manifest)),
     );
 
-    const result = await service.findOrphanedChunks({ treeOids: ['tree-1'] });
+    const result = await service.findOrphanedChunks({ treeOids: [oid('tree-1')] });
 
     expect(result.referenced.size).toBe(0);
     expect(result.total).toBe(0);
@@ -319,13 +319,13 @@ describe('CasService – findOrphanedChunks – edge cases', () => {
     });
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid'), name: 'manifest.json' },
     ]);
     mockPersistence.readBlob.mockResolvedValue(
       Buffer.from(JSON.stringify(manifest)),
     );
 
-    const result = await service.findOrphanedChunks({ treeOids: ['tree-large'] });
+    const result = await service.findOrphanedChunks({ treeOids: [oid('tree-large')] });
 
     expect(result.referenced.size).toBe(100);
     expect(result.total).toBe(100);
@@ -348,7 +348,7 @@ describe('CasService – findOrphanedChunks – stress test (shared chunks)', ()
 
     // Mock readTree to always return a manifest entry
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid'), name: 'manifest.json' },
     ]);
 
     // Mock readBlob to return the appropriate manifest
@@ -411,11 +411,11 @@ describe('CasService – findOrphanedChunks – stress test (complete overlap)',
 
     // Create 20 identical tree references
     for (let i = 0; i < 20; i++) {
-      treeOids.push(`tree-${i}`);
+      treeOids.push(oid(`tree-${i}`));
     }
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid'), name: 'manifest.json' },
     ]);
 
     // Return the same manifest for all reads
@@ -452,15 +452,15 @@ describe('CasService – findOrphanedChunks – MANIFEST_NOT_FOUND (first tree)'
     mockPersistence.readTree.mockResolvedValue([]);
 
     await expect(
-      service.findOrphanedChunks({ treeOids: ['tree-missing'] }),
+      service.findOrphanedChunks({ treeOids: [oid('tree-missing')] }),
     ).rejects.toThrow(CasError);
 
     try {
-      await service.findOrphanedChunks({ treeOids: ['tree-missing'] });
+      await service.findOrphanedChunks({ treeOids: [oid('tree-missing')] });
     } catch (err) {
       expect(err.code).toBe('MANIFEST_NOT_FOUND');
       expect(err.message).toContain('No manifest entry');
-      expect(err.meta.treeOid).toBe('tree-missing');
+      expect(err.meta.treeOid).toBe(oid('tree-missing'));
     }
   });
 });
@@ -486,9 +486,9 @@ describe('CasService – findOrphanedChunks – MANIFEST_NOT_FOUND (second tree)
 
     // Mock returns valid tree first, then empty tree
     mockPersistence.readTree.mockImplementation((treeId) => {
-      if (treeId === 'tree-1') {
+      if (treeId === oid('tree-1')) {
         return Promise.resolve([
-          { mode: '100644', type: 'blob', oid: 'manifest-oid-1', name: 'manifest.json' },
+          { mode: '100644', type: 'blob', oid: oid('manifest-oid-1'), name: 'manifest.json' },
         ]);
       }
       return Promise.resolve([]); // tree-missing has no entries
@@ -499,14 +499,14 @@ describe('CasService – findOrphanedChunks – MANIFEST_NOT_FOUND (second tree)
     );
 
     await expect(
-      service.findOrphanedChunks({ treeOids: ['tree-1', 'tree-missing'] }),
+      service.findOrphanedChunks({ treeOids: [oid('tree-1'), oid('tree-missing')] }),
     ).rejects.toThrow(CasError);
 
     try {
-      await service.findOrphanedChunks({ treeOids: ['tree-1', 'tree-missing'] });
+      await service.findOrphanedChunks({ treeOids: [oid('tree-1'), oid('tree-missing')] });
     } catch (err) {
       expect(err.code).toBe('MANIFEST_NOT_FOUND');
-      expect(err.meta.treeOid).toBe('tree-missing');
+      expect(err.meta.treeOid).toBe(oid('tree-missing'));
     }
   });
 });
@@ -528,21 +528,21 @@ describe('CasService – findOrphanedChunks – GIT_ERROR failures', () => {
     );
 
     await expect(
-      service.findOrphanedChunks({ treeOids: ['tree-bad'] }),
+      service.findOrphanedChunks({ treeOids: [oid('tree-bad')] }),
     ).rejects.toThrow(CasError);
 
     try {
-      await service.findOrphanedChunks({ treeOids: ['tree-bad'] });
+      await service.findOrphanedChunks({ treeOids: [oid('tree-bad')] });
     } catch (err) {
       expect(err.code).toBe('GIT_ERROR');
       expect(err.message).toContain('Failed to read tree');
-      expect(err.meta.treeOid).toBe('tree-bad');
+      expect(err.meta.treeOid).toBe(oid('tree-bad'));
     }
   });
 
   it('throws GIT_ERROR when readBlob fails', async () => {
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid'), name: 'manifest.json' },
     ]);
 
     mockPersistence.readBlob.mockRejectedValue(
@@ -550,11 +550,11 @@ describe('CasService – findOrphanedChunks – GIT_ERROR failures', () => {
     );
 
     await expect(
-      service.findOrphanedChunks({ treeOids: ['tree-1'] }),
+      service.findOrphanedChunks({ treeOids: [oid('tree-1')] }),
     ).rejects.toThrow(CasError);
 
     try {
-      await service.findOrphanedChunks({ treeOids: ['tree-1'] });
+      await service.findOrphanedChunks({ treeOids: [oid('tree-1')] });
     } catch (err) {
       expect(err.code).toBe('GIT_ERROR');
       expect(err.message).toContain('Failed to read manifest blob');
@@ -575,7 +575,7 @@ describe('CasService – findOrphanedChunks – invalid manifest data', () => {
 
   it('throws when manifest JSON is invalid', async () => {
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid'), name: 'manifest.json' },
     ]);
 
     // Return invalid JSON
@@ -584,7 +584,7 @@ describe('CasService – findOrphanedChunks – invalid manifest data', () => {
     );
 
     await expect(
-      service.findOrphanedChunks({ treeOids: ['tree-1'] }),
+      service.findOrphanedChunks({ treeOids: [oid('tree-1')] }),
     ).rejects.toThrow();
   });
 
@@ -597,7 +597,7 @@ describe('CasService – findOrphanedChunks – invalid manifest data', () => {
     };
 
     mockPersistence.readTree.mockResolvedValue([
-      { mode: '100644', type: 'blob', oid: 'manifest-oid', name: 'manifest.json' },
+      { mode: '100644', type: 'blob', oid: oid('manifest-oid'), name: 'manifest.json' },
     ]);
 
     mockPersistence.readBlob.mockResolvedValue(
@@ -605,7 +605,7 @@ describe('CasService – findOrphanedChunks – invalid manifest data', () => {
     );
 
     await expect(
-      service.findOrphanedChunks({ treeOids: ['tree-1'] }),
+      service.findOrphanedChunks({ treeOids: [oid('tree-1')] }),
     ).rejects.toThrow();
   });
 });
@@ -631,7 +631,7 @@ describe('CasService – findOrphanedChunks – fail-closed behavior', () => {
 
     mockPersistence.readTree
       .mockResolvedValueOnce([
-        { mode: '100644', type: 'blob', oid: 'manifest-oid-1', name: 'manifest.json' },
+        { mode: '100644', type: 'blob', oid: oid('manifest-oid-1'), name: 'manifest.json' },
       ])
       .mockRejectedValueOnce(new Error('Git error on second tree'));
 
@@ -640,7 +640,7 @@ describe('CasService – findOrphanedChunks – fail-closed behavior', () => {
     );
 
     await expect(
-      service.findOrphanedChunks({ treeOids: ['tree-1', 'tree-2', 'tree-3'] }),
+      service.findOrphanedChunks({ treeOids: [oid('tree-1'), oid('tree-2'), oid('tree-3')] }),
     ).rejects.toThrow(CasError);
 
     // Verify that we stopped at the second tree and never called readTree for tree-3
