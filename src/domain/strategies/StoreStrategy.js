@@ -1,7 +1,15 @@
 import {
   SCHEME_CONVERGENT,
   SCHEME_FRAMED,
+  SCHEME_WHOLE,
 } from '../encryption/schemes.js';
+import createCasError from '../errors/createCasError.js';
+
+const ENCRYPTED_STRATEGY_BY_SCHEME = Object.freeze({
+  [SCHEME_CONVERGENT]: 'convergent',
+  [SCHEME_FRAMED]: 'framed',
+  [SCHEME_WHOLE]: 'whole',
+});
 
 /**
  * Selects the store strategy entity for the current request.
@@ -17,17 +25,26 @@ export default class StoreStrategy {
    * @returns {object}
    */
   static for({ keyInfo, encryptionConfig, chunker, observability, strategies }) {
-    if (keyInfo.key && encryptionConfig?.scheme === SCHEME_CONVERGENT) {
-      return strategies.convergent;
+    if (!keyInfo.key) {
+      return strategies.plain;
     }
-    if (keyInfo.key) {
+
+    const strategyName = StoreStrategy.#resolveEncryptedStrategyName(encryptionConfig?.scheme);
+    if (strategyName !== 'convergent') {
       StoreStrategy.#warnEncryptedCdc({ chunker, observability });
-      if (encryptionConfig?.scheme === SCHEME_FRAMED) {
-        return strategies.framed;
-      }
-      return strategies.whole;
     }
-    return strategies.plain;
+    return strategies[strategyName];
+  }
+
+  static #resolveEncryptedStrategyName(scheme) {
+    if (Object.hasOwn(ENCRYPTED_STRATEGY_BY_SCHEME, scheme)) {
+      return ENCRYPTED_STRATEGY_BY_SCHEME[scheme];
+    }
+    throw createCasError(
+      `Encrypted store requires a current encryption scheme; received ${scheme ?? 'none'}`,
+      'INVALID_OPTIONS',
+      { scheme },
+    );
   }
 
   static #warnEncryptedCdc({ chunker, observability }) {
