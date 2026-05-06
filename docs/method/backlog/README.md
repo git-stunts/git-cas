@@ -83,6 +83,8 @@ Active:
 - [Merkle Tree Explorer TUI](./cool-ideas/merkle-tree-explorer-tui.md)
 - [Selective Asset Replication](./cool-ideas/selective-asset-replication.md)
 - [Streaming CLI stdin](./cool-ideas/streaming-cli-stdin.md)
+- [TR — CAS Health & Dedupe Telemetry](./cool-ideas/TR_dedupe-efficiency-telemetry.md)
+- [TR — Industrial Structured Logging](./cool-ideas/TR_structured-json-logging.md)
 
 Resolved — `security/audit-fixes` branch:
 
@@ -104,6 +106,8 @@ Active:
 
 - [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md)
 - [Vault Tree Memory Loading](./bad-code/vault-tree-memory-loading.md)
+- [TR — GitPersistenceAdapter Full Materialization](./bad-code/TR_persistence-adapter-materialization.md)
+- [TR — VaultService Optimistic Contention](./bad-code/TR_vault-retry-jitter.md)
 
 Resolved — 2026-05-05 CasService de-sludge:
 

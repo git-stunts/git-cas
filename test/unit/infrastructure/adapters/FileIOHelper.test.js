@@ -183,9 +183,11 @@ describe('FileIOHelper – restoreFile stream publication', () => {
       },
     };
 
+    const tmpDir = getTmpDir();
     const { bytesWritten } = await restoreFile(mockService, {
       manifest: {},
       outputPath,
+      baseDirectory: tmpDir,
     });
 
     expect(bytesWritten).toBe(11);
@@ -198,7 +200,8 @@ describe('FileIOHelper – restoreFile bounded publication seam', () => {
   const getTmpDir = useTempDir('fio-restore-');
 
   it('uses createFileRestorePlan() for bounded-file publication without underscore helpers', async () => {
-    const outputPath = path.join(getTmpDir(), 'bounded.bin');
+    const tmpDir = getTmpDir();
+    const outputPath = path.join(tmpDir, 'bounded.bin');
     const chunk = Buffer.from('bounded restore source');
 
     const mockService = {
@@ -216,6 +219,7 @@ describe('FileIOHelper – restoreFile bounded publication seam', () => {
     const { bytesWritten } = await restoreFile(mockService, {
       manifest: { slug: 'bounded', chunks: [{}] },
       outputPath,
+      baseDirectory: tmpDir,
     });
 
     expect(bytesWritten).toBe(chunk.length);
@@ -240,11 +244,13 @@ describe('FileIOHelper – restoreFile bounded whole encrypted path', () => {
 
     await expectRestoreStreamTooLarge(service, manifest, key);
 
-    const outputPath = path.join(getTmpDir(), 'whole-large.bin');
+    const tmpDir = getTmpDir();
+    const outputPath = path.join(tmpDir, 'whole-large.bin');
     const { bytesWritten } = await restoreFile(service, {
       manifest,
       encryptionKey: key,
       outputPath,
+      baseDirectory: tmpDir,
     });
 
     expect(bytesWritten).toBe(plaintext.length);
@@ -269,11 +275,13 @@ describe('FileIOHelper – restoreFile bounded whole compressed path', () => {
 
     await expectRestoreStreamTooLarge(service, manifest, key);
 
-    const outputPath = path.join(getTmpDir(), 'whole-compressed-large.bin');
+    const tmpDir = getTmpDir();
+    const outputPath = path.join(tmpDir, 'whole-compressed-large.bin');
     const { bytesWritten } = await restoreFile(service, {
       manifest,
       encryptionKey: key,
       outputPath,
+      baseDirectory: tmpDir,
     });
 
     expect(bytesWritten).toBe(plaintext.length);
@@ -296,16 +304,18 @@ describe('FileIOHelper – restoreFile bounded whole auth cleanup', () => {
       encryption: { scheme: 'whole' },
     });
 
-    const outputPath = path.join(getTmpDir(), 'whole-auth-failure.bin');
+    const tmpDir = getTmpDir();
+    const outputPath = path.join(tmpDir, 'whole-auth-failure.bin');
     await expect(
       restoreFile(service, {
         manifest,
         encryptionKey: wrongKey,
         outputPath,
+        baseDirectory: tmpDir,
       }),
     ).rejects.toMatchObject({ code: 'INTEGRITY_ERROR' });
 
     expect(existsSync(outputPath)).toBe(false);
-    expect(readdirSync(getTmpDir()).filter((name) => name.startsWith('.git-cas-restore-'))).toEqual([]);
+    expect(readdirSync(tmpDir).filter((name) => name.startsWith('.git-cas-restore-'))).toEqual([]);
   });
 });

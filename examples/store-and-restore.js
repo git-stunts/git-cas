@@ -71,6 +71,7 @@ const outputPath = path.join(testDir, 'restored.bin');
 const { bytesWritten } = await cas.restoreFile({
   manifest: restoredManifest,
   outputPath,
+  baseDirectory: process.cwd(),
 });
 
 console.log(`File restored to: ${outputPath}`);
