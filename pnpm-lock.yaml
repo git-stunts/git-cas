@@ -24,8 +24,8 @@ importers:
         specifier: ^0.10.0
         version: 0.10.0
       '@git-stunts/plumbing':
-        specifier: ^2.8.0
-        version: 2.8.0
+        specifier: ^3.0.3
+        version: 3.0.3
       '@git-stunts/vault':
         specifier: ^1.0.1
         version: 1.0.1
@@ -297,8 +297,8 @@ packages:
     resolution: {integrity: sha512-0DPhJdKhYTcsPuoOnYIIyvlwaIM7yIx4fQM4Q48abe/VDLTfZef1ubeT1pYio+ZTp1lKXtSG663973ewBbi/yw==}
     engines: {node: '>=20.0.0'}
 
-  '@git-stunts/plumbing@2.8.0':
-    resolution: {integrity: sha512-wHZQAgPCG8MlcjrgwQx8OoFSxcKGqxCULxxE3XOZk5xiWW3AgSeZgiQ2Z6XCMz1fbaGVOWQOhIvCsyyzlRFbfw==}
+  '@git-stunts/plumbing@3.0.3':
+    resolution: {integrity: sha512-LmPaq9c51bYA1Ta0KJrmewFTlAwueQv4EdguiI4/TNK9LOeJkkchC2RaOX09WXubauvUeEk8Z32rG8zxdk491g==}
     engines: {bun: '>=1.3.5', deno: '>=2.0.0', node: '>=20.0.0'}
 
   '@git-stunts/vault@1.0.1':
@@ -1161,7 +1161,7 @@ snapshots:
 
   '@git-stunts/alfred@0.10.0': {}
 
-  '@git-stunts/plumbing@2.8.0':
+  '@git-stunts/plumbing@3.0.3':
     dependencies:
       zod: 3.25.76
 

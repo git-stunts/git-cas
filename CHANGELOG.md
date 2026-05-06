@@ -72,6 +72,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **OS-keychain passphrase lookup awaits vault v2 secrets** — CLI credential
   resolution now awaits the async `@git-stunts/vault` secret lookup before
   validating and returning the passphrase.
+- **Git plumbing dependency aligned to npm latest** — `@git-stunts/plumbing`
+  now targets `^3.0.3`. `@git-stunts/vault` remains on the registry-latest
+  `^1.0.1`, and `@git-stunts/trailer-codec` remains outside the runtime
+  dependency graph because `git-cas` does not use commit trailers.
 - **Platform-neutral core byte pipeline** — `CasService`, `KeyResolver`, `VaultService`, convergent encryption, manifest/KDF metadata helpers, schemas, codecs, and fixed/CDC chunkers now use pure `Uint8Array` byte helpers and protocol encoders instead of `Buffer` methods. `store()` now has regression coverage for `Readable.from([new Uint8Array(...)])` in both fixed and CDC chunking modes.
 - **Slug value object** — vault slug validation and plain vault tree-entry
   percent encoding now live in `Slug`, including `.toTreePath()` for the Git
