@@ -69,6 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   record parsing, and store/restore strategy execution now live in dedicated
   domain services and strategy entities with direct unit coverage. Public
   `CasService` store/restore/manifest/recipient APIs are unchanged.
+- **OS-keychain passphrase lookup awaits vault v2 secrets** — CLI credential
+  resolution now awaits the async `@git-stunts/vault` secret lookup before
+  validating and returning the passphrase.
 - **Platform-neutral core byte pipeline** — `CasService`, `KeyResolver`, `VaultService`, convergent encryption, manifest/KDF metadata helpers, schemas, codecs, and fixed/CDC chunkers now use pure `Uint8Array` byte helpers and protocol encoders instead of `Buffer` methods. `store()` now has regression coverage for `Readable.from([new Uint8Array(...)])` in both fixed and CDC chunking modes.
 - **Slug value object** — vault slug validation and plain vault tree-entry
   percent encoding now live in `Slug`, including `.toTreePath()` for the Git

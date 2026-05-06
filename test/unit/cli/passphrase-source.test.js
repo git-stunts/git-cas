@@ -109,6 +109,15 @@ describe('resolveOsKeychainPassphrase', () => {
     expect(getSecret).toHaveBeenCalledWith({ target: 'demo/passphrase' });
   });
 
+  it('awaits the async OS-keychain secret lookup', async () => {
+    const getSecret = vi.fn(async () => 'stored-secret');
+    const importVault = makeImportVault(getSecret);
+
+    await expect(
+      resolveOsKeychainPassphrase({ target: 'demo/passphrase', importVault })
+    ).resolves.toBe('stored-secret');
+  });
+
   it('throws when the OS-keychain secret is missing', async () => {
     const importVault = makeImportVault(() => undefined);
 

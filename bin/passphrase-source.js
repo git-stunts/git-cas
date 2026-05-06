@@ -217,7 +217,7 @@ export async function resolveOsKeychainPassphrase({
 
   const Vault = await importVault();
   const vault = new Vault({ account });
-  const secret = vault.getSecret({ target });
+  const secret = await vault.getSecret({ target });
 
   if (secret === undefined) {
     throw new Error(`OS keychain secret not found for account "${account}" target "${target}"`);
