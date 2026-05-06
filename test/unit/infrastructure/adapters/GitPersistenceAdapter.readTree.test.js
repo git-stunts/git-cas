@@ -20,6 +20,20 @@ function adapterFor(output) {
   return new GitPersistenceAdapter({ plumbing: mockPlumbing(output), policy: noPolicy });
 }
 
+function streamAdapterFor(chunks) {
+  return new GitPersistenceAdapter({
+    plumbing: {
+      execute: vi.fn(),
+      executeStream: vi.fn().mockResolvedValue((async function* outputStream() {
+        for (const chunk of chunks) {
+          yield Buffer.from(chunk);
+        }
+      })()),
+    },
+    policy: noPolicy,
+  });
+}
+
 /** Expected shape for every entry. */
 function entry(oid, name) {
   return { mode: '100644', type: 'blob', oid, name };
@@ -56,6 +70,43 @@ describe('GitPersistenceAdapter.readTree() – parsing', () => {
     const output = '100644 blob abc123\tfile with spaces.txt\0';
     const entries = await adapterFor(output).readTree('tree-oid');
     expect(entries[0].name).toBe('file with spaces.txt');
+  });
+});
+
+describe('GitPersistenceAdapter.readTreeEntry() – path lookup', () => {
+  it('returns one tree entry for the requested path', async () => {
+    const adapter = adapterFor('040000 tree abc123\tdemo%2Fhello\0');
+
+    await expect(adapter.readTreeEntry('tree-oid', 'demo%2Fhello')).resolves.toEqual({
+      mode: '040000',
+      type: 'tree',
+      oid: 'abc123',
+      name: 'demo%2Fhello',
+    });
+  });
+
+  it('returns null when git finds no matching path', async () => {
+    await expect(adapterFor('').readTreeEntry('tree-oid', 'missing')).resolves.toBeNull();
+  });
+});
+
+describe('GitPersistenceAdapter.iterateTree() – streaming', () => {
+  it('parses NUL-delimited tree entries across stream chunk boundaries', async () => {
+    const adapter = streamAdapterFor([
+      '100644 blob abc123\tmanifest',
+      '.json\0',
+      '040000 tree def456\tdemo%2Fhello\0',
+    ]);
+    const entries = [];
+
+    for await (const parsed of adapter.iterateTree('tree-oid')) {
+      entries.push(parsed);
+    }
+
+    expect(entries).toEqual([
+      { mode: '100644', type: 'blob', oid: 'abc123', name: 'manifest.json' },
+      { mode: '040000', type: 'tree', oid: 'def456', name: 'demo%2Fhello' },
+    ]);
   });
 });
 

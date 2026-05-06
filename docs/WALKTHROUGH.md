@@ -84,7 +84,7 @@ npm install @git-stunts/git-cas
 import ContentAddressableStore from '@git-stunts/git-cas';
 
 // Point at a Git repository
-const cas = ContentAddressableStore.open({ cwd: './my-repo' });
+const cas = await ContentAddressableStore.open({ cwd: './my-repo' });
 
 // Store vacation.jpg under the slug "photos/vacation"
 const manifest = await cas.storeFile({
@@ -257,7 +257,7 @@ use cases, the default is a good balance.
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
-const git = GitPlumbing.createDefault({ cwd: './assets-repo' });
+const git = await GitPlumbing.createDefault({ cwd: './assets-repo' });
 const cas = new ContentAddressableStore({ plumbing: git });
 
 const manifest = await cas.storeFile({
@@ -518,7 +518,7 @@ import { readFileSync } from 'node:fs';
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
-const git = GitPlumbing.createDefault({ cwd: './assets-repo' });
+const git = await GitPlumbing.createDefault({ cwd: './assets-repo' });
 const cas = new ContentAddressableStore({ plumbing: git });
 const encryptionKey = readFileSync('./vacation.key');
 

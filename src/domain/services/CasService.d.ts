@@ -54,6 +54,13 @@ export interface GitPersistencePort {
   readTree(
     treeOid: string,
   ): Promise<Array<{ mode: string; type: string; oid: string; name: string }>>;
+  readTreeEntry(
+    treeOid: string,
+    treePath: string,
+  ): Promise<{ mode: string; type: string; oid: string; name: string } | null>;
+  iterateTree(
+    treeOid: string,
+  ): AsyncIterable<{ mode: string; type: string; oid: string; name: string }>;
 }
 
 /** Port interface for observability (metrics, logging, tracing). */

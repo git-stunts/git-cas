@@ -65,10 +65,10 @@ program
  *
  * @param {string} cwd
  * @param {Record<string, any>} [opts]
- * @returns {ContentAddressableStore}
+ * @returns {Promise<ContentAddressableStore>}
  */
-function createCas(cwd, opts = {}) {
-  const plumbing = createGitPlumbing({ cwd });
+async function createCas(cwd, opts = {}) {
+  const plumbing = await createGitPlumbing({ cwd });
   /** @type {Record<string, any>} */
   const casOpts = { plumbing, ...opts };
   if (casOpts.codec === 'cbor') {
@@ -230,7 +230,7 @@ program
 
       const config = loadConfig(opts.cwd);
       const { casConfig, storeExtras } = mergeConfig(opts, config);
-      const cas = createCas(opts.cwd, { observability: observer, ...casConfig });
+      const cas = await createCas(opts.cwd, { observability: observer, ...casConfig });
 
       const storeOpts = await buildStoreOpts(cas, file, opts);
       Object.assign(storeOpts, storeExtras);
@@ -271,7 +271,7 @@ program
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const raw = readFileSync(opts.manifest, 'utf8');
       const manifest = new Manifest(JSON.parse(raw));
       const treeOid = await cas.createTree({ manifest });
@@ -297,7 +297,7 @@ program
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
       validateRestoreFlags(opts);
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const treeOid = opts.oid || (await cas.resolveVaultEntry({ slug: opts.slug }));
       const manifest = await cas.readManifest({ treeOid });
       const json = program.opts().json;
@@ -364,7 +364,7 @@ program
         casConfig.maxRestoreBufferSize = maxRestoreBufferSize;
       }
 
-      const cas = createCas(opts.cwd, { observability: observer, ...casConfig });
+      const cas = await createCas(opts.cwd, { observability: observer, ...casConfig });
       const treeOid = opts.oid || (await cas.resolveVaultEntry({ slug: opts.slug }));
       const manifest = await cas.readManifest({ treeOid });
 
@@ -406,7 +406,7 @@ program
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
       validateRestoreFlags(opts);
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const treeOid = opts.oid || (await cas.resolveVaultEntry({ slug: opts.slug }));
       const manifest = await cas.readManifest({ treeOid });
       const ok = await cas.verifyIntegrity(manifest);
@@ -433,7 +433,7 @@ program
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const report = await inspectVaultHealth(cas);
       const json = program.opts().json;
 
@@ -477,7 +477,7 @@ vault
     runAction(async (/** @type {Record<string, any>} */ opts) => {
       warnInlinePassphraseArgs(opts);
       validateCredentialSources(opts);
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       /** @type {{ passphrase?: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
       const initOpts = {};
       const passphrase = await resolvePassphrase(opts, { confirm: true });
@@ -512,7 +512,7 @@ vault
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const all = await cas.listVault();
       const entries = filterEntries(all, opts.filter);
       const json = program.opts().json;
@@ -536,7 +536,7 @@ vault
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const all = await cas.listVault();
       const entries = filterEntries(all, opts.filter);
       const records = [];
@@ -563,7 +563,7 @@ vault
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const vaultSlug = normalizeSlug(slug);
       const { commitOid, removedTreeOid } = await cas.removeFromVault({ slug: vaultSlug });
       const json = program.opts().json;
@@ -585,7 +585,7 @@ vault
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const vaultSlug = normalizeSlug(slug);
       const treeOid = await cas.resolveVaultEntry({ slug: vaultSlug });
       const json = program.opts().json;
@@ -621,7 +621,7 @@ vault
   .option('--pretty', 'Render as color-coded timeline')
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
-      const plumbing = createGitPlumbing({ cwd: opts.cwd || '.' });
+      const plumbing = await createGitPlumbing({ cwd: opts.cwd || '.' });
       const args = ['log', '--oneline', ContentAddressableStore.VAULT_REF];
       if (opts.maxCount) {
         const n = parseInt(opts.maxCount, 10);
@@ -690,7 +690,7 @@ vault
     runAction(async (/** @type {Record<string, any>} */ opts) => {
       warnInlinePassphraseArgs(opts);
       const { oldPassphrase, newPassphrase } = await resolveRotatePassphrases(opts);
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       /** @type {{ oldPassphrase: string, newPassphrase: string, kdfOptions?: { algorithm: 'pbkdf2' | 'scrypt' } }} */
       const rotateOpts = {
         oldPassphrase,
@@ -732,7 +732,7 @@ vault
       if (opts.ref && opts.oid) {
         throw new Error('Choose either --ref or --oid, not both');
       }
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const { launchDashboard } = await import('./ui/dashboard.js');
       const source = opts.ref
         ? { type: 'ref', ref: opts.ref }
@@ -758,7 +758,7 @@ program
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
       validateRestoreFlags(opts);
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const treeOid = opts.oid || (await cas.resolveVaultEntry({ slug: opts.slug }));
       const manifest = await cas.readManifest({ treeOid });
 
@@ -806,7 +806,7 @@ recipient
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const vaultSlug = normalizeSlug(slug);
       const treeOid = await cas.resolveVaultEntry({ slug: vaultSlug });
       const manifest = await cas.readManifest({ treeOid });
@@ -840,7 +840,7 @@ recipient
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const vaultSlug = normalizeSlug(slug);
       const treeOid = await cas.resolveVaultEntry({ slug: vaultSlug });
       const manifest = await cas.readManifest({ treeOid });
@@ -865,7 +865,7 @@ recipient
   .option('--cwd <dir>', 'Git working directory', '.')
   .action(
     runAction(async (/** @type {string} */ slug, /** @type {Record<string, any>} */ opts) => {
-      const cas = createCas(opts.cwd);
+      const cas = await createCas(opts.cwd);
       const vaultSlug = normalizeSlug(slug);
       const treeOid = await cas.resolveVaultEntry({ slug: vaultSlug });
       const manifest = await cas.readManifest({ treeOid });

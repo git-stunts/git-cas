@@ -4,6 +4,7 @@ import ContentAddressableStore, {
   CdcChunker,
   ChunkingPort,
 } from '../../../index.js';
+import RedactingObservability from '../../../src/domain/services/RedactingObservability.js';
 
 // ---------------------------------------------------------------------------
 // Helpers — mock plumbing to avoid real Git
@@ -169,7 +170,7 @@ describe('Facade – createJson factory options', () => {
 
     expect(svc.codec.extension).toBe('json');
     expect(svc.chunker).toBe(chunker);
-    expect(svc.observability).toBe(observability);
+    expect(svc.observability).toBeInstanceOf(RedactingObservability);
     expect(svc.compressionAdapter).toBe(compressionAdapter);
     expect(svc.merkleThreshold).toBe(7);
     expect(svc.concurrency).toBe(3);
@@ -196,7 +197,7 @@ describe('Facade – createCbor factory options', () => {
     expect(svc.codec.extension).toBe('cbor');
     expect(svc.chunker).toBeInstanceOf(FixedChunker);
     expect(svc.chunker.params).toEqual({ chunkSize: 2048 });
-    expect(svc.observability).toBe(observability);
+    expect(svc.observability).toBeInstanceOf(RedactingObservability);
     expect(svc.compressionAdapter).toBe(compressionAdapter);
     expect(svc.merkleThreshold).toBe(9);
     expect(svc.concurrency).toBe(4);

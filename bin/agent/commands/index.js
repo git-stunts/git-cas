@@ -531,7 +531,7 @@ function validateRecipientRemoveInput(input) {
  * }>}
  */
 async function resolveVaultManifestBySlug(input) {
-  const cas = createCas(input.cwd);
+  const cas = await createCas(input.cwd);
   const treeOid = await cas.resolveVaultEntry({ slug: input.slug });
   const manifest = await cas.readManifest({ treeOid });
   return { cas, treeOid, manifest };
@@ -910,7 +910,7 @@ async function storeCommand(args, stdin, session) {
     ])
   );
 
-  const cas = createCas(input.cwd || '.');
+  const cas = await createCas(input.cwd || '.');
   const encryptionKey = await readStoreEncryptionKey({ cas, input, stdin, session });
   const vaultEncryptionKey = encryptionKey && !input.keyFile ? encryptionKey : undefined;
   const manifest = await cas.storeFile({
@@ -944,7 +944,7 @@ async function treeCommand(args, stdin, session) {
   const input = await parseTreeInput(args, stdin);
   const manifest = resolveManifestInput(input);
   writeAgentStart(session, selectStartInput(input, ['cwd', 'manifest', 'requestSource']));
-  const cas = createCas(input.cwd || '.');
+  const cas = await createCas(input.cwd || '.');
   const treeOid = await cas.createTree({ manifest });
 
   return buildTreeOutcome(manifest, treeOid);
@@ -1121,7 +1121,7 @@ async function doctorCommand(args, stdin, session) {
   assignPositionals(positionals, []);
   writeAgentStart(session, selectStartInput(values, ['cwd']));
 
-  const cas = createCas(values.cwd || '.');
+  const cas = await createCas(values.cwd || '.');
   const report = await inspectVaultHealth(cas);
   const exitCode =
     report.status === 'ok' ? AGENT_EXIT_CODES.SUCCESS : AGENT_EXIT_CODES.VERIFICATION_FAILED;
@@ -1276,7 +1276,7 @@ async function vaultInitCommand(args, stdin, session) {
     onWarning: (warning) => session.writeWarning(warning),
   });
   const algorithm = parseKdfAlgorithm(input.algorithm);
-  const cas = createCas(input.cwd || '.');
+  const cas = await createCas(input.cwd || '.');
   const { commitOid } = await cas.initVault({
     ...(passphrase ? { passphrase } : {}),
     ...(passphrase && algorithm ? { kdfOptions: { algorithm } } : {}),
@@ -1312,7 +1312,7 @@ async function vaultRemoveCommand(args, stdin, session) {
   values.slug = Slug.from(values.slug).toString();
   writeAgentStart(session, selectStartInput(values, ['cwd', 'slug']));
 
-  const cas = createCas(values.cwd || '.');
+  const cas = await createCas(values.cwd || '.');
   const { commitOid, removedTreeOid } = await cas.removeFromVault({ slug: values.slug });
 
   return buildVaultRemoveOutcome({
@@ -1355,7 +1355,7 @@ async function vaultRotateCommand(args, stdin, session) {
       onWarning: (warning) => session.writeWarning(warning),
     }
   );
-  const cas = createCas(input.cwd || '.');
+  const cas = await createCas(input.cwd || '.');
   const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase({
     oldPassphrase,
     newPassphrase,
@@ -1388,7 +1388,7 @@ async function vaultListCommand(args, stdin, session) {
   assignPositionals(positionals, []);
   writeAgentStart(session, selectStartInput(values, ['cwd', 'filter']));
 
-  const cas = createCas(values.cwd || '.');
+  const cas = await createCas(values.cwd || '.');
   const all = await cas.listVault();
   const entries = filterEntries(all, values.filter);
 
@@ -1419,7 +1419,7 @@ async function vaultInfoCommand(args, stdin, session) {
   input.slug = Slug.from(input.slug).toString();
   writeAgentStart(session, selectStartInput(input, ['cwd', 'slug', 'encryption']));
 
-  const cas = createCas(input.cwd || '.');
+  const cas = await createCas(input.cwd || '.');
   const treeOid = await cas.resolveVaultEntry({ slug: input.slug });
   /** @type {Record<string, any>} */
   const result = {
@@ -1452,7 +1452,7 @@ async function vaultHistoryCommand(args, stdin, session) {
     stdin
   );
   assignPositionals(positionals, []);
-  const plumbing = createGitPlumbing({ cwd: values.cwd || '.' });
+  const plumbing = await createGitPlumbing({ cwd: values.cwd || '.' });
   const argsForGit = ['log', '--oneline', ContentAddressableStore.VAULT_REF];
   const maxCount = parsePositiveInteger(values['max-count']);
   writeAgentStart(
@@ -1495,7 +1495,7 @@ async function vaultStatsCommand(args, stdin, session) {
   assignPositionals(positionals, []);
   writeAgentStart(session, selectStartInput(values, ['cwd', 'filter']));
 
-  const cas = createCas(values.cwd || '.');
+  const cas = await createCas(values.cwd || '.');
   const all = await cas.listVault();
   const entries = filterEntries(all, values.filter);
   const records = [];

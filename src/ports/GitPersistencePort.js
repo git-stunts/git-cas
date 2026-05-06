@@ -49,4 +49,23 @@ export default class GitPersistencePort {
   async readTree(_treeOid) {
     throw new Error('Not implemented');
   }
+
+  /**
+   * Reads one Git tree entry by path without enumerating the full tree.
+   * @param {string} _treeOid - Git tree OID.
+   * @param {string} _treePath - Tree entry path/name to resolve.
+   * @returns {Promise<{ mode: string, type: string, oid: string, name: string }|null>} Parsed entry or null.
+   */
+  async readTreeEntry(_treeOid, _treePath) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Streams parsed Git tree entries.
+   * @param {string} _treeOid - Git tree OID.
+   * @returns {AsyncIterable<{ mode: string, type: string, oid: string, name: string }>}
+   */
+  iterateTree(_treeOid) {
+    throw new Error('Not implemented');
+  }
 }

@@ -69,7 +69,7 @@ A complete init-store-tree-restore cycle:
 import ContentAddressableStore from '@git-stunts/git-cas';
 
 // 1. Initialize
-const cas = ContentAddressableStore.open({ cwd: '/path/to/repo' });
+const cas = await ContentAddressableStore.open({ cwd: '/path/to/repo' });
 
 // 2. Store a file
 const manifest = await cas.storeFile({
@@ -92,14 +92,15 @@ const { buffer } = await cas.restore({ manifest: readBack });
 
 | Factory | Codec | Use Case |
 |---|---|---|
-| `ContentAddressableStore.open({ cwd })` | JSON | Shortest normal application setup |
+| `await ContentAddressableStore.open({ cwd })` | JSON | Shortest normal application setup |
 | `ContentAddressableStore.createJson({ plumbing })` | JSON | Human-readable manifests, debugging |
 | `ContentAddressableStore.createCbor({ plumbing })` | CBOR | Compact binary manifests, production |
 
-`open()` accepts `cwd` plus the same facade options as the constructor except
-`plumbing`. Use `createJson()` or `createCbor()` when you already have a custom
-Git plumbing instance. Both explicit-plumbing factories accept the same facade
-options as the constructor except `codec`, which is fixed by the factory name.
+`open()` is async and accepts `cwd` plus the same facade options as the
+constructor except `plumbing`. Use `createJson()` or `createCbor()` when you
+already have a custom Git plumbing instance. Both explicit-plumbing factories
+accept the same facade options as the constructor except `codec`, which is fixed
+by the factory name.
 
 ### Full Constructor
 

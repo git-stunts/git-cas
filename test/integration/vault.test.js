@@ -44,11 +44,11 @@ function initBareRepo(cwd) {
   }
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   repoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-vault-integ-'));
   initBareRepo(repoDir);
 
-  const plumbing = createGitPlumbing({ cwd: repoDir });
+  const plumbing = await createGitPlumbing({ cwd: repoDir });
   cas = new ContentAddressableStore({ plumbing });
 });
 
@@ -211,10 +211,10 @@ describe('encrypted vault', () => {
   let encRepoDir;
   let encCas;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     encRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-vault-enc-integ-'));
     initBareRepo(encRepoDir);
-    const plumbing = createGitPlumbing({ cwd: encRepoDir });
+    const plumbing = await createGitPlumbing({ cwd: encRepoDir });
     encCas = new ContentAddressableStore({ plumbing });
   });
 

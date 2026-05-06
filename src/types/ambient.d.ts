@@ -5,23 +5,28 @@
 declare module '@git-stunts/plumbing' {
   interface ExecuteOptions {
     args: string[];
-    input?: string | Buffer;
+    input?: string | Uint8Array;
+    env?: Record<string, string | undefined>;
   }
 
   interface StreamResult {
-    collect(options?: { asString?: boolean }): Promise<Uint8Array>;
+    collect(options?: { asString?: boolean; maxBytes?: number }): Promise<string | Uint8Array>;
   }
 
-  interface ShellRunner {
-    run(command: string, args: string[], options?: Record<string, unknown>): Promise<unknown>;
-  }
+  type ShellRunner = (options: Record<string, unknown>) => Promise<unknown>;
 
   export class ShellRunnerFactory {
+    static ENV_BUN: 'bun';
+    static ENV_DENO: 'deno';
+    static ENV_NODE: 'node';
     static create(options?: Record<string, unknown>): ShellRunner;
+    static validateCwd(cwd: string): Promise<string>;
   }
 
   export default class GitPlumbing {
     constructor(options: { runner: ShellRunner; cwd?: string });
+    static createDefault(options?: { cwd?: string; env?: string }): Promise<GitPlumbing>;
+    static createRepository(options?: { cwd?: string; env?: string }): Promise<unknown>;
     execute(options: ExecuteOptions): Promise<string>;
     executeStream(options: ExecuteOptions): Promise<StreamResult>;
   }

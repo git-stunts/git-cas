@@ -94,6 +94,13 @@ export declare class GitPersistencePortBase {
   readTree(
     treeOid: string,
   ): Promise<Array<{ mode: string; type: string; oid: string; name: string }>>;
+  readTreeEntry(
+    treeOid: string,
+    treePath: string,
+  ): Promise<{ mode: string; type: string; oid: string; name: string } | null>;
+  iterateTree(
+    treeOid: string,
+  ): AsyncIterable<{ mode: string; type: string; oid: string; name: string }>;
 }
 
 /** Abstract port for Git ref and commit operations. */
@@ -315,6 +322,12 @@ export declare class VaultService {
     encryptionKey?: Uint8Array;
   }): Promise<VaultEntry[]>;
 
+  /** Streams vault entries without forcing a slug map allocation. */
+  iterateVault(options?: {
+    /** Vault encryption key (required when privacy mode is enabled). */
+    encryptionKey?: Uint8Array;
+  }): AsyncIterable<VaultEntry>;
+
   /** Removes an entry from the vault. */
   removeFromVault(options: {
     slug: string;
@@ -377,7 +390,7 @@ export default class ContentAddressableStore {
   getService(): Promise<CasService>;
   getVaultService(): Promise<VaultService>;
 
-  static open(options?: ContentAddressableStoreOpenOptions): ContentAddressableStore;
+  static open(options?: ContentAddressableStoreOpenOptions): Promise<ContentAddressableStore>;
 
   static createJson(options: ContentAddressableStoreCodecFactoryOptions): ContentAddressableStore;
 
@@ -509,6 +522,11 @@ export default class ContentAddressableStore {
     /** Vault encryption key (required when privacy mode is enabled). */
     encryptionKey?: Uint8Array;
   }): Promise<VaultEntry[]>;
+
+  iterateVault(options?: {
+    /** Vault encryption key (required when privacy mode is enabled). */
+    encryptionKey?: Uint8Array;
+  }): AsyncIterable<VaultEntry>;
 
   removeFromVault(options: {
     slug: string;

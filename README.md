@@ -56,7 +56,7 @@ Integrate managed blob storage directly into your TypeScript or JavaScript appli
 ```js
 import ContentAddressableStore from '@git-stunts/git-cas';
 
-const cas = ContentAddressableStore.open({ cwd: '.' });
+const cas = await ContentAddressableStore.open({ cwd: '.' });
 
 const manifest = await cas.storeFile({ filePath: './asset.bin', slug: 'app/asset' });
 const treeOid = await cas.createTree({ manifest });

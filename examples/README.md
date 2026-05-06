@@ -66,7 +66,7 @@ This example shows the complete lifecycle of storing and restoring a file:
 
 **Key concepts:**
 
-- `ContentAddressableStore.open({ cwd })` factory
+- `await ContentAddressableStore.open({ cwd })` factory
 - `storeFile()` to store files
 - `createTree()` to persist manifests in Git
 - `readManifest()` to reconstruct manifests from Git trees
@@ -161,7 +161,7 @@ visual companion to the Merkle manifest docs, not a live Git object reader.
 
 ```javascript
 // JSON codec (default)
-const cas = ContentAddressableStore.open({ cwd: '/path/to/repo' });
+const cas = await ContentAddressableStore.open({ cwd: '/path/to/repo' });
 
 // CBOR codec (binary, with an explicit Git plumbing instance)
 const cas = ContentAddressableStore.createCbor({ plumbing });

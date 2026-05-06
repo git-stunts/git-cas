@@ -39,7 +39,7 @@ console.log(`Created temporary repository: ${repoDir}`);
 execSync('git init --bare', { cwd: repoDir, stdio: 'ignore' });
 
 // Initialize CAS
-const cas = ContentAddressableStore.open({ cwd: repoDir });
+const cas = await ContentAddressableStore.open({ cwd: repoDir });
 
 // Create a test file with sensitive content
 const testDir = mkdtempSync(path.join(os.tmpdir(), 'cas-test-'));

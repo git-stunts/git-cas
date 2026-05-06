@@ -185,12 +185,12 @@ export default class ContentAddressableStore {
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
-   * @returns {ContentAddressableStore}
+   * @returns {Promise<ContentAddressableStore>}
    */
-  static open({ cwd = '.', env, ...options } = {}) {
+  static async open({ cwd = '.', env, ...options } = {}) {
     return new ContentAddressableStore({
       ...options,
-      plumbing: createGitPlumbing({ cwd, env }),
+      plumbing: await createGitPlumbing({ cwd, env }),
     });
   }
 
@@ -527,6 +527,12 @@ export default class ContentAddressableStore {
   async listVault(options) {
     const vault = await this.#getVault();
     return vault.listVault(options);
+  }
+
+  /** @see VaultService#iterateVault */
+  async *iterateVault(options) {
+    const vault = await this.#getVault();
+    yield* vault.iterateVault(options);
   }
 
   /** @see VaultService#removeFromVault */

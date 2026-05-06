@@ -46,11 +46,11 @@ function initBareRepo(cwd) {
   }
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   repoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-integ-'));
   initBareRepo(repoDir);
 
-  const plumbing = createGitPlumbing({ cwd: repoDir });
+  const plumbing = await createGitPlumbing({ cwd: repoDir });
   cas = new ContentAddressableStore({ plumbing });
   casCbor = new ContentAddressableStore({ plumbing, codec: new CborCodec() });
 });
@@ -338,7 +338,7 @@ describe('repeated chunks — v1 tree emission dedupe + fsck regression', () => 
     const original = Buffer.concat([repeatedChunk, uniqueChunk, repeatedChunk, repeatedChunk]);
     const { filePath, dir } = tempFile(original);
     const repeatedCas = new ContentAddressableStore({
-      plumbing: createGitPlumbing({ cwd: repoDir }),
+      plumbing: await createGitPlumbing({ cwd: repoDir }),
       chunkSize: 1024,
       merkleThreshold: 10,
     });
@@ -383,7 +383,7 @@ describe('repeated chunks — Merkle tree emission dedupe + fsck regression', ()
     const original = Buffer.concat([chunkA, chunkB, chunkA, chunkC, chunkA]);
     const { filePath, dir } = tempFile(original);
     const repeatedCas = new ContentAddressableStore({
-      plumbing: createGitPlumbing({ cwd: repoDir }),
+      plumbing: await createGitPlumbing({ cwd: repoDir }),
       chunkSize: 1024,
       merkleThreshold: 2,
     });

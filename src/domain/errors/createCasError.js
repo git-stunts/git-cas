@@ -10,15 +10,18 @@ import ManifestIntegrityError from './ManifestIntegrityError.js';
 import ManifestNotFoundError from './ManifestNotFoundError.js';
 import NoMatchingRecipientError from './NoMatchingRecipientError.js';
 import PersistenceCapabilityRequiredError from './PersistenceCapabilityRequiredError.js';
+import PortNotImplementedError from './PortNotImplementedError.js';
 import RecipientAlreadyExistsError from './RecipientAlreadyExistsError.js';
 import RecipientNotFoundError from './RecipientNotFoundError.js';
 import RestoreTooLargeError from './RestoreTooLargeError.js';
 import RotationNotSupportedError from './RotationNotSupportedError.js';
+import GitPlumbingInitializationError from './GitPlumbingInitializationError.js';
 
 const ERROR_BY_CODE = Object.freeze({
   [CannotRemoveLastRecipientError.code]: CannotRemoveLastRecipientError,
   [DekUnwrapFailedError.code]: DekUnwrapFailedError,
   [GitError.code]: GitError,
+  [GitPlumbingInitializationError.code]: GitPlumbingInitializationError,
   [IntegrityError.code]: IntegrityError,
   [InvalidChunkingStrategyError.code]: InvalidChunkingStrategyError,
   [InvalidOidError.code]: InvalidOidError,
@@ -27,6 +30,7 @@ const ERROR_BY_CODE = Object.freeze({
   [ManifestNotFoundError.code]: ManifestNotFoundError,
   [NoMatchingRecipientError.code]: NoMatchingRecipientError,
   [PersistenceCapabilityRequiredError.code]: PersistenceCapabilityRequiredError,
+  [PortNotImplementedError.code]: PortNotImplementedError,
   [RecipientAlreadyExistsError.code]: RecipientAlreadyExistsError,
   [RecipientNotFoundError.code]: RecipientNotFoundError,
   [RestoreTooLargeError.code]: RestoreTooLargeError,

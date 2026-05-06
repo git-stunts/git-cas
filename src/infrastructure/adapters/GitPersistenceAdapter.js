@@ -102,36 +102,52 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
         args: ['ls-tree', '-z', treeOid],
       });
 
-      if (!output || output.length === 0) {
-        return [];
-      }
-
-      return output.split('\0').filter(Boolean).map((/** @type {string} */ entry) => {
-        // Format: <mode> <type> <oid>\t<name>
-        const tabIndex = entry.indexOf('\t');
-        if (tabIndex === -1) {
-          throw new CasError(
-            `Malformed ls-tree entry: ${entry}`,
-            'TREE_PARSE_ERROR',
-            { rawEntry: entry },
-          );
-        }
-        const meta = entry.slice(0, tabIndex).split(' ');
-        if (meta.length !== 3) {
-          throw new CasError(
-            `Malformed ls-tree entry: ${entry}`,
-            'TREE_PARSE_ERROR',
-            { rawEntry: entry },
-          );
-        }
-        return {
-          mode: meta[0],
-          type: meta[1],
-          oid: meta[2],
-          name: entry.slice(tabIndex + 1),
-        };
-      });
+      return GitPersistenceAdapter.#parseTreeOutput(output);
     });
+  }
+
+  /**
+   * @override
+   * @param {string} treeOid - Git tree OID.
+   * @param {string} treePath - Tree entry path/name to resolve.
+   * @returns {Promise<{ mode: string, type: string, oid: string, name: string }|null>}
+   */
+  async readTreeEntry(treeOid, treePath) {
+    return this.policy.execute(async () => {
+      const output = await this.plumbing.execute({
+        args: ['ls-tree', '-z', treeOid, '--', treePath],
+      });
+      return GitPersistenceAdapter.#parseTreeOutput(output)[0] || null;
+    });
+  }
+
+  /**
+   * @override
+   * @param {string} treeOid - Git tree OID.
+   * @returns {AsyncIterable<{ mode: string, type: string, oid: string, name: string }>}
+   */
+  async *iterateTree(treeOid) {
+    const stream = await this.policy.execute(async () => (
+      await this.plumbing.executeStream({
+        args: ['ls-tree', '-z', treeOid],
+      })
+    ));
+    let pending = '';
+    for await (const chunk of stream) {
+      pending += GitPersistenceAdapter.#toBuffer(chunk).toString();
+      let nulIndex = pending.indexOf('\0');
+      while (nulIndex !== -1) {
+        const rawEntry = pending.slice(0, nulIndex);
+        pending = pending.slice(nulIndex + 1);
+        if (rawEntry) {
+          yield GitPersistenceAdapter.#parseTreeEntry(rawEntry);
+        }
+        nulIndex = pending.indexOf('\0');
+      }
+    }
+    if (pending) {
+      yield GitPersistenceAdapter.#parseTreeEntry(pending);
+    }
   }
 
   /**
@@ -180,5 +196,48 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       return Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength);
     }
     return Buffer.from(String(chunk));
+  }
+
+  /**
+   * @param {string} output
+   * @returns {Array<{ mode: string, type: string, oid: string, name: string }>}
+   */
+  static #parseTreeOutput(output) {
+    if (!output || output.length === 0) {
+      return [];
+    }
+    return output
+      .split('\0')
+      .filter(Boolean)
+      .map((entry) => GitPersistenceAdapter.#parseTreeEntry(entry));
+  }
+
+  /**
+   * @param {string} entry
+   * @returns {{ mode: string, type: string, oid: string, name: string }}
+   */
+  static #parseTreeEntry(entry) {
+    const tabIndex = entry.indexOf('\t');
+    if (tabIndex === -1) {
+      throw new CasError(
+        `Malformed ls-tree entry: ${entry}`,
+        'TREE_PARSE_ERROR',
+        { rawEntry: entry },
+      );
+    }
+    const meta = entry.slice(0, tabIndex).split(' ');
+    if (meta.length !== 3) {
+      throw new CasError(
+        `Malformed ls-tree entry: ${entry}`,
+        'TREE_PARSE_ERROR',
+        { rawEntry: entry },
+      );
+    }
+    return {
+      mode: meta[0],
+      type: meta[1],
+      oid: meta[2],
+      name: entry.slice(tabIndex + 1),
+    };
   }
 }

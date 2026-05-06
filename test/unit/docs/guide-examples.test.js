@@ -117,7 +117,7 @@ describe('GUIDE quick start', () => {
       const inputPath = path.join(repoDir, 'photo.jpg');
       writeFileSync(inputPath, original);
 
-      const cas = ContentAddressableStore.open({ cwd: repoDir });
+      const cas = await ContentAddressableStore.open({ cwd: repoDir });
       const manifest = await cas.storeFile({ filePath: inputPath, slug: 'photos/vacation' });
       const treeOid = await cas.createTree({ manifest });
       await cas.addToVault({ slug: 'photos/vacation', treeOid });

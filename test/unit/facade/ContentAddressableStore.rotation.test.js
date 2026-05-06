@@ -20,8 +20,8 @@ function createRepo() {
   return dir;
 }
 
-function createCas(repoDir) {
-  const plumbing = createGitPlumbing({ cwd: repoDir });
+async function createCas(repoDir) {
+  const plumbing = await createGitPlumbing({ cwd: repoDir });
   return new ContentAddressableStore({ plumbing, chunkSize: 1024 });
 }
 
@@ -36,9 +36,9 @@ describe('ContentAddressableStore – rotateVaultPassphrase (wiring)', () => {
   let repoDir;
   let cas;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     repoDir = createRepo();
-    cas = createCas(repoDir);
+    cas = await createCas(repoDir);
   });
 
   afterEach(() => {

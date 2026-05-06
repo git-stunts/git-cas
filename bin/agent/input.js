@@ -262,10 +262,10 @@ export function readTextInputFile(filePath, label) {
 
 /**
  * @param {string} cwd
- * @returns {ContentAddressableStore}
+ * @returns {Promise<ContentAddressableStore>}
  */
-export function createCas(cwd) {
-  const plumbing = createGitPlumbing({ cwd });
+export async function createCas(cwd) {
+  const plumbing = await createGitPlumbing({ cwd });
   return new ContentAddressableStore({ plumbing });
 }
 
@@ -549,7 +549,7 @@ export function parsePositiveInteger(value) {
  * @returns {Promise<{ cas: ContentAddressableStore, treeOid: string }>}
  */
 export async function resolveTree(input) {
-  const cas = createCas(input.cwd);
+  const cas = await createCas(input.cwd);
   const treeOid = input.oid || (await cas.resolveVaultEntry({ slug: input.slug }));
   return { cas, treeOid };
 }

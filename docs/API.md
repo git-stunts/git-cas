@@ -30,7 +30,7 @@ The main facade class providing high-level API for content-addressable storage.
 ### open
 
 ```javascript
-ContentAddressableStore.open({ cwd, chunkSize, policy });
+await ContentAddressableStore.open({ cwd, chunkSize, policy });
 ```
 
 Creates the default JSON-codec facade from a Git working directory. This is the
@@ -43,14 +43,14 @@ recommended entry point for normal application code.
 - `policy` (optional): Resilience policy
 - Any other `ContentAddressableStore` constructor option except `plumbing`
 
-**Returns:** `ContentAddressableStore`
+**Returns:** `Promise<ContentAddressableStore>`
 
 **Example:**
 
 ```javascript
 import ContentAddressableStore from '@git-stunts/git-cas';
 
-const cas = ContentAddressableStore.open({ cwd: '/path/to/repo' });
+const cas = await ContentAddressableStore.open({ cwd: '/path/to/repo' });
 ```
 
 ### Constructor
@@ -80,7 +80,7 @@ new ContentAddressableStore(options);
 import ContentAddressableStore from '@git-stunts/git-cas';
 import GitPlumbing from '@git-stunts/plumbing';
 
-const plumbing = GitPlumbing.createDefault({ cwd: '/path/to/repo' });
+const plumbing = await GitPlumbing.createDefault({ cwd: '/path/to/repo' });
 const cas = new ContentAddressableStore({ plumbing });
 ```
 

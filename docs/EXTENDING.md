@@ -9,7 +9,7 @@ Most users should start with the facade:
 import GitPlumbing from '@git-stunts/plumbing';
 import ContentAddressableStore from '@git-stunts/git-cas';
 
-const plumbing = GitPlumbing.createDefault({ cwd: '.' });
+const plumbing = await GitPlumbing.createDefault({ cwd: '.' });
 const cas = ContentAddressableStore.createJson({ plumbing });
 ```
 

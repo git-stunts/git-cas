@@ -79,6 +79,10 @@ Active:
 - [TUI — OS Keychain Auto-Discovery](./cool-ideas/TUI_os-keychain-auto-discovery.md)
 - [TUI — Segmented Manifest View](./cool-ideas/TUI_segmented-manifest-view.md)
 - [TUI — Title Screen Stats](./cool-ideas/TUI_title-screen-stats.md)
+- [Atomic Multi-Store](./cool-ideas/atomic-multi-store.md)
+- [Merkle Tree Explorer TUI](./cool-ideas/merkle-tree-explorer-tui.md)
+- [Selective Asset Replication](./cool-ideas/selective-asset-replication.md)
+- [Streaming CLI stdin](./cool-ideas/streaming-cli-stdin.md)
 
 Resolved — `security/audit-fixes` branch:
 
@@ -99,6 +103,7 @@ Resolved — 2026-05-05 final v6 release polish:
 Active:
 
 - [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md)
+- [Vault Tree Memory Loading](./bad-code/vault-tree-memory-loading.md)
 
 Resolved — 2026-05-05 CasService de-sludge:
 

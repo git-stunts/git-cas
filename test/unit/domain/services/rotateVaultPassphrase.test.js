@@ -34,7 +34,7 @@ function createRepo() {
 }
 
 async function createDeps(repoDir) {
-  const plumbing = createGitPlumbing({ cwd: repoDir });
+  const plumbing = await createGitPlumbing({ cwd: repoDir });
   const crypto = initialCrypto;
   const persistence = new GitPersistenceAdapter({ plumbing });
   const ref = new GitRefAdapter({ plumbing });

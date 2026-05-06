@@ -23,4 +23,16 @@ describe('GitPersistencePort – abstract methods', () => {
   it('readTree() throws Not implemented', async () => {
     await expect(port.readTree('tree-oid')).rejects.toThrow('Not implemented');
   });
+
+  it('readTreeEntry() throws Not implemented', async () => {
+    await expect(port.readTreeEntry('tree-oid', 'path')).rejects.toThrow('Not implemented');
+  });
+
+  it('iterateTree() throws Not implemented', async () => {
+    await expect(async () => {
+      for await (const entry of port.iterateTree('tree-oid')) {
+        throw new Error(`abstract iterator unexpectedly yielded ${entry}`);
+      }
+    }).rejects.toThrow('Not implemented');
+  });
 });

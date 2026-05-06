@@ -41,9 +41,9 @@ const REQUEST_PAYLOAD_KDF_ALGORITHM = RUNTIME_CMD[0] === 'deno' ? 'pbkdf2' : 'sc
  * @param {string} cwd
  * @returns {ContentAddressableStore}
  */
-function createCas(cwd) {
+async function createCas(cwd) {
   return new ContentAddressableStore({
-    plumbing: createGitPlumbing({ cwd }),
+    plumbing: await createGitPlumbing({ cwd }),
   });
 }
 
@@ -157,7 +157,7 @@ async function setupPlainRepo() {
   const plainRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-integ-'));
   initBareRepo(plainRepoDir);
 
-  const cas = createCas(plainRepoDir);
+  const cas = await createCas(plainRepoDir);
   await cas.initVault();
 
   const input = tempFile(original);
@@ -175,7 +175,7 @@ async function setupEncryptedRepo() {
   const encryptedRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-enc-integ-'));
   initBareRepo(encryptedRepoDir);
 
-  const cas = createCas(encryptedRepoDir);
+  const cas = await createCas(encryptedRepoDir);
   await cas.initVault({ passphrase: vaultPassphrase });
 
   const input = tempFile(encryptedOriginal);
@@ -198,7 +198,7 @@ async function setupRecipientRepo() {
   const envelopeRepoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-recipient-integ-'));
   initBareRepo(envelopeRepoDir);
 
-  const cas = createCas(envelopeRepoDir);
+  const cas = await createCas(envelopeRepoDir);
   await cas.initVault();
 
   const input = tempFile(envelopeOriginal);
@@ -224,7 +224,7 @@ async function createEnvelopeVaultEntry(
   repoPath,
   { slug, recipients, content = envelopeOriginal }
 ) {
-  const cas = createCas(repoPath);
+  const cas = await createCas(repoPath);
   const input = tempFile(content);
   const manifest = await cas.storeFile({
     filePath: input.filePath,
@@ -261,7 +261,7 @@ async function setupVaultRotateRepo() {
 
   const oldPassphrase = 'relay-old-passphrase';
   const newPassphrase = 'relay-new-passphrase';
-  const cas = createCas(rotateRepoDir);
+  const cas = await createCas(rotateRepoDir);
   await cas.initVault({ passphrase: oldPassphrase });
 
   const oldKek = await deriveVaultKey(cas, oldPassphrase);
@@ -795,7 +795,7 @@ function assertSlugRotateRestore(slug, newKeyFilePath, oldKeyFilePath) {
 }
 
 async function assertVaultRotateRestore(repoPath, newPassphrase, oldKeyFilePath) {
-  const newKeyFile = tempFile(await deriveVaultKey(createCas(repoPath), newPassphrase));
+  const newKeyFile = tempFile(await deriveVaultKey(await createCas(repoPath), newPassphrase));
   const outputDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-vault-rotate-restore-'));
   const outputPath = path.join(outputDir, 'restored.bin');
   const restoreNew = runAgentCli(
@@ -1052,7 +1052,7 @@ function defineVaultRotateRequestPayloadTest() {
     expect(stderrRows.every((row) => row.type === 'warning')).toBe(true);
     expect(stderrRows.every((row) => row.data.code === 'INSECURE_FILE_PERMISSIONS')).toBe(true);
 
-    const metadata = await createCas(fixture.repoDir).getVaultMetadata();
+    const metadata = await (await createCas(fixture.repoDir)).getVaultMetadata();
     expect(metadata?.encryption?.kdf?.algorithm).toBe(REQUEST_PAYLOAD_KDF_ALGORITHM);
 
     cleanupTempDirs(
@@ -1141,7 +1141,7 @@ function defineVaultInitPlaintextTest() {
       encrypted: false,
     });
 
-    const metadata = await createCas(vaultRepoDir).getVaultMetadata();
+    const metadata = await (await createCas(vaultRepoDir)).getVaultMetadata();
     expect(metadata?.encryption).toBeUndefined();
 
     cleanupTempDirs(vaultRepoDir);
@@ -1181,7 +1181,7 @@ function defineVaultInitEncryptedRequestPayloadTest() {
       },
     });
 
-    const metadata = await createCas(vaultRepoDir).getVaultMetadata();
+    const metadata = await (await createCas(vaultRepoDir)).getVaultMetadata();
     expect(metadata?.encryption?.kdf?.algorithm).toBe(REQUEST_PAYLOAD_KDF_ALGORITHM);
 
     cleanupTempDirs(vaultRepoDir, passphraseFile.dir);
@@ -1228,7 +1228,7 @@ function defineVaultRemoveSuccessTest() {
       updatedVault: true,
     });
 
-    const entries = await createCas(fixture.repoDir).listVault();
+    const entries = await (await createCas(fixture.repoDir)).listVault();
     expect(entries).toEqual([]);
 
     cleanupTempDirs(fixture.repoDir, fixture.inputDir);
@@ -1337,7 +1337,7 @@ function defineTreeCommandFilePathTest() {
   it('tree creates a tree from a manifest file without human formatting', async () => {
     const manifestDir = mkdtempSync(path.join(os.tmpdir(), 'cas-agent-manifest-'));
     const manifestPath = path.join(manifestDir, 'manifest.json');
-    const manifest = await createCas(repoDir).readManifest({ treeOid });
+    const manifest = await (await createCas(repoDir)).readManifest({ treeOid });
     writeFileSync(manifestPath, JSON.stringify(manifest.toJSON()));
 
     const result = runAgentCli(['tree', '--manifest', manifestPath], repoDir);
@@ -1367,7 +1367,7 @@ function defineTreeCommandFilePathTest() {
 
 function defineTreeCommandRequestPayloadTest() {
   it('tree accepts an inline manifest object through the request payload', async () => {
-    const manifest = await createCas(repoDir).readManifest({ treeOid });
+    const manifest = await (await createCas(repoDir)).readManifest({ treeOid });
     const requestPath = path.join(requestDir, 'tree-request.json');
     writeFileSync(requestPath, JSON.stringify({ manifest: manifest.toJSON() }));
 

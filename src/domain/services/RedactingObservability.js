@@ -56,6 +56,10 @@ export default class RedactingObservability {
    * @param {Record<string, unknown>} [meta]
    */
   log(level, msg, meta) {
+    if (meta === undefined) {
+      this.#inner.log(level, msg);
+      return;
+    }
     this.#inner.log(level, msg, RedactingObservability.redact(meta));
   }
 

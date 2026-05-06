@@ -110,7 +110,7 @@ console.log('  - integrity:fail');
 console.log('  - error');
 
 // Step 1: Store the file with progress tracking
-const cas = ContentAddressableStore.open({
+const cas = await ContentAddressableStore.open({
   cwd: repoDir,
   chunkSize: 128 * 1024,
   observability: observer,

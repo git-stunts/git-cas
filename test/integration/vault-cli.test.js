@@ -559,7 +559,7 @@ describe('vault CLI — restore --oid with Merkle manifest', () => {
     initBareRepo(merkleRepoDir);
     ({ filePath: merkleInputFile, dir: merkleInputDir } = tempFile(merkleOriginal));
 
-    const plumbing = createGitPlumbing({ cwd: merkleRepoDir });
+    const plumbing = await createGitPlumbing({ cwd: merkleRepoDir });
     const cas = new ContentAddressableStore({
       plumbing,
       chunkSize: 1024,

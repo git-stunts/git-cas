@@ -3,42 +3,20 @@
  * test wiring.
  */
 
-import GitPlumbing, { ShellRunnerFactory } from '@git-stunts/plumbing';
+import GitPlumbingFactoryAdapter, {
+  resolveGitRunnerEnv,
+} from './adapters/GitPlumbingFactoryAdapter.js';
 
-/**
- * Resolve the shell-runner environment override for the current runtime.
- *
- * Bun uses the Node-backed runner path because the native Bun subprocess path
- * is more prone to `git` I/O edge cases in this repository.
- *
- * @returns {string | undefined}
- */
-export function resolveGitRunnerEnv() {
-  return typeof globalThis.Bun !== 'undefined' ? ShellRunnerFactory.ENV_NODE : undefined;
-}
+const defaultFactory = new GitPlumbingFactoryAdapter();
 
-/**
- * Create a shell runner with the runtime-appropriate environment override.
- *
- * @param {{ env?: string }} [options]
- * @returns {ReturnType<typeof ShellRunnerFactory.create>}
- */
-export function createGitRunner({ env } = {}) {
-  const runnerEnv = env ?? resolveGitRunnerEnv();
-  return runnerEnv
-    ? ShellRunnerFactory.create({ env: runnerEnv })
-    : ShellRunnerFactory.create();
-}
+export { resolveGitRunnerEnv };
 
 /**
  * Construct a GitPlumbing instance for the requested working tree.
  *
- * @param {{ cwd?: string, env?: string }} [options]
- * @returns {GitPlumbing}
+ * @param {{ cwd?: string, env?: string, factory?: GitPlumbingFactoryAdapter }} [options]
+ * @returns {Promise<import('@git-stunts/plumbing').default>}
  */
-export function createGitPlumbing({ cwd = '.', env } = {}) {
-  return new GitPlumbing({
-    runner: createGitRunner({ env }),
-    cwd,
-  });
+export async function createGitPlumbing({ cwd = '.', env, factory = defaultFactory } = {}) {
+  return await factory.create({ cwd, env });
 }

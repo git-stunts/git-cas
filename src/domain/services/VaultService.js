@@ -322,6 +322,111 @@ export default class VaultService {
   }
 
   /**
+   * Resolves the current vault commit and tree.
+   * @returns {Promise<{ commitOid: string, treeOid: string }|null>}
+   */
+  async #resolveCurrentVaultTree() {
+    try {
+      const commitOid = await this.ref.resolveRef(VAULT_REF);
+      return { commitOid, treeOid: await this.ref.resolveTree(commitOid) };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Reads one tree entry, preferring the path-targeted persistence capability
+   * when the adapter provides it.
+   * @param {string} treeOid
+   * @param {string} treePath
+   * @returns {Promise<VaultTreeEntry|null>}
+   */
+  async #readTreeEntry(treeOid, treePath) {
+    const direct = await this.#readDirectTreeEntry(treeOid, treePath);
+    if (direct !== undefined) {
+      return direct;
+    }
+    const cached = this.#stateCache.get(treeOid);
+    if (cached) {
+      return cached.rawEntries.find((entry) => entry.name === treePath) || null;
+    }
+    const entries = await this.persistence.readTree(treeOid);
+    return entries.find((entry) => entry.name === treePath) || null;
+  }
+
+  /**
+   * @param {string} treeOid
+   * @param {string} treePath
+   * @returns {Promise<VaultTreeEntry|null|undefined>} undefined means capability unavailable.
+   */
+  async #readDirectTreeEntry(treeOid, treePath) {
+    if (typeof this.persistence.readTreeEntry !== 'function') {
+      return undefined;
+    }
+    return await this.persistence.readTreeEntry(treeOid, treePath);
+  }
+
+  /**
+   * @param {string} treeOid
+   * @returns {AsyncIterable<VaultTreeEntry>|null}
+   */
+  #treeIterator(treeOid) {
+    const iterator = typeof this.persistence.iterateTree === 'function'
+      ? this.persistence.iterateTree(treeOid)
+      : null;
+    return iterator && typeof iterator[Symbol.asyncIterator] === 'function'
+      ? iterator
+      : null;
+  }
+
+  /**
+   * Streams tree entries, falling back to readTree() for older adapters.
+   * @param {string} treeOid
+   * @returns {AsyncIterable<VaultTreeEntry>}
+   */
+  async *#iterateTreeEntries(treeOid) {
+    const cached = this.#stateCache.get(treeOid);
+    if (cached) {
+      yield* cached.rawEntries;
+      return;
+    }
+    const iterator = this.#treeIterator(treeOid);
+    if (iterator) {
+      yield* iterator;
+      return;
+    }
+    for (const entry of await this.persistence.readTree(treeOid)) {
+      yield entry;
+    }
+  }
+
+  /**
+   * Reads vault metadata without enumerating the whole vault tree.
+   * @param {string} treeOid
+   * @returns {Promise<VaultMetadata|null>}
+   */
+  async #readMetadataFromTree(treeOid) {
+    const cached = this.#stateCache.get(treeOid);
+    if (cached) {
+      return cached.metadata;
+    }
+    const direct = await this.#readDirectTreeEntry(treeOid, '.vault.json');
+    if (direct !== undefined) {
+      return direct ? await this.#readMetadataBlob(direct.oid) : null;
+    }
+    const iterator = this.#treeIterator(treeOid);
+    if (iterator) {
+      for await (const entry of iterator) {
+        if (entry.name === '.vault.json') {
+          return await this.#readMetadataBlob(entry.oid);
+        }
+      }
+      return null;
+    }
+    return (await this.#readCachedVaultTree(treeOid)).metadata;
+  }
+
+  /**
    * Clones metadata for public read-state results.
    * @param {VaultMetadata|null} metadata
    * @returns {VaultMetadata|null}
@@ -412,6 +517,35 @@ export default class VaultService {
   }
 
   /**
+   * Builds a HMAC-name to slug map from the encrypted privacy index.
+   * @param {string} treeOid
+   * @param {VaultMetadata} metadata
+   * @param {Uint8Array} encryptionKey
+   * @returns {Promise<Map<string, string>>}
+   */
+  async #readPrivacyHmacToSlug(treeOid, metadata, encryptionKey) {
+    const privacyIndexEntry = await this.#readTreeEntry(treeOid, PRIVACY_INDEX_ENTRY);
+    if (!privacyIndexEntry) {
+      throw new CasError(
+        'Privacy mode is enabled but .privacy-index is missing',
+        'VAULT_PRIVACY_INDEX_MISSING',
+      );
+    }
+
+    const indexBlob = await this.persistence.readBlob(privacyIndexEntry.oid);
+    const slugToHmac = await this.#decryptPrivacyIndex(
+      indexBlob,
+      encryptionKey,
+      metadata.privacy.indexMeta,
+    );
+    const hmacToSlug = new Map();
+    for (const [slug, hmac] of slugToHmac) {
+      hmacToSlug.set(hmac, slug);
+    }
+    return hmacToSlug;
+  }
+
+  /**
    * Builds public vault state from a cached privacy-enabled vault tree.
    * @param {CachedVaultTree} cached
    * @param {string} commitOid
@@ -465,16 +599,13 @@ export default class VaultService {
    * @returns {Promise<VaultState>}
    */
   async readState({ encryptionKey } = {}) {
-    let commitOid;
-    try {
-      commitOid = await this.ref.resolveRef(VAULT_REF);
-    } catch {
+    const current = await this.#resolveCurrentVaultTree();
+    if (!current) {
       return { entries: new Map(), parentCommitOid: null, metadata: null };
     }
 
-    const treeOid = await this.ref.resolveTree(commitOid);
-    const cached = await this.#readCachedVaultTree(treeOid);
-    return await this.#stateForCachedTree(cached, commitOid, encryptionKey);
+    const cached = await this.#readCachedVaultTree(current.treeOid);
+    return await this.#stateForCachedTree(cached, current.commitOid, encryptionKey);
   }
 
   /**
@@ -924,16 +1055,92 @@ export default class VaultService {
   }
 
   /**
+   * Streams vault entries.
+   * @param {Object} [options]
+   * @param {Uint8Array} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
+   * @returns {AsyncIterable<{ slug: string, treeOid: string }>}
+   */
+  async *iterateVault({ encryptionKey } = {}) {
+    const current = await this.#resolveCurrentVaultTree();
+    if (!current) {
+      return;
+    }
+    const metadata = await this.#readMetadataFromTree(current.treeOid);
+    if (metadata?.encryption && encryptionKey) {
+      await this.#verifyEncryptionVerifier(metadata, encryptionKey);
+    }
+    if (metadata?.privacy?.enabled) {
+      yield* this.#iteratePrivateVaultEntries(current.treeOid, metadata, encryptionKey);
+      return;
+    }
+    yield* this.#iteratePlainVaultEntries(current.treeOid);
+  }
+
+  /**
    * Lists all vault entries.
    * @param {Object} [options]
    * @param {Uint8Array} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
    * @returns {Promise<Array<{ slug: string, treeOid: string }>>}
    */
   async listVault({ encryptionKey } = {}) {
-    const { entries } = await this.readState({ encryptionKey });
-    return [...entries.entries()]
-      .map(([slug, treeOid]) => ({ slug, treeOid }))
-      .sort((a, b) => a.slug.localeCompare(b.slug));
+    const entries = [];
+    for await (const entry of this.iterateVault({ encryptionKey })) {
+      entries.push(entry);
+    }
+    return entries.sort((a, b) => a.slug.localeCompare(b.slug));
+  }
+
+  /**
+   * @param {string} treeOid
+   * @returns {AsyncIterable<{ slug: string, treeOid: string }>}
+   */
+  async *#iteratePlainVaultEntries(treeOid) {
+    for await (const entry of this.#iterateTreeEntries(treeOid)) {
+      if (entry.name === '.vault.json' || entry.name === PRIVACY_INDEX_ENTRY) {
+        continue;
+      }
+      yield {
+        slug: Slug.from(Slug.decode(entry.name)).toString(),
+        treeOid: entry.oid,
+      };
+    }
+  }
+
+  /**
+   * @param {string} treeOid
+   * @param {VaultMetadata} metadata
+   * @param {Uint8Array|undefined} encryptionKey
+   * @returns {AsyncIterable<{ slug: string, treeOid: string }>}
+   */
+  async *#iteratePrivateVaultEntries(treeOid, metadata, encryptionKey) {
+    if (!encryptionKey) {
+      throw new CasError(
+        'Privacy mode is enabled — encryption key is required to read vault state',
+        'VAULT_PRIVACY_KEY_REQUIRED',
+      );
+    }
+    const hmacToSlug = await this.#readPrivacyHmacToSlug(treeOid, metadata, encryptionKey);
+    let treeEntryCount = 0;
+    let resolvedCount = 0;
+    for await (const entry of this.#iterateTreeEntries(treeOid)) {
+      if (entry.name === '.vault.json' || entry.name === PRIVACY_INDEX_ENTRY) {
+        continue;
+      }
+      treeEntryCount++;
+      const slug = hmacToSlug.get(entry.name);
+      if (slug) {
+        resolvedCount++;
+        yield { slug, treeOid: entry.oid };
+      }
+    }
+    if (resolvedCount < treeEntryCount) {
+      const unmatchedCount = treeEntryCount - resolvedCount;
+      this.observability.log(
+        'warn',
+        `Privacy index resolution: ${unmatchedCount} tree entries had no matching slug — potential corruption`,
+        { unmatchedCount, treeEntryCount, resolvedCount },
+      );
+    }
   }
 
   /**
@@ -976,15 +1183,53 @@ export default class VaultService {
    */
   async resolveVaultEntry({ slug, encryptionKey }) {
     const vaultSlug = Slug.from(slug).toString();
-    const { entries } = await this.readState({ encryptionKey });
-    if (!entries.has(vaultSlug)) {
+    const current = await this.#resolveCurrentVaultTree();
+    if (!current) {
       throw new CasError(
         `Vault entry "${vaultSlug}" not found`,
         'VAULT_ENTRY_NOT_FOUND',
         { slug: vaultSlug },
       );
     }
-    return /** @type {string} */ (entries.get(vaultSlug));
+    const metadata = await this.#readMetadataFromTree(current.treeOid);
+    if (metadata?.encryption && encryptionKey) {
+      await this.#verifyEncryptionVerifier(metadata, encryptionKey);
+    }
+    const treePath = await this.#treePathForVaultSlug({
+      metadata,
+      vaultSlug,
+      encryptionKey,
+    });
+    const entry = await this.#readTreeEntry(current.treeOid, treePath);
+    if (!entry) {
+      throw new CasError(
+        `Vault entry "${vaultSlug}" not found`,
+        'VAULT_ENTRY_NOT_FOUND',
+        { slug: vaultSlug },
+      );
+    }
+    return entry.oid;
+  }
+
+  /**
+   * @param {Object} options
+   * @param {VaultMetadata|null} options.metadata
+   * @param {string} options.vaultSlug
+   * @param {Uint8Array|undefined} options.encryptionKey
+   * @returns {Promise<string>}
+   */
+  async #treePathForVaultSlug({ metadata, vaultSlug, encryptionKey }) {
+    if (!metadata?.privacy?.enabled) {
+      return Slug.from(vaultSlug).toTreePath();
+    }
+    if (!encryptionKey) {
+      throw new CasError(
+        'Privacy mode is enabled — encryption key is required to read vault state',
+        'VAULT_PRIVACY_KEY_REQUIRED',
+      );
+    }
+    const privacyKey = await this.#derivePrivacyKey(encryptionKey);
+    return await this.#hmacSlug(privacyKey, vaultSlug);
   }
 
   /**
@@ -1010,18 +1255,10 @@ export default class VaultService {
    * @returns {Promise<VaultMetadata|null>}
    */
   async getVaultMetadata() {
-    let commitOid;
-    try {
-      commitOid = await this.ref.resolveRef(VAULT_REF);
-    } catch {
+    const current = await this.#resolveCurrentVaultTree();
+    if (!current) {
       return null;
     }
-
-    const treeOid = await this.ref.resolveTree(commitOid);
-    const rawEntries = await this.persistence.readTree(treeOid);
-    const { metadataBlobOid } = VaultService.#parseTreeEntries(rawEntries);
-    return metadataBlobOid
-      ? await this.#readMetadataBlob(metadataBlobOid)
-      : null;
+    return await this.#readMetadataFromTree(current.treeOid);
   }
 }

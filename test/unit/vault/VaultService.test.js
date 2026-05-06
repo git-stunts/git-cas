@@ -14,6 +14,8 @@ function mockPersistence() {
     writeTree: vi.fn(),
     readBlob: vi.fn(),
     readTree: vi.fn(),
+    readTreeEntry: vi.fn(),
+    iterateTree: vi.fn(),
   };
 }
 
@@ -410,7 +412,7 @@ describe('addToVault – duplicate handling', () => {
     const ref = mockRef();
     const persistence = mockPersistence();
     setupExistingVault({ ref, persistence, metaJson: JSON.stringify({ version: 1 }), entries: [
-      { mode: '040000', type: 'tree', oid: 'entry-tree-1', name: 'demo/hello' },
+      { mode: '040000', type: 'tree', oid: 'entry-tree-1', name: 'demo%2Fhello' },
     ] });
     const vault = createVault({ ref, persistence });
 
@@ -495,6 +497,34 @@ describe('listVault – populated', () => {
   });
 });
 
+describe('iterateVault – streaming', () => {
+  it('yields entries from the persistence iterator without loading the full tree map', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    ref.resolveRef.mockResolvedValueOnce('commit-oid-1');
+    ref.resolveTree.mockResolvedValueOnce('tree-oid-1');
+    persistence.readTree.mockRejectedValue(new Error('full tree should not be read'));
+    persistence.iterateTree.mockImplementation(async function* iterateTree() {
+      yield { mode: '100644', type: 'blob', oid: 'meta-blob-oid', name: '.vault.json' };
+      yield { mode: '040000', type: 'tree', oid: 'tree-b', name: 'photos%2Fbeach' };
+      yield { mode: '040000', type: 'tree', oid: 'tree-a', name: 'demo%2Fhello' };
+    });
+    persistence.readBlob.mockResolvedValueOnce(Buffer.from(JSON.stringify({ version: 1 })));
+    const vault = createVault({ ref, persistence });
+
+    const entries = [];
+    for await (const entry of vault.iterateVault()) {
+      entries.push(entry);
+    }
+
+    expect(entries).toEqual([
+      { slug: 'photos/beach', treeOid: 'tree-b' },
+      { slug: 'demo/hello', treeOid: 'tree-a' },
+    ]);
+    expect(persistence.readTree).not.toHaveBeenCalled();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // removeFromVault
 // ---------------------------------------------------------------------------
@@ -559,10 +589,33 @@ describe('resolveVaultEntry – found', () => {
     const ref = mockRef();
     const persistence = mockPersistence();
     setupExistingVault({ ref, persistence, metaJson: JSON.stringify({ version: 1 }), entries: [
-      { mode: '040000', type: 'tree', oid: 'entry-tree-1', name: 'demo/hello' },
+      { mode: '040000', type: 'tree', oid: 'entry-tree-1', name: 'demo%2Fhello' },
     ] });
     const vault = createVault({ ref, persistence });
     expect(await vault.resolveVaultEntry({ slug: 'demo/hello' })).toBe('entry-tree-1');
+  });
+
+  it('uses a path-targeted tree lookup instead of reading the full vault tree', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    ref.resolveRef.mockResolvedValueOnce('commit-oid-1');
+    ref.resolveTree.mockResolvedValueOnce('tree-oid-1');
+    persistence.readTree.mockRejectedValue(new Error('full tree should not be read'));
+    persistence.readTreeEntry.mockImplementation(async (_treeOid, treePath) => {
+      if (treePath === '.vault.json') {
+        return { mode: '100644', type: 'blob', oid: 'meta-blob-oid', name: '.vault.json' };
+      }
+      if (treePath === 'demo%2Fhello') {
+        return { mode: '040000', type: 'tree', oid: 'entry-tree-1', name: 'demo%2Fhello' };
+      }
+      return null;
+    });
+    persistence.readBlob.mockResolvedValueOnce(Buffer.from(JSON.stringify({ version: 1 })));
+    const vault = createVault({ ref, persistence });
+
+    expect(await vault.resolveVaultEntry({ slug: 'demo/hello' })).toBe('entry-tree-1');
+    expect(persistence.readTreeEntry).toHaveBeenCalledWith('tree-oid-1', 'demo%2Fhello');
+    expect(persistence.readTree).not.toHaveBeenCalled();
   });
 });
 

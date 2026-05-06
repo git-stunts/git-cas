@@ -33,7 +33,7 @@ describe('ContentAddressableStore.open', () => {
 
     try {
       initBareRepo(repoDir);
-      const cas = ContentAddressableStore.open({ cwd: repoDir, chunkSize: 1024 });
+      const cas = await ContentAddressableStore.open({ cwd: repoDir, chunkSize: 1024 });
       const manifest = await cas.store({
         source: source(original),
         slug: 'open/demo',
