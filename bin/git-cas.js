@@ -381,6 +381,7 @@ program
           manifest,
           ...(encryptionKey ? { encryptionKey } : {}),
           outputPath: opts.out,
+          baseDirectory: process.cwd(),
         }));
       } finally {
         progress.detach();

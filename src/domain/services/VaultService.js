@@ -791,7 +791,9 @@ export default class VaultService {
         if (!isRetryable || attempt >= MAX_CAS_RETRIES - 1) {
           throw err;
         }
-        const delay = CAS_RETRY_BASE_MS * (2 ** attempt);
+        const exponentialDelay = CAS_RETRY_BASE_MS * (2 ** attempt);
+        const jitter = Math.floor(Math.random() * (exponentialDelay / 2));
+        const delay = exponentialDelay + jitter;
         await new Promise((r) => setTimeout(r, delay));
       }
     }

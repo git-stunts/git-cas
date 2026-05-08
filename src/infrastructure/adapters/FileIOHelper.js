@@ -50,15 +50,31 @@ export async function storeFile(service, { filePath, slug, filename, encryptionK
  * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
  * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
  * @param {string} options.outputPath - Destination file path.
+ * @param {string} options.baseDirectory - The permitted base directory for restoration (e.g. repo root).
  * @returns {Promise<{ bytesWritten: number }>}
  */
-export async function restoreFile(service, { manifest, encryptionKey, passphrase, outputPath }) {
+export async function restoreFile(service, { manifest, encryptionKey, passphrase, outputPath, baseDirectory }) {
+  if (!baseDirectory) {
+    throw new CasError('baseDirectory is required for safe restoration', 'INVALID_OPTIONS');
+  }
+
+  const resolvedPath = path.resolve(baseDirectory, outputPath);
+  const resolvedBase = path.resolve(baseDirectory);
+
+  if (!resolvedPath.startsWith(resolvedBase)) {
+    throw new CasError(
+      `Restoration path "${outputPath}" escapes base directory "${baseDirectory}"`,
+      'SECURITY_BOUNDARY_VIOLATION',
+      { outputPath, baseDirectory },
+    );
+  }
+
   const plan = await service.createFileRestorePlan({ manifest, encryptionKey, passphrase });
 
   if (plan.mode === 'bounded-file') {
     return await restoreBufferedFile(service, {
       manifest,
-      outputPath,
+      outputPath: resolvedPath,
       source: plan.source,
       encryptionMeta: plan.encryptionMeta,
     });
@@ -66,7 +82,7 @@ export async function restoreFile(service, { manifest, encryptionKey, passphrase
 
   const iterable = plan.source;
   const readable = Readable.from(iterable);
-  const writable = createWriteStream(outputPath);
+  const writable = createWriteStream(resolvedPath);
   let bytesWritten = 0;
   const counter = new Transform({
     transform(chunk, _encoding, cb) {

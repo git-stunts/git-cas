@@ -992,6 +992,7 @@ async function restoreCommand(args, stdin, session) {
     manifest,
     ...(encryptionKey ? { encryptionKey } : {}),
     outputPath: input.out,
+    baseDirectory: process.cwd(),
   });
 
   return buildRestoreOutcome({
