@@ -38,11 +38,20 @@ export default class VaultPersistence {
    * @returns {Promise<{ commitOid: string, treeOid: string }|null>}
    */
   async resolveHead() {
+    let commitOid;
     try {
-      const commitOid = await this.ref.resolveRef(VAULT_REF);
+      commitOid = await this.ref.resolveRef(VAULT_REF);
+    } catch (err) {
+      if (isMissingVaultRefError(err)) {
+        return null;
+      }
+      throw buildInvalidHeadError('Vault head ref could not be resolved', err);
+    }
+
+    try {
       return { commitOid, treeOid: await this.ref.resolveTree(commitOid) };
-    } catch {
-      return null;
+    } catch (err) {
+      throw buildInvalidHeadError('Vault head commit does not resolve to a tree', err, { commitOid });
     }
   }
 
@@ -264,6 +273,33 @@ function validateRef(ref) {
       { missing },
     );
   }
+}
+
+/**
+ * @param {string} message
+ * @param {unknown} originalError
+ * @param {object} [meta]
+ * @returns {CasError}
+ */
+function buildInvalidHeadError(message, originalError, meta = {}) {
+  return new CasError(message, ErrorCodes.VAULT_HEAD_INVALID, {
+    vaultHead: VAULT_REF,
+    ...meta,
+    originalError,
+  });
+}
+
+/**
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+function isMissingVaultRefError(err) {
+  if (typeof err?.code === 'string' && err.code === 'GIT_REF_NOT_FOUND') {
+    return true;
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  return /\b(missing|not found|unknown revision|ambiguous argument|needed a single revision)\b/i
+    .test(message);
 }
 
 export { VAULT_METADATA_ENTRY, VAULT_PRIVACY_INDEX_ENTRY };

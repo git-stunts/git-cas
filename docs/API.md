@@ -2115,6 +2115,7 @@ new CasError({ message, code, meta, documentationUrl });
 | `VAULT_ENTRY_NOT_FOUND`               | Slug does not exist in vault                                               | `removeFromVault()`, `resolveVaultEntry()`                                    |
 | `VAULT_ENTRY_EXISTS`                  | Slug already exists (use `force` to overwrite)                             | `addToVault()`                                                                |
 | `VAULT_CONFLICT`                      | Concurrent vault update detected (CAS failure after retries)               | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
+| `VAULT_HEAD_INVALID`                  | Vault ref exists but cannot be resolved to a readable commit tree          | `readState()`, `getVaultMetadata()`, `git cas doctor`                         |
 | `VAULT_METADATA_INVALID`              | `.vault.json` malformed, unknown version, or missing required fields       | `readState()`, `rotateVaultPassphrase()`                                      |
 | `VAULT_ENCRYPTION_ALREADY_CONFIGURED` | Cannot reconfigure encryption without key rotation                         | `initVault()`                                                                 |
 | `NO_MATCHING_RECIPIENT`               | No recipient entry matches the provided KEK                                | `restore()`, `rotateKey()`                                                    |

@@ -51,6 +51,38 @@ describe('VaultPersistence head reads', () => {
   });
 });
 
+describe('VaultPersistence corrupt head reads', () => {
+  it('surfaces resolved vault heads whose tree cannot be resolved', async () => {
+    const rootCause = new Error('object database cannot read tree');
+    const ref = mockRef({
+      resolveRef: vi.fn().mockResolvedValue('commit-oid'),
+      resolveTree: vi.fn().mockRejectedValue(rootCause),
+    });
+    const vaultPersistence = new VaultPersistence({ persistence: mockPersistence(), ref });
+
+    await expect(vaultPersistence.resolveHead()).rejects.toMatchObject({
+      code: 'VAULT_HEAD_INVALID',
+      meta: {
+        commitOid: 'commit-oid',
+        originalError: rootCause,
+      },
+    });
+  });
+
+  it('surfaces vault ref resolution failures that are not missing-ref errors', async () => {
+    const rootCause = new Error('permission denied while reading refs/cas/vault');
+    const ref = mockRef({ resolveRef: vi.fn().mockRejectedValue(rootCause) });
+    const vaultPersistence = new VaultPersistence({ persistence: mockPersistence(), ref });
+
+    await expect(vaultPersistence.resolveHead()).rejects.toMatchObject({
+      code: 'VAULT_HEAD_INVALID',
+      meta: {
+        originalError: rootCause,
+      },
+    });
+  });
+});
+
 describe('VaultPersistence tree reads', () => {
   it('reads metadata through targeted tree lookup without materializing the tree', async () => {
     const persistence = mockPersistence({

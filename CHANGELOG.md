@@ -103,6 +103,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Doctor rejects vault heads without metadata** — `git cas doctor` now fails
   with `VAULT_METADATA_INVALID` when `refs/cas/vault` exists but `.vault.json`
   is missing or invalid.
+- **Unreadable vault heads stay visible** — vault head resolution now returns an
+  empty state only when the vault ref is absent; unreadable refs or commits that
+  cannot resolve to a tree fail with `VAULT_HEAD_INVALID`.
 - **Doctor reports byte-level dedupe** — vault stats and doctor output now
   include total chunk bytes, unique chunk bytes, duplicate chunk bytes, and a
   byte-level dedupe ratio alongside chunk-reference counts.
