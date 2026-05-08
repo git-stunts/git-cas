@@ -29,5 +29,17 @@ describe('VaultMutationRetryPolicy', () => {
     expect(() => new VaultMutationRetryPolicy({ maxAttempts: 0 })).toThrow(
       expect.objectContaining({ code: 'VAULT_RETRY_POLICY_INVALID' }),
     );
+    expect(() => new VaultMutationRetryPolicy({ random: null })).toThrow(
+      expect.objectContaining({ code: 'VAULT_RETRY_POLICY_INVALID' }),
+    );
+    expect(() => new VaultMutationRetryPolicy({ sleep: null })).toThrow(
+      expect.objectContaining({ code: 'VAULT_RETRY_POLICY_INVALID' }),
+    );
+  });
+
+  it('freezes the configured policy instance', () => {
+    const policy = new VaultMutationRetryPolicy();
+
+    expect(Object.isFrozen(policy)).toBe(true);
   });
 });

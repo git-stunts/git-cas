@@ -71,7 +71,9 @@ compared with a constant-time byte comparison.
 Owns optimistic contention policy. It decides whether an error is retryable and
 computes exponential backoff with jitter between attempts. `VaultService`
 receives the policy through dependency injection so CLIs, TUIs, and long-running
-agents can tune contention behavior without changing vault use-case logic.
+agents can tune contention behavior without changing vault use-case logic. The
+policy validates injected timing hooks during construction and freezes the
+instance after initialization.
 
 ## Read Paths
 

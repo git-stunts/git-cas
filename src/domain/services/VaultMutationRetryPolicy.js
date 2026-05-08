@@ -1,5 +1,4 @@
-import CasError from '../errors/CasError.js';
-import { ErrorCodes } from '../errors/index.js';
+import { CasError, ErrorCodes } from '../errors/index.js';
 
 export const DEFAULT_VAULT_RETRY_MAX_ATTEMPTS = 3;
 export const DEFAULT_VAULT_RETRY_BASE_DELAY_MS = 50;
@@ -26,24 +25,15 @@ export default class VaultMutationRetryPolicy {
     random = Math.random,
     sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
   } = {}) {
-    if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
-      throw new CasError(
-        'Vault retry maxAttempts must be a positive integer',
-        ErrorCodes.VAULT_RETRY_POLICY_INVALID,
-        { maxAttempts },
-      );
-    }
-    if (!Number.isFinite(baseDelayMs) || baseDelayMs < 0) {
-      throw new CasError(
-        'Vault retry baseDelayMs must be a non-negative number',
-        ErrorCodes.VAULT_RETRY_POLICY_INVALID,
-        { baseDelayMs },
-      );
-    }
+    VaultMutationRetryPolicy.#assertPositiveInteger('maxAttempts', maxAttempts);
+    VaultMutationRetryPolicy.#assertNonNegativeNumber('baseDelayMs', baseDelayMs);
+    VaultMutationRetryPolicy.#assertFunction('random', random);
+    VaultMutationRetryPolicy.#assertFunction('sleep', sleep);
     this.#maxAttempts = maxAttempts;
     this.#baseDelayMs = baseDelayMs;
     this.#random = random;
     this.#sleep = sleep;
+    Object.freeze(this);
   }
 
   get maxAttempts() {
@@ -66,5 +56,50 @@ export default class VaultMutationRetryPolicy {
     const exponentialDelay = this.#baseDelayMs * (2 ** attempt);
     const jitter = Math.floor(this.#random() * (exponentialDelay / 2));
     await this.#sleep(exponentialDelay + jitter);
+  }
+
+  /**
+   * @param {string} label
+   * @param {unknown} value
+   * @returns {void}
+   */
+  static #assertPositiveInteger(label, value) {
+    if (!Number.isInteger(value) || value < 1) {
+      throw new CasError(
+        `Vault retry ${label} must be a positive integer`,
+        ErrorCodes.VAULT_RETRY_POLICY_INVALID,
+        { [label]: value },
+      );
+    }
+  }
+
+  /**
+   * @param {string} label
+   * @param {unknown} value
+   * @returns {void}
+   */
+  static #assertNonNegativeNumber(label, value) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new CasError(
+        `Vault retry ${label} must be a non-negative number`,
+        ErrorCodes.VAULT_RETRY_POLICY_INVALID,
+        { [label]: value },
+      );
+    }
+  }
+
+  /**
+   * @param {string} label
+   * @param {unknown} value
+   * @returns {void}
+   */
+  static #assertFunction(label, value) {
+    if (typeof value !== 'function') {
+      throw new CasError(
+        `Vault retry ${label} must be a function`,
+        ErrorCodes.VAULT_RETRY_POLICY_INVALID,
+        { [`${label}Type`]: typeof value },
+      );
+    }
   }
 }

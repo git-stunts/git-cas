@@ -102,6 +102,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Facade restore guidance links to versioned docs** — missing
   `restoreFile({ baseDirectory })` errors now serialize a v6.0.0 API docs URL
   and use the centralized `INVALID_OPTIONS` error code.
+- **Vault retry policies validate injected hooks** — `VaultMutationRetryPolicy`
+  now rejects non-function `random`/`sleep` dependencies at construction and
+  freezes configured policy instances.
 - **Per-operation Merkle threshold** — `store()` and `storeFile()` now accept a
   `merkleThreshold` option that carries through to the corresponding
   `createTree()` publication unless an explicit `createTree()` threshold is
