@@ -117,7 +117,11 @@ Content can be gzip-compressed before storage through the `CompressionPort` abst
 Two manifest versions handle assets of any size:
 
 - **Version 1**: A flat manifest blob listing all chunk digests. Suitable for most assets.
-- **Version 2**: A Merkle-style manifest that splits the chunk list into sub-manifests, each independently addressable and schema-validated. Automatically engaged when chunk count exceeds 1,000. Sub-manifest arrays are capped at 10,000 entries.
+- **Version 2**: A Merkle-style manifest that splits the chunk list into
+  sub-manifests, each independently addressable and schema-validated.
+  Automatically engaged when chunk count exceeds 1,000 by default, with
+  per-operation `merkleThreshold` overrides available on store calls.
+  Sub-manifest arrays are capped at 10,000 entries.
 
 Every manifest carries an **integrity hash** — the SHA-256 of the codec-encoded content — verified on every read to detect corruption or tampering. Two codecs are available: **JSON** (human-readable, default) and **CBOR** (binary, compact).
 

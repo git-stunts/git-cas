@@ -105,6 +105,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vault retry policies validate injected hooks** — `VaultMutationRetryPolicy`
   now rejects non-function `random`/`sleep` dependencies at construction and
   freezes configured policy instances.
+- **Walkthrough documents per-operation Merkle thresholds** — Merkle guidance
+  now shows `storeFile({ merkleThreshold })` as the primary override and keeps
+  constructor-level thresholds framed as defaults.
 - **Per-operation Merkle threshold** — `store()` and `storeFile()` now accept a
   `merkleThreshold` option that carries through to the corresponding
   `createTree()` publication unless an explicit `createTree()` threshold is

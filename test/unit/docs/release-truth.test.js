@@ -40,7 +40,20 @@ describe('release truth docs and examples', () => {
     expect(api).toContain('Any other `ContentAddressableStore` constructor option except `codec`');
     expect(api).not.toContain('Plumbing.create({ repoPath');
   });
+});
 
+describe('Merkle manifest docs', () => {
+  it('keeps Merkle threshold docs on per-operation overrides', () => {
+    const walkthrough = read('docs/WALKTHROUGH.md');
+
+    expect(walkthrough).toContain('storeFile({');
+    expect(walkthrough).toContain('merkleThreshold: 500, // Per-operation override');
+    expect(walkthrough).toContain('Constructor-level `merkleThreshold` remains the default');
+    expect(walkthrough).not.toContain('Set `merkleThreshold` at construction time:');
+  });
+});
+
+describe('release truth security docs', () => {
   it('keeps the active threat model on current v6 scheme names', () => {
     const threatModel = read('docs/THREAT_MODEL.md');
 

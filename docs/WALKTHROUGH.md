@@ -1150,7 +1150,21 @@ automatically:
 
 ### Configuring the Threshold
 
-Set `merkleThreshold` at construction time:
+Set `merkleThreshold` on the store operation that needs a different split
+point:
+
+```js
+const manifest = await cas.storeFile({
+  filePath: './large-video.mov',
+  slug: 'media/large-video',
+  merkleThreshold: 500, // Per-operation override
+});
+
+const treeOid = await cas.createTree({ manifest });
+```
+
+Constructor-level `merkleThreshold` remains the default for operations that do
+not provide an override:
 
 ```js
 const cas = new ContentAddressableStore({
