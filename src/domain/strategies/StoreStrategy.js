@@ -4,6 +4,7 @@ import {
   SCHEME_WHOLE,
 } from '../encryption/schemes.js';
 import createCasError from '../errors/createCasError.js';
+import { ErrorCodes } from '../errors/index.js';
 
 const ENCRYPTED_STRATEGY_BY_SCHEME = Object.freeze({
   [SCHEME_CONVERGENT]: 'convergent',
@@ -42,7 +43,7 @@ export default class StoreStrategy {
     }
     throw createCasError(
       `Encrypted store requires a current encryption scheme; received ${scheme ?? 'none'}`,
-      'INVALID_OPTIONS',
+      ErrorCodes.INVALID_OPTIONS,
       { scheme },
     );
   }

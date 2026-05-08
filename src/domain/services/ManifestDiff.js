@@ -16,8 +16,8 @@
 /**
  * Compares two manifests by chunk digest.
  *
- * @param {import('../value-objects/Manifest.js').default} oldManifest
- * @param {import('../value-objects/Manifest.js').default} newManifest
+ * @param {Manifest} oldManifest
+ * @param {Manifest} newManifest
  * @returns {ManifestDiffResult}
  */
 export default function diffManifests(oldManifest, newManifest) {

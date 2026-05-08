@@ -2,6 +2,7 @@ import CasError from '../errors/CasError.js';
 import { encodeHex } from '../encoding/hex.js';
 import { utf8Decode, utf8Encode } from '../encoding/utf8.js';
 import Slug from '../value-objects/Slug.js';
+import { ErrorCodes } from '../errors/index.js';
 
 export const PRIVACY_DERIVATION_LABEL = 'git-cas-privacy-v1';
 const PRIVACY_INDEX_HMAC_PATTERN = /^[0-9a-f]{64}$/u;
@@ -23,7 +24,7 @@ export default class VaultPrivacyIndex {
     ) {
       throw new CasError(
         'VaultPrivacyIndex requires hmacSha256, encryptBuffer, and decryptBuffer crypto methods',
-        'VAULT_DEPENDENCY_INVALID',
+        ErrorCodes.VAULT_DEPENDENCY_INVALID,
       );
     }
     this.crypto = crypto;
@@ -112,7 +113,7 @@ export default class VaultPrivacyIndex {
       }
       throw new CasError(
         'Failed to decrypt vault privacy index',
-        'VAULT_PRIVACY_INDEX_INVALID',
+        ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
         { originalError: err },
       );
     }
@@ -126,7 +127,7 @@ export default class VaultPrivacyIndex {
     if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
       throw new CasError(
         'Vault privacy index payload must be a slug-to-HMAC object',
-        'VAULT_PRIVACY_INDEX_INVALID',
+        ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
         { field: 'root' },
       );
     }
@@ -155,7 +156,7 @@ export default class VaultPrivacyIndex {
     } catch (err) {
       throw new CasError(
         'Vault privacy index slug is invalid',
-        'VAULT_PRIVACY_INDEX_INVALID',
+        ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
         { field: 'slug', slug, originalError: err },
       );
     }
@@ -169,7 +170,7 @@ export default class VaultPrivacyIndex {
     if (typeof persistedName !== 'string' || !PRIVACY_INDEX_HMAC_PATTERN.test(persistedName)) {
       throw new CasError(
         'Vault privacy index persisted name is invalid',
-        'VAULT_PRIVACY_INDEX_INVALID',
+        ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
         { field: 'persistedName', persistedName },
       );
     }
@@ -183,7 +184,7 @@ export default class VaultPrivacyIndex {
     if (!encryptionKey) {
       throw new CasError(
         'Privacy mode is enabled - encryption key is required to read vault state',
-        'VAULT_PRIVACY_KEY_REQUIRED',
+        ErrorCodes.VAULT_PRIVACY_KEY_REQUIRED,
       );
     }
   }

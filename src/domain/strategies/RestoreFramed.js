@@ -1,5 +1,7 @@
 /**
  * Restores framed encrypted records, optionally decompressing after decryption.
+ *
+ * @typedef {import('../value-objects/Manifest.js').default} Manifest
  */
 export default class RestoreFramed {
   #chunks;
@@ -13,7 +15,7 @@ export default class RestoreFramed {
    * @param {import('../services/ChunkRepository.js').default} options.chunks
    * @param {import('../services/CompressionStreams.js').default} options.compression
    * @param {import('./FramedRecordCodec.js').default} options.framed
-   * @param {(manifest: import('../value-objects/Manifest.js').default) => boolean} options.isLegacyNoAad
+   * @param {(manifest: Manifest) => boolean} options.isLegacyNoAad
    * @param {import('../../ports/ObservabilityPort.js').default} options.observability
    */
   constructor({ chunks, compression, framed, isLegacyNoAad, observability }) {
@@ -25,7 +27,7 @@ export default class RestoreFramed {
   }
 
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default, key: Uint8Array, encryptionMeta: { frameBytes: number } }} options
+   * @param {{ manifest: Manifest, key: Uint8Array, encryptionMeta: { frameBytes: number } }} options
    * @returns {AsyncIterable<Uint8Array>}
    */
   async *execute({ manifest, key, encryptionMeta }) {

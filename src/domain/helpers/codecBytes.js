@@ -1,5 +1,6 @@
 import createCasError from '../errors/createCasError.js';
 import { utf8Encode } from '../encoding/utf8.js';
+import { ErrorCodes } from '../errors/index.js';
 
 /**
  * @param {unknown} value
@@ -12,7 +13,7 @@ export function normalizeCodecBytes(value) {
   if (typeof value === 'string') {
     return utf8Encode(value);
   }
-  throw createCasError('Codec output must be Uint8Array', 'INVALID_OPTIONS');
+  throw createCasError('Codec output must be Uint8Array', ErrorCodes.INVALID_OPTIONS);
 }
 
 /**

@@ -1,12 +1,13 @@
 import { writeUint32BE } from '../bytes/ByteLayout.js';
 import { utf8Encode } from '../encoding/utf8.js';
 import createCasError from '../errors/createCasError.js';
+import { ErrorCodes } from '../errors/index.js';
 
 function assertFrameIndex(frameIndex) {
   if (!Number.isInteger(frameIndex) || frameIndex < 0 || frameIndex > 0xffffffff) {
     throw createCasError(
       `Framed AAD frame index must be an unsigned 32-bit integer; received ${frameIndex}`,
-      'INVALID_OPTIONS',
+      ErrorCodes.INVALID_OPTIONS,
       { frameIndex },
     );
   }

@@ -2,6 +2,9 @@ import CasError from '../errors/CasError.js';
 import { concatBytes } from '../bytes/ByteLayout.js';
 import { buildFramedAad, buildWholeAad } from '../strategies/Aad.js';
 import { SCHEME_CONVERGENT, SCHEME_FRAMED } from '../encryption/schemes.js';
+import { ErrorCodes } from '../errors/index.js';
+
+/** @typedef {import('../value-objects/Manifest.js').default} Manifest */
 
 /**
  * Stored content integrity verification boundary.
@@ -20,10 +23,10 @@ export default class IntegrityVerifier {
    * @param {import('./ChunkRepository.js').default} options.chunks
    * @param {import('../../ports/CryptoPort.js').default} options.crypto
    * @param {import('../strategies/FramedRecordCodec.js').default} options.framed
-   * @param {(manifest: import('../value-objects/Manifest.js').default) => boolean} options.isLegacyNoAad
+   * @param {(manifest: Manifest) => boolean} options.isLegacyNoAad
    * @param {import('./KeyResolver.js').default} options.keyResolver
    * @param {import('../../ports/ObservabilityPort.js').default} options.observability
-   * @param {(manifest: import('../value-objects/Manifest.js').default) => object|undefined} options.validateEncryptionMeta
+   * @param {(manifest: Manifest) => object|undefined} options.validateEncryptionMeta
    */
   constructor({ chunks, crypto, framed, isLegacyNoAad, keyResolver, observability, validateEncryptionMeta }) {
     this.#chunks = chunks;
@@ -36,7 +39,7 @@ export default class IntegrityVerifier {
   }
 
   /**
-   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Manifest} manifest
    * @param {{ encryptionKey?: Uint8Array, passphrase?: string }} [options]
    * @returns {Promise<boolean>}
    */
@@ -55,7 +58,7 @@ export default class IntegrityVerifier {
     try {
       return this.#validateEncryptionMeta(manifest);
     } catch (err) {
-      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+      if (err instanceof CasError && err.code === ErrorCodes.INTEGRITY_ERROR) {
         this.#emitIntegrityFail(manifest, err.meta);
         return false;
       }
@@ -97,7 +100,7 @@ export default class IntegrityVerifier {
         await this.#chunks.readAndVerifyChunk(chunk, { convergentKey: key });
       }
     } catch (err) {
-      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+      if (err instanceof CasError && err.code === ErrorCodes.INTEGRITY_ERROR) {
         this.#emitIntegrityFail(manifest, err.meta);
         return false;
       }
@@ -134,7 +137,7 @@ export default class IntegrityVerifier {
         options.passphrase,
       );
     } catch (err) {
-      if (err instanceof CasError && ['MISSING_KEY', 'NO_MATCHING_RECIPIENT', 'DEK_UNWRAP_FAILED'].includes(err.code)) {
+      if (err instanceof CasError && [ErrorCodes.MISSING_KEY, ErrorCodes.NO_MATCHING_RECIPIENT, ErrorCodes.DEK_UNWRAP_FAILED].includes(err.code)) {
         this.#emitIntegrityFail(manifest, { reason: 'auth', code: err.code });
         return false;
       }
@@ -148,7 +151,7 @@ export default class IntegrityVerifier {
       await this.#crypto.decryptBuffer(concatBytes(buffers), key, encryptionMeta, aad);
       return true;
     } catch (err) {
-      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+      if (err instanceof CasError && err.code === ErrorCodes.INTEGRITY_ERROR) {
         this.#emitIntegrityFail(manifest, { reason: 'auth', code: err.code });
         return false;
       }
@@ -174,7 +177,7 @@ export default class IntegrityVerifier {
 
       return true;
     } catch (err) {
-      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+      if (err instanceof CasError && err.code === ErrorCodes.INTEGRITY_ERROR) {
         this.#emitIntegrityFail(manifest, {
           reason: err.meta?.reason === 'framed-record-parse' ? 'framing' : 'auth',
           code: err.code,

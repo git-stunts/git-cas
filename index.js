@@ -23,6 +23,8 @@ import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
 import NodeCompressionAdapter from './src/infrastructure/adapters/NodeCompressionAdapter.js';
 import { PACKAGE_VERSION } from './src/package-version.js';
 
+/** @typedef {import('./src/domain/value-objects/Manifest.js').default} Manifest */
+
 const PKG_VERSION = PACKAGE_VERSION;
 const RESTORE_FILE_DOCS_URL =
   'https://github.com/git-stunts/git-cas/blob/main/docs/API.md#restorefile';
@@ -289,7 +291,7 @@ export default class ContentAddressableStore {
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @param {number} [options.merkleThreshold] - Per-operation chunk count threshold for Merkle tree publication.
-   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
+   * @returns {Promise<Manifest>} The resulting manifest.
    */
   async storeFile(options) {
     const service = await this.#getService();
@@ -309,7 +311,7 @@ export default class ContentAddressableStore {
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @param {number} [options.merkleThreshold] - Per-operation chunk count threshold for Merkle tree publication.
-   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
+   * @returns {Promise<Manifest>} The resulting manifest.
    */
   async store(options) {
     const service = await this.#getService();
@@ -319,7 +321,7 @@ export default class ContentAddressableStore {
   /**
    * Restores a file from its manifest and writes it to disk.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Manifest} options.manifest - The file manifest.
    * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * @param {string} options.outputPath - Destination file path.
@@ -342,7 +344,7 @@ export default class ContentAddressableStore {
   /**
    * Restores a file from its manifest, returning the bytes directly.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Manifest} options.manifest - The file manifest.
    * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * @returns {Promise<{ buffer: Uint8Array, bytesWritten: number }>}
@@ -355,7 +357,7 @@ export default class ContentAddressableStore {
   /**
    * Restores a file from its manifest as an async iterable of byte chunks.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Manifest} options.manifest - The file manifest.
    * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * @returns {AsyncIterable<Uint8Array>}
@@ -368,7 +370,7 @@ export default class ContentAddressableStore {
   /**
    * Creates a Git tree object from a manifest.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Manifest} options.manifest - The file manifest.
    * @param {number} [options.merkleThreshold] - Override chunk count threshold for this tree publication.
    * @returns {Promise<string>} Git OID of the created tree.
    */
@@ -379,7 +381,7 @@ export default class ContentAddressableStore {
 
   /**
    * Verifies the integrity of a stored file by re-hashing its chunks.
-   * @param {import('./src/domain/value-objects/Manifest.js').default} manifest - The file manifest.
+   * @param {Manifest} manifest - The file manifest.
    * @param {{ encryptionKey?: Uint8Array, passphrase?: string }} [options] - Optional decryption credentials for encrypted manifests.
    * @returns {Promise<boolean>} `true` if all chunks pass verification.
    */
@@ -392,7 +394,7 @@ export default class ContentAddressableStore {
    * Reads a manifest from a Git tree OID.
    * @param {Object} options
    * @param {string} options.treeOid - Git tree OID to read the manifest from.
-   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
+   * @returns {Promise<Manifest>}
    */
   async readManifest(options) {
     const service = await this.#getService();
@@ -402,8 +404,8 @@ export default class ContentAddressableStore {
   /**
    * Compares two manifests by chunk digest.
    * Pure function — no I/O needed. Does not require initialization.
-   * @param {import('./src/domain/value-objects/Manifest.js').default} oldManifest
-   * @param {import('./src/domain/value-objects/Manifest.js').default} newManifest
+   * @param {Manifest} oldManifest
+   * @param {Manifest} newManifest
    * @returns {import('./src/domain/services/ManifestDiff.js').ManifestDiffResult}
    */
   static diffManifests(oldManifest, newManifest) {
@@ -479,11 +481,11 @@ export default class ContentAddressableStore {
   /**
    * Adds a recipient to an envelope-encrypted manifest.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest
+   * @param {Manifest} options.manifest
    * @param {Uint8Array} options.existingKey - KEK of an existing recipient.
    * @param {Uint8Array} options.newRecipientKey - KEK for the new recipient.
    * @param {string} options.label - Label for the new recipient.
-   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
+   * @returns {Promise<Manifest>}
    */
   async addRecipient(options) {
     const service = await this.#getService();
@@ -493,9 +495,9 @@ export default class ContentAddressableStore {
   /**
    * Removes a recipient from an envelope-encrypted manifest.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest
+   * @param {Manifest} options.manifest
    * @param {string} options.label - Label to remove.
-   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
+   * @returns {Promise<Manifest>}
    */
   async removeRecipient(options) {
     const service = await this.#getService();
@@ -504,7 +506,7 @@ export default class ContentAddressableStore {
 
   /**
    * Lists recipient labels from an envelope-encrypted manifest.
-   * @param {import('./src/domain/value-objects/Manifest.js').default} manifest
+   * @param {Manifest} manifest
    * @returns {Promise<string[]>}
    */
   async listRecipients(manifest) {
@@ -515,11 +517,11 @@ export default class ContentAddressableStore {
   /**
    * Rotates a recipient's key without re-encrypting data blobs.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest
+   * @param {Manifest} options.manifest
    * @param {Uint8Array} options.oldKey - Current KEK of the recipient to rotate.
    * @param {Uint8Array} options.newKey - New KEK to wrap the DEK with.
    * @param {string} [options.label] - If provided, only rotate the named recipient.
-   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
+   * @returns {Promise<Manifest>}
    */
   async rotateKey(options) {
     const service = await this.#getService();

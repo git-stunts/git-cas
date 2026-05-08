@@ -1,6 +1,7 @@
 import CasError from '../domain/errors/CasError.js';
 import { isCanonicalBase64 } from './canonicalBase64.js';
 import { base64DecodedLength } from '../domain/encoding/base64.js';
+import { ErrorCodes } from '../domain/errors/index.js';
 
 export const DEFAULT_PBKDF2_ITERATIONS = 600_000;
 export const DEFAULT_SCRYPT_COST = 131_072;
@@ -22,7 +23,7 @@ const MAX_SCRYPT_PARALLELIZATION = 16;
 const MAX_SCRYPT_MEMORY = 1024 * 1024 * 1024;
 
 function buildPolicyError(message, meta) {
-  throw new CasError(message, 'KDF_POLICY_VIOLATION', meta);
+  throw new CasError(message, ErrorCodes.KDF_POLICY_VIOLATION, meta);
 }
 
 function assertSupportedAlgorithm(algorithm) {

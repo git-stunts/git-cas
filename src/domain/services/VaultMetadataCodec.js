@@ -3,6 +3,7 @@ import { utf8Decode, utf8Encode } from '../encoding/utf8.js';
 import { decodeBase64 } from '../encoding/base64.js';
 import validateAesGcmMeta from '../../helpers/aesGcmMeta.js';
 import { prepareStoredKdfOptions } from '../../helpers/kdfPolicy.js';
+import { ErrorCodes } from '../errors/index.js';
 
 export const VAULT_METADATA_VERSION = 1;
 export const VAULT_ENCRYPTION_COUNT_WARN = 2 ** 31;
@@ -20,7 +21,7 @@ export default class VaultMetadataCodec {
     if (!Number.isSafeInteger(maxEncryptionCount) || maxEncryptionCount < 0) {
       throw new CasError(
         'Vault metadata codec maxEncryptionCount must be a non-negative safe integer',
-        'VAULT_DEPENDENCY_INVALID',
+        ErrorCodes.VAULT_DEPENDENCY_INVALID,
         { maxEncryptionCount },
       );
     }
@@ -52,7 +53,7 @@ export default class VaultMetadataCodec {
       }
       throw new CasError(
         `Failed to parse .vault.json: ${/** @type {Error} */ (err).message}`,
-        'VAULT_METADATA_INVALID',
+        ErrorCodes.VAULT_METADATA_INVALID,
         { originalError: err },
       );
     }
@@ -63,12 +64,12 @@ export default class VaultMetadataCodec {
    */
   validate(metadata) {
     if (typeof metadata !== 'object' || metadata === null) {
-      throw new CasError('Vault metadata must be an object', 'VAULT_METADATA_INVALID', { metadata });
+      throw new CasError('Vault metadata must be an object', ErrorCodes.VAULT_METADATA_INVALID, { metadata });
     }
     if (metadata.version !== VAULT_METADATA_VERSION) {
       throw new CasError(
         `Unsupported vault metadata version: ${metadata.version}`,
-        'VAULT_METADATA_INVALID',
+        ErrorCodes.VAULT_METADATA_INVALID,
         { metadata },
       );
     }
@@ -87,7 +88,7 @@ export default class VaultMetadataCodec {
     if (!cipher || !kdf?.algorithm || !kdf?.salt || !kdf?.keyLength) {
       throw new CasError(
         'Vault encryption metadata missing required fields',
-        'VAULT_METADATA_INVALID',
+        ErrorCodes.VAULT_METADATA_INVALID,
         { metadata },
       );
     }
@@ -113,7 +114,7 @@ export default class VaultMetadataCodec {
     if (invalid) {
       throw new CasError(
         'Vault encryption verifier metadata missing required fields',
-        'VAULT_METADATA_INVALID',
+        ErrorCodes.VAULT_METADATA_INVALID,
         { metadata, field: 'encryption.verifier' },
       );
     }
@@ -124,7 +125,7 @@ export default class VaultMetadataCodec {
     } catch (err) {
       throw new CasError(
         `Vault encryption verifier metadata invalid: ${/** @type {Error} */ (err).message}`,
-        'VAULT_METADATA_INVALID',
+        ErrorCodes.VAULT_METADATA_INVALID,
         { metadata, field: 'encryption.verifier', originalError: err },
       );
     }
@@ -138,12 +139,12 @@ export default class VaultMetadataCodec {
     try {
       prepareStoredKdfOptions(kdf, { source: 'vault-metadata' });
     } catch (err) {
-      if (!(err instanceof CasError) || err.code !== 'KDF_POLICY_VIOLATION') {
+      if (!(err instanceof CasError) || err.code !== ErrorCodes.KDF_POLICY_VIOLATION) {
         throw err;
       }
       throw new CasError(
         `Vault encryption metadata invalid: ${err.message}`,
-        'VAULT_METADATA_INVALID',
+        ErrorCodes.VAULT_METADATA_INVALID,
         { metadata, originalError: err },
       );
     }
@@ -163,7 +164,7 @@ export default class VaultMetadataCodec {
     ) {
       throw new CasError(
         `Vault encryptionCount metadata must be a non-negative safe integer no greater than ${this.maxEncryptionCount}`,
-        'VAULT_METADATA_INVALID',
+        ErrorCodes.VAULT_METADATA_INVALID,
         {
           metadata,
           field: 'encryptionCount',

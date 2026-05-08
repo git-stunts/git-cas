@@ -4,6 +4,7 @@ import VaultTreeCodec, {
   VAULT_METADATA_ENTRY,
   VAULT_PRIVACY_INDEX_ENTRY,
 } from './VaultTreeCodec.js';
+import { ErrorCodes } from '../errors/index.js';
 
 export const VAULT_REF = 'refs/cas/vault';
 
@@ -212,7 +213,7 @@ export default class VaultPersistence {
     } catch (err) {
       throw new CasError(
         'Concurrent vault update detected',
-        'VAULT_CONFLICT',
+        ErrorCodes.VAULT_CONFLICT,
         {
           expectedOldOid,
           actualOldOid: await this.#resolveActualOid(),
@@ -244,7 +245,7 @@ function validatePersistence(persistence) {
   if (missing.length > 0) {
     throw new CasError(
       'VaultPersistence requires a complete GitPersistencePort',
-      'VAULT_DEPENDENCY_INVALID',
+      ErrorCodes.VAULT_DEPENDENCY_INVALID,
       { missing },
     );
   }
@@ -259,7 +260,7 @@ function validateRef(ref) {
   if (missing.length > 0) {
     throw new CasError(
       'VaultPersistence requires a complete GitRefPort',
-      'VAULT_DEPENDENCY_INVALID',
+      ErrorCodes.VAULT_DEPENDENCY_INVALID,
       { missing },
     );
   }

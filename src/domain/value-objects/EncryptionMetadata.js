@@ -4,6 +4,7 @@ import {
   SCHEME_FRAMED,
   SCHEME_WHOLE,
 } from '../encryption/schemes.js';
+import { ErrorCodes } from '../errors/index.js';
 
 /**
  * Immutable validated encryption metadata for a manifest.
@@ -40,7 +41,7 @@ export default class EncryptionMetadata {
 
     throw createCasError(
       `Encrypted manifest uses unknown scheme: ${meta.scheme}`,
-      'INTEGRITY_ERROR',
+      ErrorCodes.INTEGRITY_ERROR,
       { slug: manifest.slug, reason: 'manifest-encryption-scheme', scheme: meta.scheme },
     );
   }
@@ -49,14 +50,14 @@ export default class EncryptionMetadata {
     if (meta.encrypted !== true) {
       throw createCasError(
         'Encrypted manifest metadata was downgraded or is invalid',
-        'INTEGRITY_ERROR',
+        ErrorCodes.INTEGRITY_ERROR,
         { slug: manifest.slug, reason: 'manifest-encryption-downgrade' },
       );
     }
     if (meta.algorithm !== 'aes-256-gcm') {
       throw createCasError(
         `Encrypted manifest uses unexpected algorithm: ${meta.algorithm}`,
-        'INTEGRITY_ERROR',
+        ErrorCodes.INTEGRITY_ERROR,
         { slug: manifest.slug, reason: 'manifest-encryption-algorithm', algorithm: meta.algorithm },
       );
     }
@@ -66,7 +67,7 @@ export default class EncryptionMetadata {
     if (typeof meta.nonce !== 'string' || meta.nonce.length === 0 || typeof meta.tag !== 'string' || meta.tag.length === 0) {
       throw createCasError(
         'Whole encrypted manifest is missing nonce/tag metadata',
-        'INTEGRITY_ERROR',
+        ErrorCodes.INTEGRITY_ERROR,
         { slug: manifest.slug, reason: 'manifest-encryption-meta' },
       );
     }
@@ -77,7 +78,7 @@ export default class EncryptionMetadata {
     if (!Number.isInteger(meta.frameBytes) || meta.frameBytes < 1) {
       throw createCasError(
         'Framed encrypted manifest is missing a valid frameBytes value',
-        'INTEGRITY_ERROR',
+        ErrorCodes.INTEGRITY_ERROR,
         { slug: manifest.slug, reason: 'manifest-encryption-frame-bytes', frameBytes: meta.frameBytes },
       );
     }

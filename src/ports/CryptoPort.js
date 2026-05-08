@@ -1,6 +1,7 @@
 import CasError from '../domain/errors/CasError.js';
 import { normalizeKdfOptions, assertKdfPolicy } from '../helpers/kdfPolicy.js';
 import { encodeBase64 } from '../domain/encoding/base64.js';
+import { ErrorCodes } from '../domain/errors/index.js';
 
 /**
  * Encryption metadata returned by AES-256-GCM operations.
@@ -251,13 +252,13 @@ export default class CryptoPort {
     if (!(key instanceof Uint8Array)) {
       throw new CasError(
         'Encryption key must be a Uint8Array',
-        'INVALID_KEY_TYPE',
+        ErrorCodes.INVALID_KEY_TYPE,
       );
     }
     if (key.length !== 32) {
       throw new CasError(
         `Encryption key must be 32 bytes, got ${key.length}`,
-        'INVALID_KEY_LENGTH',
+        ErrorCodes.INVALID_KEY_LENGTH,
         { expected: 32, actual: key.length },
       );
     }

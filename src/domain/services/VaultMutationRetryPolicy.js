@@ -1,4 +1,5 @@
 import CasError from '../errors/CasError.js';
+import { ErrorCodes } from '../errors/index.js';
 
 export const DEFAULT_VAULT_RETRY_MAX_ATTEMPTS = 3;
 export const DEFAULT_VAULT_RETRY_BASE_DELAY_MS = 50;
@@ -28,14 +29,14 @@ export default class VaultMutationRetryPolicy {
     if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
       throw new CasError(
         'Vault retry maxAttempts must be a positive integer',
-        'VAULT_RETRY_POLICY_INVALID',
+        ErrorCodes.VAULT_RETRY_POLICY_INVALID,
         { maxAttempts },
       );
     }
     if (!Number.isFinite(baseDelayMs) || baseDelayMs < 0) {
       throw new CasError(
         'Vault retry baseDelayMs must be a non-negative number',
-        'VAULT_RETRY_POLICY_INVALID',
+        ErrorCodes.VAULT_RETRY_POLICY_INVALID,
         { baseDelayMs },
       );
     }
@@ -54,7 +55,7 @@ export default class VaultMutationRetryPolicy {
    * @returns {boolean}
    */
   isRetryable(err) {
-    return err instanceof CasError && err.code === 'VAULT_CONFLICT';
+    return err instanceof CasError && err.code === ErrorCodes.VAULT_CONFLICT;
   }
 
   /**

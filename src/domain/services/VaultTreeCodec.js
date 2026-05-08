@@ -1,5 +1,6 @@
 import CasError from '../errors/CasError.js';
 import Slug from '../value-objects/Slug.js';
+import { ErrorCodes } from '../errors/index.js';
 
 export const VAULT_METADATA_ENTRY = '.vault.json';
 export const VAULT_PRIVACY_INDEX_ENTRY = '.privacy-index';
@@ -36,7 +37,7 @@ export default class VaultTreeCodec {
       if (!persistedName) {
         throw new CasError(
           `Vault persisted name missing for slug "${slug}"`,
-          'VAULT_PRIVACY_INDEX_MISSING',
+          ErrorCodes.VAULT_PRIVACY_INDEX_MISSING,
           { slug },
         );
       }
@@ -111,7 +112,7 @@ export default class VaultTreeCodec {
     if (typeof name !== 'string' || name.length === 0 || Slug.hasControlChars(name)) {
       throw new CasError(
         'Vault tree entry name is invalid for git mktree',
-        'INVALID_SLUG',
+        ErrorCodes.INVALID_SLUG,
         { treePath: name },
       );
     }

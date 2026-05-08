@@ -9,6 +9,7 @@
   "exclude": [
     ".devcontainer/",
     ".github/",
+    ".graft/",
     "bin/",
     "docs/",
     "examples/",

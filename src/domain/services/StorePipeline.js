@@ -1,5 +1,6 @@
 import CasError from '../errors/CasError.js';
 import Semaphore from './Semaphore.js';
+import { ErrorCodes } from '../errors/index.js';
 
 /**
  * Coordinates chunk iteration, bounded write concurrency, write backpressure,
@@ -160,7 +161,7 @@ export default class StorePipeline {
     const message = err instanceof Error ? err.message : String(err);
     const casErr = new CasError(
       `Stream error during store: ${message}`,
-      'STREAM_ERROR',
+      ErrorCodes.STREAM_ERROR,
       { chunksDispatched: nextIndex, orphanedBlobs, originalError: err },
     );
     this.#observability.metric('error', {
@@ -186,7 +187,7 @@ export default class StorePipeline {
     const message = err instanceof Error ? err.message : String(err);
     const casErr = new CasError(
       `Store write failed: ${message}`,
-      'STORE_ERROR',
+      ErrorCodes.STORE_ERROR,
       { ...writeMeta, originalError: err },
     );
     this.#observability.metric('error', {

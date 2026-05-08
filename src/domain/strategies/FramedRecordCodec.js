@@ -3,6 +3,9 @@ import createCasError from '../errors/createCasError.js';
 import { concatBytes, normalizeByteChunk, readUint32BE, writeUint32BE } from '../bytes/ByteLayout.js';
 import { decodeBase64, encodeBase64 } from '../encoding/base64.js';
 import { buildFramedAad } from './Aad.js';
+import { ErrorCodes } from '../errors/index.js';
+
+/** @typedef {import('../value-objects/Manifest.js').default} Manifest */
 
 const FRAMED_LENGTH_BYTES = 4;
 const GCM_NONCE_BYTES = 12;
@@ -106,7 +109,7 @@ export default class FramedRecordCodec {
     if (pending.length > 0) {
       throw createCasError(
         'Framed ciphertext is truncated or malformed',
-        'INTEGRITY_ERROR',
+        ErrorCodes.INTEGRITY_ERROR,
         { reason: 'framed-record-parse', remainingBytes: pending.length },
       );
     }
@@ -122,7 +125,7 @@ export default class FramedRecordCodec {
     if (ciphertextLength > frameBytes) {
       throw createCasError(
         `Framed ciphertext length ${ciphertextLength} exceeds frameBytes ${frameBytes}`,
-        'INTEGRITY_ERROR',
+        ErrorCodes.INTEGRITY_ERROR,
         { reason: 'framed-record-parse', ciphertextLength, frameBytes },
       );
     }
@@ -165,13 +168,13 @@ export default class FramedRecordCodec {
       if (err instanceof CasError) {
         throw err;
       }
-      throw createCasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
+      throw createCasError('Decryption failed: Integrity check error', ErrorCodes.INTEGRITY_ERROR, { originalError: err });
     }
   }
 
   /**
    * @param {Object} options
-   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @param {Manifest} options.manifest
    * @param {AsyncIterable<Uint8Array>} options.source
    * @param {Uint8Array} options.key
    * @param {{ frameBytes: number }} options.encryptionMeta
@@ -186,7 +189,7 @@ export default class FramedRecordCodec {
         const aad = legacyNoAad ? undefined : buildFramedAad(manifest.slug, frameIndex);
         plaintext = await this.decryptRecord({ record, key, aad });
       } catch (err) {
-        if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+        if (err instanceof CasError && err.code === ErrorCodes.INTEGRITY_ERROR) {
           this.#observability.metric('error', { action: 'decryption_failed', slug: manifest.slug });
         }
         throw err;

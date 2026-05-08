@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../../domain/errors/index.js';
 // @ts-ignore -- 'bun' module only available in Bun runtime
 import { CryptoHasher } from 'bun';
 import CryptoPort from '../../ports/CryptoPort.js';
@@ -13,7 +14,7 @@ function wrapDecryptError(err) {
   if (err instanceof CasError) {
     return err;
   }
-  return new CasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', {
+  return new CasError('Decryption failed: Integrity check error', ErrorCodes.INTEGRITY_ERROR, {
     originalError: err,
   });
 }
@@ -122,7 +123,7 @@ export default class BunCryptoAdapter extends CryptoPort {
       if (!streamFinalized) {
         throw new CasError(
           'Cannot finalize before the encrypt stream is fully consumed',
-          'STREAM_NOT_CONSUMED',
+          ErrorCodes.STREAM_NOT_CONSUMED,
         );
       }
       const tag = cipher.getAuthTag();
@@ -202,7 +203,7 @@ export default class BunCryptoAdapter extends CryptoPort {
   encryptBufferWithNonce(buffer, key, nonce) {
     this._validateKey(key);
     if (nonce.length !== 12) {
-      throw new CasError('Nonce must be 12 bytes', 'INVALID_NONCE_LENGTH', { actual: nonce.length });
+      throw new CasError('Nonce must be 12 bytes', ErrorCodes.INVALID_NONCE_LENGTH, { actual: nonce.length });
     }
     const cipher = createCipheriv('aes-256-gcm', key, nonce);
     const encrypted = Buffer.concat([cipher.update(buffer), cipher.final()]);
@@ -221,10 +222,10 @@ export default class BunCryptoAdapter extends CryptoPort {
   decryptBufferWithNonceTag(buffer, key, nonce, tag) { // eslint-disable-line max-params
     this._validateKey(key);
     if (nonce.length !== 12) {
-      throw new CasError('Nonce must be 12 bytes', 'INVALID_NONCE_LENGTH', { actual: nonce.length });
+      throw new CasError('Nonce must be 12 bytes', ErrorCodes.INVALID_NONCE_LENGTH, { actual: nonce.length });
     }
     if (tag.length !== 16) {
-      throw new CasError('Tag must be 16 bytes', 'INVALID_TAG_LENGTH', { actual: tag.length });
+      throw new CasError('Tag must be 16 bytes', ErrorCodes.INVALID_TAG_LENGTH, { actual: tag.length });
     }
     try {
       const decipher = createDecipheriv(AES_GCM_ALGORITHM, key, nonce, {

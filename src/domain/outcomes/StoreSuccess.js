@@ -2,10 +2,12 @@ import StoreOutcome from './StoreOutcome.js';
 
 /**
  * Immutable successful store result.
+ *
+ * @typedef {import('../value-objects/Manifest.js').default} Manifest
  */
 export default class StoreSuccess extends StoreOutcome {
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default }} options
+   * @param {{ manifest: Manifest }} options
    */
   constructor({ manifest }) {
     super({ ok: true });

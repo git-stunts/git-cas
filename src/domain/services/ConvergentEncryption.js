@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../errors/index.js';
 /**
  * @fileoverview Convergent encryption service.
  *
@@ -91,7 +92,7 @@ export default class ConvergentEncryption {
     if (blob.length < GCM_TAG_BYTES) {
       throw new CasError(
         `Convergent blob too short (${blob.length} bytes) — must contain at least ${GCM_TAG_BYTES}-byte GCM tag`,
-        'INTEGRITY_ERROR',
+        ErrorCodes.INTEGRITY_ERROR,
         { chunkIndex, blobLength: blob.length, minLength: GCM_TAG_BYTES },
       );
     }
@@ -109,7 +110,7 @@ export default class ConvergentEncryption {
       if (err instanceof CasError) { throw err; }
       throw new CasError(
         `Chunk ${chunkIndex} convergent decryption failed`,
-        'INTEGRITY_ERROR',
+        ErrorCodes.INTEGRITY_ERROR,
         { chunkIndex, expected: expectedDigest, originalError: err },
       );
     }
@@ -118,7 +119,7 @@ export default class ConvergentEncryption {
     if (digest !== expectedDigest) {
       throw new CasError(
         `Chunk ${chunkIndex} integrity check failed after convergent decryption`,
-        'INTEGRITY_ERROR',
+        ErrorCodes.INTEGRITY_ERROR,
         { chunkIndex, expected: expectedDigest, actual: digest },
       );
     }

@@ -1,6 +1,7 @@
 import CasError from '../errors/CasError.js';
 import { decodeBase64, encodeBase64 } from '../encoding/base64.js';
 import { utf8Encode } from '../encoding/utf8.js';
+import { ErrorCodes } from '../errors/index.js';
 
 export const VAULT_VERIFIER_PLAINTEXT = utf8Encode('git-cas-vault-verifier-v1');
 export const VAULT_VERIFIER_AAD = utf8Encode('git-cas-vault-verifier-metadata-v1');
@@ -21,7 +22,7 @@ export default class VaultKeyVerifier {
     ) {
       throw new CasError(
         'VaultKeyVerifier requires a crypto port with encryptBuffer and decryptBuffer',
-        'VAULT_DEPENDENCY_INVALID',
+        ErrorCodes.VAULT_DEPENDENCY_INVALID,
       );
     }
     this.crypto = crypto;
@@ -67,7 +68,7 @@ export default class VaultKeyVerifier {
     } catch (err) {
       throw new CasError(
         'Vault passphrase verification failed',
-        'INTEGRITY_ERROR',
+        ErrorCodes.INTEGRITY_ERROR,
         { originalError: err, verifier: 'vault-metadata' },
       );
     }
@@ -75,7 +76,7 @@ export default class VaultKeyVerifier {
     if (!constantTimeBytesEqual(plaintext, VAULT_VERIFIER_PLAINTEXT)) {
       throw new CasError(
         'Vault passphrase verification failed',
-        'INTEGRITY_ERROR',
+        ErrorCodes.INTEGRITY_ERROR,
         { verifier: 'vault-metadata', reason: 'plaintext-mismatch' },
       );
     }

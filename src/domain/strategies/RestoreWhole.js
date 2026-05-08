@@ -2,9 +2,12 @@ import CasError from '../errors/CasError.js';
 import createCasError from '../errors/createCasError.js';
 import { concatBytes } from '../bytes/ByteLayout.js';
 import { buildWholeAad } from './Aad.js';
+import { ErrorCodes } from '../errors/index.js';
 
 /**
  * Restores whole-object encrypted content while preserving the auth boundary.
+ *
+ * @typedef {import('../value-objects/Manifest.js').default} Manifest
  */
 export default class RestoreWhole {
   #chunkSize;
@@ -21,7 +24,7 @@ export default class RestoreWhole {
    * @param {import('../services/ChunkRepository.js').default} options.chunks
    * @param {import('../services/CompressionStreams.js').default} options.compression
    * @param {import('../../ports/CryptoPort.js').default} options.crypto
-   * @param {(manifest: import('../value-objects/Manifest.js').default) => boolean} options.isLegacyNoAad
+   * @param {(manifest: Manifest) => boolean} options.isLegacyNoAad
    * @param {number} options.maxRestoreBufferSize
    * @param {import('../../ports/ObservabilityPort.js').default} options.observability
    */
@@ -36,7 +39,7 @@ export default class RestoreWhole {
   }
 
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default, key?: Uint8Array, encryptionMeta?: object }} options
+   * @param {{ manifest: Manifest, key?: Uint8Array, encryptionMeta?: object }} options
    * @returns {AsyncIterable<Uint8Array>}
    */
   async *execute({ manifest, key, encryptionMeta }) {
@@ -53,7 +56,7 @@ export default class RestoreWhole {
   }
 
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default, key?: Uint8Array, encryptionMeta?: object }} options
+   * @param {{ manifest: Manifest, key?: Uint8Array, encryptionMeta?: object }} options
    * @returns {Promise<AsyncIterable<Uint8Array>>}
    */
   async createBoundedSource({ manifest, key, encryptionMeta }) {
@@ -84,7 +87,7 @@ export default class RestoreWhole {
         `Encrypted/compressed restore would buffer ${totalSize} bytes ` +
         `(limit: ${this.#maxRestoreBufferSize}). Increase maxRestoreBufferSize ` +
         'or store without encryption.',
-        'RESTORE_TOO_LARGE',
+        ErrorCodes.RESTORE_TOO_LARGE,
         { size: totalSize, limit: this.#maxRestoreBufferSize },
       );
     }
@@ -107,13 +110,13 @@ export default class RestoreWhole {
       const aad = this.#isLegacyNoAad(manifest) ? undefined : buildWholeAad(manifest.slug);
       return await this.#crypto.decryptBuffer(ciphertext, key, encryptionMeta, aad);
     } catch (err) {
-      if (err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+      if (err instanceof CasError && err.code === ErrorCodes.INTEGRITY_ERROR) {
         this.#observability.metric('error', { action: 'decryption_failed', slug: manifest.slug });
       }
       if (err instanceof CasError) {
         throw err;
       }
-      throw createCasError('Decryption failed: Integrity check error', 'INTEGRITY_ERROR', { originalError: err });
+      throw createCasError('Decryption failed: Integrity check error', ErrorCodes.INTEGRITY_ERROR, { originalError: err });
     }
   }
 

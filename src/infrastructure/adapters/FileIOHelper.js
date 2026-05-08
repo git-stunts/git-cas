@@ -1,5 +1,9 @@
 /**
  * @fileoverview File I/O helpers for storing and restoring files via CasService.
+ *
+ * @typedef {import('../../domain/services/CasService.js').default} CasService
+ * @typedef {import('../../domain/value-objects/Manifest.js').default} Manifest
+ * @typedef {import('../../domain/value-objects/Manifest.js').EncryptionMeta} EncryptionMeta
  */
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdtemp, rename, rm } from 'node:fs/promises';
@@ -7,12 +11,13 @@ import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import CasError from '../../domain/errors/CasError.js';
+import { ErrorCodes } from '../../domain/errors/index.js';
 
 /**
  * Reads a file from disk and stores it in Git as chunked blobs via
- * the given {@link import('../../domain/services/CasService.js').default CasService}.
+ * the given {@link CasService}.
  *
- * @param {import('../../domain/services/CasService.js').default} service - Initialized CasService.
+ * @param {CasService} service - Initialized CasService.
  * @param {Object} options
  * @param {string} options.filePath - Absolute or relative path to the file.
  * @param {string} options.slug - Logical identifier for the stored asset.
@@ -24,7 +29,7 @@ import CasError from '../../domain/errors/CasError.js';
  * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
  * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients.
  * @param {number} [options.merkleThreshold] - Per-operation chunk count threshold for Merkle manifests.
- * @returns {Promise<import('../../domain/value-objects/Manifest.js').default>} The resulting manifest.
+ * @returns {Promise<Manifest>} The resulting manifest.
  */
 export async function storeFile(service, {
   filePath,
@@ -55,11 +60,11 @@ export async function storeFile(service, {
 
 /**
  * Restores a file from its manifest and writes it to disk via the given
- * {@link import('../../domain/services/CasService.js').default CasService}.
+ * {@link CasService}.
  *
- * @param {import('../../domain/services/CasService.js').default} service - Initialized CasService.
+ * @param {CasService} service - Initialized CasService.
  * @param {Object} options
- * @param {import('../../domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+ * @param {Manifest} options.manifest - The file manifest.
  * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
  * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
  * @param {string} options.outputPath - Destination file path.
@@ -68,7 +73,7 @@ export async function storeFile(service, {
  */
 export async function restoreFile(service, { manifest, encryptionKey, passphrase, outputPath, baseDirectory }) {
   if (!baseDirectory) {
-    throw new CasError('baseDirectory is required for safe restoration', 'INVALID_OPTIONS');
+    throw new CasError('baseDirectory is required for safe restoration', ErrorCodes.INVALID_OPTIONS);
   }
 
   const resolvedPath = path.resolve(baseDirectory, outputPath);
@@ -77,7 +82,7 @@ export async function restoreFile(service, { manifest, encryptionKey, passphrase
   if (!isInsideBaseDirectory(resolvedPath, resolvedBase)) {
     throw new CasError(
       `Restoration path "${outputPath}" escapes base directory "${baseDirectory}"`,
-      'SECURITY_BOUNDARY_VIOLATION',
+      ErrorCodes.SECURITY_BOUNDARY_VIOLATION,
       { outputPath, baseDirectory },
     );
   }
@@ -111,8 +116,8 @@ export async function restoreFile(service, { manifest, encryptionKey, passphrase
  * Restores buffered modes through a temp-file path so whole-object auth can
  * stay intact without publishing partial output.
  *
- * @param {import('../../domain/services/CasService.js').default} service
- * @param {{ manifest: import('../../domain/value-objects/Manifest.js').default, outputPath: string, source: AsyncIterable<Uint8Array>, encryptionMeta?: import('../../domain/value-objects/Manifest.js').EncryptionMeta }} options
+ * @param {CasService} service
+ * @param {{ manifest: Manifest, outputPath: string, source: AsyncIterable<Uint8Array>, encryptionMeta?: EncryptionMeta }} options
  * @returns {Promise<{ bytesWritten: number }>}
  */
 async function restoreBufferedFile(service, {
@@ -144,7 +149,7 @@ async function restoreBufferedFile(service, {
     });
     return { bytesWritten };
   } catch (err) {
-    if (encryptionMeta && err instanceof CasError && err.code === 'INTEGRITY_ERROR') {
+    if (encryptionMeta && err instanceof CasError && err.code === ErrorCodes.INTEGRITY_ERROR) {
       service.observability.metric('error', { action: 'decryption_failed', slug: manifest.slug });
     }
     throw err;

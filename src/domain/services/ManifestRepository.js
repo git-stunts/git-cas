@@ -14,6 +14,7 @@ import {
   mapToCurrentScheme,
   SCHEME_WHOLE,
 } from '../encryption/schemes.js';
+import { ErrorCodes } from '../errors/index.js';
 
 const originalSchemeMap = new WeakMap();
 
@@ -44,7 +45,7 @@ export default class ManifestRepository {
   }
 
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default, merkleThreshold?: number }} options
+   * @param {{ manifest: Manifest, merkleThreshold?: number }} options
    * @returns {Promise<string>}
    */
   async createTree({ manifest, merkleThreshold }) {
@@ -71,7 +72,7 @@ export default class ManifestRepository {
 
   /**
    * @param {{ treeOid: string }} options
-   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   * @returns {Promise<Manifest>}
    */
   async readManifest({ treeOid }) {
     const blob = await this.#readManifestBlob(treeOid);
@@ -109,7 +110,7 @@ export default class ManifestRepository {
   }
 
   /**
-   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Manifest} manifest
    * @returns {boolean}
    */
   isLegacyNoAad(manifest) {
@@ -171,7 +172,7 @@ export default class ManifestRepository {
       const message = err instanceof Error ? err.message : String(err);
       throw createCasError(
         `Failed to read tree ${normalizedTreeOid}: ${message}`,
-        'GIT_ERROR',
+        ErrorCodes.GIT_ERROR,
         { treeOid: normalizedTreeOid, originalError: err },
       );
     }
@@ -181,7 +182,7 @@ export default class ManifestRepository {
     if (!manifestEntry) {
       throw createCasError(
         `No manifest entry (${manifestName}) found in tree ${normalizedTreeOid}`,
-        'MANIFEST_NOT_FOUND',
+        ErrorCodes.MANIFEST_NOT_FOUND,
         { treeOid: normalizedTreeOid, expectedName: manifestName },
       );
     }
@@ -196,7 +197,7 @@ export default class ManifestRepository {
       const message = err instanceof Error ? err.message : String(err);
       throw createCasError(
         `Failed to read manifest blob ${manifestOid}: ${message}`,
-        'GIT_ERROR',
+        ErrorCodes.GIT_ERROR,
         { treeOid: normalizedTreeOid, manifestOid, originalError: err },
       );
     }
@@ -212,7 +213,7 @@ export default class ManifestRepository {
     if (computed !== decoded.manifestHash) {
       throw createCasError(
         'Manifest integrity check failed: hash mismatch',
-        'MANIFEST_INTEGRITY_ERROR',
+        ErrorCodes.MANIFEST_INTEGRITY_ERROR,
         { treeOid: normalizedTreeOid, slug: decoded.slug, expected: decoded.manifestHash, actual: computed },
       );
     }
@@ -247,7 +248,7 @@ export default class ManifestRepository {
       if (subDecoded.chunks.length !== ref.chunkCount) {
         throw createCasError(
           `Sub-manifest ${ref.oid} declares chunkCount ${ref.chunkCount} but contains ${subDecoded.chunks.length} chunks`,
-          'MANIFEST_INTEGRITY_ERROR',
+          ErrorCodes.MANIFEST_INTEGRITY_ERROR,
           { subManifestOid: ref.oid, declaredCount: ref.chunkCount, actualCount: subDecoded.chunks.length, treeOid },
         );
       }
@@ -257,7 +258,7 @@ export default class ManifestRepository {
         const message = err instanceof Error ? err.message : String(err);
         throw createCasError(
           `Sub-manifest ${ref.oid} contains invalid chunk data: ${message}`,
-          'MANIFEST_INTEGRITY_ERROR',
+          ErrorCodes.MANIFEST_INTEGRITY_ERROR,
           { subManifestOid: ref.oid, treeOid, originalError: err },
         );
       }
@@ -277,7 +278,7 @@ export default class ManifestRepository {
       const message = err instanceof Error ? err.message : String(err);
       throw createCasError(
         `Failed to read sub-manifest blob ${subManifestOid}: ${message}`,
-        'GIT_ERROR',
+        ErrorCodes.GIT_ERROR,
         { treeOid: normalizedTreeOid, subManifestOid, originalError: err },
       );
     }

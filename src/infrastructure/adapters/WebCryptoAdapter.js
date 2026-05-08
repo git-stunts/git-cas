@@ -3,6 +3,7 @@ import CasError from '../../domain/errors/CasError.js';
 import validateAesGcmMeta from '../../helpers/aesGcmMeta.js';
 import { concatBytes } from '../../domain/bytes/ByteLayout.js';
 import { encodeBase64 } from '../../domain/encoding/base64.js';
+import { ErrorCodes } from '../../domain/errors/index.js';
 
 /**
  * {@link CryptoPort} implementation using the Web Crypto API.
@@ -135,7 +136,7 @@ export default class WebCryptoAdapter extends CryptoPort {
       );
       return new Uint8Array(decrypted);
     } catch (err) {
-      throw new CasError('Decryption failed', 'INTEGRITY_ERROR', { originalError: err });
+      throw new CasError('Decryption failed', ErrorCodes.INTEGRITY_ERROR, { originalError: err });
     }
   }
 
@@ -156,7 +157,7 @@ export default class WebCryptoAdapter extends CryptoPort {
 
     const finalize = () => {
       if (!state.consumed) {
-        throw new CasError('Cannot finalize before the encrypt stream is fully consumed', 'STREAM_NOT_CONSUMED');
+        throw new CasError('Cannot finalize before the encrypt stream is fully consumed', ErrorCodes.STREAM_NOT_CONSUMED);
       }
       return this._buildMeta(encodeBase64(nonce), encodeBase64(/** @type {Uint8Array} */ (state.tag)));
     };
@@ -187,7 +188,7 @@ export default class WebCryptoAdapter extends CryptoPort {
             throw new CasError(
               `Streaming decryption buffered ${accumulatedBytes} bytes (limit: ${maxBuf}). ` +
               'Web Crypto AES-GCM decrypt is one-shot. Use Node.js/Bun or framed encryption for large encrypted restores.',
-              'DECRYPTION_BUFFER_EXCEEDED',
+              ErrorCodes.DECRYPTION_BUFFER_EXCEEDED,
               { accumulated: accumulatedBytes, limit: maxBuf },
             );
           }
@@ -219,7 +220,7 @@ export default class WebCryptoAdapter extends CryptoPort {
           throw new CasError(
             `Streaming encryption buffered ${accumulatedBytes} bytes (limit: ${maxBuf}). ` +
             'Web Crypto AES-GCM buffers all data. Use Node.js/Bun or store without encryption for large files.',
-            'ENCRYPTION_BUFFER_EXCEEDED',
+            ErrorCodes.ENCRYPTION_BUFFER_EXCEEDED,
             { accumulated: accumulatedBytes, limit: maxBuf },
           );
         }
@@ -319,7 +320,7 @@ export default class WebCryptoAdapter extends CryptoPort {
   async encryptBufferWithNonce(buffer, key, nonce) {
     this._validateKey(key);
     if (nonce.length !== 12) {
-      throw new CasError('Nonce must be 12 bytes', 'INVALID_NONCE_LENGTH', { actual: nonce.length });
+      throw new CasError('Nonce must be 12 bytes', ErrorCodes.INVALID_NONCE_LENGTH, { actual: nonce.length });
     }
     const cryptoKey = await this.#importKey(key);
     const encrypted = await globalThis.crypto.subtle.encrypt(
@@ -347,10 +348,10 @@ export default class WebCryptoAdapter extends CryptoPort {
   async decryptBufferWithNonceTag(buffer, key, nonce, tag) { // eslint-disable-line max-params
     this._validateKey(key);
     if (nonce.length !== 12) {
-      throw new CasError('Nonce must be 12 bytes', 'INVALID_NONCE_LENGTH', { actual: nonce.length });
+      throw new CasError('Nonce must be 12 bytes', ErrorCodes.INVALID_NONCE_LENGTH, { actual: nonce.length });
     }
     if (tag.length !== 16) {
-      throw new CasError('Tag must be 16 bytes', 'INVALID_TAG_LENGTH', { actual: tag.length });
+      throw new CasError('Tag must be 16 bytes', ErrorCodes.INVALID_TAG_LENGTH, { actual: tag.length });
     }
     const cryptoKey = await this.#importKey(key);
     const combined = new Uint8Array(buffer.length + tag.length);
@@ -365,7 +366,7 @@ export default class WebCryptoAdapter extends CryptoPort {
       );
       return new Uint8Array(decrypted);
     } catch (err) {
-      throw new CasError('Decryption failed', 'INTEGRITY_ERROR', { originalError: err });
+      throw new CasError('Decryption failed', ErrorCodes.INTEGRITY_ERROR, { originalError: err });
     }
   }
 

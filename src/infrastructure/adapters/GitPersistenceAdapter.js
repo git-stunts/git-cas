@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import CasError from '../../domain/errors/CasError.js';
+import { ErrorCodes } from '../../domain/errors/index.js';
 
 /**
  * Default resilience policy: 30 s timeout (no retry).
@@ -80,7 +81,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       if (bytesRead > limit) {
         throw new CasError(
           `Blob ${oid} exceeds safety limit of ${limit} bytes`,
-          'RESTORE_TOO_LARGE',
+          ErrorCodes.RESTORE_TOO_LARGE,
           { oid, maxBytes: limit },
         );
       }
@@ -234,7 +235,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     if (tabIndex === -1) {
       throw new CasError(
         `Malformed ls-tree entry: ${entry}`,
-        'TREE_PARSE_ERROR',
+        ErrorCodes.TREE_PARSE_ERROR,
         { rawEntry: entry },
       );
     }
@@ -242,7 +243,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     if (meta.length !== 3) {
       throw new CasError(
         `Malformed ls-tree entry: ${entry}`,
-        'TREE_PARSE_ERROR',
+        ErrorCodes.TREE_PARSE_ERROR,
         { rawEntry: entry },
       );
     }

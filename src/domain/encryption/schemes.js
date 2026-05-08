@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../errors/index.js';
 /**
  * @fileoverview Single source of truth for encryption scheme identifiers.
  *
@@ -50,14 +51,14 @@ export function assertCurrentScheme(scheme) {
     throw new CasError(
       `Legacy encryption scheme "${scheme}" is no longer supported. ` +
       'Run scripts/migrate-encryption.js to upgrade this manifest.',
-      'LEGACY_SCHEME',
+      ErrorCodes.LEGACY_SCHEME,
       { scheme },
     );
   }
 
   throw new CasError(
     `Unknown encryption scheme "${scheme}"`,
-    'INVALID_ENCRYPTION_SCHEME',
+    ErrorCodes.INVALID_ENCRYPTION_SCHEME,
     { scheme },
   );
 }

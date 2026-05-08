@@ -1,5 +1,7 @@
 /**
  * Restores plaintext gzip-compressed content as a stream.
+ *
+ * @typedef {import('../value-objects/Manifest.js').default} Manifest
  */
 export default class RestoreCompressed {
   #chunks;
@@ -19,7 +21,7 @@ export default class RestoreCompressed {
   }
 
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default }} options
+   * @param {{ manifest: Manifest }} options
    * @returns {AsyncIterable<Uint8Array>}
    */
   async *execute({ manifest }) {

@@ -1,3 +1,6 @@
+import { ErrorCodes } from '../errors/index.js';
+
+/** @typedef {import('../value-objects/Manifest.js').default} Manifest */
 /**
  * @fileoverview Key resolution service extracted from CasService.
  *
@@ -41,7 +44,7 @@ export default class KeyResolver {
     if (passphrase && encryptionKey) {
       throw new CasError(
         'Provide either encryptionKey or passphrase, not both',
-        'INVALID_OPTIONS',
+        ErrorCodes.INVALID_OPTIONS,
       );
     }
   }
@@ -79,10 +82,10 @@ export default class KeyResolver {
       };
       return await this.#crypto.decryptBuffer(ciphertext, kek, meta);
     } catch (err) {
-      if (err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED') { throw err; }
+      if (err instanceof CasError && err.code === ErrorCodes.DEK_UNWRAP_FAILED) { throw err; }
       throw new CasError(
         'Failed to unwrap DEK: authentication failed',
-        'DEK_UNWRAP_FAILED',
+        ErrorCodes.DEK_UNWRAP_FAILED,
         { originalError: err },
       );
     }
@@ -91,7 +94,7 @@ export default class KeyResolver {
   /**
    * Resolves the decryption key from a manifest, handling both legacy and
    * envelope (multi-recipient) encrypted manifests.
-   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Manifest} manifest
    * @param {Uint8Array} [encryptionKey]
    * @param {string} [passphrase]
    * @returns {Promise<Uint8Array|undefined>}
@@ -105,7 +108,7 @@ export default class KeyResolver {
 
     if (!key) {
       if (manifest.encryption?.encrypted) {
-        throw new CasError('Encryption key required to restore encrypted content', 'MISSING_KEY');
+        throw new CasError('Encryption key required to restore encrypted content', ErrorCodes.MISSING_KEY);
       }
       return undefined;
     }
@@ -141,11 +144,11 @@ export default class KeyResolver {
    */
   async resolveRecipients(recipients) {
     if (!Array.isArray(recipients) || recipients.length === 0) {
-      throw new CasError('At least one recipient is required', 'INVALID_OPTIONS');
+      throw new CasError('At least one recipient is required', ErrorCodes.INVALID_OPTIONS);
     }
     const labels = recipients.map((r) => r.label);
     if (new Set(labels).size !== labels.length) {
-      throw new CasError('Duplicate recipient labels are not allowed', 'INVALID_OPTIONS');
+      throw new CasError('Duplicate recipient labels are not allowed', ErrorCodes.INVALID_OPTIONS);
     }
     const dek = this.#crypto.randomBytes(32);
     const entries = [];
@@ -158,7 +161,7 @@ export default class KeyResolver {
 
   /**
    * If manifest uses envelope encryption, unwraps the DEK. Otherwise returns key directly.
-   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Manifest} manifest
    * @param {Uint8Array} key
    * @returns {Promise<Uint8Array>}
    * @throws {CasError} NO_MATCHING_RECIPIENT if no recipient entry can be unwrapped.
@@ -176,14 +179,14 @@ export default class KeyResolver {
         const dek = await this.unwrapDek(entry, key);
         if (!result) { result = dek; }
       } catch (err) {
-        if (!(err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED')) { throw err; }
+        if (!(err instanceof CasError && err.code === ErrorCodes.DEK_UNWRAP_FAILED)) { throw err; }
       }
     }
 
     if (!result) {
       throw new CasError(
         'No recipient entry could be unwrapped with the provided key',
-        'NO_MATCHING_RECIPIENT',
+        ErrorCodes.NO_MATCHING_RECIPIENT,
       );
     }
     return result;
@@ -191,7 +194,7 @@ export default class KeyResolver {
 
   /**
    * Resolves passphrase to a key for decryption.
-   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Manifest} manifest
    * @param {string} passphrase
    * @returns {Promise<Uint8Array>}
    * @throws {CasError} MISSING_KEY if manifest has no KDF params.
@@ -200,7 +203,7 @@ export default class KeyResolver {
     if (!manifest.encryption?.kdf) {
       throw new CasError(
         'Manifest was not stored with passphrase-based encryption; provide encryptionKey instead',
-        'MISSING_KEY',
+        ErrorCodes.MISSING_KEY,
       );
     }
     return this.#resolveKeyFromPassphrase(passphrase, manifest.encryption.kdf);

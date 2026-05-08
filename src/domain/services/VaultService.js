@@ -1,3 +1,4 @@
+import { ErrorCodes } from '../errors/index.js';
 /**
  * @fileoverview Domain service for vault (GC-safe ref-based asset index) operations.
  */
@@ -250,7 +251,7 @@ export default class VaultService {
     if (!parsed.privacyIndexBlobOid) {
       throw new CasError(
         'Privacy mode is enabled but .privacy-index is missing',
-        'VAULT_PRIVACY_INDEX_MISSING',
+        ErrorCodes.VAULT_PRIVACY_INDEX_MISSING,
       );
     }
 
@@ -299,7 +300,7 @@ export default class VaultService {
     if (!privacyIndexEntry) {
       throw new CasError(
         'Privacy mode is enabled but .privacy-index is missing',
-        'VAULT_PRIVACY_INDEX_MISSING',
+        ErrorCodes.VAULT_PRIVACY_INDEX_MISSING,
       );
     }
 
@@ -327,7 +328,7 @@ export default class VaultService {
     if (!encryptionKey) {
       throw new CasError(
         'Privacy mode is enabled — encryption key is required to read vault state',
-        'VAULT_PRIVACY_KEY_REQUIRED',
+        ErrorCodes.VAULT_PRIVACY_KEY_REQUIRED,
       );
     }
     const entries = await this.stateCache.privacyEntries(
@@ -395,7 +396,7 @@ export default class VaultService {
     if (privacyEnabled && !encryptionKey) {
       throw new CasError(
         'Privacy mode is enabled — encryption key is required to write vault state',
-        'VAULT_PRIVACY_KEY_REQUIRED',
+        ErrorCodes.VAULT_PRIVACY_KEY_REQUIRED,
       );
     }
 
@@ -518,7 +519,7 @@ export default class VaultService {
       }
     }
     /* c8 ignore next 2 */
-    throw new CasError('Vault CAS retries exhausted', 'VAULT_CONFLICT');
+    throw new CasError('Vault CAS retries exhausted', ErrorCodes.VAULT_CONFLICT);
   }
 
   // ---------------------------------------------------------------------------
@@ -574,7 +575,7 @@ export default class VaultService {
     if (privacy && !passphrase) {
       throw new CasError(
         'Privacy mode requires vault encryption — provide a passphrase',
-        'VAULT_PRIVACY_REQUIRES_ENCRYPTION',
+        ErrorCodes.VAULT_PRIVACY_REQUIRES_ENCRYPTION,
       );
     }
 
@@ -582,7 +583,7 @@ export default class VaultService {
       if (state.metadata?.encryption) {
         throw new CasError(
           'Vault encryption is already configured',
-          'VAULT_ENCRYPTION_ALREADY_CONFIGURED',
+          ErrorCodes.VAULT_ENCRYPTION_ALREADY_CONFIGURED,
         );
       }
 
@@ -621,7 +622,7 @@ export default class VaultService {
       if (draft.entries.has(vaultSlug) && !force) {
         throw new CasError(
           `Vault entry "${vaultSlug}" already exists (use force to overwrite)`,
-          'VAULT_ENTRY_EXISTS',
+          ErrorCodes.VAULT_ENTRY_EXISTS,
           { slug: vaultSlug },
         );
       }
@@ -634,7 +635,7 @@ export default class VaultService {
         if (currentCount >= VaultService.ENCRYPTION_COUNT_MAX) {
           throw new CasError(
             `Vault encryption nonce budget exhausted (${currentCount}/${VaultService.ENCRYPTION_COUNT_MAX}); rotate your vault key before storing more encrypted assets`,
-            'VAULT_NONCE_EXHAUSTED',
+            ErrorCodes.VAULT_NONCE_EXHAUSTED,
             {
               encryptionCount: currentCount,
               maxEncryptionCount: VaultService.ENCRYPTION_COUNT_MAX,
@@ -719,7 +720,7 @@ export default class VaultService {
     if (!encryptionKey) {
       throw new CasError(
         'Privacy mode is enabled — encryption key is required to read vault state',
-        'VAULT_PRIVACY_KEY_REQUIRED',
+        ErrorCodes.VAULT_PRIVACY_KEY_REQUIRED,
       );
     }
     const hmacToSlug = await this.#readPrivacyHmacToSlug(treeOid, metadata, encryptionKey);
@@ -759,7 +760,7 @@ export default class VaultService {
       if (!draft.entries.has(vaultSlug)) {
         throw new CasError(
           `Vault entry "${vaultSlug}" not found`,
-          'VAULT_ENTRY_NOT_FOUND',
+          ErrorCodes.VAULT_ENTRY_NOT_FOUND,
           { slug: vaultSlug },
         );
       }
@@ -790,7 +791,7 @@ export default class VaultService {
     if (!current) {
       throw new CasError(
         `Vault entry "${vaultSlug}" not found`,
-        'VAULT_ENTRY_NOT_FOUND',
+        ErrorCodes.VAULT_ENTRY_NOT_FOUND,
         { slug: vaultSlug },
       );
     }
@@ -807,7 +808,7 @@ export default class VaultService {
     if (!entry) {
       throw new CasError(
         `Vault entry "${vaultSlug}" not found`,
-        'VAULT_ENTRY_NOT_FOUND',
+        ErrorCodes.VAULT_ENTRY_NOT_FOUND,
         { slug: vaultSlug },
       );
     }
@@ -828,7 +829,7 @@ export default class VaultService {
     if (!encryptionKey) {
       throw new CasError(
         'Privacy mode is enabled — encryption key is required to read vault state',
-        'VAULT_PRIVACY_KEY_REQUIRED',
+        ErrorCodes.VAULT_PRIVACY_KEY_REQUIRED,
       );
     }
     return await this.privacyIndex.persistedNameForSlug({ encryptionKey, slug: vaultSlug });
@@ -843,7 +844,7 @@ export default class VaultService {
   async verifyVaultKey({ encryptionKey }) {
     const state = await this.readState({ encryptionKey });
     if (!state.metadata?.encryption) {
-      throw new CasError('Vault is not encrypted', 'VAULT_METADATA_INVALID');
+      throw new CasError('Vault is not encrypted', ErrorCodes.VAULT_METADATA_INVALID);
     }
     const verified = Boolean(state.metadata.encryption.verifier);
     return {

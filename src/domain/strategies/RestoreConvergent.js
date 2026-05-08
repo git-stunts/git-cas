@@ -1,5 +1,7 @@
 /**
  * Restores convergent encrypted chunks, optionally decompressing after decryption.
+ *
+ * @typedef {import('../value-objects/Manifest.js').default} Manifest
  */
 export default class RestoreConvergent {
   #chunks;
@@ -19,7 +21,7 @@ export default class RestoreConvergent {
   }
 
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default, key: Uint8Array }} options
+   * @param {{ manifest: Manifest, key: Uint8Array }} options
    * @returns {AsyncIterable<Uint8Array>}
    */
   async *execute({ manifest, key }) {

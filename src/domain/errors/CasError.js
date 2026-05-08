@@ -7,7 +7,7 @@
 export default class CasError extends Error {
   /**
    * @param {string|{ message: string, code: string, meta?: Object, documentationUrl?: string }} messageOrOptions - Error message or structured options.
-   * @param {string} [code] - Machine-readable error code (e.g. `'INTEGRITY_ERROR'`).
+   * @param {string} [code] - Machine-readable error code (for example, ErrorCodes.INTEGRITY_ERROR).
    * @param {Object} [meta={}] - Arbitrary metadata for diagnostics.
    */
   constructor(messageOrOptions, code, meta = {}) {

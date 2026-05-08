@@ -1,6 +1,7 @@
 import Manifest from '../value-objects/Manifest.js';
 import CasError from '../errors/CasError.js';
 import createCasError from '../errors/createCasError.js';
+import { ErrorCodes } from '../errors/index.js';
 
 /**
  * Envelope recipient mutation boundary.
@@ -20,13 +21,13 @@ export default class RecipientService {
   }
 
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default, existingKey: Uint8Array, newRecipientKey: Uint8Array, label: string }} options
-   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   * @param {{ manifest: Manifest, existingKey: Uint8Array, newRecipientKey: Uint8Array, label: string }} options
+   * @returns {Promise<Manifest>}
    */
   async addRecipient({ manifest, existingKey, newRecipientKey, label }) {
     const recipients = this.#requireRecipients(manifest);
     if (recipients.some((recipient) => recipient.label === label)) {
-      throw createCasError(`Recipient "${label}" already exists`, 'RECIPIENT_ALREADY_EXISTS', { label });
+      throw createCasError(`Recipient "${label}" already exists`, ErrorCodes.RECIPIENT_ALREADY_EXISTS, { label });
     }
 
     this.#crypto._validateKey(existingKey);
@@ -36,8 +37,8 @@ export default class RecipientService {
     try {
       dek = await this.#keyResolver.resolveKeyForRecipients(manifest, existingKey);
     } catch (err) {
-      if (err instanceof CasError && err.code === 'NO_MATCHING_RECIPIENT') {
-        throw createCasError('Failed to unwrap DEK: authentication failed', 'DEK_UNWRAP_FAILED', { originalError: err });
+      if (err instanceof CasError && err.code === ErrorCodes.NO_MATCHING_RECIPIENT) {
+        throw createCasError('Failed to unwrap DEK: authentication failed', ErrorCodes.DEK_UNWRAP_FAILED, { originalError: err });
       }
       throw err;
     }
@@ -53,28 +54,28 @@ export default class RecipientService {
   }
 
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default, label: string }} options
-   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   * @param {{ manifest: Manifest, label: string }} options
+   * @returns {Promise<Manifest>}
    */
   async removeRecipient({ manifest, label }) {
     const recipients = this.#requireRecipients(manifest);
     if (!recipients.some((recipient) => recipient.label === label)) {
-      throw createCasError(`Recipient "${label}" not found`, 'RECIPIENT_NOT_FOUND', { label });
+      throw createCasError(`Recipient "${label}" not found`, ErrorCodes.RECIPIENT_NOT_FOUND, { label });
     }
     if (recipients.length === 1) {
-      throw createCasError('Cannot remove the last recipient', 'CANNOT_REMOVE_LAST_RECIPIENT');
+      throw createCasError('Cannot remove the last recipient', ErrorCodes.CANNOT_REMOVE_LAST_RECIPIENT);
     }
 
     const filtered = recipients.filter((recipient) => recipient.label !== label).map((recipient) => ({ ...recipient }));
     if (filtered.length === 0) {
-      throw createCasError('Cannot remove the last recipient', 'CANNOT_REMOVE_LAST_RECIPIENT');
+      throw createCasError('Cannot remove the last recipient', ErrorCodes.CANNOT_REMOVE_LAST_RECIPIENT);
     }
     const json = manifest.toJSON();
     return new Manifest({ ...json, encryption: { ...json.encryption, recipients: filtered } });
   }
 
   /**
-   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Manifest} manifest
    * @returns {string[]}
    */
   listRecipients(manifest) {
@@ -82,13 +83,13 @@ export default class RecipientService {
   }
 
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default, oldKey: Uint8Array, newKey: Uint8Array, label?: string }} options
-   * @returns {Promise<import('../value-objects/Manifest.js').default>}
+   * @param {{ manifest: Manifest, oldKey: Uint8Array, newKey: Uint8Array, label?: string }} options
+   * @returns {Promise<Manifest>}
    */
   async rotateKey({ manifest, oldKey, newKey, label }) {
     const recipients = manifest.encryption?.recipients;
     if (!recipients || recipients.length === 0) {
-      throw createCasError('Key rotation requires envelope encryption (recipients)', 'ROTATION_NOT_SUPPORTED');
+      throw createCasError('Key rotation requires envelope encryption (recipients)', ErrorCodes.ROTATION_NOT_SUPPORTED);
     }
 
     this.#crypto._validateKey(oldKey);
@@ -104,7 +105,7 @@ export default class RecipientService {
   #requireRecipients(manifest) {
     const recipients = manifest.encryption?.recipients;
     if (!recipients || recipients.length === 0) {
-      throw createCasError('Manifest does not use envelope encryption (no recipients)', 'INVALID_OPTIONS');
+      throw createCasError('Manifest does not use envelope encryption (no recipients)', ErrorCodes.INVALID_OPTIONS);
     }
     return recipients;
   }
@@ -112,7 +113,7 @@ export default class RecipientService {
   async #findRecipientByLabel(recipients, label, oldKey) {
     const matchIndex = recipients.findIndex((recipient) => recipient.label === label);
     if (matchIndex === -1) {
-      throw createCasError(`Recipient "${label}" not found`, 'RECIPIENT_NOT_FOUND', { label });
+      throw createCasError(`Recipient "${label}" not found`, ErrorCodes.RECIPIENT_NOT_FOUND, { label });
     }
     const dek = await this.#keyResolver.unwrapDek(recipients[matchIndex], oldKey);
     return { matchIndex, dek };
@@ -124,12 +125,12 @@ export default class RecipientService {
         const dek = await this.#keyResolver.unwrapDek(recipients[index], oldKey);
         return { matchIndex: index, dek };
       } catch (err) {
-        if (!(err instanceof CasError && err.code === 'DEK_UNWRAP_FAILED')) {
+        if (!(err instanceof CasError && err.code === ErrorCodes.DEK_UNWRAP_FAILED)) {
           throw err;
         }
       }
     }
-    throw createCasError('No recipient entry could be unwrapped with the provided key', 'NO_MATCHING_RECIPIENT');
+    throw createCasError('No recipient entry could be unwrapped with the provided key', ErrorCodes.NO_MATCHING_RECIPIENT);
   }
 
   async #buildRotatedManifest({ manifest, recipients, matchIndex, dek, newKey }) {
