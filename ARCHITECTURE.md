@@ -356,6 +356,8 @@ still remains authoritative for repeated-chunk order and multiplicity.
 ### Vault
 
 The vault is a GC-safe slug index rooted at `refs/cas/vault`.
+For maintainer-level detail on the collaborators, cache rules, and verifier
+flow, see [docs/VAULT_INTERNALS.md](./docs/VAULT_INTERNALS.md).
 
 It is implemented as a commit chain. Each vault commit points to a tree
 containing:

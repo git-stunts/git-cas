@@ -72,6 +72,7 @@ new ContentAddressableStore(options);
 - `options.chunking` (optional): Declarative chunking strategy config `{ strategy: 'fixed'|'cdc', chunkSize?, targetChunkSize?, minChunkSize?, maxChunkSize? }`
 - `options.chunker` (optional): Pre-built ChunkingPort instance (advanced; overrides `chunking`)
 - `options.maxRestoreBufferSize` (optional): Max bytes for buffered encrypted/compressed restore (default: 536870912 / 512 MiB)
+- `options.maxBlobSize` (optional): Max bytes for manifest and sub-manifest blob reads (default: 10485760 / 10 MiB)
 - `options.compressionAdapter` (optional): CompressionPort implementation (default: NodeCompressionAdapter)
 
 **Example:**
@@ -171,7 +172,7 @@ const vaultService = await cas.getVaultService();
 #### store
 
 ```javascript
-await cas.store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients });
+await cas.store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients, merkleThreshold });
 ```
 
 Stores content from an async iterable source.
@@ -190,6 +191,7 @@ Stores content from an async iterable source.
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`). New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
 - `recipients` (optional): `Array<{ label: string, key: Uint8Array }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
+- `merkleThreshold` (optional): `number` - Per-operation chunk count threshold used when this manifest is later published with `createTree()`
 
 **Returns:** `Promise<Manifest>`
 
@@ -231,6 +233,7 @@ await cas.storeFile({
   kdfOptions,
   compression,
   recipients,
+  merkleThreshold,
 });
 ```
 
@@ -250,6 +253,7 @@ Convenience method that opens a file and stores it.
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase`. New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
 - `recipients` (optional): `Array<{ label: string, key: Uint8Array }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
+- `merkleThreshold` (optional): `number` - Per-operation chunk count threshold used when this manifest is later published with `createTree()`
 
 **Returns:** `Promise<Manifest>`
 
@@ -334,6 +338,7 @@ guard.
 - `encryptionKey` (optional): `Uint8Array` - 32-byte encryption key
 - `passphrase` (optional): `string` - Passphrase for KDF-based decryption
 - `outputPath` (required): `string` - Path to write the restored file
+- `baseDirectory` (required): `string` - Directory boundary that `outputPath` must stay inside
 
 **Returns:** `Promise<{ bytesWritten: number }>`
 
@@ -352,7 +357,7 @@ await cas.restoreFile({
 #### createTree
 
 ```javascript
-await cas.createTree({ manifest });
+await cas.createTree({ manifest, merkleThreshold });
 ```
 
 Creates a Git tree object from a manifest.
@@ -360,6 +365,7 @@ Creates a Git tree object from a manifest.
 **Parameters:**
 
 - `manifest` (required): `Manifest` - Manifest object
+- `merkleThreshold` (optional): `number` - Override the constructor-level chunk count threshold for this tree publication
 
 **Returns:** `Promise<string>` - Git tree OID
 
@@ -1250,7 +1256,7 @@ Core domain service implementing CAS operations. Usually accessed via ContentAdd
 ### Constructor
 
 ```javascript
-new CasService({ persistence, codec, crypto, observability, chunkSize, merkleThreshold, concurrency, chunker, compressionAdapter, maxRestoreBufferSize, formatVersion, legacyMode });
+new CasService({ persistence, codec, crypto, observability, chunkSize, merkleThreshold, concurrency, chunker, compressionAdapter, maxRestoreBufferSize, maxBlobSize, formatVersion, legacyMode });
 ```
 
 **Parameters:**
@@ -1265,6 +1271,7 @@ new CasService({ persistence, codec, crypto, observability, chunkSize, merkleThr
 - `chunker` (required): `ChunkingPort` - Chunking strategy instance (e.g., `FixedChunker`, `CdcChunker`)
 - `compressionAdapter` (required): `CompressionPort` - Compression adapter (e.g., `NodeCompressionAdapter`)
 - `maxRestoreBufferSize` (optional): `number` - Max bytes for buffered encrypted/compressed restore (default: 536870912 / 512 MiB)
+- `maxBlobSize` (optional): `number` - Max bytes for metadata blob reads (default: 10485760 / 10 MiB)
 - `formatVersion` (optional): `string` - Semver version stamped into new manifests
 - `legacyMode` (optional): `boolean` - When true, allows reading manifests with legacy encryption schemes (default: false)
 
@@ -2061,13 +2068,15 @@ All errors thrown by git-cas are instances of `CasError`.
 
 ### CasError
 
-`CasError` is the runtime error class used internally. Public callers normally
-branch on the stable `code` field rather than importing the internal class.
+`CasError` is the runtime error class and is re-exported from the package root.
+Public callers should branch on the stable `code` field; `documentationUrl` is
+present when an error has a canonical docs page.
 
 #### Constructor
 
 ```javascript
 new CasError(message, code, meta);
+new CasError({ message, code, meta, documentationUrl });
 ```
 
 **Parameters:**
@@ -2075,6 +2084,7 @@ new CasError(message, code, meta);
 - `message`: `string` - Error message
 - `code`: `string` - Error code (see below)
 - `meta`: `Object` - Additional error context (default: `{}`)
+- `documentationUrl`: `string` - Optional documentation URL
 
 #### Fields
 
@@ -2082,6 +2092,7 @@ new CasError(message, code, meta);
 - `message`: `string` - Error message
 - `code`: `string` - Error code
 - `meta`: `Object` - Additional context
+- `documentationUrl`: `string | undefined` - Optional documentation URL
 - `stack`: `string` - Stack trace
 
 ### Error Codes

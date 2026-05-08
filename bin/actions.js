@@ -2,7 +2,8 @@
  * CLI error handler — wraps command actions with structured error output.
  */
 
-/** @typedef {{ code?: string, message?: string }} ErrorLike */
+/** @typedef {{ code?: string, documentationUrl?: string, message?: string }} ErrorLike */
+/** @typedef {{ code?: string, documentationUrl?: string, message: string }} ErrorPayload */
 
 /** @type {Readonly<Record<string, string>>} */
 const HINTS = {
@@ -31,22 +32,55 @@ const HINTS = {
  * @param {boolean} json - Whether to output JSON.
  */
 function writeError(err, json) {
-  const message = err?.message ?? String(err);
-  const code = typeof err?.code === 'string' ? err.code : undefined;
+  const payload = toErrorPayload(err);
   if (json) {
-    /** @type {{ error: string, code?: string }} */
-    const obj = { error: message };
-    if (code) {
-      obj.code = code;
-    }
-    process.stderr.write(`${JSON.stringify(obj)}\n`);
-  } else {
-    const prefix = code ? `error [${code}]: ` : 'error: ';
-    process.stderr.write(`${prefix}${message}\n`);
-    const hint = getHint(code);
-    if (hint) {
-      process.stderr.write(`hint: ${hint}\n`);
-    }
+    writeJsonError(payload);
+    return;
+  }
+  writeTextError(payload);
+}
+
+/**
+ * @param {ErrorLike} err
+ * @returns {ErrorPayload}
+ */
+function toErrorPayload(err) {
+  return {
+    message: err?.message ?? String(err),
+    code: typeof err?.code === 'string' ? err.code : undefined,
+    documentationUrl: typeof err?.documentationUrl === 'string'
+      ? err.documentationUrl
+      : undefined,
+  };
+}
+
+/**
+ * @param {ErrorPayload} payload
+ */
+function writeJsonError({ code, documentationUrl, message }) {
+  /** @type {{ error: string, code?: string, documentationUrl?: string }} */
+  const obj = { error: message };
+  if (code) {
+    obj.code = code;
+  }
+  if (documentationUrl) {
+    obj.documentationUrl = documentationUrl;
+  }
+  process.stderr.write(`${JSON.stringify(obj)}\n`);
+}
+
+/**
+ * @param {ErrorPayload} payload
+ */
+function writeTextError({ code, documentationUrl, message }) {
+  const prefix = code ? `error [${code}]: ` : 'error: ';
+  process.stderr.write(`${prefix}${message}\n`);
+  if (documentationUrl) {
+    process.stderr.write(`docs: ${documentationUrl}\n`);
+  }
+  const hint = getHint(code);
+  if (hint) {
+    process.stderr.write(`hint: ${hint}\n`);
   }
 }
 

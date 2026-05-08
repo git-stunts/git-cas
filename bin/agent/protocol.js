@@ -33,15 +33,19 @@ export function getAgentExitCode(err) {
  * Normalize an error into the JSONL protocol shape.
  *
  * @param {unknown} err
- * @returns {{ code: string, message: string, retryable: boolean, hint?: string, meta?: Record<string, any> }}
+ * @returns {{ code: string, message: string, retryable: boolean, documentationUrl?: string, hint?: string, meta?: Record<string, any> }}
  */
 export function normalizeAgentError(err) {
   const code = getErrorCode(err) || 'ERROR';
   const message = getErrorMessage(err);
   const retryable = getErrorRetryable(err);
 
-  /** @type {{ code: string, message: string, retryable: boolean, hint?: string, meta?: Record<string, any> }} */
+  /** @type {{ code: string, message: string, retryable: boolean, documentationUrl?: string, hint?: string, meta?: Record<string, any> }} */
   const data = { code, message, retryable };
+  const documentationUrl = getDocumentationUrl(err);
+  if (documentationUrl) {
+    data.documentationUrl = documentationUrl;
+  }
 
   if (Object.prototype.hasOwnProperty.call(HINTS, code)) {
     data.hint = HINTS[code];
@@ -97,6 +101,17 @@ function getErrorRetryable(err) {
     return err.retryable;
   }
   return false;
+}
+
+/**
+ * @param {unknown} err
+ * @returns {string | undefined}
+ */
+function getDocumentationUrl(err) {
+  if (typeof err === 'object' && err && typeof err.documentationUrl === 'string') {
+    return err.documentationUrl;
+  }
+  return undefined;
 }
 
 /**

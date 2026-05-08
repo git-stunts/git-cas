@@ -18,12 +18,14 @@ import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
 import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
 import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
-import CasError from './src/domain/errors/CasError.js';
+import { CasError, createCasError } from './src/domain/errors/index.js';
 import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
 import NodeCompressionAdapter from './src/infrastructure/adapters/NodeCompressionAdapter.js';
 import { PACKAGE_VERSION } from './src/package-version.js';
 
 const PKG_VERSION = PACKAGE_VERSION;
+const RESTORE_FILE_DOCS_URL =
+  'https://github.com/git-stunts/git-cas/blob/main/docs/API.md#restorefile';
 
 // ---------------------------------------------------------------------------
 // Re-exports — modules used in the class body
@@ -36,6 +38,7 @@ export {
   JsonCodec,
   CborCodec,
   SilentObserver,
+  CasError,
 };
 
 // ---------------------------------------------------------------------------
@@ -85,7 +88,7 @@ export default class ContentAddressableStore {
     this.#servicePromise = null;
   }
 
-  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, compressionAdapter?: * }} */
+  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, maxBlobSize?: number, compressionAdapter?: * }} */
   #config;
   /** @type {VaultService|null} */
   #vault = null;
@@ -187,6 +190,7 @@ export default class ContentAddressableStore {
    * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
+   * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes.
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
    * @returns {Promise<ContentAddressableStore>}
    */
@@ -210,6 +214,7 @@ export default class ContentAddressableStore {
    * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
+   * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes.
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
    * @returns {ContentAddressableStore}
    */
@@ -230,6 +235,7 @@ export default class ContentAddressableStore {
    * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
+   * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes.
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
    * @returns {ContentAddressableStore}
    */
@@ -282,6 +288,7 @@ export default class ContentAddressableStore {
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
+   * @param {number} [options.merkleThreshold] - Per-operation chunk count threshold for Merkle tree publication.
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
   async storeFile(options) {
@@ -301,6 +308,7 @@ export default class ContentAddressableStore {
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
+   * @param {number} [options.merkleThreshold] - Per-operation chunk count threshold for Merkle tree publication.
    * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
    */
   async store(options) {
@@ -315,11 +323,17 @@ export default class ContentAddressableStore {
    * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * @param {string} options.outputPath - Destination file path.
+   * @param {string} options.baseDirectory - Directory boundary that outputPath must stay inside.
    * @returns {Promise<{ bytesWritten: number }>}
    */
   async restoreFile(options) {
-    if (!options.baseDirectory) {
-      throw new CasError('baseDirectory is required for safe restoration', 'INVALID_OPTIONS');
+    if (!options?.baseDirectory) {
+      throw createCasError({
+        message: 'baseDirectory is required for safe restoration. If you are restoring in a trusted local environment, pass baseDirectory: process.cwd().',
+        code: 'INVALID_OPTIONS',
+        meta: { option: 'baseDirectory' },
+        documentationUrl: RESTORE_FILE_DOCS_URL,
+      });
     }
     const service = await this.#getService();
     return await restoreFile(service, options);
@@ -355,6 +369,7 @@ export default class ContentAddressableStore {
    * Creates a Git tree object from a manifest.
    * @param {Object} options
    * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {number} [options.merkleThreshold] - Override chunk count threshold for this tree publication.
    * @returns {Promise<string>} Git OID of the created tree.
    */
   async createTree(options) {

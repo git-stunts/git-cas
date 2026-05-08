@@ -23,9 +23,21 @@ import CasError from '../../domain/errors/CasError.js';
  * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
  * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
  * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients.
+ * @param {number} [options.merkleThreshold] - Per-operation chunk count threshold for Merkle manifests.
  * @returns {Promise<import('../../domain/value-objects/Manifest.js').default>} The resulting manifest.
  */
-export async function storeFile(service, { filePath, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients }) {
+export async function storeFile(service, {
+  filePath,
+  slug,
+  filename,
+  encryptionKey,
+  passphrase,
+  encryption,
+  kdfOptions,
+  compression,
+  recipients,
+  merkleThreshold,
+}) {
   const source = createReadStream(filePath);
   return await service.store({
     source,
@@ -37,6 +49,7 @@ export async function storeFile(service, { filePath, slug, filename, encryptionK
     kdfOptions,
     compression,
     recipients,
+    merkleThreshold,
   });
 }
 

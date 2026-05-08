@@ -613,7 +613,7 @@ const { buffer } = await cas.restore({
 
 The `maxRestoreBufferSize` option (default 512 MiB) guards against out-of-memory errors.
 
-### `restoreFile({ manifest, outputPath })` -- Atomic File Write
+### `restoreFile({ manifest, outputPath, baseDirectory })` -- Atomic File Write
 
 Writes directly to disk. Handles streaming internally for framed-encrypted and compressed content.
 
@@ -622,6 +622,7 @@ const manifest = await cas.readManifest({ treeOid });
 const { bytesWritten } = await cas.restoreFile({
   manifest,
   outputPath: '/tmp/restored-photo.jpg',
+  baseDirectory: '/tmp',
   encryptionKey: key,  // if encrypted
 });
 ```

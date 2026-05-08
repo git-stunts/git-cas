@@ -44,6 +44,24 @@ describe('domain-specific error classes', () => {
     expect(invalidOid).toMatchObject({ code: 'INVALID_OID', meta: { oid: 'nope' } });
   });
 
+  it('serializes optional documentation URLs from createCasError', () => {
+    const documentationUrl = 'https://git-cas.example/docs/errors#invalid-options';
+    const err = createCasError({
+      message: 'baseDirectory is required',
+      code: 'INVALID_OPTIONS',
+      meta: { option: 'baseDirectory' },
+      documentationUrl,
+    });
+
+    expect(err).toMatchObject({ documentationUrl });
+    expect(JSON.parse(JSON.stringify(err))).toMatchObject({
+      code: 'INVALID_OPTIONS',
+      message: 'baseDirectory is required',
+      documentationUrl,
+      meta: { option: 'baseDirectory' },
+    });
+  });
+
   it('keeps extracted domain modules off raw CasError construction', () => {
     const offenders = extractedDomainFiles
       .filter((file) => read(file).includes('new CasError'));

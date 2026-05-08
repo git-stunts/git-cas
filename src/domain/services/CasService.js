@@ -42,6 +42,7 @@ export default class CasService {
   #integrityVerifier;
   #keyResolver;
   #manifestRepository;
+  #merkleThresholdByManifest = new WeakMap();
   #recipientService;
   #restoreStrategies;
   #storeStrategies;
@@ -129,6 +130,17 @@ export default class CasService {
     }
     if (!compressionAdapter) {
       throw createCasError('compressionAdapter is required — inject a CompressionPort instance', 'INVALID_OPTIONS');
+    }
+  }
+
+  static #validateMerkleThreshold(merkleThreshold) {
+    if (merkleThreshold !== undefined) {
+      CasService.#assertIntRange({
+        value: merkleThreshold,
+        min: 1,
+        max: Number.MAX_SAFE_INTEGER,
+        label: 'merkleThreshold',
+      });
     }
   }
 
@@ -251,9 +263,21 @@ export default class CasService {
    * @param {Object} [options.kdfOptions]
    * @param {{ algorithm: 'gzip' }} [options.compression]
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients]
+   * @param {number} [options.merkleThreshold]
    * @returns {Promise<import('../value-objects/Manifest.js').default>}
    */
-  async store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients }) {
+  async store({
+    source,
+    slug,
+    filename,
+    encryptionKey,
+    passphrase,
+    encryption,
+    kdfOptions,
+    compression,
+    recipients,
+    merkleThreshold,
+  }) {
     if (!source || typeof source[Symbol.asyncIterator] !== 'function') {
       throw createCasError('source must be an async iterable', 'INVALID_OPTIONS', { sourceType: typeof source });
     }
@@ -262,6 +286,7 @@ export default class CasService {
     }
     KeyResolver.validateKeySourceExclusive(encryptionKey, passphrase);
     this._validateCompression(compression);
+    CasService.#validateMerkleThreshold(merkleThreshold);
 
     const keyInfo = recipients
       ? await this.#keyResolver.resolveRecipients(recipients)
@@ -272,6 +297,7 @@ export default class CasService {
 
     await this._dispatchStore({ processedSource, manifestData, keyInfo, encryptionConfig });
     const manifest = new Manifest(manifestData);
+    this.#rememberMerkleThreshold(manifest, merkleThreshold);
     this.observability.metric('file', {
       action: 'stored',
       slug,
@@ -280,6 +306,16 @@ export default class CasService {
       encrypted: !!keyInfo.key,
     });
     return new StoreSuccess({ manifest }).manifest;
+  }
+
+  /**
+   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {number|undefined} merkleThreshold
+   */
+  #rememberMerkleThreshold(manifest, merkleThreshold) {
+    if (merkleThreshold !== undefined) {
+      this.#merkleThresholdByManifest.set(manifest, merkleThreshold);
+    }
   }
 
   async _dispatchStore({ processedSource, manifestData, keyInfo, encryptionConfig }) {
@@ -311,8 +347,12 @@ export default class CasService {
     return this.#manifestRepository.isLegacyNoAad(manifest);
   }
 
-  async createTree({ manifest }) {
-    return await this.#manifestRepository.createTree({ manifest });
+  async createTree({ manifest, merkleThreshold }) {
+    CasService.#validateMerkleThreshold(merkleThreshold);
+    return await this.#manifestRepository.createTree({
+      manifest,
+      merkleThreshold: merkleThreshold ?? this.#merkleThresholdByManifest.get(manifest),
+    });
   }
 
   async restore({ manifest, encryptionKey, passphrase }) {

@@ -60,6 +60,27 @@ This closes the empty-vault ambiguity: a wrong passphrase now fails with
 encrypted vaults that predate the verifier remain readable; the next vault write
 that supplies a vault encryption key writes verifier metadata for future checks.
 
+### Restore Path Boundary
+
+`restoreFile()` requires `baseDirectory` and treats it as the caller-approved
+write boundary. The requested `outputPath` is resolved against that boundary and
+then checked with path-relative containment. If the resolved path escapes the
+boundary, restore fails with `SECURITY_BOUNDARY_VIOLATION` before publishing
+any output.
+
+For local trusted scripts and CLIs, `baseDirectory: process.cwd()` is often the
+right boundary. Services and automation should pass an application-owned
+workspace, job directory, or tenant-scoped restore root instead of trusting
+ambient process state.
+
+### Metadata Blob Size Boundary
+
+Manifest and sub-manifest reads use `readBlob()` and are capped by
+`maxBlobSize`, which defaults to 10 MiB. This bounds repository-controlled
+metadata before the codec or manifest schema processes it. Normal content
+restore still reads chunk blobs through streaming paths where available, and
+buffered restore modes remain separately bounded by `maxRestoreBufferSize`.
+
 ### KDF Parameter Guidance
 
 When using passphrase-based encryption, git-cas derives keys using PBKDF2 or scrypt.

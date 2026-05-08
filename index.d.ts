@@ -7,9 +7,10 @@ import Manifest from "./src/domain/value-objects/Manifest.js";
 import type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, EncryptionScheme } from "./src/domain/value-objects/Manifest.js";
 import Chunk from "./src/domain/value-objects/Chunk.js";
 import CasService from "./src/domain/services/CasService.js";
+import CasError from "./src/domain/errors/CasError.js";
 import type { CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, StoreEncryptionOptions, VerifyIntegrityOptions } from "./src/domain/services/CasService.js";
 
-export { CasService, Manifest, Chunk };
+export { CasService, CasError, Manifest, Chunk };
 /** Type alias mapping the runtime `CompressionPort` export to its base class declaration. */
 export type CompressionPort = CompressionPortBase;
 
@@ -207,6 +208,8 @@ export interface ContentAddressableStoreOptions {
   compressionAdapter?: CompressionPortBase;
   /** Maximum bytes to buffer during encrypted/compressed restore. @default 536870912 (512 MiB) */
   maxRestoreBufferSize?: number;
+  /** Safety limit for readBlob metadata in bytes. @default 10485760 (10 MiB) */
+  maxBlobSize?: number;
 }
 
 /** Options for {@link ContentAddressableStore.open}. */
@@ -419,6 +422,7 @@ export default class ContentAddressableStore {
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
     recipients?: Array<{ label: string; key: Uint8Array }>;
+    merkleThreshold?: number;
   }): Promise<Manifest>;
 
   store(options: {
@@ -431,6 +435,7 @@ export default class ContentAddressableStore {
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
     recipients?: Array<{ label: string; key: Uint8Array }>;
+    merkleThreshold?: number;
   }): Promise<Manifest>;
 
   restoreFile(options: {
@@ -438,6 +443,7 @@ export default class ContentAddressableStore {
     encryptionKey?: Uint8Array;
     passphrase?: string;
     outputPath: string;
+    baseDirectory: string;
   }): Promise<{ bytesWritten: number }>;
 
   restore(options: {
@@ -452,7 +458,7 @@ export default class ContentAddressableStore {
     passphrase?: string;
   }): AsyncIterable<Uint8Array>;
 
-  createTree(options: { manifest: Manifest }): Promise<string>;
+  createTree(options: { manifest: Manifest; merkleThreshold?: number }): Promise<string>;
 
   verifyIntegrity(manifest: Manifest, options?: VerifyIntegrityOptions): Promise<boolean>;
 

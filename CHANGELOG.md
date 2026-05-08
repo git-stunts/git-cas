@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Store/restore pipeline state-machine docs** — added
   `docs/STORE_RESTORE_PIPELINE.md` as the maintainer map for store, restore,
   tree publication, and vault boundaries.
+- **Vault internals maintainer docs** — added
+  `docs/VAULT_INTERNALS.md` to document the vault collaborator model, cache
+  rules, boundary codecs, privacy index, key verifier, and retry policy.
+- **Public `CasError` export** — `CasError` is now re-exported from the package
+  root for callers that need typed error handling without deep imports.
 - **`CasService.readManifestRaw()`** — reads a manifest from a Git tree OID and returns the raw decoded object without Manifest construction or scheme assertion. Migration entry point for inspecting legacy manifests.
 - **`CasService` `legacyMode` constructor option** — when `true`, `readManifest()` maps legacy scheme identifiers (v1/v2) to their current names instead of throwing `LEGACY_SCHEME`. Legacy v1 manifests (no AAD) are correctly decrypted without AAD during restore.
 - **`mapToCurrentScheme()` and `isLegacyNoAad()` in `schemes.js`** — public helpers for mapping legacy scheme strings to current names and detecting v1 no-AAD schemes.
@@ -80,6 +85,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   encoding, and dedicated privacy, verifier, and retry-policy collaborators own
   HMAC index handling, constant-time key verification, and CAS retry timing.
   Public vault APIs and the on-disk vault tree format are unchanged.
+- **Per-operation Merkle threshold** — `store()` and `storeFile()` now accept a
+  `merkleThreshold` option that carries through to the corresponding
+  `createTree()` publication unless an explicit `createTree()` threshold is
+  supplied.
+- **Restore guidance surfaced in errors and docs** — missing `restoreFile()`
+  `baseDirectory` errors now explain the trusted-local `process.cwd()` option,
+  structured CLI/agent errors can include documentation URLs, and the v6 docs
+  call out the mandatory restore boundary.
+- **Metadata blob limit constantized** — `GitPersistenceAdapter` now uses a
+  named `DEFAULT_MAX_BLOB_SIZE` constant for the default 10 MiB metadata-read
+  cap and reports the effective limit in `RESTORE_TOO_LARGE` errors.
 - **OS-keychain passphrase lookup awaits vault v2 secrets** — CLI credential
   resolution now awaits the async `@git-stunts/vault` secret lookup before
   validating and returning the passphrase.

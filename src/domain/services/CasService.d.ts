@@ -96,6 +96,7 @@ export interface CasServiceOptions {
   concurrency?: number;
   chunker: ChunkingPort;
   maxRestoreBufferSize?: number;
+  maxBlobSize?: number;
   compressionAdapter: CompressionPort;
   formatVersion?: string;
   /** When true, allows reading manifests with legacy encryption schemes (v1/v2). */
@@ -154,6 +155,7 @@ export default class CasService {
   readonly merkleThreshold: number;
   readonly concurrency: number;
   readonly maxRestoreBufferSize: number;
+  readonly maxBlobSize: number;
 
   constructor(options: CasServiceOptions);
 
@@ -178,9 +180,10 @@ export default class CasService {
     kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
     compression?: { algorithm: "gzip" };
     recipients?: Array<{ label: string; key: Uint8Array }>;
+    merkleThreshold?: number;
   }): Promise<Manifest>;
 
-  createTree(options: { manifest: Manifest }): Promise<string>;
+  createTree(options: { manifest: Manifest; merkleThreshold?: number }): Promise<string>;
 
   restore(options: {
     manifest: Manifest;

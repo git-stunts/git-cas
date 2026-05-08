@@ -58,6 +58,7 @@ function defineAgentSessionErrorTests() {
     session.writeError(
       Object.assign(new Error('Provide --slug <slug> or --oid <tree-oid>'), {
         code: 'INVALID_INPUT',
+        documentationUrl: 'https://git-cas.example/docs/agent#invalid-input',
         meta: { command: 'inspect' },
       })
     );
@@ -77,6 +78,7 @@ function defineAgentSessionErrorTests() {
         code: 'INVALID_INPUT',
         message: 'Provide --slug <slug> or --oid <tree-oid>',
         retryable: false,
+        documentationUrl: 'https://git-cas.example/docs/agent#invalid-input',
         hint: 'Check the agent command name and required input fields',
         meta: { command: 'inspect' },
       },

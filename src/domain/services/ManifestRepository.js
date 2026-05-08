@@ -44,13 +44,14 @@ export default class ManifestRepository {
   }
 
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default }} options
+   * @param {{ manifest: import('../value-objects/Manifest.js').default, merkleThreshold?: number }} options
    * @returns {Promise<string>}
    */
-  async createTree({ manifest }) {
+  async createTree({ manifest, merkleThreshold }) {
     const chunks = manifest.chunks;
-    if (chunks.length > this.#merkleThreshold) {
-      return await this.#createMerkleTree({ manifest });
+    const effectiveThreshold = merkleThreshold ?? this.#merkleThreshold;
+    if (chunks.length > effectiveThreshold) {
+      return await this.#createMerkleTree({ manifest, merkleThreshold: effectiveThreshold });
     }
 
     const manifestData = manifest.toJSON();
@@ -119,12 +120,12 @@ export default class ManifestRepository {
     return original === undefined || isLegacyNoAad(original);
   }
 
-  async #createMerkleTree({ manifest }) {
+  async #createMerkleTree({ manifest, merkleThreshold }) {
     const chunks = [...manifest.chunks];
     const subManifestRefs = [];
 
-    for (let i = 0; i < chunks.length; i += this.#merkleThreshold) {
-      const group = chunks.slice(i, i + this.#merkleThreshold);
+    for (let i = 0; i < chunks.length; i += merkleThreshold) {
+      const group = chunks.slice(i, i + merkleThreshold);
       const subManifestData = { chunks: group.map((c) => ({ index: c.index, size: c.size, digest: c.digest, blob: c.blob })) };
       const serialized = normalizeCodecBytes(this.#codec.encode(subManifestData));
       const oid = await this.#persistence.writeBlob(serialized);

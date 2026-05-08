@@ -14,6 +14,7 @@ import CasError from '../../domain/errors/CasError.js';
  * an unref'd timer that allows Node to exit before the next attempt starts.
  */
 const DEFAULT_POLICY = Policy.timeout(30_000);
+export const DEFAULT_MAX_BLOB_SIZE = 10 * 1024 * 1024;
 
 /**
  * {@link GitPersistencePort} implementation backed by `@git-stunts/plumbing`.
@@ -22,7 +23,7 @@ const DEFAULT_POLICY = Policy.timeout(30_000);
  * (30 s timeout by default).
  */
 export default class GitPersistenceAdapter extends GitPersistencePort {
-  #maxBlobSize = 10 * 1024 * 1024;
+  #maxBlobSize = DEFAULT_MAX_BLOB_SIZE;
   /**
    * @param {Object} options
    * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance.
@@ -78,7 +79,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       bytesRead += chunk.length;
       if (bytesRead > limit) {
         throw new CasError(
-          `Blob ${oid} exceeds safety limit of ${maxBytes} bytes`,
+          `Blob ${oid} exceeds safety limit of ${limit} bytes`,
           'RESTORE_TOO_LARGE',
           { oid, maxBytes: limit },
         );
