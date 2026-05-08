@@ -10,6 +10,7 @@ import GitRefPort from '../../ports/GitRefPort.js';
  * an unref'd timer that allows Node to exit before the next attempt starts.
  */
 const DEFAULT_POLICY = Policy.timeout(30_000);
+const GIT_NULL_OID = '0'.repeat(40);
 
 /**
  * {@link GitRefPort} implementation backed by `@git-stunts/plumbing`.
@@ -74,13 +75,13 @@ export default class GitRefAdapter extends GitRefPort {
    * @param {Object} options
    * @param {string} options.ref - Git ref to update.
    * @param {string} options.newOid - New OID to set.
-   * @param {string|null} [options.expectedOldOid] - Expected current OID for CAS.
+   * @param {string|null} [options.expectedOldOid] - Expected current OID for CAS; `null` means the ref must not exist.
    * @returns {Promise<void>}
    */
   async updateRef({ ref, newOid, expectedOldOid }) {
     const args = ['update-ref', ref, newOid];
-    if (expectedOldOid) {
-      args.push(expectedOldOid);
+    if (expectedOldOid !== undefined) {
+      args.push(expectedOldOid ?? GIT_NULL_OID);
     }
     await this.policy.execute(() =>
       this.plumbing.execute({ args }),

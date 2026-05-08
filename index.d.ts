@@ -116,6 +116,7 @@ export declare class GitRefPortBase {
   updateRef(options: {
     ref: string;
     newOid: string;
+    /** Expected current OID for CAS; null means the ref must not exist. */
     expectedOldOid?: string | null;
   }): Promise<void>;
 }

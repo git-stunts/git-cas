@@ -39,7 +39,7 @@ export default class GitRefPort {
    * @param {Object} _options
    * @param {string} _options.ref - Git ref to update.
    * @param {string} _options.newOid - New OID to set.
-   * @param {string|null} [_options.expectedOldOid] - Expected current OID for CAS.
+   * @param {string|null} [_options.expectedOldOid] - Expected current OID for CAS; `null` means the ref must not exist.
    * @returns {Promise<void>}
    */
   async updateRef(_options) {
