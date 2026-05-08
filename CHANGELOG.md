@@ -93,6 +93,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per-call limit is supplied.
 - **Vault keyed caches snapshot key bytes** — privacy-entry and verifier caches
   now reject stale hits when a reused `Uint8Array` key object has been mutated.
+- **Doctor rejects vault heads without metadata** — `git cas doctor` now fails
+  with `VAULT_METADATA_INVALID` when `refs/cas/vault` exists but `.vault.json`
+  is missing or invalid.
 - **Per-operation Merkle threshold** — `store()` and `storeFile()` now accept a
   `merkleThreshold` option that carries through to the corresponding
   `createTree()` publication unless an explicit `createTree()` threshold is

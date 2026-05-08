@@ -149,7 +149,9 @@ describe('inspectVaultHealth', () => {
       }),
     ]);
   });
+});
 
+describe('inspectVaultHealth entry scan', () => {
   it('records per-entry manifest failures without aborting the scan', async () => {
     const cas = makePartialFailureCas();
 
@@ -172,6 +174,35 @@ describe('inspectVaultHealth', () => {
         treeOid: 'tree-2',
         code: 'MANIFEST_NOT_FOUND',
         message: 'manifest missing',
+      }),
+    ]);
+  });
+});
+
+describe('inspectVaultHealth metadata validation', () => {
+  it('fails when a vault head exists without valid metadata', async () => {
+    const cas = {
+      getVaultService: vi.fn().mockResolvedValue({
+        readState: vi.fn().mockResolvedValue({
+          entries: new Map(),
+          parentCommitOid: 'commit-1',
+          metadata: null,
+        }),
+      }),
+      readManifest: vi.fn(),
+    };
+
+    const report = await inspectVaultHealth(cas);
+
+    expect(report.status).toBe('fail');
+    expect(report.hasVault).toBe(true);
+    expect(report.commitOid).toBe('commit-1');
+    expect(report.invalidEntries).toBe(1);
+    expect(cas.readManifest).not.toHaveBeenCalled();
+    expect(report.issues).toEqual([
+      expect.objectContaining({
+        code: 'VAULT_METADATA_INVALID',
+        scope: 'vault',
       }),
     ]);
   });

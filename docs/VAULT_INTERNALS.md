@@ -99,6 +99,13 @@ Returns a defensive copy of the current entries, metadata, and parent commit
 OID. Use it when the caller needs a full state snapshot. Do not route targeted
 reads through `readState()` unless the full snapshot is actually required.
 
+`git cas doctor`
+
+Treats `refs/cas/vault` as unhealthy when the vault head exists but `.vault.json`
+metadata is missing or invalid. In that case doctor reports
+`VAULT_METADATA_INVALID` before scanning entry manifests, because the vault
+boundary metadata is the authority for encryption, privacy, and verifier state.
+
 ## Write Path
 
 Vault mutations follow one draft-based loop:

@@ -1,6 +1,9 @@
 /**
  * Shared reporting helpers for vault diagnostics commands.
  */
+import { ErrorCodes } from '../../src/domain/errors/index.js';
+
+const VAULT_METADATA_MISSING_MESSAGE = '.vault.json metadata is missing or invalid';
 
 /**
  * @typedef {{ slug: string, treeOid: string, manifest: { toJSON?: () => any } | Record<string, any> }} VaultRecord
@@ -321,6 +324,31 @@ function buildMissingVaultReport() {
 }
 
 /**
+ * Build the failure report for a vault head with missing metadata.
+ *
+ * @param {{ entries: Map<string, string>, parentCommitOid: string }} state
+ * @returns {DoctorReport}
+ */
+function buildInvalidVaultMetadataReport(state) {
+  return {
+    status: 'fail',
+    hasVault: true,
+    commitOid: state.parentCommitOid,
+    entryCount: state.entries.size,
+    checkedEntries: 0,
+    validEntries: 0,
+    invalidEntries: 1,
+    metadataEncrypted: false,
+    stats: emptyVaultStats(),
+    issues: [{
+      scope: 'vault',
+      code: ErrorCodes.VAULT_METADATA_INVALID,
+      message: VAULT_METADATA_MISSING_MESSAGE,
+    }],
+  };
+}
+
+/**
  * Read the current vault state.
  *
  * @param {{ getVaultService: () => Promise<{ readState: () => Promise<{ entries: Map<string, string>, parentCommitOid: string | null, metadata: Record<string, any> | null }> }> }} cas
@@ -376,6 +404,9 @@ export async function inspectVaultHealth(cas) {
 
   if (!state.parentCommitOid) {
     return buildMissingVaultReport();
+  }
+  if (!state.metadata) {
+    return buildInvalidVaultMetadataReport(state);
   }
 
   const entries = [...state.entries.entries()]
