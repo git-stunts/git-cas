@@ -1,8 +1,7 @@
-import { ErrorCodes } from '../errors/index.js';
 /**
  * @fileoverview Domain service for vault (GC-safe ref-based asset index) operations.
  */
-import CasError from '../errors/CasError.js';
+import { CasError, ErrorCodes } from '../errors/index.js';
 import buildKdfMetadata from '../helpers/buildKdfMetadata.js';
 import { prepareKdfOptions } from '../../helpers/kdfPolicy.js';
 import Slug from '../value-objects/Slug.js';

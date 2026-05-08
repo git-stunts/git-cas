@@ -108,6 +108,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Walkthrough documents per-operation Merkle thresholds** — Merkle guidance
   now shows `storeFile({ merkleThreshold })` as the primary override and keeps
   constructor-level thresholds framed as defaults.
+- **VaultService module header normalized** — the fileoverview block now
+  appears before imports, and the service header imports errors through the
+  internal errors barrel.
 - **Per-operation Merkle threshold** — `store()` and `storeFile()` now accept a
   `merkleThreshold` option that carries through to the corresponding
   `createTree()` publication unless an explicit `createTree()` threshold is
