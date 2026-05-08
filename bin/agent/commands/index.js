@@ -2,6 +2,7 @@ import ContentAddressableStore from '../../../index.js';
 import Manifest from '../../../src/domain/value-objects/Manifest.js';
 import Slug from '../../../src/domain/value-objects/Slug.js';
 import { createGitPlumbing } from '../../../src/infrastructure/createGitPlumbing.js';
+import { resolveRestoreOutputTarget } from '../../restore-output-target.js';
 import { buildVaultStats, inspectVaultHealth } from '../../ui/vault-report.js';
 import { filterEntries } from '../../ui/vault-list.js';
 import {
@@ -988,11 +989,12 @@ async function restoreCommand(args, stdin, session) {
     requestSource,
     treeOid,
   });
+  const restoreTarget = resolveRestoreOutputTarget(input.out);
   const { bytesWritten } = await cas.restoreFile({
     manifest,
     ...(encryptionKey ? { encryptionKey } : {}),
-    outputPath: input.out,
-    baseDirectory: process.cwd(),
+    outputPath: restoreTarget.outputPath,
+    baseDirectory: restoreTarget.baseDirectory,
   });
 
   return buildRestoreOutcome({

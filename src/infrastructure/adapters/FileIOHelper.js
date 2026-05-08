@@ -61,7 +61,7 @@ export async function restoreFile(service, { manifest, encryptionKey, passphrase
   const resolvedPath = path.resolve(baseDirectory, outputPath);
   const resolvedBase = path.resolve(baseDirectory);
 
-  if (!resolvedPath.startsWith(resolvedBase)) {
+  if (!isInsideBaseDirectory(resolvedPath, resolvedBase)) {
     throw new CasError(
       `Restoration path "${outputPath}" escapes base directory "${baseDirectory}"`,
       'SECURITY_BOUNDARY_VIOLATION',
@@ -138,6 +138,19 @@ async function restoreBufferedFile(service, {
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+/**
+ * @param {string} resolvedPath
+ * @param {string} resolvedBase
+ * @returns {boolean}
+ */
+function isInsideBaseDirectory(resolvedPath, resolvedBase) {
+  const relativePath = path.relative(resolvedBase, resolvedPath);
+  return (
+    relativePath === '' ||
+    (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
+  );
 }
 
 function createByteCounter(onChunk) {

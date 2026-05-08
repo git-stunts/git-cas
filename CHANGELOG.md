@@ -134,6 +134,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flows now use `bin/credentials.js` for key-file length checks, ambiguous
   credential-source rejection, vault passphrase-derived key verification, and
   encrypted-restore input classification.
+- **CLI restore output authority** — human and agent CLI restore commands now
+  treat an explicit `--out` path as authority to write in that path's parent
+  directory, while `restoreFile()` keeps enforcing its library-level
+  `baseDirectory` boundary. The low-level path check now uses path-relative
+  containment instead of a string-prefix comparison.
 - **Type declaration accuracy** — `CasServiceOptions` now marks `chunker` and `compressionAdapter` as required for direct domain-service construction, and `StoreEncryptionOptions` exposes the supported `convergent` opt-in/opt-out flag.
 - **Constructor validation consistency** — direct `CasService` construction now
   validates all required ports through the unified constructor argument

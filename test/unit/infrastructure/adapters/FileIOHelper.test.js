@@ -194,6 +194,34 @@ describe('FileIOHelper – restoreFile stream publication', () => {
     const written = readFileSync(outputPath);
     expect(written.toString()).toBe('hello world');
   });
+
+});
+
+describe('FileIOHelper – restoreFile path boundary', () => {
+  const getTmpDir = useTempDir('fio-restore-');
+
+  it('rejects sibling paths that only share a string prefix with the base directory', async () => {
+    const tmpDir = getTmpDir();
+    const outputPath = path.join(`${tmpDir}-sibling`, 'output.bin');
+    const mockService = {
+      async createFileRestorePlan() {
+        return {
+          mode: 'stream',
+          source: (async function* gen() {
+            yield Buffer.from('blocked');
+          })(),
+        };
+      },
+    };
+
+    await expect(restoreFile(mockService, {
+      manifest: {},
+      outputPath,
+      baseDirectory: tmpDir,
+    })).rejects.toMatchObject({
+      code: 'SECURITY_BOUNDARY_VIOLATION',
+    });
+  });
 });
 
 describe('FileIOHelper – restoreFile bounded publication seam', () => {

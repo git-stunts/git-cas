@@ -37,6 +37,7 @@ import {
   validateCliCredentialSources as validateCredentialSources,
 } from './credentials.js';
 import { loadConfig, mergeConfig } from './config.js';
+import { resolveRestoreOutputTarget } from './restore-output-target.js';
 
 import { resolveVersionString } from './build-version.js';
 
@@ -376,12 +377,13 @@ program
       });
       progress.attach(observer);
       let bytesWritten;
+      const restoreTarget = resolveRestoreOutputTarget(opts.out);
       try {
         ({ bytesWritten } = await cas.restoreFile({
           manifest,
           ...(encryptionKey ? { encryptionKey } : {}),
-          outputPath: opts.out,
-          baseDirectory: process.cwd(),
+          outputPath: restoreTarget.outputPath,
+          baseDirectory: restoreTarget.baseDirectory,
         }));
       } finally {
         progress.detach();
