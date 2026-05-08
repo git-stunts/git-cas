@@ -45,7 +45,7 @@ describe('VaultStateCache plain state', () => {
   });
 });
 
-describe('VaultStateCache keyed memoization', () => {
+describe('VaultStateCache privacy-key memoization', () => {
   it('caches privacy entries per encryption key object identity', async () => {
     const cache = new VaultStateCache();
     const snapshot = cache.rememberTree('tree-1', { rawEntries: [], metadata: { version: 1 } });
@@ -60,6 +60,25 @@ describe('VaultStateCache keyed memoization', () => {
     expect(resolveEntries).toHaveBeenCalledTimes(2);
   });
 
+  it('does not reuse privacy entries after the same key object mutates', async () => {
+    const cache = new VaultStateCache();
+    const snapshot = cache.rememberTree('tree-1', { rawEntries: [], metadata: { version: 1 } });
+    const key = Uint8Array.from([1]);
+    const resolveEntries = vi.fn(async (_rawEntries, _metadata, currentKey) =>
+      new Map([[`secret-${currentKey[0]}`, 'tree-a']]),
+    );
+
+    const first = await cache.privacyEntries(snapshot, key, resolveEntries);
+    key[0] = 2;
+    const second = await cache.privacyEntries(snapshot, key, resolveEntries);
+
+    expect(resolveEntries).toHaveBeenCalledTimes(2);
+    expect(first.has('secret-1')).toBe(true);
+    expect(second.has('secret-2')).toBe(true);
+  });
+});
+
+describe('VaultStateCache verifier-key memoization', () => {
   it('scopes verified encryption keys to one cached tree snapshot', () => {
     const cache = new VaultStateCache();
     const key = Uint8Array.from([1]);
@@ -70,5 +89,16 @@ describe('VaultStateCache keyed memoization', () => {
 
     expect(cache.hasVerifiedEncryptionKey(first, key)).toBe(true);
     expect(cache.hasVerifiedEncryptionKey(second, key)).toBe(false);
+  });
+
+  it('does not treat a mutated key object as already verified', () => {
+    const cache = new VaultStateCache();
+    const key = Uint8Array.from([1]);
+    const snapshot = cache.rememberTree('tree-1', { rawEntries: [], metadata: { version: 1 } });
+
+    cache.rememberVerifiedEncryptionKey(snapshot, key);
+    key[0] = 2;
+
+    expect(cache.hasVerifiedEncryptionKey(snapshot, key)).toBe(false);
   });
 });

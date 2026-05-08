@@ -35,7 +35,9 @@ cache commit OIDs, tree OIDs, or parsed state.
 Owns parse-stable memoization keyed by immutable tree OID. Cached snapshots keep
 raw tree entries, cloned metadata, parsed plain entries, privacy entries by
 encryption-key object identity, and verified vault keys. Public state returned
-to callers is defensively copied so a caller cannot mutate cached state.
+to callers is defensively copied so a caller cannot mutate cached state. Keyed
+memoization stores a byte snapshot beside the key object, so mutating a reused
+`Uint8Array` key cannot reuse stale privacy or verifier cache entries.
 
 `VaultMetadataCodec`
 

@@ -24,7 +24,7 @@ export default class VaultStateCache {
       metadata: cloneMetadata(snapshot.metadata),
       plainEntries: null,
       privacyEntriesByKey: new WeakMap(),
-      verifiedEncryptionKeys: new WeakSet(),
+      verifiedEncryptionKeys: new WeakMap(),
     };
     this.#trees.set(treeOid, cached);
     return cached;
@@ -49,12 +49,15 @@ export default class VaultStateCache {
    * @returns {Promise<Map<string, string>>}
    */
   async privacyEntries(snapshot, encryptionKey, resolveEntries) {
-    let entries = snapshot.privacyEntriesByKey.get(encryptionKey);
-    if (!entries) {
-      entries = await resolveEntries(snapshot.rawEntries, snapshot.metadata, encryptionKey);
-      snapshot.privacyEntriesByKey.set(encryptionKey, entries);
+    let cached = snapshot.privacyEntriesByKey.get(encryptionKey);
+    if (!cached || !bytesEqual(cached.keyBytes, encryptionKey)) {
+      cached = {
+        entries: await resolveEntries(snapshot.rawEntries, snapshot.metadata, encryptionKey),
+        keyBytes: cloneBytes(encryptionKey),
+      };
+      snapshot.privacyEntriesByKey.set(encryptionKey, cached);
     }
-    return entries;
+    return cached.entries;
   }
 
   /**
@@ -63,7 +66,8 @@ export default class VaultStateCache {
    * @returns {boolean}
    */
   hasVerifiedEncryptionKey(snapshot, encryptionKey) {
-    return snapshot.verifiedEncryptionKeys.has(encryptionKey);
+    const verifiedKeyBytes = snapshot.verifiedEncryptionKeys.get(encryptionKey);
+    return Boolean(verifiedKeyBytes && bytesEqual(verifiedKeyBytes, encryptionKey));
   }
 
   /**
@@ -71,7 +75,7 @@ export default class VaultStateCache {
    * @param {Uint8Array} encryptionKey
    */
   rememberVerifiedEncryptionKey(snapshot, encryptionKey) {
-    snapshot.verifiedEncryptionKeys.add(encryptionKey);
+    snapshot.verifiedEncryptionKeys.set(encryptionKey, cloneBytes(encryptionKey));
   }
 
   /**
@@ -96,4 +100,28 @@ export default class VaultStateCache {
  */
 function cloneMetadata(metadata) {
   return metadata ? JSON.parse(JSON.stringify(metadata)) : null;
+}
+
+/**
+ * @param {Uint8Array} bytes
+ * @returns {Uint8Array}
+ */
+function cloneBytes(bytes) {
+  return Uint8Array.from(bytes);
+}
+
+/**
+ * @param {Uint8Array} left
+ * @param {Uint8Array} right
+ * @returns {boolean}
+ */
+function bytesEqual(left, right) {
+  if (left.byteLength !== right.byteLength) {
+    return false;
+  }
+  let diff = 0;
+  for (let i = 0; i < left.byteLength; i += 1) {
+    diff |= left[i] ^ right[i];
+  }
+  return diff === 0;
 }
