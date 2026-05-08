@@ -100,6 +100,7 @@ git-cas now also applies a bounded KDF policy to passphrase-bearing store,
 restore, vault init, and vault rotation flows:
 
 - new writes default to PBKDF2 `600000` or scrypt `N=131072`
+- supported KDF algorithms are explicitly limited to `pbkdf2` and `scrypt`
 - stored manifest and vault metadata are accepted only within a bounded
   compatibility window
 - out-of-policy KDF metadata fails with `KDF_POLICY_VIOLATION` before derive

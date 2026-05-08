@@ -72,3 +72,15 @@ describe('kdfPolicy – salt minimum length', () => {
     expect(() => prepareStoredKdfOptions(validKdf(15), { source: SOURCE })).toThrow(/salt/i);
   });
 });
+
+describe('kdfPolicy – unsupported algorithms', () => {
+  it('throws a structured policy error instead of a raw Error', () => {
+    expect(() => assertKdfPolicy({
+      algorithm: 'argon2id',
+      iterations: 600_000,
+      keyLength: 32,
+    }, { source: SOURCE })).toThrow(
+      expect.objectContaining({ code: 'KDF_POLICY_VIOLATION' }),
+    );
+  });
+});

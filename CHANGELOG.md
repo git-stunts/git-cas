@@ -88,6 +88,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Privacy vault passphrase rotation preserved** — vault passphrase rotation now
   reads metadata before full state so privacy-enabled vaults can derive the old
   key, decrypt `.privacy-index`, and rebuild the index under the replacement key.
+- **Structured KDF algorithm errors** — unsupported stored or requested KDF
+  algorithms now fail with `KDF_POLICY_VIOLATION`, and vault metadata decoding
+  normalizes those policy failures to `VAULT_METADATA_INVALID` instead of
+  leaking raw `Error` instances.
 - **Vault ref creation is create-only** — first vault writes now pass Git's
   all-zero expected OID when `expectedOldOid` is `null`, preserving CAS
   semantics during concurrent vault initialization.

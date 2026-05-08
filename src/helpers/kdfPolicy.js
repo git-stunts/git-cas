@@ -26,9 +26,12 @@ function buildPolicyError(message, meta) {
   throw new CasError(message, ErrorCodes.KDF_POLICY_VIOLATION, meta);
 }
 
-function assertSupportedAlgorithm(algorithm) {
+function assertSupportedAlgorithm(algorithm, source) {
   if (algorithm !== 'pbkdf2' && algorithm !== 'scrypt') {
-    throw new Error(`Unsupported KDF algorithm: ${algorithm}`);
+    buildPolicyError(
+      `${source} KDF algorithm is unsupported: ${algorithm}`,
+      { source, field: 'algorithm', value: algorithm },
+    );
   }
 }
 
@@ -93,9 +96,9 @@ function assertScryptCost(cost, source) {
   }
 }
 
-export function normalizeKdfOptions(options = {}) {
+export function normalizeKdfOptions(options = {}, { source = 'kdf-options' } = {}) {
   const algorithm = options.algorithm ?? 'pbkdf2';
-  assertSupportedAlgorithm(algorithm);
+  assertSupportedAlgorithm(algorithm, source);
   return {
     algorithm,
     iterations: options.iterations ?? DEFAULT_PBKDF2_ITERATIONS,
@@ -158,11 +161,11 @@ export function assertKdfPolicy(params, { source }) {
     }
     return;
   }
-  assertSupportedAlgorithm(params.algorithm);
+  assertSupportedAlgorithm(params.algorithm, source);
 }
 
 export function prepareKdfOptions(kdfOptions, { source }) {
-  const normalized = normalizeKdfOptions(kdfOptions);
+  const normalized = normalizeKdfOptions(kdfOptions, { source });
   assertKdfPolicy(normalized, { source });
   return normalized;
 }

@@ -68,6 +68,36 @@ describe('VaultMetadataCodec encryption validation', () => {
     );
   });
 
+  it('normalizes unsupported KDF algorithms to VAULT_METADATA_INVALID', () => {
+    const codec = new VaultMetadataCodec();
+    const metadata = encryptedMetadata({
+      encryption: {
+        cipher: 'aes-256-gcm',
+        kdf: {
+          algorithm: 'argon2id',
+          salt: VALID_SALT,
+          iterations: 100000,
+          keyLength: 32,
+        },
+      },
+    });
+
+    let thrown;
+    try {
+      codec.decode(bytes(metadata));
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toMatchObject({
+      code: 'VAULT_METADATA_INVALID',
+      meta: {
+        originalError: expect.objectContaining({ code: 'KDF_POLICY_VIOLATION' }),
+      },
+    });
+  });
+});
+
+describe('VaultMetadataCodec verifier validation', () => {
   it('rejects invalid verifier metadata without leaking raw errors', () => {
     const codec = new VaultMetadataCodec();
     const metadata = encryptedMetadata({
