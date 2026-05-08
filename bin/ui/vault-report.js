@@ -11,9 +11,13 @@ const VAULT_METADATA_MISSING_MESSAGE = '.vault.json metadata is missing or inval
  *   entries: number,
  *   totalLogicalSize: number,
  *   totalChunkRefs: number,
+ *   totalChunkBytes: number,
  *   uniqueChunks: number,
  *   duplicateChunkRefs: number,
+ *   uniqueChunkBytes: number,
+ *   duplicateChunkBytes: number,
  *   dedupRatio: number,
+ *   byteDedupRatio: number,
  *   encryptedEntries: number,
  *   envelopeEntries: number,
  *   compressedEntries: number,
@@ -101,9 +105,13 @@ function emptyVaultStats() {
     entries: 0,
     totalLogicalSize: 0,
     totalChunkRefs: 0,
+    totalChunkBytes: 0,
     uniqueChunks: 0,
     duplicateChunkRefs: 0,
+    uniqueChunkBytes: 0,
+    duplicateChunkBytes: 0,
     dedupRatio: 1,
+    byteDedupRatio: 1,
     encryptedEntries: 0,
     envelopeEntries: 0,
     compressedEntries: 0,
@@ -133,16 +141,19 @@ function isEncryptedManifest(manifest) {
 }
 
 /**
- * Extract valid chunk blob OIDs from a manifest.
+ * Extract valid chunk references from a manifest.
  *
  * @param {Record<string, any>} manifest
- * @returns {string[]}
+ * @returns {Array<{ blob: string, size: number }>}
  */
-function listChunkBlobs(manifest) {
+function listChunkRefs(manifest) {
   const chunks = Array.isArray(manifest.chunks) ? manifest.chunks : [];
   return chunks
-    .map((chunk) => (typeof chunk?.blob === 'string' ? chunk.blob : ''))
-    .filter(Boolean);
+    .map((chunk) => ({
+      blob: typeof chunk?.blob === 'string' ? chunk.blob : '',
+      size: Number.isFinite(chunk?.size) && chunk.size >= 0 ? chunk.size : 0,
+    }))
+    .filter((chunk) => chunk.blob);
 }
 
 /**
@@ -153,7 +164,7 @@ function listChunkBlobs(manifest) {
  *   slug: string,
  *   size: number,
  *   strategy: string,
- *   chunkBlobs: string[],
+ *   chunks: Array<{ blob: string, size: number }>,
  *   chunkRefs: number,
  *   encrypted: boolean,
  *   envelope: boolean,
@@ -167,7 +178,7 @@ function summarizeRecord(record) {
     slug: record.slug,
     size: Number.isFinite(manifest.size) ? manifest.size : 0,
     strategy: manifest.chunking?.strategy ?? 'fixed',
-    chunkBlobs: listChunkBlobs(manifest),
+    chunks: listChunkRefs(manifest),
     chunkRefs: chunks.length,
     encrypted: isEncryptedManifest(manifest),
     envelope: hasEnvelopeRecipients(manifest),
@@ -180,13 +191,14 @@ function summarizeRecord(record) {
  *
  * @param {VaultStats} stats
  * @param {ReturnType<typeof summarizeRecord>} summary
- * @param {Set<string>} uniqueChunks
+ * @param {Map<string, number>} uniqueChunks
  * @returns {void}
  */
 function applyRecordSummary(stats, summary, uniqueChunks) {
   stats.entries += 1;
   stats.totalLogicalSize += summary.size;
   stats.totalChunkRefs += summary.chunkRefs;
+  stats.totalChunkBytes += summary.chunks.reduce((sum, chunk) => sum + chunk.size, 0);
   if (summary.encrypted) { stats.encryptedEntries += 1; }
   if (summary.envelope) { stats.envelopeEntries += 1; }
   if (summary.compressed) { stats.compressedEntries += 1; }
@@ -196,8 +208,9 @@ function applyRecordSummary(stats, summary, uniqueChunks) {
     stats.largestEntry = { slug: summary.slug, size: summary.size };
   }
 
-  for (const blob of summary.chunkBlobs) {
-    uniqueChunks.add(blob);
+  for (const chunk of summary.chunks) {
+    const priorSize = uniqueChunks.get(chunk.blob);
+    uniqueChunks.set(chunk.blob, Math.max(priorSize ?? 0, chunk.size));
   }
 }
 
@@ -213,7 +226,7 @@ function applyRecordSummary(stats, summary, uniqueChunks) {
 export function buildVaultStats(records) {
   /** @type {VaultStats} */
   const stats = emptyVaultStats();
-  const uniqueChunks = new Set();
+  const uniqueChunks = new Map();
 
   for (const record of records) {
     applyRecordSummary(stats, summarizeRecord(record), uniqueChunks);
@@ -221,8 +234,13 @@ export function buildVaultStats(records) {
 
   stats.uniqueChunks = uniqueChunks.size;
   stats.duplicateChunkRefs = Math.max(0, stats.totalChunkRefs - stats.uniqueChunks);
+  stats.uniqueChunkBytes = [...uniqueChunks.values()].reduce((sum, size) => sum + size, 0);
+  stats.duplicateChunkBytes = Math.max(0, stats.totalChunkBytes - stats.uniqueChunkBytes);
   stats.dedupRatio = stats.uniqueChunks > 0
     ? stats.totalChunkRefs / stats.uniqueChunks
+    : 1;
+  stats.byteDedupRatio = stats.uniqueChunkBytes > 0
+    ? stats.totalLogicalSize / stats.uniqueChunkBytes
     : 1;
 
   return stats;
@@ -248,10 +266,14 @@ export function renderVaultStats(stats) {
     ...renderKeyValueLines([
       ['entries', stats.entries],
       ['logical-size', `${formatBytes(stats.totalLogicalSize)} (${stats.totalLogicalSize} bytes)`],
+      ['chunk-bytes', `${formatBytes(stats.totalChunkBytes)} (${stats.totalChunkBytes} bytes)`],
+      ['unique-chunk-bytes', `${formatBytes(stats.uniqueChunkBytes)} (${stats.uniqueChunkBytes} bytes)`],
+      ['duplicate-chunk-bytes', `${formatBytes(stats.duplicateChunkBytes)} (${stats.duplicateChunkBytes} bytes)`],
       ['chunk-refs', stats.totalChunkRefs],
       ['unique-chunks', stats.uniqueChunks],
       ['duplicate-refs', stats.duplicateChunkRefs],
       ['dedup-ratio', `${stats.dedupRatio.toFixed(2)}x`],
+      ['byte-dedup-ratio', `${stats.byteDedupRatio.toFixed(2)}x`],
       ['encrypted', stats.encryptedEntries],
       ['envelope', stats.envelopeEntries],
       ['compressed', stats.compressedEntries],
@@ -447,6 +469,8 @@ export function renderDoctorReport(report) {
       ['metadata', report.metadataEncrypted ? 'encrypted' : 'plain'],
       ['issues', report.issues.length],
       ['logical-size', `${formatBytes(report.stats.totalLogicalSize)} (${report.stats.totalLogicalSize} bytes)`],
+      ['chunk-bytes', `${formatBytes(report.stats.totalChunkBytes)} (${report.stats.totalChunkBytes} bytes)`],
+      ['unique-chunk-bytes', `${formatBytes(report.stats.uniqueChunkBytes)} (${report.stats.uniqueChunkBytes} bytes)`],
       ['chunk-refs', report.stats.totalChunkRefs],
       ['unique-chunks', report.stats.uniqueChunks],
     ]),

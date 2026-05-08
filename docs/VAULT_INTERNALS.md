@@ -105,6 +105,9 @@ Treats `refs/cas/vault` as unhealthy when the vault head exists but `.vault.json
 metadata is missing or invalid. In that case doctor reports
 `VAULT_METADATA_INVALID` before scanning entry manifests, because the vault
 boundary metadata is the authority for encryption, privacy, and verifier state.
+When manifests can be read, doctor reports both chunk-reference dedupe and
+byte-level efficiency (`logical-size` compared with `unique-chunk-bytes`) so
+operators can see whether repeated content actually reduces stored chunk bytes.
 
 ## Write Path
 

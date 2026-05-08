@@ -89,8 +89,12 @@ describe('buildVaultStats', () => {
       entries: 2,
       totalLogicalSize: 1600,
       totalChunkRefs: 4,
+      totalChunkBytes: 1600,
       uniqueChunks: 3,
       duplicateChunkRefs: 1,
+      uniqueChunkBytes: 1200,
+      duplicateChunkBytes: 400,
+      byteDedupRatio: 4 / 3,
       encryptedEntries: 2,
       envelopeEntries: 1,
       compressedEntries: 1,
@@ -107,9 +111,13 @@ describe('renderVaultStats', () => {
       entries: 2,
       totalLogicalSize: 1600,
       totalChunkRefs: 4,
+      totalChunkBytes: 1600,
       uniqueChunks: 3,
       duplicateChunkRefs: 1,
+      uniqueChunkBytes: 1200,
+      duplicateChunkBytes: 400,
       dedupRatio: 4 / 3,
+      byteDedupRatio: 4 / 3,
       encryptedEntries: 2,
       envelopeEntries: 1,
       compressedEntries: 1,
@@ -119,7 +127,9 @@ describe('renderVaultStats', () => {
 
     expect(output).toMatch(/entries\s+2/);
     expect(output).toMatch(/logical-size\s+1\.6 KiB \(1600 bytes\)/);
+    expect(output).toMatch(/unique-chunk-bytes\s+1\.2 KiB \(1200 bytes\)/);
     expect(output).toMatch(/dedup-ratio\s+1\.33x/);
+    expect(output).toMatch(/byte-dedup-ratio\s+1\.33x/);
     expect(output).toMatch(/chunking\s+cdc:1, fixed:1/);
     expect(output).toMatch(/largest\s+photos\/hero\.jpg \(1000 bytes\)/);
     expect(output).not.toContain('\t');
@@ -165,7 +175,9 @@ describe('inspectVaultHealth entry scan', () => {
     expect(report.stats).toMatchObject({
       entries: 1,
       totalChunkRefs: 1,
+      totalChunkBytes: 512,
       uniqueChunks: 1,
+      uniqueChunkBytes: 512,
     });
     expect(report.issues).toEqual([
       expect.objectContaining({
@@ -223,9 +235,13 @@ describe('renderDoctorReport', () => {
         entries: 1,
         totalLogicalSize: 512,
         totalChunkRefs: 1,
+        totalChunkBytes: 512,
         uniqueChunks: 1,
         duplicateChunkRefs: 0,
+        uniqueChunkBytes: 512,
+        duplicateChunkBytes: 0,
         dedupRatio: 1,
+        byteDedupRatio: 1,
         encryptedEntries: 0,
         envelopeEntries: 0,
         compressedEntries: 0,
@@ -246,6 +262,7 @@ describe('renderDoctorReport', () => {
     expect(output).toMatch(/status\s+fail/);
     expect(output).toMatch(/vault\s+present/);
     expect(output).toMatch(/issues\s+1/);
+    expect(output).toMatch(/unique-chunk-bytes\s+512 bytes \(512 bytes\)/);
     expect(output).toContain('[entry] bad/asset (tree-2) MANIFEST_NOT_FOUND: manifest missing');
     expect(output).not.toContain('\t');
   });

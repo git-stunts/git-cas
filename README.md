@@ -180,6 +180,9 @@ The `git-cas` command-line interface exposes the full feature set:
 | `git-cas rotate` | Rotate an asset encryption key wrapper |
 | `git-cas recipient add/remove/list` | Manage envelope encryption recipients |
 
+`git-cas doctor` reports both chunk-reference dedupe and byte-level efficiency:
+logical manifest size versus unique chunk bytes.
+
 **Agent CLI**: `git-cas agent` exposes the same store/tree/restore/inspect/verify/doctor/rotate/recipient/vault surface through a newline-delimited protocol for CI/CD automation and programmatic integrations. Request payloads can be passed through `--request <json>` or stdin; responses stream back as JSON events on stdout.
 
 ### Security Hardening
