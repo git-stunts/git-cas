@@ -16,6 +16,7 @@ describe('ContentAddressableStore error surface', () => {
     })).rejects.toMatchObject({
       code: 'INVALID_OPTIONS',
       message: expect.stringContaining('process.cwd()'),
+      documentationUrl: 'https://github.com/git-stunts/git-cas/blob/v6.0.0/docs/API.md#restorefile',
     });
   });
 });

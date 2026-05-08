@@ -18,7 +18,7 @@ import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
 import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
 import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
-import { CasError, createCasError } from './src/domain/errors/index.js';
+import { CasError, createCasError, ErrorCodes } from './src/domain/errors/index.js';
 import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
 import NodeCompressionAdapter from './src/infrastructure/adapters/NodeCompressionAdapter.js';
 import { PACKAGE_VERSION } from './src/package-version.js';
@@ -27,7 +27,7 @@ import { PACKAGE_VERSION } from './src/package-version.js';
 
 const PKG_VERSION = PACKAGE_VERSION;
 const RESTORE_FILE_DOCS_URL =
-  'https://github.com/git-stunts/git-cas/blob/main/docs/API.md#restorefile';
+  `https://github.com/git-stunts/git-cas/blob/v${PKG_VERSION}/docs/API.md#restorefile`;
 
 // ---------------------------------------------------------------------------
 // Re-exports — modules used in the class body
@@ -332,7 +332,7 @@ export default class ContentAddressableStore {
     if (!options?.baseDirectory) {
       throw createCasError({
         message: 'baseDirectory is required for safe restoration. If you are restoring in a trusted local environment, pass baseDirectory: process.cwd().',
-        code: 'INVALID_OPTIONS',
+        code: ErrorCodes.INVALID_OPTIONS,
         meta: { option: 'baseDirectory' },
         documentationUrl: RESTORE_FILE_DOCS_URL,
       });
