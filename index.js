@@ -18,6 +18,7 @@ import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
 import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
 import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
+import CasError from './src/domain/errors/CasError.js';
 import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
 import NodeCompressionAdapter from './src/infrastructure/adapters/NodeCompressionAdapter.js';
 import { PACKAGE_VERSION } from './src/package-version.js';
@@ -315,6 +316,9 @@ export default class ContentAddressableStore {
    * @returns {Promise<{ bytesWritten: number }>}
    */
   async restoreFile(options) {
+    if (!options.baseDirectory) {
+      throw new CasError('baseDirectory is required for safe restoration', 'INVALID_OPTIONS');
+    }
     const service = await this.#getService();
     return await restoreFile(service, options);
   }

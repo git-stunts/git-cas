@@ -61,9 +61,14 @@ export default class CasService {
    * @param {string} [options.formatVersion]
    * @param {boolean} [options.legacyMode=false]
    */
-  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024, compressionAdapter, formatVersion, legacyMode = false }) {
+  constructor({ persistence, codec, crypto, observability, chunkSize = 256 * 1024, merkleThreshold = 1000, concurrency = 1, chunker, maxRestoreBufferSize = 512 * 1024 * 1024, maxBlobSize = 10 * 1024 * 1024, compressionAdapter, formatVersion, legacyMode = false }) {
+    this.#init({ persistence, codec, crypto, observability, chunkSize, merkleThreshold, concurrency, chunker, maxRestoreBufferSize, maxBlobSize, compressionAdapter, formatVersion, legacyMode });
+  }
+
+  #init({ persistence, codec, crypto, observability, chunkSize, merkleThreshold, concurrency, chunker, maxRestoreBufferSize, maxBlobSize, compressionAdapter, formatVersion, legacyMode }) {
+    
     CasService._validateObservability(observability);
-    CasService.#validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize, chunker, compressionAdapter });
+    CasService.#validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize, maxBlobSize, chunker, compressionAdapter });
     const safeObservability = RedactingObservability.wrap(observability);
 
     this.persistence = persistence;
@@ -77,10 +82,16 @@ export default class CasService {
     this.merkleThreshold = merkleThreshold;
     this.concurrency = concurrency;
     this.maxRestoreBufferSize = maxRestoreBufferSize;
+    this.maxBlobSize = maxBlobSize;
 
     if (chunkSize > 10 * 1024 * 1024) {
       safeObservability.log('warn', `Chunk size ${chunkSize} exceeds 10 MiB — consider a smaller value`, { chunkSize });
     }
+    if (typeof persistence.setMaxBlobSize === 'function') {
+      persistence.setMaxBlobSize(maxBlobSize);
+    }
+
+    
 
     this.#keyResolver = new KeyResolver(crypto);
     const convergent = new ConvergentEncryption(crypto);
@@ -98,15 +109,7 @@ export default class CasService {
     this.#storeStrategies = this.#buildStoreStrategies({ crypto });
     this.#restoreStrategies = this.#buildRestoreStrategies({ crypto, maxRestoreBufferSize });
     this.#recipientService = new RecipientService({ crypto, keyResolver: this.#keyResolver });
-    this.#integrityVerifier = new IntegrityVerifier({
-      chunks: this.#chunkRepository,
-      crypto,
-      framed: this.#framed,
-      isLegacyNoAad: (manifest) => this._isLegacyNoAad(manifest),
-      keyResolver: this.#keyResolver,
-      observability: safeObservability,
-      validateEncryptionMeta: (manifest) => this._validatedEncryptionMeta(manifest),
-    });
+    this.#initIntegrity({ safeObservability });
   }
 
   static #assertIntRange({ value, min, max, label }) {
@@ -115,7 +118,8 @@ export default class CasService {
     }
   }
 
-  static #validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize, chunker, compressionAdapter }) {
+  static #validateConstructorArgs({ chunkSize, merkleThreshold, concurrency, maxRestoreBufferSize, maxBlobSize, chunker, compressionAdapter }) {
+    CasService.#assertIntRange({ value: maxBlobSize, min: 1024, max: Number.MAX_SAFE_INTEGER, label: 'maxBlobSize' });
     CasService.#assertIntRange({ value: chunkSize, min: 1024, max: 100 * 1024 * 1024, label: 'chunkSize' });
     CasService.#assertIntRange({ value: merkleThreshold, min: 1, max: Number.MAX_SAFE_INTEGER, label: 'merkleThreshold' });
     CasService.#assertIntRange({ value: concurrency, min: 1, max: 64, label: 'concurrency' });
@@ -419,5 +423,16 @@ export default class CasService {
 
   async verifyIntegrity(manifest, options = {}) {
     return await this.#integrityVerifier.verify(manifest, options);
+  }
+  #initIntegrity({ safeObservability }) {
+    this.#integrityVerifier = new IntegrityVerifier({
+      chunks: this.#chunkRepository,
+      crypto: this.crypto,
+      framed: this.#framed,
+      isLegacyNoAad: (manifest) => this._isLegacyNoAad(manifest),
+      keyResolver: this.#keyResolver,
+      observability: safeObservability,
+      validateEncryptionMeta: (manifest) => this._validatedEncryptionMeta(manifest),
+    });
   }
 }

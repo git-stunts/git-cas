@@ -22,6 +22,7 @@ const DEFAULT_POLICY = Policy.timeout(30_000);
  * (30 s timeout by default).
  */
 export default class GitPersistenceAdapter extends GitPersistencePort {
+  #maxBlobSize = 10 * 1024 * 1024;
   /**
    * @param {Object} options
    * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance.
@@ -69,16 +70,17 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
    * @param {number} [maxBytes=10485760] - Safety limit (default 10MB).
    * @returns {Promise<Buffer>} The blob content.
    */
-  async readBlob(oid, maxBytes = 10 * 1024 * 1024) {
+  async readBlob(oid, maxBytes) {
+    const limit = maxBytes ?? this.#maxBlobSize;
     const chunks = [];
     let bytesRead = 0;
     for await (const chunk of await this.readBlobStream(oid)) {
       bytesRead += chunk.length;
-      if (bytesRead > maxBytes) {
+      if (bytesRead > limit) {
         throw new CasError(
           `Blob ${oid} exceeds safety limit of ${maxBytes} bytes`,
           'RESTORE_TOO_LARGE',
-          { oid, maxBytes },
+          { oid, maxBytes: limit },
         );
       }
       chunks.push(chunk);
