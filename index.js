@@ -76,10 +76,11 @@ export default class ContentAddressableStore {
    * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance (advanced).
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes for encrypted/compressed restores (default 512 MiB).
+   * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes (default 10 MiB).
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter (default NodeCompressionAdapter).
    */
-  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, compressionAdapter }) {
-    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, compressionAdapter };
+  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, maxBlobSize, compressionAdapter }) {
+    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, maxBlobSize, compressionAdapter };
     this.service = null;
     this.#servicePromise = null;
   }
@@ -127,6 +128,7 @@ export default class ContentAddressableStore {
       concurrency: cfg.concurrency,
       chunker,
       maxRestoreBufferSize: cfg.maxRestoreBufferSize,
+      maxBlobSize: cfg.maxBlobSize,
       compressionAdapter: cfg.compressionAdapter || new NodeCompressionAdapter(),
       formatVersion: PKG_VERSION,
     });

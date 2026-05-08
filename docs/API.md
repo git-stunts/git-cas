@@ -304,10 +304,14 @@ const { buffer, bytesWritten } = await cas.restore({ manifest });
 #### restoreFile
 
 ```javascript
-await cas.restoreFile({ manifest, encryptionKey, passphrase, outputPath });
+await cas.restoreFile({ manifest, encryptionKey, passphrase, outputPath, baseDirectory });
 ```
 
 Restores content from a manifest and writes it to a file.
+
+**Security Boundary:** `baseDirectory` is required. The `outputPath` is resolved
+relative to `baseDirectory`, and the system will throw a
+`SECURITY_BOUNDARY_VIOLATION` if the resolved path escapes the base directory.
 
 For plaintext, `framed`, `convergent`, and uncompressed `whole`, this writes
 from a streaming restore path. For `whole`, bytes are verified, streamed through
@@ -340,7 +344,8 @@ guard.
 ```javascript
 await cas.restoreFile({
   manifest,
-  outputPath: '/path/to/output.txt',
+  outputPath: 'restored.txt',
+  baseDirectory: process.cwd(),
 });
 ```
 
