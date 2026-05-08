@@ -101,6 +101,14 @@ Returns a defensive copy of the current entries, metadata, and parent commit
 OID. Use it when the caller needs a full state snapshot. Do not route targeted
 reads through `readState()` unless the full snapshot is actually required.
 
+`rotateVaultPassphrase()`
+
+Reads `.vault.json` first through `getVaultMetadata()` so privacy-enabled vaults
+can derive and verify the old key before decrypting `.privacy-index`. Only after
+the old key is available should rotation call `readState({ encryptionKey })`.
+This preserves privacy-mode slug resolution while rebuilding the privacy index
+under the new vault key.
+
 `git cas doctor`
 
 Treats `refs/cas/vault` as unhealthy when the vault head exists but `.vault.json`

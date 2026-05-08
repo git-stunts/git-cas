@@ -62,8 +62,16 @@ function makeVaultState(kdf) {
   };
 }
 
+function mockVaultForState(state, extras = {}) {
+  return {
+    getVaultMetadata: vi.fn().mockResolvedValue(state.metadata),
+    readState: vi.fn().mockResolvedValue(state),
+    ...extras,
+  };
+}
+
 async function storeEnvelope({ service, vault, slug, data, passphrase }) {
-  const metadata = (await vault.readState()).metadata;
+  const metadata = await vault.getVaultMetadata();
   const { key } = await service.deriveKey({
     passphrase,
     salt: Buffer.from(metadata.encryption.kdf.salt, 'base64'),
@@ -76,6 +84,23 @@ async function storeEnvelope({ service, vault, slug, data, passphrase }) {
   });
   const treeOid = await service.createTree({ manifest });
   await vault.addToVault({ slug, treeOid, force: true });
+  return treeOid;
+}
+
+async function storePrivacyEnvelope({ service, vault, slug, data, passphrase }) {
+  const metadata = await vault.getVaultMetadata();
+  const { key } = await service.deriveKey({
+    passphrase,
+    salt: Buffer.from(metadata.encryption.kdf.salt, 'base64'),
+    algorithm: metadata.encryption.kdf.algorithm,
+    iterations: metadata.encryption.kdf.iterations,
+  });
+  const manifest = await service.store({
+    source: bufferSource(data), slug, filename: `${slug}.bin`,
+    recipients: [{ label: 'vault', key }],
+  });
+  const treeOid = await service.createTree({ manifest });
+  await vault.addToVault({ slug, treeOid, force: true, encryptionKey: key });
   return treeOid;
 }
 
@@ -173,6 +198,52 @@ describe('rotateVaultPassphrase – mixed entries', () => {
 
     expect(rotatedSlugs.sort()).toEqual(['env1', 'env2']);
     expect(skippedSlugs).toEqual(['direct']);
+  }, LONG_TEST_TIMEOUT_MS);
+});
+
+describe('rotateVaultPassphrase – privacy vaults', () => {
+  let repoDir;
+  let service;
+  let vault;
+
+  beforeEach(async () => {
+    repoDir = createRepo();
+    ({ service, vault } = await createDeps(repoDir));
+  });
+  afterEach(() => { if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); } });
+
+  it('rotates entries in a privacy-enabled vault and preserves slug resolution', async () => {
+    const oldPass = 'old-pass';
+    const newPass = 'new-pass';
+    await vault.initVault({
+      passphrase: oldPass,
+      privacy: true,
+      kdfOptions: { iterations: 100_000 },
+    });
+
+    const original = randomBytes(256);
+    await storePrivacyEnvelope({ service, vault, slug: 'private/alpha', data: original, passphrase: oldPass });
+
+    const { rotatedSlugs, skippedSlugs } = await rotateVaultPassphrase(
+      { service, vault },
+      { oldPassphrase: oldPass, newPassphrase: newPass },
+    );
+
+    expect(rotatedSlugs).toEqual(['private/alpha']);
+    expect(skippedSlugs).toEqual([]);
+
+    const metadata = await vault.getVaultMetadata();
+    const { key: newKey } = await service.deriveKey({
+      passphrase: newPass,
+      salt: Buffer.from(metadata.encryption.kdf.salt, 'base64'),
+      algorithm: metadata.encryption.kdf.algorithm,
+      iterations: metadata.encryption.kdf.iterations,
+    });
+    const treeOid = await vault.resolveVaultEntry({ slug: 'private/alpha', encryptionKey: newKey });
+    const manifest = await service.readManifest({ treeOid });
+    const { buffer } = await service.restore({ manifest, encryptionKey: newKey });
+
+    expect(Buffer.from(buffer).equals(original)).toBe(true);
   }, LONG_TEST_TIMEOUT_MS);
 });
 
@@ -370,14 +441,13 @@ describe('rotateVaultPassphrase – default retry count', () => {
 describe('rotateVaultPassphrase – KDF policy', () => {
   it('rejects out-of-policy stored vault KDF metadata before deriveKey', async () => {
     const service = { deriveKey: vi.fn() };
-    const vault = {
-      readState: vi.fn().mockResolvedValue(makeVaultState({
-        algorithm: 'pbkdf2',
-        salt: Buffer.alloc(32, 9).toString('base64'),
-        iterations: 20_000_000,
-        keyLength: 32,
-      })),
-    };
+    const state = makeVaultState({
+      algorithm: 'pbkdf2',
+      salt: Buffer.alloc(32, 9).toString('base64'),
+      iterations: 20_000_000,
+      keyLength: 32,
+    });
+    const vault = mockVaultForState(state);
 
     await expect(
       rotateVaultPassphrase(
@@ -394,15 +464,15 @@ describe('rotateVaultPassphrase – KDF policy', () => {
         key: Buffer.alloc(32, 1),
       }),
     };
-    const vault = {
-      readState: vi.fn().mockResolvedValue(makeVaultState({
-        algorithm: 'pbkdf2',
-        salt: Buffer.alloc(32, 5).toString('base64'),
-        iterations: 100_000,
-        keyLength: 32,
-      })),
+    const state = makeVaultState({
+      algorithm: 'pbkdf2',
+      salt: Buffer.alloc(32, 5).toString('base64'),
+      iterations: 100_000,
+      keyLength: 32,
+    });
+    const vault = mockVaultForState(state, {
       verifyVaultKey: vi.fn().mockResolvedValue({ verified: true, requiresMigration: false }),
-    };
+    });
 
     await expect(
       rotateVaultPassphrase(

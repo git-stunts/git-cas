@@ -85,6 +85,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   encoding, and dedicated privacy, verifier, and retry-policy collaborators own
   HMAC index handling, constant-time key verification, and CAS retry timing.
   Public vault APIs and the on-disk vault tree format are unchanged.
+- **Privacy vault passphrase rotation preserved** — vault passphrase rotation now
+  reads metadata before full state so privacy-enabled vaults can derive the old
+  key, decrypt `.privacy-index`, and rebuild the index under the replacement key.
 - **Vault ref creation is create-only** — first vault writes now pass Git's
   all-zero expected OID when `expectedOldOid` is `null`, preserving CAS
   semantics during concurrent vault initialization.

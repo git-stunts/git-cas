@@ -85,6 +85,20 @@ function buildRotatedMetadata(metadata, newSalt, newParams) {
 }
 
 /**
+ * Reads vault metadata without requiring privacy-index decryption.
+ *
+ * @param {import('./VaultService.js').default} vault - VaultService instance.
+ * @returns {Promise<Object>} Encrypted vault metadata.
+ */
+async function readEncryptedVaultMetadata(vault) {
+  const metadata = await vault.getVaultMetadata();
+  if (!metadata?.encryption) {
+    throw new CasError('Vault is not encrypted — nothing to rotate', ErrorCodes.VAULT_METADATA_INVALID);
+  }
+  return metadata;
+}
+
+/**
  * Rotates the vault-level passphrase. Re-wraps every envelope-encrypted
  * entry's DEK with a new KEK derived from `newPassphrase`. Entries using
  * direct-key encryption are skipped.
@@ -107,14 +121,11 @@ export default async function rotateVaultPassphrase(
   { oldPassphrase, newPassphrase, kdfOptions, maxRetries = DEFAULT_MAX_RETRIES, retryBaseMs = DEFAULT_RETRY_BASE_MS },
 ) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const state = await vault.readState();
-    if (!state.metadata?.encryption) {
-      throw new CasError('Vault is not encrypted — nothing to rotate', ErrorCodes.VAULT_METADATA_INVALID);
-    }
-
-    const { kdf } = state.metadata.encryption;
+    const metadata = await readEncryptedVaultMetadata(vault);
+    const { kdf } = metadata.encryption;
     const oldKek = await deriveKekFromKdf(service, oldPassphrase, kdf);
     await vault.verifyVaultKey({ encryptionKey: oldKek });
+    const state = await vault.readState({ encryptionKey: oldKek });
     const nextKdfOptions = prepareKdfOptions(
       { ...kdfOptions, algorithm: kdfOptions?.algorithm || kdf.algorithm },
       { source: 'vault-rotation' },
