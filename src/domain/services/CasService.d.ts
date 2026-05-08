@@ -61,6 +61,7 @@ export interface GitPersistencePort {
   iterateTree(
     treeOid: string,
   ): AsyncIterable<{ mode: string; type: string; oid: string; name: string }>;
+  setMaxBlobSize?(maxBlobSize: number): void;
 }
 
 /** Port interface for observability (metrics, logging, tracing). */

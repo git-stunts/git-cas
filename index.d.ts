@@ -102,6 +102,7 @@ export declare class GitPersistencePortBase {
   iterateTree(
     treeOid: string,
   ): AsyncIterable<{ mode: string; type: string; oid: string; name: string }>;
+  setMaxBlobSize?(maxBlobSize: number): void;
 }
 
 /** Abstract port for Git ref and commit operations. */
@@ -124,6 +125,7 @@ export declare class GitRefPortBase {
 /** Git-backed implementation of the persistence port. */
 export declare class GitPersistenceAdapter extends GitPersistencePortBase {
   constructor(options: { plumbing: unknown; policy?: unknown });
+  setMaxBlobSize(maxBlobSize: number): void;
 }
 
 /** Git-backed implementation of the ref port. */

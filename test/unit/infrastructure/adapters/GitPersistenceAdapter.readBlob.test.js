@@ -79,3 +79,34 @@ describe('GitPersistenceAdapter.readBlob()', () => {
     });
   });
 });
+
+describe('GitPersistenceAdapter.setMaxBlobSize()', () => {
+  it('uses the configured adapter-level metadata blob limit', async () => {
+    const plumbing = {
+      execute: vi.fn(),
+      executeStream: vi.fn().mockResolvedValue(streamFrom([
+        Buffer.alloc(1025),
+      ])),
+    };
+    const adapter = createAdapter(plumbing);
+
+    adapter.setMaxBlobSize(1024);
+
+    await expect(adapter.readBlob('blob-oid')).rejects.toMatchObject({
+      code: 'RESTORE_TOO_LARGE',
+      message: 'Blob blob-oid exceeds safety limit of 1024 bytes',
+      meta: { maxBytes: 1024 },
+    });
+  });
+
+  it('rejects invalid adapter-level metadata blob limits', () => {
+    const adapter = createAdapter({
+      execute: vi.fn(),
+      executeStream: vi.fn(),
+    });
+
+    expect(() => adapter.setMaxBlobSize(1023)).toThrow(
+      'maxBlobSize must be an integer in [1024, 9007199254740991]',
+    );
+  });
+});

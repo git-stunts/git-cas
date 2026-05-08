@@ -88,6 +88,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vault ref creation is create-only** — first vault writes now pass Git's
   all-zero expected OID when `expectedOldOid` is `null`, preserving CAS
   semantics during concurrent vault initialization.
+- **Metadata blob limits reach the default Git adapter** — `maxBlobSize`
+  constructor options now configure `GitPersistenceAdapter.readBlob()` when no
+  per-call limit is supplied.
 - **Per-operation Merkle threshold** — `store()` and `storeFile()` now accept a
   `merkleThreshold` option that carries through to the corresponding
   `createTree()` publication unless an explicit `createTree()` threshold is

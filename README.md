@@ -190,7 +190,9 @@ Beyond the core encryption primitives, `git-cas` enforces a set of defensive lim
 - **scrypt memory cap**: Combined scrypt memory budget is hard-capped at 1 GiB.
 - **Sub-manifest array limit**: Merkle sub-manifests are capped at 10,000 entries.
 - **Restore path boundary**: `restoreFile()` requires `baseDirectory` and refuses output paths that escape it.
-- **Metadata blob cap**: Manifest and sub-manifest blob reads default to a 10 MiB `maxBlobSize` safety limit.
+- **Metadata blob cap**: Manifest and sub-manifest blob reads default to a
+  10 MiB `maxBlobSize` safety limit. The default Git adapter honors the
+  facade/service `maxBlobSize` option through its adapter-level read limit.
 - **Concurrency cap**: Parallel operations are bounded at 64.
 - **Frame size cap**: `frameBytes` is capped at 64 MiB.
 - **Timing oracle elimination**: Recipient trial decryption uses constant-time comparison to prevent timing-based key identification.

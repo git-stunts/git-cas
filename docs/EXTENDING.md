@@ -71,6 +71,8 @@ Custom persistence adapters must preserve Git-like object semantics:
 - `writeTree(entries)` writes named tree entries and returns a tree OID
 - `readTree(treeOid)` returns mode/type/OID/name entries
 - `readBlobStream(oid)` returns an async iterable or readable stream of bytes
+- `setMaxBlobSize(maxBlobSize)` optionally applies the service-level metadata
+  blob safety limit inside adapters that can enforce it natively
 
 `readBlobStream()` is required for bounded restore paths. Encrypted or
 compressed restores can otherwise require full ciphertext buffering and will

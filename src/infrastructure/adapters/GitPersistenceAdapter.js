@@ -3,8 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
-import CasError from '../../domain/errors/CasError.js';
-import { ErrorCodes } from '../../domain/errors/index.js';
+import { CasError, createCasError, ErrorCodes } from '../../domain/errors/index.js';
 
 /**
  * Default resilience policy: 30 s timeout (no retry).
@@ -16,6 +15,8 @@ import { ErrorCodes } from '../../domain/errors/index.js';
  */
 const DEFAULT_POLICY = Policy.timeout(30_000);
 export const DEFAULT_MAX_BLOB_SIZE = 10 * 1024 * 1024;
+const MIN_MAX_BLOB_SIZE = 1024;
+const MAX_BLOB_SIZE_LIMIT = Number.MAX_SAFE_INTEGER;
 
 /**
  * {@link GitPersistencePort} implementation backed by `@git-stunts/plumbing`.
@@ -88,6 +89,18 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       chunks.push(chunk);
     }
     return Buffer.concat(chunks);
+  }
+
+  /**
+   * Sets the adapter-level safety limit used by `readBlob()` when callers do
+   * not provide a per-call limit.
+   *
+   * @param {number} maxBlobSize - Metadata blob safety limit in bytes.
+   * @returns {void}
+   */
+  setMaxBlobSize(maxBlobSize) {
+    GitPersistenceAdapter.#assertMaxBlobSize(maxBlobSize);
+    this.#maxBlobSize = maxBlobSize;
   }
 
   /**
@@ -210,6 +223,25 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       return Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength);
     }
     return Buffer.from(String(chunk));
+  }
+
+  /**
+   * @param {number} maxBlobSize
+   * @returns {void}
+   */
+  static #assertMaxBlobSize(maxBlobSize) {
+    if (!Number.isInteger(maxBlobSize) || maxBlobSize < MIN_MAX_BLOB_SIZE || maxBlobSize > MAX_BLOB_SIZE_LIMIT) {
+      throw createCasError(
+        `maxBlobSize must be an integer in [${MIN_MAX_BLOB_SIZE}, ${MAX_BLOB_SIZE_LIMIT}]`,
+        ErrorCodes.INVALID_OPTIONS,
+        {
+          label: 'maxBlobSize',
+          value: maxBlobSize,
+          min: MIN_MAX_BLOB_SIZE,
+          max: MAX_BLOB_SIZE_LIMIT,
+        },
+      );
+    }
   }
 
   /**
