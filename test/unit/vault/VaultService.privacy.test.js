@@ -45,19 +45,20 @@ function mockCrypto() {
   let nonceCounter = 0;
 
   return {
-    deriveKey: vi.fn().mockImplementation(async () => ({
-      key: TEST_KEY,
-      salt: Buffer.from('test-salt'),
-      params: { algorithm: 'pbkdf2', iterations: 100000, keyLength: 32 },
-    })),
+      deriveKey: vi.fn().mockImplementation(async () => ({
+        key: TEST_KEY,
+        salt: Buffer.alloc(32, 0x11),
+        params: { algorithm: 'pbkdf2', iterations: 100000, keyLength: 32 },
+      })),
 
     hmacSha256(key, data) {
       return createHmac('sha256', key).update(data).digest();
     },
 
     encryptBuffer: vi.fn().mockImplementation(async (buffer) => {
-      const nonce = `nonce-${++nonceCounter}`;
-      const tag = `tag-${nonceCounter}`;
+      nonceCounter++;
+      const nonce = Buffer.alloc(12, nonceCounter).toString('base64');
+      const tag = Buffer.alloc(16, nonceCounter).toString('base64');
       const meta = { algorithm: 'aes-256-gcm', nonce, tag, encrypted: true };
       // Store plaintext keyed by nonce for retrieval during decrypt.
       encryptedStore.set(nonce, { plaintext: Buffer.from(buffer), meta });
@@ -74,6 +75,10 @@ function mockCrypto() {
       return Buffer.from(buffer);
     }),
   };
+}
+
+function parseWrittenJsonArg(arg) {
+  return JSON.parse(Buffer.from(arg).toString());
 }
 
 function mockObservability() {
@@ -138,11 +143,15 @@ describe('initVault — privacy mode', () => {
     expect(result.commitOid).toBe('new-commit-oid');
 
     // Check that the written metadata includes privacy.enabled.
-    const metaWriteCall = persistence.writeBlob.mock.calls.find(
-      (c) => typeof c[0] === 'string' && c[0].includes('"privacy"'),
-    );
+    const metaWriteCall = persistence.writeBlob.mock.calls.find((c) => {
+      try {
+        return Boolean(parseWrittenJsonArg(c[0]).privacy);
+      } catch {
+        return false;
+      }
+    });
     expect(metaWriteCall).toBeTruthy();
-    const written = JSON.parse(metaWriteCall[0]);
+    const written = parseWrittenJsonArg(metaWriteCall[0]);
     expect(written.privacy.enabled).toBe(true);
     expect(written.privacy.indexMeta).toBeDefined();
   });

@@ -857,7 +857,9 @@ Place a `.casrc` JSON file at your repository root to set defaults. CLI flags al
 2. **CasService** (`src/domain/services/CasService.js`) -- Lean domain
    facade. Selects store/restore strategies, coordinates injected ports, and
    delegates byte-level work to domain services and strategy entities.
-3. **VaultService** (`src/domain/services/VaultService.js`) -- Vault index. GC-safe ref-based asset reachability.
+3. **VaultService** (`src/domain/services/VaultService.js`) -- Vault use-case
+   orchestrator. Delegates Git persistence, parse caching, metadata/tree codecs,
+   privacy indexing, key verification, and retry timing to cohesive collaborators.
 4. **Ports** -- Pure interfaces isolating the domain from I/O: `GitPersistencePort`, `CryptoPort`, `ChunkingPort`, `CompressionPort`, `ObservabilityPort`.
 
 Adapters implement ports for specific runtimes: `GitPersistenceAdapter` (shells out to `git` via `@git-stunts/plumbing`), `NodeCryptoAdapter`, `NodeCompressionAdapter`, etc.

@@ -107,11 +107,14 @@ Active:
 - [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md)
 - [Vault Tree Memory Loading](./bad-code/vault-tree-memory-loading.md)
 - [TR — GitPersistenceAdapter Full Materialization](./bad-code/TR_persistence-adapter-materialization.md)
-- [TR — VaultService Optimistic Contention](./bad-code/TR_vault-retry-jitter.md)
 
 Resolved — 2026-05-05 CasService de-sludge:
 
 - [BAD-CODE-001 — CasService God Object](./bad-code/BAD-CODE-001_casservice-god-object.md) ✅
+
+Resolved — 2026-05-08 VaultService decomposition:
+
+- [TR — VaultService Optimistic Contention](./bad-code/TR_vault-retry-jitter.md) ✅
 
 Resolved — 2026-05-05 core orchestration cleanup:
 

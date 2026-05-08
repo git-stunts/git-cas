@@ -20,9 +20,15 @@ function createVault() {
     ref: {
       createCommit: vi.fn().mockResolvedValue('a'.repeat(40)),
       updateRef: vi.fn(),
+      resolveRef: vi.fn(),
+      resolveTree: vi.fn(),
     },
     codec: { encode: JSON.stringify, extension: 'json' },
-    crypto: {},
+    crypto: {
+      encryptBuffer: vi.fn(),
+      decryptBuffer: vi.fn(),
+      hmacSha256: vi.fn(),
+    },
   });
 }
 

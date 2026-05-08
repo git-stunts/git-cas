@@ -44,6 +44,10 @@ function mockWriterPersistence() {
   };
 }
 
+function parseWrittenMetadata(persistence, index = 0) {
+  return JSON.parse(Buffer.from(persistence.writeBlob.mock.calls[index][0]).toString());
+}
+
 function createReader(metadata) {
   const persistence = {
     writeBlob: vi.fn(),
@@ -85,7 +89,7 @@ describe('VaultService encrypted vault verifier', () => {
       kdfOptions: { algorithm: 'pbkdf2', iterations: 100_000 },
     });
 
-    const metadata = JSON.parse(persistence.writeBlob.mock.calls[0][0]);
+    const metadata = parseWrittenMetadata(persistence);
     expect(metadata.encryption.verifier).toMatchObject({
       version: 1,
       ciphertext: expect.any(String),
@@ -106,7 +110,7 @@ describe('VaultService encrypted vault verifier', () => {
       kdfOptions: { algorithm: 'pbkdf2', iterations: 100_000 },
     });
 
-    const metadata = JSON.parse(persistence.writeBlob.mock.calls[0][0]);
+    const metadata = parseWrittenMetadata(persistence);
     const rightKey = await deriveVaultKey(metadata, 'right-passphrase');
     const wrongKey = await deriveVaultKey(metadata, 'wrong-passphrase');
     await expect(createReader(metadata).readState({ encryptionKey: rightKey }))
@@ -150,7 +154,7 @@ describe('VaultService verifier migration', () => {
       encryptionKey: key,
     });
 
-    const migratedMetadata = JSON.parse(persistence.writeBlob.mock.calls[0][0]);
+    const migratedMetadata = parseWrittenMetadata(persistence);
     expect(migratedMetadata.encryption.verifier).toBeDefined();
     await expect(createReader(migratedMetadata).readState({ encryptionKey: key }))
       .resolves.toMatchObject({ metadata: migratedMetadata });

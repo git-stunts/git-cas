@@ -32,7 +32,7 @@ function mockCrypto() {
   return {
     deriveKey: vi.fn().mockResolvedValue({
       key: Buffer.alloc(32),
-      salt: Buffer.from('test-salt'),
+      salt: Buffer.alloc(32, 0x11),
       params: { algorithm: 'pbkdf2', iterations: 100000, keyLength: 32 },
     }),
     encryptBuffer: vi.fn().mockResolvedValue({
@@ -45,6 +45,7 @@ function mockCrypto() {
       },
     }),
     decryptBuffer: vi.fn().mockResolvedValue(Buffer.from('git-cas-vault-verifier-v1')),
+    hmacSha256: vi.fn().mockReturnValue(Buffer.alloc(32, 0xab)),
   };
 }
 
@@ -84,6 +85,10 @@ function setupWriteSuccess(persistence, ref) {
   persistence.writeTree.mockResolvedValueOnce('new-tree-oid');
   ref.createCommit.mockResolvedValueOnce('new-commit-oid');
   ref.updateRef.mockResolvedValueOnce(undefined);
+}
+
+function parseWrittenMetadata(persistence, index = 0) {
+  return JSON.parse(Buffer.from(persistence.writeBlob.mock.calls[index][0]).toString());
 }
 
 const VAULT_REF = VaultService.VAULT_REF;
@@ -645,7 +650,7 @@ describe('initVault – without encryption', () => {
     const result = await vault.initVault();
     expect(result.commitOid).toBe('new-commit-oid');
 
-    const writtenMetadata = persistence.writeBlob.mock.calls[0][0];
+    const writtenMetadata = Buffer.from(persistence.writeBlob.mock.calls[0][0]).toString();
     expect(writtenMetadata).toContain('"version": 1');
   });
 });
@@ -668,7 +673,7 @@ describe('initVault – with passphrase', () => {
     });
 
     expect(crypto.deriveKey).toHaveBeenCalledOnce();
-    const writtenMetadata = JSON.parse(persistence.writeBlob.mock.calls[0][0]);
+    const writtenMetadata = parseWrittenMetadata(persistence);
     expect(writtenMetadata.version).toBe(1);
     expect(writtenMetadata.encryption.cipher).toBe('aes-256-gcm');
     expect(writtenMetadata.encryption.kdf.algorithm).toBe('pbkdf2');
@@ -755,6 +760,7 @@ describe('CAS retry – succeeds on retry', () => {
 
     setupNoVault(ref);
     setupNoVault(ref);
+    setupNoVault(ref);
     persistence.writeBlob.mockResolvedValueOnce('meta-blob-oid-1');
     persistence.writeBlob.mockResolvedValueOnce('meta-blob-oid-2');
     persistence.writeTree.mockResolvedValueOnce('tree-oid-1');
@@ -780,8 +786,10 @@ describe('CAS retry – exhausted', () => {
     const ref = mockRef();
     const persistence = mockPersistence();
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 6; i++) {
       setupNoVault(ref);
+    }
+    for (let i = 0; i < 3; i++) {
       persistence.writeBlob.mockResolvedValueOnce('meta-blob-oid');
       persistence.writeTree.mockResolvedValueOnce('new-tree-oid');
       ref.createCommit.mockResolvedValueOnce(`commit-${i}`);

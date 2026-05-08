@@ -73,6 +73,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   record parsing, and store/restore strategy execution now live in dedicated
   domain services and strategy entities with direct unit coverage. Public
   `CasService` store/restore/manifest/recipient APIs are unchanged.
+- **VaultService decomposed into cohesive collaborators** — `VaultService.js`
+  now orchestrates public vault use cases while `VaultPersistence` owns
+  `refs/cas/vault` persistence, `VaultStateCache` owns tree-OID keyed state
+  memoization, `VaultMetadataCodec` and `VaultTreeCodec` own pure boundary
+  encoding, and dedicated privacy, verifier, and retry-policy collaborators own
+  HMAC index handling, constant-time key verification, and CAS retry timing.
+  Public vault APIs and the on-disk vault tree format are unchanged.
 - **OS-keychain passphrase lookup awaits vault v2 secrets** — CLI credential
   resolution now awaits the async `@git-stunts/vault` secret lookup before
   validating and returning the passphrase.

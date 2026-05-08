@@ -1,0 +1,74 @@
+import { describe, expect, it, vi } from 'vitest';
+import VaultStateCache from '../../../../src/domain/services/VaultStateCache.js';
+
+describe('VaultStateCache plain state', () => {
+  it('caches parsed plain entries by immutable tree OID while preserving current parent', () => {
+    const cache = new VaultStateCache();
+    const snapshot = cache.rememberTree('tree-1', {
+      rawEntries: [{ mode: '040000', type: 'tree', oid: 'tree-a', name: 'demo%2Fhello' }],
+      metadata: { version: 1 },
+    });
+    const parseEntries = vi.fn(() => new Map([['demo/hello', 'tree-a']]));
+
+    const first = cache.toState({
+      entries: cache.plainEntries(snapshot, parseEntries),
+      metadata: snapshot.metadata,
+      parentCommitOid: 'commit-1',
+    });
+    const second = cache.toState({
+      entries: cache.plainEntries(snapshot, parseEntries),
+      metadata: snapshot.metadata,
+      parentCommitOid: 'commit-2',
+    });
+
+    expect(parseEntries).toHaveBeenCalledOnce();
+    expect(first.parentCommitOid).toBe('commit-1');
+    expect(second.parentCommitOid).toBe('commit-2');
+    expect(second.entries.get('demo/hello')).toBe('tree-a');
+  });
+
+  it('returns defensive state copies from cached snapshots', () => {
+    const cache = new VaultStateCache();
+    const snapshot = cache.rememberTree('tree-1', {
+      rawEntries: [],
+      metadata: { version: 1 },
+    });
+    const entries = new Map([['demo/hello', 'tree-a']]);
+
+    const first = cache.toState({ entries, metadata: snapshot.metadata, parentCommitOid: 'commit-1' });
+    first.entries.set('mutated', 'tree-b');
+    first.metadata.version = 99;
+    const second = cache.toState({ entries, metadata: snapshot.metadata, parentCommitOid: 'commit-1' });
+
+    expect(second.entries.has('mutated')).toBe(false);
+    expect(second.metadata).toEqual({ version: 1 });
+  });
+});
+
+describe('VaultStateCache keyed memoization', () => {
+  it('caches privacy entries per encryption key object identity', async () => {
+    const cache = new VaultStateCache();
+    const snapshot = cache.rememberTree('tree-1', { rawEntries: [], metadata: { version: 1 } });
+    const keyA = Uint8Array.from([1]);
+    const keyACopy = Uint8Array.from([1]);
+    const resolveEntries = vi.fn(async () => new Map([['secret', 'tree-a']]));
+
+    await cache.privacyEntries(snapshot, keyA, resolveEntries);
+    await cache.privacyEntries(snapshot, keyA, resolveEntries);
+    await cache.privacyEntries(snapshot, keyACopy, resolveEntries);
+
+    expect(resolveEntries).toHaveBeenCalledTimes(2);
+  });
+
+  it('scopes verified encryption keys to one cached tree snapshot', () => {
+    const cache = new VaultStateCache();
+    const key = Uint8Array.from([1]);
+    const first = cache.rememberTree('tree-1', { rawEntries: [], metadata: { version: 1 } });
+    const second = cache.rememberTree('tree-2', { rawEntries: [], metadata: { version: 1 } });
+
+    cache.rememberVerifiedEncryptionKey(first, key);
+
+    expect(cache.hasVerifiedEncryptionKey(first, key)).toBe(true);
+    expect(cache.hasVerifiedEncryptionKey(second, key)).toBe(false);
+  });
+});

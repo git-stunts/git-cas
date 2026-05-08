@@ -41,12 +41,16 @@ function setup(metadata = encryptedMetadata()) {
   return { vault, persistence, ref, observability };
 }
 
+function parseWrittenMetadata(persistence) {
+  return JSON.parse(Buffer.from(persistence.writeBlob.mock.calls[0][0]).toString());
+}
+
 describe('16.13: Nonce usage tracking — encryptionCount', () => {
   it('vault metadata includes encryptionCount after add', async () => {
     const { vault, persistence } = setup();
     await vault.addToVault({ slug: 'asset-1', treeOid: 'tree-1' });
 
-    const writtenMetadata = JSON.parse(persistence.writeBlob.mock.calls[0][0]);
+    const writtenMetadata = parseWrittenMetadata(persistence);
     expect(writtenMetadata).toHaveProperty('encryptionCount', 1);
   });
 
@@ -55,7 +59,7 @@ describe('16.13: Nonce usage tracking — encryptionCount', () => {
     const { vault, persistence } = setup(meta);
     await vault.addToVault({ slug: 'asset-2', treeOid: 'tree-2' });
 
-    const writtenMetadata = JSON.parse(persistence.writeBlob.mock.calls[0][0]);
+    const writtenMetadata = parseWrittenMetadata(persistence);
     expect(writtenMetadata.encryptionCount).toBe(6);
   });
 });
@@ -89,7 +93,7 @@ describe('16.13: Nonce usage tracking — threshold warning', () => {
     const { vault, persistence } = setup(meta);
     await vault.addToVault({ slug: 'plain-1', treeOid: 'tree-p' });
 
-    const writtenMetadata = JSON.parse(persistence.writeBlob.mock.calls[0][0]);
+    const writtenMetadata = parseWrittenMetadata(persistence);
     expect(writtenMetadata).not.toHaveProperty('encryptionCount');
   });
 });
