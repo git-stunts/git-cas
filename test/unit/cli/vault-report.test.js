@@ -104,6 +104,26 @@ describe('buildVaultStats', () => {
     });
     expect(stats.dedupRatio).toBeCloseTo(4 / 3, 6);
   });
+
+  it('computes byte dedupe from stored chunk bytes instead of logical bytes', () => {
+    const stats = buildVaultStats([
+      {
+        slug: 'compressed.bin',
+        treeOid: 'tree-1',
+        manifest: makeManifest({
+          slug: 'compressed.bin',
+          size: 2048,
+          chunks: [{ blob: 'blob-1', size: 512 }],
+          compression: { algorithm: 'gzip' },
+        }),
+      },
+    ]);
+
+    expect(stats.totalLogicalSize).toBe(2048);
+    expect(stats.totalChunkBytes).toBe(512);
+    expect(stats.uniqueChunkBytes).toBe(512);
+    expect(stats.byteDedupRatio).toBe(1);
+  });
 });
 
 describe('renderVaultStats', () => {

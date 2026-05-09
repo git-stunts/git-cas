@@ -240,7 +240,7 @@ export function buildVaultStats(records) {
     ? stats.totalChunkRefs / stats.uniqueChunks
     : 1;
   stats.byteDedupRatio = stats.uniqueChunkBytes > 0
-    ? stats.totalLogicalSize / stats.uniqueChunkBytes
+    ? stats.totalChunkBytes / stats.uniqueChunkBytes
     : 1;
 
   return stats;
