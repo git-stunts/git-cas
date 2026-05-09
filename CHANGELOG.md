@@ -123,6 +123,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vault privacy cache deduplicates in-flight work** — concurrent privacy
   reads for the same cached tree and key object now share one `.privacy-index`
   resolution instead of decrypting the same index multiple times.
+- **Vault tree cache is bounded** — `VaultStateCache` now uses a validated
+  LRU capacity instead of retaining every immutable tree snapshot for the
+  lifetime of the service.
 - **Vault verifier checks reuse cached proofs** — keyed list, resolve, and
   mutation paths now reuse the verifier memo stored by `readState()` for the
   same immutable vault tree instead of decrypting the verifier repeatedly.

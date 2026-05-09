@@ -1,3 +1,10 @@
+import { CasError, ErrorCodes } from '../errors/index.js';
+
+export const DEFAULT_VAULT_STATE_CACHE_ENTRIES = 128;
+
+const MAX_ENTRIES_OPTION = 'maxEntries';
+const MIN_CACHE_ENTRIES = 1;
+
 /**
  * Cache for parse-stable vault tree snapshots keyed by immutable tree OID.
  */
@@ -5,12 +12,28 @@ export default class VaultStateCache {
   /** @type {Map<string, object>} */
   #trees = new Map();
 
+  /** @type {number} */
+  #maxEntries;
+
+  /**
+   * @param {object} [options]
+   * @param {number} [options.maxEntries=DEFAULT_VAULT_STATE_CACHE_ENTRIES]
+   */
+  constructor({ maxEntries = DEFAULT_VAULT_STATE_CACHE_ENTRIES } = {}) {
+    assertMaxEntries(maxEntries);
+    this.#maxEntries = maxEntries;
+  }
+
   /**
    * @param {string} treeOid
    * @returns {object|undefined}
    */
   get(treeOid) {
-    return this.#trees.get(treeOid);
+    const cached = this.#trees.get(treeOid);
+    if (cached) {
+      this.#rememberRecentTree(treeOid, cached);
+    }
+    return cached;
   }
 
   /**
@@ -26,8 +49,27 @@ export default class VaultStateCache {
       privacyEntriesByKey: new WeakMap(),
       verifiedEncryptionKeys: new WeakMap(),
     };
+    if (this.#trees.has(treeOid)) {
+      this.#trees.delete(treeOid);
+    }
     this.#trees.set(treeOid, cached);
+    this.#evictOldestTrees();
     return cached;
+  }
+
+  /**
+   * @param {string} treeOid
+   * @param {object} cached
+   */
+  #rememberRecentTree(treeOid, cached) {
+    this.#trees.delete(treeOid);
+    this.#trees.set(treeOid, cached);
+  }
+
+  #evictOldestTrees() {
+    while (this.#trees.size > this.#maxEntries) {
+      this.#trees.delete(this.#trees.keys().next().value);
+    }
   }
 
   /**
@@ -166,4 +208,18 @@ function bytesEqual(left, right) {
     diff |= left[i] ^ right[i];
   }
   return diff === 0;
+}
+
+/**
+ * @param {number} maxEntries
+ */
+function assertMaxEntries(maxEntries) {
+  if (Number.isSafeInteger(maxEntries) && maxEntries >= MIN_CACHE_ENTRIES) {
+    return;
+  }
+  throw new CasError(
+    'VaultStateCache maxEntries must be a positive safe integer',
+    ErrorCodes.INVALID_OPTIONS,
+    { option: MAX_ENTRIES_OPTION, maxEntries },
+  );
 }

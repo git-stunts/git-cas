@@ -43,8 +43,10 @@ pair used to build it, never both.
 
 `VaultStateCache`
 
-Owns parse-stable memoization keyed by immutable tree OID. Cached snapshots keep
-raw tree entries, cloned metadata, parsed plain entries, privacy entries by
+Owns parse-stable memoization keyed by immutable tree OID. The tree snapshot
+cache is bounded by a validated LRU capacity so long-running agent or TUI
+processes do not retain every historical vault tree forever. Cached snapshots
+keep raw tree entries, cloned metadata, parsed plain entries, privacy entries by
 encryption-key object identity, and verified vault keys. Public state returned
 to callers is defensively copied so a caller cannot mutate cached state. Keyed
 memoization stores a byte snapshot beside the key object, so mutating a reused
@@ -185,7 +187,9 @@ compare-and-swap updates stay inside `VaultPersistence` and `VaultTreeCodec`.
 
 Tree OIDs are immutable, so a tree-OID keyed cache is safe. Commit refs are
 mutable, so ref resolution must not be cached by `VaultStateCache` or
-`VaultPersistence`.
+`VaultPersistence`. The cache evicts least-recently-used tree snapshots once its
+capacity is exceeded; the default capacity is intentionally a memory bound, not
+a durability or correctness boundary.
 
 Cache entries may contain:
 

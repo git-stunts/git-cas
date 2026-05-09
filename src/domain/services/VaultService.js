@@ -72,7 +72,11 @@ const REF_OPTION = 'ref';
  * @property {VaultTreeEntry[]} rawEntries - Raw tree entries from persistence.
  * @property {VaultMetadata|null} metadata - Parsed vault metadata.
  * @property {Map<string, string>|null} plainEntries - Parsed plain slug entries.
- * @property {WeakMap<Uint8Array, { keyBytes: Uint8Array, entries: Map<string, string> }>} privacyEntriesByKey
+ * @property {WeakMap<Uint8Array, {
+ *   keyBytes: Uint8Array,
+ *   entries: Map<string, string>|null,
+ *   pending: Promise<Map<string, string>>|null
+ * }>} privacyEntriesByKey
  *   Privacy entries by key object and byte snapshot.
  * @property {WeakMap<Uint8Array, Uint8Array>} verifiedEncryptionKeys
  *   Vault keys already checked against metadata by key object and byte snapshot.

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ErrorCodes } from '../../../../src/domain/errors/index.js';
 import VaultStateCache from '../../../../src/domain/services/VaultStateCache.js';
 
 describe('VaultStateCache plain state', () => {
@@ -158,5 +159,26 @@ describe('VaultStateCache verifier-key memoization', () => {
     key[0] = 2;
 
     expect(cache.hasVerifiedEncryptionKey(snapshot, key)).toBe(false);
+  });
+});
+
+describe('VaultStateCache tree eviction', () => {
+  it('evicts the least recently used tree snapshot when capacity is exceeded', () => {
+    const cache = new VaultStateCache({ maxEntries: 2 });
+    const first = cache.rememberTree('tree-1', { rawEntries: [], metadata: { version: 1 } });
+    cache.rememberTree('tree-2', { rawEntries: [], metadata: { version: 1 } });
+
+    expect(cache.get('tree-1')).toBe(first);
+    cache.rememberTree('tree-3', { rawEntries: [], metadata: { version: 1 } });
+
+    expect(cache.get('tree-1')).toBe(first);
+    expect(cache.get('tree-2')).toBeUndefined();
+    expect(cache.get('tree-3')).toBeDefined();
+  });
+
+  it('rejects invalid maxEntries values', () => {
+    expect(() => new VaultStateCache({ maxEntries: 0 })).toThrow(expect.objectContaining({
+      code: ErrorCodes.INVALID_OPTIONS,
+    }));
   });
 });
