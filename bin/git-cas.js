@@ -434,10 +434,27 @@ program
   .command('doctor')
   .description('Inspect vault health and surface integrity issues')
   .option('--cwd <dir>', 'Git working directory', '.')
+  .option('--key-file <path>', 'Read raw 32-byte vault encryption key from file')
+  .option(
+    '--vault-passphrase <pass>',
+    'Vault-level passphrase for privacy vault diagnostics (warns; prefer --vault-passphrase-file -, GIT_CAS_PASSPHRASE, or --os-keychain-target)'
+  )
+  .option('--vault-passphrase-file <path>', 'Read vault passphrase from file (use - for stdin)')
+  .option(
+    '--os-keychain-target <target>',
+    'Read vault passphrase from OS keychain target via @git-stunts/vault'
+  )
+  .option(
+    '--os-keychain-account <account>',
+    'OS keychain account namespace for --os-keychain-target (default: git-cas)'
+  )
   .action(
     runAction(async (/** @type {Record<string, any>} */ opts) => {
+      warnInlinePassphraseArgs(opts);
+      validateCredentialSources(opts);
       const cas = await createCas(opts.cwd);
-      const report = await inspectVaultHealth(cas);
+      const encryptionKey = await resolveEncryptionKey(cas, opts);
+      const report = await inspectVaultHealth(cas, { encryptionKey });
       const json = program.opts().json;
 
       if (json) {

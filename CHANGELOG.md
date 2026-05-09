@@ -106,6 +106,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unreadable vault heads stay visible** — vault head resolution now returns an
   empty state only when the vault ref is absent; unreadable refs or commits that
   cannot resolve to a tree fail with `VAULT_HEAD_INVALID`.
+- **Doctor can inspect privacy vaults** — human and agent `doctor` commands now
+  accept raw vault keys, vault passphrase sources, and OS-keychain targets so
+  privacy-enabled vaults can be diagnosed without falling back to a missing-key
+  failure.
 - **Doctor reports byte-level dedupe** — vault stats and doctor output now
   include total chunk bytes, unique chunk bytes, duplicate chunk bytes, and a
   byte-level dedupe ratio alongside chunk-reference counts.

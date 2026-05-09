@@ -162,6 +162,23 @@ describe('inspectVaultHealth', () => {
 });
 
 describe('inspectVaultHealth entry scan', () => {
+  it('passes an encryption key through to vault state reads', async () => {
+    const encryptionKey = Uint8Array.from({ length: 32 }, (_, index) => index);
+    const readState = vi.fn().mockResolvedValue({
+      entries: new Map(),
+      parentCommitOid: 'commit-1',
+      metadata: { version: 1, encryption: { kdf: { algorithm: 'pbkdf2' } } },
+    });
+    const cas = {
+      getVaultService: vi.fn().mockResolvedValue({ readState }),
+      readManifest: vi.fn(),
+    };
+
+    await inspectVaultHealth(cas, { encryptionKey });
+
+    expect(readState).toHaveBeenCalledWith({ encryptionKey });
+  });
+
   it('records per-entry manifest failures without aborting the scan', async () => {
     const cas = makePartialFailureCas();
 

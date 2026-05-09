@@ -28,6 +28,7 @@ describe('git-cas help text', () => {
   it.each([
     ['store', ['store'], 'Vault-level passphrase for encryption'],
     ['restore', ['restore'], 'Vault-level passphrase for decryption'],
+    ['doctor', ['doctor'], 'Vault-level passphrase for privacy vault diagnostics'],
     ['vault init', ['vault', 'init'], 'Passphrase for vault-level encryption'],
   ])('keeps %s passphrase-source guidance stable', (_name, args, description) => {
     const help = runHelp(args);

@@ -1328,6 +1328,10 @@ git cas vault remove photos/vacation
 # View vault commit history
 git cas vault history
 git cas vault history -n 10   # last 10 commits
+
+# Diagnose vault health
+git cas doctor
+printf '%s\n' 'secret' | git cas doctor --vault-passphrase-file -
 ```
 
 ### CLI Restore with Vault

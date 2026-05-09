@@ -118,6 +118,10 @@ boundary metadata is the authority for encryption, privacy, and verifier state.
 If the vault ref exists but cannot be read, or its commit cannot resolve to a
 tree, `VaultPersistence` reports `VAULT_HEAD_INVALID` instead of treating the
 vault as absent.
+For privacy-enabled vaults, doctor must receive the same vault encryption key
+surface as list/resolve flows. Human CLI and agent command entrypoints resolve
+`--key-file`, `--vault-passphrase*`, or OS-keychain input and pass the derived
+key into `inspectVaultHealth()`, which forwards it to `readState()`.
 When manifests can be read, doctor reports both chunk-reference dedupe and
 byte-level efficiency (`logical-size` compared with `unique-chunk-bytes`) so
 operators can see whether repeated content actually reduces stored chunk bytes.

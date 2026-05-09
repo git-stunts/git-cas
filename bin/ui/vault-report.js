@@ -373,12 +373,13 @@ function buildInvalidVaultMetadataReport(state) {
 /**
  * Read the current vault state.
  *
- * @param {{ getVaultService: () => Promise<{ readState: () => Promise<{ entries: Map<string, string>, parentCommitOid: string | null, metadata: Record<string, any> | null }> }> }} cas
+ * @param {{ getVaultService: () => Promise<{ readState: (options?: { encryptionKey?: Uint8Array }) => Promise<{ entries: Map<string, string>, parentCommitOid: string | null, metadata: Record<string, any> | null }> }> }} cas
+ * @param {{ encryptionKey?: Uint8Array }} [options]
  * @returns {Promise<{ entries: Map<string, string>, parentCommitOid: string | null, metadata: Record<string, any> | null }>}
  */
-async function readVaultState(cas) {
+async function readVaultState(cas, { encryptionKey } = {}) {
   const vault = await cas.getVaultService();
-  return await vault.readState();
+  return encryptionKey ? await vault.readState({ encryptionKey }) : await vault.readState();
 }
 
 /**
@@ -410,16 +411,17 @@ async function readDoctorEntries(cas, entries) {
  * Inspect vault health without aborting on per-entry failures.
  *
  * @param {{
- *   getVaultService: () => Promise<{ readState: () => Promise<{ entries: Map<string, string>, parentCommitOid: string | null, metadata: Record<string, any> | null }> }>,
+ *   getVaultService: () => Promise<{ readState: (options?: { encryptionKey?: Uint8Array }) => Promise<{ entries: Map<string, string>, parentCommitOid: string | null, metadata: Record<string, any> | null }> }>,
  *   readManifest: ({ treeOid }: { treeOid: string }) => Promise<any>,
  * }} cas
+ * @param {{ encryptionKey?: Uint8Array }} [options]
  * @returns {Promise<DoctorReport>}
  */
-export async function inspectVaultHealth(cas) {
+export async function inspectVaultHealth(cas, options = {}) {
   let state;
 
   try {
-    state = await readVaultState(cas);
+    state = await readVaultState(cas, options);
   } catch (error) {
     return buildDoctorFailureReport(error);
   }
