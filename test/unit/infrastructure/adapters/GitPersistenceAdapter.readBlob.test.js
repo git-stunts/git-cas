@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import GitPersistenceAdapter from '../../../../src/infrastructure/adapters/GitPersistenceAdapter.js';
+import GitPersistenceAdapter, {
+  DEFAULT_MAX_BLOB_SIZE,
+} from '../../../../src/infrastructure/adapters/GitPersistenceAdapter.js';
 
 const noPolicy = { execute: (fn) => fn() };
 
@@ -59,5 +61,66 @@ describe('GitPersistenceAdapter.readBlob()', () => {
     const adapter = createAdapter(plumbing);
 
     await expect(adapter.readBlob('blob-oid')).resolves.toEqual(Buffer.from('blob-data'));
+  });
+
+  it('reports the default metadata blob limit when no per-call limit is supplied', async () => {
+    const plumbing = {
+      execute: vi.fn(),
+      executeStream: vi.fn().mockResolvedValue(streamFrom([
+        Buffer.alloc(DEFAULT_MAX_BLOB_SIZE + 1),
+      ])),
+    };
+    const adapter = createAdapter(plumbing);
+
+    await expect(adapter.readBlob('blob-oid')).rejects.toMatchObject({
+      code: 'RESTORE_TOO_LARGE',
+      message: `Blob blob-oid exceeds safety limit of ${DEFAULT_MAX_BLOB_SIZE} bytes`,
+      meta: { maxBytes: DEFAULT_MAX_BLOB_SIZE },
+    });
+  });
+
+  it('rejects invalid per-call limits before opening the Git blob stream', async () => {
+    const plumbing = {
+      execute: vi.fn(),
+      executeStream: vi.fn(),
+    };
+    const adapter = createAdapter(plumbing);
+
+    await expect(adapter.readBlob('blob-oid', 0)).rejects.toMatchObject({
+      code: 'INVALID_OPTIONS',
+      meta: { label: 'maxBytes', value: 0 },
+    });
+    expect(plumbing.executeStream).not.toHaveBeenCalled();
+  });
+});
+
+describe('GitPersistenceAdapter.setMaxBlobSize()', () => {
+  it('uses the configured adapter-level metadata blob limit', async () => {
+    const plumbing = {
+      execute: vi.fn(),
+      executeStream: vi.fn().mockResolvedValue(streamFrom([
+        Buffer.alloc(1025),
+      ])),
+    };
+    const adapter = createAdapter(plumbing);
+
+    adapter.setMaxBlobSize(1024);
+
+    await expect(adapter.readBlob('blob-oid')).rejects.toMatchObject({
+      code: 'RESTORE_TOO_LARGE',
+      message: 'Blob blob-oid exceeds safety limit of 1024 bytes',
+      meta: { maxBytes: 1024 },
+    });
+  });
+
+  it('rejects invalid adapter-level metadata blob limits', () => {
+    const adapter = createAdapter({
+      execute: vi.fn(),
+      executeStream: vi.fn(),
+    });
+
+    expect(() => adapter.setMaxBlobSize(1023)).toThrow(
+      'maxBlobSize must be an integer in [1024, 9007199254740991]',
+    );
   });
 });

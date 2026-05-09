@@ -2,8 +2,10 @@ import ContentAddressableStore from '../../../index.js';
 import Manifest from '../../../src/domain/value-objects/Manifest.js';
 import Slug from '../../../src/domain/value-objects/Slug.js';
 import { createGitPlumbing } from '../../../src/infrastructure/createGitPlumbing.js';
-import { buildVaultStats, inspectVaultHealth } from '../../ui/vault-report.js';
+import { resolveRestoreOutputTarget } from '../../restore-output-target.js';
+import { buildVaultStats } from '../../ui/vault-report.js';
 import { filterEntries } from '../../ui/vault-list.js';
+import doctorCommand from './doctor.js';
 import {
   resolveAgentPassphraseSource,
   hasAgentPassphraseSource,
@@ -988,11 +990,12 @@ async function restoreCommand(args, stdin, session) {
     requestSource,
     treeOid,
   });
+  const restoreTarget = resolveRestoreOutputTarget(input.out);
   const { bytesWritten } = await cas.restoreFile({
     manifest,
     ...(encryptionKey ? { encryptionKey } : {}),
-    outputPath: input.out,
-    baseDirectory: process.cwd(),
+    outputPath: restoreTarget.outputPath,
+    baseDirectory: restoreTarget.baseDirectory,
   });
 
   return buildRestoreOutcome({
@@ -1103,33 +1106,6 @@ async function verifyCommand(args, stdin, session) {
       treeOid,
       chunks: manifest.chunks.length,
     },
-  };
-}
-
-/**
- * @param {string[]} args
- * @param {NodeJS.ReadStream} stdin
- * @returns {Promise<{ exitCode: number, data: Record<string, any> }>}
- */
-async function doctorCommand(args, stdin, session) {
-  const { values, positionals } = await parseAgentInput(
-    args,
-    {
-      cwd: { type: 'string' },
-    },
-    stdin
-  );
-  assignPositionals(positionals, []);
-  writeAgentStart(session, selectStartInput(values, ['cwd']));
-
-  const cas = await createCas(values.cwd || '.');
-  const report = await inspectVaultHealth(cas);
-  const exitCode =
-    report.status === 'ok' ? AGENT_EXIT_CODES.SUCCESS : AGENT_EXIT_CODES.VERIFICATION_FAILED;
-
-  return {
-    exitCode,
-    data: { report },
   };
 }
 

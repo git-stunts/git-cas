@@ -19,6 +19,8 @@ HMAC names back to slugs for listing.
 - A privacy key is derived from the vault passphrase via HKDF-like derivation
 - Tree entry names become `HMAC-SHA256(privacyKey, slug)` (64-char hex)
 - An encrypted `.privacy-index` blob maps slug→hmacName for listing/enumeration
+- Listing and full-state reads fail closed when raw HMAC tree entries are not
+  covered by `.privacy-index`
 - Single-slug resolution works without the index: compute `HMAC(key, slug)` and
   look up the tree entry directly
 
@@ -48,7 +50,7 @@ refs/cas/vault → commit → tree:
 | **Add** | `encodeSlug(slug)` → tree name | `HMAC(key, slug)` → tree name; update index |
 | **Remove** | lookup by slug | `HMAC(key, slug)` → tree name; update index |
 | **Resolve** | lookup by slug | `HMAC(key, slug)` → tree name (no index needed) |
-| **List** | iterate tree names, decodeSlug | decrypt index, return slug list |
+| **List** | iterate tree names, decodeSlug | decrypt index; fail closed on gaps |
 
 ### Changes
 

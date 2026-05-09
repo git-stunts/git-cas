@@ -4,13 +4,15 @@ import {
   SCHEME_WHOLE,
 } from '../encryption/schemes.js';
 
+/** @typedef {import('../value-objects/Manifest.js').default} Manifest */
+
 /**
  * Selects the restore strategy entity for a manifest.
  */
 export default class RestoreStrategy {
   /**
    * @param {Object} options
-   * @param {import('../value-objects/Manifest.js').default} options.manifest
+   * @param {Manifest} options.manifest
    * @param {{ scheme?: string }} [options.encryptionMeta]
    * @param {{ plain: object, compressed: object, convergent: object, framed: object, whole: object }} options.strategies
    * @returns {object}

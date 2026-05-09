@@ -1,5 +1,6 @@
 import CasError from '../errors/CasError.js';
 import { utf8ByteLength } from '../encoding/utf8.js';
+import { ErrorCodes } from '../errors/index.js';
 
 /**
  * Immutable domain value object for user-facing CAS/vault slugs.
@@ -33,13 +34,13 @@ export default class Slug {
    */
   static validate(slug) {
     if (typeof slug !== 'string' || slug.length === 0) {
-      throw new CasError('Slug must be a non-empty string', 'INVALID_SLUG', { slug });
+      throw new CasError('Slug must be a non-empty string', ErrorCodes.INVALID_SLUG, { slug });
     }
     if (slug.startsWith('/') || slug.endsWith('/')) {
-      throw new CasError('Slug must not start or end with "/"', 'INVALID_SLUG', { slug });
+      throw new CasError('Slug must not start or end with "/"', ErrorCodes.INVALID_SLUG, { slug });
     }
     if (utf8ByteLength(slug) > 1024) {
-      throw new CasError('Slug exceeds 1024 bytes total', 'INVALID_SLUG', { slug });
+      throw new CasError('Slug exceeds 1024 bytes total', ErrorCodes.INVALID_SLUG, { slug });
     }
     for (const segment of slug.split('/')) {
       Slug.#validateSegment(segment, slug);
@@ -52,16 +53,16 @@ export default class Slug {
    */
   static #validateSegment(segment, slug) {
     if (segment.length === 0) {
-      throw new CasError('Slug contains empty segment', 'INVALID_SLUG', { slug });
+      throw new CasError('Slug contains empty segment', ErrorCodes.INVALID_SLUG, { slug });
     }
     if (segment === '.' || segment === '..') {
-      throw new CasError('Slug contains "." or ".." segment', 'INVALID_SLUG', { slug });
+      throw new CasError('Slug contains "." or ".." segment', ErrorCodes.INVALID_SLUG, { slug });
     }
     if (utf8ByteLength(segment) > 255) {
-      throw new CasError('Slug segment exceeds 255 bytes', 'INVALID_SLUG', { slug });
+      throw new CasError('Slug segment exceeds 255 bytes', ErrorCodes.INVALID_SLUG, { slug });
     }
     if (Slug.hasControlChars(segment)) {
-      throw new CasError('Slug contains control characters', 'INVALID_SLUG', { slug });
+      throw new CasError('Slug contains control characters', ErrorCodes.INVALID_SLUG, { slug });
     }
   }
 
@@ -90,7 +91,7 @@ export default class Slug {
     if (Slug.hasControlChars(value)) {
       throw new CasError(
         'Slug contains control characters — refusing to encode for mktree',
-        'INVALID_SLUG',
+        ErrorCodes.INVALID_SLUG,
         { slug: value },
       );
     }

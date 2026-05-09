@@ -15,6 +15,19 @@ describe('CasError', () => {
     expect(err.meta).toEqual({});
   });
 
+  it('accepts structured options with a documentation URL', () => {
+    const err = new CasError({
+      message: 'msg',
+      code: 'CODE',
+      documentationUrl: 'https://example.test/docs',
+    });
+    expect(JSON.parse(JSON.stringify(err))).toMatchObject({
+      message: 'msg',
+      code: 'CODE',
+      documentationUrl: 'https://example.test/docs',
+    });
+  });
+
   it('is an instance of Error', () => {
     const err = new CasError('msg', 'CODE');
     expect(err).toBeInstanceOf(Error);

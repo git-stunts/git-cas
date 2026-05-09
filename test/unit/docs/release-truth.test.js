@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
@@ -41,6 +41,39 @@ describe('release truth docs and examples', () => {
     expect(api).not.toContain('Plumbing.create({ repoPath');
   });
 
+  it('documents maxBlobSize as the metadata blob safety limit', () => {
+    const api = read('docs/API.md');
+
+    expect(api).toContain(
+      '`options.maxBlobSize` (optional): Max bytes for metadata blob reads',
+    );
+    expect(api).not.toContain('Max bytes for manifest and sub-manifest blob reads');
+  });
+
+  it('documents the public VaultMetadata privacy shape and privacy errors', () => {
+    const api = read('docs/API.md');
+
+    expect(api).toContain('privacy?: {');
+    expect(api).toContain('enabled: boolean;');
+    expect(api).toContain('indexMeta?: EncryptionMeta;');
+    expect(api).toContain('`VAULT_PRIVACY_INDEX_INVALID`');
+    expect(api).toContain('`VAULT_PRIVACY_INDEX_MISSING`');
+    expect(api).toContain('`VAULT_PRIVACY_KEY_REQUIRED`');
+  });
+});
+
+describe('Merkle manifest docs', () => {
+  it('keeps Merkle threshold docs on per-operation overrides', () => {
+    const walkthrough = read('docs/WALKTHROUGH.md');
+
+    expect(walkthrough).toContain('storeFile({');
+    expect(walkthrough).toContain('merkleThreshold: 500, // Per-operation override');
+    expect(walkthrough).toContain('Constructor-level `merkleThreshold` remains the default');
+    expect(walkthrough).not.toContain('Set `merkleThreshold` at construction time:');
+  });
+});
+
+describe('release truth security docs', () => {
   it('keeps the active threat model on current v6 scheme names', () => {
     const threatModel = read('docs/THREAT_MODEL.md');
 
@@ -93,6 +126,18 @@ describe('v6 release documentation', () => {
     expect(changelog).toContain('vault `encryptionCount` metadata');
     expect(changelog).toContain('npm package documentation surface');
     expect(changelog).toContain('concrete support, conduct, and vulnerability reporting paths');
+  });
+
+  it('keeps the changelog JSR posture aligned with release verification', () => {
+    const changelog = read('CHANGELOG.md');
+    const releaseVerify = read('scripts/release/verify.js');
+    const jsrConfigExists = existsSync(path.join(repoRoot, 'jsr.json'));
+
+    expect(jsrConfigExists).toBe(true);
+    expect(releaseVerify).toContain("id: 'jsr-publish'");
+    expect(changelog).not.toContain('JSR support removed');
+    expect(changelog).not.toContain('The JSR registry publication workflow has been removed');
+    expect(changelog).toContain('JSR publication deferred for v6.0.0');
   });
 });
 

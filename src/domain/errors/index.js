@@ -1,3 +1,4 @@
+export { ErrorCodes } from './Codes.js';
 export { default as CasError } from './CasError.js';
 export { default as CannotRemoveLastRecipientError } from './CannotRemoveLastRecipientError.js';
 export { default as DekUnwrapFailedError } from './DekUnwrapFailedError.js';

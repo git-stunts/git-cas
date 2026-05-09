@@ -52,6 +52,9 @@ O(n + m) time, O(n + m) space. No persistence I/O — pure in-memory.
 
 `src/domain/services/ManifestDiff.js` — a standalone module with no class,
 no state, no dependencies beyond the Chunk/Manifest types. A pure function.
+Its runtime JSDoc keeps `Manifest` and result shapes locally typedefed so
+generated API docs and declaration checks can resolve the function boundary
+without importing infrastructure code.
 
 CasService exposes it as `diffManifests(old, new)`.
 Facade exposes it as `cas.diffManifests(old, new)`.

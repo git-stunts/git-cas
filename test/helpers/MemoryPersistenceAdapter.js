@@ -83,4 +83,15 @@ export default class MemoryPersistenceAdapter extends GitPersistencePort {
     }
     return entries.map((entry) => ({ ...entry }));
   }
+
+  async readTreeEntry(treeOid, treePath) {
+    const entries = await this.readTree(treeOid);
+    return entries.find((entry) => entry.name === treePath) || null;
+  }
+
+  async *iterateTree(treeOid) {
+    for (const entry of await this.readTree(treeOid)) {
+      yield entry;
+    }
+  }
 }

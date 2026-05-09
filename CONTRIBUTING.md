@@ -192,6 +192,12 @@ Rules:
 
 The version and tag should reflect shipped reality, not hopeful scope.
 
+Before any release-candidate push, tag prep, or PR that changes public release
+behavior, run `npm run release:verify`. If the external JSR/Deno toolchain is
+the only known blocker for the current release, use
+`npm run release:verify -- --skip-jsr` and record that skipped step in the
+release notes or PR verification summary.
+
 ## Testing Rules
 
 Tests must be deterministic.

@@ -62,6 +62,22 @@ describe('writeError — JSON mode', () => {
     expect(output).toEqual({ error: 'not found', code: 'MANIFEST_NOT_FOUND' });
   });
 
+  it('includes documentationUrl when the error provides one', () => {
+    const err = Object.assign(new Error('bad option'), {
+      code: 'INVALID_OPTIONS',
+      documentationUrl: 'https://git-cas.example/docs/errors#invalid-options',
+    });
+
+    writeError(err, true);
+
+    const output = JSON.parse(stderrSpy.mock.calls[0][0]);
+    expect(output).toMatchObject({
+      error: 'bad option',
+      code: 'INVALID_OPTIONS',
+      documentationUrl: 'https://git-cas.example/docs/errors#invalid-options',
+    });
+  });
+
   it('omits code when absent', () => {
     writeError(new Error('boom'), true);
     const output = JSON.parse(stderrSpy.mock.calls[0][0]);

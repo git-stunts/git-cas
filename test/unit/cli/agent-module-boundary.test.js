@@ -29,6 +29,13 @@ describe('agent CLI module boundary', () => {
     expect(source).toContain('vaultInitCommand');
   });
 
+  it('keeps doctor as a standalone agent health command', () => {
+    expect(existsSync(path.join(repoRoot, 'bin/agent/commands/doctor.js'))).toBe(true);
+    const source = read('bin/agent/commands/doctor.js');
+    expect(source).toContain('inspectVaultHealth');
+    expect(source).toContain('doctorCommand');
+  });
+
   it('keeps shared request parsing out of the command dispatcher', () => {
     expect(existsSync(path.join(repoRoot, 'bin/agent/input.js'))).toBe(true);
     const inputSource = read('bin/agent/input.js');

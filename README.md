@@ -4,7 +4,7 @@
 >
 > `git-cas` addresses this by making artifact distribution inherit Git’s existing replication model, allowing binaries to be stored, verified, and transported anywhere Git can operate, including mirrored networks, constrained environments, or fully offline contexts.
 
-`git-cas` 6.0.0 is an industrial-grade Content-Addressable Storage (CAS) engine backed by Git’s object database. Stored content is chunked, deduplicated, and optionally encrypted — keeping high-fidelity assets and security-sensitive files directly within your repository history.
+`git-cas` 6.0.0 is an industrial-grade Content-Addressable Storage (CAS) engine backed by Git’s object database. Its Security First posture makes explicit restore boundaries, bounded metadata reads, authenticated encryption, and legacy-scheme rejection the default. Stored content is chunked, deduplicated, and optionally encrypted — keeping high-fidelity assets and security-sensitive files directly within your repository history.
 
 `git-cas` is designed for the architect who demands mathematical certainty and the operator who needs a stable foundation for artifact storage. It scales from simple binary blob management to multi-recipient envelope-encrypted vaults with key rotation, privacy-mode slug hashing, and Merkle-style manifests for assets of any size.
 
@@ -55,11 +55,8 @@ Integrate managed blob storage directly into your TypeScript or JavaScript appli
 
 ```js
 import ContentAddressableStore from '@git-stunts/git-cas';
-
 const cas = await ContentAddressableStore.open({ cwd: '.' });
-
 const manifest = await cas.storeFile({ filePath: './asset.bin', slug: 'app/asset' });
-const treeOid = await cas.createTree({ manifest });
 ```
 
 ## Feature Overview
@@ -94,6 +91,8 @@ Three encryption schemes are supported:
 | `framed` | Bounded frames | Slug + frame index | Default for fixed-chunk encrypted stores — streaming decrypt with per-frame AAD binding |
 | `convergent` | Per-chunk deterministic | Derived from content hash | **Default for CDC + encryption** — preserves deduplication across encrypted stores. Implemented as a standalone `ConvergentEncryption` service. |
 
+See [Encryption Modes](./docs/ENCRYPTION_MODES.md) for scheme selection guidance.
+
 Legacy schemes (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) are no longer accepted and throw a `LEGACY_SCHEME` error. Run `npm run upgrade` (or `node scripts/migrate-encryption.js`) to migrate existing vault entries. The script auto-detects whether each entry needs a rename-only (fast) or full re-encryption (v1 schemes without AAD), accepts `--passphrase-file`, `--key-file`, or warning-emitting inline `--passphrase` for full migrations, supports privacy-vault key options, and defaults to dry-run mode.
 
 **Envelope encryption** wraps a random Data Encryption Key (DEK) with one or more Key Encryption Keys (KEKs). Each recipient is labeled, enabling multi-recipient access to the same encrypted content. Key rotation replaces the KEK wrapping without re-encrypting data blobs.
@@ -118,7 +117,11 @@ Content can be gzip-compressed before storage through the `CompressionPort` abst
 Two manifest versions handle assets of any size:
 
 - **Version 1**: A flat manifest blob listing all chunk digests. Suitable for most assets.
-- **Version 2**: A Merkle-style manifest that splits the chunk list into sub-manifests, each independently addressable and schema-validated. Automatically engaged when chunk count exceeds 1,000. Sub-manifest arrays are capped at 10,000 entries.
+- **Version 2**: A Merkle-style manifest that splits the chunk list into
+  sub-manifests, each independently addressable and schema-validated.
+  Automatically engaged when chunk count exceeds 1,000 by default, with
+  per-operation `merkleThreshold` overrides available on store calls.
+  Sub-manifest arrays are capped at 10,000 entries.
 
 Every manifest carries an **integrity hash** — the SHA-256 of the codec-encoded content — verified on every read to detect corruption or tampering. Two codecs are available: **JSON** (human-readable, default) and **CBOR** (binary, compact).
 
@@ -150,6 +153,14 @@ Three restore surfaces cover different memory and latency profiles:
 
 `restoreFile()` writes tentative plaintext to a temporary file, verifies authentication, and renames into place only after verification succeeds. For `framed`, all three surfaces provide true streaming restore with per-frame authentication. Parallel chunk restore is supported via a prefetch window (`PrefetchWindow`) when concurrency is greater than 1, enabling ordered parallel reads for faster restores.
 
+```js
+await cas.restoreFile({
+  manifest,
+  outputPath: './restored.bin',
+  baseDirectory: process.cwd(),
+});
+```
+
 ### CLI
 
 The `git-cas` command-line interface exposes the full feature set:
@@ -173,6 +184,11 @@ The `git-cas` command-line interface exposes the full feature set:
 | `git-cas rotate` | Rotate an asset encryption key wrapper |
 | `git-cas recipient add/remove/list` | Manage envelope encryption recipients |
 
+`git-cas doctor` reports both chunk-reference dedupe and byte-level efficiency:
+logical manifest size versus unique chunk bytes. For privacy-enabled vaults,
+pass `--key-file`, `--vault-passphrase-file -`, or `--os-keychain-target` so the
+doctor can decrypt the privacy index before scanning entries.
+
 **Agent CLI**: `git-cas agent` exposes the same store/tree/restore/inspect/verify/doctor/rotate/recipient/vault surface through a newline-delimited protocol for CI/CD automation and programmatic integrations. Request payloads can be passed through `--request <json>` or stdin; responses stream back as JSON events on stdout.
 
 ### Security Hardening
@@ -182,6 +198,10 @@ Beyond the core encryption primitives, `git-cas` enforces a set of defensive lim
 - **Hex validation**: All OID and digest fields are schema-validated as strict hexadecimal strings.
 - **scrypt memory cap**: Combined scrypt memory budget is hard-capped at 1 GiB.
 - **Sub-manifest array limit**: Merkle sub-manifests are capped at 10,000 entries.
+- **Restore path boundary**: `restoreFile()` requires `baseDirectory` and refuses output paths that escape it.
+- **Metadata blob cap**: Manifest and sub-manifest blob reads default to a
+  10 MiB `maxBlobSize` safety limit. The default Git adapter honors the
+  facade/service `maxBlobSize` option through its adapter-level read limit.
 - **Concurrency cap**: Parallel operations are bounded at 64.
 - **Frame size cap**: `frameBytes` is capped at 64 MiB.
 - **Timing oracle elimination**: Recipient trial decryption uses constant-time comparison to prevent timing-based key identification.
@@ -259,6 +279,7 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
 - **[Architecture](./ARCHITECTURE.md)**: The authoritative system map — Facade, Domain, Ports, and Adapters.
 - **[Extending](./docs/EXTENDING.md)**: Custom adapter contracts and extension-point checklist.
 - **[Store/Restore Pipeline](./docs/STORE_RESTORE_PIPELINE.md)**: Maintainer state machines for byte storage, restore, tree publication, and vault boundaries.
+- **[Vault Internals](./docs/VAULT_INTERNALS.md)**: Maintainer map for vault persistence, caching, codecs, privacy indexing, key verification, and retry policy.
 - **[Security](./SECURITY.md)**: Threat models, trust boundaries, and encryption internals.
 - **[Agent API](./docs/API.md)**: JSONL agent protocol for CI/CD automation.
 - **[Workflow](https://github.com/git-stunts/git-cas/blob/main/WORKFLOW.md)**: Repo work doctrine, cycles, and invariants.

@@ -1485,26 +1485,71 @@ export function loadStatsCmd(cas, entries, source) {
  * Load the doctor report for the current vault.
  *
  * @param {ContentAddressableStore} cas
- * @param {DashSource} [source]
+ * @param {DashSource | {
+ *   source?: DashSource,
+ *   entries?: ExplorerEntry[],
+ *   encryptionKey?: Uint8Array | null,
+ * }} [source]
  * @param {ExplorerEntry[]} [entries]
  */
 export function loadDoctorCmd(cas, source = { type: 'vault' }, entries = []) {
+  const input = doctorCmdInput(source, entries);
   return async () => {
     try {
-      if (source.type !== 'vault') {
-        const target = source.type === 'ref' ? source.ref : source.treeOid;
-        const report = `source: ${source.type}\n`
+      if (input.source.type !== 'vault') {
+        const target = input.source.type === 'ref' ? input.source.ref : input.source.treeOid;
+        const report = `source: ${input.source.type}\n`
           + `target: ${target}\n`
-          + `entries: ${entries.length}\n\n`
+          + `entries: ${input.entries.length}\n\n`
           + 'Repo-wide doctor currently targets vault mode. Use this source mode to inspect manifests and source-local stats.';
-        return /** @type {const} */ ({ type: 'loaded-doctor', report, source });
+        return /** @type {const} */ ({ type: 'loaded-doctor', report, source: input.source });
       }
-      const report = await inspectVaultHealth(cas);
-      return /** @type {const} */ ({ type: 'loaded-doctor', report, source });
+      const report = await inspectVaultHealth(cas, doctorInspectionOptions(input));
+      return /** @type {const} */ ({ type: 'loaded-doctor', report, source: input.source });
     } catch (/** @type {any} */ err) {
-      return /** @type {const} */ ({ type: 'load-error', source: 'doctor', forSource: source, error: /** @type {Error} */ (err).message });
+      return /** @type {const} */ ({ type: 'load-error', source: 'doctor', forSource: input.source, error: /** @type {Error} */ (err).message });
     }
   };
+}
+
+/**
+ * @param {DashSource | { source?: DashSource, entries?: ExplorerEntry[], encryptionKey?: Uint8Array | null }} source
+ * @param {ExplorerEntry[]} entries
+ * @returns {{ source: DashSource, entries: ExplorerEntry[], encryptionKey?: Uint8Array | null }}
+ */
+function doctorCmdInput(source, entries) {
+  if (isDoctorCmdOptions(source)) {
+    return {
+      source: source.source || { type: 'vault' },
+      entries: source.entries || [],
+      encryptionKey: source.encryptionKey,
+    };
+  }
+  return { source, entries };
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is { source?: DashSource, entries?: ExplorerEntry[], encryptionKey?: Uint8Array | null }}
+ */
+function isDoctorCmdOptions(value) {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      (
+        Object.hasOwn(value, 'source') ||
+        Object.hasOwn(value, 'entries') ||
+        Object.hasOwn(value, 'encryptionKey')
+      )
+  );
+}
+
+/**
+ * @param {{ encryptionKey?: Uint8Array | null }} options
+ * @returns {{ encryptionKey?: Uint8Array }}
+ */
+function doctorInspectionOptions({ encryptionKey } = {}) {
+  return encryptionKey ? { encryptionKey } : {};
 }
 
 /**

@@ -316,7 +316,9 @@ describe('restoreFile (write to disk)', () => {
     const outPath = path.join(outDir, 'restored.bin');
 
     const { bytesWritten } = await cas.restoreFile({
-      manifest, outputPath: outPath,
+      manifest,
+      outputPath: outPath,
+      baseDirectory: outDir,
     });
 
     expect(bytesWritten).toBe(original.length);

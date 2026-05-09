@@ -1,0 +1,251 @@
+# Vault Internals
+
+This document is the maintainer map for the v6 vault implementation. Public API
+details belong in [docs/API.md](./API.md); this file explains the internal
+collaborators, durability boundaries, cache rules, and security invariants that
+keep `VaultService` small.
+
+## Purpose
+
+The vault is a GC-safe slug index rooted at `refs/cas/vault`. Each vault commit
+points to a Git tree containing:
+
+- `.vault.json` metadata
+- zero or more slug-to-asset tree entries
+- `.privacy-index` when privacy mode is enabled
+
+`VaultService` is the use-case orchestrator. It validates inputs, chooses the
+plain or privacy path, coordinates vault-key verification, asks collaborators to
+read or write durable state, and emits observability events. It must not become
+the owner of Git tree formatting, metadata parsing, retry timing, or cache
+policy.
+
+## Collaborators
+
+`VaultPersistence`
+
+Owns the Git/ref substrate behind the vault. It resolves the vault head, reads
+tree entries, streams entries when the adapter supports it, writes metadata and
+privacy-index blobs, creates the next commit, and performs the compare-and-swap
+ref update against `refs/cas/vault`. It is intentionally stateless: it does not
+cache commit OIDs, tree OIDs, or parsed state.
+
+The default `GitRefAdapter` translates known Git missing-ref stderr into
+`GIT_REF_NOT_FOUND` at the adapter boundary. `VaultPersistence` still keeps a
+narrow stderr fallback for third-party ref ports, but the normal path is
+structured and does not depend on parsing English text in the domain service.
+That fallback is documented in source as C/English-locale best effort, requires
+the vault ref name, and is not the primary compatibility contract.
+When only metadata is needed, targeted tree-entry reads and iterator reads
+return `snapshot: null` because they intentionally avoid materializing the full
+tree and therefore cannot seed a complete `VaultStateCache` entry.
+`VaultService` constructor injection is exclusive: callers either provide the
+cohesive `vaultPersistence` collaborator or the legacy `persistence` and `ref`
+pair used to build it, never both.
+
+`VaultStateCache`
+
+Owns parse-stable memoization keyed by immutable tree OID. The tree snapshot
+cache is bounded by a validated LRU capacity so long-running agent or TUI
+processes do not retain every historical vault tree forever. Cached snapshots
+keep raw tree entries, cloned metadata, parsed plain entries, privacy entries by
+encryption-key object identity, and verified vault keys. Public state returned
+to callers is defensively copied so a caller cannot mutate cached state. Keyed
+memoization stores a byte snapshot beside the key object, so mutating a reused
+`Uint8Array` key cannot reuse stale privacy or verifier cache entries.
+Concurrent privacy reads for the same cached tree and key object share one
+in-flight `.privacy-index` resolution.
+
+`VaultMetadataCodec`
+
+Owns the `.vault.json` boundary format. It encodes and decodes bytes, validates
+metadata version, AES-256-GCM cipher selection, KDF policy, verifier metadata,
+and encryption counters. If the `encryption` field is present, it must be a
+complete object; falsy placeholder values are invalid metadata rather than an
+unencrypted vault signal. It is pure: it does not read Git, write Git, derive
+keys, or perform vault mutations.
+
+`VaultTreeCodec`
+
+Owns persisted tree records. Plain vault slugs use `Slug.toTreePath()` for the
+Git tree entry name, and decode through `Slug.decode()`. Privacy-enabled vaults
+use HMAC tree names and keep the slug mapping in `.privacy-index`. The codec is
+pure and must not perform I/O.
+
+`VaultPrivacyIndex`
+
+Owns privacy-mode persisted names and the encrypted slug-to-HMAC index. It
+derives a privacy key from the vault encryption key, computes HMAC-SHA256 names,
+encrypts the index blob, decrypts it on read, and validates both slugs and HMAC
+names before returning a map. Full-state reads and listings must fail closed with
+`VAULT_PRIVACY_INDEX_INVALID` when raw HMAC tree entries are not covered by the
+decrypted index; returning a partial privacy listing can hide vault corruption.
+
+`VaultKeyVerifier`
+
+Owns encrypted vault-key verifier metadata. New encrypted vaults store a small
+AES-GCM verifier in `.vault.json`; reads and keyed writes use it to reject a
+wrong vault key before accepting empty-vault mutations. Verifier plaintext is
+compared with a constant-time byte comparison. Once `readState()` verifies a key
+for a cached tree OID, targeted list, resolve, and follow-on mutation writes for
+that same tree reuse the cached verifier proof instead of decrypting the
+verifier again.
+
+`VaultMutationRetryPolicy`
+
+Owns optimistic contention policy. It decides whether an error is retryable and
+computes exponential backoff with jitter between attempts. `VaultService`
+receives the policy through dependency injection so CLIs, TUIs, and long-running
+agents can tune contention behavior without changing vault use-case logic. The
+policy validates injected timing hooks during construction and freezes the
+instance after initialization.
+
+## Read Paths
+
+`getVaultMetadata()`
+
+Resolves the current vault head and reads `.vault.json` directly when the
+persistence adapter supports targeted tree lookups. It only falls back to full
+tree reads when the adapter cannot resolve a single entry.
+
+`resolveVaultEntry({ slug })`
+
+Validates the slug through `Slug`, then resolves only the relevant persisted
+name when the vault is plain. Privacy mode must decrypt `.privacy-index` because
+the persisted name is derived from the caller-provided encryption key.
+
+`listVault()`
+
+Returns a sorted array for API compatibility. Internally it delegates to
+`iterateVault()`, which streams tree entries when the persistence adapter can do
+so instead of materializing the whole vault as the default read primitive.
+
+`readState()`
+
+Returns a defensive copy of the current entries, metadata, and parent commit
+OID. Use it when the caller needs a full state snapshot. Do not route targeted
+reads through `readState()` unless the full snapshot is actually required.
+
+`rotateVaultPassphrase()`
+
+Reads `.vault.json` first through `getVaultMetadata()` so privacy-enabled vaults
+can derive and verify the old key before decrypting `.privacy-index`. Only after
+the old key is available should rotation call `readState({ encryptionKey })`.
+This preserves privacy-mode slug resolution while rebuilding the privacy index
+under the new vault key.
+
+`git cas doctor`
+
+Treats `refs/cas/vault` as unhealthy when the vault head exists but `.vault.json`
+metadata is missing or invalid. In that case doctor reports
+`VAULT_METADATA_INVALID` before scanning entry manifests, because the vault
+boundary metadata is the authority for encryption, privacy, and verifier state.
+If the vault ref exists but cannot be read, or its commit cannot resolve to a
+tree, `VaultPersistence` reports `VAULT_HEAD_INVALID` instead of treating the
+vault as absent.
+For privacy-enabled vaults, doctor must receive the same vault encryption key
+surface as list/resolve flows. Human CLI and agent command entrypoints resolve
+`--key-file`, `--vault-passphrase*`, or OS-keychain input and pass the derived
+key into `inspectVaultHealth()`, which forwards it to `readState()`. The TUI
+operations doctor forwards the already-unlocked vault key from the dashboard
+model. Agent diagnostics warn and ignore passphrase input when the vault is
+plaintext instead of failing the health check; encrypted diagnostics require the
+agent passphrase resolver dependency whenever a structured passphrase source is
+present.
+
+Privacy index coverage failures are vault-level failures. A missing
+`.privacy-index` reports `VAULT_PRIVACY_INDEX_MISSING`; a present index that
+does not cover every raw HMAC tree entry reports `VAULT_PRIVACY_INDEX_INVALID`.
+Privacy metadata must also include `privacy.indexMeta`; missing index metadata
+is treated as `VAULT_PRIVACY_INDEX_INVALID` before decrypting or resolving
+privacy-mode entries.
+When manifests can be read, doctor reports both chunk-reference dedupe and
+byte-level efficiency (`totalChunkBytes / uniqueChunkBytes`) so operators can
+see whether repeated stored chunks reduce chunk bytes without conflating that
+signal with compression.
+
+## Write Path
+
+Vault mutations follow one draft-based loop:
+
+1. Resolve the current vault head.
+2. Read enough state for the mutation.
+3. Build a draft entries map and metadata object.
+4. Verify or create vault-key verifier metadata when encryption is configured.
+5. Build privacy persisted names and `.privacy-index` bytes when privacy mode is enabled.
+6. Ask `VaultPersistence.writeCommit()` to write blobs, tree, commit, and CAS-update the ref.
+7. Retry through `VaultMutationRetryPolicy` when the CAS update reports `VAULT_CONFLICT`.
+
+`VaultPersistence` only classifies structured expected-vs-actual OID mismatches,
+or Git `update-ref` CAS mismatch stderr, as `VAULT_CONFLICT`. Other ref update
+failures report `VAULT_REF_UPDATE_FAILED` so callers do not retry permission,
+I/O, or policy failures as optimistic-concurrency contention.
+
+The service talks in domain terms: vault head, entries, metadata, privacy index,
+and vault key. Git terms such as refs, mktree records, commit creation, and
+compare-and-swap updates stay inside `VaultPersistence` and `VaultTreeCodec`.
+
+## Cache Rules
+
+Tree OIDs are immutable, so a tree-OID keyed cache is safe. Commit refs are
+mutable, so ref resolution must not be cached by `VaultStateCache` or
+`VaultPersistence`. The cache evicts least-recently-used tree snapshots once its
+capacity is exceeded; the default capacity is intentionally a memory bound, not
+a durability or correctness boundary.
+
+Missing vault refs are normalized before `VaultService` sees them. Git adapters
+must treat both English stderr forms and stdout-only `rev-parse <ref>` misses as
+an absent vault ref; corrupt or unreadable refs still fail closed as
+`VAULT_HEAD_INVALID`.
+
+Cache entries may contain:
+
+- raw immutable tree entries copied from persistence
+- cloned `.vault.json` metadata
+- parsed plain entries
+- privacy entries keyed by the exact `Uint8Array` encryption-key object
+- a verified-key set keyed by the exact `Uint8Array` encryption-key object
+
+Returned state must always be copied. A caller mutating a returned `Map` or
+metadata object must not mutate the cache. Collaborator-level cache accessors
+also return copied entry maps, so callers that bypass `readState()` cannot mutate
+the cached plain or privacy entry map. Verifier memoization is tree-local:
+mutations that advance the vault head must resolve and verify the new tree state
+before its cached proof is reused.
+
+## Boundary Compatibility
+
+The durable vault format is compatibility-sensitive:
+
+- `refs/cas/vault` remains the vault head ref.
+- `.vault.json` remains the metadata entry.
+- `.privacy-index` remains the encrypted privacy-mode index entry.
+- Plain slugs are encoded only through `Slug.toTreePath()`.
+- Plain slugs are decoded only through `Slug.decode()`.
+- `VaultMetadataCodec` and `VaultTreeCodec` must stay pure.
+
+Changing plain tree-entry encoding is a data migration, not an internal refactor:
+any drift would make existing vault entries unreachable by their public slug.
+
+## Testing Posture
+
+Vault tests should assert behavior rather than collaborator shape:
+
+- plain and privacy vault round trips preserve slug-to-tree mappings
+- wrong vault keys fail before empty-vault writes
+- verifier migration occurs on the next keyed write for older metadata
+- verifier-cache regression tests exercise cross-operation reuse, such as
+  `readState({ encryptionKey })` followed by a keyed mutation on the same tree
+- security-sensitive error assertions use `ErrorCodes` constants so tests fail
+  on intentional error-code changes instead of drifting behind string literals
+- targeted resolve and streaming list paths work when the adapter exposes them
+- CAS conflicts are retried through the policy
+- codecs reject malformed bytes and remain I/O-free
+
+Do not add source-layout tests that assert import ordering, file headers, or
+other non-behavioral structure. Those checks make refactors brittle without
+protecting the vault contract.
+
+Use injected memory adapters for domain behavior where possible. Git-backed
+integration tests remain valuable for verifying the actual ref, tree, blob, and
+commit substrate.

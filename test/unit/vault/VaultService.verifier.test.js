@@ -2,9 +2,15 @@ import { describe, it, expect, vi } from 'vitest';
 import VaultService from '../../../src/domain/services/VaultService.js';
 import buildKdfMetadata from '../../../src/domain/helpers/buildKdfMetadata.js';
 import { decodeBase64 } from '../../../src/domain/encoding/base64.js';
+import { ErrorCodes } from '../../../src/domain/errors/index.js';
+import { VAULT_VERIFIER_PLAINTEXT } from '../../../src/domain/services/VaultKeyVerifier.js';
 import { getTestCryptoAdapter } from '../../helpers/crypto-adapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
+const VALID_SALT = 'qqqqqqqqqqqqqqqqqqqqqg==';
+const VALID_NONCE = Buffer.alloc(12, 0x01).toString('base64');
+const VALID_TAG = Buffer.alloc(16, 0x02).toString('base64');
+const TEST_KEY = Buffer.alloc(32, 0xab);
 
 function mockObservability() {
   return { metric: vi.fn(), log: vi.fn(), span: vi.fn().mockReturnValue({ end: vi.fn() }) };
@@ -28,7 +34,10 @@ function createVault({ persistence, ref, crypto = testCrypto } = {}) {
 
 function mockWriterRef() {
   return {
-    resolveRef: vi.fn().mockRejectedValueOnce(new Error('not found')),
+    resolveRef: vi.fn().mockRejectedValueOnce(Object.assign(
+      new Error('refs/cas/vault is not defined'),
+      { code: ErrorCodes.GIT_REF_NOT_FOUND },
+    )),
     resolveTree: vi.fn(),
     createCommit: vi.fn().mockResolvedValue('commit-new'),
     updateRef: vi.fn().mockResolvedValue(undefined),
@@ -42,6 +51,10 @@ function mockWriterPersistence() {
     readBlob: vi.fn(),
     readTree: vi.fn(),
   };
+}
+
+function parseWrittenMetadata(persistence, index = 0) {
+  return JSON.parse(Buffer.from(persistence.writeBlob.mock.calls[index][0]).toString());
 }
 
 function createReader(metadata) {
@@ -58,6 +71,37 @@ function createReader(metadata) {
     updateRef: vi.fn(),
   };
   return createVault({ persistence, ref });
+}
+
+function verifierMetadata() {
+  return {
+    version: 1,
+    encryption: {
+      cipher: 'aes-256-gcm',
+      kdf: {
+        algorithm: 'pbkdf2',
+        salt: VALID_SALT,
+        iterations: 100_000,
+        keyLength: 32,
+      },
+      verifier: {
+        version: 1,
+        ciphertext: Buffer.from('verifier-ciphertext').toString('base64'),
+        meta: { algorithm: 'aes-256-gcm', nonce: VALID_NONCE, tag: VALID_TAG, encrypted: true },
+      },
+    },
+  };
+}
+
+function mockVerifierCrypto() {
+  return {
+    decryptBuffer: vi.fn().mockResolvedValue(VAULT_VERIFIER_PLAINTEXT),
+    encryptBuffer: vi.fn().mockResolvedValue({
+      buf: Buffer.from('encrypted-index'),
+      meta: { algorithm: 'aes-256-gcm', nonce: VALID_NONCE, tag: VALID_TAG, encrypted: true },
+    }),
+    hmacSha256: vi.fn().mockReturnValue(Buffer.alloc(32, 0xcd)),
+  };
 }
 
 async function deriveVaultKey(metadata, passphrase) {
@@ -85,7 +129,7 @@ describe('VaultService encrypted vault verifier', () => {
       kdfOptions: { algorithm: 'pbkdf2', iterations: 100_000 },
     });
 
-    const metadata = JSON.parse(persistence.writeBlob.mock.calls[0][0]);
+    const metadata = parseWrittenMetadata(persistence);
     expect(metadata.encryption.verifier).toMatchObject({
       version: 1,
       ciphertext: expect.any(String),
@@ -106,7 +150,7 @@ describe('VaultService encrypted vault verifier', () => {
       kdfOptions: { algorithm: 'pbkdf2', iterations: 100_000 },
     });
 
-    const metadata = JSON.parse(persistence.writeBlob.mock.calls[0][0]);
+    const metadata = parseWrittenMetadata(persistence);
     const rightKey = await deriveVaultKey(metadata, 'right-passphrase');
     const wrongKey = await deriveVaultKey(metadata, 'wrong-passphrase');
     await expect(createReader(metadata).readState({ encryptionKey: rightKey }))
@@ -116,6 +160,53 @@ describe('VaultService encrypted vault verifier', () => {
         code: 'INTEGRITY_ERROR',
         message: expect.stringContaining('Vault passphrase verification failed'),
       });
+  });
+});
+
+describe('VaultService verifier cache', () => {
+  it('reuses verified keys for cached list and resolve flows', async () => {
+    const metadata = verifierMetadata();
+    const crypto = mockVerifierCrypto();
+    const persistence = mockWriterPersistence();
+    persistence.readTree.mockResolvedValue(treeEntries('metadata-blob', [
+      { mode: '040000', type: 'tree', oid: 'asset-tree', name: 'asset' },
+    ]));
+    persistence.readBlob.mockResolvedValue(Buffer.from(JSON.stringify(metadata)));
+    const ref = {
+      resolveRef: vi.fn().mockResolvedValue('commit-current'),
+      resolveTree: vi.fn().mockResolvedValue('tree-current'),
+      createCommit: vi.fn(),
+      updateRef: vi.fn(),
+    };
+    const vault = createVault({ persistence, ref, crypto });
+
+    await vault.readState({ encryptionKey: TEST_KEY });
+    await vault.listVault({ encryptionKey: TEST_KEY });
+    await vault.resolveVaultEntry({ slug: 'asset', encryptionKey: TEST_KEY });
+
+    expect(crypto.decryptBuffer).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-verify a key during mutation after readState verified it', async () => {
+    const metadata = verifierMetadata();
+    const crypto = mockVerifierCrypto();
+    const persistence = mockWriterPersistence();
+    persistence.readTree.mockResolvedValueOnce(treeEntries('metadata-blob'));
+    persistence.readBlob.mockResolvedValueOnce(Buffer.from(JSON.stringify(metadata)));
+    persistence.writeBlob.mockResolvedValueOnce('metadata-new');
+    persistence.writeTree.mockResolvedValueOnce('tree-new');
+    const ref = {
+      resolveRef: vi.fn().mockResolvedValue('commit-current'),
+      resolveTree: vi.fn().mockResolvedValue('tree-current'),
+      createCommit: vi.fn().mockResolvedValue('commit-new'),
+      updateRef: vi.fn().mockResolvedValue(undefined),
+    };
+    const vault = createVault({ persistence, ref, crypto });
+
+    await vault.readState({ encryptionKey: TEST_KEY });
+    await vault.addToVault({ slug: 'asset', treeOid: 'asset-tree', encryptionKey: TEST_KEY });
+
+    expect(crypto.decryptBuffer).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -150,7 +241,7 @@ describe('VaultService verifier migration', () => {
       encryptionKey: key,
     });
 
-    const migratedMetadata = JSON.parse(persistence.writeBlob.mock.calls[0][0]);
+    const migratedMetadata = parseWrittenMetadata(persistence);
     expect(migratedMetadata.encryption.verifier).toBeDefined();
     await expect(createReader(migratedMetadata).readState({ encryptionKey: key }))
       .resolves.toMatchObject({ metadata: migratedMetadata });

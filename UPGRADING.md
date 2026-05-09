@@ -18,6 +18,36 @@ If you only use the library API (no vault), skip to [API Changes](#api-changes).
 
 ---
 
+## Critical Breaking Changes
+
+### `restoreFile()` Requires `baseDirectory`
+
+`restoreFile()` now requires an explicit directory boundary. This prevents a
+repository-controlled output path from writing outside the directory your
+application intended to restore into.
+
+v5 accepted an output path by itself:
+
+```javascript
+await cas.restoreFile({ manifest, outputPath: './restored.bin' });
+```
+
+v6 requires the restore boundary:
+
+```javascript
+await cas.restoreFile({
+  manifest,
+  outputPath: './restored.bin',
+  baseDirectory: process.cwd(),
+});
+```
+
+Use `process.cwd()` only when the caller is a trusted local CLI or script. Server
+and automation contexts should pass an application-controlled restore directory,
+for example a job workspace or tenant-scoped artifact directory.
+
+---
+
 ## Encryption Scheme Simplification
 
 ### What Changed

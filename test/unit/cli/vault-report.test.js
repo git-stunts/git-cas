@@ -5,6 +5,7 @@ import {
   renderDoctorReport,
   renderVaultStats,
 } from '../../../bin/ui/vault-report.js';
+import { ErrorCodes } from '../../../src/domain/errors/index.js';
 
 function makeManifest(data) {
   return {
@@ -89,8 +90,12 @@ describe('buildVaultStats', () => {
       entries: 2,
       totalLogicalSize: 1600,
       totalChunkRefs: 4,
+      totalChunkBytes: 1600,
       uniqueChunks: 3,
       duplicateChunkRefs: 1,
+      uniqueChunkBytes: 1200,
+      duplicateChunkBytes: 400,
+      byteDedupRatio: 4 / 3,
       encryptedEntries: 2,
       envelopeEntries: 1,
       compressedEntries: 1,
@@ -98,6 +103,26 @@ describe('buildVaultStats', () => {
       largestEntry: { slug: 'photos/hero.jpg', size: 1000 },
     });
     expect(stats.dedupRatio).toBeCloseTo(4 / 3, 6);
+  });
+
+  it('computes byte dedupe from stored chunk bytes instead of logical bytes', () => {
+    const stats = buildVaultStats([
+      {
+        slug: 'compressed.bin',
+        treeOid: 'tree-1',
+        manifest: makeManifest({
+          slug: 'compressed.bin',
+          size: 2048,
+          chunks: [{ blob: 'blob-1', size: 512 }],
+          compression: { algorithm: 'gzip' },
+        }),
+      },
+    ]);
+
+    expect(stats.totalLogicalSize).toBe(2048);
+    expect(stats.totalChunkBytes).toBe(512);
+    expect(stats.uniqueChunkBytes).toBe(512);
+    expect(stats.byteDedupRatio).toBe(1);
   });
 });
 
@@ -107,9 +132,13 @@ describe('renderVaultStats', () => {
       entries: 2,
       totalLogicalSize: 1600,
       totalChunkRefs: 4,
+      totalChunkBytes: 1600,
       uniqueChunks: 3,
       duplicateChunkRefs: 1,
+      uniqueChunkBytes: 1200,
+      duplicateChunkBytes: 400,
       dedupRatio: 4 / 3,
+      byteDedupRatio: 4 / 3,
       encryptedEntries: 2,
       envelopeEntries: 1,
       compressedEntries: 1,
@@ -119,7 +148,9 @@ describe('renderVaultStats', () => {
 
     expect(output).toMatch(/entries\s+2/);
     expect(output).toMatch(/logical-size\s+1\.6 KiB \(1600 bytes\)/);
+    expect(output).toMatch(/unique-chunk-bytes\s+1\.2 KiB \(1200 bytes\)/);
     expect(output).toMatch(/dedup-ratio\s+1\.33x/);
+    expect(output).toMatch(/byte-dedup-ratio\s+1\.33x/);
     expect(output).toMatch(/chunking\s+cdc:1, fixed:1/);
     expect(output).toMatch(/largest\s+photos\/hero\.jpg \(1000 bytes\)/);
     expect(output).not.toContain('\t');
@@ -144,10 +175,29 @@ describe('inspectVaultHealth', () => {
     expect(report.hasVault).toBe(false);
     expect(report.issues).toEqual([
       expect.objectContaining({
-        code: 'VAULT_REF_MISSING',
+        code: ErrorCodes.VAULT_REF_MISSING,
         scope: 'vault',
       }),
     ]);
+  });
+});
+
+describe('inspectVaultHealth entry scan', () => {
+  it('passes an encryption key through to vault state reads', async () => {
+    const encryptionKey = Uint8Array.from({ length: 32 }, (_, index) => index);
+    const readState = vi.fn().mockResolvedValue({
+      entries: new Map(),
+      parentCommitOid: 'commit-1',
+      metadata: { version: 1, encryption: { kdf: { algorithm: 'pbkdf2' } } },
+    });
+    const cas = {
+      getVaultService: vi.fn().mockResolvedValue({ readState }),
+      readManifest: vi.fn(),
+    };
+
+    await inspectVaultHealth(cas, { encryptionKey });
+
+    expect(readState).toHaveBeenCalledWith({ encryptionKey });
   });
 
   it('records per-entry manifest failures without aborting the scan', async () => {
@@ -163,7 +213,9 @@ describe('inspectVaultHealth', () => {
     expect(report.stats).toMatchObject({
       entries: 1,
       totalChunkRefs: 1,
+      totalChunkBytes: 512,
       uniqueChunks: 1,
+      uniqueChunkBytes: 512,
     });
     expect(report.issues).toEqual([
       expect.objectContaining({
@@ -172,6 +224,35 @@ describe('inspectVaultHealth', () => {
         treeOid: 'tree-2',
         code: 'MANIFEST_NOT_FOUND',
         message: 'manifest missing',
+      }),
+    ]);
+  });
+});
+
+describe('inspectVaultHealth metadata validation', () => {
+  it('fails when a vault head exists without valid metadata', async () => {
+    const cas = {
+      getVaultService: vi.fn().mockResolvedValue({
+        readState: vi.fn().mockResolvedValue({
+          entries: new Map(),
+          parentCommitOid: 'commit-1',
+          metadata: null,
+        }),
+      }),
+      readManifest: vi.fn(),
+    };
+
+    const report = await inspectVaultHealth(cas);
+
+    expect(report.status).toBe('fail');
+    expect(report.hasVault).toBe(true);
+    expect(report.commitOid).toBe('commit-1');
+    expect(report.invalidEntries).toBe(1);
+    expect(cas.readManifest).not.toHaveBeenCalled();
+    expect(report.issues).toEqual([
+      expect.objectContaining({
+        code: 'VAULT_METADATA_INVALID',
+        scope: 'vault',
       }),
     ]);
   });
@@ -192,9 +273,13 @@ describe('renderDoctorReport', () => {
         entries: 1,
         totalLogicalSize: 512,
         totalChunkRefs: 1,
+        totalChunkBytes: 512,
         uniqueChunks: 1,
         duplicateChunkRefs: 0,
+        uniqueChunkBytes: 512,
+        duplicateChunkBytes: 0,
         dedupRatio: 1,
+        byteDedupRatio: 1,
         encryptedEntries: 0,
         envelopeEntries: 0,
         compressedEntries: 0,
@@ -215,6 +300,7 @@ describe('renderDoctorReport', () => {
     expect(output).toMatch(/status\s+fail/);
     expect(output).toMatch(/vault\s+present/);
     expect(output).toMatch(/issues\s+1/);
+    expect(output).toMatch(/unique-chunk-bytes\s+512 bytes \(512 bytes\)/);
     expect(output).toContain('[entry] bad/asset (tree-2) MANIFEST_NOT_FOUND: manifest missing');
     expect(output).not.toContain('\t');
   });

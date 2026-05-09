@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
-- **JSR support removed** — The JSR registry publication workflow has been removed. `npm run release:verify -- --skip-jsr` now supports skipping JSR dry-runs. Consumers of the `@git-stunts/git-cas` JSR package should migrate to the npm package.
+- **JSR publication deferred for v6.0.0** — The npm package and GitHub Release
+  are the release targets for v6.0.0. JSR metadata and the `jsr-publish`
+  verification step remain in the repository, while
+  `npm run release:verify -- --skip-jsr` records the skipped dry-run during the
+  upstream JSR/Deno toolchain blocker. Consumers of the
+  `@git-stunts/git-cas` JSR package should migrate to npm for v6.0.0 or stay on
+  the last JSR-published version.
 - **Encryption scheme identifiers simplified** — `whole-v1`/`whole-v2` collapsed to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1` collapsed to `convergent`. Legacy v1/v2 scheme strings in stored manifests now throw `LEGACY_SCHEME` at `readManifest()` time with migration guidance. The `scheme` field in `ManifestSchema` is now required for all encryption metadata (previously optional for backward-compatible schemeless whole manifests).
 - **AAD is always on** — `whole` and `framed` encryption always bind slug-based AAD into the GCM tag. The v1 no-AAD path is removed.
 - **Core byte contract is now `Uint8Array`** — public and port byte surfaces now accept and return `Uint8Array` rather than Node-specific `Buffer` types. Node callers can continue passing `Buffer` values because `Buffer` extends `Uint8Array`, but restored data, chunkers, codecs, and Web Crypto adapter outputs should be treated as `Uint8Array`.
@@ -28,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Store/restore pipeline state-machine docs** — added
   `docs/STORE_RESTORE_PIPELINE.md` as the maintainer map for store, restore,
   tree publication, and vault boundaries.
+- **Vault internals maintainer docs** — added
+  `docs/VAULT_INTERNALS.md` to document the vault collaborator model, cache
+  rules, boundary codecs, privacy index, key verifier, and retry policy.
+- **Public `CasError` export** — `CasError` is now re-exported from the package
+  root for callers that need typed error handling without deep imports.
 - **`CasService.readManifestRaw()`** — reads a manifest from a Git tree OID and returns the raw decoded object without Manifest construction or scheme assertion. Migration entry point for inspecting legacy manifests.
 - **`CasService` `legacyMode` constructor option** — when `true`, `readManifest()` maps legacy scheme identifiers (v1/v2) to their current names instead of throwing `LEGACY_SCHEME`. Legacy v1 manifests (no AAD) are correctly decrypted without AAD during restore.
 - **`mapToCurrentScheme()` and `isLegacyNoAad()` in `schemes.js`** — public helpers for mapping legacy scheme strings to current names and detecting v1 no-AAD schemes.
@@ -73,6 +84,151 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   record parsing, and store/restore strategy execution now live in dedicated
   domain services and strategy entities with direct unit coverage. Public
   `CasService` store/restore/manifest/recipient APIs are unchanged.
+- **VaultService decomposed into cohesive collaborators** — `VaultService.js`
+  now orchestrates public vault use cases while `VaultPersistence` owns
+  `refs/cas/vault` persistence, `VaultStateCache` owns tree-OID keyed state
+  memoization, `VaultMetadataCodec` and `VaultTreeCodec` own pure boundary
+  encoding, and dedicated privacy, verifier, and retry-policy collaborators own
+  HMAC index handling, constant-time key verification, and CAS retry timing.
+  Public vault APIs and the on-disk vault tree format are unchanged.
+- **Privacy vault passphrase rotation preserved** — vault passphrase rotation now
+  reads metadata before full state so privacy-enabled vaults can derive the old
+  key, decrypt `.privacy-index`, and rebuild the index under the replacement key.
+- **Structured KDF algorithm errors** — unsupported stored or requested KDF
+  algorithms now fail with `KDF_POLICY_VIOLATION`, and vault metadata decoding
+  normalizes those policy failures to `VAULT_METADATA_INVALID` instead of
+  leaking raw `Error` instances.
+- **Vault ref creation is create-only** — first vault writes now pass Git's
+  all-zero expected OID when `expectedOldOid` is `null`, preserving CAS
+  semantics during concurrent vault initialization.
+- **Metadata blob limits reach the default Git adapter** — `maxBlobSize`
+  constructor options now configure `GitPersistenceAdapter.readBlob()` when no
+  per-call limit is supplied.
+- **Git blob per-call limits are validated** — `GitPersistenceAdapter.readBlob()`
+  now rejects invalid caller-provided `maxBytes` limits with `INVALID_OPTIONS`
+  before opening a Git blob stream.
+- **API `maxBlobSize` wording** — `docs/API.md` now documents the constructor
+  option as the metadata blob read limit, matching the runtime service contract.
+- **Manifest diff JSDoc boundary** — `ManifestDiff.js` now declares its
+  `Manifest` typedef locally so generated docs and declaration checks can
+  resolve the pure diff helper parameters.
+- **Vault metadata API docs** — `docs/API.md` now includes the optional
+  `privacy` shape in the `VaultMetadata` example alongside the privacy error
+  codes.
+- **Vault keyed caches snapshot key bytes** — privacy-entry and verifier caches
+  now reject stale hits when a reused `Uint8Array` key object has been mutated.
+- **Vault state caches return defensive entry maps** — `VaultStateCache` now
+  copies cached plain and privacy entry maps before returning them, so caller
+  mutations cannot poison subsequent reads from the same tree snapshot.
+- **Vault privacy cache deduplicates in-flight work** — concurrent privacy
+  reads for the same cached tree and key object now share one `.privacy-index`
+  resolution instead of decrypting the same index multiple times.
+- **Vault tree cache is bounded** — `VaultStateCache` now uses a validated
+  LRU capacity instead of retaining every immutable tree snapshot for the
+  lifetime of the service.
+- **Vault verifier checks reuse cached proofs** — keyed list, resolve, and
+  mutation paths now reuse the verifier memo stored by `readState()` for the
+  same immutable vault tree instead of decrypting the verifier repeatedly.
+- **Vault verifier cache regression coverage** — mutation memoization tests now
+  exercise the intended cross-operation path by calling
+  `readState({ encryptionKey })` before the keyed vault write.
+- **Review-feedback test style guards** — privacy error assertions now use
+  `ErrorCodes` constants, and ManifestDiff declaration checks use regex matching
+  so benign JSDoc formatting does not break release tests.
+- **Stdout-only missing vault refs** — Git ref resolution now treats
+  `rev-parse refs/cas/vault` failures that only echo the unresolved ref on
+  stdout as `GIT_REF_NOT_FOUND`, preventing empty-vault initialization flakes
+  from surfacing as `VAULT_HEAD_INVALID`.
+- **Vault metadata enforces the AES-GCM cipher boundary** — `.vault.json`
+  metadata now rejects unsupported `encryption.cipher` values with
+  `VAULT_METADATA_INVALID`; the v6 vault metadata format remains AES-256-GCM.
+- **Vault metadata rejects malformed encryption placeholders** — `.vault.json`
+  payloads with present but falsy `encryption` values now fail with
+  `VAULT_METADATA_INVALID` instead of being treated as plaintext vaults.
+- **Doctor rejects vault heads without metadata** — `git cas doctor` now fails
+  with `VAULT_METADATA_INVALID` when `refs/cas/vault` exists but `.vault.json`
+  is missing or invalid.
+- **Unreadable vault heads stay visible** — vault head resolution now returns an
+  empty state only when the vault ref is absent; unreadable refs or commits that
+  cannot resolve to a tree fail with `VAULT_HEAD_INVALID`.
+- **Vault ref update failures stay non-retryable unless they are CAS conflicts**
+  — `VaultPersistence` now emits `VAULT_REF_UPDATE_FAILED` for generic
+  update-ref failures and reserves `VAULT_CONFLICT` for structured
+  expected-vs-actual OID mismatches.
+- **Plumbing missing-ref errors stay non-fatal** — vault head resolution now
+  recognizes `@git-stunts/plumbing` missing-ref stderr details as an absent
+  vault while still surfacing unrelated ref failures. Object database failures
+  and corrupt head stderr are reported as `VAULT_HEAD_INVALID`.
+- **Git ref missing errors are structured at the adapter boundary** —
+  `GitRefAdapter.resolveRef()` now normalizes known Git missing-ref stderr to
+  `GIT_REF_NOT_FOUND`, leaving VaultPersistence's text fallback only for
+  third-party ref ports.
+- **Vault missing-ref fallback documented** — `VaultPersistence` now documents
+  its third-party-port missing-ref stderr fallback as C/English-locale
+  best-effort behavior; structured `GIT_REF_NOT_FOUND` remains the primary path.
+- **Vault metadata snapshot docs** — `VaultPersistence.readMetadataSnapshot()`
+  now explicitly documents that iterator metadata reads avoid full-tree
+  materialization and therefore return no cache snapshot.
+- **VaultService DI guard** — the constructor now rejects mixed
+  `vaultPersistence` and legacy `persistence`/`ref` injection, and reports a
+  focused dependency error when the legacy pair is incomplete.
+- **Doctor can inspect privacy vaults** — human and agent `doctor` commands now
+  accept raw vault keys, vault passphrase sources, and OS-keychain targets so
+  privacy-enabled vaults can be diagnosed without falling back to a missing-key
+  failure. Agent diagnostics now ignore passphrase input with a warning when the
+  vault is plaintext, and the TUI operations doctor forwards the already-unlocked
+  vault key.
+- **Privacy index mismatches fail closed** — privacy-mode `readState()`,
+  `listVault()`, and doctor scans now fail with `VAULT_PRIVACY_INDEX_INVALID`
+  when `.privacy-index` does not cover every raw HMAC tree entry, avoiding
+  partial listings that could hide vault corruption.
+- **Privacy index metadata fails closed** — privacy-enabled vaults missing
+  `privacy.indexMeta` now fail with structured `VAULT_PRIVACY_INDEX_INVALID`
+  metadata before decrypting or resolving privacy-mode entries.
+- **Doctor reports byte-level dedupe** — vault stats and doctor output now
+  include total chunk bytes, unique chunk bytes, duplicate chunk bytes, and a
+  byte-level dedupe ratio alongside chunk-reference counts.
+- **TUI doctor dashboard shows byte economics** — the health dashboard now
+  renders chunk bytes, unique chunk bytes, duplicate chunk bytes, and the
+  byte-level dedupe ratio instead of only reference counts.
+- **Recipient rotation scans every candidate** — unlabeled `rotateKey()` now
+  attempts every recipient unwrap before selecting the first match, reducing
+  recipient-position timing leakage while preserving existing rotation results.
+- **Behavior-focused vault tests** — removed the source-layout-only
+  `VaultService` structure test and added a test-style guard against
+  `.structure.test.js` files.
+- **Current vault tree-path terminology** — renamed the stale
+  `encodeSlug.test.js` coverage to `VaultTreePath.test.js` and updated comments
+  to describe the `Slug` tree-path boundary.
+- **Facade restore guidance links to versioned docs** — missing
+  `restoreFile({ baseDirectory })` errors now serialize a v6.0.0 API docs URL
+  and use the centralized `INVALID_OPTIONS` error code.
+- **Restore path symlink boundary** — `restoreFile()` now canonicalizes
+  existing path components before stream or bounded-file publication, blocking
+  symlinked output directories that resolve outside `baseDirectory`.
+- **CLI restore output validation** — restore target resolution now rejects
+  empty `--out` values with `INVALID_OPTIONS` instead of resolving them to the
+  current directory.
+- **Vault retry policies validate injected hooks** — `VaultMutationRetryPolicy`
+  now rejects non-function `random`/`sleep` dependencies at construction and
+  freezes configured policy instances.
+- **Walkthrough documents per-operation Merkle thresholds** — Merkle guidance
+  now shows `storeFile({ merkleThreshold })` as the primary override and keeps
+  constructor-level thresholds framed as defaults.
+- **VaultService module header normalized** — the fileoverview block now
+  appears before imports, and the service header imports errors through the
+  internal errors barrel.
+- **Per-operation Merkle threshold** — `store()` and `storeFile()` now accept a
+  `merkleThreshold` option that carries through to the corresponding
+  `createTree()` publication unless an explicit `createTree()` threshold is
+  supplied.
+- **Restore guidance surfaced in errors and docs** — missing `restoreFile()`
+  `baseDirectory` errors now explain the trusted-local `process.cwd()` option,
+  structured CLI/agent errors can include documentation URLs, and the v6 docs
+  call out the mandatory restore boundary.
+- **Metadata blob limit constantized** — `GitPersistenceAdapter` now uses a
+  named `DEFAULT_MAX_BLOB_SIZE` constant for the default 10 MiB metadata-read
+  cap and reports the effective limit in `RESTORE_TOO_LARGE` errors.
 - **OS-keychain passphrase lookup awaits vault v2 secrets** — CLI credential
   resolution now awaits the async `@git-stunts/vault` secret lookup before
   validating and returning the passphrase.
@@ -123,10 +279,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Agent diagnostic passphrase resolver guard** — encrypted `git cas agent
+  doctor` requests now fail with a controlled credential error when a structured
+  passphrase source is supplied without the resolver dependency.
+- **Doctor byte dedupe metric** — vault health statistics now compute byte
+  dedupe from stored chunk bytes instead of logical file size, keeping
+  compression and deduplication signals separate.
+- **Docker version fallback** — CLI version resolution now ignores the
+  `unknown` build metadata sentinel written when Docker test images have neither
+  `.git` metadata nor a stamped package SHA, so `git-cas --version` falls back to
+  plain semver instead of emitting `+unknown`.
+- **Docker unit-test stability** — vault passphrase-rotation unit coverage now
+  uses in-memory persistence and ref ports, keeping domain behavior validation
+  independent from Docker Git subprocess scheduling.
 - **Shared CLI/agent credential resolution** — human CLI and agent protocol
   flows now use `bin/credentials.js` for key-file length checks, ambiguous
   credential-source rejection, vault passphrase-derived key verification, and
   encrypted-restore input classification.
+- **CLI restore output authority** — human and agent CLI restore commands now
+  treat an explicit `--out` path as authority to write in that path's parent
+  directory, while `restoreFile()` keeps enforcing its library-level
+  `baseDirectory` boundary. The low-level path check now uses path-relative
+  containment instead of a string-prefix comparison.
 - **Type declaration accuracy** — `CasServiceOptions` now marks `chunker` and `compressionAdapter` as required for direct domain-service construction, and `StoreEncryptionOptions` exposes the supported `convergent` opt-in/opt-out flag.
 - **Constructor validation consistency** — direct `CasService` construction now
   validates all required ports through the unified constructor argument

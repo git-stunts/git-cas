@@ -176,6 +176,13 @@ describe('CryptoPort.deriveKey() – edge cases', () => {
 
     await expect(
       port.deriveKey({ passphrase: 'test', algorithm: 'argon2' }),
-    ).rejects.toThrow('Unsupported KDF algorithm: argon2');
+    ).rejects.toMatchObject({
+      code: 'KDF_POLICY_VIOLATION',
+      meta: {
+        source: 'kdf-options',
+        field: 'algorithm',
+        value: 'argon2',
+      },
+    });
   });
 });

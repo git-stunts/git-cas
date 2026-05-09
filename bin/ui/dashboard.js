@@ -959,7 +959,15 @@ function handleOperationsKey(msg, model, deps) {
     return [{ ...model, statsStatus: 'loading', statsError: null }, [loadStatsCmd(deps.cas, model.entries, model.source)]];
   }
   if (msg.key === 'x') {
-    return [{ ...model, doctorStatus: 'loading', doctorError: null }, [loadDoctorCmd(deps.cas, model.source, model.entries)]];
+    return [{
+      ...model,
+      doctorStatus: 'loading',
+      doctorError: null,
+    }, [loadDoctorCmd(deps.cas, {
+      source: model.source,
+      entries: model.entries,
+      encryptionKey: model.vaultEncryptionKey,
+    })]];
   }
   return null;
 }

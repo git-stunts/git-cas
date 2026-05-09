@@ -1,12 +1,13 @@
 import CasError from '../domain/errors/CasError.js';
 import { decodeBase64, encodeBase64, isCanonicalBase64 } from '../domain/encoding/base64.js';
+import { ErrorCodes } from '../domain/errors/index.js';
 
 export const AES_GCM_ALGORITHM = 'aes-256-gcm';
 export const AES_GCM_NONCE_BYTES = 12;
 export const AES_GCM_TAG_BYTES = 16;
 
 function invalidMeta(message, meta) {
-  return new CasError(`Invalid AES-GCM metadata: ${message}`, 'INTEGRITY_ERROR', {
+  return new CasError(`Invalid AES-GCM metadata: ${message}`, ErrorCodes.INTEGRITY_ERROR, {
     reason: 'invalid-encryption-meta',
     ...meta,
   });

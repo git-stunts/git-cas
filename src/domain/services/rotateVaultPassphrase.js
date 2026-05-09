@@ -2,6 +2,7 @@ import CasError from '../errors/CasError.js';
 import buildKdfMetadata from '../helpers/buildKdfMetadata.js';
 import { prepareKdfOptions, prepareStoredKdfOptions } from '../../helpers/kdfPolicy.js';
 import { decodeBase64 } from '../encoding/base64.js';
+import { ErrorCodes } from '../errors/index.js';
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_BASE_MS = 50;
@@ -62,7 +63,7 @@ async function rotateEntries({ service, entries, oldKek, newKek }) {
  * @returns {boolean}
  */
 function isRetryableConflict(err, attempt, maxRetries) {
-  return err instanceof CasError && err.code === 'VAULT_CONFLICT' && attempt < maxRetries - 1;
+  return err instanceof CasError && err.code === ErrorCodes.VAULT_CONFLICT && attempt < maxRetries - 1;
 }
 
 /**
@@ -81,6 +82,20 @@ function buildRotatedMetadata(metadata, newSalt, newParams) {
       kdf: buildKdfMetadata(newSalt, newParams),
     },
   };
+}
+
+/**
+ * Reads vault metadata without requiring privacy-index decryption.
+ *
+ * @param {import('./VaultService.js').default} vault - VaultService instance.
+ * @returns {Promise<Object>} Encrypted vault metadata.
+ */
+async function readEncryptedVaultMetadata(vault) {
+  const metadata = await vault.getVaultMetadata();
+  if (!metadata?.encryption) {
+    throw new CasError('Vault is not encrypted — nothing to rotate', ErrorCodes.VAULT_METADATA_INVALID);
+  }
+  return metadata;
 }
 
 /**
@@ -106,14 +121,11 @@ export default async function rotateVaultPassphrase(
   { oldPassphrase, newPassphrase, kdfOptions, maxRetries = DEFAULT_MAX_RETRIES, retryBaseMs = DEFAULT_RETRY_BASE_MS },
 ) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const state = await vault.readState();
-    if (!state.metadata?.encryption) {
-      throw new CasError('Vault is not encrypted — nothing to rotate', 'VAULT_METADATA_INVALID');
-    }
-
-    const { kdf } = state.metadata.encryption;
+    const metadata = await readEncryptedVaultMetadata(vault);
+    const { kdf } = metadata.encryption;
     const oldKek = await deriveKekFromKdf(service, oldPassphrase, kdf);
     await vault.verifyVaultKey({ encryptionKey: oldKek });
+    const state = await vault.readState({ encryptionKey: oldKek });
     const nextKdfOptions = prepareKdfOptions(
       { ...kdfOptions, algorithm: kdfOptions?.algorithm || kdf.algorithm },
       { source: 'vault-rotation' },
@@ -144,5 +156,5 @@ export default async function rotateVaultPassphrase(
     }
   }
   /* c8 ignore next 2 */
-  throw new CasError('Vault CAS retries exhausted', 'VAULT_CONFLICT');
+  throw new CasError('Vault CAS retries exhausted', ErrorCodes.VAULT_CONFLICT);
 }

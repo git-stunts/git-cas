@@ -37,7 +37,32 @@ const ERROR_BY_CODE = Object.freeze({
   [RotationNotSupportedError.code]: RotationNotSupportedError,
 });
 
-export default function createCasError(message, code, meta = {}) {
-  const ErrorClass = ERROR_BY_CODE[code];
-  return ErrorClass ? new ErrorClass(message, meta) : new CasError(message, code, meta);
+export default function createCasError(messageOrOptions, code, meta = {}) {
+  const normalized = normalizeCreateCasErrorArgs(messageOrOptions, code, meta);
+  const ErrorClass = ERROR_BY_CODE[normalized.code];
+  const error = ErrorClass
+    ? new ErrorClass(normalized.message, normalized.meta)
+    : new CasError(normalized);
+  if (normalized.documentationUrl) {
+    error.documentationUrl = normalized.documentationUrl;
+  }
+  return error;
+}
+
+/**
+ * @param {string|{ message: string, code: string, meta?: Object, documentationUrl?: string }} messageOrOptions
+ * @param {string|undefined} code
+ * @param {Object} meta
+ * @returns {{ message: string, code: string, meta: Object, documentationUrl?: string }}
+ */
+function normalizeCreateCasErrorArgs(messageOrOptions, code, meta) {
+  if (typeof messageOrOptions === 'object' && messageOrOptions !== null) {
+    return {
+      message: messageOrOptions.message,
+      code: messageOrOptions.code,
+      meta: messageOrOptions.meta ?? {},
+      documentationUrl: messageOrOptions.documentationUrl,
+    };
+  }
+  return { message: messageOrOptions, code, meta };
 }

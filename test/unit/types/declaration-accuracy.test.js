@@ -48,4 +48,14 @@ describe('Type declaration accuracy', () => {
       expect(read(relPath), relPath).toMatch(encryptionShape);
     }
   });
+
+  it('keeps ManifestDiff parameter typedefs resolvable', () => {
+    const source = read('src/domain/services/ManifestDiff.js');
+
+    expect(source).toMatch(
+      /@typedef\s+\{import\(['"]\.\.\/value-objects\/Manifest\.js['"]\)\.default\}\s+Manifest/,
+    );
+    expect(source).toMatch(/@param\s+\{Manifest\}\s+oldManifest/);
+    expect(source).toMatch(/@param\s+\{Manifest\}\s+newManifest/);
+  });
 });

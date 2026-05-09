@@ -130,11 +130,13 @@ The facade is orchestration glue. It is not the storage engine itself.
   compression, integrity verification, recipient mutation, and store/restore
   strategy execution to dedicated domain classes.
 
-- **`VaultService`** — manages the GC-safe vault ref (`refs/cas/vault`). Owns
-  vault initialization, add/update/list/resolve/remove, privacy mode,
-  history-oriented state reads, and compare-and-swap ref updates with retry on
-  conflict. It delegates slug validation and plain tree-entry encoding to the
-  `Slug` value object.
+- **`VaultService`** — orchestrates GC-safe vault use cases while keeping the
+  public vault API stable. It owns initialization, add/update/list/resolve/remove,
+  and history-oriented state reads, then delegates vault-head persistence to
+  `VaultPersistence`, parse-stable state memoization to `VaultStateCache`, boundary
+  formats to `VaultMetadataCodec` and `VaultTreeCodec`, privacy indexing to
+  `VaultPrivacyIndex`, vault-key verification to `VaultKeyVerifier`, retry timing
+  to `VaultMutationRetryPolicy`, and slug validation to `Slug`.
 
 - **`KeyResolver`** — resolves key sources: passphrase-derived keys via KDF,
   envelope recipient DEK wrapping and unwrapping. `CasService` delegates all key
@@ -354,6 +356,8 @@ still remains authoritative for repeated-chunk order and multiplicity.
 ### Vault
 
 The vault is a GC-safe slug index rooted at `refs/cas/vault`.
+For maintainer-level detail on the collaborators, cache rules, and verifier
+flow, see [docs/VAULT_INTERNALS.md](./docs/VAULT_INTERNALS.md).
 
 It is implemented as a commit chain. Each vault commit points to a tree
 containing:
@@ -361,13 +365,26 @@ containing:
 - one tree entry per stored slug, mapped to that asset's tree OID
 - `.vault.json` metadata for vault configuration
 
-`VaultService` owns:
+`VaultService` orchestrates:
 
 - vault initialization
 - add, update, list, resolve, remove, and history-oriented state reads
-- compare-and-swap ref updates with retry on conflict
-- vault metadata validation
-- privacy mode
+- retrying optimistic vault mutations after compare-and-swap conflicts
+
+The durable vault boundary is split into cohesive collaborators:
+
+- `VaultPersistence` owns the Git substrate: vault-head resolution, tree/blob
+  reads, commit creation, and compare-and-swap updates to `refs/cas/vault`. It is
+  stateless and does not cache OIDs.
+- `VaultStateCache` owns tree-OID keyed snapshots, parsed entry memoization,
+  defensive `VaultState` copies, privacy entry maps by key identity, and
+  verified-key memoization.
+- `VaultMetadataCodec` and `VaultTreeCodec` are pure boundary codecs. They encode
+  and decode `.vault.json`, plain slug tree names, privacy tree names, and mktree
+  record lines without performing I/O.
+- `VaultPrivacyIndex`, `VaultKeyVerifier`, and `VaultMutationRetryPolicy` own the
+  HMAC privacy index, constant-time vault-key verifier checks, and exponential
+  backoff with jitter.
 
 Vault slugs are validated and normalized with `Slug`. Plain vault trees encode
 slug names through `Slug.toTreePath()`; privacy-enabled vaults keep HMAC tree

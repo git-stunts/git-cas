@@ -102,7 +102,11 @@ const treeOid = await cas.createTree({ manifest });
 console.log(treeOid); // e.g. "a1b2c3d4..."
 
 // Restore the file later
-await cas.restoreFile({ manifest, outputPath: './restored.jpg' });
+await cas.restoreFile({
+  manifest,
+  outputPath: './restored.jpg',
+  baseDirectory: process.cwd(),
+});
 ```
 
 That is the full round-trip: store, tree, restore. The rest of this guide
@@ -337,6 +341,7 @@ one-shot. The improvement is bounded behavior, not true whole-object streaming.
 await cas.restoreFile({
   manifest,
   outputPath: './restored-vacation.jpg',
+  baseDirectory: process.cwd(),
 });
 // restored-vacation.jpg is now byte-identical to the original
 ```
@@ -384,7 +389,11 @@ helper, then restore from that manifest:
 
 ```js
 const manifest = await cas.readManifest({ treeOid });
-await cas.restoreFile({ manifest, outputPath: './restored-vacation.jpg' });
+await cas.restoreFile({
+  manifest,
+  outputPath: './restored-vacation.jpg',
+  baseDirectory: process.cwd(),
+});
 ```
 
 The CLI (Section 7) handles this entire flow with a single command.
@@ -480,6 +489,7 @@ await cas.restoreFile({
   manifest,
   encryptionKey,
   outputPath: './decrypted-vacation.jpg',
+  baseDirectory: process.cwd(),
 });
 // decrypted-vacation.jpg is byte-identical to the original vacation.jpg
 ```
@@ -846,7 +856,11 @@ observability.on('file:restored', ({ slug, size, chunkCount }) => {
   console.log(`Restored: ${slug} -- ${size} bytes from ${chunkCount} chunks`);
 });
 
-await cas.restoreFile({ manifest, outputPath: './restored-vacation.jpg' });
+await cas.restoreFile({
+  manifest,
+  outputPath: './restored-vacation.jpg',
+  baseDirectory: process.cwd(),
+});
 ```
 
 ### Logging Errors
@@ -924,6 +938,7 @@ Decompression on `restore()` is automatic. If the manifest includes a
 await cas.restoreFile({
   manifest,
   outputPath: './restored.csv',
+  baseDirectory: process.cwd(),
 });
 // restored.csv is byte-identical to the original data.csv
 ```
@@ -978,6 +993,7 @@ await cas.restoreFile({
   manifest,
   passphrase: 'my secret passphrase',
   outputPath: './restored.jpg',
+  baseDirectory: process.cwd(),
 });
 ```
 
@@ -1134,7 +1150,21 @@ automatically:
 
 ### Configuring the Threshold
 
-Set `merkleThreshold` at construction time:
+Set `merkleThreshold` on the store operation that needs a different split
+point:
+
+```js
+const manifest = await cas.storeFile({
+  filePath: './large-video.mov',
+  slug: 'media/large-video',
+  merkleThreshold: 500, // Per-operation override
+});
+
+const treeOid = await cas.createTree({ manifest });
+```
+
+Constructor-level `merkleThreshold` remains the default for operations that do
+not provide an override:
 
 ```js
 const cas = new ContentAddressableStore({
@@ -1298,6 +1328,10 @@ git cas vault remove photos/vacation
 # View vault commit history
 git cas vault history
 git cas vault history -n 10   # last 10 commits
+
+# Diagnose vault health
+git cas doctor
+printf '%s\n' 'secret' | git cas doctor --vault-passphrase-file -
 ```
 
 ### CLI Restore with Vault
@@ -1640,6 +1674,7 @@ try {
   await cas.restoreFile({
     manifest,
     outputPath: './restored.jpg',
+    baseDirectory: process.cwd(),
     // Oops, forgot the encryption key
   });
 } catch (err) {

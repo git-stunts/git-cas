@@ -1,4 +1,5 @@
 import createCasError from '../errors/createCasError.js';
+import { ErrorCodes } from '../errors/index.js';
 
 const OID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 
@@ -13,7 +14,7 @@ export default class Oid {
    */
   constructor(value) {
     if (typeof value !== 'string' || !OID_PATTERN.test(value)) {
-      throw createCasError('Git OID must be a 40- or 64-character hexadecimal string', 'INVALID_OID', { oid: value });
+      throw createCasError('Git OID must be a 40- or 64-character hexadecimal string', ErrorCodes.INVALID_OID, { oid: value });
     }
     this.#value = value.toLowerCase();
     Object.freeze(this);

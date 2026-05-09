@@ -351,4 +351,30 @@ describe('dashboard operations rendering', () => {
     expect(rendered).toContain('Vault Economics');
     expect(rendered).toContain('Operations Deck');
   });
+
+  it('threads the unlocked vault key into operations doctor scans', async () => {
+    const encryptionKey = Buffer.alloc(32, 4);
+    const readState = vi.fn().mockResolvedValue({
+      entries: new Map(),
+      parentCommitOid: 'commit-1',
+      metadata: { version: 1, encryption: { kdf: { algorithm: 'pbkdf2' } } },
+    });
+    const deps = makeDeps({
+      cas: {
+        getVaultService: vi.fn().mockResolvedValue({ readState }),
+        readManifest: vi.fn(),
+      },
+    });
+    const app = createDashboardApp(deps);
+
+    const [next, cmds] = app.update(
+      { type: 'key', key: 'x' },
+      makeModel({ workspace: 'operations', vaultEncryptionKey: encryptionKey }),
+    );
+    const message = await cmds[0]();
+
+    expect(next.doctorStatus).toBe('loading');
+    expect(message.type).toBe('loaded-doctor');
+    expect(readState).toHaveBeenCalledWith({ encryptionKey });
+  });
 });

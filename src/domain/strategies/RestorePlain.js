@@ -1,5 +1,7 @@
 /**
  * Restores unencrypted, uncompressed chunks with read-ahead.
+ *
+ * @typedef {import('../value-objects/Manifest.js').default} Manifest
  */
 export default class RestorePlain {
   #chunks;
@@ -16,7 +18,7 @@ export default class RestorePlain {
   }
 
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default }} options
+   * @param {{ manifest: Manifest }} options
    * @returns {AsyncIterable<Uint8Array>}
    */
   async *execute({ manifest }) {

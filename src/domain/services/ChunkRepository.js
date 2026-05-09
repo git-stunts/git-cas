@@ -4,6 +4,9 @@ import StorePipeline from './StorePipeline.js';
 import prefetchChunks from './PrefetchWindow.js';
 import { concatBytes, normalizeByteChunk } from '../bytes/ByteLayout.js';
 import Oid from '../value-objects/Oid.js';
+import { ErrorCodes } from '../errors/index.js';
+
+/** @typedef {import('../value-objects/Manifest.js').default} Manifest */
 
 /**
  * Domain chunk I/O and digest verification boundary.
@@ -86,7 +89,7 @@ export default class ChunkRepository {
     if (digest !== chunk.digest) {
       const err = createCasError(
         `Chunk ${chunk.index} integrity check failed`,
-        'INTEGRITY_ERROR',
+        ErrorCodes.INTEGRITY_ERROR,
         { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
       );
       this.#observability.metric('error', { code: err.code, message: err.message });
@@ -109,7 +112,7 @@ export default class ChunkRepository {
           'encrypted/compressed restore can enforce maxRestoreBufferSize with ' +
           'memory-safe chunk reads. Implement readBlobStream() on the adapter ' +
           'or use a GitPersistenceAdapter-backed facade. See docs/EXTENDING.md#persistence-adapter-requirements.',
-          'PERSISTENCE_CAPABILITY_REQUIRED',
+          ErrorCodes.PERSISTENCE_CAPABILITY_REQUIRED,
           {
             capability: 'readBlobStream',
             mode: 'buffered-restore',
@@ -168,7 +171,7 @@ export default class ChunkRepository {
     }
     throw createCasError(
       `Buffered restore read ${size} bytes from blob ${oid} (limit: ${limit})`,
-      'RESTORE_TOO_LARGE',
+      ErrorCodes.RESTORE_TOO_LARGE,
       { size, limit, oid, reason: 'chunk-blob-size' },
     );
   }
@@ -185,7 +188,7 @@ export default class ChunkRepository {
   }
 
   /**
-   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Manifest} manifest
    * @returns {AsyncIterable<Uint8Array>}
    */
   async *iterVerifiedChunkBlobs(manifest) {
@@ -205,7 +208,7 @@ export default class ChunkRepository {
   }
 
   /**
-   * @param {import('../value-objects/Manifest.js').default} manifest
+   * @param {Manifest} manifest
    * @param {Uint8Array} key
    * @returns {AsyncIterable<Uint8Array>}
    */

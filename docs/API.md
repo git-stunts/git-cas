@@ -72,6 +72,7 @@ new ContentAddressableStore(options);
 - `options.chunking` (optional): Declarative chunking strategy config `{ strategy: 'fixed'|'cdc', chunkSize?, targetChunkSize?, minChunkSize?, maxChunkSize? }`
 - `options.chunker` (optional): Pre-built ChunkingPort instance (advanced; overrides `chunking`)
 - `options.maxRestoreBufferSize` (optional): Max bytes for buffered encrypted/compressed restore (default: 536870912 / 512 MiB)
+- `options.maxBlobSize` (optional): Max bytes for metadata blob reads (default: 10485760 / 10 MiB)
 - `options.compressionAdapter` (optional): CompressionPort implementation (default: NodeCompressionAdapter)
 
 **Example:**
@@ -171,7 +172,7 @@ const vaultService = await cas.getVaultService();
 #### store
 
 ```javascript
-await cas.store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients });
+await cas.store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients, merkleThreshold });
 ```
 
 Stores content from an async iterable source.
@@ -190,6 +191,7 @@ Stores content from an async iterable source.
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`). New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
 - `recipients` (optional): `Array<{ label: string, key: Uint8Array }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
+- `merkleThreshold` (optional): `number` - Per-operation chunk count threshold used when this manifest is later published with `createTree()`
 
 **Returns:** `Promise<Manifest>`
 
@@ -231,6 +233,7 @@ await cas.storeFile({
   kdfOptions,
   compression,
   recipients,
+  merkleThreshold,
 });
 ```
 
@@ -250,6 +253,7 @@ Convenience method that opens a file and stores it.
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase`. New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
 - `recipients` (optional): `Array<{ label: string, key: Uint8Array }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
+- `merkleThreshold` (optional): `number` - Per-operation chunk count threshold used when this manifest is later published with `createTree()`
 
 **Returns:** `Promise<Manifest>`
 
@@ -311,7 +315,8 @@ Restores content from a manifest and writes it to a file.
 
 **Security Boundary:** `baseDirectory` is required. The `outputPath` is resolved
 relative to `baseDirectory`, and the system will throw a
-`SECURITY_BOUNDARY_VIOLATION` if the resolved path escapes the base directory.
+`SECURITY_BOUNDARY_VIOLATION` if the canonical path escapes the base directory,
+including through symlinked path components.
 
 For plaintext, `framed`, `convergent`, and uncompressed `whole`, this writes
 from a streaming restore path. For `whole`, bytes are verified, streamed through
@@ -334,6 +339,7 @@ guard.
 - `encryptionKey` (optional): `Uint8Array` - 32-byte encryption key
 - `passphrase` (optional): `string` - Passphrase for KDF-based decryption
 - `outputPath` (required): `string` - Path to write the restored file
+- `baseDirectory` (required): `string` - Directory boundary that `outputPath` must stay inside
 
 **Returns:** `Promise<{ bytesWritten: number }>`
 
@@ -352,7 +358,7 @@ await cas.restoreFile({
 #### createTree
 
 ```javascript
-await cas.createTree({ manifest });
+await cas.createTree({ manifest, merkleThreshold });
 ```
 
 Creates a Git tree object from a manifest.
@@ -360,6 +366,7 @@ Creates a Git tree object from a manifest.
 **Parameters:**
 
 - `manifest` (required): `Manifest` - Manifest object
+- `merkleThreshold` (optional): `number` - Override the constructor-level chunk count threshold for this tree publication
 
 **Returns:** `Promise<string>` - Git tree OID
 
@@ -795,7 +802,10 @@ const decrypted = await cas.decrypt({ buffer: buf, key, meta });
 await cas.rotateKey({ manifest, oldKey, newKey, label });
 ```
 
-Rotates a recipient's encryption key without re-encrypting data blobs. Unwraps the DEK with `oldKey`, re-wraps with `newKey`, and increments `keyVersion` counters.
+Rotates a recipient's encryption key without re-encrypting data blobs. Unwraps
+the DEK with `oldKey`, re-wraps with `newKey`, and increments `keyVersion`
+counters. When `label` is omitted, git-cas scans every recipient candidate and
+rotates the first matching entry.
 
 **Parameters:**
 
@@ -925,6 +935,10 @@ interface VaultMetadata {
       keyLength: number;
     };
     verifier?: VaultEncryptionVerifier;
+  };
+  privacy?: {
+    enabled: boolean;
+    indexMeta?: EncryptionMeta;
   };
   encryptionCount?: number;
 }
@@ -1250,7 +1264,7 @@ Core domain service implementing CAS operations. Usually accessed via ContentAdd
 ### Constructor
 
 ```javascript
-new CasService({ persistence, codec, crypto, observability, chunkSize, merkleThreshold, concurrency, chunker, compressionAdapter, maxRestoreBufferSize, formatVersion, legacyMode });
+new CasService({ persistence, codec, crypto, observability, chunkSize, merkleThreshold, concurrency, chunker, compressionAdapter, maxRestoreBufferSize, maxBlobSize, formatVersion, legacyMode });
 ```
 
 **Parameters:**
@@ -1265,6 +1279,7 @@ new CasService({ persistence, codec, crypto, observability, chunkSize, merkleThr
 - `chunker` (required): `ChunkingPort` - Chunking strategy instance (e.g., `FixedChunker`, `CdcChunker`)
 - `compressionAdapter` (required): `CompressionPort` - Compression adapter (e.g., `NodeCompressionAdapter`)
 - `maxRestoreBufferSize` (optional): `number` - Max bytes for buffered encrypted/compressed restore (default: 536870912 / 512 MiB)
+- `maxBlobSize` (optional): `number` - Max bytes for metadata blob reads (default: 10485760 / 10 MiB)
 - `formatVersion` (optional): `string` - Semver version stamped into new manifests
 - `legacyMode` (optional): `boolean` - When true, allows reading manifests with legacy encryption schemes (default: false)
 
@@ -1660,7 +1675,7 @@ Creates a Git tree object.
 ##### readBlob
 
 ```javascript
-await port.readBlob(oid);
+await port.readBlob(oid, maxBytes);
 ```
 
 Reads a Git blob.
@@ -1668,6 +1683,8 @@ Reads a Git blob.
 **Parameters:**
 
 - `oid`: `string` - Git blob OID
+- `maxBytes` (optional): positive integer per-call safety limit for adapters
+  that support bounded blob reads
 
 **Returns:** `Promise<Uint8Array>` - Blob content
 
@@ -2061,13 +2078,15 @@ All errors thrown by git-cas are instances of `CasError`.
 
 ### CasError
 
-`CasError` is the runtime error class used internally. Public callers normally
-branch on the stable `code` field rather than importing the internal class.
+`CasError` is the runtime error class and is re-exported from the package root.
+Public callers should branch on the stable `code` field; `documentationUrl` is
+present when an error has a canonical docs page.
 
 #### Constructor
 
 ```javascript
 new CasError(message, code, meta);
+new CasError({ message, code, meta, documentationUrl });
 ```
 
 **Parameters:**
@@ -2075,6 +2094,7 @@ new CasError(message, code, meta);
 - `message`: `string` - Error message
 - `code`: `string` - Error code (see below)
 - `meta`: `Object` - Additional error context (default: `{}`)
+- `documentationUrl`: `string` - Optional documentation URL
 
 #### Fields
 
@@ -2082,6 +2102,7 @@ new CasError(message, code, meta);
 - `message`: `string` - Error message
 - `code`: `string` - Error code
 - `meta`: `Object` - Additional context
+- `documentationUrl`: `string | undefined` - Optional documentation URL
 - `stack`: `string` - Stack trace
 
 ### Error Codes
@@ -2099,12 +2120,19 @@ new CasError(message, code, meta);
 | `STORE_ERROR`                         | Chunk write failed during store after dispatch                             | `store()`                                                                     |
 | `MANIFEST_NOT_FOUND`                  | No manifest entry found in the Git tree                                    | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`               |
 | `GIT_ERROR`                           | Underlying Git plumbing command failed                                     | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`               |
+| `GIT_REF_NOT_FOUND`                   | Git ref lookup found no ref; vault reads normalize this to empty state     | `GitRefAdapter`, `VaultPersistence`                                           |
 | `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value            | `store()`, `restore()`                                                        |
 | `INVALID_SLUG`                        | Slug fails validation (empty, control chars, `..` segments, etc.)          | `addToVault()`                                                                |
 | `VAULT_ENTRY_NOT_FOUND`               | Slug does not exist in vault                                               | `removeFromVault()`, `resolveVaultEntry()`                                    |
 | `VAULT_ENTRY_EXISTS`                  | Slug already exists (use `force` to overwrite)                             | `addToVault()`                                                                |
 | `VAULT_CONFLICT`                      | Concurrent vault update detected (CAS failure after retries)               | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
-| `VAULT_METADATA_INVALID`              | `.vault.json` malformed, unknown version, or missing required fields       | `readState()`, `rotateVaultPassphrase()`                                      |
+| `VAULT_REF_MISSING`                   | Vault ref is absent during diagnostics                                     | `git cas doctor`                                                              |
+| `VAULT_REF_UPDATE_FAILED`             | Vault ref update failed for a non-CAS reason                               | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
+| `VAULT_HEAD_INVALID`                  | Vault ref exists but cannot be resolved to a readable commit tree          | `readState()`, `getVaultMetadata()`, `git cas doctor`                         |
+| `VAULT_METADATA_INVALID`              | `.vault.json` malformed, unknown version, unsupported cipher, or missing required fields | `readState()`, `rotateVaultPassphrase()`, `git cas doctor`                  |
+| `VAULT_PRIVACY_INDEX_INVALID`         | Privacy index metadata, payload, or raw HMAC tree coverage is invalid      | `readState()`, `listVault()`, `resolveVaultEntry()`, `git cas doctor`         |
+| `VAULT_PRIVACY_INDEX_MISSING`         | Privacy mode is enabled but `.privacy-index` is missing                    | `readState()`, `listVault()`, `git cas doctor`                                |
+| `VAULT_PRIVACY_KEY_REQUIRED`          | Privacy mode requires a vault encryption key for state reads               | `readState()`, `listVault()`, `resolveVaultEntry()`                           |
 | `VAULT_ENCRYPTION_ALREADY_CONFIGURED` | Cannot reconfigure encryption without key rotation                         | `initVault()`                                                                 |
 | `NO_MATCHING_RECIPIENT`               | No recipient entry matches the provided KEK                                | `restore()`, `rotateKey()`                                                    |
 | `DEK_UNWRAP_FAILED`                   | Failed to unwrap DEK with the provided KEK                                 | `addRecipient()`, `rotateKey()`                                               |

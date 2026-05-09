@@ -18,12 +18,16 @@ import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
 import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
 import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
-import CasError from './src/domain/errors/CasError.js';
+import { CasError, createCasError, ErrorCodes } from './src/domain/errors/index.js';
 import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
 import NodeCompressionAdapter from './src/infrastructure/adapters/NodeCompressionAdapter.js';
 import { PACKAGE_VERSION } from './src/package-version.js';
 
+/** @typedef {import('./src/domain/value-objects/Manifest.js').default} Manifest */
+
 const PKG_VERSION = PACKAGE_VERSION;
+const RESTORE_FILE_DOCS_URL =
+  `https://github.com/git-stunts/git-cas/blob/v${PKG_VERSION}/docs/API.md#restorefile`;
 
 // ---------------------------------------------------------------------------
 // Re-exports — modules used in the class body
@@ -36,6 +40,7 @@ export {
   JsonCodec,
   CborCodec,
   SilentObserver,
+  CasError,
 };
 
 // ---------------------------------------------------------------------------
@@ -85,7 +90,7 @@ export default class ContentAddressableStore {
     this.#servicePromise = null;
   }
 
-  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, compressionAdapter?: * }} */
+  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, maxBlobSize?: number, compressionAdapter?: * }} */
   #config;
   /** @type {VaultService|null} */
   #vault = null;
@@ -187,6 +192,7 @@ export default class ContentAddressableStore {
    * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
+   * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes.
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
    * @returns {Promise<ContentAddressableStore>}
    */
@@ -210,6 +216,7 @@ export default class ContentAddressableStore {
    * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
+   * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes.
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
    * @returns {ContentAddressableStore}
    */
@@ -230,6 +237,7 @@ export default class ContentAddressableStore {
    * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
+   * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes.
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
    * @returns {ContentAddressableStore}
    */
@@ -282,7 +290,8 @@ export default class ContentAddressableStore {
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
-   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
+   * @param {number} [options.merkleThreshold] - Per-operation chunk count threshold for Merkle tree publication.
+   * @returns {Promise<Manifest>} The resulting manifest.
    */
   async storeFile(options) {
     const service = await this.#getService();
@@ -301,7 +310,8 @@ export default class ContentAddressableStore {
    * @param {Object} [options.kdfOptions] - KDF options when using passphrase.
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
-   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>} The resulting manifest.
+   * @param {number} [options.merkleThreshold] - Per-operation chunk count threshold for Merkle tree publication.
+   * @returns {Promise<Manifest>} The resulting manifest.
    */
   async store(options) {
     const service = await this.#getService();
@@ -311,15 +321,21 @@ export default class ContentAddressableStore {
   /**
    * Restores a file from its manifest and writes it to disk.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Manifest} options.manifest - The file manifest.
    * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * @param {string} options.outputPath - Destination file path.
+   * @param {string} options.baseDirectory - Directory boundary that outputPath must stay inside.
    * @returns {Promise<{ bytesWritten: number }>}
    */
   async restoreFile(options) {
-    if (!options.baseDirectory) {
-      throw new CasError('baseDirectory is required for safe restoration', 'INVALID_OPTIONS');
+    if (!options?.baseDirectory) {
+      throw createCasError({
+        message: 'baseDirectory is required for safe restoration. If you are restoring in a trusted local environment, pass baseDirectory: process.cwd().',
+        code: ErrorCodes.INVALID_OPTIONS,
+        meta: { option: 'baseDirectory' },
+        documentationUrl: RESTORE_FILE_DOCS_URL,
+      });
     }
     const service = await this.#getService();
     return await restoreFile(service, options);
@@ -328,7 +344,7 @@ export default class ContentAddressableStore {
   /**
    * Restores a file from its manifest, returning the bytes directly.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Manifest} options.manifest - The file manifest.
    * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * @returns {Promise<{ buffer: Uint8Array, bytesWritten: number }>}
@@ -341,7 +357,7 @@ export default class ContentAddressableStore {
   /**
    * Restores a file from its manifest as an async iterable of byte chunks.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Manifest} options.manifest - The file manifest.
    * @param {Uint8Array} [options.encryptionKey] - 32-byte key, required if manifest is encrypted.
    * @param {string} [options.passphrase] - Passphrase for KDF-based decryption.
    * @returns {AsyncIterable<Uint8Array>}
@@ -354,7 +370,8 @@ export default class ContentAddressableStore {
   /**
    * Creates a Git tree object from a manifest.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest - The file manifest.
+   * @param {Manifest} options.manifest - The file manifest.
+   * @param {number} [options.merkleThreshold] - Override chunk count threshold for this tree publication.
    * @returns {Promise<string>} Git OID of the created tree.
    */
   async createTree(options) {
@@ -364,7 +381,7 @@ export default class ContentAddressableStore {
 
   /**
    * Verifies the integrity of a stored file by re-hashing its chunks.
-   * @param {import('./src/domain/value-objects/Manifest.js').default} manifest - The file manifest.
+   * @param {Manifest} manifest - The file manifest.
    * @param {{ encryptionKey?: Uint8Array, passphrase?: string }} [options] - Optional decryption credentials for encrypted manifests.
    * @returns {Promise<boolean>} `true` if all chunks pass verification.
    */
@@ -377,7 +394,7 @@ export default class ContentAddressableStore {
    * Reads a manifest from a Git tree OID.
    * @param {Object} options
    * @param {string} options.treeOid - Git tree OID to read the manifest from.
-   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
+   * @returns {Promise<Manifest>}
    */
   async readManifest(options) {
     const service = await this.#getService();
@@ -387,8 +404,8 @@ export default class ContentAddressableStore {
   /**
    * Compares two manifests by chunk digest.
    * Pure function — no I/O needed. Does not require initialization.
-   * @param {import('./src/domain/value-objects/Manifest.js').default} oldManifest
-   * @param {import('./src/domain/value-objects/Manifest.js').default} newManifest
+   * @param {Manifest} oldManifest
+   * @param {Manifest} newManifest
    * @returns {import('./src/domain/services/ManifestDiff.js').ManifestDiffResult}
    */
   static diffManifests(oldManifest, newManifest) {
@@ -464,11 +481,11 @@ export default class ContentAddressableStore {
   /**
    * Adds a recipient to an envelope-encrypted manifest.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest
+   * @param {Manifest} options.manifest
    * @param {Uint8Array} options.existingKey - KEK of an existing recipient.
    * @param {Uint8Array} options.newRecipientKey - KEK for the new recipient.
    * @param {string} options.label - Label for the new recipient.
-   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
+   * @returns {Promise<Manifest>}
    */
   async addRecipient(options) {
     const service = await this.#getService();
@@ -478,9 +495,9 @@ export default class ContentAddressableStore {
   /**
    * Removes a recipient from an envelope-encrypted manifest.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest
+   * @param {Manifest} options.manifest
    * @param {string} options.label - Label to remove.
-   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
+   * @returns {Promise<Manifest>}
    */
   async removeRecipient(options) {
     const service = await this.#getService();
@@ -489,7 +506,7 @@ export default class ContentAddressableStore {
 
   /**
    * Lists recipient labels from an envelope-encrypted manifest.
-   * @param {import('./src/domain/value-objects/Manifest.js').default} manifest
+   * @param {Manifest} manifest
    * @returns {Promise<string[]>}
    */
   async listRecipients(manifest) {
@@ -500,11 +517,11 @@ export default class ContentAddressableStore {
   /**
    * Rotates a recipient's key without re-encrypting data blobs.
    * @param {Object} options
-   * @param {import('./src/domain/value-objects/Manifest.js').default} options.manifest
+   * @param {Manifest} options.manifest
    * @param {Uint8Array} options.oldKey - Current KEK of the recipient to rotate.
    * @param {Uint8Array} options.newKey - New KEK to wrap the DEK with.
    * @param {string} [options.label] - If provided, only rotate the named recipient.
-   * @returns {Promise<import('./src/domain/value-objects/Manifest.js').default>}
+   * @returns {Promise<Manifest>}
    */
   async rotateKey(options) {
     const service = await this.#getService();

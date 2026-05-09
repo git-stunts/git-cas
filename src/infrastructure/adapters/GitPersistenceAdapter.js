@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
-import CasError from '../../domain/errors/CasError.js';
+import { CasError, createCasError, ErrorCodes } from '../../domain/errors/index.js';
 
 /**
  * Default resilience policy: 30 s timeout (no retry).
@@ -14,6 +14,10 @@ import CasError from '../../domain/errors/CasError.js';
  * an unref'd timer that allows Node to exit before the next attempt starts.
  */
 const DEFAULT_POLICY = Policy.timeout(30_000);
+export const DEFAULT_MAX_BLOB_SIZE = 10 * 1024 * 1024;
+const MIN_READ_BLOB_LIMIT = 1;
+const MIN_MAX_BLOB_SIZE = 1024;
+const MAX_BLOB_SIZE_LIMIT = Number.MAX_SAFE_INTEGER;
 
 /**
  * {@link GitPersistencePort} implementation backed by `@git-stunts/plumbing`.
@@ -22,7 +26,7 @@ const DEFAULT_POLICY = Policy.timeout(30_000);
  * (30 s timeout by default).
  */
 export default class GitPersistenceAdapter extends GitPersistencePort {
-  #maxBlobSize = 10 * 1024 * 1024;
+  #maxBlobSize = DEFAULT_MAX_BLOB_SIZE;
   /**
    * @param {Object} options
    * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance.
@@ -71,21 +75,35 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
    * @returns {Promise<Buffer>} The blob content.
    */
   async readBlob(oid, maxBytes) {
-    const limit = maxBytes ?? this.#maxBlobSize;
+    const limit = maxBytes === undefined
+      ? this.#maxBlobSize
+      : GitPersistenceAdapter.#validatedReadBlobLimit(maxBytes);
     const chunks = [];
     let bytesRead = 0;
     for await (const chunk of await this.readBlobStream(oid)) {
       bytesRead += chunk.length;
       if (bytesRead > limit) {
         throw new CasError(
-          `Blob ${oid} exceeds safety limit of ${maxBytes} bytes`,
-          'RESTORE_TOO_LARGE',
+          `Blob ${oid} exceeds safety limit of ${limit} bytes`,
+          ErrorCodes.RESTORE_TOO_LARGE,
           { oid, maxBytes: limit },
         );
       }
       chunks.push(chunk);
     }
     return Buffer.concat(chunks);
+  }
+
+  /**
+   * Sets the adapter-level safety limit used by `readBlob()` when callers do
+   * not provide a per-call limit.
+   *
+   * @param {number} maxBlobSize - Metadata blob safety limit in bytes.
+   * @returns {void}
+   */
+  setMaxBlobSize(maxBlobSize) {
+    GitPersistenceAdapter.#assertMaxBlobSize(maxBlobSize);
+    this.#maxBlobSize = maxBlobSize;
   }
 
   /**
@@ -211,6 +229,45 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
   }
 
   /**
+   * @param {unknown} maxBytes
+   * @returns {number}
+   */
+  static #validatedReadBlobLimit(maxBytes) {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < MIN_READ_BLOB_LIMIT || maxBytes > MAX_BLOB_SIZE_LIMIT) {
+      throw createCasError(
+        `maxBytes must be an integer in [${MIN_READ_BLOB_LIMIT}, ${MAX_BLOB_SIZE_LIMIT}]`,
+        ErrorCodes.INVALID_OPTIONS,
+        {
+          label: 'maxBytes',
+          value: maxBytes,
+          min: MIN_READ_BLOB_LIMIT,
+          max: MAX_BLOB_SIZE_LIMIT,
+        },
+      );
+    }
+    return maxBytes;
+  }
+
+  /**
+   * @param {number} maxBlobSize
+   * @returns {void}
+   */
+  static #assertMaxBlobSize(maxBlobSize) {
+    if (!Number.isInteger(maxBlobSize) || maxBlobSize < MIN_MAX_BLOB_SIZE || maxBlobSize > MAX_BLOB_SIZE_LIMIT) {
+      throw createCasError(
+        `maxBlobSize must be an integer in [${MIN_MAX_BLOB_SIZE}, ${MAX_BLOB_SIZE_LIMIT}]`,
+        ErrorCodes.INVALID_OPTIONS,
+        {
+          label: 'maxBlobSize',
+          value: maxBlobSize,
+          min: MIN_MAX_BLOB_SIZE,
+          max: MAX_BLOB_SIZE_LIMIT,
+        },
+      );
+    }
+  }
+
+  /**
    * @param {string} output
    * @returns {Array<{ mode: string, type: string, oid: string, name: string }>}
    */
@@ -233,7 +290,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     if (tabIndex === -1) {
       throw new CasError(
         `Malformed ls-tree entry: ${entry}`,
-        'TREE_PARSE_ERROR',
+        ErrorCodes.TREE_PARSE_ERROR,
         { rawEntry: entry },
       );
     }
@@ -241,7 +298,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     if (meta.length !== 3) {
       throw new CasError(
         `Malformed ls-tree entry: ${entry}`,
-        'TREE_PARSE_ERROR',
+        ErrorCodes.TREE_PARSE_ERROR,
         { rawEntry: entry },
       );
     }

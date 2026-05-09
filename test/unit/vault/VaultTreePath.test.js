@@ -5,8 +5,9 @@ import VaultService from '../../../src/domain/services/VaultService.js';
  * Tests that control characters in slug values are rejected before they
  * can corrupt git mktree input during vault tree rebuilds.
  *
- * VaultService.writeCommit uses encodeSlug internally. If a tampered
- * vault tree introduces slugs with \0, \n, or \t, the rebuild must fail.
+ * VaultService.writeCommit delegates tree-entry names to the Slug tree-path
+ * boundary. If a tampered vault tree introduces slugs with \0, \n, or \t, the
+ * rebuild must fail.
  */
 
 function createVault() {
@@ -20,9 +21,15 @@ function createVault() {
     ref: {
       createCommit: vi.fn().mockResolvedValue('a'.repeat(40)),
       updateRef: vi.fn(),
+      resolveRef: vi.fn(),
+      resolveTree: vi.fn(),
     },
     codec: { encode: JSON.stringify, extension: 'json' },
-    crypto: {},
+    crypto: {
+      encryptBuffer: vi.fn(),
+      decryptBuffer: vi.fn(),
+      hmacSha256: vi.fn(),
+    },
   });
 }
 

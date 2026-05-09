@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, readFileSync, mkdtempSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import CasService from '../../../../src/domain/services/CasService.js';
@@ -100,6 +108,40 @@ async function expectRestoreStreamTooLarge(service, manifest, encryptionKey) {
   ).rejects.toMatchObject({ code: 'RESTORE_TOO_LARGE' });
 }
 
+function createStreamRestoreService(chunk = Buffer.from('blocked')) {
+  return {
+    async createFileRestorePlan() {
+      return {
+        mode: 'stream',
+        source: (async function* gen() {
+          yield chunk;
+        })(),
+      };
+    },
+  };
+}
+
+function createBoundedRestoreService(chunk = Buffer.from('blocked')) {
+  return {
+    observability: new SilentObserver(),
+    async createFileRestorePlan() {
+      return {
+        mode: 'bounded-file',
+        source: (async function* gen() {
+          yield chunk;
+        })(),
+      };
+    },
+  };
+}
+
+function createOutsideSymlink(baseDirectory, linkName) {
+  const outsideDir = mkdtempSync(path.join(os.tmpdir(), 'fio-outside-'));
+  const linkedDir = path.join(baseDirectory, linkName);
+  symlinkSync(outsideDir, linkedDir, 'dir');
+  return { outsideDir, linkedDir };
+}
+
 describe('FileIOHelper – storeFile stream forwarding', () => {
   let tmpDir;
 
@@ -193,6 +235,72 @@ describe('FileIOHelper – restoreFile stream publication', () => {
     expect(bytesWritten).toBe(11);
     const written = readFileSync(outputPath);
     expect(written.toString()).toBe('hello world');
+  });
+
+});
+
+describe('FileIOHelper – restoreFile path boundary', () => {
+  const getTmpDir = useTempDir('fio-restore-');
+
+  it('rejects sibling paths that only share a string prefix with the base directory', async () => {
+    const tmpDir = getTmpDir();
+    const outputPath = path.join(`${tmpDir}-sibling`, 'output.bin');
+    const mockService = {
+      async createFileRestorePlan() {
+        return {
+          mode: 'stream',
+          source: (async function* gen() {
+            yield Buffer.from('blocked');
+          })(),
+        };
+      },
+    };
+
+    await expect(restoreFile(mockService, {
+      manifest: {},
+      outputPath,
+      baseDirectory: tmpDir,
+    })).rejects.toMatchObject({
+      code: 'SECURITY_BOUNDARY_VIOLATION',
+    });
+  });
+});
+
+describe('FileIOHelper – restoreFile symlink boundary', () => {
+  const getTmpDir = useTempDir('fio-restore-');
+
+  it('rejects stream restores through symlinked directories outside the base', async () => {
+    const tmpDir = getTmpDir();
+    const { outsideDir, linkedDir } = createOutsideSymlink(tmpDir, 'linked-out');
+    try {
+      await expect(restoreFile(createStreamRestoreService(), {
+        manifest: {},
+        outputPath: path.join(linkedDir, 'escape.bin'),
+        baseDirectory: tmpDir,
+      })).rejects.toMatchObject({
+        code: 'SECURITY_BOUNDARY_VIOLATION',
+      });
+      expect(existsSync(path.join(outsideDir, 'escape.bin'))).toBe(false);
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects bounded restores through symlinked directories outside the base', async () => {
+    const tmpDir = getTmpDir();
+    const { outsideDir, linkedDir } = createOutsideSymlink(tmpDir, 'bounded-link');
+    try {
+      await expect(restoreFile(createBoundedRestoreService(), {
+        manifest: { slug: 'bounded', chunks: [{}] },
+        outputPath: path.join(linkedDir, 'escape.bin'),
+        baseDirectory: tmpDir,
+      })).rejects.toMatchObject({
+        code: 'SECURITY_BOUNDARY_VIOLATION',
+      });
+      expect(existsSync(path.join(outsideDir, 'escape.bin'))).toBe(false);
+    } finally {
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 });
 

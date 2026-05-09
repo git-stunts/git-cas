@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createHmac } from 'node:crypto';
 import VaultService from '../../../src/domain/services/VaultService.js';
 import CasError from '../../../src/domain/errors/CasError.js';
+import { ErrorCodes } from '../../../src/domain/errors/index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -45,19 +46,20 @@ function mockCrypto() {
   let nonceCounter = 0;
 
   return {
-    deriveKey: vi.fn().mockImplementation(async () => ({
-      key: TEST_KEY,
-      salt: Buffer.from('test-salt'),
-      params: { algorithm: 'pbkdf2', iterations: 100000, keyLength: 32 },
-    })),
+      deriveKey: vi.fn().mockImplementation(async () => ({
+        key: TEST_KEY,
+        salt: Buffer.alloc(32, 0x11),
+        params: { algorithm: 'pbkdf2', iterations: 100000, keyLength: 32 },
+      })),
 
     hmacSha256(key, data) {
       return createHmac('sha256', key).update(data).digest();
     },
 
     encryptBuffer: vi.fn().mockImplementation(async (buffer) => {
-      const nonce = `nonce-${++nonceCounter}`;
-      const tag = `tag-${nonceCounter}`;
+      nonceCounter++;
+      const nonce = Buffer.alloc(12, nonceCounter).toString('base64');
+      const tag = Buffer.alloc(16, nonceCounter).toString('base64');
       const meta = { algorithm: 'aes-256-gcm', nonce, tag, encrypted: true };
       // Store plaintext keyed by nonce for retrieval during decrypt.
       encryptedStore.set(nonce, { plaintext: Buffer.from(buffer), meta });
@@ -76,6 +78,10 @@ function mockCrypto() {
   };
 }
 
+function parseWrittenJsonArg(arg) {
+  return JSON.parse(Buffer.from(arg).toString());
+}
+
 function mockObservability() {
   return { metric: vi.fn(), log: vi.fn(), span: vi.fn().mockReturnValue({ end: vi.fn() }) };
 }
@@ -90,7 +96,31 @@ function createVault(overrides = {}) {
 }
 
 function setupNoVault(ref) {
-  ref.resolveRef.mockRejectedValueOnce(new Error('not found'));
+  ref.resolveRef.mockRejectedValueOnce(Object.assign(
+    new Error('refs/cas/vault is not defined'),
+    { code: ErrorCodes.GIT_REF_NOT_FOUND },
+  ));
+}
+
+function setupPrivacyMismatchRead({ ref, persistence, crypto }) {
+  const privacyKey = derivePrivacyKey(TEST_KEY);
+  const hmacAlpha = hmacSlug(privacyKey, 'alpha');
+  const unmatchedHmac = hmacSlug(privacyKey, 'missing-from-index');
+  const indexJson = JSON.stringify({ alpha: hmacAlpha });
+  const indexMeta = { algorithm: 'aes-256-gcm', nonce: 'nonce-idx', tag: 'tag-idx', encrypted: true };
+  const meta = privacyMeta(indexMeta);
+
+  ref.resolveRef.mockResolvedValueOnce('commit-oid');
+  ref.resolveTree.mockResolvedValueOnce('tree-oid');
+  persistence.readTree.mockResolvedValueOnce([
+    { mode: '100644', type: 'blob', oid: 'meta-blob', name: '.vault.json' },
+    { mode: '100644', type: 'blob', oid: 'index-blob', name: '.privacy-index' },
+    { mode: '040000', type: 'tree', oid: 'tree-a', name: hmacAlpha },
+    { mode: '040000', type: 'tree', oid: 'tree-unmatched', name: unmatchedHmac },
+  ]);
+  persistence.readBlob.mockResolvedValueOnce(Buffer.from(JSON.stringify(meta)));
+  crypto.decryptBuffer.mockResolvedValueOnce(Buffer.from(indexJson));
+  persistence.readBlob.mockResolvedValueOnce(Buffer.from(indexJson));
 }
 
 
@@ -138,11 +168,15 @@ describe('initVault — privacy mode', () => {
     expect(result.commitOid).toBe('new-commit-oid');
 
     // Check that the written metadata includes privacy.enabled.
-    const metaWriteCall = persistence.writeBlob.mock.calls.find(
-      (c) => typeof c[0] === 'string' && c[0].includes('"privacy"'),
-    );
+    const metaWriteCall = persistence.writeBlob.mock.calls.find((c) => {
+      try {
+        return Boolean(parseWrittenJsonArg(c[0]).privacy);
+      } catch {
+        return false;
+      }
+    });
     expect(metaWriteCall).toBeTruthy();
-    const written = JSON.parse(metaWriteCall[0]);
+    const written = parseWrittenJsonArg(metaWriteCall[0]);
     expect(written.privacy.enabled).toBe(true);
     expect(written.privacy.indexMeta).toBeDefined();
   });
@@ -415,6 +449,95 @@ describe('privacy mode — missing .privacy-index', () => {
     await expect(vault.readState({ encryptionKey: TEST_KEY })).rejects.toSatisfy(
       (e) => e instanceof CasError && e.code === 'VAULT_PRIVACY_INDEX_MISSING',
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Privacy mode — missing index metadata
+// ---------------------------------------------------------------------------
+describe('privacy mode — missing index metadata', () => {
+  it('rejects readState with a structured privacy index error', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    const meta = privacyMeta(undefined);
+
+    ref.resolveRef.mockResolvedValueOnce('commit-oid');
+    ref.resolveTree.mockResolvedValueOnce('tree-oid');
+    persistence.readTree.mockResolvedValueOnce([
+      { mode: '100644', type: 'blob', oid: 'meta-blob', name: '.vault.json' },
+      { mode: '100644', type: 'blob', oid: 'index-blob', name: '.privacy-index' },
+    ]);
+    persistence.readBlob.mockResolvedValueOnce(Buffer.from(JSON.stringify(meta)));
+
+    const vault = createVault({ ref, persistence });
+
+    await expect(vault.readState({ encryptionKey: TEST_KEY })).rejects.toMatchObject({
+      code: ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
+      meta: { field: 'privacy.indexMeta' },
+    });
+  });
+
+  it('rejects resolveVaultEntry with a structured privacy index error', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    const meta = privacyMeta(undefined);
+
+    ref.resolveRef.mockResolvedValueOnce('commit-oid');
+    ref.resolveTree.mockResolvedValueOnce('tree-oid');
+    persistence.readTree.mockResolvedValueOnce([
+      { mode: '100644', type: 'blob', oid: 'meta-blob', name: '.vault.json' },
+      { mode: '100644', type: 'blob', oid: 'index-blob', name: '.privacy-index' },
+    ]);
+    persistence.readBlob.mockResolvedValueOnce(Buffer.from(JSON.stringify(meta)));
+
+    const vault = createVault({ ref, persistence });
+
+    await expect(vault.resolveVaultEntry({ slug: 'alpha', encryptionKey: TEST_KEY }))
+      .rejects.toMatchObject({
+        code: ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
+        meta: { field: 'privacy.indexMeta' },
+      });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Privacy mode — index/tree mismatch
+// ---------------------------------------------------------------------------
+describe('privacy mode — index/tree mismatch', () => {
+  it('fails closed when readState finds tree entries missing from .privacy-index', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    const crypto = mockCrypto();
+    setupPrivacyMismatchRead({ ref, persistence, crypto });
+
+    const vault = createVault({ ref, persistence, crypto });
+
+    await expect(vault.readState({ encryptionKey: TEST_KEY })).rejects.toMatchObject({
+      code: ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
+      meta: {
+        unmatchedCount: 1,
+        treeEntryCount: 2,
+        resolvedCount: 1,
+      },
+    });
+  });
+
+  it('fails closed before listVault returns partial privacy-mode entries', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    const crypto = mockCrypto();
+    setupPrivacyMismatchRead({ ref, persistence, crypto });
+
+    const vault = createVault({ ref, persistence, crypto });
+
+    await expect(vault.listVault({ encryptionKey: TEST_KEY })).rejects.toMatchObject({
+      code: ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
+      meta: {
+        unmatchedCount: 1,
+        treeEntryCount: 2,
+        resolvedCount: 1,
+      },
+    });
   });
 });
 

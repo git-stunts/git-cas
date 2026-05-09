@@ -60,6 +60,29 @@ This closes the empty-vault ambiguity: a wrong passphrase now fails with
 encrypted vaults that predate the verifier remain readable; the next vault write
 that supplies a vault encryption key writes verifier metadata for future checks.
 
+### Restore Path Boundary
+
+`restoreFile()` requires `baseDirectory` and treats it as the caller-approved
+write boundary. The requested `outputPath` is resolved against that boundary and
+then checked with canonical `realpath` containment over existing path
+components. Symlinked directories therefore cannot redirect stream or
+bounded-file restores outside the boundary. If the resolved path escapes the
+boundary, restore fails with `SECURITY_BOUNDARY_VIOLATION` before publishing
+any output.
+
+For local trusted scripts and CLIs, `baseDirectory: process.cwd()` is often the
+right boundary. Services and automation should pass an application-owned
+workspace, job directory, or tenant-scoped restore root instead of trusting
+ambient process state.
+
+### Metadata Blob Size Boundary
+
+Manifest and sub-manifest reads use `readBlob()` and are capped by
+`maxBlobSize`, which defaults to 10 MiB. This bounds repository-controlled
+metadata before the codec or manifest schema processes it. Normal content
+restore still reads chunk blobs through streaming paths where available, and
+buffered restore modes remain separately bounded by `maxRestoreBufferSize`.
+
 ### KDF Parameter Guidance
 
 When using passphrase-based encryption, git-cas derives keys using PBKDF2 or scrypt.
@@ -79,6 +102,7 @@ git-cas now also applies a bounded KDF policy to passphrase-bearing store,
 restore, vault init, and vault rotation flows:
 
 - new writes default to PBKDF2 `600000` or scrypt `N=131072`
+- supported KDF algorithms are explicitly limited to `pbkdf2` and `scrypt`
 - stored manifest and vault metadata are accepted only within a bounded
   compatibility window
 - out-of-policy KDF metadata fails with `KDF_POLICY_VIOLATION` before derive

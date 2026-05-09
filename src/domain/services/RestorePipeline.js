@@ -4,6 +4,8 @@ import {
   SCHEME_WHOLE,
 } from '../encryption/schemes.js';
 
+/** @typedef {import('../value-objects/Manifest.js').default} Manifest */
+
 /**
  * @typedef {'convergent'|'convergent-compressed'|'framed-compressed'|'framed'|'buffered'|'compressed-streaming'|'streaming'} RestoreStrategy
  */
@@ -48,14 +50,14 @@ export default class RestorePipeline {
   #handlers;
 
   /**
-   * @param {Record<string, (ctx: { manifest: import('../value-objects/Manifest.js').default, key?: Uint8Array, encryptionMeta?: object }) => AsyncIterable<Uint8Array>>} handlers
+   * @param {Record<string, (ctx: { manifest: Manifest, key?: Uint8Array, encryptionMeta?: object }) => AsyncIterable<Uint8Array>>} handlers
    */
   constructor(handlers) {
     this.#handlers = handlers;
   }
 
   /**
-   * @param {{ manifest: import('../value-objects/Manifest.js').default, key?: Uint8Array, encryptionMeta?: object }} ctx
+   * @param {{ manifest: Manifest, key?: Uint8Array, encryptionMeta?: object }} ctx
    * @returns {AsyncIterable<Uint8Array>}
    */
   async *restore(ctx) {

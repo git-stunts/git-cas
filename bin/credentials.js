@@ -10,6 +10,9 @@ import {
   validatePassphraseSources,
 } from './passphrase-source.js';
 
+const UNENCRYPTED_VAULT_PASSPHRASE_IGNORED_MESSAGE =
+  'passphrase ignored (vault is not encrypted)';
+
 /**
  * @param {string} message
  * @returns {Error}
@@ -238,6 +241,86 @@ export async function resolveAgentStoreEncryptionKey(cas, input, {
     throw errorFactory('Vault passphrase source is only valid for encrypted vaults');
   }
   return await deriveVaultKey(cas, metadata, passphrase);
+}
+
+/**
+ * Resolve an agent diagnostic encryption key from a raw key file or vault passphrase source.
+ * Diagnostics can inspect plaintext vaults even when callers supplied a passphrase by mistake.
+ *
+ * @param {{ getVaultMetadata: Function }} cas
+ * @param {Record<string, any>} input
+ * @param {{
+ *   readKeyFile?: (keyFilePath: string) => Uint8Array,
+ *   resolveVaultPassphrase?: (input: Record<string, any>, requestSource: string | undefined, options?: Record<string, any>) => Promise<string | undefined>,
+ *   errorFactory?: (message: string) => Error,
+ *   onWarning?: (warning: Record<string, any>) => void,
+ * }} options
+ * @returns {Promise<Uint8Array | undefined>}
+ */
+export async function resolveAgentDiagnosticEncryptionKey(cas, input, {
+  readKeyFile: readKeyFileFn = readKeyFile,
+  resolveVaultPassphrase,
+  errorFactory = defaultErrorFactory,
+  onWarning,
+  ...passphraseOptions
+} = {}) {
+  validateAgentCredentialSources(input, { errorFactory });
+  if (input.keyFile) {
+    return readKeyFileFn(input.keyFile);
+  }
+  const metadata = await cas.getVaultMetadata();
+  if (!metadata?.encryption?.kdf) {
+    return resolveAgentPlaintextDiagnosticKey(input, onWarning);
+  }
+  return await resolveAgentEncryptedDiagnosticKey({
+    cas,
+    input,
+    metadata,
+    resolveVaultPassphrase,
+    errorFactory,
+    passphraseOptions,
+  });
+}
+
+/**
+ * @param {Record<string, any>} input
+ * @param {((warning: Record<string, any>) => void) | undefined} onWarning
+ * @returns {undefined}
+ */
+function resolveAgentPlaintextDiagnosticKey(input, onWarning) {
+  if (hasAgentVaultPassphraseSource(input)) {
+    onWarning?.({ message: UNENCRYPTED_VAULT_PASSPHRASE_IGNORED_MESSAGE });
+  }
+  return undefined;
+}
+
+/**
+ * @param {{
+ *   cas: { deriveKey: Function, verifyVaultKey: Function },
+ *   input: Record<string, any>,
+ *   metadata: { encryption?: { kdf?: Record<string, any> } },
+ *   resolveVaultPassphrase?: (input: Record<string, any>, requestSource: string | undefined, options?: Record<string, any>) => Promise<string | undefined>,
+ *   errorFactory: (message: string) => Error,
+ *   passphraseOptions: Record<string, any>,
+ * }} params
+ * @returns {Promise<Uint8Array | undefined>}
+ */
+async function resolveAgentEncryptedDiagnosticKey({
+  cas,
+  input,
+  metadata,
+  resolveVaultPassphrase,
+  errorFactory,
+  passphraseOptions,
+}) {
+  if (!hasAgentVaultPassphraseSource(input)) {
+    return undefined;
+  }
+  if (typeof resolveVaultPassphrase !== 'function') {
+    throw errorFactory('resolveVaultPassphrase is required when input contains a vault passphrase source');
+  }
+  const passphrase = await resolveVaultPassphrase(input, input.requestSource, passphraseOptions);
+  return passphrase ? await deriveVaultKey(cas, metadata, passphrase) : undefined;
 }
 
 /**

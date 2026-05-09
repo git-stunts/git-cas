@@ -1,6 +1,7 @@
 import CasError from '../errors/CasError.js';
 import createCasError from '../errors/createCasError.js';
 import { concatBytes } from '../bytes/ByteLayout.js';
+import { ErrorCodes } from '../errors/index.js';
 
 /**
  * Domain compression stream boundary.
@@ -37,7 +38,7 @@ export default class CompressionStreams {
         throw err;
       }
       const message = err instanceof Error ? err.message : String(err);
-      throw createCasError(`Decompression failed: ${message}`, 'INTEGRITY_ERROR', { originalError: err });
+      throw createCasError(`Decompression failed: ${message}`, ErrorCodes.INTEGRITY_ERROR, { originalError: err });
     }
   }
 
@@ -59,7 +60,7 @@ export default class CompressionStreams {
       if (total > limit) {
         throw createCasError(
           `Decompressed restore is ${total} bytes (limit: ${limit})`,
-          'RESTORE_TOO_LARGE',
+          ErrorCodes.RESTORE_TOO_LARGE,
           { size: total, limit },
         );
       }
