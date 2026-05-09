@@ -936,6 +936,10 @@ interface VaultMetadata {
     };
     verifier?: VaultEncryptionVerifier;
   };
+  privacy?: {
+    enabled: boolean;
+    indexMeta?: EncryptionMeta;
+  };
   encryptionCount?: number;
 }
 ```

@@ -49,6 +49,17 @@ describe('release truth docs and examples', () => {
     );
     expect(api).not.toContain('Max bytes for manifest and sub-manifest blob reads');
   });
+
+  it('documents the public VaultMetadata privacy shape and privacy errors', () => {
+    const api = read('docs/API.md');
+
+    expect(api).toContain('privacy?: {');
+    expect(api).toContain('enabled: boolean;');
+    expect(api).toContain('indexMeta?: EncryptionMeta;');
+    expect(api).toContain('`VAULT_PRIVACY_INDEX_INVALID`');
+    expect(api).toContain('`VAULT_PRIVACY_INDEX_MISSING`');
+    expect(api).toContain('`VAULT_PRIVACY_KEY_REQUIRED`');
+  });
 });
 
 describe('Merkle manifest docs', () => {

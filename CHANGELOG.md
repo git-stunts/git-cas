@@ -109,6 +109,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Manifest diff JSDoc boundary** — `ManifestDiff.js` now declares its
   `Manifest` typedef locally so generated docs and declaration checks can
   resolve the pure diff helper parameters.
+- **Vault metadata API docs** — `docs/API.md` now includes the optional
+  `privacy` shape in the `VaultMetadata` example alongside the privacy error
+  codes.
 - **Vault keyed caches snapshot key bytes** — privacy-entry and verifier caches
   now reject stale hits when a reused `Uint8Array` key object has been mutated.
 - **Vault state caches return defensive entry maps** — `VaultStateCache` now
