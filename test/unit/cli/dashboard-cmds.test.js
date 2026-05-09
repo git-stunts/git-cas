@@ -2,7 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { buildRepoTreemapReport, readRefInventory, readSourceEntries } from '../../../bin/ui/dashboard-cmds.js';
+import {
+  buildRepoTreemapReport,
+  loadDoctorCmd,
+  readRefInventory,
+  readSourceEntries,
+} from '../../../bin/ui/dashboard-cmds.js';
 
 function makePersistence(overrides = {}) {
   return {
@@ -262,6 +267,30 @@ describe('readSourceEntries ref-backed JSON indexes', () => {
       ],
       metadata: null,
     });
+  });
+});
+
+describe('loadDoctorCmd', () => {
+  it('threads an unlocked vault encryption key into health inspection', async () => {
+    const encryptionKey = Uint8Array.from({ length: 32 }, (_, index) => index);
+    const readState = vi.fn().mockResolvedValue({
+      entries: new Map(),
+      parentCommitOid: 'commit-1',
+      metadata: { version: 1, encryption: { kdf: { algorithm: 'pbkdf2' } } },
+    });
+    const cas = {
+      getVaultService: vi.fn().mockResolvedValue({ readState }),
+      readManifest: vi.fn(),
+    };
+
+    const message = await loadDoctorCmd(cas, {
+      source: { type: 'vault' },
+      entries: [],
+      encryptionKey,
+    })();
+
+    expect(message.type).toBe('loaded-doctor');
+    expect(readState).toHaveBeenCalledWith({ encryptionKey });
   });
 });
 

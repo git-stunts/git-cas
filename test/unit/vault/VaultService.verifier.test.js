@@ -28,7 +28,10 @@ function createVault({ persistence, ref, crypto = testCrypto } = {}) {
 
 function mockWriterRef() {
   return {
-    resolveRef: vi.fn().mockRejectedValueOnce(new Error('not found')),
+    resolveRef: vi.fn().mockRejectedValueOnce(Object.assign(
+      new Error('refs/cas/vault is not defined'),
+      { code: 'GIT_REF_NOT_FOUND' },
+    )),
     resolveTree: vi.fn(),
     createCommit: vi.fn().mockResolvedValue('commit-new'),
     updateRef: vi.fn().mockResolvedValue(undefined),

@@ -42,8 +42,9 @@ memoization stores a byte snapshot beside the key object, so mutating a reused
 `VaultMetadataCodec`
 
 Owns the `.vault.json` boundary format. It encodes and decodes bytes, validates
-metadata version, KDF policy, verifier metadata, and encryption counters. It is
-pure: it does not read Git, write Git, derive keys, or perform vault mutations.
+metadata version, AES-256-GCM cipher selection, KDF policy, verifier metadata,
+and encryption counters. It is pure: it does not read Git, write Git, derive
+keys, or perform vault mutations.
 
 `VaultTreeCodec`
 
@@ -57,7 +58,9 @@ pure and must not perform I/O.
 Owns privacy-mode persisted names and the encrypted slug-to-HMAC index. It
 derives a privacy key from the vault encryption key, computes HMAC-SHA256 names,
 encrypts the index blob, decrypts it on read, and validates both slugs and HMAC
-names before returning a map.
+names before returning a map. Full-state reads and listings must fail closed with
+`VAULT_PRIVACY_INDEX_INVALID` when raw HMAC tree entries are not covered by the
+decrypted index; returning a partial privacy listing can hide vault corruption.
 
 `VaultKeyVerifier`
 
@@ -121,7 +124,14 @@ vault as absent.
 For privacy-enabled vaults, doctor must receive the same vault encryption key
 surface as list/resolve flows. Human CLI and agent command entrypoints resolve
 `--key-file`, `--vault-passphrase*`, or OS-keychain input and pass the derived
-key into `inspectVaultHealth()`, which forwards it to `readState()`.
+key into `inspectVaultHealth()`, which forwards it to `readState()`. The TUI
+operations doctor forwards the already-unlocked vault key from the dashboard
+model. Agent diagnostics warn and ignore passphrase input when the vault is
+plaintext instead of failing the health check.
+
+Privacy index coverage failures are vault-level failures. A missing
+`.privacy-index` reports `VAULT_PRIVACY_INDEX_MISSING`; a present index that
+does not cover every raw HMAC tree entry reports `VAULT_PRIVACY_INDEX_INVALID`.
 When manifests can be read, doctor reports both chunk-reference dedupe and
 byte-level efficiency (`logical-size` compared with `unique-chunk-bytes`) so
 operators can see whether repeated content actually reduces stored chunk bytes.
@@ -157,7 +167,9 @@ Cache entries may contain:
 - a verified-key set keyed by the exact `Uint8Array` encryption-key object
 
 Returned state must always be copied. A caller mutating a returned `Map` or
-metadata object must not mutate the cache.
+metadata object must not mutate the cache. Collaborator-level cache accessors
+also return copied entry maps, so callers that bypass `readState()` cannot mutate
+the cached plain or privacy entry map.
 
 ## Boundary Compatibility
 

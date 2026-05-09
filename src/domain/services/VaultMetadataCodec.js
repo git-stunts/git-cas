@@ -6,6 +6,7 @@ import { prepareStoredKdfOptions } from '../../helpers/kdfPolicy.js';
 import { ErrorCodes } from '../errors/index.js';
 
 export const VAULT_METADATA_VERSION = 1;
+export const VAULT_ENCRYPTION_CIPHER = 'aes-256-gcm';
 export const VAULT_ENCRYPTION_COUNT_WARN = 2 ** 31;
 export const VAULT_ENCRYPTION_COUNT_MAX = 2 ** 32 - 1;
 
@@ -90,6 +91,18 @@ export default class VaultMetadataCodec {
         'Vault encryption metadata missing required fields',
         ErrorCodes.VAULT_METADATA_INVALID,
         { metadata },
+      );
+    }
+    if (cipher !== VAULT_ENCRYPTION_CIPHER) {
+      throw new CasError(
+        `Unsupported vault encryption cipher: ${cipher}`,
+        ErrorCodes.VAULT_METADATA_INVALID,
+        {
+          metadata,
+          field: 'encryption.cipher',
+          value: cipher,
+          expected: VAULT_ENCRYPTION_CIPHER,
+        },
       );
     }
     this.#validateStoredKdf(kdf, metadata);

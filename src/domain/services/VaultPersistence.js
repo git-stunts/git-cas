@@ -7,6 +7,12 @@ import VaultTreeCodec, {
 import { ErrorCodes } from '../errors/index.js';
 
 export const VAULT_REF = 'refs/cas/vault';
+const GIT_REF_NOT_FOUND_CODE = 'GIT_REF_NOT_FOUND';
+const MISSING_REF_MARKERS = Object.freeze({
+  ambiguousArgument: 'ambiguous argument',
+  neededSingleRevision: 'needed a single revision',
+  unknownRevision: 'unknown revision',
+});
 
 /**
  * Stateless persistence boundary for the vault ref and vault tree format.
@@ -294,12 +300,29 @@ function buildInvalidHeadError(message, originalError, meta = {}) {
  * @returns {boolean}
  */
 function isMissingVaultRefError(err) {
-  if (typeof err?.code === 'string' && err.code === 'GIT_REF_NOT_FOUND') {
+  if (typeof err?.code === 'string' && err.code === GIT_REF_NOT_FOUND_CODE) {
     return true;
   }
   const message = errorDetailsText(err);
-  return /\b(missing|not found|unknown revision|ambiguous argument|needed a single revision)\b/i
-    .test(message);
+  return isGitMissingRefMessage(message);
+}
+
+/**
+ * @param {string} message
+ * @returns {boolean}
+ */
+function isGitMissingRefMessage(message) {
+  const normalized = message.toLowerCase();
+  if (!normalized.includes(VAULT_REF)) {
+    return false;
+  }
+  return (
+    normalized.includes(MISSING_REF_MARKERS.neededSingleRevision) ||
+    (
+      normalized.includes(MISSING_REF_MARKERS.ambiguousArgument) &&
+      normalized.includes(MISSING_REF_MARKERS.unknownRevision)
+    )
+  );
 }
 
 /**

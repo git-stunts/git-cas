@@ -31,7 +31,13 @@ function metadataBytes(metadata = { version: 1 }) {
 
 describe('VaultPersistence head reads', () => {
   it('resolves no vault as null', async () => {
-    const ref = mockRef({ resolveRef: vi.fn(async () => { throw new Error('missing'); }) });
+    const ref = mockRef({
+      resolveRef: vi.fn(async () => {
+        const error = new Error('refs/cas/vault is not defined');
+        error.code = 'GIT_REF_NOT_FOUND';
+        throw error;
+      }),
+    });
     const vaultPersistence = new VaultPersistence({ persistence: mockPersistence(), ref });
 
     await expect(vaultPersistence.resolveHead()).resolves.toBeNull();
@@ -83,6 +89,38 @@ describe('VaultPersistence corrupt head reads', () => {
 
   it('surfaces vault ref resolution failures that are not missing-ref errors', async () => {
     const rootCause = new Error('permission denied while reading refs/cas/vault');
+    const ref = mockRef({ resolveRef: vi.fn().mockRejectedValue(rootCause) });
+    const vaultPersistence = new VaultPersistence({ persistence: mockPersistence(), ref });
+
+    await expect(vaultPersistence.resolveHead()).rejects.toMatchObject({
+      code: 'VAULT_HEAD_INVALID',
+      meta: {
+        originalError: rootCause,
+      },
+    });
+  });
+});
+
+describe('VaultPersistence missing-ref classification', () => {
+  it('does not hide object database failures behind missing-ref text', async () => {
+    const rootCause = new Error('object not found while reading refs/cas/vault');
+    const ref = mockRef({ resolveRef: vi.fn().mockRejectedValue(rootCause) });
+    const vaultPersistence = new VaultPersistence({ persistence: mockPersistence(), ref });
+
+    await expect(vaultPersistence.resolveHead()).rejects.toMatchObject({
+      code: 'VAULT_HEAD_INVALID',
+      meta: {
+        originalError: rootCause,
+      },
+    });
+  });
+
+  it('does not treat corrupt vault head stderr as an absent vault ref', async () => {
+    const rootCause = Object.assign(new Error('Git command failed with code 128'), {
+      details: {
+        stderr: 'fatal: bad object refs/cas/vault\nobject not found',
+      },
+    });
     const ref = mockRef({ resolveRef: vi.fn().mockRejectedValue(rootCause) });
     const vaultPersistence = new VaultPersistence({ persistence: mockPersistence(), ref });
 

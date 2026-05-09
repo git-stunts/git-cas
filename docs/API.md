@@ -2118,8 +2118,12 @@ new CasError({ message, code, meta, documentationUrl });
 | `VAULT_ENTRY_NOT_FOUND`               | Slug does not exist in vault                                               | `removeFromVault()`, `resolveVaultEntry()`                                    |
 | `VAULT_ENTRY_EXISTS`                  | Slug already exists (use `force` to overwrite)                             | `addToVault()`                                                                |
 | `VAULT_CONFLICT`                      | Concurrent vault update detected (CAS failure after retries)               | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
+| `VAULT_REF_MISSING`                   | Vault ref is absent during diagnostics                                     | `git cas doctor`                                                              |
 | `VAULT_HEAD_INVALID`                  | Vault ref exists but cannot be resolved to a readable commit tree          | `readState()`, `getVaultMetadata()`, `git cas doctor`                         |
-| `VAULT_METADATA_INVALID`              | `.vault.json` malformed, unknown version, or missing required fields       | `readState()`, `rotateVaultPassphrase()`                                      |
+| `VAULT_METADATA_INVALID`              | `.vault.json` malformed, unknown version, unsupported cipher, or missing required fields | `readState()`, `rotateVaultPassphrase()`, `git cas doctor`                  |
+| `VAULT_PRIVACY_INDEX_INVALID`         | Privacy index does not cover every raw HMAC tree entry                     | `readState()`, `listVault()`, `git cas doctor`                                |
+| `VAULT_PRIVACY_INDEX_MISSING`         | Privacy mode is enabled but `.privacy-index` is missing                    | `readState()`, `listVault()`, `git cas doctor`                                |
+| `VAULT_PRIVACY_KEY_REQUIRED`          | Privacy mode requires a vault encryption key for state reads               | `readState()`, `listVault()`, `resolveVaultEntry()`                           |
 | `VAULT_ENCRYPTION_ALREADY_CONFIGURED` | Cannot reconfigure encryption without key rotation                         | `initVault()`                                                                 |
 | `NO_MATCHING_RECIPIENT`               | No recipient entry matches the provided KEK                                | `restore()`, `rotateKey()`                                                    |
 | `DEK_UNWRAP_FAILED`                   | Failed to unwrap DEK with the provided KEK                                 | `addRecipient()`, `rotateKey()`                                               |

@@ -45,6 +45,38 @@ describe('VaultStateCache plain state', () => {
   });
 });
 
+describe('VaultStateCache entry map copies', () => {
+  it('returns defensive copies from the cached plain entry map', () => {
+    const cache = new VaultStateCache();
+    const snapshot = cache.rememberTree('tree-1', {
+      rawEntries: [{ mode: '040000', type: 'tree', oid: 'tree-a', name: 'demo%2Fhello' }],
+      metadata: { version: 1 },
+    });
+    const parseEntries = vi.fn(() => new Map([['demo/hello', 'tree-a']]));
+
+    const first = cache.plainEntries(snapshot, parseEntries);
+    first.set('mutated', 'tree-b');
+    const second = cache.plainEntries(snapshot, parseEntries);
+
+    expect(parseEntries).toHaveBeenCalledOnce();
+    expect(second).toEqual(new Map([['demo/hello', 'tree-a']]));
+  });
+
+  it('returns defensive copies from the cached privacy entry map', async () => {
+    const cache = new VaultStateCache();
+    const snapshot = cache.rememberTree('tree-1', { rawEntries: [], metadata: { version: 1 } });
+    const key = Uint8Array.from([1]);
+    const resolveEntries = vi.fn(async () => new Map([['secret', 'tree-a']]));
+
+    const first = await cache.privacyEntries(snapshot, key, resolveEntries);
+    first.delete('secret');
+    const second = await cache.privacyEntries(snapshot, key, resolveEntries);
+
+    expect(resolveEntries).toHaveBeenCalledOnce();
+    expect(second).toEqual(new Map([['secret', 'tree-a']]));
+  });
+});
+
 describe('VaultStateCache privacy-key memoization', () => {
   it('caches privacy entries per encryption key object identity', async () => {
     const cache = new VaultStateCache();

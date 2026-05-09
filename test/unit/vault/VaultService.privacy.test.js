@@ -95,7 +95,31 @@ function createVault(overrides = {}) {
 }
 
 function setupNoVault(ref) {
-  ref.resolveRef.mockRejectedValueOnce(new Error('not found'));
+  ref.resolveRef.mockRejectedValueOnce(Object.assign(
+    new Error('refs/cas/vault is not defined'),
+    { code: 'GIT_REF_NOT_FOUND' },
+  ));
+}
+
+function setupPrivacyMismatchRead({ ref, persistence, crypto }) {
+  const privacyKey = derivePrivacyKey(TEST_KEY);
+  const hmacAlpha = hmacSlug(privacyKey, 'alpha');
+  const unmatchedHmac = hmacSlug(privacyKey, 'missing-from-index');
+  const indexJson = JSON.stringify({ alpha: hmacAlpha });
+  const indexMeta = { algorithm: 'aes-256-gcm', nonce: 'nonce-idx', tag: 'tag-idx', encrypted: true };
+  const meta = privacyMeta(indexMeta);
+
+  ref.resolveRef.mockResolvedValueOnce('commit-oid');
+  ref.resolveTree.mockResolvedValueOnce('tree-oid');
+  persistence.readTree.mockResolvedValueOnce([
+    { mode: '100644', type: 'blob', oid: 'meta-blob', name: '.vault.json' },
+    { mode: '100644', type: 'blob', oid: 'index-blob', name: '.privacy-index' },
+    { mode: '040000', type: 'tree', oid: 'tree-a', name: hmacAlpha },
+    { mode: '040000', type: 'tree', oid: 'tree-unmatched', name: unmatchedHmac },
+  ]);
+  persistence.readBlob.mockResolvedValueOnce(Buffer.from(JSON.stringify(meta)));
+  crypto.decryptBuffer.mockResolvedValueOnce(Buffer.from(indexJson));
+  persistence.readBlob.mockResolvedValueOnce(Buffer.from(indexJson));
 }
 
 
@@ -424,6 +448,47 @@ describe('privacy mode — missing .privacy-index', () => {
     await expect(vault.readState({ encryptionKey: TEST_KEY })).rejects.toSatisfy(
       (e) => e instanceof CasError && e.code === 'VAULT_PRIVACY_INDEX_MISSING',
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Privacy mode — index/tree mismatch
+// ---------------------------------------------------------------------------
+describe('privacy mode — index/tree mismatch', () => {
+  it('fails closed when readState finds tree entries missing from .privacy-index', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    const crypto = mockCrypto();
+    setupPrivacyMismatchRead({ ref, persistence, crypto });
+
+    const vault = createVault({ ref, persistence, crypto });
+
+    await expect(vault.readState({ encryptionKey: TEST_KEY })).rejects.toMatchObject({
+      code: 'VAULT_PRIVACY_INDEX_INVALID',
+      meta: {
+        unmatchedCount: 1,
+        treeEntryCount: 2,
+        resolvedCount: 1,
+      },
+    });
+  });
+
+  it('fails closed before listVault returns partial privacy-mode entries', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    const crypto = mockCrypto();
+    setupPrivacyMismatchRead({ ref, persistence, crypto });
+
+    const vault = createVault({ ref, persistence, crypto });
+
+    await expect(vault.listVault({ encryptionKey: TEST_KEY })).rejects.toMatchObject({
+      code: 'VAULT_PRIVACY_INDEX_INVALID',
+      meta: {
+        unmatchedCount: 1,
+        treeEntryCount: 2,
+        resolvedCount: 1,
+      },
+    });
   });
 });
 

@@ -39,7 +39,7 @@ export default class VaultStateCache {
     if (!snapshot.plainEntries) {
       snapshot.plainEntries = parseEntries(snapshot.rawEntries);
     }
-    return snapshot.plainEntries;
+    return new Map(snapshot.plainEntries);
   }
 
   /**
@@ -57,7 +57,7 @@ export default class VaultStateCache {
       };
       snapshot.privacyEntriesByKey.set(encryptionKey, cached);
     }
-    return cached.entries;
+    return new Map(cached.entries);
   }
 
   /**

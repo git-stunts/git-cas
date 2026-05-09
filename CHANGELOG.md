@@ -106,6 +106,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per-call limit is supplied.
 - **Vault keyed caches snapshot key bytes** — privacy-entry and verifier caches
   now reject stale hits when a reused `Uint8Array` key object has been mutated.
+- **Vault state caches return defensive entry maps** — `VaultStateCache` now
+  copies cached plain and privacy entry maps before returning them, so caller
+  mutations cannot poison subsequent reads from the same tree snapshot.
+- **Vault metadata enforces the AES-GCM cipher boundary** — `.vault.json`
+  metadata now rejects unsupported `encryption.cipher` values with
+  `VAULT_METADATA_INVALID`; the v6 vault metadata format remains AES-256-GCM.
 - **Doctor rejects vault heads without metadata** — `git cas doctor` now fails
   with `VAULT_METADATA_INVALID` when `refs/cas/vault` exists but `.vault.json`
   is missing or invalid.
@@ -114,11 +120,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cannot resolve to a tree fail with `VAULT_HEAD_INVALID`.
 - **Plumbing missing-ref errors stay non-fatal** — vault head resolution now
   recognizes `@git-stunts/plumbing` missing-ref stderr details as an absent
-  vault while still surfacing unrelated ref failures.
+  vault while still surfacing unrelated ref failures. Object database failures
+  and corrupt head stderr are reported as `VAULT_HEAD_INVALID`.
 - **Doctor can inspect privacy vaults** — human and agent `doctor` commands now
   accept raw vault keys, vault passphrase sources, and OS-keychain targets so
   privacy-enabled vaults can be diagnosed without falling back to a missing-key
-  failure.
+  failure. Agent diagnostics now ignore passphrase input with a warning when the
+  vault is plaintext, and the TUI operations doctor forwards the already-unlocked
+  vault key.
+- **Privacy index mismatches fail closed** — privacy-mode `readState()`,
+  `listVault()`, and doctor scans now fail with `VAULT_PRIVACY_INDEX_INVALID`
+  when `.privacy-index` does not cover every raw HMAC tree entry, avoiding
+  partial listings that could hide vault corruption.
 - **Doctor reports byte-level dedupe** — vault stats and doctor output now
   include total chunk bytes, unique chunk bytes, duplicate chunk bytes, and a
   byte-level dedupe ratio alongside chunk-reference counts.

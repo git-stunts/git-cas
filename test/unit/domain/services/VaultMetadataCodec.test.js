@@ -53,6 +53,28 @@ describe('VaultMetadataCodec version validation', () => {
   });
 });
 
+describe('VaultMetadataCodec cipher validation', () => {
+  it('rejects unsupported encryption ciphers at the boundary', () => {
+    const codec = new VaultMetadataCodec();
+    const metadata = encryptedMetadata({
+      encryption: {
+        ...encryptedMetadata().encryption,
+        cipher: 'chacha20-poly1305',
+      },
+    });
+
+    expect(() => codec.decode(bytes(metadata))).toThrow(
+      expect.objectContaining({
+        code: 'VAULT_METADATA_INVALID',
+        meta: expect.objectContaining({
+          field: 'encryption.cipher',
+          expected: 'aes-256-gcm',
+        }),
+      }),
+    );
+  });
+});
+
 describe('VaultMetadataCodec encryption validation', () => {
   it('normalizes malformed KDF metadata to VAULT_METADATA_INVALID', () => {
     const codec = new VaultMetadataCodec();

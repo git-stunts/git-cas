@@ -70,7 +70,10 @@ function treeEntries(metaOid, extras = []) {
 }
 
 function setupNoVault(ref) {
-  ref.resolveRef.mockRejectedValueOnce(new Error('not found'));
+  ref.resolveRef.mockRejectedValueOnce(Object.assign(
+    new Error('refs/cas/vault is not defined'),
+    { code: 'GIT_REF_NOT_FOUND' },
+  ));
 }
 
 function setupExistingVault({ ref, persistence, metaJson, entries = [] }) {

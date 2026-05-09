@@ -35,6 +35,7 @@ describe('domain-specific error classes', () => {
     expect(Object.isFrozen(ErrorCodes)).toBe(true);
     expect(ErrorCodes.INVALID_OID).toBe('INVALID_OID');
     expect(ErrorCodes.VAULT_CONFLICT).toBe('VAULT_CONFLICT');
+    expect(ErrorCodes.VAULT_REF_MISSING).toBe('VAULT_REF_MISSING');
   });
 
   it('preserves CasError compatibility while exposing code-specific classes', () => {

@@ -339,7 +339,7 @@ function buildMissingVaultReport() {
     stats: emptyVaultStats(),
     issues: [{
       scope: 'vault',
-      code: 'VAULT_REF_MISSING',
+      code: ErrorCodes.VAULT_REF_MISSING,
       message: 'refs/cas/vault not found',
     }],
   };

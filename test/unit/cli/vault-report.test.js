@@ -5,6 +5,7 @@ import {
   renderDoctorReport,
   renderVaultStats,
 } from '../../../bin/ui/vault-report.js';
+import { ErrorCodes } from '../../../src/domain/errors/index.js';
 
 function makeManifest(data) {
   return {
@@ -154,7 +155,7 @@ describe('inspectVaultHealth', () => {
     expect(report.hasVault).toBe(false);
     expect(report.issues).toEqual([
       expect.objectContaining({
-        code: 'VAULT_REF_MISSING',
+        code: ErrorCodes.VAULT_REF_MISSING,
         scope: 'vault',
       }),
     ]);

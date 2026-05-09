@@ -1,6 +1,6 @@
 import { inspectVaultHealth } from '../../ui/vault-report.js';
 import { resolveAgentPassphraseSource } from '../passphrase-source.js';
-import { resolveAgentStoreEncryptionKey } from '../../credentials.js';
+import { resolveAgentDiagnosticEncryptionKey } from '../../credentials.js';
 import {
   assignPositionals,
   createCas,
@@ -44,7 +44,7 @@ export default async function doctorCommand(args, stdin, session) {
   ]));
 
   const cas = await createCas(input.cwd || '.');
-  const encryptionKey = await resolveAgentStoreEncryptionKey(cas, input, {
+  const encryptionKey = await resolveAgentDiagnosticEncryptionKey(cas, input, {
     stdin,
     onWarning: (warning) => session.writeWarning?.(warning),
     resolveVaultPassphrase,

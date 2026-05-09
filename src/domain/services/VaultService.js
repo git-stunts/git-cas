@@ -277,14 +277,10 @@ export default class VaultService {
       }
     }
 
-    if (entries.size < parsed.entries.size) {
-      const unmatchedCount = parsed.entries.size - entries.size;
-      this.observability.log(
-        'warn',
-        `Privacy index resolution: ${unmatchedCount} tree entries had no matching slug — potential corruption`,
-        { unmatchedCount, treeEntryCount: parsed.entries.size, resolvedCount: entries.size },
-      );
-    }
+    assertPrivacyIndexCoverage({
+      treeEntryCount: parsed.entries.size,
+      resolvedCount: entries.size,
+    });
 
     return entries;
   }
@@ -725,8 +721,8 @@ export default class VaultService {
       );
     }
     const hmacToSlug = await this.#readPrivacyHmacToSlug(treeOid, metadata, encryptionKey);
+    const resolvedEntries = [];
     let treeEntryCount = 0;
-    let resolvedCount = 0;
     for await (const entry of this.#iterateTreeEntries(treeOid)) {
       if (entry.name === VAULT_METADATA_ENTRY || entry.name === VAULT_PRIVACY_INDEX_ENTRY) {
         continue;
@@ -734,17 +730,12 @@ export default class VaultService {
       treeEntryCount++;
       const slug = hmacToSlug.get(entry.name);
       if (slug) {
-        resolvedCount++;
-        yield { slug, treeOid: entry.oid };
+        resolvedEntries.push({ slug, treeOid: entry.oid });
       }
     }
-    if (resolvedCount < treeEntryCount) {
-      const unmatchedCount = treeEntryCount - resolvedCount;
-      this.observability.log(
-        'warn',
-        `Privacy index resolution: ${unmatchedCount} tree entries had no matching slug — potential corruption`,
-        { unmatchedCount, treeEntryCount, resolvedCount },
-      );
+    assertPrivacyIndexCoverage({ treeEntryCount, resolvedCount: resolvedEntries.length });
+    for (const entry of resolvedEntries) {
+      yield entry;
     }
   }
 
@@ -865,4 +856,22 @@ export default class VaultService {
     }
     return await this.#readMetadataFromTree(current.treeOid);
   }
+}
+
+/**
+ * @param {{ treeEntryCount: number, resolvedCount: number }} coverage
+ */
+function assertPrivacyIndexCoverage({ treeEntryCount, resolvedCount }) {
+  if (resolvedCount === treeEntryCount) {
+    return;
+  }
+  throw new CasError(
+    'Privacy index does not cover all vault tree entries',
+    ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
+    {
+      unmatchedCount: treeEntryCount - resolvedCount,
+      treeEntryCount,
+      resolvedCount,
+    },
+  );
 }

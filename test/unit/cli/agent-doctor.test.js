@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   normalizeInputAliases: vi.fn((input) => input),
   parseAgentInput: vi.fn(),
   readAgentPassphraseFile: vi.fn(),
+  resolveAgentDiagnosticEncryptionKey: vi.fn(),
   resolveAgentStoreEncryptionKey: vi.fn(),
   selectStartInput: vi.fn((values) => values),
   writeAgentStart: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock('../../../bin/ui/vault-report.js', () => ({
 }));
 
 vi.mock('../../../bin/credentials.js', () => ({
+  resolveAgentDiagnosticEncryptionKey: mocks.resolveAgentDiagnosticEncryptionKey,
   resolveAgentStoreEncryptionKey: mocks.resolveAgentStoreEncryptionKey,
 }));
 
@@ -49,17 +51,18 @@ describe('agent doctor command', () => {
       requestSource: undefined,
     });
     mocks.createCas.mockResolvedValue(cas);
-    mocks.resolveAgentStoreEncryptionKey.mockResolvedValue(encryptionKey);
+    mocks.resolveAgentDiagnosticEncryptionKey.mockResolvedValue(encryptionKey);
     mocks.inspectVaultHealth.mockResolvedValue({ status: 'ok' });
 
     const result = await doctorCommand(['--key-file', 'key.bin'], stdin, session);
 
     expect(result.exitCode).toBe(0);
-    expect(mocks.resolveAgentStoreEncryptionKey).toHaveBeenCalledWith(
+    expect(mocks.resolveAgentDiagnosticEncryptionKey).toHaveBeenCalledWith(
       cas,
       expect.objectContaining({ keyFile: 'key.bin' }),
       expect.objectContaining({ stdin }),
     );
+    expect(mocks.resolveAgentStoreEncryptionKey).not.toHaveBeenCalled();
     expect(mocks.inspectVaultHealth).toHaveBeenCalledWith(cas, { encryptionKey });
   });
 });
