@@ -2123,7 +2123,7 @@ new CasError({ message, code, meta, documentationUrl });
 | `VAULT_REF_UPDATE_FAILED`             | Vault ref update failed for a non-CAS reason                               | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
 | `VAULT_HEAD_INVALID`                  | Vault ref exists but cannot be resolved to a readable commit tree          | `readState()`, `getVaultMetadata()`, `git cas doctor`                         |
 | `VAULT_METADATA_INVALID`              | `.vault.json` malformed, unknown version, unsupported cipher, or missing required fields | `readState()`, `rotateVaultPassphrase()`, `git cas doctor`                  |
-| `VAULT_PRIVACY_INDEX_INVALID`         | Privacy index does not cover every raw HMAC tree entry                     | `readState()`, `listVault()`, `git cas doctor`                                |
+| `VAULT_PRIVACY_INDEX_INVALID`         | Privacy index metadata, payload, or raw HMAC tree coverage is invalid      | `readState()`, `listVault()`, `resolveVaultEntry()`, `git cas doctor`         |
 | `VAULT_PRIVACY_INDEX_MISSING`         | Privacy mode is enabled but `.privacy-index` is missing                    | `readState()`, `listVault()`, `git cas doctor`                                |
 | `VAULT_PRIVACY_KEY_REQUIRED`          | Privacy mode requires a vault encryption key for state reads               | `readState()`, `listVault()`, `resolveVaultEntry()`                           |
 | `VAULT_ENCRYPTION_ALREADY_CONFIGURED` | Cannot reconfigure encryption without key rotation                         | `initVault()`                                                                 |

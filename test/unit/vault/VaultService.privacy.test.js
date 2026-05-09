@@ -453,6 +453,54 @@ describe('privacy mode — missing .privacy-index', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Privacy mode — missing index metadata
+// ---------------------------------------------------------------------------
+describe('privacy mode — missing index metadata', () => {
+  it('rejects readState with a structured privacy index error', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    const meta = privacyMeta(undefined);
+
+    ref.resolveRef.mockResolvedValueOnce('commit-oid');
+    ref.resolveTree.mockResolvedValueOnce('tree-oid');
+    persistence.readTree.mockResolvedValueOnce([
+      { mode: '100644', type: 'blob', oid: 'meta-blob', name: '.vault.json' },
+      { mode: '100644', type: 'blob', oid: 'index-blob', name: '.privacy-index' },
+    ]);
+    persistence.readBlob.mockResolvedValueOnce(Buffer.from(JSON.stringify(meta)));
+
+    const vault = createVault({ ref, persistence });
+
+    await expect(vault.readState({ encryptionKey: TEST_KEY })).rejects.toMatchObject({
+      code: 'VAULT_PRIVACY_INDEX_INVALID',
+      meta: { field: 'privacy.indexMeta' },
+    });
+  });
+
+  it('rejects resolveVaultEntry with a structured privacy index error', async () => {
+    const ref = mockRef();
+    const persistence = mockPersistence();
+    const meta = privacyMeta(undefined);
+
+    ref.resolveRef.mockResolvedValueOnce('commit-oid');
+    ref.resolveTree.mockResolvedValueOnce('tree-oid');
+    persistence.readTree.mockResolvedValueOnce([
+      { mode: '100644', type: 'blob', oid: 'meta-blob', name: '.vault.json' },
+      { mode: '100644', type: 'blob', oid: 'index-blob', name: '.privacy-index' },
+    ]);
+    persistence.readBlob.mockResolvedValueOnce(Buffer.from(JSON.stringify(meta)));
+
+    const vault = createVault({ ref, persistence });
+
+    await expect(vault.resolveVaultEntry({ slug: 'alpha', encryptionKey: TEST_KEY }))
+      .rejects.toMatchObject({
+        code: 'VAULT_PRIVACY_INDEX_INVALID',
+        meta: { field: 'privacy.indexMeta' },
+      });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Privacy mode — index/tree mismatch
 // ---------------------------------------------------------------------------
 describe('privacy mode — index/tree mismatch', () => {

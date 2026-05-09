@@ -141,6 +141,9 @@ present.
 Privacy index coverage failures are vault-level failures. A missing
 `.privacy-index` reports `VAULT_PRIVACY_INDEX_MISSING`; a present index that
 does not cover every raw HMAC tree entry reports `VAULT_PRIVACY_INDEX_INVALID`.
+Privacy metadata must also include `privacy.indexMeta`; missing index metadata
+is treated as `VAULT_PRIVACY_INDEX_INVALID` before decrypting or resolving
+privacy-mode entries.
 When manifests can be read, doctor reports both chunk-reference dedupe and
 byte-level efficiency (`totalChunkBytes / uniqueChunkBytes`) so operators can
 see whether repeated stored chunks reduce chunk bytes without conflating that

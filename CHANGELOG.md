@@ -148,6 +148,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `listVault()`, and doctor scans now fail with `VAULT_PRIVACY_INDEX_INVALID`
   when `.privacy-index` does not cover every raw HMAC tree entry, avoiding
   partial listings that could hide vault corruption.
+- **Privacy index metadata fails closed** — privacy-enabled vaults missing
+  `privacy.indexMeta` now fail with structured `VAULT_PRIVACY_INDEX_INVALID`
+  metadata before decrypting or resolving privacy-mode entries.
 - **Doctor reports byte-level dedupe** — vault stats and doctor output now
   include total chunk bytes, unique chunk bytes, duplicate chunk bytes, and a
   byte-level dedupe ratio alongside chunk-reference counts.

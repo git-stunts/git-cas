@@ -20,6 +20,8 @@ import VaultTreeCodec, {
 } from './VaultTreeCodec.js';
 import VaultKeyVerifier from './VaultKeyVerifier.js';
 
+const PRIVACY_INDEX_META_FIELD = 'privacy.indexMeta';
+
 /**
  * Vault key verifier stored in .vault.json.
  * @typedef {Object} VaultEncryptionVerifier
@@ -256,11 +258,12 @@ export default class VaultService {
       );
     }
 
+    const indexMeta = requirePrivacyIndexMeta(metadata);
     const indexBlob = await this.vaultPersistence.readBlob(parsed.privacyIndexBlobOid);
     const slugToHmac = await this.privacyIndex.decryptIndex({
       bytes: indexBlob,
       encryptionKey,
-      meta: metadata.privacy.indexMeta,
+      meta: indexMeta,
     });
 
     // Reverse the index: hmacName → slug.
@@ -301,11 +304,12 @@ export default class VaultService {
       );
     }
 
+    const indexMeta = requirePrivacyIndexMeta(metadata);
     const indexBlob = await this.vaultPersistence.readBlob(privacyIndexEntry.oid);
     const slugToHmac = await this.privacyIndex.decryptIndex({
       bytes: indexBlob,
       encryptionKey,
-      meta: metadata.privacy.indexMeta,
+      meta: indexMeta,
     });
     const hmacToSlug = new Map();
     for (const [slug, hmac] of slugToHmac) {
@@ -824,6 +828,7 @@ export default class VaultService {
         ErrorCodes.VAULT_PRIVACY_KEY_REQUIRED,
       );
     }
+    requirePrivacyIndexMeta(metadata);
     return await this.privacyIndex.persistedNameForSlug({ encryptionKey, slug: vaultSlug });
   }
 
@@ -856,6 +861,22 @@ export default class VaultService {
     }
     return await this.#readMetadataFromTree(current.treeOid);
   }
+}
+
+/**
+ * @param {VaultMetadata} metadata
+ * @returns {object}
+ */
+function requirePrivacyIndexMeta(metadata) {
+  const indexMeta = metadata?.privacy?.indexMeta;
+  if (typeof indexMeta === 'object' && indexMeta !== null) {
+    return indexMeta;
+  }
+  throw new CasError(
+    'Privacy mode is enabled but privacy index metadata is missing',
+    ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
+    { field: PRIVACY_INDEX_META_FIELD },
+  );
 }
 
 /**
