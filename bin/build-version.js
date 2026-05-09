@@ -51,6 +51,14 @@ export function resolveVersionString(
   semver,
   { readGitSha: readGit = readGitSha, readStampedSha: readStamped = readStampedSha } = {}
 ) {
-  const sha = readGit() || readStamped();
+  const sha = normalizeSha(readGit()) || normalizeSha(readStamped());
   return sha ? `${semver}+${sha}` : semver;
+}
+
+/**
+ * @param {string|null} sha
+ * @returns {string|null}
+ */
+function normalizeSha(sha) {
+  return sha === 'unknown' ? null : sha;
 }

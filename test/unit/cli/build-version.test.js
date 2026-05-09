@@ -28,4 +28,13 @@ describe('CLI build version', () => {
 
     expect(version).toBe('6.0.0');
   });
+
+  it('falls back to semver when the stamped SHA is the unknown sentinel', () => {
+    const version = resolveVersionString('6.0.0', {
+      readGitSha: () => null,
+      readStampedSha: () => 'unknown',
+    });
+
+    expect(version).toBe('6.0.0');
+  });
 });
