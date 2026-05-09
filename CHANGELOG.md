@@ -224,6 +224,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `unknown` build metadata sentinel written when Docker test images have neither
   `.git` metadata nor a stamped package SHA, so `git-cas --version` falls back to
   plain semver instead of emitting `+unknown`.
+- **Docker unit-test stability** — vault passphrase-rotation unit coverage now
+  uses in-memory persistence and ref ports, keeping domain behavior validation
+  independent from Docker Git subprocess scheduling.
 - **Shared CLI/agent credential resolution** — human CLI and agent protocol
   flows now use `bin/credentials.js` for key-file length checks, ambiguous
   credential-source rejection, vault passphrase-derived key verification, and
