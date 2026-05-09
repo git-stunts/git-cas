@@ -689,7 +689,7 @@ All commands support `--json` for machine-readable output and `--quiet` to suppr
 
 | Flag | Description |
 |---|---|
-| `--out <path>` | Output file path (required) |
+| `--out <path>` | Non-empty output file path (required) |
 | `--slug <slug>` | Resolve tree OID from vault slug |
 | `--oid <tree-oid>` | Direct tree OID |
 | `--key-file <path>` | Encryption key file |

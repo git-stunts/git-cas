@@ -178,6 +178,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Restore path symlink boundary** — `restoreFile()` now canonicalizes
   existing path components before stream or bounded-file publication, blocking
   symlinked output directories that resolve outside `baseDirectory`.
+- **CLI restore output validation** — restore target resolution now rejects
+  empty `--out` values with `INVALID_OPTIONS` instead of resolving them to the
+  current directory.
 - **Vault retry policies validate injected hooks** — `VaultMutationRetryPolicy`
   now rejects non-function `random`/`sleep` dependencies at construction and
   freezes configured policy instances.
