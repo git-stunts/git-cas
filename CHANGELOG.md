@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [6.0.0] — Unreleased
+## [Unreleased]
+
+### Changed
+
+- **Release workflow future-runtime hardening** — The GitHub Release job now
+  opts JavaScript actions into the Node 24 action runtime so GitHub's Node 20
+  action deprecation warning is caught before it becomes a release blocker.
+- **README front-door trim** — The README now stays focused on positioning,
+  quick start, capability routing, safety posture, runtime support, and doc
+  navigation. Dense restore streaming detail moved to `GUIDE.md`, while the
+  security hardening table in `ADVANCED_GUIDE.md` now carries the detailed
+  limits previously summarized in the README.
+
+## [6.0.0] — 2026-05-09
 
 ### Breaking Changes
 
@@ -279,8 +292,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Agent diagnostic passphrase resolver guard** — encrypted `git cas agent
-  doctor` requests now fail with a controlled credential error when a structured
+- **Agent diagnostic passphrase resolver guard** — encrypted `git cas agent doctor`
+  requests now fail with a controlled credential error when a structured
   passphrase source is supplied without the resolver dependency.
 - **Doctor byte dedupe metric** — vault health statistics now compute byte
   dedupe from stored chunk bytes instead of logical file size, keeping

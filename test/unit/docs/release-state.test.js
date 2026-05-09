@@ -13,13 +13,14 @@ function v6Heading(changelog) {
 }
 
 describe('release state docs', () => {
-  it('keeps v6.0.0 marked unreleased until the tag workflow runs', () => {
+  it('keeps v6.0.0 marked released once the tag workflow has published', () => {
     const changelogHeading = v6Heading(read('CHANGELOG.md'));
     const status = read('STATUS.md');
 
-    if (status.includes('annotated tag has not been created')) {
-      expect(changelogHeading).toBe('Unreleased');
-      expect(changelogHeading).not.toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    if (status.includes('v6.0.0` is published to npm and GitHub Releases')) {
+      expect(changelogHeading).toBe('2026-05-09');
+      expect(status).toContain('**Last tagged release:** `v6.0.0` (`2026-05-09`)');
+      expect(status).not.toContain('annotated tag has not been created');
     }
   });
 

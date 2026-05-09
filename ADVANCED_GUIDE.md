@@ -144,9 +144,9 @@ When `normalized: true` (the default), a dual-mask strategy from the FastCDC
 paper is applied. Instead of a single mask, two masks control boundary
 probability relative to the current chunk length:
 
-| Region | Mask | Bits | Effect |
-| :--- | :--- | :--- | :--- |
-| Below target (`chunkLen < targetSize`) | `hardMask` | `bits + 1` | More bits required to match -- boundaries are **less likely**, pushing chunks larger |
+| Region                                        | Mask       | Bits       | Effect                                                                                       |
+| :-------------------------------------------- | :--------- | :--------- | :------------------------------------------------------------------------------------------- |
+| Below target (`chunkLen < targetSize`)        | `hardMask` | `bits + 1` | More bits required to match -- boundaries are **less likely**, pushing chunks larger         |
 | At or above target (`chunkLen >= targetSize`) | `easyMask` | `bits - 1` | Fewer bits required -- boundaries are **more likely**, pulling chunks back toward the target |
 
 Concrete formulas:
@@ -168,12 +168,12 @@ const chunker = new CdcChunker({ targetChunkSize: 262144, normalized: false });
 
 ### Default Parameters
 
-| Parameter | Default | Bounds |
-| :--- | :--- | :--- |
+| Parameter         | Default           | Bounds                                    |
+| :---------------- | :---------------- | :---------------------------------------- |
 | `targetChunkSize` | 262,144 (256 KiB) | Must be in `[minChunkSize, maxChunkSize]` |
-| `minChunkSize` | 65,536 (64 KiB) | Must not exceed `maxChunkSize` |
-| `maxChunkSize` | 1,048,576 (1 MiB) | Hard cap at 100 MiB |
-| `normalized` | `true` | Boolean |
+| `minChunkSize`    | 65,536 (64 KiB)   | Must not exceed `maxChunkSize`            |
+| `maxChunkSize`    | 1,048,576 (1 MiB) | Hard cap at 100 MiB                       |
+| `normalized`      | `true`            | Boolean                                   |
 
 ### Encryption Penalty
 
@@ -286,12 +286,12 @@ frame sequence, so any such tampering causes GCM authentication failure.
 
 ### Scheme Selection
 
-| Scenario | Recommended Scheme |
-| :--- | :--- |
-| Fixed chunking + encryption | `framed` (default) |
-| Large assets needing streaming restore | `framed` |
-| CDC with encryption (dedup-preserving) | `convergent` |
-| Single-envelope simplicity | `whole` |
+| Scenario                               | Recommended Scheme |
+| :------------------------------------- | :----------------- |
+| Fixed chunking + encryption            | `framed` (default) |
+| Large assets needing streaming restore | `framed`           |
+| CDC with encryption (dedup-preserving) | `convergent`       |
+| Single-envelope simplicity             | `whole`            |
 
 ### Auto-Selection
 
@@ -362,21 +362,22 @@ at both store time and restore time.
 
 ### PBKDF2-SHA512
 
-| Parameter | Default | Min | Max |
-| :--- | ---: | ---: | ---: |
-| `iterations` | 600,000 | 100,000 | 2,000,000 |
-| `keyLength` | 32 | -- | -- (locked) |
+| Parameter    | Default |     Min |         Max |
+| :----------- | ------: | ------: | ----------: |
+| `iterations` | 600,000 | 100,000 |   2,000,000 |
+| `keyLength`  |      32 |      -- | -- (locked) |
 
 ### scrypt
 
-| Parameter | Default | Min | Max |
-| :--- | ---: | ---: | ---: |
-| `cost` (N) | 131,072 (2^17) | 16,384 (2^14) | 1,048,576 (2^20) |
-| `blockSize` (r) | 8 | 8 | 32 |
-| `parallelization` (p) | 1 | 1 | 16 |
-| `keyLength` | 32 | -- | -- (locked) |
+| Parameter             |        Default |           Min |              Max |
+| :-------------------- | -------------: | ------------: | ---------------: |
+| `cost` (N)            | 131,072 (2^17) | 16,384 (2^14) | 1,048,576 (2^20) |
+| `blockSize` (r)       |              8 |             8 |               32 |
+| `parallelization` (p) |              1 |             1 |               16 |
+| `keyLength`           |             32 |            -- |      -- (locked) |
 
 Additional constraints:
+
 - `cost` must be a power of two.
 - Combined scrypt memory budget `128 * N * r` is capped at **1 GiB**.
 - Salt must be at least **16 bytes** (128 bits), per NIST SP 800-132.
@@ -451,7 +452,10 @@ import { FixedChunker, NodeCompressionAdapter } from '@git-stunts/git-cas';
 import CasService from '@git-stunts/git-cas/service';
 
 const cas = new CasService({
-  persistence, codec, crypto, observability,
+  persistence,
+  codec,
+  crypto,
+  observability,
   chunker: new FixedChunker({ chunkSize: 256 * 1024 }),
   compressionAdapter: new NodeCompressionAdapter(),
   formatVersion: '6.0.0',
@@ -541,10 +545,13 @@ import { FixedChunker, NodeCompressionAdapter } from '@git-stunts/git-cas';
 import CasService from '@git-stunts/git-cas/service';
 
 const cas = new CasService({
-  persistence, codec, crypto, observability,
+  persistence,
+  codec,
+  crypto,
+  observability,
   chunker: new FixedChunker({ chunkSize: 256 * 1024 }),
   compressionAdapter: new NodeCompressionAdapter(),
-  concurrency: 8,  // up to 8 parallel chunk reads
+  concurrency: 8, // up to 8 parallel chunk reads
 });
 ```
 
@@ -614,13 +621,16 @@ with opaque HMAC digests.
 ### How It Works
 
 1. **Privacy key derivation**:
+
    ```
    privacyKey = HMAC-SHA256(vaultEncryptionKey, "git-cas-privacy-v1")
    ```
+
    The 32-byte privacy key is derived deterministically from the vault
    encryption key using a fixed label.
 
 2. **Tree entry masking**: each slug is replaced with its HMAC:
+
    ```
    treeName = hex(HMAC-SHA256(privacyKey, slug))   // 64-char lowercase hex
    ```
@@ -667,7 +677,7 @@ await cas.store({
   filename: 'photo.raw',
   recipients: [
     { label: 'alice', key: aliceKek },
-    { label: 'bob',   key: bobKek },
+    { label: 'bob', key: bobKek },
   ],
 });
 ```
@@ -771,7 +781,10 @@ import { FixedChunker } from '@git-stunts/git-cas';
 import CasService from '@git-stunts/git-cas/service';
 
 const cas = new CasService({
-  persistence, codec, crypto, observability,
+  persistence,
+  codec,
+  crypto,
+  observability,
   chunker: new FixedChunker({ chunkSize: 256 * 1024 }),
   compressionAdapter: new MyBrotliAdapter(),
 });
@@ -820,14 +833,14 @@ const service = new CasService({
 
 ### Required Port Shape
 
-| Port | Required Surface | Notes |
-| :--- | :--- | :--- |
-| `GitPersistencePort` | `writeBlob`, `writeTree`, `readBlob`, `readBlobStream`, `readTree` | Return and consume `Uint8Array` streams; `readBlobStream()` is required for bounded restore paths. |
-| `CodecPort` | `encode`, `decode`, `extension` | `encode()` must return `Uint8Array`; JSON and CBOR are built in. |
-| `CryptoPort` | SHA-256, random bytes, AES-GCM buffer/stream methods, nonce/tag helpers, HMAC, KDF | `scrypt` support is runtime-dependent; Web Crypto adapters report capability errors where unsupported. |
-| `ObservabilityPort` | `metric`, `log`, `span` | Use `SilentObserver`, `EventEmitterObserver`, or `StatsCollector` unless you need custom telemetry. |
-| `ChunkingPort` | `chunk(source)`, `strategy`, `params` | Use `FixedChunker` or `CdcChunker`; direct service callers must inject one. |
-| `CompressionPort` | `compressBuffer`, `decompressBuffer`, `compressStream`, `decompressStream` | Direct service callers must inject one even if stores do not request compression. |
+| Port                 | Required Surface                                                                   | Notes                                                                                                  |
+| :------------------- | :--------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------- |
+| `GitPersistencePort` | `writeBlob`, `writeTree`, `readBlob`, `readBlobStream`, `readTree`                 | Return and consume `Uint8Array` streams; `readBlobStream()` is required for bounded restore paths.     |
+| `CodecPort`          | `encode`, `decode`, `extension`                                                    | `encode()` must return `Uint8Array`; JSON and CBOR are built in.                                       |
+| `CryptoPort`         | SHA-256, random bytes, AES-GCM buffer/stream methods, nonce/tag helpers, HMAC, KDF | `scrypt` support is runtime-dependent; Web Crypto adapters report capability errors where unsupported. |
+| `ObservabilityPort`  | `metric`, `log`, `span`                                                            | Use `SilentObserver`, `EventEmitterObserver`, or `StatsCollector` unless you need custom telemetry.    |
+| `ChunkingPort`       | `chunk(source)`, `strategy`, `params`                                              | Use `FixedChunker` or `CdcChunker`; direct service callers must inject one.                            |
+| `CompressionPort`    | `compressBuffer`, `decompressBuffer`, `compressStream`, `decompressStream`         | Direct service callers must inject one even if stores do not request compression.                      |
 
 The public byte contract is `Uint8Array`. Node `Buffer` values work at Node
 boundaries because `Buffer` extends `Uint8Array`, but custom adapters should
@@ -855,22 +868,30 @@ and keeps runtime-specific imports out of the domain.
 The following security fixes have been applied across the release line. Each
 row describes the fix and what it prevents.
 
-| # | Fix | Prevents |
-| :--- | :--- | :--- |
-| 1 | Encrypted manifest metadata downgrade rejection | Attacker strips `encrypted: true` to bypass decryption |
-| 2 | Algorithm allowlist (`aes-256-gcm` only) | Attacker substitutes a weaker or non-existent algorithm |
-| 3 | Nonce/tag format validation (canonical base64, correct byte length) | Malformed metadata crashes the runtime or produces garbage |
-| 4 | Framed record parse hardening (`ciphertextLength <= frameBytes`) | Oversized length field causes unbounded allocation |
-| 5 | `maxRestoreBufferSize` enforcement for buffered `restore()` / `restoreStream()` paths | Unbounded memory allocation on large encrypted/compressed memory restores |
-| 6 | `maxEncryptionBufferSize` / `maxDecryptionBufferSize` for Web Crypto | One-shot Web Crypto API exhausts memory on large payloads |
-| 7 | KDF policy enforcement (bounded iterations, cost, salt, keyLength) | Attacker-controlled manifest requests extreme KDF work or weak params |
-| 8 | Manifest integrity hash (`manifestHash` field) | Silent manifest corruption or codec round-trip bugs |
-| 9 | CDC + encryption dedup warning | False confidence in dedup savings when ciphertext is pseudorandom |
-| 10 | Orphaned blob tracking on `STREAM_ERROR` / `STORE_ERROR` | Lost blob OIDs after partial store failures |
-| 11 | AAD binding (always active on all schemes) | Cross-manifest blob substitution and frame reordering attacks |
-| 12 | Legacy scheme rejection at runtime | Downgrade to weaker v1/v2 scheme variants |
-| 13 | Convergent encryption post-decrypt digest verification | Chunk substitution or corruption after decryption |
-| 14 | Encrypted vault key verifier in `.vault.json` | Wrong passphrase accepted for an empty encrypted vault |
+| #   | Fix                                                                                   | Prevents                                                                  |
+| :-- | :------------------------------------------------------------------------------------ | :------------------------------------------------------------------------ |
+| 1   | Encrypted manifest metadata downgrade rejection                                       | Attacker strips `encrypted: true` to bypass decryption                    |
+| 2   | Algorithm allowlist (`aes-256-gcm` only)                                              | Attacker substitutes a weaker or non-existent algorithm                   |
+| 3   | Nonce/tag format validation (canonical base64, correct byte length)                   | Malformed metadata crashes the runtime or produces garbage                |
+| 4   | Framed record parse hardening (`ciphertextLength <= frameBytes`)                      | Oversized length field causes unbounded allocation                        |
+| 5   | `maxRestoreBufferSize` enforcement for buffered `restore()` / `restoreStream()` paths | Unbounded memory allocation on large encrypted/compressed memory restores |
+| 6   | `maxEncryptionBufferSize` / `maxDecryptionBufferSize` for Web Crypto                  | One-shot Web Crypto API exhausts memory on large payloads                 |
+| 7   | KDF policy enforcement (bounded iterations, cost, salt, keyLength)                    | Attacker-controlled manifest requests extreme KDF work or weak params     |
+| 8   | Manifest integrity hash (`manifestHash` field)                                        | Silent manifest corruption or codec round-trip bugs                       |
+| 9   | CDC + encryption dedup warning                                                        | False confidence in dedup savings when ciphertext is pseudorandom         |
+| 10  | Orphaned blob tracking on `STREAM_ERROR` / `STORE_ERROR`                              | Lost blob OIDs after partial store failures                               |
+| 11  | AAD binding (always active on all schemes)                                            | Cross-manifest blob substitution and frame reordering attacks             |
+| 12  | Legacy scheme rejection at runtime                                                    | Downgrade to weaker v1/v2 scheme variants                                 |
+| 13  | Convergent encryption post-decrypt digest verification                                | Chunk substitution or corruption after decryption                         |
+| 14  | Encrypted vault key verifier in `.vault.json`                                         | Wrong passphrase accepted for an empty encrypted vault                    |
+| 15  | `restoreFile()` `baseDirectory` boundary                                              | Path traversal outside the trusted restore root                           |
+| 16  | Metadata blob `maxBlobSize` limit                                                     | Oversized manifest or sub-manifest blobs exhausting memory                |
+| 17  | Concurrency cap                                                                       | Unbounded parallel Git/blob operations                                    |
+| 18  | `frameBytes` cap                                                                      | Oversized framed records causing memory pressure                          |
+| 19  | Source validation before `store()` processing                                         | Late failures after partial writes from invalid async iterables           |
+| 20  | Salt length enforcement                                                               | Weak KDF metadata accepted from stored manifests or vault metadata        |
+| 21  | Vault encryption-count tracking                                                       | Silent drift toward nonce reuse risk                                      |
+| 22  | Constant-time recipient and verifier comparisons                                      | Timing-based key or verifier identification                               |
 
 ---
 
@@ -926,10 +947,10 @@ should not be treated as source truth when the working tree has moved.
 
 The following baselines are published for the current release line.
 
-| Strategy | Asset Size | Total Chunks | Store (ms) | Restore (ms) | Dedupe (%) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Fixed (256K)** | 100 MiB | 400 | ~450 | ~300 | 0% |
-| **CDC (256K avg)** | 100 MiB | ~390 | ~1200 | ~350 | 98%+ |
+| Strategy           | Asset Size | Total Chunks | Store (ms) | Restore (ms) | Dedupe (%) |
+| :----------------- | :--------- | :----------- | :--------- | :----------- | :--------- |
+| **Fixed (256K)**   | 100 MiB    | 400          | ~450       | ~300         | 0%         |
+| **CDC (256K avg)** | 100 MiB    | ~390         | ~1200      | ~350         | 98%+       |
 
 **Notes:**
 
@@ -958,45 +979,45 @@ Direct `CasService` constructor options with types, defaults, and bounds. The
 high-level `ContentAddressableStore` facade supplies defaults for `chunker`,
 `compressionAdapter`, runtime crypto, and `formatVersion`.
 
-| Option | Type | Default | Bounds | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `persistence` | `GitPersistencePort` | *required* | -- | Git blob/tree read/write adapter |
-| `codec` | `CodecPort` | *required* | -- | Manifest serialization (JSON or CBOR) |
-| `crypto` | `CryptoPort` | *required* | -- | Encryption, hashing, KDF adapter |
-| `observability` | `ObservabilityPort` | *required* | Must implement `metric()`, `log()`, `span()` | Metrics, logging, tracing |
-| `chunkSize` | `number` | `262144` (256 KiB) | Integer in `[1024, 104857600]` (1 KiB -- 100 MiB) | Chunk size for fixed chunking; warning above 10 MiB |
-| `merkleThreshold` | `number` | `1000` | Integer >= 1 | Chunk count above which Merkle manifests are used |
-| `concurrency` | `number` | `1` | Integer in `[1, 64]` | Max parallel chunk I/O operations (PrefetchWindow size) |
-| `chunker` | `ChunkingPort` | *required* | -- | Chunking strategy instance (`FixedChunker` or `CdcChunker`) |
-| `maxRestoreBufferSize` | `number` | `536870912` (512 MiB) | Integer >= 1024 | Max bytes for buffered restore (encrypted/compressed) |
-| `compressionAdapter` | `CompressionPort` | *required* | -- | Compression implementation |
-| `formatVersion` | `string` | -- | Semver (`/^\d+\.\d+\.\d+$/`) | Version stamp for new manifests (distinct from structural `version`) |
+| Option                 | Type                 | Default               | Bounds                                            | Description                                                          |
+| :--------------------- | :------------------- | :-------------------- | :------------------------------------------------ | :------------------------------------------------------------------- |
+| `persistence`          | `GitPersistencePort` | _required_            | --                                                | Git blob/tree read/write adapter                                     |
+| `codec`                | `CodecPort`          | _required_            | --                                                | Manifest serialization (JSON or CBOR)                                |
+| `crypto`               | `CryptoPort`         | _required_            | --                                                | Encryption, hashing, KDF adapter                                     |
+| `observability`        | `ObservabilityPort`  | _required_            | Must implement `metric()`, `log()`, `span()`      | Metrics, logging, tracing                                            |
+| `chunkSize`            | `number`             | `262144` (256 KiB)    | Integer in `[1024, 104857600]` (1 KiB -- 100 MiB) | Chunk size for fixed chunking; warning above 10 MiB                  |
+| `merkleThreshold`      | `number`             | `1000`                | Integer >= 1                                      | Chunk count above which Merkle manifests are used                    |
+| `concurrency`          | `number`             | `1`                   | Integer in `[1, 64]`                              | Max parallel chunk I/O operations (PrefetchWindow size)              |
+| `chunker`              | `ChunkingPort`       | _required_            | --                                                | Chunking strategy instance (`FixedChunker` or `CdcChunker`)          |
+| `maxRestoreBufferSize` | `number`             | `536870912` (512 MiB) | Integer >= 1024                                   | Max bytes for buffered restore (encrypted/compressed)                |
+| `compressionAdapter`   | `CompressionPort`    | _required_            | --                                                | Compression implementation                                           |
+| `formatVersion`        | `string`             | --                    | Semver (`/^\d+\.\d+\.\d+$/`)                      | Version stamp for new manifests (distinct from structural `version`) |
 
 ### store() Options
 
-| Option | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `source` | `AsyncIterable<Uint8Array>` | *required* | Input byte stream |
-| `slug` | `string` | *required* | Asset identifier |
-| `filename` | `string` | *required* | Original filename |
-| `encryptionKey` | `Uint8Array` | -- | 32-byte key (mutually exclusive with `passphrase` and `recipients`) |
-| `passphrase` | `string` | -- | Derive key via KDF (mutually exclusive with `encryptionKey` and `recipients`) |
-| `encryption` | `object` | -- | `{ scheme?, frameBytes?, convergent? }` |
-| `encryption.scheme` | `string` | Auto: `convergent` for CDC, `framed` otherwise | `'whole'`, `'framed'`, or `'convergent'` |
-| `encryption.frameBytes` | `number` | `65536` (64 KiB) | Frame size for the `framed` scheme; max 64 MiB |
-| `encryption.convergent` | `boolean` | -- | Explicit convergent opt-in/opt-out (auto-selected for CDC chunkers) |
-| `kdfOptions` | `object` | -- | `{ algorithm?, iterations?, cost?, blockSize?, parallelization? }` |
-| `compression` | `object` | -- | `{ algorithm: 'gzip' }` |
-| `recipients` | `Array<{label, key}>` | -- | Envelope recipients (mutually exclusive with key/passphrase) |
+| Option                  | Type                        | Default                                        | Description                                                                   |
+| :---------------------- | :-------------------------- | :--------------------------------------------- | :---------------------------------------------------------------------------- |
+| `source`                | `AsyncIterable<Uint8Array>` | _required_                                     | Input byte stream                                                             |
+| `slug`                  | `string`                    | _required_                                     | Asset identifier                                                              |
+| `filename`              | `string`                    | _required_                                     | Original filename                                                             |
+| `encryptionKey`         | `Uint8Array`                | --                                             | 32-byte key (mutually exclusive with `passphrase` and `recipients`)           |
+| `passphrase`            | `string`                    | --                                             | Derive key via KDF (mutually exclusive with `encryptionKey` and `recipients`) |
+| `encryption`            | `object`                    | --                                             | `{ scheme?, frameBytes?, convergent? }`                                       |
+| `encryption.scheme`     | `string`                    | Auto: `convergent` for CDC, `framed` otherwise | `'whole'`, `'framed'`, or `'convergent'`                                      |
+| `encryption.frameBytes` | `number`                    | `65536` (64 KiB)                               | Frame size for the `framed` scheme; max 64 MiB                                |
+| `encryption.convergent` | `boolean`                   | --                                             | Explicit convergent opt-in/opt-out (auto-selected for CDC chunkers)           |
+| `kdfOptions`            | `object`                    | --                                             | `{ algorithm?, iterations?, cost?, blockSize?, parallelization? }`            |
+| `compression`           | `object`                    | --                                             | `{ algorithm: 'gzip' }`                                                       |
+| `recipients`            | `Array<{label, key}>`       | --                                             | Envelope recipients (mutually exclusive with key/passphrase)                  |
 
 ### CdcChunker Options
 
-| Option | Type | Default | Bounds | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `targetChunkSize` | `number` | `262144` | Must be in `[min, max]` | Target average chunk size |
-| `minChunkSize` | `number` | `65536` | Must not exceed `maxChunkSize` | Minimum chunk size |
-| `maxChunkSize` | `number` | `1048576` | Hard cap at 100 MiB | Maximum chunk size |
-| `normalized` | `boolean` | `true` | -- | Enable FastCDC dual-mask normalization |
+| Option            | Type      | Default   | Bounds                         | Description                            |
+| :---------------- | :-------- | :-------- | :----------------------------- | :------------------------------------- |
+| `targetChunkSize` | `number`  | `262144`  | Must be in `[min, max]`        | Target average chunk size              |
+| `minChunkSize`    | `number`  | `65536`   | Must not exceed `maxChunkSize` | Minimum chunk size                     |
+| `maxChunkSize`    | `number`  | `1048576` | Hard cap at 100 MiB            | Maximum chunk size                     |
+| `normalized`      | `boolean` | `true`    | --                             | Enable FastCDC dual-mask normalization |
 
 ---
 

@@ -59,216 +59,61 @@ const cas = await ContentAddressableStore.open({ cwd: '.' });
 const manifest = await cas.storeFile({ filePath: './asset.bin', slug: 'app/asset' });
 ```
 
-## Feature Overview
+## Capability Map
 
-### Content-Addressed Storage
+The README is the front door. Detailed mechanics live in the guide set:
 
-Every piece of stored content is broken into chunks and addressed by its SHA-256 digest. Identical content always produces the same address, giving you deduplication for free. Manifests record the ordered list of chunk digests so content can be reassembled faithfully, and every chunk is integrity-verified on read. New manifests are stamped with a `formatVersion` (semver from package.json) for forward-compatible schema evolution.
+| Need                                                    | Start Here                                                   |
+| ------------------------------------------------------- | ------------------------------------------------------------ |
+| Productive library and CLI workflows                    | [Developer Guide](./GUIDE.md)                                |
+| Restore memory behavior                                 | [Streaming and restore matrix](./GUIDE.md#streaming-surface) |
+| Encryption scheme selection                             | [Encryption Modes](./docs/ENCRYPTION_MODES.md)               |
+| CDC internals, Merkle manifests, KDF policy, and tuning | [Advanced Guide](./ADVANCED_GUIDE.md)                        |
+| Ports, adapters, and collaborator boundaries            | [Architecture](./ARCHITECTURE.md)                            |
+| v5 to v6 migration                                      | [Upgrading](./UPGRADING.md)                                  |
 
-### Chunking
+Core capabilities:
 
-Two chunking strategies are available, both with configurable size parameters:
+- **Content-addressed storage**: chunks are addressed by SHA-256 digest and
+  integrity-verified on read.
+- **Deduplication**: fixed chunking and content-defined chunking (CDC) support
+  predictable or shift-resistant chunk boundaries.
+- **Encryption**: AES-256-GCM with authenticated metadata. `whole` and
+  `framed` use fresh random 96-bit nonces; `convergent` derives per-chunk keys
+  and nonces deterministically from the plaintext content hash to preserve
+  deduplication.
+- **Vault indexing**: named assets live under `refs/cas/vault` so Git garbage
+  collection does not reclaim referenced blobs.
+- **Envelope recipients**: multi-recipient key wrapping and recipient rotation
+  avoid re-encrypting data blobs.
+- **Operational diagnostics**: `git-cas doctor` validates vault health and
+  reports deduplication efficiency.
 
-| Strategy | Algorithm | Default Target | Behavior |
-|---|---|---|---|
-| **Fixed-size** | Static split | 256 KiB | Deterministic, predictable chunk boundaries |
-| **Content-Defined (CDC)** | Buzhash rolling hash | Configurable target/min/max | Shift-resistant boundaries that survive insertions and deletions |
+## Safety Snapshot
 
-CDC is the default for deduplication workloads. **FastCDC dual-mask normalization** is enabled by default, producing a tighter chunk-size distribution around the target size. Target, minimum, and maximum chunk sizes are all configurable.
+The v6 line is Security First by default:
 
-### Encryption
+- `restoreFile()` requires `baseDirectory` and refuses output paths that escape
+  it.
+- Manifest and sub-manifest blob reads default to a 10 MiB `maxBlobSize` safety
+  limit.
+- Legacy encryption scheme identifiers throw `LEGACY_SCHEME` with migration
+  guidance.
+- KDF parameters, salts, frame sizes, restore buffers, and concurrency are
+  policy-bounded.
+- Recipient trial decryption and vault verifier checks use constant-time
+  comparisons.
 
-Encryption uses **AES-256-GCM** with 16-byte authentication tags. `whole` and
-`framed` use fresh random 96-bit nonces; `convergent` derives per-chunk keys
-and nonces deterministically from the plaintext content hash to preserve
-deduplication.
+For the full hardening table, see
+[Advanced Guide: Security Hardening Summary](./ADVANCED_GUIDE.md#security-hardening-summary).
 
-Three encryption schemes are supported:
+## Runtime Support
 
-| Scheme | Framing | AAD Binding | Notes |
-|---|---|---|---|
-| `whole` | Single ciphertext blob | Slug | AAD always bound to prevent cross-manifest blob swaps |
-| `framed` | Bounded frames | Slug + frame index | Default for fixed-chunk encrypted stores — streaming decrypt with per-frame AAD binding |
-| `convergent` | Per-chunk deterministic | Derived from content hash | **Default for CDC + encryption** — preserves deduplication across encrypted stores. Implemented as a standalone `ConvergentEncryption` service. |
-
-See [Encryption Modes](./docs/ENCRYPTION_MODES.md) for scheme selection guidance.
-
-Legacy schemes (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) are no longer accepted and throw a `LEGACY_SCHEME` error. Run `npm run upgrade` (or `node scripts/migrate-encryption.js`) to migrate existing vault entries. The script auto-detects whether each entry needs a rename-only (fast) or full re-encryption (v1 schemes without AAD), accepts `--passphrase-file`, `--key-file`, or warning-emitting inline `--passphrase` for full migrations, supports privacy-vault key options, and defaults to dry-run mode.
-
-**Envelope encryption** wraps a random Data Encryption Key (DEK) with one or more Key Encryption Keys (KEKs). Each recipient is labeled, enabling multi-recipient access to the same encrypted content. Key rotation replaces the KEK wrapping without re-encrypting data blobs.
-
-### Key Management
-
-Multiple key sources are supported:
-
-- **Raw keys**: 32-byte AES-256 key files read directly from disk.
-- **Passphrase-derived keys (PBKDF2)**: PBKDF2-SHA512 with a default of 600,000 iterations. Policy-enforced minimum and maximum iteration bounds.
-- **Passphrase-derived keys (scrypt)**: scrypt with default N=131072. Combined memory budget is capped at 1 GiB to prevent resource exhaustion.
-- **OS keychain**: Passphrase sourced from the operating system's native keychain (macOS Keychain, Linux Secret Service, Windows Credential Manager) via `@git-stunts/vault`.
-
-All KDF operations enforce a minimum 16-byte salt. Iteration counts and scrypt parameters are policy-bounded to prevent both weak derivation and denial-of-service.
-
-### Compression
-
-Content can be gzip-compressed before storage through the `CompressionPort` abstraction. The shipped `NodeCompressionAdapter` handles Node.js; other runtimes can plug in their own adapter. Compression composes cleanly with encryption — content is compressed, then encrypted. Plaintext + gzip restores now stream instead of buffering.
-
-### Manifests
-
-Two manifest versions handle assets of any size:
-
-- **Version 1**: A flat manifest blob listing all chunk digests. Suitable for most assets.
-- **Version 2**: A Merkle-style manifest that splits the chunk list into
-  sub-manifests, each independently addressable and schema-validated.
-  Automatically engaged when chunk count exceeds 1,000 by default, with
-  per-operation `merkleThreshold` overrides available on store calls.
-  Sub-manifest arrays are capped at 10,000 entries.
-
-Every manifest carries an **integrity hash** — the SHA-256 of the codec-encoded content — verified on every read to detect corruption or tampering. Two codecs are available: **JSON** (human-readable, default) and **CBOR** (binary, compact).
-
-Manifest diffing is available via `diffManifests()` for comparing two manifests and identifying changed, added, or removed chunks.
-
-### Vault
-
-The vault is a GC-safe named asset index stored at `refs/cas/vault`. It is the control plane for managing stored content.
-
-- **CRUD**: Add, remove, list, and resolve named entries.
-- **Encryption**: Vault entries can be encrypted with a passphrase.
-- **Privacy mode**: HMAC-hashed slug names prevent metadata discovery — an observer cannot determine what assets are stored without the passphrase.
-- **Encryption count tracking**: The vault tracks how many times each entry has been encrypted under the current nonce context, issuing rotation warnings as limits approach.
-- **Passphrase verifier**: Encrypted vault metadata authenticates the derived
-  vault key even before the first entry is added, so wrong passphrases fail
-  before empty-vault writes are accepted.
-- **Passphrase rotation**: Rotate the vault passphrase across all entries in a single operation without re-encrypting data blobs.
-- **Optimistic concurrency**: Vault writes use compare-and-swap semantics with automatic retry on conflict, ensuring safe concurrent access.
-
-### Restore Modes
-
-Three restore surfaces cover different memory and latency profiles:
-
-| Method | Behavior | Bounded? |
-|---|---|---|
-| `restore()` | Buffered reassembly to memory | Yes — capped by `maxRestoreBufferSize` |
-| `restoreFile()` | Atomic temp-file write with auth-then-rename | Yes — streams through disk for plaintext, framed, convergent, and uncompressed whole |
-| `restoreStream()` | Async iterable yielding chunks | Yes — frame-by-frame for framed scheme |
-
-`restoreFile()` writes tentative plaintext to a temporary file, verifies authentication, and renames into place only after verification succeeds. For `framed`, all three surfaces provide true streaming restore with per-frame authentication. Parallel chunk restore is supported via a prefetch window (`PrefetchWindow`) when concurrency is greater than 1, enabling ordered parallel reads for faster restores.
-
-```js
-await cas.restoreFile({
-  manifest,
-  outputPath: './restored.bin',
-  baseDirectory: process.cwd(),
-});
-```
-
-### CLI
-
-The `git-cas` command-line interface exposes the full feature set:
-
-| Command | Purpose |
-|---|---|
-| `git-cas store` | Store a file into the CAS |
-| `git-cas tree` | Create a Git tree from a manifest JSON file |
-| `git-cas inspect` | Inspect a stored manifest and optional chunk heatmap |
-| `git-cas restore` | Restore content by vault slug or tree OID |
-| `git-cas verify` | Verify chunk integrity for a stored asset |
-| `git-cas doctor` | Diagnose vault health and integrity |
-| `git-cas vault init` | Initialize a new vault |
-| `git-cas vault list` | List vault entries |
-| `git-cas vault stats` | Summarize vault size, dedupe, and encryption coverage |
-| `git-cas vault remove` | Remove a vault entry |
-| `git-cas vault info` | Show metadata for one vault entry |
-| `git-cas vault history` | Show vault commit history |
-| `git-cas vault rotate` | Rotate the vault passphrase |
-| `git-cas vault dashboard` | Interactive TUI for vault navigation |
-| `git-cas rotate` | Rotate an asset encryption key wrapper |
-| `git-cas recipient add/remove/list` | Manage envelope encryption recipients |
-
-`git-cas doctor` reports both chunk-reference dedupe and byte-level efficiency:
-logical manifest size versus unique chunk bytes. For privacy-enabled vaults,
-pass `--key-file`, `--vault-passphrase-file -`, or `--os-keychain-target` so the
-doctor can decrypt the privacy index before scanning entries.
-
-**Agent CLI**: `git-cas agent` exposes the same store/tree/restore/inspect/verify/doctor/rotate/recipient/vault surface through a newline-delimited protocol for CI/CD automation and programmatic integrations. Request payloads can be passed through `--request <json>` or stdin; responses stream back as JSON events on stdout.
-
-### Security Hardening
-
-Beyond the core encryption primitives, `git-cas` enforces a set of defensive limits:
-
-- **Hex validation**: All OID and digest fields are schema-validated as strict hexadecimal strings.
-- **scrypt memory cap**: Combined scrypt memory budget is hard-capped at 1 GiB.
-- **Sub-manifest array limit**: Merkle sub-manifests are capped at 10,000 entries.
-- **Restore path boundary**: `restoreFile()` requires `baseDirectory` and refuses output paths that escape it.
-- **Metadata blob cap**: Manifest and sub-manifest blob reads default to a
-  10 MiB `maxBlobSize` safety limit. The default Git adapter honors the
-  facade/service `maxBlobSize` option through its adapter-level read limit.
-- **Concurrency cap**: Parallel operations are bounded at 64.
-- **Frame size cap**: `frameBytes` is capped at 64 MiB.
-- **Timing oracle elimination**: Recipient trial decryption uses constant-time comparison to prevent timing-based key identification.
-- **Source validation**: Async iterables passed to `store()` are validated before processing begins.
-- **Salt enforcement**: KDF salts must be at least 16 bytes.
-- **Nonce rotation**: Encryption count tracking warns before nonce reuse becomes a concern.
-- **Legacy scheme rejection**: Attempting to use a legacy encryption scheme (`whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, `convergent-v1`) throws a `LEGACY_SCHEME` error with migration guidance (see [UPGRADING.md](./UPGRADING.md)).
-
-## Streaming Surface
-
-| Surface | Streaming API? | Non-streaming API? | Notes |
-|---|---|---|---|
-| Write | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. CDC + encryption defaults to `convergent` (per-chunk deterministic encryption preserving dedup). Fixed + encryption defaults to `framed`. |
-| Read: plaintext | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True chunk-by-chunk streaming restore. |
-| Read: encrypted `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | `restoreStream()` is the buffered compatibility path. Uncompressed `restoreFile()` verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption into a temp-file path, and renames into place only after auth succeeds. AAD (slug) is always bound. On Web Crypto runtimes this decrypt step is still one-shot internally, bounded by `maxDecryptionBufferSize`. |
-| Read: encrypted `framed` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True authenticated streaming restore. Plaintext is yielded frame-by-frame after each frame is verified. Per-frame AAD is always bound. |
-| Read: compressed-only | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Plaintext + gzip now streams end-to-end. `restoreFile()` streams gunzip output through a bounded temp-file path. |
-| Read: compressed + `whole` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Auth must complete before gunzip. `restoreFile()` therefore preserves the auth-before-decompress boundary and may buffer the encrypted compressed payload; use `framed` or `convergent` for large compressed encrypted assets. |
-| Read: compressed + `framed` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Streaming decrypt, then streaming gunzip. |
-| Read: encrypted `convergent` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | True per-chunk streaming restore. Each chunk is decrypted individually using a key derived from its content hash. Parallel chunk restore via prefetch window when concurrency > 1. |
-| Read: compressed + `convergent` | `restoreStream(...)`, `restoreFile(...)` | `restore(...)` | Per-chunk convergent decrypt, then streaming gunzip. |
-| Verify | No streaming verify surface | `verifyIntegrity(manifest, options?)` | Verifies chunk digests for all content. `whole` auth-checks the full ciphertext; `framed` parses and auth-checks every frame; `convergent` decrypts each chunk and verifies plaintext digests. |
-
-Runtime note: `framed` is the honest cross-runtime streaming answer. On Node and Bun, `whole restoreFile()` has the stronger low-memory path; on Web Crypto runtimes such as Deno, `whole` remains bounded-buffer rather than true streaming.
-
-## Architecture
-
-`git-cas` follows a strict hexagonal (ports and adapters) architecture. The domain core has zero knowledge of runtime-specific APIs.
-
-```
-                          ┌─────────────────────┐
-                          │  ContentAddressable  │
-                          │    Store (Facade)    │
-                          └──────────┬──────────┘
-                                     │
-                          ┌──────────▼──────────┐
-                          │     CasService       │
-                          │   (Domain Core)      │
-                          └──┬──┬──┬──┬──┬──┬───┘
-                             │  │  │  │  │  │
-              ┌──────────────┘  │  │  │  │  └──────────────┐
-              │        ┌────────┘  │  │  └────────┐        │
-              ▼        ▼           ▼  ▼           ▼        ▼
-         ┌────────┐┌────────┐┌────────┐┌────────┐┌────────┐┌────────┐
-         │Persist.││ Crypto ││ Codec  ││Compress││Chunking││Observe.│
-         │  Port  ││  Port  ││  Port  ││  Port  ││  Port  ││  Port  │
-         └───┬────┘└───┬────┘└───┬────┘└───┬────┘└───┬────┘└───┬────┘
-             │         │         │         │         │         │
-             ▼         ▼         ▼         ▼         ▼         ▼
-          GitODB   Node/Bun   JSON or   Node gzip  Fixed or  Event
-                   /Deno      CBOR      adapter    CDC/      Emitter
-                   Crypto                Buzhash
-```
-
-**Ports** define the contracts. **Adapters** implement them for specific runtimes. Swap any adapter without touching domain logic.
-
-The core byte contract is `Uint8Array`. Node `Buffer` values still work at the
-Node boundary because `Buffer` extends `Uint8Array`, but the domain, ports,
-chunkers, codecs, and shared helpers do not depend on Node-specific byte APIs.
-
-## Multi-Runtime Support
-
-| Runtime | Version | Crypto Backend | Status |
-|---|---|---|---|
-| **Node.js** | 22+ | `node:crypto` | Primary — full streaming support |
-| **Bun** | Latest | `node:crypto` compat | Tested via Docker |
-| **Deno** | Latest | Web Crypto API | Tested via Docker; `whole` decrypt is bounded-buffer |
+| Runtime     | Version | Crypto Backend       | Status                                               |
+| ----------- | ------- | -------------------- | ---------------------------------------------------- |
+| **Node.js** | 22+     | `node:crypto`        | Primary — full streaming support                     |
+| **Bun**     | Latest  | `node:crypto` compat | Tested via Docker                                    |
+| **Deno**    | Latest  | Web Crypto API       | Tested via Docker; `whole` decrypt is bounded-buffer |
 
 All three runtimes are tested in CI on every push. The hexagonal architecture isolates runtime differences behind the `CryptoPort` boundary, so the domain core is runtime-agnostic.
 
@@ -289,4 +134,5 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.
 
 ---
+
 Built with terminal ambition by [FLYING ROBOTS](https://github.com/flyingrobots)

@@ -37,4 +37,12 @@ describe('release workflow publishing', () => {
       expect(jobBlock(workflow, job)).toContain('ref: ${{ env.RELEASE_REF }}');
     }
   });
+
+  it('opts the GitHub Release action into the Node 24 action runtime', () => {
+    const workflow = read('.github/workflows/release.yml');
+    const releaseJob = jobBlock(workflow, 'github-release');
+
+    expect(releaseJob).toContain('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true');
+    expect(releaseJob).not.toContain('ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION');
+  });
 });

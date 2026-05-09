@@ -22,21 +22,27 @@ describe('release truth docs and examples', () => {
     ['examples/store-and-restore.js', 'Integrity check: PASSED'],
     ['examples/encrypted-workflow.js', 'Integrity check: PASSED'],
     ['examples/progress-tracking.js', 'Content verification: PASSED'],
-  ])('keeps %s runnable under the current public API', (relPath, expectedOutput) => {
-    const result = runNodeScript(relPath);
+  ])(
+    'keeps %s runnable under the current public API',
+    (relPath, expectedOutput) => {
+      const result = runNodeScript(relPath);
 
-    expect(
-      result.status,
-      `${relPath} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`,
-    ).toBe(0);
-    expect(result.stdout).toContain(expectedOutput);
-  }, 30_000);
+      expect(
+        result.status,
+        `${relPath} failed\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`
+      ).toBe(0);
+      expect(result.stdout).toContain(expectedOutput);
+    },
+    30_000
+  );
 
   it('keeps the API quick-start on ContentAddressableStore.open', () => {
     const api = read('docs/API.md');
 
     expect(api).toContain('ContentAddressableStore.open({ cwd:');
-    expect(api).toContain('Any other `ContentAddressableStore` constructor option except `plumbing`');
+    expect(api).toContain(
+      'Any other `ContentAddressableStore` constructor option except `plumbing`'
+    );
     expect(api).toContain('Any other `ContentAddressableStore` constructor option except `codec`');
     expect(api).not.toContain('Plumbing.create({ repoPath');
   });
@@ -44,9 +50,7 @@ describe('release truth docs and examples', () => {
   it('documents maxBlobSize as the metadata blob safety limit', () => {
     const api = read('docs/API.md');
 
-    expect(api).toContain(
-      '`options.maxBlobSize` (optional): Max bytes for metadata blob reads',
-    );
+    expect(api).toContain('`options.maxBlobSize` (optional): Max bytes for metadata blob reads');
     expect(api).not.toContain('Max bytes for manifest and sub-manifest blob reads');
   });
 
@@ -93,7 +97,9 @@ describe('release truth security docs', () => {
 
     expect(advancedGuide).not.toContain('All use 256-bit keys,\n96-bit random nonces');
     expect(advancedGuide).toMatch(/`whole`\s+and\s+`framed`\s+use fresh 96-bit random\s+nonces/);
-    expect(advancedGuide).toMatch(/`convergent`\s+derives per-chunk keys and nonces deterministically/);
+    expect(advancedGuide).toMatch(
+      /`convergent`\s+derives per-chunk keys and nonces deterministically/
+    );
   });
 });
 
@@ -141,13 +147,30 @@ describe('v6 release documentation', () => {
   });
 });
 
+describe('README routing', () => {
+  it('keeps the README as a front door and routes dense restore detail to the guide', () => {
+    const readme = read('README.md');
+    const guide = read('GUIDE.md');
+
+    expect(readme).toContain('[Streaming and restore matrix](./GUIDE.md#streaming-surface)');
+    expect(readme).not.toContain('| Read: encrypted `whole` |');
+    expect(guide).toContain('## Streaming Surface');
+    expect(guide).toMatch(/\|\s+Read: encrypted `whole`\s+\|/u);
+    expect(guide).toContain('Runtime note: `framed` is the honest cross-runtime streaming answer.');
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');
 
     expect(advancedGuide).not.toContain('```insta-toc');
-    expect(advancedGuide).toContain('- [Content-Defined Chunking (CDC)](#content-defined-chunking-cdc)');
-    expect(advancedGuide).toContain('- [Direct CasService and Custom Port Contracts](#direct-casservice-and-custom-port-contracts)');
+    expect(advancedGuide).toContain(
+      '- [Content-Defined Chunking (CDC)](#content-defined-chunking-cdc)'
+    );
+    expect(advancedGuide).toContain(
+      '- [Direct CasService and Custom Port Contracts](#direct-casservice-and-custom-port-contracts)'
+    );
   });
 });
 
@@ -155,7 +178,11 @@ describe('examples README snippets', () => {
   it('documents encrypted integrity verification with restore credentials', () => {
     const examplesReadme = read('examples/README.md');
 
-    expect(examplesReadme).toContain('cas.verifyIntegrity(manifest, { encryptionKey: optionalKeyBytes })');
-    expect(examplesReadme).toContain('Encrypted manifests require the same credentials used for restore');
+    expect(examplesReadme).toContain(
+      'cas.verifyIntegrity(manifest, { encryptionKey: optionalKeyBytes })'
+    );
+    expect(examplesReadme).toContain(
+      'Encrypted manifests require the same credentials used for restore'
+    );
   });
 });

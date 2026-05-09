@@ -14,22 +14,29 @@ For advanced topics (benchmarks, Merkle trees, large-asset strategies), see [ADV
 ## Choose Your Path
 
 ### 1. Library Integration
+
 Embed content-addressed storage into your JavaScript/TypeScript application.
+
 - Start with [Library Quick Start](#library-quick-start) below.
 - Understand the port/adapter model: [ARCHITECTURE.md](./ARCHITECTURE.md).
 - Custom adapters: [docs/EXTENDING.md](./docs/EXTENDING.md).
 
 ### 2. CLI / TUI Usage
+
 Store, restore, and manage assets from the terminal.
+
 - Jump to [CLI Reference](#cli-reference).
 - Interactive explorer: `git-cas vault dashboard`.
 
 ### 3. Agentic Automation
+
 Machine-facing agent CLI for structured CI/CD or agentic workflows.
+
 - [docs/API.md](./docs/API.md) for the agent command surface.
 - Run: `git-cas agent <command>`.
 
 ### 4. Contributing
+
 - Read `METHOD.md` and `BEARING.md` for project process.
 - See [Architecture](#architecture) for orientation.
 
@@ -41,23 +48,23 @@ This guide and [ADVANCED_GUIDE.md](./ADVANCED_GUIDE.md) are the complete
 feature coverage pair. The quick path lives here; implementation mechanics,
 limits, and port contracts live in the advanced guide.
 
-| Feature Area | Covered Here | Advanced Coverage |
-|---|---|---|
-| Facade lifecycle, JSON/CBOR factories, full constructor | [Library Quick Start](#library-quick-start), [Configuration Reference](#configuration-reference) | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts) |
-| Direct `CasService` construction | [Configuration Reference](#configuration-reference) notes the facade/direct split | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts) |
-| File, stream, tree, vault-safe store workflows | [Store Operations](#store-operations), [Vault Management](#vault-management) | [Store/Restore Pipeline](./docs/STORE_RESTORE_PIPELINE.md), [Manifest Integrity Hash](./ADVANCED_GUIDE.md#manifest-integrity-hash), [Merkle Manifests](./ADVANCED_GUIDE.md#merkle-manifests) |
-| Restore modes and bounded memory behavior | [Restore Modes](#restore-modes) | [Store/Restore Pipeline](./docs/STORE_RESTORE_PIPELINE.md), [Parallel Chunk Restore](./ADVANCED_GUIDE.md#parallel-chunk-restore), [Streaming Decompression](./ADVANCED_GUIDE.md#streaming-decompression) |
-| Fixed chunking, CDC, FastCDC normalization | [Chunking](#chunking) | [Content-Defined Chunking (CDC)](./ADVANCED_GUIDE.md#content-defined-chunking-cdc) |
-| Encryption schemes and legacy migration | [Encryption](#encryption), [Migrating Legacy Encryption Schemes](#migrating-legacy-encryption-schemes) | [Encryption Schemes](./ADVANCED_GUIDE.md#encryption-schemes), [Convergent Encryption](./ADVANCED_GUIDE.md#convergent-encryption) |
-| Passphrases, PBKDF2, scrypt, KDF policy | [Passphrase-Based Encryption](#passphrase-based-encryption) | [KDF Policy](./ADVANCED_GUIDE.md#kdf-policy) |
-| Multi-recipient envelope encryption and key rotation | [Multi-Recipient (Envelope) Encryption](#multi-recipient-envelope-encryption), [Key and Recipient Management](#key-and-recipient-management) | [Envelope Encryption](./ADVANCED_GUIDE.md#envelope-encryption) |
-| Vault init/list/resolve/remove, metadata, rotation, privacy mode | [Vault Management](#vault-management), [Vault Privacy Mode](#vault-privacy-mode) | [Vault Privacy Mode](./ADVANCED_GUIDE.md#vault-privacy-mode) |
-| Compression and custom adapters | [Compression](#compression) | [CompressionPort Architecture](./ADVANCED_GUIDE.md#compressionport-architecture) |
-| Manifest versions, format version, integrity hash, diffing | [Manifest Features](#manifest-features), [Manifest Diffing](#manifest-diffing) | [Format Version](./ADVANCED_GUIDE.md#format-version), [Manifest Integrity Hash](./ADVANCED_GUIDE.md#manifest-integrity-hash), [Manifest Diffing](./ADVANCED_GUIDE.md#manifest-diffing) |
-| Inspection, verification, referenced chunk analysis, deprecated aliases | [Manifest Features](#manifest-features), [Inspection and Verification](#inspection-and-verification) | [Security Hardening Summary](./ADVANCED_GUIDE.md#security-hardening-summary) |
-| Human CLI, TUI dashboard, agent CLI | [CLI Reference](#cli-reference) | [Operational Tooling](./ADVANCED_GUIDE.md#operational-tooling) |
-| Runtime support, ports, custom adapters, resilience policy | [Architecture](#architecture) | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts), [Configuration Reference](./ADVANCED_GUIDE.md#configuration-reference) |
-| Release verification, migration, build stamping | [Migrating Legacy Encryption Schemes](#migrating-legacy-encryption-schemes) | [Operational Tooling](./ADVANCED_GUIDE.md#operational-tooling) |
+| Feature Area                                                            | Covered Here                                                                                                                                 | Advanced Coverage                                                                                                                                                                                        |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Facade lifecycle, JSON/CBOR factories, full constructor                 | [Library Quick Start](#library-quick-start), [Configuration Reference](#configuration-reference)                                             | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts)                                                                                           |
+| Direct `CasService` construction                                        | [Configuration Reference](#configuration-reference) notes the facade/direct split                                                            | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts)                                                                                           |
+| File, stream, tree, vault-safe store workflows                          | [Store Operations](#store-operations), [Vault Management](#vault-management)                                                                 | [Store/Restore Pipeline](./docs/STORE_RESTORE_PIPELINE.md), [Manifest Integrity Hash](./ADVANCED_GUIDE.md#manifest-integrity-hash), [Merkle Manifests](./ADVANCED_GUIDE.md#merkle-manifests)             |
+| Restore modes and bounded memory behavior                               | [Restore Modes](#restore-modes)                                                                                                              | [Store/Restore Pipeline](./docs/STORE_RESTORE_PIPELINE.md), [Parallel Chunk Restore](./ADVANCED_GUIDE.md#parallel-chunk-restore), [Streaming Decompression](./ADVANCED_GUIDE.md#streaming-decompression) |
+| Fixed chunking, CDC, FastCDC normalization                              | [Chunking](#chunking)                                                                                                                        | [Content-Defined Chunking (CDC)](./ADVANCED_GUIDE.md#content-defined-chunking-cdc)                                                                                                                       |
+| Encryption schemes and legacy migration                                 | [Encryption](#encryption), [Migrating Legacy Encryption Schemes](#migrating-legacy-encryption-schemes)                                       | [Encryption Schemes](./ADVANCED_GUIDE.md#encryption-schemes), [Convergent Encryption](./ADVANCED_GUIDE.md#convergent-encryption)                                                                         |
+| Passphrases, PBKDF2, scrypt, KDF policy                                 | [Passphrase-Based Encryption](#passphrase-based-encryption)                                                                                  | [KDF Policy](./ADVANCED_GUIDE.md#kdf-policy)                                                                                                                                                             |
+| Multi-recipient envelope encryption and key rotation                    | [Multi-Recipient (Envelope) Encryption](#multi-recipient-envelope-encryption), [Key and Recipient Management](#key-and-recipient-management) | [Envelope Encryption](./ADVANCED_GUIDE.md#envelope-encryption)                                                                                                                                           |
+| Vault init/list/resolve/remove, metadata, rotation, privacy mode        | [Vault Management](#vault-management), [Vault Privacy Mode](#vault-privacy-mode)                                                             | [Vault Privacy Mode](./ADVANCED_GUIDE.md#vault-privacy-mode)                                                                                                                                             |
+| Compression and custom adapters                                         | [Compression](#compression)                                                                                                                  | [CompressionPort Architecture](./ADVANCED_GUIDE.md#compressionport-architecture)                                                                                                                         |
+| Manifest versions, format version, integrity hash, diffing              | [Manifest Features](#manifest-features), [Manifest Diffing](#manifest-diffing)                                                               | [Format Version](./ADVANCED_GUIDE.md#format-version), [Manifest Integrity Hash](./ADVANCED_GUIDE.md#manifest-integrity-hash), [Manifest Diffing](./ADVANCED_GUIDE.md#manifest-diffing)                   |
+| Inspection, verification, referenced chunk analysis, deprecated aliases | [Manifest Features](#manifest-features), [Inspection and Verification](#inspection-and-verification)                                         | [Security Hardening Summary](./ADVANCED_GUIDE.md#security-hardening-summary)                                                                                                                             |
+| Human CLI, TUI dashboard, agent CLI                                     | [CLI Reference](#cli-reference)                                                                                                              | [Operational Tooling](./ADVANCED_GUIDE.md#operational-tooling)                                                                                                                                           |
+| Runtime support, ports, custom adapters, resilience policy              | [Architecture](#architecture)                                                                                                                | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts), [Configuration Reference](./ADVANCED_GUIDE.md#configuration-reference)                   |
+| Release verification, migration, build stamping                         | [Migrating Legacy Encryption Schemes](#migrating-legacy-encryption-schemes)                                                                  | [Operational Tooling](./ADVANCED_GUIDE.md#operational-tooling)                                                                                                                                           |
 
 ---
 
@@ -90,11 +97,11 @@ const { buffer } = await cas.restore({ manifest: readBack });
 
 ### Factory Methods
 
-| Factory | Codec | Use Case |
-|---|---|---|
-| `await ContentAddressableStore.open({ cwd })` | JSON | Shortest normal application setup |
-| `ContentAddressableStore.createJson({ plumbing })` | JSON | Human-readable manifests, debugging |
-| `ContentAddressableStore.createCbor({ plumbing })` | CBOR | Compact binary manifests, production |
+| Factory                                            | Codec | Use Case                             |
+| -------------------------------------------------- | ----- | ------------------------------------ |
+| `await ContentAddressableStore.open({ cwd })`      | JSON  | Shortest normal application setup    |
+| `ContentAddressableStore.createJson({ plumbing })` | JSON  | Human-readable manifests, debugging  |
+| `ContentAddressableStore.createCbor({ plumbing })` | CBOR  | Compact binary manifests, production |
 
 `open()` is async and accepts `cwd` plus the same facade options as the
 constructor except `plumbing`. Use `createJson()` or `createCbor()` when you
@@ -116,14 +123,15 @@ import ContentAddressableStore, {
 
 const cas = new ContentAddressableStore({
   plumbing,
-  chunkSize: 128 * 1024,          // 128 KiB chunks
+  chunkSize: 128 * 1024, // 128 KiB chunks
   codec: new CborCodec(),
   observability: new EventEmitterObserver(),
-  merkleThreshold: 500,            // Merkle sub-manifests above 500 chunks
-  concurrency: 4,                  // Parallel chunk I/O
-  maxRestoreBufferSize: 256 * 1024 * 1024,  // 256 MiB buffer limit
+  merkleThreshold: 500, // Merkle sub-manifests above 500 chunks
+  concurrency: 4, // Parallel chunk I/O
+  maxRestoreBufferSize: 256 * 1024 * 1024, // 256 MiB buffer limit
   compressionAdapter: new NodeCompressionAdapter(),
-  chunking: {                      // CDC chunking
+  chunking: {
+    // CDC chunking
     strategy: 'cdc',
     targetChunkSize: 64 * 1024,
     minChunkSize: 16 * 1024,
@@ -174,11 +182,11 @@ All store and restore methods accept encryption options. Encryption is AES-256-G
 
 ### Encryption Schemes
 
-| Scheme | Description | Default When |
-|---|---|---|
+| Scheme       | Description                                                                                     | Default When              |
+| ------------ | ----------------------------------------------------------------------------------------------- | ------------------------- |
 | `convergent` | Per-chunk encryption keyed by content hash; preserves CDC deduplication across encrypted stores | CDC chunking + encryption |
-| `framed` | Streaming framed encryption with per-frame AAD binding to slug | Non-CDC encrypted stores |
-| `whole` | Whole-object encryption with AAD binding to slug | Explicit only |
+| `framed`     | Streaming framed encryption with per-frame AAD binding to slug                                  | Non-CDC encrypted stores  |
+| `whole`      | Whole-object encryption with AAD binding to slug                                                | Explicit only             |
 
 AAD (Additional Authenticated Data) is always on for `whole` and `framed` schemes, binding ciphertext to the asset slug.
 
@@ -272,7 +280,7 @@ const { buffer } = await cas.restore({
 // Add a recipient
 const updated = await cas.addRecipient({
   manifest: readBack,
-  existingKey: aliceKey,       // Any current recipient's key
+  existingKey: aliceKey, // Any current recipient's key
   newRecipientKey: carolKey,
   label: 'carol',
 });
@@ -292,7 +300,7 @@ const rotated = await cas.rotateKey({
   manifest: readBack,
   oldKey: aliceKey,
   newKey: aliceNewKey,
-  label: 'alice',              // Optional: target a specific recipient
+  label: 'alice', // Optional: target a specific recipient
 });
 ```
 
@@ -307,8 +315,8 @@ const framedManifest = await cas.storeFile({
   slug: 'media/video',
   encryptionKey: key,
   encryption: {
-    scheme: 'framed',          // 'whole', 'framed', or 'convergent'
-    frameBytes: 128 * 1024,    // 128 KiB frames (framed scheme only)
+    scheme: 'framed', // 'whole', 'framed', or 'convergent'
+    frameBytes: 128 * 1024, // 128 KiB frames (framed scheme only)
   },
 });
 
@@ -346,7 +354,7 @@ Splits data into equal-sized chunks. Simple and predictable.
 ```js
 const cas = ContentAddressableStore.createJson({
   plumbing,
-  chunkSize: 512 * 1024,   // 512 KiB chunks
+  chunkSize: 512 * 1024, // 512 KiB chunks
 });
 ```
 
@@ -359,20 +367,20 @@ const cas = new ContentAddressableStore({
   plumbing,
   chunking: {
     strategy: 'cdc',
-    targetChunkSize: 64 * 1024,    // 64 KiB target
-    minChunkSize: 16 * 1024,       // 16 KiB minimum
-    maxChunkSize: 256 * 1024,      // 256 KiB maximum
+    targetChunkSize: 64 * 1024, // 64 KiB target
+    minChunkSize: 16 * 1024, // 16 KiB minimum
+    maxChunkSize: 256 * 1024, // 256 KiB maximum
   },
 });
 ```
 
 CDC parameters:
 
-| Parameter | Description |
-|---|---|
-| `targetChunkSize` | Average chunk size the rolling hash targets |
-| `minChunkSize` | Minimum chunk size (never split smaller) |
-| `maxChunkSize` | Maximum chunk size (force split at this boundary) |
+| Parameter         | Description                                       |
+| ----------------- | ------------------------------------------------- |
+| `targetChunkSize` | Average chunk size the rolling hash targets       |
+| `minChunkSize`    | Minimum chunk size (never split smaller)          |
+| `maxChunkSize`    | Maximum chunk size (force split at this boundary) |
 
 > **Note**: CDC deduplication is ineffective with standard encryption (`whole` or `framed`), since ciphertext is pseudorandom. Use the `convergent` scheme (the default for CDC + encryption) to preserve deduplication.
 
@@ -403,10 +411,18 @@ Implement the `CompressionPort` interface to use a different algorithm:
 import { CompressionPort } from '@git-stunts/git-cas';
 
 class BrotliAdapter extends CompressionPort {
-  async compressBuffer(buffer) { /* ... */ }
-  async decompressBuffer(buffer) { /* ... */ }
-  async *compressStream(source) { /* ... */ }
-  async *decompressStream(source) { /* ... */ }
+  async compressBuffer(buffer) {
+    /* ... */
+  }
+  async decompressBuffer(buffer) {
+    /* ... */
+  }
+  async *compressStream(source) {
+    /* ... */
+  }
+  async *decompressStream(source) {
+    /* ... */
+  }
 }
 
 const cas = new ContentAddressableStore({
@@ -437,8 +453,8 @@ console.log(standaloneDiff.summary);
 //   addedCount: 3, removedCount: 1, unchangedCount: 42,
 //   addedBytes: 196608, removedBytes: 65536, unchangedBytes: 2752512,
 // }
-console.log(standaloneDiff.added);     // Chunk[] -- new chunks in newManifest
-console.log(standaloneDiff.removed);   // Chunk[] -- chunks only in oldManifest
+console.log(standaloneDiff.added); // Chunk[] -- new chunks in newManifest
+console.log(standaloneDiff.removed); // Chunk[] -- chunks only in oldManifest
 console.log(standaloneDiff.unchanged); // Chunk[] -- chunks in both (by digest)
 ```
 
@@ -457,7 +473,7 @@ await cas.initVault();
 // Encrypted vault with passphrase
 await cas.initVault({
   passphrase: 'vault-secret',
-  kdfOptions: { algorithm: 'pbkdf2' },  // or 'scrypt'
+  kdfOptions: { algorithm: 'pbkdf2' }, // or 'scrypt'
 });
 
 // Encrypted vault with privacy mode
@@ -498,7 +514,7 @@ Re-wraps every envelope-encrypted entry's DEK with a new key derived from `newPa
 const { commitOid, rotatedSlugs, skippedSlugs } = await cas.rotateVaultPassphrase({
   oldPassphrase: 'old-secret',
   newPassphrase: 'new-secret',
-  kdfOptions: { algorithm: 'scrypt' },  // optional: change KDF algorithm
+  kdfOptions: { algorithm: 'scrypt' }, // optional: change KDF algorithm
 });
 ```
 
@@ -557,12 +573,12 @@ Each manifest also carries an optional `formatVersion` field -- a semver string 
 ```js
 const manifest = await cas.readManifest({ treeOid });
 
-console.log(manifest.slug);          // 'photos/vacation'
-console.log(manifest.filename);      // 'photo.jpg'
-console.log(manifest.size);          // total bytes
+console.log(manifest.slug); // 'photos/vacation'
+console.log(manifest.filename); // 'photo.jpg'
+console.log(manifest.size); // total bytes
 console.log(manifest.chunks.length); // number of chunks
-console.log(manifest.encryption);    // encryption metadata or undefined
-console.log(manifest.compression);   // compression metadata or undefined
+console.log(manifest.encryption); // encryption metadata or undefined
+console.log(manifest.compression); // compression metadata or undefined
 console.log(manifest.formatVersion); // '6.0.0' or undefined (older manifests)
 ```
 
@@ -623,7 +639,7 @@ const { bytesWritten } = await cas.restoreFile({
   manifest,
   outputPath: '/tmp/restored-photo.jpg',
   baseDirectory: '/tmp',
-  encryptionKey: key,  // if encrypted
+  encryptionKey: key, // if encrypted
 });
 ```
 
@@ -641,11 +657,30 @@ for await (const chunk of cas.restoreStream({ manifest, encryptionKey: key })) {
 
 ### When to Use Each
 
-| Mode | Memory | Streaming | Use Case |
-|---|---|---|---|
-| `restore` | Full file in RAM | No | Small files, in-memory processing |
-| `restoreFile` | Low | Yes (internal) | Disk targets, atomic writes |
-| `restoreStream` | Low | Yes (external) | Pipes, HTTP responses, large files |
+| Mode            | Memory           | Streaming      | Use Case                           |
+| --------------- | ---------------- | -------------- | ---------------------------------- |
+| `restore`       | Full file in RAM | No             | Small files, in-memory processing  |
+| `restoreFile`   | Low              | Yes (internal) | Disk targets, atomic writes        |
+| `restoreStream` | Low              | Yes (external) | Pipes, HTTP responses, large files |
+
+---
+
+## Streaming Surface
+
+| Surface                         | Streaming API?                             | Non-streaming API?                      | Notes                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------- | ------------------------------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Write                           | `store({ source, ... })`, `storeFile(...)` | No dedicated non-streaming store facade | Write ingress is stream-based. CDC + encryption defaults to `convergent` (per-chunk deterministic encryption preserving dedup). Fixed + encryption defaults to `framed`.                                                                                                                                                                                                                 |
+| Read: plaintext                 | `restoreStream(...)`, `restoreFile(...)`   | `restore(...)`                          | True chunk-by-chunk streaming restore.                                                                                                                                                                                                                                                                                                                                                   |
+| Read: encrypted `whole`         | `restoreStream(...)`, `restoreFile(...)`   | `restore(...)`                          | `restoreStream()` is the buffered compatibility path. Uncompressed `restoreFile()` verifies chunks, streams tentative plaintext through whole-object AES-GCM decryption into a temp-file path, and renames into place only after auth succeeds. AAD (slug) is always bound. On Web Crypto runtimes this decrypt step is still one-shot internally, bounded by `maxDecryptionBufferSize`. |
+| Read: encrypted `framed`        | `restoreStream(...)`, `restoreFile(...)`   | `restore(...)`                          | True authenticated streaming restore. Plaintext is yielded frame-by-frame after each frame is verified. Per-frame AAD is always bound.                                                                                                                                                                                                                                                   |
+| Read: compressed-only           | `restoreStream(...)`, `restoreFile(...)`   | `restore(...)`                          | Plaintext + gzip now streams end-to-end. `restoreFile()` streams gunzip output through a bounded temp-file path.                                                                                                                                                                                                                                                                         |
+| Read: compressed + `whole`      | `restoreStream(...)`, `restoreFile(...)`   | `restore(...)`                          | Auth must complete before gunzip. `restoreFile()` therefore preserves the auth-before-decompress boundary and may buffer the encrypted compressed payload; use `framed` or `convergent` for large compressed encrypted assets.                                                                                                                                                           |
+| Read: compressed + `framed`     | `restoreStream(...)`, `restoreFile(...)`   | `restore(...)`                          | Streaming decrypt, then streaming gunzip.                                                                                                                                                                                                                                                                                                                                                |
+| Read: encrypted `convergent`    | `restoreStream(...)`, `restoreFile(...)`   | `restore(...)`                          | True per-chunk streaming restore. Each chunk is decrypted individually using a key derived from its content hash. Parallel chunk restore via prefetch window when concurrency > 1.                                                                                                                                                                                                       |
+| Read: compressed + `convergent` | `restoreStream(...)`, `restoreFile(...)`   | `restore(...)`                          | Per-chunk convergent decrypt, then streaming gunzip.                                                                                                                                                                                                                                                                                                                                     |
+| Verify                          | No streaming verify surface                | `verifyIntegrity(manifest, options?)`   | Verifies chunk digests for all content. `whole` auth-checks the full ciphertext; `framed` parses and auth-checks every frame; `convergent` decrypts each chunk and verifies plaintext digests.                                                                                                                                                                                           |
+
+Runtime note: `framed` is the honest cross-runtime streaming answer. On Node and Bun, `whole restoreFile()` has the stronger low-memory path; on Web Crypto runtimes such as Deno, `whole` remains bounded-buffer rather than true streaming.
 
 ---
 
@@ -655,127 +690,127 @@ All commands support `--json` for machine-readable output and `--quiet` to suppr
 
 ### Store and Restore
 
-| Command | Description |
-|---|---|
-| `git-cas store <file> --slug <slug>` | Store a file into Git CAS |
-| `git-cas restore --out <path> --slug <slug>` | Restore a file from vault slug |
-| `git-cas restore --out <path> --oid <tree-oid>` | Restore a file from tree OID |
+| Command                                         | Description                    |
+| ----------------------------------------------- | ------------------------------ |
+| `git-cas store <file> --slug <slug>`            | Store a file into Git CAS      |
+| `git-cas restore --out <path> --slug <slug>`    | Restore a file from vault slug |
+| `git-cas restore --out <path> --oid <tree-oid>` | Restore a file from tree OID   |
 
 **Store flags:**
 
-| Flag | Description |
-|---|---|
-| `--slug <slug>` | Asset slug identifier (required) |
-| `--tree` | Create Git tree and add to vault |
-| `--force` | Overwrite existing vault entry (requires `--tree`) |
-| `--key-file <path>` | Path to 32-byte raw encryption key file |
-| `--recipient <label:keyfile>` | Envelope recipient (repeatable) |
-| `--vault-passphrase <pass>` | Inline vault passphrase (accepted with warning; prefer `--vault-passphrase-file -`, `GIT_CAS_PASSPHRASE`, or `--os-keychain-target`) |
-| `--vault-passphrase-file <path>` | Read passphrase from file (`-` for stdin) |
-| `--os-keychain-target <target>` | Read passphrase from OS keychain via `@git-stunts/vault` |
-| `--os-keychain-account <account>` | Keychain account namespace (default: `git-cas`) |
-| `--gzip` | Enable gzip compression |
-| `--strategy <fixed\|cdc>` | Chunking strategy |
-| `--chunk-size <n>` | Chunk size in bytes |
-| `--target-chunk-size <n>` | CDC target chunk size |
-| `--min-chunk-size <n>` | CDC minimum chunk size |
-| `--max-chunk-size <n>` | CDC maximum chunk size |
-| `--concurrency <n>` | Parallel chunk I/O operations |
-| `--codec <json\|cbor>` | Manifest codec |
-| `--merkle-threshold <n>` | Chunk count for Merkle sub-manifests |
-| `--cwd <dir>` | Git working directory (default: `.`) |
+| Flag                              | Description                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `--slug <slug>`                   | Asset slug identifier (required)                                                                                                     |
+| `--tree`                          | Create Git tree and add to vault                                                                                                     |
+| `--force`                         | Overwrite existing vault entry (requires `--tree`)                                                                                   |
+| `--key-file <path>`               | Path to 32-byte raw encryption key file                                                                                              |
+| `--recipient <label:keyfile>`     | Envelope recipient (repeatable)                                                                                                      |
+| `--vault-passphrase <pass>`       | Inline vault passphrase (accepted with warning; prefer `--vault-passphrase-file -`, `GIT_CAS_PASSPHRASE`, or `--os-keychain-target`) |
+| `--vault-passphrase-file <path>`  | Read passphrase from file (`-` for stdin)                                                                                            |
+| `--os-keychain-target <target>`   | Read passphrase from OS keychain via `@git-stunts/vault`                                                                             |
+| `--os-keychain-account <account>` | Keychain account namespace (default: `git-cas`)                                                                                      |
+| `--gzip`                          | Enable gzip compression                                                                                                              |
+| `--strategy <fixed\|cdc>`         | Chunking strategy                                                                                                                    |
+| `--chunk-size <n>`                | Chunk size in bytes                                                                                                                  |
+| `--target-chunk-size <n>`         | CDC target chunk size                                                                                                                |
+| `--min-chunk-size <n>`            | CDC minimum chunk size                                                                                                               |
+| `--max-chunk-size <n>`            | CDC maximum chunk size                                                                                                               |
+| `--concurrency <n>`               | Parallel chunk I/O operations                                                                                                        |
+| `--codec <json\|cbor>`            | Manifest codec                                                                                                                       |
+| `--merkle-threshold <n>`          | Chunk count for Merkle sub-manifests                                                                                                 |
+| `--cwd <dir>`                     | Git working directory (default: `.`)                                                                                                 |
 
 **Restore flags:**
 
-| Flag | Description |
-|---|---|
-| `--out <path>` | Non-empty output file path (required) |
-| `--slug <slug>` | Resolve tree OID from vault slug |
-| `--oid <tree-oid>` | Direct tree OID |
-| `--key-file <path>` | Encryption key file |
-| `--vault-passphrase <pass>` | Inline vault passphrase (accepted with warning; prefer file/stdin, env, or keychain sources) |
-| `--vault-passphrase-file <path>` | Read passphrase from file (`-` for stdin) |
-| `--os-keychain-target <target>` | OS keychain passphrase source |
-| `--os-keychain-account <account>` | Keychain account namespace |
-| `--concurrency <n>` | Parallel chunk I/O |
-| `--max-restore-buffer <n>` | Max buffered restore size in bytes |
-| `--cwd <dir>` | Git working directory |
+| Flag                              | Description                                                                                  |
+| --------------------------------- | -------------------------------------------------------------------------------------------- |
+| `--out <path>`                    | Non-empty output file path (required)                                                        |
+| `--slug <slug>`                   | Resolve tree OID from vault slug                                                             |
+| `--oid <tree-oid>`                | Direct tree OID                                                                              |
+| `--key-file <path>`               | Encryption key file                                                                          |
+| `--vault-passphrase <pass>`       | Inline vault passphrase (accepted with warning; prefer file/stdin, env, or keychain sources) |
+| `--vault-passphrase-file <path>`  | Read passphrase from file (`-` for stdin)                                                    |
+| `--os-keychain-target <target>`   | OS keychain passphrase source                                                                |
+| `--os-keychain-account <account>` | Keychain account namespace                                                                   |
+| `--concurrency <n>`               | Parallel chunk I/O                                                                           |
+| `--max-restore-buffer <n>`        | Max buffered restore size in bytes                                                           |
+| `--cwd <dir>`                     | Git working directory                                                                        |
 
 ### Vault Commands
 
-| Command | Description |
-|---|---|
-| `git-cas vault init` | Initialize the vault |
-| `git-cas vault list` | List all vault entries |
-| `git-cas vault remove <slug>` | Remove a vault entry |
-| `git-cas vault info <slug>` | Show info for a vault entry |
-| `git-cas vault stats` | Vault size, dedup, encryption summary |
-| `git-cas vault history` | Show vault commit history |
-| `git-cas vault rotate` | Rotate vault passphrase |
-| `git-cas vault dashboard` | Interactive TUI explorer |
+| Command                       | Description                           |
+| ----------------------------- | ------------------------------------- |
+| `git-cas vault init`          | Initialize the vault                  |
+| `git-cas vault list`          | List all vault entries                |
+| `git-cas vault remove <slug>` | Remove a vault entry                  |
+| `git-cas vault info <slug>`   | Show info for a vault entry           |
+| `git-cas vault stats`         | Vault size, dedup, encryption summary |
+| `git-cas vault history`       | Show vault commit history             |
+| `git-cas vault rotate`        | Rotate vault passphrase               |
+| `git-cas vault dashboard`     | Interactive TUI explorer              |
 
 **Vault init flags:**
 
-| Flag | Description |
-|---|---|
-| `--vault-passphrase <pass>` | Enable encrypted vault from an inline passphrase (accepted with warning) |
-| `--vault-passphrase-file <path>` | Read passphrase from file (`-` for stdin) |
-| `--os-keychain-target <target>` | OS keychain passphrase source |
-| `--algorithm <pbkdf2\|scrypt>` | KDF algorithm |
+| Flag                             | Description                                                              |
+| -------------------------------- | ------------------------------------------------------------------------ |
+| `--vault-passphrase <pass>`      | Enable encrypted vault from an inline passphrase (accepted with warning) |
+| `--vault-passphrase-file <path>` | Read passphrase from file (`-` for stdin)                                |
+| `--os-keychain-target <target>`  | OS keychain passphrase source                                            |
+| `--algorithm <pbkdf2\|scrypt>`   | KDF algorithm                                                            |
 
 **Vault rotate flags:**
 
-| Flag | Description |
-|---|---|
-| `--old-passphrase <pass>` | Current inline vault passphrase (accepted with warning) |
-| `--new-passphrase <pass>` | New inline vault passphrase (accepted with warning) |
-| `--old-passphrase-file <path>` | Read old passphrase from file (`-` for stdin) |
-| `--new-passphrase-file <path>` | Read new passphrase from file (`-` for stdin) |
-| `--algorithm <pbkdf2\|scrypt>` | KDF algorithm for new passphrase |
+| Flag                           | Description                                             |
+| ------------------------------ | ------------------------------------------------------- |
+| `--old-passphrase <pass>`      | Current inline vault passphrase (accepted with warning) |
+| `--new-passphrase <pass>`      | New inline vault passphrase (accepted with warning)     |
+| `--old-passphrase-file <path>` | Read old passphrase from file (`-` for stdin)           |
+| `--new-passphrase-file <path>` | Read new passphrase from file (`-` for stdin)           |
+| `--algorithm <pbkdf2\|scrypt>` | KDF algorithm for new passphrase                        |
 
 ### Inspection and Verification
 
-| Command | Description |
-|---|---|
-| `git-cas inspect --slug <slug>` | Inspect manifest (human-readable or JSON) |
-| `git-cas inspect --oid <tree-oid> --heatmap` | Chunk size heatmap visualization |
-| `git-cas verify --slug <slug>` | Verify chunk-level SHA-256 integrity |
-| `git-cas doctor` | Vault health report |
-| `git-cas tree --manifest <path>` | Create Git tree from manifest JSON file |
+| Command                                      | Description                               |
+| -------------------------------------------- | ----------------------------------------- |
+| `git-cas inspect --slug <slug>`              | Inspect manifest (human-readable or JSON) |
+| `git-cas inspect --oid <tree-oid> --heatmap` | Chunk size heatmap visualization          |
+| `git-cas verify --slug <slug>`               | Verify chunk-level SHA-256 integrity      |
+| `git-cas doctor`                             | Vault health report                       |
+| `git-cas tree --manifest <path>`             | Create Git tree from manifest JSON file   |
 
 ### Key and Recipient Management
 
-| Command | Description |
-|---|---|
-| `git-cas rotate --slug <slug> --old-key-file <path> --new-key-file <path>` | Rotate encryption key |
-| `git-cas recipient add <slug> --label <label> --key-file <path> --existing-key-file <path>` | Add recipient |
-| `git-cas recipient remove <slug> --label <label>` | Remove recipient |
-| `git-cas recipient list <slug>` | List recipients |
+| Command                                                                                     | Description           |
+| ------------------------------------------------------------------------------------------- | --------------------- |
+| `git-cas rotate --slug <slug> --old-key-file <path> --new-key-file <path>`                  | Rotate encryption key |
+| `git-cas recipient add <slug> --label <label> --key-file <path> --existing-key-file <path>` | Add recipient         |
+| `git-cas recipient remove <slug> --label <label>`                                           | Remove recipient      |
+| `git-cas recipient list <slug>`                                                             | List recipients       |
 
 ### Agent CLI
 
 Machine-facing commands for CI/CD and agentic workflows. The agent CLI returns newline-delimited protocol events on stdout and exits with stable status codes. It accepts the same core targets and credential sources as the human CLI.
 
-| Command | Description |
-|---|---|
-| `git-cas agent store <file> --slug <slug> --tree` | Store an asset and optionally vault it |
-| `git-cas agent tree --manifest <path>` | Create a Git tree from manifest JSON |
-| `git-cas agent restore --slug <slug> --out <path>` | Restore from a vault slug |
-| `git-cas agent restore --oid <tree-oid> --out <path>` | Restore from a direct tree OID |
-| `git-cas agent inspect --slug <slug>` | Return manifest JSON for a target |
-| `git-cas agent verify --slug <slug>` | Verify integrity and return an agent exit code |
-| `git-cas agent doctor` | Return a vault health report |
-| `git-cas agent rotate --slug <slug>` | Rotate a recipient/key wrapper |
-| `git-cas agent recipient add <slug>` | Add an envelope recipient |
-| `git-cas agent recipient remove <slug>` | Remove an envelope recipient |
-| `git-cas agent recipient list <slug>` | List envelope recipients |
-| `git-cas agent vault init` | Initialize the vault |
-| `git-cas agent vault list` | List vault entries |
-| `git-cas agent vault info <slug>` | Inspect a vault entry |
-| `git-cas agent vault history` | Return vault history |
-| `git-cas agent vault remove <slug>` | Remove a vault entry |
-| `git-cas agent vault rotate` | Rotate the vault passphrase |
-| `git-cas agent vault stats` | Return vault size/dedupe/encryption stats |
+| Command                                               | Description                                    |
+| ----------------------------------------------------- | ---------------------------------------------- |
+| `git-cas agent store <file> --slug <slug> --tree`     | Store an asset and optionally vault it         |
+| `git-cas agent tree --manifest <path>`                | Create a Git tree from manifest JSON           |
+| `git-cas agent restore --slug <slug> --out <path>`    | Restore from a vault slug                      |
+| `git-cas agent restore --oid <tree-oid> --out <path>` | Restore from a direct tree OID                 |
+| `git-cas agent inspect --slug <slug>`                 | Return manifest JSON for a target              |
+| `git-cas agent verify --slug <slug>`                  | Verify integrity and return an agent exit code |
+| `git-cas agent doctor`                                | Return a vault health report                   |
+| `git-cas agent rotate --slug <slug>`                  | Rotate a recipient/key wrapper                 |
+| `git-cas agent recipient add <slug>`                  | Add an envelope recipient                      |
+| `git-cas agent recipient remove <slug>`               | Remove an envelope recipient                   |
+| `git-cas agent recipient list <slug>`                 | List envelope recipients                       |
+| `git-cas agent vault init`                            | Initialize the vault                           |
+| `git-cas agent vault list`                            | List vault entries                             |
+| `git-cas agent vault info <slug>`                     | Inspect a vault entry                          |
+| `git-cas agent vault history`                         | Return vault history                           |
+| `git-cas agent vault remove <slug>`                   | Remove a vault entry                           |
+| `git-cas agent vault rotate`                          | Rotate the vault passphrase                    |
+| `git-cas agent vault stats`                           | Return vault size/dedupe/encryption stats      |
 
 Use `--request <json>` or stdin JSON for structured request payloads where a workflow needs machine-built inputs. See [docs/API.md](./docs/API.md) for the detailed protocol fields and response schemas.
 
@@ -787,39 +822,39 @@ Use `--request <json>` or stdin JSON for structured request payloads where a wor
 
 This table describes the high-level `ContentAddressableStore` facade. The facade supplies `FixedChunker`, `NodeCompressionAdapter`, runtime crypto, and the package `formatVersion` automatically when those options are omitted. If you construct `CasService` directly, `chunker` and `compressionAdapter` are required injections; see [ADVANCED_GUIDE.md](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts).
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `plumbing` | `GitPlumbing` | (required) | `@git-stunts/plumbing` instance |
-| `chunkSize` | `number` | `262144` (256 KiB) | Chunk size in bytes (min 1024, max 100 MiB) |
-| `codec` | `CodecPort` | `JsonCodec` | Manifest serialization codec |
-| `crypto` | `CryptoPort` | Auto-detected | Crypto adapter (Node or WebCrypto) |
-| `observability` | `ObservabilityPort` | `SilentObserver` | Metrics, logs, spans |
-| `policy` | `Policy` | None | `@git-stunts/alfred` resilience policy |
-| `merkleThreshold` | `number` | `1000` | Chunk count above which Merkle sub-manifests are used |
-| `concurrency` | `number` | `1` | Parallel chunk I/O operations (max 64); values > 1 enable parallel chunk restore |
-| `chunking` | `object` | None | Chunking strategy config (see below) |
-| `chunker` | `ChunkingPort` | `FixedChunker` | Pre-built chunker instance (advanced) |
-| `maxRestoreBufferSize` | `number` | `536870912` (512 MiB) | Max bytes for buffered restore |
-| `compressionAdapter` | `CompressionPort` | `NodeCompressionAdapter` | Compression adapter |
-| `formatVersion` | `string` | Package version | Semver string stamped into new manifests by the facade. Directly configurable only on `CasService`. |
+| Option                 | Type                | Default                  | Description                                                                                         |
+| ---------------------- | ------------------- | ------------------------ | --------------------------------------------------------------------------------------------------- |
+| `plumbing`             | `GitPlumbing`       | (required)               | `@git-stunts/plumbing` instance                                                                     |
+| `chunkSize`            | `number`            | `262144` (256 KiB)       | Chunk size in bytes (min 1024, max 100 MiB)                                                         |
+| `codec`                | `CodecPort`         | `JsonCodec`              | Manifest serialization codec                                                                        |
+| `crypto`               | `CryptoPort`        | Auto-detected            | Crypto adapter (Node or WebCrypto)                                                                  |
+| `observability`        | `ObservabilityPort` | `SilentObserver`         | Metrics, logs, spans                                                                                |
+| `policy`               | `Policy`            | None                     | `@git-stunts/alfred` resilience policy                                                              |
+| `merkleThreshold`      | `number`            | `1000`                   | Chunk count above which Merkle sub-manifests are used                                               |
+| `concurrency`          | `number`            | `1`                      | Parallel chunk I/O operations (max 64); values > 1 enable parallel chunk restore                    |
+| `chunking`             | `object`            | None                     | Chunking strategy config (see below)                                                                |
+| `chunker`              | `ChunkingPort`      | `FixedChunker`           | Pre-built chunker instance (advanced)                                                               |
+| `maxRestoreBufferSize` | `number`            | `536870912` (512 MiB)    | Max bytes for buffered restore                                                                      |
+| `compressionAdapter`   | `CompressionPort`   | `NodeCompressionAdapter` | Compression adapter                                                                                 |
+| `formatVersion`        | `string`            | Package version          | Semver string stamped into new manifests by the facade. Directly configurable only on `CasService`. |
 
 ### Encryption Options (Store)
 
-| Key | Type | Default | Description |
-|---|---|---|---|
-| `scheme` | `'whole' \| 'framed' \| 'convergent'` | `convergent` (CDC) / `framed` (fixed) | Encryption scheme |
-| `frameBytes` | `number` | `65536` (64 KiB) | Frame size for `framed` scheme (max 64 MiB) |
-| `convergent` | `boolean` | Auto | Explicit convergent opt-in/opt-out when no `scheme` is provided |
+| Key          | Type                                  | Default                               | Description                                                     |
+| ------------ | ------------------------------------- | ------------------------------------- | --------------------------------------------------------------- |
+| `scheme`     | `'whole' \| 'framed' \| 'convergent'` | `convergent` (CDC) / `framed` (fixed) | Encryption scheme                                               |
+| `frameBytes` | `number`                              | `65536` (64 KiB)                      | Frame size for `framed` scheme (max 64 MiB)                     |
+| `convergent` | `boolean`                             | Auto                                  | Explicit convergent opt-in/opt-out when no `scheme` is provided |
 
 ### Chunking Config Object
 
-| Key | Type | Description |
-|---|---|---|
-| `strategy` | `'fixed' \| 'cdc'` | Chunking strategy |
-| `chunkSize` | `number` | Fixed chunk size (fixed strategy only) |
-| `targetChunkSize` | `number` | CDC target chunk size |
-| `minChunkSize` | `number` | CDC minimum chunk size |
-| `maxChunkSize` | `number` | CDC maximum chunk size |
+| Key               | Type               | Description                            |
+| ----------------- | ------------------ | -------------------------------------- |
+| `strategy`        | `'fixed' \| 'cdc'` | Chunking strategy                      |
+| `chunkSize`       | `number`           | Fixed chunk size (fixed strategy only) |
+| `targetChunkSize` | `number`           | CDC target chunk size                  |
+| `minChunkSize`    | `number`           | CDC minimum chunk size                 |
+| `maxChunkSize`    | `number`           | CDC maximum chunk size                 |
 
 ### `.casrc` Project Config
 
@@ -844,8 +879,8 @@ Place a `.casrc` JSON file at your repository root to set defaults. CLI flags al
 
 ### Environment Variables
 
-| Variable | Description |
-|---|---|
+| Variable             | Description                                                 |
+| -------------------- | ----------------------------------------------------------- |
 | `GIT_CAS_PASSPHRASE` | Vault passphrase (preferred over `--vault-passphrase` flag) |
 
 ---

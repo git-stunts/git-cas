@@ -1,7 +1,7 @@
 # STATUS
 
-**Last tagged release:** `v5.3.2` (`2026-03-15`)
-**Current release state:** `v6.0.0` prepared on `main`; the annotated tag has not been created yet.
+**Last tagged release:** `v6.0.0` (`2026-05-09`)
+**Current release state:** `v6.0.0` is published to npm and GitHub Releases; JSR publication is deferred for the v6.0.0 line.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -17,11 +17,9 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.0.0 artifact posture** — pre-tag release prep and final local
-  verification are complete; the annotated tag has not been created. JSR
-  publication is deferred because the current `jsr`/Deno toolchain panics
-  before package validation. Once the operator approves the tag, the tag
-  workflow publishes npm and creates the GitHub Release; JSR can return in a
+- **v6.0.0 artifact posture** — npm publication and the GitHub Release are
+  complete for tag `v6.0.0`. JSR publication is deferred because the current
+  `jsr`/Deno toolchain panics before package validation; it can return in a
   later 6.x maintenance change once its dry-run is healthy.
 - **v6.0.0 encryption scheme simplification** — `whole-v1`/`whole-v2` collapsed
   to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1`
@@ -74,7 +72,6 @@
 
 ## Active Queue Snapshot
 
-- [REL — Version Bump](./docs/method/backlog/v6.0.0/REL_version-bump.md)
 - [TUI — Store Wizard Execution Gap](./docs/method/backlog/bad-code/TUI_store-wizard-execution-gap.md)
 
 ## Read Next
