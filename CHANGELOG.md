@@ -119,6 +119,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Recipient rotation scans every candidate** — unlabeled `rotateKey()` now
   attempts every recipient unwrap before selecting the first match, reducing
   recipient-position timing leakage while preserving existing rotation results.
+- **Behavior-focused vault tests** — removed the source-layout-only
+  `VaultService` structure test and added a test-style guard against
+  `.structure.test.js` files.
 - **Facade restore guidance links to versioned docs** — missing
   `restoreFile({ baseDirectory })` errors now serialize a v6.0.0 API docs URL
   and use the centralized `INVALID_OPTIONS` error code.

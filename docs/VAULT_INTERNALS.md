@@ -184,6 +184,10 @@ Vault tests should assert behavior rather than collaborator shape:
 - CAS conflicts are retried through the policy
 - codecs reject malformed bytes and remain I/O-free
 
+Do not add source-layout tests that assert import ordering, file headers, or
+other non-behavioral structure. Those checks make refactors brittle without
+protecting the vault contract.
+
 Use injected memory adapters for domain behavior where possible. Git-backed
 integration tests remain valuable for verifying the actual ref, tree, blob, and
 commit substrate.
