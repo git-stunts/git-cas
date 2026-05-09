@@ -106,6 +106,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per-call limit is supplied.
 - **API `maxBlobSize` wording** — `docs/API.md` now documents the constructor
   option as the metadata blob read limit, matching the runtime service contract.
+- **Manifest diff JSDoc boundary** — `ManifestDiff.js` now declares its
+  `Manifest` typedef locally so generated docs and declaration checks can
+  resolve the pure diff helper parameters.
 - **Vault keyed caches snapshot key bytes** — privacy-entry and verifier caches
   now reject stale hits when a reused `Uint8Array` key object has been mutated.
 - **Vault state caches return defensive entry maps** — `VaultStateCache` now

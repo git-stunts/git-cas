@@ -5,6 +5,8 @@
  * unchanged chunks. No I/O, no ports, no state — just set algebra.
  */
 
+/** @typedef {import('../value-objects/Manifest.js').default} Manifest */
+
 /**
  * @typedef {Object} ManifestDiffResult
  * @property {import('../value-objects/Chunk.js').default[]} added - Chunks in `newManifest` not in `oldManifest`.
