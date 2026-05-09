@@ -75,6 +75,23 @@ describe('VaultMetadataCodec cipher validation', () => {
   });
 });
 
+describe('VaultMetadataCodec encryption shape validation', () => {
+  it.each([
+    ['null', null],
+    ['false', false],
+    ['empty string', ''],
+  ])('rejects present but falsy encryption metadata: %s', (_label, encryption) => {
+    const codec = new VaultMetadataCodec();
+
+    expect(() => codec.decode(bytes({ version: 1, encryption }))).toThrow(
+      expect.objectContaining({
+        code: 'VAULT_METADATA_INVALID',
+        meta: expect.objectContaining({ field: 'encryption' }),
+      }),
+    );
+  });
+});
+
 describe('VaultMetadataCodec encryption validation', () => {
   it('normalizes malformed KDF metadata to VAULT_METADATA_INVALID', () => {
     const codec = new VaultMetadataCodec();

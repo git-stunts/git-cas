@@ -117,6 +117,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vault metadata enforces the AES-GCM cipher boundary** — `.vault.json`
   metadata now rejects unsupported `encryption.cipher` values with
   `VAULT_METADATA_INVALID`; the v6 vault metadata format remains AES-256-GCM.
+- **Vault metadata rejects malformed encryption placeholders** — `.vault.json`
+  payloads with present but falsy `encryption` values now fail with
+  `VAULT_METADATA_INVALID` instead of being treated as plaintext vaults.
 - **Doctor rejects vault heads without metadata** — `git cas doctor` now fails
   with `VAULT_METADATA_INVALID` when `refs/cas/vault` exists but `.vault.json`
   is missing or invalid.

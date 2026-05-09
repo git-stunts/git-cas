@@ -9,6 +9,7 @@ export const VAULT_METADATA_VERSION = 1;
 export const VAULT_ENCRYPTION_CIPHER = 'aes-256-gcm';
 export const VAULT_ENCRYPTION_COUNT_WARN = 2 ** 31;
 export const VAULT_ENCRYPTION_COUNT_MAX = 2 ** 32 - 1;
+const ENCRYPTION_FIELD = 'encryption';
 
 /**
  * Pure codec for the persisted `.vault.json` boundary format.
@@ -74,7 +75,7 @@ export default class VaultMetadataCodec {
         { metadata },
       );
     }
-    if (metadata.encryption) {
+    if (Object.hasOwn(metadata, ENCRYPTION_FIELD)) {
       this.#validateEncryption(metadata.encryption, metadata);
     }
     this.#validateEncryptionCount(metadata);
@@ -85,6 +86,7 @@ export default class VaultMetadataCodec {
    * @param {object} metadata
    */
   #validateEncryption(encryption, metadata) {
+    this.#assertEncryptionObject(encryption, metadata);
     const { cipher, kdf } = encryption;
     if (!cipher || !kdf?.algorithm || !kdf?.salt || !kdf?.keyLength) {
       throw new CasError(
@@ -108,6 +110,20 @@ export default class VaultMetadataCodec {
     this.#validateStoredKdf(kdf, metadata);
     if (encryption.verifier !== undefined) {
       this.#validateVerifier(encryption.verifier, metadata);
+    }
+  }
+
+  /**
+   * @param {unknown} encryption
+   * @param {object} metadata
+   */
+  #assertEncryptionObject(encryption, metadata) {
+    if (typeof encryption !== 'object' || encryption === null) {
+      throw new CasError(
+        'Vault encryption metadata must be an object when present',
+        ErrorCodes.VAULT_METADATA_INVALID,
+        { metadata, field: ENCRYPTION_FIELD, value: encryption },
+      );
     }
   }
 

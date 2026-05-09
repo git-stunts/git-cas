@@ -43,7 +43,9 @@ memoization stores a byte snapshot beside the key object, so mutating a reused
 
 Owns the `.vault.json` boundary format. It encodes and decodes bytes, validates
 metadata version, AES-256-GCM cipher selection, KDF policy, verifier metadata,
-and encryption counters. It is pure: it does not read Git, write Git, derive
+and encryption counters. If the `encryption` field is present, it must be a
+complete object; falsy placeholder values are invalid metadata rather than an
+unencrypted vault signal. It is pure: it does not read Git, write Git, derive
 keys, or perform vault mutations.
 
 `VaultTreeCodec`
