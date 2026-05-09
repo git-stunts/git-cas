@@ -393,9 +393,17 @@ export default class VaultService {
    * @param {string|null} options.parentCommitOid - Parent commit OID (null for first commit).
    * @param {string} options.message - Commit message.
    * @param {Uint8Array} [options.encryptionKey] - Vault encryption key (required when privacy is enabled).
+   * @param {boolean} [options.encryptionKeyVerified=false] - True when the current read already verified the key.
    * @returns {Promise<{ commitOid: string }>}
    */
-  async writeCommit({ entries, metadata, parentCommitOid, message, encryptionKey }) {
+  async writeCommit({
+    entries,
+    metadata,
+    parentCommitOid,
+    message,
+    encryptionKey,
+    encryptionKeyVerified = false,
+  }) {
     const privacyEnabled = Boolean(metadata?.privacy?.enabled);
 
     if (privacyEnabled && !encryptionKey) {
@@ -406,13 +414,7 @@ export default class VaultService {
     }
 
     const metaCopy = JSON.parse(JSON.stringify(metadata));
-    if (metaCopy.encryption && encryptionKey) {
-      if (metaCopy.encryption.verifier) {
-        await this.keyVerifier.verify(metaCopy, encryptionKey);
-      } else {
-        metaCopy.encryption.verifier = await this.keyVerifier.create(encryptionKey);
-      }
-    }
+    await this.#prepareVerifierMetadata(metaCopy, encryptionKey, encryptionKeyVerified);
 
     const privateWrite = privacyEnabled
       ? await this.#preparePrivacyWrite(entries, metaCopy, encryptionKey)
@@ -425,6 +427,25 @@ export default class VaultService {
       message,
       ...privateWrite,
     });
+  }
+
+  /**
+   * Verifies existing metadata or creates verifier metadata for legacy encrypted vaults.
+   * @param {VaultMetadata} metaCopy
+   * @param {Uint8Array|undefined} encryptionKey
+   * @param {boolean} encryptionKeyVerified
+   */
+  async #prepareVerifierMetadata(metaCopy, encryptionKey, encryptionKeyVerified) {
+    if (!metaCopy.encryption || !encryptionKey) {
+      return;
+    }
+    if (!metaCopy.encryption.verifier) {
+      metaCopy.encryption.verifier = await this.keyVerifier.create(encryptionKey);
+      return;
+    }
+    if (!encryptionKeyVerified) {
+      await this.keyVerifier.verify(metaCopy, encryptionKey);
+    }
   }
 
   /**
@@ -514,6 +535,7 @@ export default class VaultService {
           parentCommitOid: state.parentCommitOid,
           message,
           encryptionKey: effectiveKey,
+          encryptionKeyVerified: VaultService.#wasEncryptionKeyVerifiedByRead(state, effectiveKey),
         });
         return result ? { ...commit, ...result } : commit;
       } catch (err) {
@@ -525,6 +547,15 @@ export default class VaultService {
     }
     /* c8 ignore next 2 */
     throw new CasError('Vault CAS retries exhausted', ErrorCodes.VAULT_CONFLICT);
+  }
+
+  /**
+   * @param {VaultState} state
+   * @param {Uint8Array|undefined} encryptionKey
+   * @returns {boolean}
+   */
+  static #wasEncryptionKeyVerifiedByRead(state, encryptionKey) {
+    return Boolean(encryptionKey && state.metadata?.encryption?.verifier);
   }
 
   // ---------------------------------------------------------------------------
@@ -562,6 +593,24 @@ export default class VaultService {
       this.stateCache.rememberVerifiedEncryptionKey(cached, encryptionKey);
     }
     return verified;
+  }
+
+  /**
+   * Verifies a key against tree metadata, reusing cached verifier state when available.
+   * @param {string} treeOid
+   * @param {VaultMetadata|null} metadata
+   * @param {Uint8Array} encryptionKey
+   * @returns {Promise<boolean>}
+   */
+  async #verifyEncryptionKeyForTree(treeOid, metadata, encryptionKey) {
+    if (!metadata?.encryption) {
+      return false;
+    }
+    const cached = this.stateCache.get(treeOid);
+    if (cached) {
+      return await this.#verifyCachedEncryptionKey(cached, encryptionKey);
+    }
+    return await this.keyVerifier.verify(metadata, encryptionKey);
   }
 
   // ---------------------------------------------------------------------------
@@ -676,7 +725,7 @@ export default class VaultService {
     }
     const metadata = await this.#readMetadataFromTree(current.treeOid);
     if (metadata?.encryption && encryptionKey) {
-      await this.keyVerifier.verify(metadata, encryptionKey);
+      await this.#verifyEncryptionKeyForTree(current.treeOid, metadata, encryptionKey);
     }
     if (metadata?.privacy?.enabled) {
       yield* this.#iteratePrivateVaultEntries(current.treeOid, metadata, encryptionKey);
@@ -797,7 +846,7 @@ export default class VaultService {
     }
     const metadata = await this.#readMetadataFromTree(current.treeOid);
     if (metadata?.encryption && encryptionKey) {
-      await this.keyVerifier.verify(metadata, encryptionKey);
+      await this.#verifyEncryptionKeyForTree(current.treeOid, metadata, encryptionKey);
     }
     const treePath = await this.#treePathForVaultSlug({
       metadata,

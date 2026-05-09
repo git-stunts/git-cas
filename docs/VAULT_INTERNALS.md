@@ -80,7 +80,10 @@ decrypted index; returning a partial privacy listing can hide vault corruption.
 Owns encrypted vault-key verifier metadata. New encrypted vaults store a small
 AES-GCM verifier in `.vault.json`; reads and keyed writes use it to reject a
 wrong vault key before accepting empty-vault mutations. Verifier plaintext is
-compared with a constant-time byte comparison.
+compared with a constant-time byte comparison. Once `readState()` verifies a key
+for a cached tree OID, targeted list, resolve, and follow-on mutation writes for
+that same tree reuse the cached verifier proof instead of decrypting the
+verifier again.
 
 `VaultMutationRetryPolicy`
 
@@ -193,7 +196,9 @@ Cache entries may contain:
 Returned state must always be copied. A caller mutating a returned `Map` or
 metadata object must not mutate the cache. Collaborator-level cache accessors
 also return copied entry maps, so callers that bypass `readState()` cannot mutate
-the cached plain or privacy entry map.
+the cached plain or privacy entry map. Verifier memoization is tree-local:
+mutations that advance the vault head must resolve and verify the new tree state
+before its cached proof is reused.
 
 ## Boundary Compatibility
 
