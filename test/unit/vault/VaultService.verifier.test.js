@@ -203,6 +203,7 @@ describe('VaultService verifier cache', () => {
     };
     const vault = createVault({ persistence, ref, crypto });
 
+    await vault.readState({ encryptionKey: TEST_KEY });
     await vault.addToVault({ slug: 'asset', treeOid: 'asset-tree', encryptionKey: TEST_KEY });
 
     expect(crypto.decryptBuffer).toHaveBeenCalledTimes(1);

@@ -229,6 +229,8 @@ Vault tests should assert behavior rather than collaborator shape:
 - plain and privacy vault round trips preserve slug-to-tree mappings
 - wrong vault keys fail before empty-vault writes
 - verifier migration occurs on the next keyed write for older metadata
+- verifier-cache regression tests exercise cross-operation reuse, such as
+  `readState({ encryptionKey })` followed by a keyed mutation on the same tree
 - targeted resolve and streaming list paths work when the adapter exposes them
 - CAS conflicts are retried through the policy
 - codecs reject malformed bytes and remain I/O-free

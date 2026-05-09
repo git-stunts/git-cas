@@ -129,6 +129,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vault verifier checks reuse cached proofs** — keyed list, resolve, and
   mutation paths now reuse the verifier memo stored by `readState()` for the
   same immutable vault tree instead of decrypting the verifier repeatedly.
+- **Vault verifier cache regression coverage** — mutation memoization tests now
+  exercise the intended cross-operation path by calling
+  `readState({ encryptionKey })` before the keyed vault write.
 - **Vault metadata enforces the AES-GCM cipher boundary** — `.vault.json`
   metadata now rejects unsupported `encryption.cipher` values with
   `VAULT_METADATA_INVALID`; the v6 vault metadata format remains AES-256-GCM.
