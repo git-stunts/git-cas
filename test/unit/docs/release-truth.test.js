@@ -40,6 +40,15 @@ describe('release truth docs and examples', () => {
     expect(api).toContain('Any other `ContentAddressableStore` constructor option except `codec`');
     expect(api).not.toContain('Plumbing.create({ repoPath');
   });
+
+  it('documents maxBlobSize as the metadata blob safety limit', () => {
+    const api = read('docs/API.md');
+
+    expect(api).toContain(
+      '`options.maxBlobSize` (optional): Max bytes for metadata blob reads',
+    );
+    expect(api).not.toContain('Max bytes for manifest and sub-manifest blob reads');
+  });
 });
 
 describe('Merkle manifest docs', () => {

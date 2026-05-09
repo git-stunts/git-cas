@@ -72,7 +72,7 @@ new ContentAddressableStore(options);
 - `options.chunking` (optional): Declarative chunking strategy config `{ strategy: 'fixed'|'cdc', chunkSize?, targetChunkSize?, minChunkSize?, maxChunkSize? }`
 - `options.chunker` (optional): Pre-built ChunkingPort instance (advanced; overrides `chunking`)
 - `options.maxRestoreBufferSize` (optional): Max bytes for buffered encrypted/compressed restore (default: 536870912 / 512 MiB)
-- `options.maxBlobSize` (optional): Max bytes for manifest and sub-manifest blob reads (default: 10485760 / 10 MiB)
+- `options.maxBlobSize` (optional): Max bytes for metadata blob reads (default: 10485760 / 10 MiB)
 - `options.compressionAdapter` (optional): CompressionPort implementation (default: NodeCompressionAdapter)
 
 **Example:**
