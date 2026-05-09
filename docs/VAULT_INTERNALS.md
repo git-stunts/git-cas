@@ -153,6 +153,11 @@ Vault mutations follow one draft-based loop:
 6. Ask `VaultPersistence.writeCommit()` to write blobs, tree, commit, and CAS-update the ref.
 7. Retry through `VaultMutationRetryPolicy` when the CAS update reports `VAULT_CONFLICT`.
 
+`VaultPersistence` only classifies structured expected-vs-actual OID mismatches,
+or Git `update-ref` CAS mismatch stderr, as `VAULT_CONFLICT`. Other ref update
+failures report `VAULT_REF_UPDATE_FAILED` so callers do not retry permission,
+I/O, or policy failures as optimistic-concurrency contention.
+
 The service talks in domain terms: vault head, entries, metadata, privacy index,
 and vault key. Git terms such as refs, mktree records, commit creation, and
 compare-and-swap updates stay inside `VaultPersistence` and `VaultTreeCodec`.

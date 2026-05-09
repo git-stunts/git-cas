@@ -126,6 +126,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unreadable vault heads stay visible** — vault head resolution now returns an
   empty state only when the vault ref is absent; unreadable refs or commits that
   cannot resolve to a tree fail with `VAULT_HEAD_INVALID`.
+- **Vault ref update failures stay non-retryable unless they are CAS conflicts**
+  — `VaultPersistence` now emits `VAULT_REF_UPDATE_FAILED` for generic
+  update-ref failures and reserves `VAULT_CONFLICT` for structured
+  expected-vs-actual OID mismatches.
 - **Plumbing missing-ref errors stay non-fatal** — vault head resolution now
   recognizes `@git-stunts/plumbing` missing-ref stderr details as an absent
   vault while still surfacing unrelated ref failures. Object database failures

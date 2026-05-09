@@ -13,6 +13,11 @@ const MISSING_REF_MARKERS = Object.freeze({
   neededSingleRevision: 'needed a single revision',
   unknownRevision: 'unknown revision',
 });
+const UPDATE_REF_CONFLICT_MARKERS = Object.freeze({
+  butExpected: 'but expected',
+  cannotLockRef: 'cannot lock ref',
+  referenceAlreadyExists: 'reference already exists',
+});
 
 /**
  * Stateless persistence boundary for the vault ref and vault tree format.
@@ -226,17 +231,55 @@ export default class VaultPersistence {
         expectedOldOid,
       });
     } catch (err) {
-      throw new CasError(
-        'Concurrent vault update detected',
-        ErrorCodes.VAULT_CONFLICT,
-        {
-          expectedOldOid,
-          actualOldOid: await this.#resolveActualOid(),
-          newCommit: newOid,
-          originalError: err,
-        },
-      );
+      if (isCasUpdateConflict(err)) {
+        throw await this.#buildConflictError(err, newOid, expectedOldOid);
+      }
+      throw await this.#buildRefUpdateFailureError(err, newOid, expectedOldOid);
     }
+  }
+
+  /**
+   * @param {unknown} originalError
+   * @param {string} newOid
+   * @param {string|null} expectedOldOid
+   * @returns {Promise<CasError>}
+   */
+  async #buildConflictError(originalError, newOid, expectedOldOid) {
+    return new CasError(
+      'Concurrent vault update detected',
+      ErrorCodes.VAULT_CONFLICT,
+      await this.#updateFailureMeta(originalError, newOid, expectedOldOid),
+    );
+  }
+
+  /**
+   * @param {unknown} originalError
+   * @param {string} newOid
+   * @param {string|null} expectedOldOid
+   * @returns {Promise<CasError>}
+   */
+  async #buildRefUpdateFailureError(originalError, newOid, expectedOldOid) {
+    return new CasError(
+      'Vault ref update failed',
+      ErrorCodes.VAULT_REF_UPDATE_FAILED,
+      await this.#updateFailureMeta(originalError, newOid, expectedOldOid),
+    );
+  }
+
+  /**
+   * @param {unknown} originalError
+   * @param {string} newOid
+   * @param {string|null} expectedOldOid
+   * @returns {Promise<object>}
+   */
+  async #updateFailureMeta(originalError, newOid, expectedOldOid) {
+    const actualOldOid = actualOldOidFromError(originalError);
+    return {
+      expectedOldOid,
+      actualOldOid: actualOldOid === undefined ? await this.#resolveActualOid() : actualOldOid,
+      newCommit: newOid,
+      originalError,
+    };
   }
 
   /**
@@ -322,6 +365,64 @@ function isGitMissingRefMessage(message) {
       normalized.includes(MISSING_REF_MARKERS.ambiguousArgument) &&
       normalized.includes(MISSING_REF_MARKERS.unknownRevision)
     )
+  );
+}
+
+/**
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+function isCasUpdateConflict(err) {
+  if (err instanceof CasError && err.code === ErrorCodes.VAULT_CONFLICT) {
+    return true;
+  }
+  if (hasExpectedActualOidMeta(err)) {
+    return true;
+  }
+  return isGitUpdateRefCasMismatch(errorDetailsText(err));
+}
+
+/**
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+function hasExpectedActualOidMeta(err) {
+  const meta = errorMeta(err);
+  return Object.hasOwn(meta, 'expectedOldOid') && Object.hasOwn(meta, 'actualOldOid');
+}
+
+/**
+ * @param {unknown} err
+ * @returns {string|null|undefined}
+ */
+function actualOldOidFromError(err) {
+  const meta = errorMeta(err);
+  return Object.hasOwn(meta, 'actualOldOid') ? meta.actualOldOid : undefined;
+}
+
+/**
+ * @param {unknown} err
+ * @returns {object}
+ */
+function errorMeta(err) {
+  if (err && typeof err === 'object' && typeof err.meta === 'object' && err.meta) {
+    return err.meta;
+  }
+  return {};
+}
+
+/**
+ * @param {string} message
+ * @returns {boolean}
+ */
+function isGitUpdateRefCasMismatch(message) {
+  const normalized = message.toLowerCase();
+  if (!normalized.includes(VAULT_REF) || !normalized.includes(UPDATE_REF_CONFLICT_MARKERS.cannotLockRef)) {
+    return false;
+  }
+  return (
+    normalized.includes(UPDATE_REF_CONFLICT_MARKERS.butExpected) ||
+    normalized.includes(UPDATE_REF_CONFLICT_MARKERS.referenceAlreadyExists)
   );
 }
 

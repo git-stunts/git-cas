@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import CasError from '../../../../src/domain/errors/CasError.js';
+import { ErrorCodes } from '../../../../src/domain/errors/index.js';
 import VaultPersistence from '../../../../src/domain/services/VaultPersistence.js';
 import { utf8Encode } from '../../../../src/domain/encoding/utf8.js';
 
@@ -192,9 +193,9 @@ describe('VaultPersistence entry reads', () => {
   });
 });
 
-describe('VaultPersistence conflict writes', () => {
-  it('writes a vault commit and normalizes ref update failures as VAULT_CONFLICT', async () => {
-    const rootCause = new Error('lock failed');
+describe('VaultPersistence generic ref update failures', () => {
+  it('does not classify generic ref update failures as retryable vault conflicts', async () => {
+    const rootCause = new Error('permission denied while updating refs/cas/vault');
     const persistence = mockPersistence({
       writeBlob: vi.fn().mockResolvedValueOnce('meta-oid'),
       writeTree: vi.fn().mockResolvedValueOnce('tree-oid'),
@@ -202,7 +203,49 @@ describe('VaultPersistence conflict writes', () => {
     const ref = mockRef({
       createCommit: vi.fn().mockResolvedValueOnce('commit-new'),
       updateRef: vi.fn().mockRejectedValueOnce(rootCause),
-      resolveRef: vi.fn().mockResolvedValueOnce('commit-actual'),
+      resolveRef: vi.fn().mockResolvedValueOnce('commit-current'),
+    });
+    const vaultPersistence = new VaultPersistence({ persistence, ref });
+
+    await expect(vaultPersistence.writeCommit({
+      entries: new Map([['demo/hello', 'entry-tree']]),
+      metadata: { version: 1 },
+      parentCommitOid: 'commit-expected',
+      message: 'vault: test',
+    })).rejects.toMatchObject({
+      code: 'VAULT_REF_UPDATE_FAILED',
+      meta: {
+        expectedOldOid: 'commit-expected',
+        actualOldOid: 'commit-current',
+        newCommit: 'commit-new',
+        originalError: rootCause,
+      },
+    });
+  });
+});
+
+describe('VaultPersistence conflict writes', () => {
+  it('writes a vault commit and normalizes ref update failures as VAULT_CONFLICT', async () => {
+    const rootCause = new CasError(
+      'Ref update rejected for refs/cas/vault',
+      ErrorCodes.GIT_ERROR,
+      {
+        ref: 'refs/cas/vault',
+        expectedOldOid: 'commit-expected',
+        actualOldOid: 'commit-actual',
+        newOid: 'commit-new',
+      },
+    );
+    const persistence = mockPersistence({
+      writeBlob: vi.fn().mockResolvedValueOnce('meta-oid'),
+      writeTree: vi.fn().mockResolvedValueOnce('tree-oid'),
+    });
+    const ref = mockRef({
+      createCommit: vi.fn().mockResolvedValueOnce('commit-new'),
+      updateRef: vi.fn().mockRejectedValueOnce(rootCause),
+      resolveRef: vi.fn(async () => {
+        throw new Error('actual OID should come from structured conflict metadata');
+      }),
     });
     const vaultPersistence = new VaultPersistence({ persistence, ref });
 

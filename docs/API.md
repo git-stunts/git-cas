@@ -2119,6 +2119,7 @@ new CasError({ message, code, meta, documentationUrl });
 | `VAULT_ENTRY_EXISTS`                  | Slug already exists (use `force` to overwrite)                             | `addToVault()`                                                                |
 | `VAULT_CONFLICT`                      | Concurrent vault update detected (CAS failure after retries)               | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
 | `VAULT_REF_MISSING`                   | Vault ref is absent during diagnostics                                     | `git cas doctor`                                                              |
+| `VAULT_REF_UPDATE_FAILED`             | Vault ref update failed for a non-CAS reason                               | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
 | `VAULT_HEAD_INVALID`                  | Vault ref exists but cannot be resolved to a readable commit tree          | `readState()`, `getVaultMetadata()`, `git cas doctor`                         |
 | `VAULT_METADATA_INVALID`              | `.vault.json` malformed, unknown version, unsupported cipher, or missing required fields | `readState()`, `rotateVaultPassphrase()`, `git cas doctor`                  |
 | `VAULT_PRIVACY_INDEX_INVALID`         | Privacy index does not cover every raw HMAC tree entry                     | `readState()`, `listVault()`, `git cas doctor`                                |

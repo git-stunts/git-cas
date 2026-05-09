@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import VaultService from '../../../src/domain/services/VaultService.js';
 import CasError from '../../../src/domain/errors/CasError.js';
+import { ErrorCodes } from '../../../src/domain/errors/index.js';
 
 const LONG_TEST_TIMEOUT_MS = 60000;
+const VAULT_REF = VaultService.VAULT_REF;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -90,11 +92,17 @@ function setupWriteSuccess(persistence, ref) {
   ref.updateRef.mockResolvedValueOnce(undefined);
 }
 
+function vaultConflict({ expectedOldOid = null, actualOldOid = 'commit-race', newOid = 'commit-new' } = {}) {
+  return new CasError(
+    `Ref update rejected for ${VAULT_REF}`,
+    ErrorCodes.GIT_ERROR,
+    { ref: VAULT_REF, expectedOldOid, actualOldOid, newOid },
+  );
+}
+
 function parseWrittenMetadata(persistence, index = 0) {
   return JSON.parse(Buffer.from(persistence.writeBlob.mock.calls[index][0]).toString());
 }
-
-const VAULT_REF = VaultService.VAULT_REF;
 
 // ---------------------------------------------------------------------------
 // validateSlug – valid
@@ -746,7 +754,7 @@ describe('CAS retry – succeeds on retry', () => {
     persistence.writeBlob.mockResolvedValueOnce('meta-blob-oid');
     persistence.writeTree.mockResolvedValueOnce('new-tree-oid');
     ref.createCommit.mockResolvedValueOnce('commit-1');
-    ref.updateRef.mockRejectedValueOnce(new Error('lock failed'));
+    ref.updateRef.mockRejectedValueOnce(vaultConflict({ newOid: 'commit-1' }));
 
     // Second attempt: vault now exists → write succeeds
     setupExistingVault({ ref, persistence, metaJson: JSON.stringify({ version: 1 }) });
@@ -770,7 +778,7 @@ describe('CAS retry – succeeds on retry', () => {
     persistence.writeTree.mockResolvedValueOnce('tree-oid-2');
     ref.createCommit.mockResolvedValueOnce('commit-1');
     ref.createCommit.mockResolvedValueOnce('commit-2');
-    ref.updateRef.mockRejectedValueOnce(new Error('lock failed'));
+    ref.updateRef.mockRejectedValueOnce(vaultConflict({ newOid: 'commit-1' }));
     ref.updateRef.mockResolvedValueOnce(undefined);
 
     const vault = createVault({ ref, persistence });
@@ -796,7 +804,7 @@ describe('CAS retry – exhausted', () => {
       persistence.writeBlob.mockResolvedValueOnce('meta-blob-oid');
       persistence.writeTree.mockResolvedValueOnce('new-tree-oid');
       ref.createCommit.mockResolvedValueOnce(`commit-${i}`);
-      ref.updateRef.mockRejectedValueOnce(new Error('lock failed'));
+      ref.updateRef.mockRejectedValueOnce(vaultConflict({ newOid: `commit-${i}` }));
     }
 
     const vault = createVault({ ref, persistence });
@@ -808,10 +816,10 @@ describe('CAS retry – exhausted', () => {
 });
 
 // ---------------------------------------------------------------------------
-// VAULT_CONFLICT – preserves original error
+// VAULT_REF_UPDATE_FAILED – preserves original error
 // ---------------------------------------------------------------------------
-describe('VAULT_CONFLICT – preserves original error', () => {
-  it('includes originalError in VAULT_CONFLICT meta', async () => {
+describe('VAULT_REF_UPDATE_FAILED – preserves original error', () => {
+  it('includes originalError in VAULT_REF_UPDATE_FAILED meta', async () => {
     const ref = mockRef();
     const persistence = mockPersistence();
     setupWriteSuccess(persistence, ref);
@@ -830,7 +838,7 @@ describe('VAULT_CONFLICT – preserves original error', () => {
       expect.unreachable('should have thrown');
     } catch (e) {
       expect(e).toBeInstanceOf(CasError);
-      expect(e.code).toBe('VAULT_CONFLICT');
+      expect(e.code).toBe('VAULT_REF_UPDATE_FAILED');
       expect(e.meta.originalError).toBe(rootCause);
     }
   });
