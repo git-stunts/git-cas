@@ -37,6 +37,18 @@ describe('VaultPersistence head reads', () => {
     await expect(vaultPersistence.resolveHead()).resolves.toBeNull();
   });
 
+  it('resolves plumbing missing-ref errors as null', async () => {
+    const rootCause = Object.assign(new Error('Git command failed with code 128'), {
+      details: {
+        stderr: "fatal: ambiguous argument 'refs/cas/vault': unknown revision",
+      },
+    });
+    const ref = mockRef({ resolveRef: vi.fn().mockRejectedValue(rootCause) });
+    const vaultPersistence = new VaultPersistence({ persistence: mockPersistence(), ref });
+
+    await expect(vaultPersistence.resolveHead()).resolves.toBeNull();
+  });
+
   it('resolves the current vault head', async () => {
     const ref = mockRef({
       resolveRef: vi.fn().mockResolvedValue('commit-oid'),

@@ -297,9 +297,25 @@ function isMissingVaultRefError(err) {
   if (typeof err?.code === 'string' && err.code === 'GIT_REF_NOT_FOUND') {
     return true;
   }
-  const message = err instanceof Error ? err.message : String(err);
+  const message = errorDetailsText(err);
   return /\b(missing|not found|unknown revision|ambiguous argument|needed a single revision)\b/i
     .test(message);
+}
+
+/**
+ * @param {unknown} err
+ * @returns {string}
+ */
+function errorDetailsText(err) {
+  if (!(err instanceof Error)) {
+    return String(err);
+  }
+  const details = typeof err.details === 'object' && err.details ? err.details : {};
+  return [
+    err.message,
+    typeof details.stderr === 'string' ? details.stderr : '',
+    typeof details.stdout === 'string' ? details.stdout : '',
+  ].join('\n');
 }
 
 export { VAULT_METADATA_ENTRY, VAULT_PRIVACY_INDEX_ENTRY };

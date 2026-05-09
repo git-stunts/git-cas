@@ -112,6 +112,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unreadable vault heads stay visible** — vault head resolution now returns an
   empty state only when the vault ref is absent; unreadable refs or commits that
   cannot resolve to a tree fail with `VAULT_HEAD_INVALID`.
+- **Plumbing missing-ref errors stay non-fatal** — vault head resolution now
+  recognizes `@git-stunts/plumbing` missing-ref stderr details as an absent
+  vault while still surfacing unrelated ref failures.
 - **Doctor can inspect privacy vaults** — human and agent `doctor` commands now
   accept raw vault keys, vault passphrase sources, and OS-keychain targets so
   privacy-enabled vaults can be diagnosed without falling back to a missing-key
