@@ -55,7 +55,26 @@ describe('VaultPersistence head reads', () => {
 
     await expect(vaultPersistence.resolveHead()).resolves.toBeNull();
   });
+});
 
+describe('VaultPersistence missing vault ref shapes', () => {
+  it('resolves stdout-only rev-parse misses as null', async () => {
+    const rootCause = Object.assign(new Error('Git command failed with code 128'), {
+      details: {
+        args: ['rev-parse', 'refs/cas/vault'],
+        code: 128,
+        stdout: 'refs/cas/vault\n',
+        stderr: '',
+      },
+    });
+    const ref = mockRef({ resolveRef: vi.fn().mockRejectedValue(rootCause) });
+    const vaultPersistence = new VaultPersistence({ persistence: mockPersistence(), ref });
+
+    await expect(vaultPersistence.resolveHead()).resolves.toBeNull();
+  });
+});
+
+describe('VaultPersistence current head reads', () => {
   it('resolves the current vault head', async () => {
     const ref = mockRef({
       resolveRef: vi.fn().mockResolvedValue('commit-oid'),

@@ -1,6 +1,7 @@
 import { Policy } from '@git-stunts/alfred';
 import GitRefPort from '../../ports/GitRefPort.js';
 import { CasError, ErrorCodes } from '../../domain/errors/index.js';
+import { isGitMissingRefError } from '../../domain/helpers/gitRefErrors.js';
 
 /**
  * Default resilience policy: 30 s timeout (no retry).
@@ -12,11 +13,6 @@ import { CasError, ErrorCodes } from '../../domain/errors/index.js';
  */
 const DEFAULT_POLICY = Policy.timeout(30_000);
 const GIT_NULL_OID = '0'.repeat(40);
-const MISSING_REF_MARKERS = Object.freeze({
-  ambiguousArgument: 'ambiguous argument',
-  neededSingleRevision: 'needed a single revision',
-  unknownRevision: 'unknown revision',
-});
 
 /**
  * {@link GitRefPort} implementation backed by `@git-stunts/plumbing`.
@@ -47,7 +43,7 @@ export default class GitRefAdapter extends GitRefPort {
         this.plumbing.execute({ args: ['rev-parse', ref] }),
       );
     } catch (err) {
-      if (isGitMissingRefMessage(errorDetailsText(err), ref)) {
+      if (isGitMissingRefError(err, ref)) {
         throw new CasError(`Git ref not found: ${ref}`, ErrorCodes.GIT_REF_NOT_FOUND, {
           ref,
           originalError: err,
@@ -103,40 +99,4 @@ export default class GitRefAdapter extends GitRefPort {
       this.plumbing.execute({ args }),
     );
   }
-}
-
-/**
- * @param {string} message
- * @param {string} ref
- * @returns {boolean}
- */
-function isGitMissingRefMessage(message, ref) {
-  const normalized = message.toLowerCase();
-  const normalizedRef = ref.toLowerCase();
-  if (!normalized.includes(normalizedRef)) {
-    return false;
-  }
-  return (
-    normalized.includes(MISSING_REF_MARKERS.neededSingleRevision) ||
-    (
-      normalized.includes(MISSING_REF_MARKERS.ambiguousArgument) &&
-      normalized.includes(MISSING_REF_MARKERS.unknownRevision)
-    )
-  );
-}
-
-/**
- * @param {unknown} err
- * @returns {string}
- */
-function errorDetailsText(err) {
-  if (!(err instanceof Error)) {
-    return String(err);
-  }
-  const details = typeof err.details === 'object' && err.details ? err.details : {};
-  return [
-    err.message,
-    typeof details.stderr === 'string' ? details.stderr : '',
-    typeof details.stdout === 'string' ? details.stdout : '',
-  ].join('\n');
 }

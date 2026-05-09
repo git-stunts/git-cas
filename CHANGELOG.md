@@ -135,6 +135,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Review-feedback test style guards** — privacy error assertions now use
   `ErrorCodes` constants, and ManifestDiff declaration checks use regex matching
   so benign JSDoc formatting does not break release tests.
+- **Stdout-only missing vault refs** — Git ref resolution now treats
+  `rev-parse refs/cas/vault` failures that only echo the unresolved ref on
+  stdout as `GIT_REF_NOT_FOUND`, preventing empty-vault initialization flakes
+  from surfacing as `VAULT_HEAD_INVALID`.
 - **Vault metadata enforces the AES-GCM cipher boundary** — `.vault.json`
   metadata now rejects unsupported `encryption.cipher` values with
   `VAULT_METADATA_INVALID`; the v6 vault metadata format remains AES-256-GCM.

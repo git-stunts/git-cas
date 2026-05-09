@@ -193,6 +193,11 @@ mutable, so ref resolution must not be cached by `VaultStateCache` or
 capacity is exceeded; the default capacity is intentionally a memory bound, not
 a durability or correctness boundary.
 
+Missing vault refs are normalized before `VaultService` sees them. Git adapters
+must treat both English stderr forms and stdout-only `rev-parse <ref>` misses as
+an absent vault ref; corrupt or unreadable refs still fail closed as
+`VAULT_HEAD_INVALID`.
+
 Cache entries may contain:
 
 - raw immutable tree entries copied from persistence

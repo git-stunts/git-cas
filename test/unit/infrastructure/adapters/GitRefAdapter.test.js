@@ -33,6 +33,27 @@ describe('GitRefAdapter.resolveRef()', () => {
       },
     });
   });
+
+  it('normalizes stdout-only rev-parse misses into a structured ref-not-found error', async () => {
+    const { adapter, plumbing } = createAdapter();
+    const rootCause = Object.assign(new Error('Git command failed with code 128'), {
+      details: {
+        args: ['rev-parse', 'refs/cas/vault'],
+        code: 128,
+        stdout: 'refs/cas/vault\n',
+        stderr: '',
+      },
+    });
+    plumbing.execute.mockRejectedValueOnce(rootCause);
+
+    await expect(adapter.resolveRef('refs/cas/vault')).rejects.toMatchObject({
+      code: ErrorCodes.GIT_REF_NOT_FOUND,
+      meta: {
+        ref: 'refs/cas/vault',
+        originalError: rootCause,
+      },
+    });
+  });
 });
 
 describe('GitRefAdapter.updateRef()', () => {

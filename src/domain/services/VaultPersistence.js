@@ -5,13 +5,12 @@ import VaultTreeCodec, {
   VAULT_PRIVACY_INDEX_ENTRY,
 } from './VaultTreeCodec.js';
 import { ErrorCodes } from '../errors/index.js';
+import {
+  errorDetailsText,
+  isGitMissingRefError,
+} from '../helpers/gitRefErrors.js';
 
 export const VAULT_REF = 'refs/cas/vault';
-const MISSING_REF_MARKERS = Object.freeze({
-  ambiguousArgument: 'ambiguous argument',
-  neededSingleRevision: 'needed a single revision',
-  unknownRevision: 'unknown revision',
-});
 const UPDATE_REF_CONFLICT_MARKERS = Object.freeze({
   butExpected: 'but expected',
   cannotLockRef: 'cannot lock ref',
@@ -347,29 +346,7 @@ function isMissingVaultRefError(err) {
   if (typeof err?.code === 'string' && err.code === ErrorCodes.GIT_REF_NOT_FOUND) {
     return true;
   }
-  const message = errorDetailsText(err);
-  return isGitMissingRefMessage(message);
-}
-
-/**
- * @param {string} message
- * @returns {boolean}
- */
-function isGitMissingRefMessage(message) {
-  const normalized = message.toLowerCase();
-  if (!normalized.includes(VAULT_REF)) {
-    return false;
-  }
-  // C/English-locale missing-ref fallback: normal adapters should return
-  // GIT_REF_NOT_FOUND. This best-effort fallback is only for third-party ports
-  // that expose Git stderr without a structured code.
-  return (
-    normalized.includes(MISSING_REF_MARKERS.neededSingleRevision) ||
-    (
-      normalized.includes(MISSING_REF_MARKERS.ambiguousArgument) &&
-      normalized.includes(MISSING_REF_MARKERS.unknownRevision)
-    )
-  );
+  return isGitMissingRefError(err, VAULT_REF);
 }
 
 /**
@@ -428,22 +405,6 @@ function isGitUpdateRefCasMismatch(message) {
     normalized.includes(UPDATE_REF_CONFLICT_MARKERS.butExpected) ||
     normalized.includes(UPDATE_REF_CONFLICT_MARKERS.referenceAlreadyExists)
   );
-}
-
-/**
- * @param {unknown} err
- * @returns {string}
- */
-function errorDetailsText(err) {
-  if (!(err instanceof Error)) {
-    return String(err);
-  }
-  const details = typeof err.details === 'object' && err.details ? err.details : {};
-  return [
-    err.message,
-    typeof details.stderr === 'string' ? details.stderr : '',
-    typeof details.stdout === 'string' ? details.stdout : '',
-  ].join('\n');
 }
 
 export { VAULT_METADATA_ENTRY, VAULT_PRIVACY_INDEX_ENTRY };
