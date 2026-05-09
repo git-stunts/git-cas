@@ -277,6 +277,7 @@ export async function resolveAgentDiagnosticEncryptionKey(cas, input, {
     input,
     metadata,
     resolveVaultPassphrase,
+    errorFactory,
     passphraseOptions,
   });
 }
@@ -299,6 +300,7 @@ function resolveAgentPlaintextDiagnosticKey(input, onWarning) {
  *   input: Record<string, any>,
  *   metadata: { encryption?: { kdf?: Record<string, any> } },
  *   resolveVaultPassphrase?: (input: Record<string, any>, requestSource: string | undefined, options?: Record<string, any>) => Promise<string | undefined>,
+ *   errorFactory: (message: string) => Error,
  *   passphraseOptions: Record<string, any>,
  * }} params
  * @returns {Promise<Uint8Array | undefined>}
@@ -308,10 +310,14 @@ async function resolveAgentEncryptedDiagnosticKey({
   input,
   metadata,
   resolveVaultPassphrase,
+  errorFactory,
   passphraseOptions,
 }) {
   if (!hasAgentVaultPassphraseSource(input)) {
     return undefined;
+  }
+  if (typeof resolveVaultPassphrase !== 'function') {
+    throw errorFactory('resolveVaultPassphrase is required when input contains a vault passphrase source');
   }
   const passphrase = await resolveVaultPassphrase(input, input.requestSource, passphraseOptions);
   return passphrase ? await deriveVaultKey(cas, metadata, passphrase) : undefined;

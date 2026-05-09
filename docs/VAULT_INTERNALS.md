@@ -127,7 +127,9 @@ surface as list/resolve flows. Human CLI and agent command entrypoints resolve
 key into `inspectVaultHealth()`, which forwards it to `readState()`. The TUI
 operations doctor forwards the already-unlocked vault key from the dashboard
 model. Agent diagnostics warn and ignore passphrase input when the vault is
-plaintext instead of failing the health check.
+plaintext instead of failing the health check; encrypted diagnostics require the
+agent passphrase resolver dependency whenever a structured passphrase source is
+present.
 
 Privacy index coverage failures are vault-level failures. A missing
 `.privacy-index` reports `VAULT_PRIVACY_INDEX_MISSING`; a present index that

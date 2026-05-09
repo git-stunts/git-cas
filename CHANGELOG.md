@@ -220,6 +220,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Agent diagnostic passphrase resolver guard** — encrypted `git cas agent
+  doctor` requests now fail with a controlled credential error when a structured
+  passphrase source is supplied without the resolver dependency.
 - **Docker version fallback** — CLI version resolution now ignores the
   `unknown` build metadata sentinel written when Docker test images have neither
   `.git` metadata nor a stamped package SHA, so `git-cas --version` falls back to

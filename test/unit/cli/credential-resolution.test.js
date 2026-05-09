@@ -123,6 +123,34 @@ describe('agent diagnostic encryption key resolution for plaintext vaults', () =
 });
 
 describe('agent diagnostic encryption key resolution for encrypted vaults', () => {
+  it('fails with a controlled error when a passphrase source is provided without a resolver', async () => {
+    const controlledError = new Error('controlled resolver error');
+    const cas = {
+      getVaultMetadata: vi.fn(async () => ({
+        encryption: {
+          kdf: {
+            algorithm: 'pbkdf2',
+            salt: encodedSalt('vault-salt'),
+            iterations: 100000,
+            keyLength: 32,
+          },
+        },
+      })),
+      deriveKey: vi.fn(),
+      verifyVaultKey: vi.fn(),
+    };
+
+    await expect(
+      resolveAgentDiagnosticEncryptionKey(cas, { vaultPassphrase: 'secret' }, {
+        errorFactory: () => controlledError,
+      })
+    ).rejects.toBe(controlledError);
+
+    expect(cas.deriveKey).not.toHaveBeenCalled();
+  });
+});
+
+describe('agent diagnostic encrypted vault key derivation', () => {
   it('derives a verified key for encrypted vault diagnostics', async () => {
     const key = new Uint8Array(32).fill(8);
     const cas = {
