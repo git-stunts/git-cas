@@ -120,15 +120,19 @@ export default class RecipientService {
   }
 
   async #findRecipientByKey(recipients, oldKey) {
+    let match = null;
     for (let index = 0; index < recipients.length; index++) {
       try {
         const dek = await this.#keyResolver.unwrapDek(recipients[index], oldKey);
-        return { matchIndex: index, dek };
+        match ??= { matchIndex: index, dek };
       } catch (err) {
         if (!(err instanceof CasError && err.code === ErrorCodes.DEK_UNWRAP_FAILED)) {
           throw err;
         }
       }
+    }
+    if (match) {
+      return match;
     }
     throw createCasError('No recipient entry could be unwrapped with the provided key', ErrorCodes.NO_MATCHING_RECIPIENT);
   }

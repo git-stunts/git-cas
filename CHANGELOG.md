@@ -116,6 +116,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **TUI doctor dashboard shows byte economics** — the health dashboard now
   renders chunk bytes, unique chunk bytes, duplicate chunk bytes, and the
   byte-level dedupe ratio instead of only reference counts.
+- **Recipient rotation scans every candidate** — unlabeled `rotateKey()` now
+  attempts every recipient unwrap before selecting the first match, reducing
+  recipient-position timing leakage while preserving existing rotation results.
 - **Facade restore guidance links to versioned docs** — missing
   `restoreFile({ baseDirectory })` errors now serialize a v6.0.0 API docs URL
   and use the centralized `INVALID_OPTIONS` error code.

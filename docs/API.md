@@ -801,7 +801,10 @@ const decrypted = await cas.decrypt({ buffer: buf, key, meta });
 await cas.rotateKey({ manifest, oldKey, newKey, label });
 ```
 
-Rotates a recipient's encryption key without re-encrypting data blobs. Unwraps the DEK with `oldKey`, re-wraps with `newKey`, and increments `keyVersion` counters.
+Rotates a recipient's encryption key without re-encrypting data blobs. Unwraps
+the DEK with `oldKey`, re-wraps with `newKey`, and increments `keyVersion`
+counters. When `label` is omitted, git-cas scans every recipient candidate and
+rotates the first matching entry.
 
 **Parameters:**
 
