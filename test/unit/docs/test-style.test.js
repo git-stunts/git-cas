@@ -29,4 +29,15 @@ describe('documentation test style', () => {
 
     expect(offenders).toEqual([]);
   });
+
+  it('uses current vault tree-path terminology in vault tests', () => {
+    const offenders = listFiles(path.join(repoRoot, 'test/unit/vault'))
+      .filter((file) => {
+        const relPath = path.relative(repoRoot, file);
+        return relPath.endsWith('encodeSlug.test.js') || read(relPath).includes('encodeSlug');
+      })
+      .map((file) => path.relative(repoRoot, file));
+
+    expect(offenders).toEqual([]);
+  });
 });
