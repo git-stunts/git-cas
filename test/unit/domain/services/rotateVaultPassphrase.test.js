@@ -1,21 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import path from 'node:path';
-import os from 'node:os';
-import { execSync } from 'node:child_process';
 import CasService from '../../../../src/domain/services/CasService.js';
 import VaultService from '../../../../src/domain/services/VaultService.js';
-import GitPersistenceAdapter from '../../../../src/infrastructure/adapters/GitPersistenceAdapter.js';
-import GitRefAdapter from '../../../../src/infrastructure/adapters/GitRefAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import SilentObserver from '../../../../src/infrastructure/adapters/SilentObserver.js';
-import { createGitPlumbing } from '../../../../src/infrastructure/createGitPlumbing.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import rotateVaultPassphrase from '../../../../src/domain/services/rotateVaultPassphrase.js';
 import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.js';
 import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 import CasError from '../../../../src/domain/errors/CasError.js';
+import MemoryPersistenceAdapter from '../../../helpers/MemoryPersistenceAdapter.js';
+import MemoryRefAdapter from '../../../helpers/MemoryRefAdapter.js';
 
 const LONG_TEST_TIMEOUT_MS = 60000;
 const initialCrypto = await getTestCryptoAdapter();
@@ -25,19 +20,10 @@ const itScrypt = SUPPORTS_SCRYPT ? it : it.skip;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function createRepo() {
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'cas-rotator-'));
-  execSync('git init --bare', { cwd: dir, stdio: 'ignore' });
-  execSync('git config user.name "test"', { cwd: dir, stdio: 'ignore' });
-  execSync('git config user.email "test@test"', { cwd: dir, stdio: 'ignore' });
-  return dir;
-}
-
-async function createDeps(repoDir) {
-  const plumbing = await createGitPlumbing({ cwd: repoDir });
+async function createDeps() {
   const crypto = initialCrypto;
-  const persistence = new GitPersistenceAdapter({ plumbing });
-  const ref = new GitRefAdapter({ plumbing });
+  const persistence = new MemoryPersistenceAdapter();
+  const ref = new MemoryRefAdapter();
   const service = new CasService({
     persistence, codec: new JsonCodec(), crypto, observability: new SilentObserver(), chunkSize: 1024,
     chunker: new FixedChunker({ chunkSize: 1024 }), compressionAdapter: new NodeCompressionAdapter(),
@@ -108,15 +94,12 @@ async function storePrivacyEnvelope({ service, vault, slug, data, passphrase }) 
 // Tests
 // ---------------------------------------------------------------------------
 describe('rotateVaultPassphrase – 3 envelope entries', () => {
-  let repoDir;
   let service;
   let vault;
 
   beforeEach(async () => {
-    repoDir = createRepo();
-    ({ service, vault } = await createDeps(repoDir));
+    ({ service, vault } = await createDeps());
   });
-  afterEach(() => { if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); } });
 
   it('rotates all entries and returns correct slugs', async () => {
     const oldPass = 'old-pass';
@@ -158,15 +141,12 @@ describe('rotateVaultPassphrase – 3 envelope entries', () => {
 });
 
 describe('rotateVaultPassphrase – mixed entries', () => {
-  let repoDir;
   let service;
   let vault;
 
   beforeEach(async () => {
-    repoDir = createRepo();
-    ({ service, vault } = await createDeps(repoDir));
+    ({ service, vault } = await createDeps());
   });
-  afterEach(() => { if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); } });
 
   it('2 envelope + 1 non-envelope → 2 rotated, 1 skipped', async () => {
     const oldPass = 'old-pass';
@@ -202,15 +182,12 @@ describe('rotateVaultPassphrase – mixed entries', () => {
 });
 
 describe('rotateVaultPassphrase – privacy vaults', () => {
-  let repoDir;
   let service;
   let vault;
 
   beforeEach(async () => {
-    repoDir = createRepo();
-    ({ service, vault } = await createDeps(repoDir));
+    ({ service, vault } = await createDeps());
   });
-  afterEach(() => { if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); } });
 
   it('rotates entries in a privacy-enabled vault and preserves slug resolution', async () => {
     const oldPass = 'old-pass';
@@ -248,15 +225,12 @@ describe('rotateVaultPassphrase – privacy vaults', () => {
 });
 
 describe('rotateVaultPassphrase – error cases', () => {
-  let repoDir;
   let service;
   let vault;
 
   beforeEach(async () => {
-    repoDir = createRepo();
-    ({ service, vault } = await createDeps(repoDir));
+    ({ service, vault } = await createDeps());
   });
-  afterEach(() => { if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); } });
 
   it('wrong old passphrase → error', async () => {
     const oldPass = 'old-pass';
@@ -283,15 +257,12 @@ describe('rotateVaultPassphrase – error cases', () => {
 });
 
 describe('rotateVaultPassphrase – KDF options', () => {
-  let repoDir;
   let service;
   let vault;
 
   beforeEach(async () => {
-    repoDir = createRepo();
-    ({ service, vault } = await createDeps(repoDir));
+    ({ service, vault } = await createDeps());
   });
-  afterEach(() => { if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); } });
 
   itScrypt('kdfOptions.algorithm overrides existing algorithm', async () => {
     const oldPass = 'old-pass';
@@ -332,17 +303,14 @@ describe('rotateVaultPassphrase – KDF options', () => {
 });
 
 describe('rotateVaultPassphrase – retry success', () => {
-  let repoDir;
   let service;
   let vault;
 
   beforeEach(async () => {
-    repoDir = createRepo();
-    ({ service, vault } = await createDeps(repoDir));
+    ({ service, vault } = await createDeps());
   });
   afterEach(() => {
     vi.restoreAllMocks();
-    if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); }
   });
 
   it('retries on VAULT_CONFLICT and succeeds within maxRetries', async () => {
@@ -369,17 +337,14 @@ describe('rotateVaultPassphrase – retry success', () => {
 });
 
 describe('rotateVaultPassphrase – maxRetries exhausted', () => {
-  let repoDir;
   let service;
   let vault;
 
   beforeEach(async () => {
-    repoDir = createRepo();
-    ({ service, vault } = await createDeps(repoDir));
+    ({ service, vault } = await createDeps());
   });
   afterEach(() => {
     vi.restoreAllMocks();
-    if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); }
   });
 
   it('fails after exactly maxRetries attempts', async () => {
@@ -404,17 +369,14 @@ describe('rotateVaultPassphrase – maxRetries exhausted', () => {
 });
 
 describe('rotateVaultPassphrase – default retry count', () => {
-  let repoDir;
   let service;
   let vault;
 
   beforeEach(async () => {
-    repoDir = createRepo();
-    ({ service, vault } = await createDeps(repoDir));
+    ({ service, vault } = await createDeps());
   });
   afterEach(() => {
     vi.restoreAllMocks();
-    if (repoDir) { rmSync(repoDir, { recursive: true, force: true }); }
   });
 
   it('maxRetries defaults to 3 when not specified', async () => {
