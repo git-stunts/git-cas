@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
@@ -106,6 +106,18 @@ describe('v6 release documentation', () => {
     expect(changelog).toContain('vault `encryptionCount` metadata');
     expect(changelog).toContain('npm package documentation surface');
     expect(changelog).toContain('concrete support, conduct, and vulnerability reporting paths');
+  });
+
+  it('keeps the changelog JSR posture aligned with release verification', () => {
+    const changelog = read('CHANGELOG.md');
+    const releaseVerify = read('scripts/release/verify.js');
+    const jsrConfigExists = existsSync(path.join(repoRoot, 'jsr.json'));
+
+    expect(jsrConfigExists).toBe(true);
+    expect(releaseVerify).toContain("id: 'jsr-publish'");
+    expect(changelog).not.toContain('JSR support removed');
+    expect(changelog).not.toContain('The JSR registry publication workflow has been removed');
+    expect(changelog).toContain('JSR publication deferred for v6.0.0');
   });
 });
 
