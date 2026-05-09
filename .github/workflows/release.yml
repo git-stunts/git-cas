@@ -4,34 +4,55 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: 'Existing vX.Y.Z tag to validate, publish, and release'
+        required: true
+        default: 'v6.0.0'
+        type: string
 
 concurrency:
   group: release
   cancel-in-progress: false
+
+env:
+  RELEASE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.release_ref || github.ref_name }}
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.check-version.outputs.version }}
+      tag: ${{ steps.check-version.outputs.tag }}
     steps:
       - uses: actions/checkout@v6
-      - name: Verify tag matches package version
+        with:
+          ref: ${{ env.RELEASE_REF }}
+      - name: Verify release ref matches package version
         id: check-version
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAG_NAME="${RELEASE_REF#refs/tags/}"
+          if [[ "$TAG_NAME" != v* ]]; then
+            echo "::error::Release ref must be a vX.Y.Z tag, got $RELEASE_REF"
+            exit 1
+          fi
+          TAG_VERSION="${TAG_NAME#v}"
           PKG_VERSION=$(node -p "require('./package.json').version")
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
+            echo "::error::Tag $TAG_NAME does not match package.json version $PKG_VERSION"
             exit 1
           fi
           echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG_NAME" >> "$GITHUB_OUTPUT"
 
   test:
     needs: validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_REF }}
       - uses: pnpm/action-setup@v4
         with:
           version: 10
@@ -58,14 +79,26 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_REF }}
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           registry-url: 'https://registry.npmjs.org'
-      - name: Upgrade npm for OIDC trusted publishing
-        run: npm install -g npm@latest
+          package-manager-cache: false
+      - name: Verify npm trusted publishing CLI
+        run: |
+          NPM_VERSION="$(npm --version)"
+          npm --version
+          node - "$NPM_VERSION" <<'JS'
+          const [major, minor, patch] = process.argv[2].split('.').map(Number);
+          const isSupported = major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1)));
+          if (!isSupported) {
+            throw new Error(`npm ${process.argv[2]} does not support trusted publishing; need >=11.5.1`);
+          }
+          JS
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: npm publish --access public
 
   github-release:
     needs: [validate, publish-npm]
@@ -74,7 +107,10 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_REF }}
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.validate.outputs.tag }}
           generate_release_notes: true

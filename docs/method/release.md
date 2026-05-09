@@ -38,6 +38,11 @@ until the dry-run is healthy again.
 6. Tag the release commit as `vX.Y.Z`.
 7. Push the tag.
 
+If the tag workflow fails after the tag exists, do not move or recreate the tag.
+Fix the workflow on `main`, then run the Release workflow manually with
+`release_ref` set to the existing `vX.Y.Z` tag. The manual workflow checks out
+that tag before validation, tests, npm publication, and GitHub Release creation.
+
 ## Notes
 
 - Do not tag optimistic scope.
