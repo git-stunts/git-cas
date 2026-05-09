@@ -34,6 +34,9 @@ The default `GitRefAdapter` translates known Git missing-ref stderr into
 `GIT_REF_NOT_FOUND` at the adapter boundary. `VaultPersistence` still keeps a
 narrow stderr fallback for third-party ref ports, but the normal path is
 structured and does not depend on parsing English text in the domain service.
+When only metadata is needed, targeted tree-entry reads and iterator reads
+return `snapshot: null` because they intentionally avoid materializing the full
+tree and therefore cannot seed a complete `VaultStateCache` entry.
 
 `VaultStateCache`
 

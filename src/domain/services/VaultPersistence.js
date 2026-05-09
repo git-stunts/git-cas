@@ -98,6 +98,8 @@ export default class VaultPersistence {
     }
     const iterator = this.#treeIterator(treeOid);
     if (iterator) {
+      // Iterator metadata reads do not materialize the full vault tree, so
+      // there is no complete raw-entry snapshot to hand to VaultStateCache.
       for await (const entry of iterator) {
         if (entry.name === VAULT_METADATA_ENTRY) {
           return { metadata: await this.readMetadataBlob(entry.oid), snapshot: null };

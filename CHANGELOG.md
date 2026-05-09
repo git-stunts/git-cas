@@ -144,6 +144,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GitRefAdapter.resolveRef()` now normalizes known Git missing-ref stderr to
   `GIT_REF_NOT_FOUND`, leaving VaultPersistence's text fallback only for
   third-party ref ports.
+- **Vault metadata snapshot docs** — `VaultPersistence.readMetadataSnapshot()`
+  now explicitly documents that iterator metadata reads avoid full-tree
+  materialization and therefore return no cache snapshot.
 - **Doctor can inspect privacy vaults** — human and agent `doctor` commands now
   accept raw vault keys, vault passphrase sources, and OS-keychain targets so
   privacy-enabled vaults can be diagnosed without falling back to a missing-key

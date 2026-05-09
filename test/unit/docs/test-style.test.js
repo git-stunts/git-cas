@@ -40,4 +40,10 @@ describe('documentation test style', () => {
 
     expect(offenders).toEqual([]);
   });
+
+  it('documents that iterator metadata reads do not produce cache snapshots', () => {
+    const source = read('src/domain/services/VaultPersistence.js');
+
+    expect(source).toContain('Iterator metadata reads do not materialize the full vault tree');
+  });
 });
