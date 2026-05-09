@@ -67,6 +67,21 @@ export function renderHealthStatusRow(report, ctx) {
 }
 
 /**
+ * Render one aligned metric line.
+ *
+ * @param {{
+ *   ctx: BijouContext,
+ *   label: string,
+ *   value: string | number,
+ *   labelWidth: number,
+ * }} metric
+ * @returns {string}
+ */
+function renderMetricLine({ ctx, label, value, labelWidth }) {
+  return `${themeText(ctx, label.padEnd(labelWidth), { tone: 'accent' })}  ${value}`;
+}
+
+/**
  * Render key health metrics.
  *
  * @param {DoctorReport} report
@@ -74,16 +89,23 @@ export function renderHealthStatusRow(report, ctx) {
  * @returns {string}
  */
 export function renderHealthMetrics(report, ctx) {
-  const lines = [
-    `${themeText(ctx, 'entries', { tone: 'accent' })}        ${report.entryCount}`,
-    `${themeText(ctx, 'valid', { tone: 'accent' })}          ${report.validEntries}`,
-    `${themeText(ctx, 'invalid', { tone: 'accent' })}        ${report.invalidEntries}`,
-    `${themeText(ctx, 'logical size', { tone: 'accent' })}   ${formatBytes(report.stats.totalLogicalSize)}`,
-    `${themeText(ctx, 'chunk refs', { tone: 'accent' })}     ${report.stats.totalChunkRefs}`,
-    `${themeText(ctx, 'unique chunks', { tone: 'accent' })}  ${report.stats.uniqueChunks}`,
-    `${themeText(ctx, 'dedup ratio', { tone: 'accent' })}    ${report.stats.dedupRatio.toFixed(2)}x`,
+  const pairs = [
+    ['entries', report.entryCount],
+    ['valid', report.validEntries],
+    ['invalid', report.invalidEntries],
+    ['logical size', formatBytes(report.stats.totalLogicalSize)],
+    ['chunk bytes', formatBytes(report.stats.totalChunkBytes)],
+    ['unique chunk bytes', formatBytes(report.stats.uniqueChunkBytes)],
+    ['duplicate chunk bytes', formatBytes(report.stats.duplicateChunkBytes)],
+    ['chunk refs', report.stats.totalChunkRefs],
+    ['unique chunks', report.stats.uniqueChunks],
+    ['dedup ratio', `${report.stats.dedupRatio.toFixed(2)}x`],
+    ['byte dedup ratio', `${report.stats.byteDedupRatio.toFixed(2)}x`],
   ];
-  return lines.join('\n');
+  const labelWidth = pairs.reduce((max, [label]) => Math.max(max, label.length), 0);
+  return pairs
+    .map(([label, value]) => renderMetricLine({ ctx, label, value, labelWidth }))
+    .join('\n');
 }
 
 /**
