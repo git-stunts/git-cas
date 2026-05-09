@@ -147,6 +147,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vault metadata snapshot docs** — `VaultPersistence.readMetadataSnapshot()`
   now explicitly documents that iterator metadata reads avoid full-tree
   materialization and therefore return no cache snapshot.
+- **VaultService DI guard** — the constructor now rejects mixed
+  `vaultPersistence` and legacy `persistence`/`ref` injection, and reports a
+  focused dependency error when the legacy pair is incomplete.
 - **Doctor can inspect privacy vaults** — human and agent `doctor` commands now
   accept raw vault keys, vault passphrase sources, and OS-keychain targets so
   privacy-enabled vaults can be diagnosed without falling back to a missing-key

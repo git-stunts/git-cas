@@ -21,6 +21,9 @@ import VaultTreeCodec, {
 import VaultKeyVerifier from './VaultKeyVerifier.js';
 
 const PRIVACY_INDEX_META_FIELD = 'privacy.indexMeta';
+const VAULT_PERSISTENCE_OPTION = 'vaultPersistence';
+const PERSISTENCE_OPTION = 'persistence';
+const REF_OPTION = 'ref';
 
 /**
  * Vault key verifier stored in .vault.json.
@@ -122,6 +125,7 @@ export default class VaultService {
     privacyIndex,
     retryPolicy,
   }) {
+    validateConstructorPersistenceDependencies({ vaultPersistence, persistence, ref });
     this.crypto = crypto;
     this.metadataCodec = metadataCodec || new VaultMetadataCodec();
     this.treeCodec = treeCodec || new VaultTreeCodec();
@@ -860,6 +864,37 @@ export default class VaultService {
       return null;
     }
     return await this.#readMetadataFromTree(current.treeOid);
+  }
+}
+
+/**
+ * @param {object} options
+ * @param {VaultPersistence} [options.vaultPersistence]
+ * @param {import('../../ports/GitPersistencePort.js').default} [options.persistence]
+ * @param {import('../../ports/GitRefPort.js').default} [options.ref]
+ */
+function validateConstructorPersistenceDependencies({ vaultPersistence, persistence, ref }) {
+  const legacyProvided = persistence !== undefined || ref !== undefined;
+  if (vaultPersistence && legacyProvided) {
+    throw new CasError(
+      'VaultService accepts either vaultPersistence or persistence/ref, not both',
+      ErrorCodes.VAULT_DEPENDENCY_INVALID,
+      { conflict: [VAULT_PERSISTENCE_OPTION, PERSISTENCE_OPTION, REF_OPTION] },
+    );
+  }
+  if (!vaultPersistence && (persistence === undefined || ref === undefined)) {
+    const missing = [];
+    if (persistence === undefined) {
+      missing.push(PERSISTENCE_OPTION);
+    }
+    if (ref === undefined) {
+      missing.push(REF_OPTION);
+    }
+    throw new CasError(
+      'VaultService requires persistence and ref when vaultPersistence is not provided',
+      ErrorCodes.VAULT_DEPENDENCY_INVALID,
+      { missing },
+    );
   }
 }
 

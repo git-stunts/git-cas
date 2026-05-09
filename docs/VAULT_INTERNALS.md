@@ -37,6 +37,9 @@ structured and does not depend on parsing English text in the domain service.
 When only metadata is needed, targeted tree-entry reads and iterator reads
 return `snapshot: null` because they intentionally avoid materializing the full
 tree and therefore cannot seed a complete `VaultStateCache` entry.
+`VaultService` constructor injection is exclusive: callers either provide the
+cohesive `vaultPersistence` collaborator or the legacy `persistence` and `ref`
+pair used to build it, never both.
 
 `VaultStateCache`
 

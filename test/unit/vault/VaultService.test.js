@@ -104,6 +104,42 @@ function parseWrittenMetadata(persistence, index = 0) {
   return JSON.parse(Buffer.from(persistence.writeBlob.mock.calls[index][0]).toString());
 }
 
+function mockVaultPersistence() {
+  return {
+    resolveHead: vi.fn(),
+    readTreeSnapshot: vi.fn(),
+    readMetadataSnapshot: vi.fn(),
+    readEntry: vi.fn(),
+    iterateEntries: vi.fn(),
+    readBlob: vi.fn(),
+    writeCommit: vi.fn(),
+  };
+}
+
+describe('VaultService constructor dependencies', () => {
+  it('rejects mixed vaultPersistence and legacy persistence/ref injection', () => {
+    expect(() => new VaultService({
+      vaultPersistence: mockVaultPersistence(),
+      persistence: mockPersistence(),
+      ref: mockRef(),
+      crypto: mockCrypto(),
+    })).toThrow(expect.objectContaining({
+      code: ErrorCodes.VAULT_DEPENDENCY_INVALID,
+      meta: { conflict: ['vaultPersistence', 'persistence', 'ref'] },
+    }));
+  });
+
+  it('requires persistence and ref as a pair when vaultPersistence is absent', () => {
+    expect(() => new VaultService({
+      persistence: mockPersistence(),
+      crypto: mockCrypto(),
+    })).toThrow(expect.objectContaining({
+      code: ErrorCodes.VAULT_DEPENDENCY_INVALID,
+      meta: { missing: ['ref'] },
+    }));
+  });
+});
+
 // ---------------------------------------------------------------------------
 // validateSlug – valid
 // ---------------------------------------------------------------------------
