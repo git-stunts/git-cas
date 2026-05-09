@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createHmac } from 'node:crypto';
 import VaultService from '../../../src/domain/services/VaultService.js';
 import CasError from '../../../src/domain/errors/CasError.js';
+import { ErrorCodes } from '../../../src/domain/errors/index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -97,7 +98,7 @@ function createVault(overrides = {}) {
 function setupNoVault(ref) {
   ref.resolveRef.mockRejectedValueOnce(Object.assign(
     new Error('refs/cas/vault is not defined'),
-    { code: 'GIT_REF_NOT_FOUND' },
+    { code: ErrorCodes.GIT_REF_NOT_FOUND },
   ));
 }
 

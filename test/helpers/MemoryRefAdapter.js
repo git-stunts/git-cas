@@ -2,8 +2,6 @@ import { createHash } from 'node:crypto';
 import GitRefPort from '../../src/ports/GitRefPort.js';
 import { CasError, ErrorCodes } from '../../src/domain/errors/index.js';
 
-const GIT_REF_NOT_FOUND_CODE = 'GIT_REF_NOT_FOUND';
-
 function commitOid({ treeOid, parentOid, message }) {
   return createHash('sha1')
     .update('commit')
@@ -26,7 +24,7 @@ export default class MemoryRefAdapter extends GitRefPort {
   async resolveRef(ref) {
     const oid = this.#refs.get(ref);
     if (!oid) {
-      throw new CasError(`Ref not found: ${ref}`, GIT_REF_NOT_FOUND_CODE, { ref });
+      throw new CasError(`Ref not found: ${ref}`, ErrorCodes.GIT_REF_NOT_FOUND, { ref });
     }
     return oid;
   }

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import VaultService from '../../../src/domain/services/VaultService.js';
 import buildKdfMetadata from '../../../src/domain/helpers/buildKdfMetadata.js';
 import { decodeBase64 } from '../../../src/domain/encoding/base64.js';
+import { ErrorCodes } from '../../../src/domain/errors/index.js';
 import { getTestCryptoAdapter } from '../../helpers/crypto-adapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
@@ -30,7 +31,7 @@ function mockWriterRef() {
   return {
     resolveRef: vi.fn().mockRejectedValueOnce(Object.assign(
       new Error('refs/cas/vault is not defined'),
-      { code: 'GIT_REF_NOT_FOUND' },
+      { code: ErrorCodes.GIT_REF_NOT_FOUND },
     )),
     resolveTree: vi.fn(),
     createCommit: vi.fn().mockResolvedValue('commit-new'),

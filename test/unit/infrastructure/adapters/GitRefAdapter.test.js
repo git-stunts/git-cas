@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ErrorCodes } from '../../../../src/domain/errors/index.js';
 import GitRefAdapter from '../../../../src/infrastructure/adapters/GitRefAdapter.js';
 
 const noPolicy = { execute: (fn) => fn() };
@@ -13,6 +14,26 @@ function createAdapter() {
     plumbing,
   };
 }
+
+describe('GitRefAdapter.resolveRef()', () => {
+  it('normalizes Git missing-ref stderr into a structured ref-not-found error', async () => {
+    const { adapter, plumbing } = createAdapter();
+    const rootCause = Object.assign(new Error('Git command failed with code 128'), {
+      details: {
+        stderr: "fatal: ambiguous argument 'refs/cas/vault': unknown revision",
+      },
+    });
+    plumbing.execute.mockRejectedValueOnce(rootCause);
+
+    await expect(adapter.resolveRef('refs/cas/vault')).rejects.toMatchObject({
+      code: ErrorCodes.GIT_REF_NOT_FOUND,
+      meta: {
+        ref: 'refs/cas/vault',
+        originalError: rootCause,
+      },
+    });
+  });
+});
 
 describe('GitRefAdapter.updateRef()', () => {
   it('uses Git create-only CAS semantics when expectedOldOid is null', async () => {

@@ -35,7 +35,7 @@ describe('VaultPersistence head reads', () => {
     const ref = mockRef({
       resolveRef: vi.fn(async () => {
         const error = new Error('refs/cas/vault is not defined');
-        error.code = 'GIT_REF_NOT_FOUND';
+        error.code = ErrorCodes.GIT_REF_NOT_FOUND;
         throw error;
       }),
     });

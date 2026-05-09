@@ -34,6 +34,7 @@ describe('domain-specific error classes', () => {
   it('exposes immutable canonical error codes', () => {
     expect(Object.isFrozen(ErrorCodes)).toBe(true);
     expect(ErrorCodes.INVALID_OID).toBe('INVALID_OID');
+    expect(ErrorCodes.GIT_REF_NOT_FOUND).toBe('GIT_REF_NOT_FOUND');
     expect(ErrorCodes.VAULT_CONFLICT).toBe('VAULT_CONFLICT');
     expect(ErrorCodes.VAULT_REF_MISSING).toBe('VAULT_REF_MISSING');
     expect(ErrorCodes.VAULT_REF_UPDATE_FAILED).toBe('VAULT_REF_UPDATE_FAILED');

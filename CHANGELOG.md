@@ -134,6 +134,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recognizes `@git-stunts/plumbing` missing-ref stderr details as an absent
   vault while still surfacing unrelated ref failures. Object database failures
   and corrupt head stderr are reported as `VAULT_HEAD_INVALID`.
+- **Git ref missing errors are structured at the adapter boundary** —
+  `GitRefAdapter.resolveRef()` now normalizes known Git missing-ref stderr to
+  `GIT_REF_NOT_FOUND`, leaving VaultPersistence's text fallback only for
+  third-party ref ports.
 - **Doctor can inspect privacy vaults** — human and agent `doctor` commands now
   accept raw vault keys, vault passphrase sources, and OS-keychain targets so
   privacy-enabled vaults can be diagnosed without falling back to a missing-key

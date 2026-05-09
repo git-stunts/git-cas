@@ -30,6 +30,11 @@ privacy-index blobs, creates the next commit, and performs the compare-and-swap
 ref update against `refs/cas/vault`. It is intentionally stateless: it does not
 cache commit OIDs, tree OIDs, or parsed state.
 
+The default `GitRefAdapter` translates known Git missing-ref stderr into
+`GIT_REF_NOT_FOUND` at the adapter boundary. `VaultPersistence` still keeps a
+narrow stderr fallback for third-party ref ports, but the normal path is
+structured and does not depend on parsing English text in the domain service.
+
 `VaultStateCache`
 
 Owns parse-stable memoization keyed by immutable tree OID. Cached snapshots keep

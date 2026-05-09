@@ -7,7 +7,6 @@ import VaultTreeCodec, {
 import { ErrorCodes } from '../errors/index.js';
 
 export const VAULT_REF = 'refs/cas/vault';
-const GIT_REF_NOT_FOUND_CODE = 'GIT_REF_NOT_FOUND';
 const MISSING_REF_MARKERS = Object.freeze({
   ambiguousArgument: 'ambiguous argument',
   neededSingleRevision: 'needed a single revision',
@@ -343,7 +342,7 @@ function buildInvalidHeadError(message, originalError, meta = {}) {
  * @returns {boolean}
  */
 function isMissingVaultRefError(err) {
-  if (typeof err?.code === 'string' && err.code === GIT_REF_NOT_FOUND_CODE) {
+  if (typeof err?.code === 'string' && err.code === ErrorCodes.GIT_REF_NOT_FOUND) {
     return true;
   }
   const message = errorDetailsText(err);

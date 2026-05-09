@@ -2113,6 +2113,7 @@ new CasError({ message, code, meta, documentationUrl });
 | `STORE_ERROR`                         | Chunk write failed during store after dispatch                             | `store()`                                                                     |
 | `MANIFEST_NOT_FOUND`                  | No manifest entry found in the Git tree                                    | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`               |
 | `GIT_ERROR`                           | Underlying Git plumbing command failed                                     | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`               |
+| `GIT_REF_NOT_FOUND`                   | Git ref lookup found no ref; vault reads normalize this to empty state     | `GitRefAdapter`, `VaultPersistence`                                           |
 | `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value            | `store()`, `restore()`                                                        |
 | `INVALID_SLUG`                        | Slug fails validation (empty, control chars, `..` segments, etc.)          | `addToVault()`                                                                |
 | `VAULT_ENTRY_NOT_FOUND`               | Slug does not exist in vault                                               | `removeFromVault()`, `resolveVaultEntry()`                                    |

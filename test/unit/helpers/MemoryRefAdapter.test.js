@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ErrorCodes } from '../../../src/domain/errors/index.js';
 import MemoryRefAdapter from '../../helpers/MemoryRefAdapter.js';
 
 const VAULT_REF = 'refs/cas/vault';
@@ -13,7 +14,7 @@ describe('MemoryRefAdapter missing refs', () => {
     });
 
     await expect(ref.resolveRef(VAULT_REF)).rejects.toMatchObject({
-      code: 'GIT_REF_NOT_FOUND',
+      code: ErrorCodes.GIT_REF_NOT_FOUND,
     });
 
     await ref.updateRef({
