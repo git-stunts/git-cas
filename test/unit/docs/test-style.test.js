@@ -46,4 +46,11 @@ describe('documentation test style', () => {
 
     expect(source).toContain('Iterator metadata reads do not materialize the full vault tree');
   });
+
+  it('documents the locale assumption for vault missing-ref fallback parsing', () => {
+    const source = read('src/domain/services/VaultPersistence.js');
+
+    expect(source).toContain('C/English-locale missing-ref fallback');
+    expect(source).toContain('best-effort fallback');
+  });
 });

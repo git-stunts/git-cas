@@ -360,6 +360,9 @@ function isGitMissingRefMessage(message) {
   if (!normalized.includes(VAULT_REF)) {
     return false;
   }
+  // C/English-locale missing-ref fallback: normal adapters should return
+  // GIT_REF_NOT_FOUND. This best-effort fallback is only for third-party ports
+  // that expose Git stderr without a structured code.
   return (
     normalized.includes(MISSING_REF_MARKERS.neededSingleRevision) ||
     (

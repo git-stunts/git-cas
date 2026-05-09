@@ -153,6 +153,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GitRefAdapter.resolveRef()` now normalizes known Git missing-ref stderr to
   `GIT_REF_NOT_FOUND`, leaving VaultPersistence's text fallback only for
   third-party ref ports.
+- **Vault missing-ref fallback documented** — `VaultPersistence` now documents
+  its third-party-port missing-ref stderr fallback as C/English-locale
+  best-effort behavior; structured `GIT_REF_NOT_FOUND` remains the primary path.
 - **Vault metadata snapshot docs** — `VaultPersistence.readMetadataSnapshot()`
   now explicitly documents that iterator metadata reads avoid full-tree
   materialization and therefore return no cache snapshot.
