@@ -132,6 +132,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vault verifier cache regression coverage** — mutation memoization tests now
   exercise the intended cross-operation path by calling
   `readState({ encryptionKey })` before the keyed vault write.
+- **Review-feedback test style guards** — privacy error assertions now use
+  `ErrorCodes` constants, and ManifestDiff declaration checks use regex matching
+  so benign JSDoc formatting does not break release tests.
 - **Vault metadata enforces the AES-GCM cipher boundary** — `.vault.json`
   metadata now rejects unsupported `encryption.cipher` values with
   `VAULT_METADATA_INVALID`; the v6 vault metadata format remains AES-256-GCM.

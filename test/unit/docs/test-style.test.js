@@ -54,3 +54,20 @@ describe('documentation test style', () => {
     expect(source).toContain('best-effort fallback');
   });
 });
+
+describe('review feedback test style', () => {
+  it('uses error-code constants in vault privacy assertions', () => {
+    const source = read('test/unit/vault/VaultService.privacy.test.js');
+
+    expect(source).not.toMatch(/code:\s*['"]VAULT_PRIVACY_INDEX_INVALID['"]/);
+  });
+
+  it('uses regex matching for ManifestDiff typedef source checks', () => {
+    const source = read('test/unit/types/declaration-accuracy.test.js');
+    const testBody = source.match(
+      /it\('keeps ManifestDiff parameter typedefs resolvable', \(\) => \{([\s\S]*?)\n\s+\}\);/,
+    );
+
+    expect(testBody?.[1]).not.toMatch(/\.toContain\(/);
+  });
+});

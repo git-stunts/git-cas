@@ -472,7 +472,7 @@ describe('privacy mode — missing index metadata', () => {
     const vault = createVault({ ref, persistence });
 
     await expect(vault.readState({ encryptionKey: TEST_KEY })).rejects.toMatchObject({
-      code: 'VAULT_PRIVACY_INDEX_INVALID',
+      code: ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
       meta: { field: 'privacy.indexMeta' },
     });
   });
@@ -494,7 +494,7 @@ describe('privacy mode — missing index metadata', () => {
 
     await expect(vault.resolveVaultEntry({ slug: 'alpha', encryptionKey: TEST_KEY }))
       .rejects.toMatchObject({
-        code: 'VAULT_PRIVACY_INDEX_INVALID',
+        code: ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
         meta: { field: 'privacy.indexMeta' },
       });
   });
@@ -513,7 +513,7 @@ describe('privacy mode — index/tree mismatch', () => {
     const vault = createVault({ ref, persistence, crypto });
 
     await expect(vault.readState({ encryptionKey: TEST_KEY })).rejects.toMatchObject({
-      code: 'VAULT_PRIVACY_INDEX_INVALID',
+      code: ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
       meta: {
         unmatchedCount: 1,
         treeEntryCount: 2,
@@ -531,7 +531,7 @@ describe('privacy mode — index/tree mismatch', () => {
     const vault = createVault({ ref, persistence, crypto });
 
     await expect(vault.listVault({ encryptionKey: TEST_KEY })).rejects.toMatchObject({
-      code: 'VAULT_PRIVACY_INDEX_INVALID',
+      code: ErrorCodes.VAULT_PRIVACY_INDEX_INVALID,
       meta: {
         unmatchedCount: 1,
         treeEntryCount: 2,

@@ -231,6 +231,8 @@ Vault tests should assert behavior rather than collaborator shape:
 - verifier migration occurs on the next keyed write for older metadata
 - verifier-cache regression tests exercise cross-operation reuse, such as
   `readState({ encryptionKey })` followed by a keyed mutation on the same tree
+- security-sensitive error assertions use `ErrorCodes` constants so tests fail
+  on intentional error-code changes instead of drifting behind string literals
 - targeted resolve and streaming list paths work when the adapter exposes them
 - CAS conflicts are retried through the policy
 - codecs reject malformed bytes and remain I/O-free
