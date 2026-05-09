@@ -1,14 +1,19 @@
 /**
  * Interactive store wizard — guided flow for storing a file into git-cas.
  *
- * State machine with steps: filePath → slug → encryption → compression → chunking → confirm.
+ * State machine with steps: filePath → slug → encryption → passphrase → compression → chunking → confirm.
  * Renders within the TUI overlay system using the TEA architecture.
  * Delegates generic step handling and rendering to WizardBlock.
  */
 
 import {
-  handleSelectKey, handleTextKey, handleToggleKey,
-  renderFieldLine, renderSelectList, renderTextInput, renderToggle,
+  handleSelectKey,
+  handleTextKey,
+  handleToggleKey,
+  renderFieldLine,
+  renderSelectList,
+  renderTextInput,
+  renderToggle,
   renderWizardPanel,
 } from './blocks/wizard-block.js';
 import { themeText } from './theme.js';
@@ -19,7 +24,7 @@ import { themeText } from './theme.js';
  */
 
 /**
- * @typedef {'filePath' | 'slug' | 'encryption' | 'compression' | 'chunking' | 'confirm' | 'storing' | 'done' | 'error'} WizardStep
+ * @typedef {'filePath' | 'slug' | 'encryption' | 'passphrase' | 'compression' | 'chunking' | 'confirm' | 'storing' | 'done' | 'error'} WizardStep
  */
 
 /**
@@ -31,14 +36,14 @@ import { themeText } from './theme.js';
  * @property {string} passphrase
  * @property {boolean} passphraseVisible
  * @property {boolean} compression
- * @property {'whole' | 'fixed' | 'cdc'} chunking
+ * @property {'fixed' | 'cdc'} chunking
  * @property {number} selectIndex
  * @property {string | null} error
  * @property {string | null} resultSlug
  */
 
 const ENCRYPTION_OPTIONS = ['none', 'passphrase', 'convergent'];
-const CHUNKING_OPTIONS = ['whole', 'fixed', 'cdc'];
+const CHUNKING_OPTIONS = ['fixed', 'cdc'];
 
 /**
  * Create a fresh wizard state.
@@ -82,7 +87,12 @@ function handleFilePathKey(state, key) {
 function handleSlugKey(state, key) {
   const result = handleTextKey(state.slug, key);
   if (result.confirmed) {
-    return { ...state, slug: result.value, step: 'encryption', selectIndex: ENCRYPTION_OPTIONS.indexOf(state.encryption) };
+    return {
+      ...state,
+      slug: result.value,
+      step: 'encryption',
+      selectIndex: ENCRYPTION_OPTIONS.indexOf(state.encryption),
+    };
   }
   return { ...state, slug: result.value };
 }
@@ -95,10 +105,26 @@ function handleSlugKey(state, key) {
 function handleEncryptionKey(state, key) {
   const result = handleSelectKey(state.selectIndex, ENCRYPTION_OPTIONS.length, key);
   if (result.confirmed) {
-    const encryption = /** @type {'none' | 'passphrase' | 'convergent'} */ (ENCRYPTION_OPTIONS[result.selectIndex]);
-    return { ...state, encryption, selectIndex: 0, step: 'compression' };
+    const encryption = /** @type {'none' | 'passphrase' | 'convergent'} */ (
+      ENCRYPTION_OPTIONS[result.selectIndex]
+    );
+    const step = encryption === 'none' ? 'compression' : 'passphrase';
+    return { ...state, encryption, passphrase: '', selectIndex: 0, step };
   }
   return { ...state, selectIndex: result.selectIndex };
+}
+
+/**
+ * @param {StoreWizardState} state
+ * @param {string} key
+ * @returns {StoreWizardState}
+ */
+function handlePassphraseKey(state, key) {
+  const result = handleTextKey(state.passphrase, key);
+  if (result.confirmed) {
+    return { ...state, passphrase: result.value, step: 'compression' };
+  }
+  return { ...state, passphrase: result.value };
 }
 
 /**
@@ -109,7 +135,12 @@ function handleEncryptionKey(state, key) {
 function handleCompressionKey(state, key) {
   const result = handleToggleKey(state.compression, key);
   if (result.confirmed) {
-    return { ...state, compression: result.value, step: 'chunking', selectIndex: CHUNKING_OPTIONS.indexOf(state.chunking) };
+    return {
+      ...state,
+      compression: result.value,
+      step: 'chunking',
+      selectIndex: CHUNKING_OPTIONS.indexOf(state.chunking),
+    };
   }
   return { ...state, compression: result.value };
 }
@@ -122,7 +153,7 @@ function handleCompressionKey(state, key) {
 function handleChunkingKey(state, key) {
   const result = handleSelectKey(state.selectIndex, CHUNKING_OPTIONS.length, key);
   if (result.confirmed) {
-    const chunking = /** @type {'whole' | 'fixed' | 'cdc'} */ (CHUNKING_OPTIONS[result.selectIndex]);
+    const chunking = /** @type {'fixed' | 'cdc'} */ (CHUNKING_OPTIONS[result.selectIndex]);
     return { ...state, chunking, step: 'confirm' };
   }
   return { ...state, selectIndex: result.selectIndex };
@@ -148,6 +179,7 @@ const stepHandlers = {
   filePath: handleFilePathKey,
   slug: handleSlugKey,
   encryption: handleEncryptionKey,
+  passphrase: handlePassphraseKey,
   compression: handleCompressionKey,
   chunking: handleChunkingKey,
   confirm: handleConfirmKey,
@@ -182,18 +214,48 @@ function deriveSlug(filePath) {
   return dotIndex > 0 ? name.slice(0, dotIndex) : name;
 }
 
+const ENCRYPTED_STEP_ORDER = Object.freeze([
+  'filePath',
+  'slug',
+  'encryption',
+  'passphrase',
+  'compression',
+  'chunking',
+  'confirm',
+]);
+const PLAIN_STEP_ORDER = Object.freeze([
+  'filePath',
+  'slug',
+  'encryption',
+  'compression',
+  'chunking',
+  'confirm',
+]);
+
 /** @type {Record<string, string>} */
-const STEP_LABELS = {
-  filePath: '1/6 File',
-  slug: '2/6 Slug',
-  encryption: '3/6 Encryption',
-  compression: '4/6 Compression',
-  chunking: '5/6 Chunking',
-  confirm: '6/6 Confirm',
+const STEP_NAMES = {
+  filePath: 'File',
+  slug: 'Slug',
+  encryption: 'Encryption',
+  passphrase: 'Passphrase',
+  compression: 'Compression',
+  chunking: 'Chunking',
+  confirm: 'Confirm',
   storing: 'Storing...',
   done: 'Done',
   error: 'Error',
 };
+
+/**
+ * @param {StoreWizardState} state
+ * @returns {string}
+ */
+function stepLabel(state) {
+  const name = STEP_NAMES[state.step] ?? state.step;
+  const order = state.encryption === 'none' ? PLAIN_STEP_ORDER : ENCRYPTED_STEP_ORDER;
+  const index = order.indexOf(state.step);
+  return index === -1 ? name : `${index + 1}/${order.length} ${name}`;
+}
 
 /**
  * Render the wizard overlay surface.
@@ -204,7 +266,7 @@ const STEP_LABELS = {
  */
 export function renderWizardSurface(state, opts) {
   return renderWizardPanel({
-    title: `Store  [${STEP_LABELS[state.step] ?? state.step}]`,
+    title: `Store  [${stepLabel(state)}]`,
     body: renderWizardBody(state, opts.ctx),
     screenWidth: opts.width,
     screenHeight: opts.height,
@@ -259,6 +321,14 @@ function renderStepBody(state, ctx) {
       '',
       themeText(ctx, 'j/k to move, enter to select.', { tone: 'subdued' }),
     ],
+    passphrase: () => [
+      themeText(ctx, 'Encryption passphrase:', { tone: 'accent' }),
+      renderTextInput(
+        state.passphraseVisible ? state.passphrase : '*'.repeat(state.passphrase.length)
+      ),
+      '',
+      themeText(ctx, 'Type the passphrase, then press enter.', { tone: 'subdued' }),
+    ],
     compression: () => [
       themeText(ctx, 'Compression (gzip):', { tone: 'accent' }),
       renderToggle(state.compression, ctx),
@@ -288,6 +358,7 @@ function renderConfirmBody(state, ctx) {
     renderFieldLine(ctx, 'File:', state.filePath),
     renderFieldLine(ctx, 'Slug:', state.slug),
     renderFieldLine(ctx, 'Encryption:', state.encryption),
+    renderFieldLine(ctx, 'Passphrase:', state.encryption === 'none' ? 'none' : 'set'),
     renderFieldLine(ctx, 'Compression:', state.compression ? 'gzip' : 'none'),
     renderFieldLine(ctx, 'Chunking:', state.chunking),
     '',

@@ -10,13 +10,15 @@ describe('ContentAddressableStore error surface', () => {
   it('explains how trusted callers can choose a restoreFile baseDirectory', async () => {
     const cas = new ContentAddressableStore({ plumbing: {} });
 
-    await expect(cas.restoreFile({
-      manifest: {},
-      outputPath: 'restored.bin',
-    })).rejects.toMatchObject({
+    await expect(
+      cas.restoreFile({
+        manifest: {},
+        outputPath: 'restored.bin',
+      })
+    ).rejects.toMatchObject({
       code: 'INVALID_OPTIONS',
       message: expect.stringContaining('process.cwd()'),
-      documentationUrl: 'https://github.com/git-stunts/git-cas/blob/v6.0.0/docs/API.md#restorefile',
+      documentationUrl: 'https://github.com/git-stunts/git-cas/blob/v6.0.1/docs/API.md#restorefile',
     });
   });
 });

@@ -14,9 +14,10 @@ timeline
 
 ## Current State
 
-The encryption surface has been simplified and the dedup-with-encryption gap is
-closed. The 20-card backlog from Phase 5 remains clear; recent work focused on
-collapsing scheme complexity and shipping convergent encryption.
+`v6.0.0` shipped on `2026-05-09`. The encryption surface has been simplified,
+the dedup-with-encryption gap is closed, and npm plus GitHub Releases are the
+active publication surfaces while JSR remains deferred behind the upstream
+toolchain blocker.
 
 What exists now:
 
@@ -91,10 +92,10 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Open Tensions
 
-- **CasService size.** At ~2100 lines, `CasService` is still the largest single
-  module. The published decomposition order (store coordination, then manifest
-  publication, then recipient flows, then restore pipeline) has not yet been
-  executed. The service works, but it concentrates too many responsibilities.
+- **TUI modernization.** The cockpit is useful and the Store Wizard now executes
+  the encryption, compression, and chunking plan it presents. The remaining TUI
+  work is broader operator ergonomics, discoverability, and long-lived workflow
+  polish rather than a store-plan correctness blocker.
 - **No browser/edge runtime.** The architecture is now fully hexagonal and
   platform-agnostic at the port level, but no browser or edge adapter exists.
   `@git-stunts/plumbing` shells out to the `git` CLI, which is fundamentally
@@ -110,14 +111,11 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With schemes simplified and convergent encryption shipped, these are candidate
-directions — not commitments.
+With v6.0.0 shipped, these are candidate directions — not commitments.
 
-- **CasService decomposition.** Execute the published extraction order: pull
-  store write coordination into `StoreCoordinator`, manifest/tree publication
-  into `PublicationService`, recipient mutation into `RecipientService`, and
-  restore pipeline into `RestoreService`. Each extraction should preserve the
-  public facade contract.
+- **TUI modernization.** Keep dashboard and wizard actions sharing executable
+  option-building truth while improving operator ergonomics around long-lived
+  store, restore, vault, and diagnostics workflows.
 - **Browser/edge persistence adapter.** A `FetchPersistenceAdapter` or
   `IsomorphicGitAdapter` could enable browser-side restore (read path) without
   the `git` CLI. Write path is harder — it needs ref updates and tree creation.

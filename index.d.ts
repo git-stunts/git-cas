@@ -3,19 +3,55 @@
  * Content Addressable Store — Managed blob storage in Git.
  */
 
-import Manifest from "./src/domain/value-objects/Manifest.js";
-import type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, EncryptionScheme } from "./src/domain/value-objects/Manifest.js";
-import Chunk from "./src/domain/value-objects/Chunk.js";
-import CasService from "./src/domain/services/CasService.js";
-import CasError from "./src/domain/errors/CasError.js";
-import type { CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, StoreEncryptionOptions, VerifyIntegrityOptions } from "./src/domain/services/CasService.js";
+import Manifest from './src/domain/value-objects/Manifest.js';
+import type {
+  EncryptionMeta,
+  ManifestData,
+  CompressionMeta,
+  KdfParams,
+  SubManifestRef,
+  RecipientEntry,
+  EncryptionScheme,
+} from './src/domain/value-objects/Manifest.js';
+import Chunk from './src/domain/value-objects/Chunk.js';
+import CasService from './src/domain/services/CasService.js';
+import CasError from './src/domain/errors/CasError.js';
+import type {
+  CryptoPort,
+  CodecPort,
+  GitPersistencePort,
+  ObservabilityPort,
+  CasServiceOptions,
+  DeriveKeyOptions,
+  DeriveKeyResult,
+  StoreEncryptionOptions,
+  VerifyIntegrityOptions,
+} from './src/domain/services/CasService.js';
 
 export { CasService, CasError, Manifest, Chunk };
 /** Type alias mapping the runtime `CompressionPort` export to its base class declaration. */
 export type CompressionPort = CompressionPortBase;
 
-export type { EncryptionMeta, ManifestData, CompressionMeta, KdfParams, SubManifestRef, RecipientEntry, EncryptionScheme };
-export type { CryptoPort, CodecPort, GitPersistencePort, ObservabilityPort, CasServiceOptions, DeriveKeyOptions, DeriveKeyResult, StoreEncryptionOptions, VerifyIntegrityOptions };
+export type {
+  EncryptionMeta,
+  ManifestData,
+  CompressionMeta,
+  KdfParams,
+  SubManifestRef,
+  RecipientEntry,
+  EncryptionScheme,
+};
+export type {
+  CryptoPort,
+  CodecPort,
+  GitPersistencePort,
+  ObservabilityPort,
+  CasServiceOptions,
+  DeriveKeyOptions,
+  DeriveKeyResult,
+  StoreEncryptionOptions,
+  VerifyIntegrityOptions,
+};
 
 /** Abstract port for compression and decompression of buffers and streams. */
 export declare class CompressionPortBase {
@@ -38,7 +74,7 @@ export declare class ChunkingPort {
 /** Fixed-size chunking adapter. */
 export declare class FixedChunker extends ChunkingPort {
   constructor(options?: { chunkSize?: number });
-  get strategy(): "fixed";
+  get strategy(): 'fixed';
   get params(): { chunkSize: number };
 }
 
@@ -50,7 +86,7 @@ export declare class CdcChunker extends ChunkingPort {
     targetChunkSize?: number;
     normalized?: boolean;
   });
-  get strategy(): "cdc";
+  get strategy(): 'cdc';
   get params(): { target: number; min: number; max: number; normalized: boolean };
 }
 
@@ -61,27 +97,39 @@ export declare class CryptoPortBase {
   encryptBuffer(
     buffer: Uint8Array,
     key: Uint8Array,
-    aad?: Uint8Array,
+    aad?: Uint8Array
   ): { buf: Uint8Array; meta: EncryptionMeta } | Promise<{ buf: Uint8Array; meta: EncryptionMeta }>;
-  decryptBuffer(buffer: Uint8Array, key: Uint8Array, meta: EncryptionMeta, aad?: Uint8Array): Uint8Array | Promise<Uint8Array>;
-  createEncryptionStream(key: Uint8Array, aad?: Uint8Array): {
+  decryptBuffer(
+    buffer: Uint8Array,
+    key: Uint8Array,
+    meta: EncryptionMeta,
+    aad?: Uint8Array
+  ): Uint8Array | Promise<Uint8Array>;
+  createEncryptionStream(
+    key: Uint8Array,
+    aad?: Uint8Array
+  ): {
     encrypt: (source: AsyncIterable<Uint8Array>) => AsyncIterable<Uint8Array>;
     finalize: () => EncryptionMeta;
   };
-  createDecryptionStream(key: Uint8Array, meta: EncryptionMeta, aad?: Uint8Array): {
+  createDecryptionStream(
+    key: Uint8Array,
+    meta: EncryptionMeta,
+    aad?: Uint8Array
+  ): {
     decrypt: (source: AsyncIterable<Uint8Array>) => AsyncIterable<Uint8Array>;
   };
   hmacSha256(key: Uint8Array, data: Uint8Array): Uint8Array | Promise<Uint8Array>;
   encryptBufferWithNonce(
     buffer: Uint8Array,
     key: Uint8Array,
-    nonce: Uint8Array,
+    nonce: Uint8Array
   ): { buf: Uint8Array; tag: Uint8Array } | Promise<{ buf: Uint8Array; tag: Uint8Array }>;
   decryptBufferWithNonceTag(
     buffer: Uint8Array,
     key: Uint8Array,
     nonce: Uint8Array,
-    tag: Uint8Array,
+    tag: Uint8Array
   ): Uint8Array | Promise<Uint8Array>;
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }
@@ -93,14 +141,14 @@ export declare class GitPersistencePortBase {
   readBlob(oid: string): Promise<Uint8Array>;
   readBlobStream(oid: string): Promise<AsyncIterable<Uint8Array>>;
   readTree(
-    treeOid: string,
+    treeOid: string
   ): Promise<Array<{ mode: string; type: string; oid: string; name: string }>>;
   readTreeEntry(
     treeOid: string,
-    treePath: string,
+    treePath: string
   ): Promise<{ mode: string; type: string; oid: string; name: string } | null>;
   iterateTree(
-    treeOid: string,
+    treeOid: string
   ): AsyncIterable<{ mode: string; type: string; oid: string; name: string }>;
   setMaxBlobSize?(maxBlobSize: number): void;
 }
@@ -188,11 +236,12 @@ export declare class StatsCollector {
 
 /** Declarative chunking strategy configuration. */
 export interface ChunkingConfig {
-  strategy: "fixed" | "cdc";
+  strategy: 'fixed' | 'cdc';
   chunkSize?: number;
   targetChunkSize?: number;
   minChunkSize?: number;
   maxChunkSize?: number;
+  normalized?: boolean;
 }
 
 /** Constructor options for {@link ContentAddressableStore}. */
@@ -216,7 +265,10 @@ export interface ContentAddressableStoreOptions {
 }
 
 /** Options for {@link ContentAddressableStore.open}. */
-export interface ContentAddressableStoreOpenOptions extends Omit<ContentAddressableStoreOptions, "plumbing"> {
+export interface ContentAddressableStoreOpenOptions extends Omit<
+  ContentAddressableStoreOptions,
+  'plumbing'
+> {
   /** Git working directory used to construct the default Git plumbing adapter. @default "." */
   cwd?: string;
   /** Optional shell-runner environment override for Git plumbing. */
@@ -224,7 +276,10 @@ export interface ContentAddressableStoreOpenOptions extends Omit<ContentAddressa
 }
 
 /** Options for codec-specific facade factories. */
-export type ContentAddressableStoreCodecFactoryOptions = Omit<ContentAddressableStoreOptions, "codec">;
+export type ContentAddressableStoreCodecFactoryOptions = Omit<
+  ContentAddressableStoreOptions,
+  'codec'
+>;
 
 /** A single vault entry. */
 export interface VaultEntry {
@@ -308,7 +363,7 @@ export declare class VaultService {
   /** Initializes the vault, optionally with encryption and privacy mode. */
   initVault(options?: {
     passphrase?: string;
-    kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
+    kdfOptions?: Omit<DeriveKeyOptions, 'passphrase'>;
     /** Enable privacy mode (requires passphrase/encryption). */
     privacy?: boolean;
   }): Promise<{ commitOid: string }>;
@@ -422,10 +477,11 @@ export default class ContentAddressableStore {
     encryptionKey?: Uint8Array;
     passphrase?: string;
     encryption?: StoreEncryptionOptions;
-    kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
-    compression?: { algorithm: "gzip" };
+    kdfOptions?: Omit<DeriveKeyOptions, 'passphrase'>;
+    compression?: { algorithm: 'gzip' };
     recipients?: Array<{ label: string; key: Uint8Array }>;
     merkleThreshold?: number;
+    chunking?: ChunkingConfig;
   }): Promise<Manifest>;
 
   store(options: {
@@ -435,10 +491,11 @@ export default class ContentAddressableStore {
     encryptionKey?: Uint8Array;
     passphrase?: string;
     encryption?: StoreEncryptionOptions;
-    kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
-    compression?: { algorithm: "gzip" };
+    kdfOptions?: Omit<DeriveKeyOptions, 'passphrase'>;
+    compression?: { algorithm: 'gzip' };
     recipients?: Array<{ label: string; key: Uint8Array }>;
     merkleThreshold?: number;
+    chunking?: ChunkingConfig;
   }): Promise<Manifest>;
 
   restoreFile(options: {
@@ -467,14 +524,10 @@ export default class ContentAddressableStore {
 
   readManifest(options: { treeOid: string }): Promise<Manifest>;
 
-  inspectAsset(options: {
-    treeOid: string;
-  }): Promise<{ slug: string; chunksOrphaned: number }>;
+  inspectAsset(options: { treeOid: string }): Promise<{ slug: string; chunksOrphaned: number }>;
 
   /** @deprecated Use {@link inspectAsset} instead. */
-  deleteAsset(options: {
-    treeOid: string;
-  }): Promise<{ slug: string; chunksOrphaned: number }>;
+  deleteAsset(options: { treeOid: string }): Promise<{ slug: string; chunksOrphaned: number }>;
 
   collectReferencedChunks(options: {
     treeOids: string[];
@@ -494,10 +547,7 @@ export default class ContentAddressableStore {
     label: string;
   }): Promise<Manifest>;
 
-  removeRecipient(options: {
-    manifest: Manifest;
-    label: string;
-  }): Promise<Manifest>;
+  removeRecipient(options: { manifest: Manifest; label: string }): Promise<Manifest>;
 
   listRecipients(manifest: Manifest): Promise<string[]>;
 
@@ -514,7 +564,7 @@ export default class ContentAddressableStore {
 
   initVault(options?: {
     passphrase?: string;
-    kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
+    kdfOptions?: Omit<DeriveKeyOptions, 'passphrase'>;
     /** Enable privacy mode (requires passphrase/encryption). */
     privacy?: boolean;
   }): Promise<{ commitOid: string }>;
@@ -558,7 +608,7 @@ export default class ContentAddressableStore {
   rotateVaultPassphrase(options: {
     oldPassphrase: string;
     newPassphrase: string;
-    kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
+    kdfOptions?: Omit<DeriveKeyOptions, 'passphrase'>;
     /** Maximum optimistic-concurrency retries on VAULT_CONFLICT. @default 3 */
     maxRetries?: number;
     /** Base delay in ms for exponential backoff between retries. @default 50 */

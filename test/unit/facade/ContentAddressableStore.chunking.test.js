@@ -1,9 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import ContentAddressableStore, {
-  FixedChunker,
-  CdcChunker,
-  ChunkingPort,
-} from '../../../index.js';
+import { createHash } from 'node:crypto';
+import ContentAddressableStore, { FixedChunker, CdcChunker, ChunkingPort } from '../../../index.js';
 import RedactingObservability from '../../../src/domain/services/RedactingObservability.js';
 
 // ---------------------------------------------------------------------------
@@ -35,6 +32,39 @@ function mockCompressionAdapter() {
     decompressBuffer: vi.fn(async (buffer) => buffer),
     compressStream: vi.fn((source) => source),
     decompressStream: vi.fn((source) => source),
+  };
+}
+
+function streamOneBuffer(buffer) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield buffer;
+    },
+  };
+}
+
+function memoryPlumbing() {
+  const blobs = new Map();
+  return {
+    execute: vi.fn(async ({ args, input }) => {
+      if (args[0] === 'hash-object') {
+        const bytes = Buffer.from(input);
+        const oid = createHash('sha1').update('blob').update('\0').update(bytes).digest('hex');
+        blobs.set(oid, bytes);
+        return oid;
+      }
+      throw new Error(`Unexpected plumbing execute: ${args.join(' ')}`);
+    }),
+    executeStream: vi.fn(async ({ args }) => {
+      if (args[0] === 'cat-file' && args[1] === 'blob') {
+        const blob = blobs.get(args[2]);
+        if (!blob) {
+          throw new Error(`Missing blob ${args[2]}`);
+        }
+        return streamOneBuffer(blob);
+      }
+      throw new Error(`Unexpected plumbing stream: ${args.join(' ')}`);
+    }),
   };
 }
 
@@ -148,6 +178,54 @@ describe('Facade – raw chunker option', () => {
     const svc = await store.getService();
     expect(svc.chunker).toBe(customChunker);
     expect(svc.chunker.strategy).toBe('cdc');
+  });
+});
+
+describe('Facade – per-operation chunking', () => {
+  it('allows one store operation to use CDC without changing the facade default chunker', async () => {
+    const store = new ContentAddressableStore({
+      plumbing: memoryPlumbing(),
+      chunking: { strategy: 'fixed', chunkSize: 1024 },
+    });
+
+    const manifest = await store.store({
+      source: streamOneBuffer(Buffer.alloc(8192, 'A')),
+      slug: 'asset/cdc-once',
+      filename: 'asset.bin',
+      chunking: {
+        strategy: 'cdc',
+        targetChunkSize: 1024,
+        minChunkSize: 256,
+        maxChunkSize: 4096,
+      },
+    });
+    const service = await store.getService();
+
+    expect(service.chunker.strategy).toBe('fixed');
+    expect(manifest.chunking?.strategy).toBe('cdc');
+  });
+
+  it('allows one store operation to use default fixed chunking over a CDC facade default', async () => {
+    const store = new ContentAddressableStore({
+      plumbing: memoryPlumbing(),
+      chunking: {
+        strategy: 'cdc',
+        targetChunkSize: 1024,
+        minChunkSize: 256,
+        maxChunkSize: 4096,
+      },
+    });
+
+    const manifest = await store.store({
+      source: streamOneBuffer(Buffer.alloc(8192, 'A')),
+      slug: 'asset/fixed-once',
+      filename: 'asset.bin',
+      chunking: { strategy: 'fixed' },
+    });
+    const service = await store.getService();
+
+    expect(service.chunker.strategy).toBe('cdc');
+    expect(manifest.chunking).toBeUndefined();
   });
 });
 

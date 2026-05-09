@@ -3,8 +3,13 @@
  * Domain service for Content Addressable Storage operations.
  */
 
-import Manifest, { type EncryptionMeta, type CompressionMeta, type KdfParams, type EncryptionScheme } from "../value-objects/Manifest.js";
-import Chunk from "../value-objects/Chunk.js";
+import Manifest, {
+  type EncryptionMeta,
+  type CompressionMeta,
+  type KdfParams,
+  type EncryptionScheme,
+} from '../value-objects/Manifest.js';
+import Chunk from '../value-objects/Chunk.js';
 
 /** Port interface for cryptographic operations (hashing, encryption, random bytes). */
 export interface CryptoPort {
@@ -13,27 +18,39 @@ export interface CryptoPort {
   encryptBuffer(
     buffer: Uint8Array,
     key: Uint8Array,
-    aad?: Uint8Array,
+    aad?: Uint8Array
   ): { buf: Uint8Array; meta: EncryptionMeta } | Promise<{ buf: Uint8Array; meta: EncryptionMeta }>;
-  decryptBuffer(buffer: Uint8Array, key: Uint8Array, meta: EncryptionMeta, aad?: Uint8Array): Uint8Array | Promise<Uint8Array>;
-  createEncryptionStream(key: Uint8Array, aad?: Uint8Array): {
+  decryptBuffer(
+    buffer: Uint8Array,
+    key: Uint8Array,
+    meta: EncryptionMeta,
+    aad?: Uint8Array
+  ): Uint8Array | Promise<Uint8Array>;
+  createEncryptionStream(
+    key: Uint8Array,
+    aad?: Uint8Array
+  ): {
     encrypt: (source: AsyncIterable<Uint8Array>) => AsyncIterable<Uint8Array>;
     finalize: () => EncryptionMeta;
   };
-  createDecryptionStream(key: Uint8Array, meta: EncryptionMeta, aad?: Uint8Array): {
+  createDecryptionStream(
+    key: Uint8Array,
+    meta: EncryptionMeta,
+    aad?: Uint8Array
+  ): {
     decrypt: (source: AsyncIterable<Uint8Array>) => AsyncIterable<Uint8Array>;
   };
   hmacSha256(key: Uint8Array, data: Uint8Array): Uint8Array | Promise<Uint8Array>;
   encryptBufferWithNonce(
     buffer: Uint8Array,
     key: Uint8Array,
-    nonce: Uint8Array,
+    nonce: Uint8Array
   ): { buf: Uint8Array; tag: Uint8Array } | Promise<{ buf: Uint8Array; tag: Uint8Array }>;
   decryptBufferWithNonceTag(
     buffer: Uint8Array,
     key: Uint8Array,
     nonce: Uint8Array,
-    tag: Uint8Array,
+    tag: Uint8Array
   ): Uint8Array | Promise<Uint8Array>;
   deriveKey(options: DeriveKeyOptions): Promise<DeriveKeyResult>;
 }
@@ -52,14 +69,14 @@ export interface GitPersistencePort {
   readBlob(oid: string): Promise<Uint8Array>;
   readBlobStream(oid: string): Promise<AsyncIterable<Uint8Array>>;
   readTree(
-    treeOid: string,
+    treeOid: string
   ): Promise<Array<{ mode: string; type: string; oid: string; name: string }>>;
   readTreeEntry(
     treeOid: string,
-    treePath: string,
+    treePath: string
   ): Promise<{ mode: string; type: string; oid: string; name: string } | null>;
   iterateTree(
-    treeOid: string,
+    treeOid: string
   ): AsyncIterable<{ mode: string; type: string; oid: string; name: string }>;
   setMaxBlobSize?(maxBlobSize: number): void;
 }
@@ -67,7 +84,11 @@ export interface GitPersistencePort {
 /** Port interface for observability (metrics, logging, tracing). */
 export interface ObservabilityPort {
   metric(channel: string, data: Record<string, unknown>): void;
-  log(level: "debug" | "info" | "warn" | "error", msg: string, meta?: Record<string, unknown>): void;
+  log(
+    level: 'debug' | 'info' | 'warn' | 'error',
+    msg: string,
+    meta?: Record<string, unknown>
+  ): void;
   span(name: string): { end(meta?: Record<string, unknown>): void };
 }
 
@@ -108,7 +129,7 @@ export interface CasServiceOptions {
 export interface DeriveKeyOptions {
   passphrase: string;
   salt?: Uint8Array;
-  algorithm?: "pbkdf2" | "scrypt";
+  algorithm?: 'pbkdf2' | 'scrypt';
   iterations?: number;
   cost?: number;
   blockSize?: number;
@@ -136,7 +157,7 @@ export interface StoreEncryptionOptions {
 }
 
 export interface FileRestorePlan {
-  mode: "stream" | "bounded-file";
+  mode: 'stream' | 'bounded-file';
   source: AsyncIterable<Uint8Array>;
   encryptionMeta?: EncryptionMeta;
 }
@@ -178,10 +199,11 @@ export default class CasService {
     encryptionKey?: Uint8Array;
     passphrase?: string;
     encryption?: StoreEncryptionOptions;
-    kdfOptions?: Omit<DeriveKeyOptions, "passphrase">;
-    compression?: { algorithm: "gzip" };
+    kdfOptions?: Omit<DeriveKeyOptions, 'passphrase'>;
+    compression?: { algorithm: 'gzip' };
     recipients?: Array<{ label: string; key: Uint8Array }>;
     merkleThreshold?: number;
+    chunker?: ChunkingPort;
   }): Promise<Manifest>;
 
   createTree(options: { manifest: Manifest; merkleThreshold?: number }): Promise<string>;
@@ -209,14 +231,10 @@ export default class CasService {
   /** Reads a raw manifest without scheme assertion or Manifest construction. */
   readManifestRaw(options: { treeOid: string }): Promise<Record<string, unknown>>;
 
-  inspectAsset(options: {
-    treeOid: string;
-  }): Promise<{ slug: string; chunksOrphaned: number }>;
+  inspectAsset(options: { treeOid: string }): Promise<{ slug: string; chunksOrphaned: number }>;
 
   /** @deprecated Use {@link inspectAsset} instead. */
-  deleteAsset(options: {
-    treeOid: string;
-  }): Promise<{ slug: string; chunksOrphaned: number }>;
+  deleteAsset(options: { treeOid: string }): Promise<{ slug: string; chunksOrphaned: number }>;
 
   collectReferencedChunks(options: {
     treeOids: string[];
@@ -234,10 +252,7 @@ export default class CasService {
     label: string;
   }): Promise<Manifest>;
 
-  removeRecipient(options: {
-    manifest: Manifest;
-    label: string;
-  }): Promise<Manifest>;
+  removeRecipient(options: { manifest: Manifest; label: string }): Promise<Manifest>;
 
   listRecipients(manifest: Manifest): string[];
 

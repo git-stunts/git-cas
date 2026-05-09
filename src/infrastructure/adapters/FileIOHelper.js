@@ -31,20 +31,25 @@ const FILE_NOT_FOUND_CODE = 'ENOENT';
  * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
  * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients.
  * @param {number} [options.merkleThreshold] - Per-operation chunk count threshold for Merkle manifests.
+ * @param {import('../../ports/ChunkingPort.js').default} [options.chunker] - Per-operation chunker override.
  * @returns {Promise<Manifest>} The resulting manifest.
  */
-export async function storeFile(service, {
-  filePath,
-  slug,
-  filename,
-  encryptionKey,
-  passphrase,
-  encryption,
-  kdfOptions,
-  compression,
-  recipients,
-  merkleThreshold,
-}) {
+export async function storeFile(
+  service,
+  {
+    filePath,
+    slug,
+    filename,
+    encryptionKey,
+    passphrase,
+    encryption,
+    kdfOptions,
+    compression,
+    recipients,
+    merkleThreshold,
+    chunker,
+  }
+) {
   const source = createReadStream(filePath);
   return await service.store({
     source,
@@ -57,6 +62,7 @@ export async function storeFile(service, {
     compression,
     recipients,
     merkleThreshold,
+    chunker,
   });
 }
 
@@ -73,9 +79,15 @@ export async function storeFile(service, {
  * @param {string} options.baseDirectory - The permitted base directory for restoration (e.g. repo root).
  * @returns {Promise<{ bytesWritten: number }>}
  */
-export async function restoreFile(service, { manifest, encryptionKey, passphrase, outputPath, baseDirectory }) {
+export async function restoreFile(
+  service,
+  { manifest, encryptionKey, passphrase, outputPath, baseDirectory }
+) {
   if (!baseDirectory) {
-    throw new CasError('baseDirectory is required for safe restoration', ErrorCodes.INVALID_OPTIONS);
+    throw new CasError(
+      'baseDirectory is required for safe restoration',
+      ErrorCodes.INVALID_OPTIONS
+    );
   }
 
   const safeOutputPath = await resolveSafeRestorePath({ baseDirectory, outputPath });
@@ -119,7 +131,7 @@ async function resolveSafeRestorePath({ baseDirectory, outputPath }) {
     throw new CasError(
       `Restoration path "${outputPath}" escapes base directory "${baseDirectory}"`,
       ErrorCodes.SECURITY_BOUNDARY_VIOLATION,
-      { outputPath, baseDirectory },
+      { outputPath, baseDirectory }
     );
   }
   return canonicalPath;
@@ -160,25 +172,18 @@ async function canonicalizeTargetPath(targetPath) {
  * @param {{ manifest: Manifest, outputPath: string, source: AsyncIterable<Uint8Array>, encryptionMeta?: EncryptionMeta }} options
  * @returns {Promise<{ bytesWritten: number }>}
  */
-async function restoreBufferedFile(service, {
-  manifest,
-  outputPath,
-  source,
-  encryptionMeta,
-}) {
+async function restoreBufferedFile(service, { manifest, outputPath, source, encryptionMeta }) {
   let bytesWritten = 0;
   const outputDir = path.dirname(outputPath);
   const tempDir = await mkdtemp(path.join(outputDir, '.git-cas-restore-'));
   const tempPath = path.join(tempDir, path.basename(outputPath));
 
   try {
-    const counter = createByteCounter((n) => { bytesWritten += n; });
+    const counter = createByteCounter((n) => {
+      bytesWritten += n;
+    });
 
-    await pipeline(
-      Readable.from(source),
-      counter,
-      createWriteStream(tempPath),
-    );
+    await pipeline(Readable.from(source), counter, createWriteStream(tempPath));
 
     await rename(tempPath, outputPath);
     service.observability.metric('file', {
@@ -205,10 +210,7 @@ async function restoreBufferedFile(service, {
  */
 function isInsideBaseDirectory(resolvedPath, resolvedBase) {
   const relativePath = path.relative(resolvedBase, resolvedPath);
-  return (
-    relativePath === '' ||
-    (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
-  );
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
 }
 
 /**

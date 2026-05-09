@@ -38,6 +38,21 @@ export default class ChunkRepository {
   }
 
   /**
+   * @param {import('../../ports/ChunkingPort.js').default} chunker
+   * @returns {ChunkRepository}
+   */
+  withChunker(chunker) {
+    return new ChunkRepository({
+      chunker,
+      concurrency: this.#concurrency,
+      convergent: this.#convergent,
+      hashBytes: this.#hashBytes,
+      observability: this.#observability,
+      persistence: this.#persistence,
+    });
+  }
+
+  /**
    * @param {AsyncIterable<Uint8Array>} source
    * @param {{ chunks: Array, size: number }} manifestData
    * @param {{ convergentKey?: Uint8Array }} [options]
@@ -64,7 +79,13 @@ export default class ChunkRepository {
       ? await this.#convergent.encryptChunk(buf, convergentKey, digest)
       : buf;
     const blob = await this.#persistence.writeBlob(blobData);
-    this.#observability.metric('chunk', { action: 'stored', index, size: buf.length, digest, blob });
+    this.#observability.metric('chunk', {
+      action: 'stored',
+      index,
+      size: buf.length,
+      digest,
+      blob,
+    });
     return { index, size: buf.length, digest, blob };
   }
 
@@ -90,7 +111,7 @@ export default class ChunkRepository {
       const err = createCasError(
         `Chunk ${chunk.index} integrity check failed`,
         ErrorCodes.INTEGRITY_ERROR,
-        { chunkIndex: chunk.index, expected: chunk.digest, actual: digest },
+        { chunkIndex: chunk.index, expected: chunk.digest, actual: digest }
       );
       this.#observability.metric('error', { code: err.code, message: err.message });
       throw err;
@@ -109,16 +130,16 @@ export default class ChunkRepository {
       if (maxBytes !== undefined) {
         throw createCasError(
           'Buffered restore safety requires persistence.readBlobStream() so ' +
-          'encrypted/compressed restore can enforce maxRestoreBufferSize with ' +
-          'memory-safe chunk reads. Implement readBlobStream() on the adapter ' +
-          'or use a GitPersistenceAdapter-backed facade. See docs/EXTENDING.md#persistence-adapter-requirements.',
+            'encrypted/compressed restore can enforce maxRestoreBufferSize with ' +
+            'memory-safe chunk reads. Implement readBlobStream() on the adapter ' +
+            'or use a GitPersistenceAdapter-backed facade. See docs/EXTENDING.md#persistence-adapter-requirements.',
           ErrorCodes.PERSISTENCE_CAPABILITY_REQUIRED,
           {
             capability: 'readBlobStream',
             mode: 'buffered-restore',
             oid: blobOid,
             docs: 'docs/EXTENDING.md#persistence-adapter-requirements',
-          },
+          }
         );
       }
       return normalizeByteChunk(await this.#persistence.readBlob(blobOid));
@@ -139,8 +160,10 @@ export default class ChunkRepository {
    * @returns {boolean}
    */
   supportsReadBlobStream() {
-    return typeof this.#persistence.readBlobStream === 'function'
-      && this.#persistence.readBlobStream !== GitPersistencePort.prototype.readBlobStream;
+    return (
+      typeof this.#persistence.readBlobStream === 'function' &&
+      this.#persistence.readBlobStream !== GitPersistencePort.prototype.readBlobStream
+    );
   }
 
   /**
@@ -157,7 +180,12 @@ export default class ChunkRepository {
       });
       totalRead += blob.length;
       buffers.push(blob);
-      this.#observability.metric('chunk', { action: 'restored', index: chunk.index, size: blob.length, digest: chunk.digest });
+      this.#observability.metric('chunk', {
+        action: 'restored',
+        index: chunk.index,
+        size: blob.length,
+        digest: chunk.digest,
+      });
     }
     return buffers;
   }
@@ -172,7 +200,7 @@ export default class ChunkRepository {
     throw createCasError(
       `Buffered restore read ${size} bytes from blob ${oid} (limit: ${limit})`,
       ErrorCodes.RESTORE_TOO_LARGE,
-      { size, limit, oid, reason: 'chunk-blob-size' },
+      { size, limit, oid, reason: 'chunk-blob-size' }
     );
   }
 
@@ -194,7 +222,12 @@ export default class ChunkRepository {
   async *iterVerifiedChunkBlobs(manifest) {
     const fetchFn = async (chunk) => {
       const blob = await this.readAndVerifyChunk(chunk);
-      this.#observability.metric('chunk', { action: 'restored', index: chunk.index, size: blob.length, digest: chunk.digest });
+      this.#observability.metric('chunk', {
+        action: 'restored',
+        index: chunk.index,
+        size: blob.length,
+        digest: chunk.digest,
+      });
       return blob;
     };
 
@@ -215,7 +248,12 @@ export default class ChunkRepository {
   async *iterConvergentChunks(manifest, key) {
     const fetchFn = async (chunk) => {
       const plaintext = await this.readAndVerifyChunk(chunk, { convergentKey: key });
-      this.#observability.metric('chunk', { action: 'restored', index: chunk.index, size: plaintext.length, digest: chunk.digest });
+      this.#observability.metric('chunk', {
+        action: 'restored',
+        index: chunk.index,
+        size: plaintext.length,
+        digest: chunk.digest,
+      });
       return plaintext;
     };
 

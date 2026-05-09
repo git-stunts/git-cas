@@ -9,7 +9,7 @@ The lane is the priority:
 - `up-next/` — likely after the current pull
 - `cool-ideas/` — interesting, not committed
 - `bad-code/` — debt that works but bothers us
-- `v6.0.0/` — release gate items (must complete before tag/publish)
+- `v6.0.0/` — completed v6.0.0 release gate archive
 - `v6.x-tui/` — post-6.0 TUI modernization work for the v6 release line
 
 Backlog filenames use legend prefixes when they belong to a named domain and do
@@ -29,15 +29,16 @@ not use numeric IDs.
 
 - none currently
 
-### `v6.0.0/` (release gate)
+### `v6.0.0/` (completed release gate)
 
 Active:
 
-1. [REL — Audit Blocker Burn-Down](./v6.0.0/REL_audit-blocker-burn-down.md) — all non-TUI May 4 audit leftovers now block `v6.0.0`
-2. [REL — Version Bump](./v6.0.0/REL_version-bump.md) — tag/publish gate; JSR publication is deferred externally
+- none currently
 
 Resolved:
 
+- [REL — Audit Blocker Burn-Down](./v6.0.0/REL_audit-blocker-burn-down.md) — non-TUI May 4 audit leftovers cleared before `v6.0.0`
+- [Version Bump](./v6.0.0/REL_version-bump.md) — tag/publish gate completed; JSR publication remains deferred externally
 - [REL — Migration Script](./v6.0.0/REL_migration-script.md) — `npm run upgrade` with dry-run + execute modes
 - [REL — Breaking Changes Doc](./v6.0.0/REL_breaking-changes-doc.md) — `UPGRADING.md` with migration guide
 - [REL — Docs Accuracy Audit](./v6.0.0/REL_docs-accuracy-audit.md) — GUIDE examples and tracked Markdown links covered by tests
@@ -104,9 +105,12 @@ Resolved — 2026-05-05 final v6 release polish:
 
 Active:
 
-- [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md)
 - [Vault Tree Memory Loading](./bad-code/vault-tree-memory-loading.md)
 - [TR — GitPersistenceAdapter Full Materialization](./bad-code/TR_persistence-adapter-materialization.md)
+
+Resolved — 2026-05-09 v6.0.1 patch:
+
+- [TUI — Store Wizard Execution Gap](./bad-code/TUI_store-wizard-execution-gap.md) ✅
 
 Resolved — 2026-05-05 CasService de-sludge:
 
@@ -152,7 +156,7 @@ Resolved — `security/audit-fixes` branch:
 - [SEC — Store Source Validation](./bad-code/SEC_store-source-validation.md) ✅
 - [SEC — Sub-Manifest Chunks Unvalidated](./bad-code/SEC_submanifest-chunks-unvalidated.md) ✅
 - [TR — Platform Dependency Leaks](./bad-code/TR_platform-dependency-leaks.md) ✅
-- [TR — Dead _decompress() Method](./bad-code/TR_dead-decompress-method.md) ✅
+- [TR — Dead \_decompress() Method](./bad-code/TR_dead-decompress-method.md) ✅
 - [TR — Domain Imports Infrastructure](./bad-code/TR_domain-imports-infrastructure.md) ✅
 - [TR — CryptoPort node:crypto Import](./bad-code/TR_cryptoport-node-import.md) ✅
 - [TR — ManifestSchema node:buffer Import](./bad-code/TR_schema-node-buffer-import.md) ✅

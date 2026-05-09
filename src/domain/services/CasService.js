@@ -149,12 +149,12 @@ export default class CasService {
     }
   }
 
-  #buildStoreStrategies({ crypto }) {
+  #buildStoreStrategies({ crypto, chunks = this.#chunkRepository }) {
     return Object.freeze({
-      plain: new StorePlain(this.#chunkRepository),
-      convergent: new StoreConvergent(this.#chunkRepository),
-      framed: new StoreFramed({ chunks: this.#chunkRepository, framed: this.#framed }),
-      whole: new StoreWhole({ chunks: this.#chunkRepository, crypto }),
+      plain: new StorePlain(chunks),
+      convergent: new StoreConvergent(chunks),
+      framed: new StoreFramed({ chunks, framed: this.#framed }),
+      whole: new StoreWhole({ chunks, crypto }),
     });
   }
 
@@ -243,12 +243,25 @@ export default class CasService {
       return;
     }
     if (!['fixed', 'cdc'].includes(chunking.strategy)) {
-      throw createCasError(
-        `Unsupported chunking strategy: ${chunking.strategy}`,
-        ErrorCodes.INVALID_CHUNKING_STRATEGY,
-        { strategy: chunking.strategy },
-      );
+      throw createCasError(`Unsupported chunking strategy: ${chunking.strategy}`, ErrorCodes.INVALID_CHUNKING_STRATEGY, { strategy: chunking.strategy });
     }
+  }
+
+  #validateOperationChunker(chunker) {
+    if (!chunker) {
+      return this.chunker;
+    }
+    if (typeof chunker.chunk !== 'function' || typeof chunker.strategy !== 'string') {
+      throw createCasError('chunker must implement ChunkingPort', ErrorCodes.INVALID_OPTIONS, { strategy: chunker.strategy });
+    }
+    return chunker;
+  }
+
+  #storeStrategiesFor(chunker) {
+    if (chunker === this.chunker) {
+      return this.#storeStrategies;
+    }
+    return this.#buildStoreStrategies({ crypto: this.crypto, chunks: this.#chunkRepository.withChunker(chunker) });
   }
 
   /**
@@ -263,20 +276,21 @@ export default class CasService {
    * @param {{ algorithm: 'gzip' }} [options.compression]
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients]
    * @param {number} [options.merkleThreshold]
+   * @param {import('../../ports/ChunkingPort.js').default} [options.chunker]
    * @returns {Promise<Manifest>}
    */
-  async store({
-    source,
-    slug,
-    filename,
-    encryptionKey,
-    passphrase,
-    encryption,
-    kdfOptions,
-    compression,
-    recipients,
-    merkleThreshold,
-  }) {
+  async store(options) {
+    const { source, slug, filename, compression, merkleThreshold } = options;
+    this.#validateStoreOptions(options);
+    const plan = await this.#buildStorePlan(options);
+    const manifestData = this._buildManifestData({ slug, filename, compression, chunker: plan.chunker });
+    const processedSource = compression ? this.#compression.compress(source) : source;
+
+    await this._dispatchStore({ processedSource, manifestData, keyInfo: plan.keyInfo, encryptionConfig: plan.encryptionConfig, chunker: plan.chunker });
+    return this.#finalizeStore({ manifestData, merkleThreshold, keyInfo: plan.keyInfo, slug });
+  }
+
+  #validateStoreOptions({ source, recipients, encryptionKey, passphrase, compression, merkleThreshold }) {
     if (!source || typeof source[Symbol.asyncIterator] !== 'function') {
       throw createCasError('source must be an async iterable', ErrorCodes.INVALID_OPTIONS, { sourceType: typeof source });
     }
@@ -286,15 +300,18 @@ export default class CasService {
     KeyResolver.validateKeySourceExclusive(encryptionKey, passphrase);
     this._validateCompression(compression);
     CasService.#validateMerkleThreshold(merkleThreshold);
+  }
 
+  async #buildStorePlan({ encryptionKey, passphrase, encryption, kdfOptions, recipients, chunker }) {
+    const operationChunker = this.#validateOperationChunker(chunker);
     const keyInfo = recipients
       ? await this.#keyResolver.resolveRecipients(recipients)
       : await this.#keyResolver.resolveForStore(encryptionKey, passphrase, kdfOptions);
-    const encryptionConfig = this._resolveStoreEncryptionConfig(encryption, !!keyInfo.key);
-    const manifestData = this._buildManifestData(slug, filename, compression);
-    const processedSource = compression ? this.#compression.compress(source) : source;
+    const encryptionConfig = this._resolveStoreEncryptionConfigForChunker({ encryption, hasEncryptionKey: !!keyInfo.key, chunker: operationChunker });
+    return { chunker: operationChunker, keyInfo, encryptionConfig };
+  }
 
-    await this._dispatchStore({ processedSource, manifestData, keyInfo, encryptionConfig });
+  #finalizeStore({ manifestData, merkleThreshold, keyInfo, slug }) {
     const manifest = new Manifest(manifestData);
     this.#rememberMerkleThreshold(manifest, merkleThreshold);
     this.observability.metric('file', {
@@ -307,6 +324,10 @@ export default class CasService {
     return new StoreSuccess({ manifest }).manifest;
   }
 
+  _resolveStoreEncryptionConfigForChunker({ encryption, hasEncryptionKey, chunker }) {
+    return StoreEncryptionConfig.resolve({ encryption, hasEncryptionKey, chunker, observability: this.observability });
+  }
+
   /**
    * @param {Manifest} manifest
    * @param {number|undefined} merkleThreshold
@@ -317,24 +338,24 @@ export default class CasService {
     }
   }
 
-  async _dispatchStore({ processedSource, manifestData, keyInfo, encryptionConfig }) {
+  async _dispatchStore({ processedSource, manifestData, keyInfo, encryptionConfig, chunker = this.chunker }) {
     const strategy = StoreStrategy.for({
       keyInfo,
       encryptionConfig,
-      chunker: this.chunker,
+      chunker,
       observability: this.observability,
-      strategies: this.#storeStrategies,
+      strategies: this.#storeStrategiesFor(chunker),
     });
     await strategy.execute({ processedSource, manifestData, keyInfo, encryptionConfig });
   }
 
-  _buildManifestData(slug, filename, compression) {
+  _buildManifestData({ slug, filename, compression, chunker = this.chunker }) {
     const data = { slug, filename, size: 0, chunks: [] };
     if (this.formatVersion) {
       data.formatVersion = this.formatVersion;
     }
-    if (this.chunker.strategy !== 'fixed') {
-      data.chunking = { strategy: this.chunker.strategy, params: this.chunker.params };
+    if (chunker.strategy !== 'fixed') {
+      data.chunking = { strategy: chunker.strategy, params: chunker.params };
     }
     if (compression) {
       data.compression = { algorithm: 'gzip' };

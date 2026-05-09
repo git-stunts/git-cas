@@ -137,10 +137,18 @@ const FULL_COLUMNS = [
 ];
 
 function formatSize(bytes) {
-  if (!Number.isFinite(bytes)) { return '-'; }
-  if (bytes < 1024) { return `${bytes}B`; }
-  if (bytes < 1024 * 1024) { return `${(bytes / 1024).toFixed(1)}K`; }
-  if (bytes < 1024 * 1024 * 1024) { return `${(bytes / (1024 * 1024)).toFixed(1)}M`; }
+  if (!Number.isFinite(bytes)) {
+    return '-';
+  }
+  if (bytes < 1024) {
+    return `${bytes}B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)}K`;
+  }
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)}M`;
+  }
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}G`;
 }
 
@@ -153,20 +161,30 @@ function manifestFor(entry, manifestCache) {
 }
 
 function cryptoLabel(manifest) {
-  if (!manifest) { return '-'; }
-  if (manifest.encryption?.encrypted || manifest.encryption?.recipients?.length || manifest.encryption) {
+  if (!manifest) {
+    return '-';
+  }
+  if (
+    manifest.encryption?.encrypted ||
+    manifest.encryption?.recipients?.length ||
+    manifest.encryption
+  ) {
     return 'encrypted';
   }
   return 'plain';
 }
 
 function formatLabel(manifest) {
-  if (!manifest) { return '-'; }
+  if (!manifest) {
+    return '-';
+  }
   return manifest.formatVersion ?? (manifest.version ? `v${manifest.version}` : 'manifest');
 }
 
 function chunkLabel(manifest) {
-  if (!manifest) { return '-'; }
+  if (!manifest) {
+    return '-';
+  }
   const chunks = manifest.chunks?.length ?? 0;
   const subManifests = manifest.subManifests?.length ?? 0;
   return subManifests > 0 ? `${chunks}+${subManifests}` : String(chunks);
@@ -199,7 +217,9 @@ function sourceEquals(left, right) {
 
 function filterEntries(entries, filterText, manifestCache) {
   const query = filterText.trim().toLowerCase();
-  if (!query) { return entries; }
+  if (!query) {
+    return entries;
+  }
   return entries.filter((entry) => {
     const manifest = manifestFor(entry, manifestCache);
     const haystack = [
@@ -208,7 +228,10 @@ function filterEntries(entries, filterText, manifestCache) {
       manifest?.integrity,
       manifest?.hash,
       ...(manifest?.chunks ?? []).flatMap((chunk) => [chunk.digest, chunk.blob]),
-    ].filter(Boolean).join(' ').toLowerCase();
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
     return haystack.includes(query);
   });
 }
@@ -227,7 +250,9 @@ function syncExplorer(model, patch = {}) {
 }
 
 function selectedEntry(model) {
-  return model.filtered[Math.min(model.table.focusRow, Math.max(0, model.filtered.length - 1))] ?? null;
+  return (
+    model.filtered[Math.min(model.table.focusRow, Math.max(0, model.filtered.length - 1))] ?? null
+  );
 }
 
 function selectedManifest(model) {
@@ -239,7 +264,11 @@ function maybeLoadSelectedManifest(model, deps) {
   if (!entry || model.manifestCache.has(entry.slug) || model.loadingSlug === entry.slug) {
     return null;
   }
-  return loadManifestCmd(deps.cas, { slug: entry.slug, treeOid: entry.treeOid, source: model.source });
+  return loadManifestCmd(deps.cas, {
+    slug: entry.slug,
+    treeOid: entry.treeOid,
+    source: model.source,
+  });
 }
 
 function createShellState(columns, rows, source) {
@@ -279,7 +308,11 @@ function createExplorerState(rows) {
     manifestCache: new Map(),
     loadingSlug: null,
     error: null,
-    table: createNavigableTableState({ columns: FULL_COLUMNS, rows: [], height: tableHeight(rows) }),
+    table: createNavigableTableState({
+      columns: FULL_COLUMNS,
+      rows: [],
+      height: tableHeight(rows),
+    }),
     palette: null,
     showHelp: false,
   };
@@ -332,7 +365,12 @@ function checkVaultAuthCmd(cas) {
     }
     try {
       const all = await cas.listVault();
-      return { type: 'vault-auth-check', encrypted: Boolean(metadata?.encryption), entryCount: all.length, metadata };
+      return {
+        type: 'vault-auth-check',
+        encrypted: Boolean(metadata?.encryption),
+        entryCount: all.length,
+        metadata,
+      };
     } catch {
       return { type: 'vault-auth-check', encrypted: false, entryCount: 0, metadata: null };
     }
@@ -341,7 +379,9 @@ function checkVaultAuthCmd(cas) {
 
 async function deriveVaultKey(cas, metadata, passphrase) {
   const kdf = metadata?.encryption?.kdf;
-  if (!kdf) { throw new Error('Missing vault encryption KDF metadata'); }
+  if (!kdf) {
+    throw new Error('Missing vault encryption KDF metadata');
+  }
   const { key } = await cas.deriveKey({
     passphrase,
     salt: Buffer.from(kdf.salt, 'base64'),
@@ -377,22 +417,33 @@ function verifyPassphraseCmd(cas, passphrase) {
         ? { type: 'vault-auth-ok', encryptionKey }
         : { type: 'vault-auth-fail', error: 'Wrong passphrase' };
     } catch (err) {
-      const authErrorCodes = ['INTEGRITY_ERROR', 'DEK_UNWRAP_FAILED', 'MISSING_KEY', 'NO_MATCHING_RECIPIENT'];
-      const msg = authErrorCodes.includes(err.code) ? 'Wrong passphrase' : (err.message ?? String(err));
+      const authErrorCodes = [
+        'INTEGRITY_ERROR',
+        'DEK_UNWRAP_FAILED',
+        'MISSING_KEY',
+        'NO_MATCHING_RECIPIENT',
+      ];
+      const msg = authErrorCodes.includes(err.code)
+        ? 'Wrong passphrase'
+        : (err.message ?? String(err));
       return { type: 'vault-auth-fail', error: msg };
     }
   };
 }
 
 function casForModel(cas, model) {
-  if (!model.vaultEncryptionKey) { return cas; }
+  if (!model.vaultEncryptionKey) {
+    return cas;
+  }
   return new Proxy(cas, {
     get(target, prop, receiver) {
       if (prop === 'listVault') {
-        return (options = {}) => target.listVault({ ...options, encryptionKey: model.vaultEncryptionKey });
+        return (options = {}) =>
+          target.listVault({ ...options, encryptionKey: model.vaultEncryptionKey });
       }
       if (prop === 'addToVault') {
-        return (options = {}) => target.addToVault({ ...options, encryptionKey: model.vaultEncryptionKey });
+        return (options = {}) =>
+          target.addToVault({ ...options, encryptionKey: model.vaultEncryptionKey });
       }
       const value = Reflect.get(target, prop, receiver);
       return typeof value === 'function' ? value.bind(target) : value;
@@ -400,20 +451,48 @@ function casForModel(cas, model) {
   });
 }
 
+const WIZARD_GZIP_COMPRESSION = Object.freeze({ algorithm: 'gzip' });
+const WIZARD_CHUNKING_CONFIG = Object.freeze({
+  fixed: Object.freeze({ strategy: 'fixed' }),
+  cdc: Object.freeze({ strategy: 'cdc' }),
+});
+const WIZARD_MISSING_PASSPHRASE_MESSAGE = 'Encryption passphrase is required';
+
+function validateStoreWizardPlan(wizard) {
+  if (!wizard.passphrase) {
+    return wizard.encryption === 'none' ? null : WIZARD_MISSING_PASSPHRASE_MESSAGE;
+  }
+  return null;
+}
+
+function storeWizardEncryptionOptions(wizard) {
+  if (wizard.encryption === 'none') {
+    return {};
+  }
+  if (wizard.encryption === 'convergent') {
+    return { passphrase: wizard.passphrase, encryption: { scheme: 'convergent' } };
+  }
+  return { passphrase: wizard.passphrase };
+}
+
+function buildStoreWizardOptions(wizard) {
+  return {
+    filePath: wizard.filePath,
+    slug: wizard.slug,
+    ...storeWizardEncryptionOptions(wizard),
+    ...(wizard.compression ? { compression: WIZARD_GZIP_COMPRESSION } : {}),
+    chunking: WIZARD_CHUNKING_CONFIG[wizard.chunking],
+  };
+}
+
 function runStoreWizardCmd(cas, wizard) {
   return async () => {
     try {
-      if (wizard.encryption !== 'none') {
-        return {
-          type: 'store-error',
-          error: 'The TUI store path currently supports plaintext store plans only. Use the CLI for passphrase or convergent encryption.',
-        };
+      const validationError = validateStoreWizardPlan(wizard);
+      if (validationError) {
+        return { type: 'store-error', error: validationError };
       }
-      const manifest = await cas.storeFile({
-        filePath: wizard.filePath,
-        slug: wizard.slug,
-        ...(wizard.compression ? { compression: { algorithm: 'gzip' } } : {}),
-      });
+      const manifest = await cas.storeFile(buildStoreWizardOptions(wizard));
       const treeOid = await cas.createTree({ manifest });
       await cas.addToVault({ slug: wizard.slug, treeOid, force: true });
       return { type: 'store-complete', slug: wizard.slug, treeOid, manifest };
@@ -425,28 +504,31 @@ function runStoreWizardCmd(cas, wizard) {
 
 function enterDashboard(model, deps) {
   const cas = casForModel(deps.cas, model);
-  return [{
-    ...model,
-    phase: 'dashboard',
-    promptEnter: false,
-    authError: null,
-    status: 'loading entries',
-  }, [
-    loadEntriesCmd(cas, model.source),
-    loadBranchCmd(cas),
-    loadRefsCmd(cas),
-  ]];
+  return [
+    {
+      ...model,
+      phase: 'dashboard',
+      promptEnter: false,
+      authError: null,
+      status: 'loading entries',
+    },
+    [loadEntriesCmd(cas, model.source), loadBranchCmd(cas), loadRefsCmd(cas)],
+  ];
 }
 
 function pushToast(model, spec) {
   return {
     ...model,
-    notifications: pushNotification(model.notifications, {
-      variant: 'TOAST',
-      placement: 'LOWER_RIGHT',
-      width: 42,
-      ...spec,
-    }, Date.now()),
+    notifications: pushNotification(
+      model.notifications,
+      {
+        variant: 'TOAST',
+        placement: 'LOWER_RIGHT',
+        width: 42,
+        ...spec,
+      },
+      Date.now()
+    ),
   };
 }
 
@@ -467,35 +549,46 @@ function handleTickMsg(msg, model, deps) {
   const now = Date.now();
   const elapsed = now - (model.lastTickTime || now);
   const fps = elapsed > 0 ? Math.round(1000 / elapsed) : 0;
-  return [{
-    ...model,
-    titleTimeMs: (model.titleTimeMs || 0) + TITLE_TICK_MS,
-    lastTickTime: now,
-    fps: model.lastTickTime ? fps : 0,
-  }, [deps.tick(TITLE_TICK_MS, { type: 'title-tick' })]];
+  return [
+    {
+      ...model,
+      titleTimeMs: (model.titleTimeMs || 0) + TITLE_TICK_MS,
+      lastTickTime: now,
+      fps: model.lastTickTime ? fps : 0,
+    },
+    [deps.tick(TITLE_TICK_MS, { type: 'title-tick' })],
+  ];
 }
 
 function handleVaultAuthCheck(msg, model) {
   if (msg.encrypted) {
-    return [{
-      ...model,
-      phase: 'password',
-      metadata: msg.metadata,
-      vaultEntryCount: msg.entryCount,
-      status: 'vault locked',
-    }, []];
+    return [
+      {
+        ...model,
+        phase: 'password',
+        metadata: msg.metadata,
+        vaultEntryCount: msg.entryCount,
+        status: 'vault locked',
+      },
+      [],
+    ];
   }
-  return [{
-    ...model,
-    metadata: msg.metadata,
-    promptEnter: true,
-    vaultEntryCount: msg.entryCount,
-    status: 'vault ready',
-  }, []];
+  return [
+    {
+      ...model,
+      metadata: msg.metadata,
+      promptEnter: true,
+      vaultEntryCount: msg.entryCount,
+      status: 'vault ready',
+    },
+    [],
+  ];
 }
 
 function handleLoadedEntries(msg, model, deps) {
-  if (!sourceEquals(msg.source, model.source)) { return [model, []]; }
+  if (!sourceEquals(msg.source, model.source)) {
+    return [model, []];
+  }
   const next = syncExplorer(model, {
     entries: msg.entries,
     metadata: msg.metadata,
@@ -503,14 +596,16 @@ function handleLoadedEntries(msg, model, deps) {
     error: null,
   });
   const manifestCmd = maybeLoadSelectedManifest(next, deps);
-  return [next, [
-    loadStatsCmd(deps.cas, msg.entries, model.source),
-    ...(manifestCmd ? [manifestCmd] : []),
-  ]];
+  return [
+    next,
+    [loadStatsCmd(deps.cas, msg.entries, model.source), ...(manifestCmd ? [manifestCmd] : [])],
+  ];
 }
 
 function handleLoadedManifest(msg, model) {
-  if (!sourceEquals(msg.source, model.source)) { return [model, []]; }
+  if (!sourceEquals(msg.source, model.source)) {
+    return [model, []];
+  }
   const manifestCache = new Map(model.manifestCache);
   manifestCache.set(msg.slug, msg.manifest);
   return [syncExplorer(model, { manifestCache, loadingSlug: null }), []];
@@ -548,17 +643,30 @@ function handleLoadedRefsMsg(msg, model) {
 }
 
 function handleLoadedStatsMsg(msg, model) {
-  if (!sourceEquals(msg.source, model.source)) { return [model, []]; }
+  if (!sourceEquals(msg.source, model.source)) {
+    return [model, []];
+  }
   return [{ ...model, statsStatus: 'ready', statsReport: msg.stats, statsError: null }, []];
 }
 
 function handleLoadedDoctorMsg(msg, model) {
-  if (!sourceEquals(msg.source, model.source)) { return [model, []]; }
+  if (!sourceEquals(msg.source, model.source)) {
+    return [model, []];
+  }
   return [{ ...model, doctorStatus: 'ready', doctorReport: msg.report, doctorError: null }, []];
 }
 
 function handleLoadedTreemapMsg(msg, model) {
-  return [{ ...model, treemapStatus: 'ready', treemapReport: msg.report, treemapFocus: 0, treemapError: null }, []];
+  return [
+    {
+      ...model,
+      treemapStatus: 'ready',
+      treemapReport: msg.report,
+      treemapFocus: 0,
+      treemapError: null,
+    },
+    [],
+  ];
 }
 
 function handleLoadedBranchMsg(msg, model) {
@@ -568,19 +676,34 @@ function handleLoadedBranchMsg(msg, model) {
 function handleStoreCompleteMsg(msg, model, deps) {
   const manifestCache = new Map(model.manifestCache);
   manifestCache.set(msg.slug, msg.manifest);
-  const next = pushToast({
-    ...syncExplorer(model, { manifestCache, storeWizard: null }),
-    operationFeed: completeLatestOperation(model.operationFeed, msg.slug, null),
-  }, { title: 'Stored asset', message: `${msg.slug} -> ${shortenSha(msg.treeOid)}`, tone: 'SUCCESS' });
-  return [next, [loadEntriesCmd(casForModel(deps.cas, model), model.source), ...notificationTick(next, deps)]];
+  const next = pushToast(
+    {
+      ...syncExplorer(model, { manifestCache, storeWizard: null }),
+      operationFeed: completeLatestOperation(model.operationFeed, msg.slug, null),
+    },
+    { title: 'Stored asset', message: `${msg.slug} -> ${shortenSha(msg.treeOid)}`, tone: 'SUCCESS' }
+  );
+  return [
+    next,
+    [loadEntriesCmd(casForModel(deps.cas, model), model.source), ...notificationTick(next, deps)],
+  ];
 }
 
 function handleStoreErrorMsg(msg, model, deps) {
-  const next = pushToast({
-    ...model,
-    storeWizard: model.storeWizard ? { ...model.storeWizard, step: 'error', error: msg.error } : null,
-    operationFeed: completeLatestOperation(model.operationFeed, model.storeWizard?.slug ?? 'store', msg.error),
-  }, { title: 'Store failed', message: msg.error, tone: 'ERROR' });
+  const next = pushToast(
+    {
+      ...model,
+      storeWizard: model.storeWizard
+        ? { ...model.storeWizard, step: 'error', error: msg.error }
+        : null,
+      operationFeed: completeLatestOperation(
+        model.operationFeed,
+        model.storeWizard?.slug ?? 'store',
+        msg.error
+      ),
+    },
+    { title: 'Store failed', message: msg.error, tone: 'ERROR' }
+  );
   return [next, notificationTick(next, deps)];
 }
 
@@ -608,15 +731,25 @@ function handleAppMsg(msg, model, deps) {
 }
 
 function handleTitleKey(msg, model, deps) {
-  if (msg.key === '`') { return [{ ...model, showPerfHud: !model.showPerfHud }, []]; }
-  if (msg.key === 'q' || msg.key === 'escape') { return [model, [quit()]]; }
-  if (msg.key === 'enter' && model.promptEnter) { return enterDashboard(model, deps); }
+  if (msg.key === '`') {
+    return [{ ...model, showPerfHud: !model.showPerfHud }, []];
+  }
+  if (msg.key === 'q' || msg.key === 'escape') {
+    return [model, [quit()]];
+  }
+  if (msg.key === 'enter' && model.promptEnter) {
+    return enterDashboard(model, deps);
+  }
   return [model, []];
 }
 
 function handlePasswordKey(msg, model, deps) {
-  if (msg.key === '`') { return [{ ...model, showPerfHud: !model.showPerfHud }, []]; }
-  if (msg.key === 'escape') { return [model, [quit()]]; }
+  if (msg.key === '`') {
+    return [{ ...model, showPerfHud: !model.showPerfHud }, []];
+  }
+  if (msg.key === 'escape') {
+    return [model, [quit()]];
+  }
   if (msg.key === 'enter') {
     return [{ ...model, authError: null }, [verifyPassphraseCmd(deps.cas, model.passphrase)]];
   }
@@ -657,7 +790,9 @@ function openPalette(model) {
 
 function selectPaletteItem(model, deps) {
   const item = cpSelectedItem(model.palette);
-  if (!item) { return [{ ...model, palette: null }, []]; }
+  if (!item) {
+    return [{ ...model, palette: null }, []];
+  }
   const selected = model.entries.find((entry) => entry.slug === item.id);
   const next = syncExplorer(model, {
     workspace: 'explorer',
@@ -689,32 +824,50 @@ const PALETTE_KEY_ACTIONS = {
 };
 
 function paletteAction(msg) {
-  if (msg.ctrl && msg.key === 'n') { return 'next'; }
-  if (msg.ctrl && msg.key === 'p') { return 'previous'; }
-  if (msg.ctrl && msg.key === 'd') { return 'pageDown'; }
-  if (msg.ctrl && msg.key === 'u') { return 'pageUp'; }
+  if (msg.ctrl && msg.key === 'n') {
+    return 'next';
+  }
+  if (msg.ctrl && msg.key === 'p') {
+    return 'previous';
+  }
+  if (msg.ctrl && msg.key === 'd') {
+    return 'pageDown';
+  }
+  if (msg.ctrl && msg.key === 'u') {
+    return 'pageUp';
+  }
   return PALETTE_KEY_ACTIONS[msg.key] ?? null;
 }
 
 function paletteQueryForKey(msg, palette) {
-  if (msg.key === 'backspace') { return palette.query.slice(0, -1); }
-  if (msg.key.length === 1 && !msg.ctrl && !msg.alt) { return `${palette.query}${msg.key}`; }
+  if (msg.key === 'backspace') {
+    return palette.query.slice(0, -1);
+  }
+  if (msg.key.length === 1 && !msg.ctrl && !msg.alt) {
+    return `${palette.query}${msg.key}`;
+  }
   return null;
 }
 
 function handlePaletteKey(msg, model, deps) {
-  if (!model.palette) { return [model, []]; }
+  if (!model.palette) {
+    return [model, []];
+  }
   const action = paletteAction(msg);
-  if (action) { return PALETTE_ACTIONS[action](msg, model, deps); }
+  if (action) {
+    return PALETTE_ACTIONS[action](msg, model, deps);
+  }
   const query = paletteQueryForKey(msg, model.palette);
-  return query === null
-    ? [model, []]
-    : [{ ...model, palette: cpFilter(model.palette, query) }, []];
+  return query === null ? [model, []] : [{ ...model, palette: cpFilter(model.palette, query) }, []];
 }
 
 function handleFilterKey(msg, model) {
-  if (msg.key === 'escape') { return [syncExplorer(model, { filtering: false }), []]; }
-  if (msg.key === 'enter') { return [syncExplorer(model, { filtering: false }), []]; }
+  if (msg.key === 'escape') {
+    return [syncExplorer(model, { filtering: false }), []];
+  }
+  if (msg.key === 'enter') {
+    return [syncExplorer(model, { filtering: false }), []];
+  }
   if (msg.key === 'backspace') {
     return [syncExplorer(model, { filterText: model.filterText.slice(0, -1) }), []];
   }
@@ -736,9 +889,13 @@ const LEDGER_NAVIGATORS = {
 };
 
 function handleExplorerNavigation(msg, model, deps) {
-  if (model.focusPane !== 'ledger') { return null; }
+  if (model.focusPane !== 'ledger') {
+    return null;
+  }
   const navigate = LEDGER_NAVIGATORS[msg.key];
-  if (!navigate) { return null; }
+  if (!navigate) {
+    return null;
+  }
   const next = { ...model, table: navigate(model.table), chunkFocus: 0 };
   const manifestCmd = maybeLoadSelectedManifest(next, deps);
   return [next, manifestCmd ? [manifestCmd] : []];
@@ -762,19 +919,35 @@ function moveChunkFocus(model, delta) {
 }
 
 function detailDeltaForKey(key, model) {
-  if (key === 'j' || key === 'down') { return 1; }
-  if (key === 'k' || key === 'up') { return -1; }
-  if (key === 'd' || key === 'pagedown') { return chunkPageStep(model); }
-  if (key === 'u' || key === 'pageup') { return -chunkPageStep(model); }
+  if (key === 'j' || key === 'down') {
+    return 1;
+  }
+  if (key === 'k' || key === 'up') {
+    return -1;
+  }
+  if (key === 'd' || key === 'pagedown') {
+    return chunkPageStep(model);
+  }
+  if (key === 'u' || key === 'pageup') {
+    return -chunkPageStep(model);
+  }
   return null;
 }
 
 function handleDetailNavigation(msg, model) {
-  if (model.focusPane !== 'detail' || model.explorerMode === 'ledger') { return null; }
-  if (selectedChunks(model).length === 0) { return null; }
+  if (model.focusPane !== 'detail' || model.explorerMode === 'ledger') {
+    return null;
+  }
+  if (selectedChunks(model).length === 0) {
+    return null;
+  }
   const delta = detailDeltaForKey(msg.key, model);
-  if (delta !== null) { return moveChunkFocus(model, delta); }
-  if (msg.key === 'g') { return [{ ...model, chunkFocus: 0 }, []]; }
+  if (delta !== null) {
+    return moveChunkFocus(model, delta);
+  }
+  if (msg.key === 'g') {
+    return [{ ...model, chunkFocus: 0 }, []];
+  }
   return null;
 }
 
@@ -782,23 +955,37 @@ function switchWorkspace(model, workspace, deps) {
   const next = { ...model, workspace, showHelp: false };
   if (workspace === 'atlas' && next.treemapStatus === 'idle') {
     const cas = casForModel(deps.cas, next);
-    return [{ ...next, treemapStatus: 'loading' }, [loadTreemapCmd(cas, {
-      source: next.source,
-      scope: next.treemapScope,
-      worktreeMode: next.treemapWorktreeMode,
-      drillPath: next.treemapPath,
-    })]];
+    return [
+      { ...next, treemapStatus: 'loading' },
+      [
+        loadTreemapCmd(cas, {
+          source: next.source,
+          scope: next.treemapScope,
+          worktreeMode: next.treemapWorktreeMode,
+          drillPath: next.treemapPath,
+        }),
+      ],
+    ];
   }
   if (workspace === 'operations' && next.statsStatus === 'idle') {
-    return [{ ...next, statsStatus: 'loading' }, [loadStatsCmd(deps.cas, next.entries, next.source)]];
+    return [
+      { ...next, statsStatus: 'loading' },
+      [loadStatsCmd(deps.cas, next.entries, next.source)],
+    ];
   }
   return [next, []];
 }
 
 function handleWorkspaceKey(msg, model, deps) {
-  if (msg.key === '1' || msg.key === 'e') { return switchWorkspace(model, 'explorer', deps); }
-  if (msg.key === '2' || msg.key === 'a') { return switchWorkspace(model, 'atlas', deps); }
-  if (msg.key === '3' || msg.key === 'o') { return switchWorkspace(model, 'operations', deps); }
+  if (msg.key === '1' || msg.key === 'e') {
+    return switchWorkspace(model, 'explorer', deps);
+  }
+  if (msg.key === '2' || msg.key === 'a') {
+    return switchWorkspace(model, 'atlas', deps);
+  }
+  if (msg.key === '3' || msg.key === 'o') {
+    return switchWorkspace(model, 'operations', deps);
+  }
   return null;
 }
 
@@ -830,9 +1017,15 @@ function toggleInspectorMode(model, deps) {
 }
 
 function handleExplorerModeKey(msg, model, deps) {
-  if (msg.key === 'enter') { return toggleExplorerDetail(model, deps); }
-  if (msg.key === 'm') { return cycleMerkleMode(model); }
-  if (msg.key === 'i') { return toggleInspectorMode(model, deps); }
+  if (msg.key === 'enter') {
+    return toggleExplorerDetail(model, deps);
+  }
+  if (msg.key === 'm') {
+    return cycleMerkleMode(model);
+  }
+  if (msg.key === 'i') {
+    return toggleInspectorMode(model, deps);
+  }
   return null;
 }
 
@@ -841,26 +1034,38 @@ function handleExplorerKey(msg, model, deps) {
     return [{ ...model, focusPane: model.focusPane === 'ledger' ? 'detail' : 'ledger' }, []];
   }
   const detailNav = handleDetailNavigation(msg, model);
-  if (detailNav) { return detailNav; }
+  if (detailNav) {
+    return detailNav;
+  }
   const nav = handleExplorerNavigation(msg, model, deps);
-  if (nav) { return nav; }
+  if (nav) {
+    return nav;
+  }
   return handleExplorerModeKey(msg, model, deps);
 }
 
 function reloadTreemap(model, deps, patch = {}) {
   const next = { ...model, ...patch, treemapStatus: 'loading', treemapError: null };
-  return [next, [loadTreemapCmd(casForModel(deps.cas, next), {
-    source: next.source,
-    scope: next.treemapScope,
-    worktreeMode: next.treemapWorktreeMode,
-    drillPath: next.treemapPath,
-  })]];
+  return [
+    next,
+    [
+      loadTreemapCmd(casForModel(deps.cas, next), {
+        source: next.source,
+        scope: next.treemapScope,
+        worktreeMode: next.treemapWorktreeMode,
+        drillPath: next.treemapPath,
+      }),
+    ],
+  ];
 }
 
 function focusAtlasTile(model, delta) {
   const tiles = model.treemapReport?.tiles ?? [];
   const maxFocus = Math.max(0, tiles.length - 1);
-  return [{ ...model, treemapFocus: Math.max(0, Math.min(model.treemapFocus + delta, maxFocus)) }, []];
+  return [
+    { ...model, treemapFocus: Math.max(0, Math.min(model.treemapFocus + delta, maxFocus)) },
+    [],
+  ];
 }
 
 function drillIntoAtlasTile(model, deps) {
@@ -893,8 +1098,16 @@ const ATLAS_KEY_ACTIONS = {
 const ATLAS_ACTIONS = {
   next: (_msg, model) => focusAtlasTile(model, 1),
   previous: (_msg, model) => focusAtlasTile(model, -1),
-  scope: (_msg, model, deps) => reloadTreemap(model, deps, { treemapScope: model.treemapScope === 'repository' ? 'source' : 'repository', treemapPath: [] }),
-  worktreeMode: (_msg, model, deps) => reloadTreemap(model, deps, { treemapWorktreeMode: model.treemapWorktreeMode === 'tracked' ? 'ignored' : 'tracked', treemapPath: [] }),
+  scope: (_msg, model, deps) =>
+    reloadTreemap(model, deps, {
+      treemapScope: model.treemapScope === 'repository' ? 'source' : 'repository',
+      treemapPath: [],
+    }),
+  worktreeMode: (_msg, model, deps) =>
+    reloadTreemap(model, deps, {
+      treemapWorktreeMode: model.treemapWorktreeMode === 'tracked' ? 'ignored' : 'tracked',
+      treemapPath: [],
+    }),
   reload: (_msg, model, deps) => reloadTreemap(model, deps),
   drillIn: (_msg, model, deps) => drillIntoAtlasTile(model, deps),
   drillOut: (_msg, model, deps) => drillOutAtlasTile(model, deps),
@@ -908,17 +1121,20 @@ function handleAtlasKey(msg, model, deps) {
 function startOperation(operationFeed, slug) {
   return {
     ...operationFeed,
-    entries: [{
-      id: `store-${slug}-${Date.now()}`,
-      type: 'store',
-      slug,
-      status: 'running',
-      startTime: Date.now(),
-      endTime: null,
-      chunksTotal: 0,
-      chunksProcessed: 0,
-      error: null,
-    }, ...operationFeed.entries].slice(0, operationFeed.maxEntries),
+    entries: [
+      {
+        id: `store-${slug}-${Date.now()}`,
+        type: 'store',
+        slug,
+        status: 'running',
+        startTime: Date.now(),
+        endTime: null,
+        chunksTotal: 0,
+        chunksProcessed: 0,
+        error: null,
+      },
+      ...operationFeed.entries,
+    ].slice(0, operationFeed.maxEntries),
   };
 }
 
@@ -926,7 +1142,9 @@ function completeLatestOperation(operationFeed, slug, error) {
   return {
     ...operationFeed,
     entries: operationFeed.entries.map((entry, index) => {
-      if (index !== 0 || entry.slug !== slug) { return entry; }
+      if (index !== 0 || entry.slug !== slug) {
+        return entry;
+      }
       return {
         ...entry,
         status: error ? 'error' : 'done',
@@ -938,42 +1156,59 @@ function completeLatestOperation(operationFeed, slug, error) {
 }
 
 function handleWizardKey(msg, model, deps) {
-  if (!model.storeWizard) { return null; }
+  if (!model.storeWizard) {
+    return null;
+  }
   if (msg.key === 'escape') {
     return [{ ...model, storeWizard: null }, []];
   }
   const nextWizard = wizardHandleKey(model.storeWizard, msg.key);
   if (nextWizard.step === 'storing') {
-    return [{
-      ...model,
-      storeWizard: nextWizard,
-      operationFeed: startOperation(model.operationFeed, nextWizard.slug),
-    }, [runStoreWizardCmd(casForModel(deps.cas, model), nextWizard)]];
+    return [
+      {
+        ...model,
+        storeWizard: nextWizard,
+        operationFeed: startOperation(model.operationFeed, nextWizard.slug),
+      },
+      [runStoreWizardCmd(casForModel(deps.cas, model), nextWizard)],
+    ];
   }
   return [{ ...model, storeWizard: nextWizard }, []];
 }
 
 function handleOperationsKey(msg, model, deps) {
-  if (msg.key === 'n') { return [{ ...model, storeWizard: createWizardState() }, []]; }
+  if (msg.key === 'n') {
+    return [{ ...model, storeWizard: createWizardState() }, []];
+  }
   if (msg.key === 's') {
-    return [{ ...model, statsStatus: 'loading', statsError: null }, [loadStatsCmd(deps.cas, model.entries, model.source)]];
+    return [
+      { ...model, statsStatus: 'loading', statsError: null },
+      [loadStatsCmd(deps.cas, model.entries, model.source)],
+    ];
   }
   if (msg.key === 'x') {
-    return [{
-      ...model,
-      doctorStatus: 'loading',
-      doctorError: null,
-    }, [loadDoctorCmd(deps.cas, {
-      source: model.source,
-      entries: model.entries,
-      encryptionKey: model.vaultEncryptionKey,
-    })]];
+    return [
+      {
+        ...model,
+        doctorStatus: 'loading',
+        doctorError: null,
+      },
+      [
+        loadDoctorCmd(deps.cas, {
+          source: model.source,
+          entries: model.entries,
+          encryptionKey: model.vaultEncryptionKey,
+        }),
+      ],
+    ];
   }
   return null;
 }
 
 function handleQuitConfirmKey(msg, model) {
-  if (msg.key === 'y' || msg.key === 'enter') { return [model, [quit()]]; }
+  if (msg.key === 'y' || msg.key === 'enter') {
+    return [model, [quit()]];
+  }
   if (msg.key === 'n' || msg.key === 'escape' || msg.key === 'q') {
     return [{ ...model, quitConfirm: false }, []];
   }
@@ -993,12 +1228,18 @@ function clearDashboardOverlays(model) {
 }
 
 function handleOverlayShortcut(msg, model) {
-  if (msg.key === 'escape') { return [clearDashboardOverlays(model), []]; }
-  if (msg.key === 'f2') { return [{ ...model, settingsOpen: !model.settingsOpen, showHelp: false, palette: null }, []]; }
+  if (msg.key === 'escape') {
+    return [clearDashboardOverlays(model), []];
+  }
+  if (msg.key === 'f2') {
+    return [{ ...model, settingsOpen: !model.settingsOpen, showHelp: false, palette: null }, []];
+  }
   if (msg.key === '?' || (msg.shift && msg.key === '/')) {
     return [{ ...model, showHelp: !model.showHelp, palette: null }, []];
   }
-  if (msg.key === 'q') { return [{ ...model, quitConfirm: true }, []]; }
+  if (msg.key === 'q') {
+    return [{ ...model, quitConfirm: true }, []];
+  }
   return null;
 }
 
@@ -1006,15 +1247,21 @@ function handleSearchShortcut(msg, model) {
   if (msg.key === '/' && !msg.ctrl) {
     return [syncExplorer(model, { workspace: 'explorer', filtering: true, palette: null }), []];
   }
-  if ((msg.ctrl && msg.key === 'p') || msg.key === ':') { return [openPalette(model), []]; }
+  if ((msg.ctrl && msg.key === 'p') || msg.key === ':') {
+    return [openPalette(model), []];
+  }
   return null;
 }
 
 function handleGlobalDashboardKey(msg, model, deps) {
   const overlay = handleOverlayShortcut(msg, model);
-  if (overlay) { return overlay; }
+  if (overlay) {
+    return overlay;
+  }
   const search = handleSearchShortcut(msg, model);
-  if (search) { return search; }
+  if (search) {
+    return search;
+  }
   return handleWorkspaceKey(msg, model, deps);
 }
 
@@ -1030,19 +1277,31 @@ function handleWorkspaceSpecificKey(msg, model, deps) {
 }
 
 function handleDashboardKey(msg, model, deps) {
-  if (model.quitConfirm) { return handleQuitConfirmKey(msg, model); }
-  if (model.palette) { return handlePaletteKey(msg, model, deps); }
+  if (model.quitConfirm) {
+    return handleQuitConfirmKey(msg, model);
+  }
+  if (model.palette) {
+    return handlePaletteKey(msg, model, deps);
+  }
   const wizard = handleWizardKey(msg, model, deps);
-  if (wizard) { return wizard; }
-  if (model.filtering) { return handleFilterKey(msg, model); }
+  if (wizard) {
+    return wizard;
+  }
+  if (model.filtering) {
+    return handleFilterKey(msg, model);
+  }
   const global = handleGlobalDashboardKey(msg, model, deps);
   return global ?? handleWorkspaceSpecificKey(msg, model, deps) ?? [model, []];
 }
 
 function handleUpdate(msg, model, deps) {
   if (msg.type === 'key') {
-    if (model.phase === 'title') { return handleTitleKey(msg, model, deps); }
-    if (model.phase === 'password') { return handlePasswordKey(msg, model, deps); }
+    if (model.phase === 'title') {
+      return handleTitleKey(msg, model, deps);
+    }
+    if (model.phase === 'password') {
+      return handlePasswordKey(msg, model, deps);
+    }
     return handleDashboardKey(msg, model, deps);
   }
   if (msg.type === 'resize') {
@@ -1053,10 +1312,10 @@ function handleUpdate(msg, model, deps) {
 
 export function createDashboardApp(deps) {
   return {
-    init: () => [createInitModel(deps.ctx, deps.source), [
-      checkVaultAuthCmd(deps.cas),
-      deps.tick(TITLE_TICK_MS, { type: 'title-tick' }),
-    ]],
+    init: () => [
+      createInitModel(deps.ctx, deps.source),
+      [checkVaultAuthCmd(deps.cas), deps.tick(TITLE_TICK_MS, { type: 'title-tick' })],
+    ],
     update: (msg, model) => handleUpdate(msg, model, deps),
     view: (model) => renderDashboard(model, deps),
   };

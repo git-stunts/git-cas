@@ -172,7 +172,19 @@ const vaultService = await cas.getVaultService();
 #### store
 
 ```javascript
-await cas.store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients, merkleThreshold });
+await cas.store({
+  source,
+  slug,
+  filename,
+  encryptionKey,
+  passphrase,
+  encryption,
+  kdfOptions,
+  compression,
+  chunking,
+  recipients,
+  merkleThreshold,
+});
 ```
 
 Stores content from an async iterable source.
@@ -190,6 +202,7 @@ Stores content from an async iterable source.
 - `encryption.convergent` (optional): `boolean` - Explicit convergent opt-in/opt-out when `encryption.scheme` is omitted
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase` (`{ algorithm, iterations, cost, ... }`). New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression before encryption/chunking
+- `chunking` (optional): `{ strategy: 'fixed' | 'cdc', chunkSize?, targetChunkSize?, minChunkSize?, maxChunkSize?, normalized? }` - Per-operation chunking override. It affects only this store call; the facade's default chunker is unchanged
 - `recipients` (optional): `Array<{ label: string, key: Uint8Array }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
 - `merkleThreshold` (optional): `number` - Per-operation chunk count threshold used when this manifest is later published with `createTree()`
 
@@ -232,6 +245,7 @@ await cas.storeFile({
   encryption,
   kdfOptions,
   compression,
+  chunking,
   recipients,
   merkleThreshold,
 });
@@ -252,6 +266,7 @@ Convenience method that opens a file and stores it.
 - `encryption.convergent` (optional): `boolean` - Explicit convergent opt-in/opt-out when `encryption.scheme` is omitted
 - `kdfOptions` (optional): `Object` - KDF options when using `passphrase`. New passphrase stores default to PBKDF2 `600000` iterations or scrypt `N=131072`, and out-of-policy values fail with `KDF_POLICY_VIOLATION`
 - `compression` (optional): `{ algorithm: 'gzip' }` - Enable compression
+- `chunking` (optional): `{ strategy: 'fixed' | 'cdc', chunkSize?, targetChunkSize?, minChunkSize?, maxChunkSize?, normalized? }` - Per-operation chunking override. It affects only this file store; the facade's default chunker is unchanged
 - `recipients` (optional): `Array<{ label: string, key: Uint8Array }>` - Envelope recipients for multi-recipient encryption (mutually exclusive with `encryptionKey`/`passphrase`)
 - `merkleThreshold` (optional): `number` - Per-operation chunk count threshold used when this manifest is later published with `createTree()`
 
@@ -266,6 +281,7 @@ const manifest = await cas.storeFile({
   filePath: '/path/to/file.txt',
   slug: 'my-asset',
   encryptionKey: key,
+  chunking: { strategy: 'cdc' },
 });
 ```
 
@@ -1231,14 +1247,14 @@ git cas rotate --slug demo/hello \
 
 #### `git cas vault rotate` flags
 
-| Flag                          | Description                                             |
-| ----------------------------- | ------------------------------------------------------- |
-| `--old-passphrase <pass>`     | Current inline passphrase (warns; prefer file)          |
-| `--new-passphrase <pass>`     | New inline passphrase (warns; prefer file)              |
-| `--old-passphrase-file <path>` | Read current passphrase from file (`-` for stdin)      |
-| `--new-passphrase-file <path>` | Read new passphrase from file (`-` for stdin)          |
-| `--algorithm <alg>`           | KDF algorithm for new passphrase (`pbkdf2` or `scrypt`) |
-| `--cwd <dir>`                 | Git working directory (default: `.`)                    |
+| Flag                           | Description                                             |
+| ------------------------------ | ------------------------------------------------------- |
+| `--old-passphrase <pass>`      | Current inline passphrase (warns; prefer file)          |
+| `--new-passphrase <pass>`      | New inline passphrase (warns; prefer file)              |
+| `--old-passphrase-file <path>` | Read current passphrase from file (`-` for stdin)       |
+| `--new-passphrase-file <path>` | Read new passphrase from file (`-` for stdin)           |
+| `--algorithm <alg>`            | KDF algorithm for new passphrase (`pbkdf2` or `scrypt`) |
+| `--cwd <dir>`                  | Git working directory (default: `.`)                    |
 
 ### Vault History
 
@@ -1264,7 +1280,21 @@ Core domain service implementing CAS operations. Usually accessed via ContentAdd
 ### Constructor
 
 ```javascript
-new CasService({ persistence, codec, crypto, observability, chunkSize, merkleThreshold, concurrency, chunker, compressionAdapter, maxRestoreBufferSize, maxBlobSize, formatVersion, legacyMode });
+new CasService({
+  persistence,
+  codec,
+  crypto,
+  observability,
+  chunkSize,
+  merkleThreshold,
+  concurrency,
+  chunker,
+  compressionAdapter,
+  maxRestoreBufferSize,
+  maxBlobSize,
+  formatVersion,
+  legacyMode,
+});
 ```
 
 **Parameters:**
@@ -1319,7 +1349,7 @@ const service = new CasService({
 
 All methods from ContentAddressableStore delegate to CasService. See ContentAddressableStore documentation above for:
 
-- `store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, recipients })`
+- `store({ source, slug, filename, encryptionKey, passphrase, encryption, kdfOptions, compression, chunker, recipients })`
 - `restore({ manifest, encryptionKey, passphrase })`
 - `restoreStream({ manifest, encryptionKey, passphrase })`
 - `createTree({ manifest })`
@@ -2107,39 +2137,39 @@ new CasError({ message, code, meta, documentationUrl });
 
 ### Error Codes
 
-| Code                                  | Description                                                                | Thrown By                                                                     |
-| ------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `INVALID_KEY_TYPE`                    | Encryption key must be a Uint8Array                              | `encrypt()`, `decrypt()`, `store()`, `restore()`                              |
-| `INVALID_KEY_LENGTH`                  | Encryption key must be exactly 32 bytes                                    | `encrypt()`, `decrypt()`, `store()`, `restore()`                              |
-| `MISSING_KEY`                         | Encryption key required to restore encrypted content but none was provided | `restore()`                                                                   |
-| `INTEGRITY_ERROR`                     | Chunk digest verification failed or decryption authentication failed       | `restore()`, `verifyIntegrity()`, `decrypt()`                                 |
-| `PERSISTENCE_CAPABILITY_REQUIRED`     | Buffered restore mode requires `readBlobStream()` so `maxRestoreBufferSize` can be enforced with memory-safe reads | `restore()`, `restoreStream()`                                              |
-| `DECRYPTION_BUFFER_EXCEEDED`          | Web Crypto whole-object decrypt exceeded the configured buffer limit       | `createDecryptionStream()` via Web Crypto restore paths                       |
-| `KDF_POLICY_VIOLATION`               | KDF parameters fell outside the accepted policy window                     | `store()`, `restore()`, `initVault()`, `rotateVaultPassphrase()`, `readState()` |
-| `STREAM_ERROR`                        | Stream error occurred during store operation                               | `store()`                                                                     |
-| `STORE_ERROR`                         | Chunk write failed during store after dispatch                             | `store()`                                                                     |
-| `MANIFEST_NOT_FOUND`                  | No manifest entry found in the Git tree                                    | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`               |
-| `GIT_ERROR`                           | Underlying Git plumbing command failed                                     | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`               |
-| `GIT_REF_NOT_FOUND`                   | Git ref lookup found no ref; vault reads normalize this to empty state     | `GitRefAdapter`, `VaultPersistence`                                           |
-| `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value            | `store()`, `restore()`                                                        |
-| `INVALID_SLUG`                        | Slug fails validation (empty, control chars, `..` segments, etc.)          | `addToVault()`                                                                |
-| `VAULT_ENTRY_NOT_FOUND`               | Slug does not exist in vault                                               | `removeFromVault()`, `resolveVaultEntry()`                                    |
-| `VAULT_ENTRY_EXISTS`                  | Slug already exists (use `force` to overwrite)                             | `addToVault()`                                                                |
-| `VAULT_CONFLICT`                      | Concurrent vault update detected (CAS failure after retries)               | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
-| `VAULT_REF_MISSING`                   | Vault ref is absent during diagnostics                                     | `git cas doctor`                                                              |
-| `VAULT_REF_UPDATE_FAILED`             | Vault ref update failed for a non-CAS reason                               | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()` |
-| `VAULT_HEAD_INVALID`                  | Vault ref exists but cannot be resolved to a readable commit tree          | `readState()`, `getVaultMetadata()`, `git cas doctor`                         |
-| `VAULT_METADATA_INVALID`              | `.vault.json` malformed, unknown version, unsupported cipher, or missing required fields | `readState()`, `rotateVaultPassphrase()`, `git cas doctor`                  |
-| `VAULT_PRIVACY_INDEX_INVALID`         | Privacy index metadata, payload, or raw HMAC tree coverage is invalid      | `readState()`, `listVault()`, `resolveVaultEntry()`, `git cas doctor`         |
-| `VAULT_PRIVACY_INDEX_MISSING`         | Privacy mode is enabled but `.privacy-index` is missing                    | `readState()`, `listVault()`, `git cas doctor`                                |
-| `VAULT_PRIVACY_KEY_REQUIRED`          | Privacy mode requires a vault encryption key for state reads               | `readState()`, `listVault()`, `resolveVaultEntry()`                           |
-| `VAULT_ENCRYPTION_ALREADY_CONFIGURED` | Cannot reconfigure encryption without key rotation                         | `initVault()`                                                                 |
-| `NO_MATCHING_RECIPIENT`               | No recipient entry matches the provided KEK                                | `restore()`, `rotateKey()`                                                    |
-| `DEK_UNWRAP_FAILED`                   | Failed to unwrap DEK with the provided KEK                                 | `addRecipient()`, `rotateKey()`                                               |
-| `RECIPIENT_NOT_FOUND`                 | Recipient label not found in manifest                                      | `removeRecipient()`, `rotateKey()`                                            |
-| `RECIPIENT_ALREADY_EXISTS`            | Recipient label already exists                                             | `addRecipient()`                                                              |
-| `CANNOT_REMOVE_LAST_RECIPIENT`        | Cannot remove the last recipient                                           | `removeRecipient()`                                                           |
-| `ROTATION_NOT_SUPPORTED`              | Key rotation requires envelope encryption (recipients)                     | `rotateKey()`                                                                 |
+| Code                                  | Description                                                                                                        | Thrown By                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `INVALID_KEY_TYPE`                    | Encryption key must be a Uint8Array                                                                                | `encrypt()`, `decrypt()`, `store()`, `restore()`                                |
+| `INVALID_KEY_LENGTH`                  | Encryption key must be exactly 32 bytes                                                                            | `encrypt()`, `decrypt()`, `store()`, `restore()`                                |
+| `MISSING_KEY`                         | Encryption key required to restore encrypted content but none was provided                                         | `restore()`                                                                     |
+| `INTEGRITY_ERROR`                     | Chunk digest verification failed or decryption authentication failed                                               | `restore()`, `verifyIntegrity()`, `decrypt()`                                   |
+| `PERSISTENCE_CAPABILITY_REQUIRED`     | Buffered restore mode requires `readBlobStream()` so `maxRestoreBufferSize` can be enforced with memory-safe reads | `restore()`, `restoreStream()`                                                  |
+| `DECRYPTION_BUFFER_EXCEEDED`          | Web Crypto whole-object decrypt exceeded the configured buffer limit                                               | `createDecryptionStream()` via Web Crypto restore paths                         |
+| `KDF_POLICY_VIOLATION`                | KDF parameters fell outside the accepted policy window                                                             | `store()`, `restore()`, `initVault()`, `rotateVaultPassphrase()`, `readState()` |
+| `STREAM_ERROR`                        | Stream error occurred during store operation                                                                       | `store()`                                                                       |
+| `STORE_ERROR`                         | Chunk write failed during store after dispatch                                                                     | `store()`                                                                       |
+| `MANIFEST_NOT_FOUND`                  | No manifest entry found in the Git tree                                                                            | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`                 |
+| `GIT_ERROR`                           | Underlying Git plumbing command failed                                                                             | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`                 |
+| `GIT_REF_NOT_FOUND`                   | Git ref lookup found no ref; vault reads normalize this to empty state                                             | `GitRefAdapter`, `VaultPersistence`                                             |
+| `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value                                                    | `store()`, `restore()`                                                          |
+| `INVALID_SLUG`                        | Slug fails validation (empty, control chars, `..` segments, etc.)                                                  | `addToVault()`                                                                  |
+| `VAULT_ENTRY_NOT_FOUND`               | Slug does not exist in vault                                                                                       | `removeFromVault()`, `resolveVaultEntry()`                                      |
+| `VAULT_ENTRY_EXISTS`                  | Slug already exists (use `force` to overwrite)                                                                     | `addToVault()`                                                                  |
+| `VAULT_CONFLICT`                      | Concurrent vault update detected (CAS failure after retries)                                                       | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()`   |
+| `VAULT_REF_MISSING`                   | Vault ref is absent during diagnostics                                                                             | `git cas doctor`                                                                |
+| `VAULT_REF_UPDATE_FAILED`             | Vault ref update failed for a non-CAS reason                                                                       | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()`   |
+| `VAULT_HEAD_INVALID`                  | Vault ref exists but cannot be resolved to a readable commit tree                                                  | `readState()`, `getVaultMetadata()`, `git cas doctor`                           |
+| `VAULT_METADATA_INVALID`              | `.vault.json` malformed, unknown version, unsupported cipher, or missing required fields                           | `readState()`, `rotateVaultPassphrase()`, `git cas doctor`                      |
+| `VAULT_PRIVACY_INDEX_INVALID`         | Privacy index metadata, payload, or raw HMAC tree coverage is invalid                                              | `readState()`, `listVault()`, `resolveVaultEntry()`, `git cas doctor`           |
+| `VAULT_PRIVACY_INDEX_MISSING`         | Privacy mode is enabled but `.privacy-index` is missing                                                            | `readState()`, `listVault()`, `git cas doctor`                                  |
+| `VAULT_PRIVACY_KEY_REQUIRED`          | Privacy mode requires a vault encryption key for state reads                                                       | `readState()`, `listVault()`, `resolveVaultEntry()`                             |
+| `VAULT_ENCRYPTION_ALREADY_CONFIGURED` | Cannot reconfigure encryption without key rotation                                                                 | `initVault()`                                                                   |
+| `NO_MATCHING_RECIPIENT`               | No recipient entry matches the provided KEK                                                                        | `restore()`, `rotateKey()`                                                      |
+| `DEK_UNWRAP_FAILED`                   | Failed to unwrap DEK with the provided KEK                                                                         | `addRecipient()`, `rotateKey()`                                                 |
+| `RECIPIENT_NOT_FOUND`                 | Recipient label not found in manifest                                                                              | `removeRecipient()`, `rotateKey()`                                              |
+| `RECIPIENT_ALREADY_EXISTS`            | Recipient label already exists                                                                                     | `addRecipient()`                                                                |
+| `CANNOT_REMOVE_LAST_RECIPIENT`        | Cannot remove the last recipient                                                                                   | `removeRecipient()`                                                             |
+| `ROTATION_NOT_SUPPORTED`              | Key rotation requires envelope encryption (recipients)                                                             | `rotateKey()`                                                                   |
 
 ### Error Handling
 

@@ -37,12 +37,16 @@ function makeContentStore() {
     writeTree: vi.fn().mockResolvedValue('mock-tree-oid'),
     readBlob: vi.fn().mockImplementation(async (oid) => {
       const buf = blobStore.get(oid);
-      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
+      if (!buf) {
+        throw new Error(`Blob not found: ${oid}`);
+      }
       return buf;
     }),
     readBlobStream: vi.fn().mockImplementation(async (oid) => {
       const buf = blobStore.get(oid);
-      if (!buf) { throw new Error(`Blob not found: ${oid}`); }
+      if (!buf) {
+        throw new Error(`Blob not found: ${oid}`);
+      }
       return streamOneBuffer(buf);
     }),
   };
@@ -67,13 +71,16 @@ function setup(opts = {}) {
 }
 
 async function storeBuffer(svc, buf, opts = {}) {
-  async function* source() { yield buf; }
+  async function* source() {
+    yield buf;
+  }
   return svc.store({
     source: source(),
     slug: opts.slug || 'test',
     filename: opts.filename || 'test.bin',
     encryptionKey: opts.encryptionKey,
     compression: opts.compression,
+    chunker: opts.chunker,
   });
 }
 
@@ -215,6 +222,26 @@ describe('CasService – CdcChunker manifest metadata', () => {
     const json = manifest.toJSON();
     expect(json.chunking).toBeDefined();
     expect(json.chunking.strategy).toBe('cdc');
+  });
+});
+
+describe('CasService – per-operation chunker override', () => {
+  it('uses a CDC chunker for one store without changing the service default chunker', async () => {
+    const { service } = setup({ chunker: new FixedChunker({ chunkSize: 1024 }) });
+    const manifest = await storeBuffer(service, randomBytes(8192), {
+      chunker: new CdcChunker(cdcOpts),
+    });
+
+    expect(service.chunker.strategy).toBe('fixed');
+    expect(manifest.chunking).toEqual({
+      strategy: 'cdc',
+      params: {
+        target: cdcOpts.targetChunkSize,
+        min: cdcOpts.minChunkSize,
+        max: cdcOpts.maxChunkSize,
+        normalized: true,
+      },
+    });
   });
 });
 

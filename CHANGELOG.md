@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.1] — 2026-05-09
+
+### Added
+
+- **Per-operation chunking overrides** — `ContentAddressableStore.store()` and
+  `storeFile()` now accept a `chunking` option for a single operation, allowing
+  CDC or fixed chunking without mutating the facade's default chunker.
+- **Active release-doc drift guard** — active release documents now have a unit
+  guard against stale pre-v6.0.0 claims resurfacing after publication.
+
 ### Changed
 
 - **Release workflow future-runtime hardening** — The GitHub Release job now
@@ -17,6 +27,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   navigation. Dense restore streaming detail moved to `GUIDE.md`, while the
   security hardening table in `ADVANCED_GUIDE.md` now carries the detailed
   limits previously summarized in the README.
+- **Post-v6 planning truth** — `STATUS.md`, `ROADMAP.md`, `BEARING.md`, and the
+  METHOD backlog now describe `v6.0.x` maintenance rather than the completed
+  `v6.0.0` pre-tag state.
+- **6.0.1 release verification** — `npm run release:verify -- --skip-jsr`
+  passed 12/12 steps with 5,383 observed tests. JSR remains intentionally
+  skipped for this patch line.
+
+### Fixed
+
+- **TUI Store Wizard execution** — the Operations workspace Store Wizard now
+  threads passphrase encryption, forced convergent encryption, gzip
+  compression, and fixed/CDC chunking into the actual `storeFile()` call before
+  publishing the manifest tree to the vault.
+- **Store Wizard state flow** — passphrase and convergent selections collect a
+  passphrase before the compression step, and the wizard step count remains
+  contiguous when encryption is skipped.
 
 ## [6.0.0] — 2026-05-09
 

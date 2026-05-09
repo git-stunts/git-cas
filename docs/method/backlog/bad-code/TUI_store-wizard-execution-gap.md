@@ -1,8 +1,10 @@
 # TUI — Store Wizard Execution Gap
 
+**Status:** Resolved in the `v6.0.1` patch.
+
 ## What
 
-The V6 cockpit renders and opens the Store Wizard from the Operations workspace, but the current execution path only performs the plaintext `storeFile` -> `createTree` -> `addToVault` flow.
+The V6 cockpit rendered and opened the Store Wizard from the Operations workspace, but the execution path only performed the plaintext `storeFile` -> `createTree` -> `addToVault` flow.
 
 ## Why It Bothers Us
 
@@ -10,6 +12,20 @@ The wizard UI exposes encryption and chunking choices. Leaving those controls wi
 
 ## Follow-Up
 
-- Thread passphrase and convergent encryption plans through `runStoreWizardCmd`.
-- Either expose per-store chunking strategy in the CAS facade or derive the wizard choices from the active CAS configuration so the UI cannot promise unsupported strategies.
-- Add a unit test that confirms the wizard execution payload matches the selected encryption, compression, and chunking plan.
+- [x] Thread passphrase and convergent encryption plans through `runStoreWizardCmd`.
+- [x] Expose per-operation chunking strategy through the CAS facade so the wizard can execute fixed or CDC choices without mutating the facade default.
+- [x] Add unit tests that confirm the wizard execution payload matches the selected encryption, compression, and chunking plan.
+- [x] Add state-machine coverage so passphrase and convergent selections collect a passphrase before reaching compression.
+
+## Resolution
+
+The Store Wizard now builds the same `storeFile()` options it presents to the
+operator. Passphrase mode supplies `passphrase`, convergent mode supplies both
+`passphrase` and `encryption: { scheme: 'convergent' }`, gzip supplies
+`compression: { algorithm: 'gzip' }`, and the chunking choice is passed as a
+per-operation facade override.
+
+The facade now maps per-operation `chunking` to a temporary `ChunkingPort`,
+including default fixed chunking when the long-lived facade default is CDC.
+`CasService` uses that operation chunker only for the current store, leaving the
+service default unchanged.

@@ -26,8 +26,23 @@ import { PACKAGE_VERSION } from './src/package-version.js';
 /** @typedef {import('./src/domain/value-objects/Manifest.js').default} Manifest */
 
 const PKG_VERSION = PACKAGE_VERSION;
-const RESTORE_FILE_DOCS_URL =
-  `https://github.com/git-stunts/git-cas/blob/v${PKG_VERSION}/docs/API.md#restorefile`;
+const FIXED_CHUNKING_STRATEGY = 'fixed';
+const RESTORE_FILE_DOCS_URL = `https://github.com/git-stunts/git-cas/blob/v${PKG_VERSION}/docs/API.md#restorefile`;
+
+function withOperationChunker(options) {
+  const { chunking, ...rest } = options;
+  if (!chunking) {
+    return rest;
+  }
+  const chunker = resolveChunker({ chunking });
+  if (chunker) {
+    return { ...rest, chunker };
+  }
+  if (chunking.strategy === FIXED_CHUNKING_STRATEGY && chunking.chunkSize === undefined) {
+    return { ...rest, chunker: new FixedChunker() };
+  }
+  return rest;
+}
 
 // ---------------------------------------------------------------------------
 // Re-exports — modules used in the class body
@@ -78,14 +93,42 @@ export default class ContentAddressableStore {
    * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy for Git I/O.
    * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
-   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
+   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number, normalized?: boolean }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance (advanced).
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes for encrypted/compressed restores (default 512 MiB).
    * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes (default 10 MiB).
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter (default NodeCompressionAdapter).
    */
-  constructor({ plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, maxBlobSize, compressionAdapter }) {
-    this.#config = { plumbing, chunkSize, codec, policy, crypto, observability, merkleThreshold, concurrency, chunking, chunker, maxRestoreBufferSize, maxBlobSize, compressionAdapter };
+  constructor({
+    plumbing,
+    chunkSize,
+    codec,
+    policy,
+    crypto,
+    observability,
+    merkleThreshold,
+    concurrency,
+    chunking,
+    chunker,
+    maxRestoreBufferSize,
+    maxBlobSize,
+    compressionAdapter,
+  }) {
+    this.#config = {
+      plumbing,
+      chunkSize,
+      codec,
+      policy,
+      crypto,
+      observability,
+      merkleThreshold,
+      concurrency,
+      chunking,
+      chunker,
+      maxRestoreBufferSize,
+      maxBlobSize,
+      compressionAdapter,
+    };
     this.service = null;
     this.#servicePromise = null;
   }
@@ -119,10 +162,11 @@ export default class ContentAddressableStore {
       plumbing: cfg.plumbing,
       policy: cfg.policy,
     });
-    const crypto = cfg.crypto || await createCryptoAdapter();
+    const crypto = cfg.crypto || (await createCryptoAdapter());
     const chunkSize = cfg.chunkSize || 256 * 1024;
-    const chunker = resolveChunker({ chunker: cfg.chunker, chunking: cfg.chunking })
-      || new FixedChunker({ chunkSize });
+    const chunker =
+      resolveChunker({ chunker: cfg.chunker, chunking: cfg.chunking }) ||
+      new FixedChunker({ chunkSize });
     this.service = new CasService({
       persistence,
       chunkSize,
@@ -142,7 +186,12 @@ export default class ContentAddressableStore {
       plumbing: cfg.plumbing,
       policy: cfg.policy,
     });
-    this.#vault = new VaultService({ persistence, ref, crypto, observability: this.service.observability });
+    this.#vault = new VaultService({
+      persistence,
+      ref,
+      crypto,
+      observability: this.service.observability,
+    });
 
     return this.service;
   }
@@ -189,7 +238,7 @@ export default class ContentAddressableStore {
    * @param {import('./src/ports/ObservabilityPort.js').default} [options.observability] - Observability adapter.
    * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
-   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
+   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number, normalized?: boolean }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
    * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes.
@@ -213,7 +262,7 @@ export default class ContentAddressableStore {
    * @param {import('./src/ports/ObservabilityPort.js').default} [options.observability] - Observability adapter.
    * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
-   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
+   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number, normalized?: boolean }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
    * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes.
@@ -234,7 +283,7 @@ export default class ContentAddressableStore {
    * @param {import('./src/ports/ObservabilityPort.js').default} [options.observability] - Observability adapter.
    * @param {number} [options.merkleThreshold=1000] - Chunk count threshold for Merkle manifests.
    * @param {number} [options.concurrency=1] - Maximum parallel chunk I/O operations.
-   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Chunking strategy config.
+   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number, normalized?: boolean }} [options.chunking] - Chunking strategy config.
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
    * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes.
@@ -291,11 +340,12 @@ export default class ContentAddressableStore {
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @param {number} [options.merkleThreshold] - Per-operation chunk count threshold for Merkle tree publication.
+   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number, normalized?: boolean }} [options.chunking] - Per-operation chunking strategy config.
    * @returns {Promise<Manifest>} The resulting manifest.
    */
   async storeFile(options) {
     const service = await this.#getService();
-    return await storeFile(service, options);
+    return await storeFile(service, withOperationChunker(options));
   }
 
   /**
@@ -311,11 +361,12 @@ export default class ContentAddressableStore {
    * @param {{ algorithm: 'gzip' }} [options.compression] - Enable compression.
    * @param {Array<{label: string, key: Uint8Array}>} [options.recipients] - Envelope recipients (mutually exclusive with encryptionKey/passphrase).
    * @param {number} [options.merkleThreshold] - Per-operation chunk count threshold for Merkle tree publication.
+   * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number, normalized?: boolean }} [options.chunking] - Per-operation chunking strategy config.
    * @returns {Promise<Manifest>} The resulting manifest.
    */
   async store(options) {
     const service = await this.#getService();
-    return await service.store(options);
+    return await service.store(withOperationChunker(options));
   }
 
   /**
@@ -331,7 +382,8 @@ export default class ContentAddressableStore {
   async restoreFile(options) {
     if (!options?.baseDirectory) {
       throw createCasError({
-        message: 'baseDirectory is required for safe restoration. If you are restoring in a trusted local environment, pass baseDirectory: process.cwd().',
+        message:
+          'baseDirectory is required for safe restoration. If you are restoring in a trusted local environment, pass baseDirectory: process.cwd().',
         code: ErrorCodes.INVALID_OPTIONS,
         meta: { option: 'baseDirectory' },
         documentationUrl: RESTORE_FILE_DOCS_URL,

@@ -21,7 +21,9 @@ function makeDeps(overrides = {}) {
       getVaultMetadata: vi.fn().mockResolvedValue({}),
       readManifest: vi.fn(),
       verifyIntegrity: vi.fn(),
-      deriveKey: vi.fn().mockResolvedValue({ key: Buffer.alloc(32), salt: Buffer.from('salt'), params: {} }),
+      deriveKey: vi
+        .fn()
+        .mockResolvedValue({ key: Buffer.alloc(32), salt: Buffer.from('salt'), params: {} }),
       getService: vi.fn(),
       getVaultService: vi.fn(),
       ...casOverrides,
@@ -131,7 +133,10 @@ describe('dashboard basic rendering', () => {
       entries: [{ slug: 'alpha', treeOid: 'abc' }],
       filtered: [{ slug: 'alpha', treeOid: 'abc' }],
       table: createNavigableTableState({
-        columns: [{ header: 'Slug', width: 20 }, { header: 'Size', width: 10 }],
+        columns: [
+          { header: 'Slug', width: 20 },
+          { header: 'Size', width: 10 },
+        ],
         rows: [['alpha', 'abc', '100B', '1', 'plain', 'raw', 'single']],
         height: 10,
       }),
@@ -139,16 +144,23 @@ describe('dashboard basic rendering', () => {
     const rendered = renderView(app.view(model), deps.ctx);
     expect(rendered).toContain('alpha');
   });
+});
 
+describe('dashboard command palette', () => {
   it('opens command palette for digest search', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
     const model = makeModel({
       entries: [{ slug: 'alpha', treeOid: 'abc' }],
       filtered: [{ slug: 'alpha', treeOid: 'abc' }],
-      manifestCache: new Map([['alpha', {
-        chunks: [{ digest: 'sha256:deadbeef', blob: 'blob-1' }],
-      }]]),
+      manifestCache: new Map([
+        [
+          'alpha',
+          {
+            chunks: [{ digest: 'sha256:deadbeef', blob: 'blob-1' }],
+          },
+        ],
+      ]),
     });
     const [next] = app.update({ type: 'key', key: 'p', ctrl: true }, model);
     const [queried] = app.update({ type: 'key', key: 'd' }, next);
@@ -157,7 +169,7 @@ describe('dashboard basic rendering', () => {
   });
 });
 
-describe('dashboard detail chrome', () => {
+describe('dashboard settings chrome', () => {
   it('opens the settings drawer with F2', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
@@ -167,7 +179,9 @@ describe('dashboard detail chrome', () => {
     expect(rendered).toContain('Settings');
     expect(rendered).toContain('Cockpit Settings');
   });
+});
 
+describe('dashboard detail chrome', () => {
   it('paginates detail chunks and expands the selected digest in the footer', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
@@ -186,14 +200,22 @@ describe('dashboard detail chrome', () => {
       explorerMode: 'manifest',
       focusPane: 'detail',
       chunkFocus: 25,
-      manifestCache: new Map([['alpha', {
-        slug: 'alpha',
-        filename: 'alpha.bin',
-        size: 61440,
-        chunks,
-      }]]),
+      manifestCache: new Map([
+        [
+          'alpha',
+          {
+            slug: 'alpha',
+            filename: 'alpha.bin',
+            size: 61440,
+            chunks,
+          },
+        ],
+      ]),
       table: createNavigableTableState({
-        columns: [{ header: 'Slug', width: 20 }, { header: 'Tree OID', width: 14 }],
+        columns: [
+          { header: 'Slug', width: 20 },
+          { header: 'Tree OID', width: 14 },
+        ],
         rows: [['alpha', 'f'.repeat(40), '60.0K', '30', 'plain', 'manifest', 'loaded']],
         height: 10,
       }),
@@ -245,18 +267,23 @@ describe('dashboard vault passphrase handling', () => {
     const deps = makeDeps({
       cas: {
         getVaultMetadata: vi.fn().mockResolvedValue(encryptedMetadata()),
-        deriveKey: vi.fn().mockResolvedValue({ key: encryptionKey, salt: Buffer.from('salt'), params: {} }),
+        deriveKey: vi
+          .fn()
+          .mockResolvedValue({ key: encryptionKey, salt: Buffer.from('salt'), params: {} }),
         listVault: vi.fn().mockResolvedValue([{ slug: 'alpha', treeOid: 'abc' }]),
         readManifest: vi.fn().mockResolvedValue({ encryption: { encrypted: true }, chunks: [] }),
         verifyIntegrity: vi.fn().mockResolvedValue(false),
       },
     });
     const app = createDashboardApp(deps);
-    const [pending, cmds] = app.update({ type: 'key', key: 'enter' }, makeModel({
-      phase: 'password',
-      metadata: encryptedMetadata(),
-      passphrase: 'wrong',
-    }));
+    const [pending, cmds] = app.update(
+      { type: 'key', key: 'enter' },
+      makeModel({
+        phase: 'password',
+        metadata: encryptedMetadata(),
+        passphrase: 'wrong',
+      })
+    );
     const msg = await cmds[0]();
     const [failed] = app.update(msg, pending);
     expect(msg).toEqual({ type: 'vault-auth-fail', error: 'Wrong passphrase' });
@@ -273,18 +300,23 @@ describe('dashboard vault key threading', () => {
     const deps = makeDeps({
       cas: {
         getVaultMetadata: vi.fn().mockResolvedValue(encryptedMetadata()),
-        deriveKey: vi.fn().mockResolvedValue({ key: encryptionKey, salt: Buffer.from('salt'), params: {} }),
+        deriveKey: vi
+          .fn()
+          .mockResolvedValue({ key: encryptionKey, salt: Buffer.from('salt'), params: {} }),
         listVault,
         readManifest: vi.fn(),
         verifyIntegrity: vi.fn().mockResolvedValue(true),
       },
     });
     const app = createDashboardApp(deps);
-    const [pending, authCmds] = app.update({ type: 'key', key: 'enter' }, makeModel({
-      phase: 'password',
-      metadata: encryptedMetadata(),
-      passphrase: 'correct',
-    }));
+    const [pending, authCmds] = app.update(
+      { type: 'key', key: 'enter' },
+      makeModel({
+        phase: 'password',
+        metadata: encryptedMetadata(),
+        passphrase: 'correct',
+      })
+    );
     const authMsg = await authCmds[0]();
     const [unlocked, loadCmds] = app.update(authMsg, pending);
     await loadCmds[0]();
@@ -296,15 +328,17 @@ describe('dashboard vault key threading', () => {
 
 function treemapReport() {
   return {
-    tiles: [{
-      id: 'app',
-      label: 'app',
-      kind: 'worktree',
-      value: 4096,
-      detail: 'source files',
-      drillable: true,
-      path: 'app',
-    }],
+    tiles: [
+      {
+        id: 'app',
+        label: 'app',
+        kind: 'worktree',
+        value: 4096,
+        detail: 'source files',
+        drillable: true,
+        path: 'app',
+      },
+    ],
     breadcrumb: ['root'],
     totalValue: 4096,
     notes: ['fixture repository atlas'],
@@ -327,7 +361,17 @@ describe('dashboard atlas rendering', () => {
   it('renders the treemap panel with title', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
-    const rendered = renderView(app.view(makeModel({ workspace: 'atlas', treemapStatus: 'ready', treemapReport: treemapReport(), columns: 120 })), deps.ctx);
+    const rendered = renderView(
+      app.view(
+        makeModel({
+          workspace: 'atlas',
+          treemapStatus: 'ready',
+          treemapReport: treemapReport(),
+          columns: 120,
+        })
+      ),
+      deps.ctx
+    );
     expect(rendered).toContain('Repository Atlas');
     expect(rendered).toContain('Atlas Briefing');
     expect(rendered).toContain('app');
@@ -347,11 +391,16 @@ describe('dashboard operations rendering', () => {
   it('renders the operations deck', () => {
     const deps = makeDeps();
     const app = createDashboardApp(deps);
-    const rendered = renderView(app.view(makeModel({ workspace: 'operations', columns: 120 })), deps.ctx);
+    const rendered = renderView(
+      app.view(makeModel({ workspace: 'operations', columns: 120 })),
+      deps.ctx
+    );
     expect(rendered).toContain('Vault Economics');
     expect(rendered).toContain('Operations Deck');
   });
+});
 
+describe('dashboard operations commands', () => {
   it('threads the unlocked vault key into operations doctor scans', async () => {
     const encryptionKey = Buffer.alloc(32, 4);
     const readState = vi.fn().mockResolvedValue({
@@ -369,12 +418,59 @@ describe('dashboard operations rendering', () => {
 
     const [next, cmds] = app.update(
       { type: 'key', key: 'x' },
-      makeModel({ workspace: 'operations', vaultEncryptionKey: encryptionKey }),
+      makeModel({ workspace: 'operations', vaultEncryptionKey: encryptionKey })
     );
     const message = await cmds[0]();
 
     expect(next.doctorStatus).toBe('loading');
     expect(message.type).toBe('loaded-doctor');
     expect(readState).toHaveBeenCalledWith({ encryptionKey });
+  });
+});
+
+describe('dashboard store wizard command', () => {
+  it('threads the store wizard encryption, compression, and chunking plan into storeFile', async () => {
+    const manifest = { slug: 'secure/app', chunks: [] };
+    const storeFile = vi.fn().mockResolvedValue(manifest);
+    const createTree = vi.fn().mockResolvedValue('f'.repeat(40));
+    const addToVault = vi.fn().mockResolvedValue({ commitOid: 'c'.repeat(40) });
+    const deps = makeDeps({ cas: { storeFile, createTree, addToVault } });
+    const app = createDashboardApp(deps);
+    const model = makeModel({
+      workspace: 'operations',
+      storeWizard: {
+        step: 'confirm',
+        filePath: './secure.bin',
+        slug: 'secure/app',
+        encryption: 'convergent',
+        passphrase: 'correct horse battery staple',
+        passphraseVisible: false,
+        compression: true,
+        chunking: 'cdc',
+        selectIndex: 0,
+        error: null,
+        resultSlug: null,
+      },
+    });
+
+    const [pending, cmds] = app.update({ type: 'key', key: 'enter' }, model);
+    const message = await cmds[0]();
+
+    expect(pending.storeWizard.step).toBe('storing');
+    expect(message.type).toBe('store-complete');
+    expect(storeFile).toHaveBeenCalledWith({
+      filePath: './secure.bin',
+      slug: 'secure/app',
+      passphrase: 'correct horse battery staple',
+      encryption: { scheme: 'convergent' },
+      compression: { algorithm: 'gzip' },
+      chunking: { strategy: 'cdc' },
+    });
+    expect(createTree).toHaveBeenCalledWith({ manifest });
+    expect(addToVault).toHaveBeenCalledWith({
+      slug: 'secure/app',
+      treeOid: 'f'.repeat(40),
+      force: true,
+    });
   });
 });

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createHash } from 'node:crypto';
-import { createReadStream, readFileSync } from 'node:fs';
-import path from 'node:path';
+import { createReadStream } from 'node:fs';
 import CasService from '../../../../src/domain/services/CasService.js';
 import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
@@ -11,7 +10,6 @@ import FixedChunker from '../../../../src/infrastructure/chunkers/FixedChunker.j
 import NodeCompressionAdapter from '../../../../src/infrastructure/adapters/NodeCompressionAdapter.js';
 
 const testCrypto = await getTestCryptoAdapter();
-const repoRoot = process.cwd();
 const base64Bytes = (size, fill) => Buffer.alloc(size, fill).toString('base64');
 
 /** Valid 40-char hex OID for blob fields. */
@@ -19,10 +17,6 @@ const VALID_BLOB = 'a'.repeat(40);
 
 /** Deterministic SHA-256 hex digest for a given string. */
 const sha256 = (str) => createHash('sha256').update(str).digest('hex');
-
-function readProjectFile(relPath) {
-  return readFileSync(path.join(repoRoot, relPath), 'utf8');
-}
 
 function createMockPersistence() {
   return {
@@ -117,22 +111,21 @@ describe('CasService – constructor – dependency validation', () => {
     mockPersistence = createMockPersistence();
   });
 
-  it('keeps required port checks routed through the constructor validation helper', () => {
-    const source = readProjectFile('src/domain/services/CasService.js');
-    const constructorBody = source.slice(
-      source.indexOf('constructor({'),
-      source.indexOf('static #assertIntRange'),
-    );
-    const validationHelper = source.slice(
-      source.indexOf('static #validateConstructorArgs'),
-      source.indexOf('/**\n   * Validates that observability'),
-    );
+  it('rejects missing required ports before configuring persistence', () => {
+    const persistence = { ...mockPersistence, setMaxBlobSize: vi.fn() };
 
-    expect(constructorBody).toContain('CasService.#validateConstructorArgs({');
-    expect(constructorBody).not.toContain('if (!chunker)');
-    expect(constructorBody).not.toContain('if (!compressionAdapter)');
-    expect(validationHelper).toContain('chunker');
-    expect(validationHelper).toContain('compressionAdapter');
+    expect(
+      () =>
+        new CasService({
+          persistence,
+          crypto: testCrypto,
+          codec: new JsonCodec(),
+          chunkSize: 1024,
+          observability: new SilentObserver(),
+          compressionAdapter: new NodeCompressionAdapter(),
+        }),
+    ).toThrow('chunker is required');
+    expect(persistence.setMaxBlobSize).not.toHaveBeenCalled();
   });
 
   it('throws required-port errors from the unified constructor validation helper', () => {

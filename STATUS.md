@@ -1,7 +1,8 @@
 # STATUS
 
 **Last tagged release:** `v6.0.0` (`2026-05-09`)
-**Current release state:** `v6.0.0` is published to npm and GitHub Releases; JSR publication is deferred for the v6.0.0 line.
+**Current release state:** `v6.0.1` patch candidate on `main`; `v6.0.0` is published to npm and GitHub Releases, and JSR publication is deferred for the v6.0.x line.
+**Latest verification:** `npm run release:verify -- --skip-jsr` passed 12/12 steps with 5,383 observed tests.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -56,6 +57,13 @@
   orchestrates use cases while dedicated collaborators own persistence, tree-OID
   cache state, metadata/tree codecs, privacy indexing, key verification, and retry
   policy.
+- Store Wizard execution now uses the same `storeFile()` option payload it
+  presents in the UI: passphrase/convergent encryption, gzip compression, and
+  fixed/CDC chunking choices are threaded into the CAS facade before the
+  manifest is published to the vault.
+- `ContentAddressableStore.store()` and `storeFile()` accept per-operation
+  `chunking` overrides, so one store can use CDC or fixed chunking without
+  mutating the facade's default chunker.
 - Manifest parsing now rejects unsupported encryption schemes,
   `encrypted: false`, malformed AES-GCM nonce/tag values, and framed manifests
   that omit `frameBytes`, across both JSON and CBOR manifest codecs.
@@ -72,7 +80,8 @@
 
 ## Active Queue Snapshot
 
-- [TUI — Store Wizard Execution Gap](./docs/method/backlog/bad-code/TUI_store-wizard-execution-gap.md)
+- [Vault Tree Memory Loading](./docs/method/backlog/bad-code/vault-tree-memory-loading.md)
+- [TR — GitPersistenceAdapter Full Materialization](./docs/method/backlog/bad-code/TR_persistence-adapter-materialization.md)
 
 ## Read Next
 

@@ -15,7 +15,7 @@ import CdcChunker from './CdcChunker.js';
  *
  * @param {Object} options
  * @param {import('../../ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance (advanced).
- * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number }} [options.chunking] - Declarative chunking strategy config.
+ * @param {{ strategy: string, chunkSize?: number, targetChunkSize?: number, minChunkSize?: number, maxChunkSize?: number, normalized?: boolean }} [options.chunking] - Declarative chunking strategy config.
  * @returns {import('../../ports/ChunkingPort.js').default|undefined}
  */
 export default function resolveChunker({ chunker, chunking } = {}) {
@@ -35,10 +35,12 @@ export default function resolveChunker({ chunker, chunking } = {}) {
     }
     // 'fixed' with valid chunkSize → FixedChunker; otherwise fall through
     // to CasService's built-in FixedChunker default.
-    if (chunking.strategy === 'fixed'
-      && typeof chunking.chunkSize === 'number'
-      && Number.isFinite(chunking.chunkSize)
-      && chunking.chunkSize > 0) {
+    if (
+      chunking.strategy === 'fixed' &&
+      typeof chunking.chunkSize === 'number' &&
+      Number.isFinite(chunking.chunkSize) &&
+      chunking.chunkSize > 0
+    ) {
       return new FixedChunker({ chunkSize: chunking.chunkSize });
     }
   }

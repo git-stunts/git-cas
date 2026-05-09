@@ -12,8 +12,8 @@ Fresh planning now follows the METHOD:
 
 ## Current Reality
 
-- **Last tagged release:** `v5.3.2` (`2026-03-15`)
-- **Current release candidate:** `v6.0.0` on `release/v6.0.0`
+- **Last tagged release:** `v6.0.0` (`2026-05-09`)
+- **Current release line:** `v6.x` maintenance on `main`
 - **Supported runtimes:** Node.js 22.x, Bun, Deno
 - **Human surface reality:** the human CLI and TUI are substantial and already
   ahead of some older planning docs.
@@ -21,17 +21,17 @@ Fresh planning now follows the METHOD:
   for shipped Relay flows, but breadth and portability are still incomplete.
 - **Planning reality:** fresh work is now chosen from METHOD backlog lanes, not
   milestone fiction.
-- **Release posture:** JSR publication is deferred from the v6.0.0 tag path
-  until the upstream `jsr`/Deno dry-run blocker is fixed.
+- **Release posture:** npm and GitHub Releases are the active v6.0.x
+  publication surfaces. JSR publication is deferred until the upstream
+  `jsr`/Deno dry-run blocker is fixed.
 
 ## Current Queue Snapshot
 
 See the live backlog for exact lane placement:
 
-- [REL — Version Bump](./docs/method/backlog/v6.0.0/REL_version-bump.md)
 - [TUI — v6.x TUI Modernization](./docs/method/backlog/v6.x-tui/TUI_store-wizard.md)
-- [TUI — Store Wizard Execution Gap](./docs/method/backlog/bad-code/TUI_store-wizard-execution-gap.md)
-- [SEC — Vault Passphrase Verifier Gap](./docs/method/backlog/bad-code/SEC_vault-passphrase-verifier-gap.md)
+- [Vault Tree Memory Loading](./docs/method/backlog/bad-code/vault-tree-memory-loading.md)
+- [TR — GitPersistenceAdapter Full Materialization](./docs/method/backlog/bad-code/TR_persistence-adapter-materialization.md)
 
 ## How To Read This File
 

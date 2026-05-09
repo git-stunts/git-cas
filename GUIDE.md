@@ -174,6 +174,21 @@ const manifest = await cas.storeFile({
 
 The filename defaults to the basename of `filePath`. Override it with the optional `filename` parameter.
 
+Use `chunking` on a single store call when one asset needs a different strategy
+from the facade default:
+
+```js
+const manifest = await cas.storeFile({
+  filePath: './large-archive.tar',
+  slug: 'archives/large',
+  chunking: { strategy: 'cdc' },
+});
+```
+
+This override is scoped to that operation. The next `store()` or `storeFile()`
+call returns to the facade's configured chunker unless it also supplies
+`chunking`.
+
 ---
 
 ## Encryption
@@ -848,6 +863,9 @@ This table describes the high-level `ContentAddressableStore` facade. The facade
 
 ### Chunking Config Object
 
+Constructor `chunking` sets the facade default. `store()` and `storeFile()` can
+also receive the same object as a per-operation override.
+
 | Key               | Type               | Description                            |
 | ----------------- | ------------------ | -------------------------------------- |
 | `strategy`        | `'fixed' \| 'cdc'` | Chunking strategy                      |
@@ -855,6 +873,7 @@ This table describes the high-level `ContentAddressableStore` facade. The facade
 | `targetChunkSize` | `number`           | CDC target chunk size                  |
 | `minChunkSize`    | `number`           | CDC minimum chunk size                 |
 | `maxChunkSize`    | `number`           | CDC maximum chunk size                 |
+| `normalized`      | `boolean`          | Use FastCDC-style dual-mask boundaries |
 
 ### `.casrc` Project Config
 
