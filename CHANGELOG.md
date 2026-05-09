@@ -220,6 +220,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Docker version fallback** — CLI version resolution now ignores the
+  `unknown` build metadata sentinel written when Docker test images have neither
+  `.git` metadata nor a stamped package SHA, so `git-cas --version` falls back to
+  plain semver instead of emitting `+unknown`.
 - **Shared CLI/agent credential resolution** — human CLI and agent protocol
   flows now use `bin/credentials.js` for key-file length checks, ambiguous
   credential-source rejection, vault passphrase-derived key verification, and
