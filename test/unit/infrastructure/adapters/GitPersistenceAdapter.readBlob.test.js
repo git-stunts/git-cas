@@ -78,6 +78,20 @@ describe('GitPersistenceAdapter.readBlob()', () => {
       meta: { maxBytes: DEFAULT_MAX_BLOB_SIZE },
     });
   });
+
+  it('rejects invalid per-call limits before opening the Git blob stream', async () => {
+    const plumbing = {
+      execute: vi.fn(),
+      executeStream: vi.fn(),
+    };
+    const adapter = createAdapter(plumbing);
+
+    await expect(adapter.readBlob('blob-oid', 0)).rejects.toMatchObject({
+      code: 'INVALID_OPTIONS',
+      meta: { label: 'maxBytes', value: 0 },
+    });
+    expect(plumbing.executeStream).not.toHaveBeenCalled();
+  });
 });
 
 describe('GitPersistenceAdapter.setMaxBlobSize()', () => {

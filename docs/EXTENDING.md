@@ -67,7 +67,8 @@ not require Buffer-only APIs.
 Custom persistence adapters must preserve Git-like object semantics:
 
 - `writeBlob(bytes)` stores immutable bytes and returns the blob OID
-- `readBlob(oid)` returns the exact bytes written for that OID
+- `readBlob(oid, maxBytes?)` returns the exact bytes written for that OID and
+  should reject invalid positive-integer limits before opening the blob stream
 - `writeTree(entries)` writes named tree entries and returns a tree OID
 - `readTree(treeOid)` returns mode/type/OID/name entries
 - `readBlobStream(oid)` returns an async iterable or readable stream of bytes

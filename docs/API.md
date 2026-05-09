@@ -1675,7 +1675,7 @@ Creates a Git tree object.
 ##### readBlob
 
 ```javascript
-await port.readBlob(oid);
+await port.readBlob(oid, maxBytes);
 ```
 
 Reads a Git blob.
@@ -1683,6 +1683,8 @@ Reads a Git blob.
 **Parameters:**
 
 - `oid`: `string` - Git blob OID
+- `maxBytes` (optional): positive integer per-call safety limit for adapters
+  that support bounded blob reads
 
 **Returns:** `Promise<Uint8Array>` - Blob content
 

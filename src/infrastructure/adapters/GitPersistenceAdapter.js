@@ -15,6 +15,7 @@ import { CasError, createCasError, ErrorCodes } from '../../domain/errors/index.
  */
 const DEFAULT_POLICY = Policy.timeout(30_000);
 export const DEFAULT_MAX_BLOB_SIZE = 10 * 1024 * 1024;
+const MIN_READ_BLOB_LIMIT = 1;
 const MIN_MAX_BLOB_SIZE = 1024;
 const MAX_BLOB_SIZE_LIMIT = Number.MAX_SAFE_INTEGER;
 
@@ -74,7 +75,9 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
    * @returns {Promise<Buffer>} The blob content.
    */
   async readBlob(oid, maxBytes) {
-    const limit = maxBytes ?? this.#maxBlobSize;
+    const limit = maxBytes === undefined
+      ? this.#maxBlobSize
+      : GitPersistenceAdapter.#validatedReadBlobLimit(maxBytes);
     const chunks = [];
     let bytesRead = 0;
     for await (const chunk of await this.readBlobStream(oid)) {
@@ -223,6 +226,26 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       return Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength);
     }
     return Buffer.from(String(chunk));
+  }
+
+  /**
+   * @param {unknown} maxBytes
+   * @returns {number}
+   */
+  static #validatedReadBlobLimit(maxBytes) {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < MIN_READ_BLOB_LIMIT || maxBytes > MAX_BLOB_SIZE_LIMIT) {
+      throw createCasError(
+        `maxBytes must be an integer in [${MIN_READ_BLOB_LIMIT}, ${MAX_BLOB_SIZE_LIMIT}]`,
+        ErrorCodes.INVALID_OPTIONS,
+        {
+          label: 'maxBytes',
+          value: maxBytes,
+          min: MIN_READ_BLOB_LIMIT,
+          max: MAX_BLOB_SIZE_LIMIT,
+        },
+      );
+    }
+    return maxBytes;
   }
 
   /**

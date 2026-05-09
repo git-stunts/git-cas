@@ -104,6 +104,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Metadata blob limits reach the default Git adapter** — `maxBlobSize`
   constructor options now configure `GitPersistenceAdapter.readBlob()` when no
   per-call limit is supplied.
+- **Git blob per-call limits are validated** — `GitPersistenceAdapter.readBlob()`
+  now rejects invalid caller-provided `maxBytes` limits with `INVALID_OPTIONS`
+  before opening a Git blob stream.
 - **API `maxBlobSize` wording** — `docs/API.md` now documents the constructor
   option as the metadata blob read limit, matching the runtime service contract.
 - **Manifest diff JSDoc boundary** — `ManifestDiff.js` now declares its
