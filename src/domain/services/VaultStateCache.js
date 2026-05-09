@@ -51,13 +51,55 @@ export default class VaultStateCache {
   async privacyEntries(snapshot, encryptionKey, resolveEntries) {
     let cached = snapshot.privacyEntriesByKey.get(encryptionKey);
     if (!cached || !bytesEqual(cached.keyBytes, encryptionKey)) {
-      cached = {
-        entries: await resolveEntries(snapshot.rawEntries, snapshot.metadata, encryptionKey),
-        keyBytes: cloneBytes(encryptionKey),
-      };
+      cached = this.#startPrivacyEntryResolution(snapshot, encryptionKey, resolveEntries);
       snapshot.privacyEntriesByKey.set(encryptionKey, cached);
     }
-    return new Map(cached.entries);
+    const entries = cached.entries || await cached.pending;
+    return new Map(entries);
+  }
+
+  /**
+   * @param {object} snapshot
+   * @param {Uint8Array} encryptionKey
+   * @param {(rawEntries: Array<object>, metadata: object|null, encryptionKey: Uint8Array) => Promise<Map<string, string>>} resolveEntries
+   * @returns {{ keyBytes: Uint8Array, entries: Map<string, string>|null, pending: Promise<Map<string, string>> }}
+   */
+  #startPrivacyEntryResolution(snapshot, encryptionKey, resolveEntries) {
+    const cached = {
+      entries: null,
+      keyBytes: cloneBytes(encryptionKey),
+      pending: null,
+    };
+    cached.pending = this.#resolvePrivacyEntries({
+      cached,
+      encryptionKey,
+      resolveEntries,
+      snapshot,
+    });
+    return cached;
+  }
+
+  /**
+   * @param {object} context
+   * @param {{ entries: Map<string, string>|null, pending: Promise<Map<string, string>>|null }} context.cached
+   * @param {Uint8Array} context.encryptionKey
+   * @param {(rawEntries: Array<object>, metadata: object|null, encryptionKey: Uint8Array) => Promise<Map<string, string>>} context.resolveEntries
+   * @param {object} context.snapshot
+   * @returns {Promise<Map<string, string>>}
+   */
+  async #resolvePrivacyEntries({ cached, encryptionKey, resolveEntries, snapshot }) {
+    try {
+      const entries = await resolveEntries(snapshot.rawEntries, snapshot.metadata, encryptionKey);
+      cached.entries = entries;
+      return entries;
+    } catch (err) {
+      if (snapshot.privacyEntriesByKey.get(encryptionKey) === cached) {
+        snapshot.privacyEntriesByKey.delete(encryptionKey);
+      }
+      throw err;
+    } finally {
+      cached.pending = null;
+    }
   }
 
   /**

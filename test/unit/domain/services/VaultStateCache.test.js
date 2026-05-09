@@ -110,6 +110,32 @@ describe('VaultStateCache privacy-key memoization', () => {
   });
 });
 
+describe('VaultStateCache privacy resolution concurrency', () => {
+  it('deduplicates concurrent privacy entry resolution for the same key object', async () => {
+    const cache = new VaultStateCache();
+    const snapshot = cache.rememberTree('tree-1', { rawEntries: [], metadata: { version: 1 } });
+    const key = Uint8Array.from([1]);
+    let release;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    const resolveEntries = vi.fn(async () => {
+      await gate;
+      return new Map([['secret', 'tree-a']]);
+    });
+
+    const first = cache.privacyEntries(snapshot, key, resolveEntries);
+    const second = cache.privacyEntries(snapshot, key, resolveEntries);
+
+    expect(resolveEntries).toHaveBeenCalledOnce();
+    release();
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      new Map([['secret', 'tree-a']]),
+      new Map([['secret', 'tree-a']]),
+    ]);
+  });
+});
+
 describe('VaultStateCache verifier-key memoization', () => {
   it('scopes verified encryption keys to one cached tree snapshot', () => {
     const cache = new VaultStateCache();

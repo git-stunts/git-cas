@@ -49,6 +49,8 @@ encryption-key object identity, and verified vault keys. Public state returned
 to callers is defensively copied so a caller cannot mutate cached state. Keyed
 memoization stores a byte snapshot beside the key object, so mutating a reused
 `Uint8Array` key cannot reuse stale privacy or verifier cache entries.
+Concurrent privacy reads for the same cached tree and key object share one
+in-flight `.privacy-index` resolution.
 
 `VaultMetadataCodec`
 
