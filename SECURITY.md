@@ -64,7 +64,9 @@ that supplies a vault encryption key writes verifier metadata for future checks.
 
 `restoreFile()` requires `baseDirectory` and treats it as the caller-approved
 write boundary. The requested `outputPath` is resolved against that boundary and
-then checked with path-relative containment. If the resolved path escapes the
+then checked with canonical `realpath` containment over existing path
+components. Symlinked directories therefore cannot redirect stream or
+bounded-file restores outside the boundary. If the resolved path escapes the
 boundary, restore fails with `SECURITY_BOUNDARY_VIOLATION` before publishing
 any output.
 

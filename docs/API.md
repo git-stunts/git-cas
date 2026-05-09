@@ -315,7 +315,8 @@ Restores content from a manifest and writes it to a file.
 
 **Security Boundary:** `baseDirectory` is required. The `outputPath` is resolved
 relative to `baseDirectory`, and the system will throw a
-`SECURITY_BOUNDARY_VIOLATION` if the resolved path escapes the base directory.
+`SECURITY_BOUNDARY_VIOLATION` if the canonical path escapes the base directory,
+including through symlinked path components.
 
 For plaintext, `framed`, `convergent`, and uncompressed `whole`, this writes
 from a streaming restore path. For `whole`, bytes are verified, streamed through

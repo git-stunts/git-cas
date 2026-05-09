@@ -6,12 +6,14 @@
  * @typedef {import('../../domain/value-objects/Manifest.js').EncryptionMeta} EncryptionMeta
  */
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdtemp, rename, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import CasError from '../../domain/errors/CasError.js';
 import { ErrorCodes } from '../../domain/errors/index.js';
+
+const FILE_NOT_FOUND_CODE = 'ENOENT';
 
 /**
  * Reads a file from disk and stores it in Git as chunked blobs via
@@ -76,23 +78,14 @@ export async function restoreFile(service, { manifest, encryptionKey, passphrase
     throw new CasError('baseDirectory is required for safe restoration', ErrorCodes.INVALID_OPTIONS);
   }
 
-  const resolvedPath = path.resolve(baseDirectory, outputPath);
-  const resolvedBase = path.resolve(baseDirectory);
-
-  if (!isInsideBaseDirectory(resolvedPath, resolvedBase)) {
-    throw new CasError(
-      `Restoration path "${outputPath}" escapes base directory "${baseDirectory}"`,
-      ErrorCodes.SECURITY_BOUNDARY_VIOLATION,
-      { outputPath, baseDirectory },
-    );
-  }
+  const safeOutputPath = await resolveSafeRestorePath({ baseDirectory, outputPath });
 
   const plan = await service.createFileRestorePlan({ manifest, encryptionKey, passphrase });
 
   if (plan.mode === 'bounded-file') {
     return await restoreBufferedFile(service, {
       manifest,
-      outputPath: resolvedPath,
+      outputPath: safeOutputPath,
       source: plan.source,
       encryptionMeta: plan.encryptionMeta,
     });
@@ -100,7 +93,7 @@ export async function restoreFile(service, { manifest, encryptionKey, passphrase
 
   const iterable = plan.source;
   const readable = Readable.from(iterable);
-  const writable = createWriteStream(resolvedPath);
+  const writable = createWriteStream(safeOutputPath);
   let bytesWritten = 0;
   const counter = new Transform({
     transform(chunk, _encoding, cb) {
@@ -110,6 +103,53 @@ export async function restoreFile(service, { manifest, encryptionKey, passphrase
   });
   await pipeline(readable, counter, writable);
   return { bytesWritten };
+}
+
+/**
+ * @param {{ baseDirectory: string, outputPath: string }} options
+ * @returns {Promise<string>}
+ */
+async function resolveSafeRestorePath({ baseDirectory, outputPath }) {
+  const resolvedBase = path.resolve(baseDirectory);
+  const resolvedPath = path.resolve(resolvedBase, outputPath);
+  const canonicalBase = await realpath(resolvedBase);
+  const canonicalPath = await canonicalizeTargetPath(resolvedPath);
+
+  if (!isInsideBaseDirectory(canonicalPath, canonicalBase)) {
+    throw new CasError(
+      `Restoration path "${outputPath}" escapes base directory "${baseDirectory}"`,
+      ErrorCodes.SECURITY_BOUNDARY_VIOLATION,
+      { outputPath, baseDirectory },
+    );
+  }
+  return canonicalPath;
+}
+
+/**
+ * Resolves symlinks in the existing path prefix while allowing the leaf path
+ * not to exist yet.
+ *
+ * @param {string} targetPath
+ * @returns {Promise<string>}
+ */
+async function canonicalizeTargetPath(targetPath) {
+  const missingParts = [];
+  let current = targetPath;
+  while (true) {
+    try {
+      return path.join(await realpath(current), ...missingParts.reverse());
+    } catch (err) {
+      if (!isNotFoundError(err)) {
+        throw err;
+      }
+      const parent = path.dirname(current);
+      if (parent === current) {
+        throw err;
+      }
+      missingParts.push(path.basename(current));
+      current = parent;
+    }
+  }
 }
 
 /**
@@ -169,6 +209,14 @@ function isInsideBaseDirectory(resolvedPath, resolvedBase) {
     relativePath === '' ||
     (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
   );
+}
+
+/**
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+function isNotFoundError(err) {
+  return Boolean(err && typeof err === 'object' && err.code === FILE_NOT_FOUND_CODE);
 }
 
 function createByteCounter(onChunk) {

@@ -169,6 +169,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Facade restore guidance links to versioned docs** — missing
   `restoreFile({ baseDirectory })` errors now serialize a v6.0.0 API docs URL
   and use the centralized `INVALID_OPTIONS` error code.
+- **Restore path symlink boundary** — `restoreFile()` now canonicalizes
+  existing path components before stream or bounded-file publication, blocking
+  symlinked output directories that resolve outside `baseDirectory`.
 - **Vault retry policies validate injected hooks** — `VaultMutationRetryPolicy`
   now rejects non-function `random`/`sleep` dependencies at construction and
   freezes configured policy instances.
