@@ -30,43 +30,43 @@
 ```mermaid
 mindmap
   root(("git-cas"))
-    "Entry Surfaces"
-      "Library facade: index.js"
-      "Human CLI and TUI: bin/git-cas.js"
-      "Agent protocol: bin/agent/cli.js"
-    "Domain Core"
-      "CasService orchestration"
-      "Store strategies"
-      "Restore strategies"
-      "VaultService orchestration"
-    "Data Model"
-      "Git blobs"
-      "Manifests"
-      "Git trees"
-      "refs/cas/vault"
-    "Byte Processing"
-      "Fixed chunking"
-      "Content-defined chunking"
-      "Compression"
-      "AES-256-GCM encryption"
-    "Security"
-      "AAD binding"
-      "KDF policy"
-      "Envelope recipients"
-      "Restore path containment"
-      "Vault privacy mode"
-    "Ports and Adapters"
-      "CryptoPort"
-      "GitPersistencePort"
-      "GitRefPort"
-      "ChunkingPort"
-      "CodecPort"
-      "CompressionPort"
-      "ObservabilityPort"
-    "Runtime Support"
-      "Node.js"
-      "Bun"
-      "Deno and Web Crypto"
+    Entry Surfaces
+      Library facade: index.js
+      Human CLI and TUI: bin/git-cas.js
+      Agent protocol: bin/agent/cli.js
+    Domain Core
+      CasService orchestration
+      Store strategies
+      Restore strategies
+      VaultService orchestration
+    Data Model
+      Git blobs
+      Manifests
+      Git trees
+      refs/cas/vault
+    Byte Processing
+      Fixed chunking
+      Content-defined chunking
+      Compression
+      AES-256-GCM encryption
+    Security
+      AAD binding
+      KDF policy
+      Envelope recipients
+      Restore path containment
+      Vault privacy mode
+    Ports and Adapters
+      CryptoPort
+      GitPersistencePort
+      GitRefPort
+      ChunkingPort
+      CodecPort
+      CompressionPort
+      ObservabilityPort
+    Runtime Support
+      Node.js
+      Bun
+      Deno and Web Crypto
 ```
 
 # Domain Dictionary
@@ -160,22 +160,22 @@ The facade is intentionally not the storage engine. Its job is composition:
 ```mermaid
 sequenceDiagram
     autonumber
-    participant "App" as App
-    participant "ContentAddressableStore.open()" as Open
-    participant "createGitPlumbing()" as Plumbing
-    participant "ContentAddressableStore" as Facade
-    participant "CasService" as Cas
-    participant "VaultService" as Vault
+    participant App as App
+    participant ContentAddressableStore.open() as Open
+    participant createGitPlumbing() as Plumbing
+    participant ContentAddressableStore as Facade
+    participant CasService as Cas
+    participant VaultService as Vault
 
-    App->>Open: "open({ cwd })"
-    Open->>Plumbing: "create Git plumbing for cwd"
-    Plumbing-->>Open: "plumbing"
-    Open-->>App: "facade instance"
-    App->>Facade: "storeFile(...)"
-    Facade->>Facade: "#getService()"
-    Facade->>Cas: "construct with ports"
-    Facade->>Vault: "construct with persistence/ref/crypto"
-    Facade->>Cas: "delegate storeFile workflow"
+    App->>Open: open({ cwd })
+    Open->>Plumbing: create Git plumbing for cwd
+    Plumbing-->>Open: plumbing
+    Open-->>App: facade instance
+    App->>Facade: storeFile(...)
+    Facade->>Facade: #getService()
+    Facade->>Cas: construct with ports
+    Facade->>Vault: construct with persistence/ref/crypto
+    Facade->>Cas: delegate storeFile workflow
 ```
 
 The most important bootstrapping detail is lazy service construction. This lets callers create a facade cheaply, override adapters, and pay runtime discovery only when they perform an operation.
@@ -295,64 +295,64 @@ flowchart TD
 
 The domain talks in these abstractions:
 
-| Port | Responsibility | Default Adapter |
-| :--- | :--- | :--- |
-| `CryptoPort` | SHA-256, random bytes, AES-GCM, HMAC, KDF, deterministic nonce encryption. | `NodeCryptoAdapter`, `BunCryptoAdapter`, or `WebCryptoAdapter`. |
-| `GitPersistencePort` | Write/read blobs, write/read trees, stream blob reads. | `GitPersistenceAdapter`. |
-| `GitRefPort` | Resolve refs, resolve commit trees, create commits, update refs. | `GitRefAdapter`. |
-| `ChunkingPort` | Convert an async byte source into chunks. | `FixedChunker` or `CdcChunker`. |
-| `CodecPort` | Encode/decode manifest metadata. | `JsonCodec` or `CborCodec`. |
-| `CompressionPort` | Compress/decompress buffers and streams. | `NodeCompressionAdapter`. |
-| `ObservabilityPort` | Metrics, logs, spans. | `SilentObserver`, `EventEmitterObserver`, `StatsCollector`. |
+| Port                 | Responsibility                                                             | Default Adapter                                                 |
+| :------------------- | :------------------------------------------------------------------------- | :-------------------------------------------------------------- |
+| `CryptoPort`         | SHA-256, random bytes, AES-GCM, HMAC, KDF, deterministic nonce encryption. | `NodeCryptoAdapter`, `BunCryptoAdapter`, or `WebCryptoAdapter`. |
+| `GitPersistencePort` | Write/read blobs, write/read trees, stream blob reads.                     | `GitPersistenceAdapter`.                                        |
+| `GitRefPort`         | Resolve refs, resolve commit trees, create commits, update refs.           | `GitRefAdapter`.                                                |
+| `ChunkingPort`       | Convert an async byte source into chunks.                                  | `FixedChunker` or `CdcChunker`.                                 |
+| `CodecPort`          | Encode/decode manifest metadata.                                           | `JsonCodec` or `CborCodec`.                                     |
+| `CompressionPort`    | Compress/decompress buffers and streams.                                   | `NodeCompressionAdapter`.                                       |
+| `ObservabilityPort`  | Metrics, logs, spans.                                                      | `SilentObserver`, `EventEmitterObserver`, `StatsCollector`.     |
 
 The domain services are cohesive rather than monolithic:
 
 ```mermaid
 classDiagram
-    class "ContentAddressableStore" {
-      "+open(options)"
-      "+storeFile(options)"
-      "+store(options)"
-      "+restoreFile(options)"
-      "+createTree(options)"
-      "+addToVault(options)"
-      "+resolveVaultEntry(options)"
+    class ContentAddressableStore {
+      +open(options)
+      +storeFile(options)
+      +store(options)
+      +restoreFile(options)
+      +createTree(options)
+      +addToVault(options)
+      +resolveVaultEntry(options)
     }
-    class "CasService" {
-      "+store(options)"
-      "+restoreStream(options)"
-      "+createTree(options)"
-      "+readManifest(options)"
-      "+verifyIntegrity(manifest)"
+    class CasService {
+      +store(options)
+      +restoreStream(options)
+      +createTree(options)
+      +readManifest(options)
+      +verifyIntegrity(manifest)
     }
-    class "VaultService" {
-      "+initVault(options)"
-      "+addToVault(options)"
-      "+listVault(options)"
-      "+resolveVaultEntry(options)"
-      "+removeFromVault(options)"
+    class VaultService {
+      +initVault(options)
+      +addToVault(options)
+      +listVault(options)
+      +resolveVaultEntry(options)
+      +removeFromVault(options)
     }
-    class "ChunkRepository" {
-      "+chunkAndStore(source, manifestData)"
-      "+readAndVerifyChunk(chunk)"
-      "+iterVerifiedChunkBlobs(manifest)"
+    class ChunkRepository {
+      +chunkAndStore(source, manifestData)
+      +readAndVerifyChunk(chunk)
+      +iterVerifiedChunkBlobs(manifest)
     }
-    class "ManifestRepository" {
-      "+createTree(options)"
-      "+readManifest(options)"
-      "+verifyManifestHash(decoded, treeOid)"
+    class ManifestRepository {
+      +createTree(options)
+      +readManifest(options)
+      +verifyManifestHash(decoded, treeOid)
     }
-    class "KeyResolver" {
-      "+resolveForStore(...)"
-      "+resolveForDecryption(...)"
-      "+resolveRecipients(recipients)"
+    class KeyResolver {
+      +resolveForStore(...)
+      +resolveForDecryption(...)
+      +resolveRecipients(recipients)
     }
 
-    "ContentAddressableStore" --> "CasService"
-    "ContentAddressableStore" --> "VaultService"
-    "CasService" --> "ChunkRepository"
-    "CasService" --> "ManifestRepository"
-    "CasService" --> "KeyResolver"
+    ContentAddressableStore --> CasService
+    ContentAddressableStore --> VaultService
+    CasService --> ChunkRepository
+    CasService --> ManifestRepository
+    CasService --> KeyResolver
 ```
 
 # The Data Source of Truth
@@ -375,14 +375,14 @@ The manifest, not the tree layout, is authoritative for reconstruction order. Th
 
 ```mermaid
 erDiagram
-    "VAULT_REF" ||--o{ "VAULT_COMMIT" : "points_to_latest"
-    "VAULT_COMMIT" ||--|| "VAULT_TREE" : "has_tree"
-    "VAULT_TREE" ||--|| "VAULT_METADATA_BLOB" : "contains"
-    "VAULT_TREE" ||--o{ "ASSET_TREE_ENTRY" : "maps_slug_to_tree"
-    "ASSET_TREE" ||--|| "MANIFEST_BLOB" : "contains"
-    "ASSET_TREE" ||--o{ "CHUNK_BLOB" : "keeps_reachable"
-    "MANIFEST_BLOB" ||--o{ "CHUNK_ENTRY" : "declares_ordered_chunks"
-    "CHUNK_ENTRY" }o--|| "CHUNK_BLOB" : "references_blob_oid"
+    VAULT_REF ||--o{ VAULT_COMMIT : points_to_latest
+    VAULT_COMMIT ||--|| VAULT_TREE : has_tree
+    VAULT_TREE ||--|| VAULT_METADATA_BLOB : contains
+    VAULT_TREE ||--o{ ASSET_TREE_ENTRY : maps_slug_to_tree
+    ASSET_TREE ||--|| MANIFEST_BLOB : contains
+    ASSET_TREE ||--o{ CHUNK_BLOB : keeps_reachable
+    MANIFEST_BLOB ||--o{ CHUNK_ENTRY : declares_ordered_chunks
+    CHUNK_ENTRY }o--|| CHUNK_BLOB : references_blob_oid
 ```
 
 # Golden Path 1: Library Store, Publish, Vault, Restore
@@ -420,25 +420,25 @@ The source of truth at this moment is still the original file. The source stream
 ```mermaid
 sequenceDiagram
     autonumber
-    participant "App" as App
-    participant "Facade" as Facade
-    participant "FileIOHelper.storeFile()" as FileIO
-    participant "CasService.store()" as Cas
-    participant "StoreStrategy" as Strategy
-    participant "ChunkRepository" as Chunks
-    participant "GitPersistenceAdapter" as Git
+    participant App as App
+    participant Facade as Facade
+    participant FileIOHelper.storeFile() as FileIO
+    participant CasService.store() as Cas
+    participant StoreStrategy as Strategy
+    participant ChunkRepository as Chunks
+    participant GitPersistenceAdapter as Git
 
-    App->>Facade: "storeFile({ filePath, slug })"
-    Facade->>FileIO: "storeFile(service, options)"
-    FileIO->>Cas: "store({ source, slug, filename })"
-    Cas->>Cas: "validate input and build store plan"
-    Cas->>Strategy: "select plaintext, convergent, framed, or whole"
-    Strategy->>Chunks: "chunkAndStore(processedSource)"
-    Chunks->>Git: "writeBlob(chunk bytes)"
-    Git-->>Chunks: "blob OID"
-    Chunks-->>Cas: "chunk entries"
-    Cas-->>Facade: "Manifest"
-    Facade-->>App: "Manifest"
+    App->>Facade: storeFile({ filePath, slug })
+    Facade->>FileIO: storeFile(service, options)
+    FileIO->>Cas: store({ source, slug, filename })
+    Cas->>Cas: validate input and build store plan
+    Cas->>Strategy: select plaintext, convergent, framed, or whole
+    Strategy->>Chunks: chunkAndStore(processedSource)
+    Chunks->>Git: writeBlob(chunk bytes)
+    Git-->>Chunks: blob OID
+    Chunks-->>Cas: chunk entries
+    Cas-->>Facade: Manifest
+    Facade-->>App: Manifest
 ```
 
 ## Step 3: Build the Initial Manifest Data
@@ -518,23 +518,23 @@ The vault is not a database. It is a Git commit chain under `refs/cas/vault`. Ea
 ```mermaid
 sequenceDiagram
     autonumber
-    participant "Facade" as Facade
-    participant "VaultService" as Vault
-    participant "VaultPersistence" as Persistence
-    participant "GitRefAdapter" as Ref
-    participant "GitPersistenceAdapter" as Git
+    participant Facade as Facade
+    participant VaultService as Vault
+    participant VaultPersistence as Persistence
+    participant GitRefAdapter as Ref
+    participant GitPersistenceAdapter as Git
 
-    Facade->>Vault: "addToVault({ slug, treeOid })"
-    Vault->>Persistence: "resolveHead()"
-    Persistence->>Ref: "resolveRef('refs/cas/vault')"
-    Ref-->>Persistence: "current commit or not found"
-    Vault->>Vault: "create mutation draft"
-    Vault->>Git: "writeBlob(.vault.json)"
-    Vault->>Git: "writeTree(vault records)"
-    Vault->>Ref: "createCommit({ treeOid, parentOid })"
-    Vault->>Ref: "updateRef(expectedOldOid)"
-    Ref-->>Vault: "CAS update accepted"
-    Vault-->>Facade: "{ commitOid }"
+    Facade->>Vault: addToVault({ slug, treeOid })
+    Vault->>Persistence: resolveHead()
+    Persistence->>Ref: resolveRef('refs/cas/vault')
+    Ref-->>Persistence: current commit or not found
+    Vault->>Vault: create mutation draft
+    Vault->>Git: writeBlob(.vault.json)
+    Vault->>Git: writeTree(vault records)
+    Vault->>Ref: createCommit({ treeOid, parentOid })
+    Vault->>Ref: updateRef(expectedOldOid)
+    Ref-->>Vault: CAS update accepted
+    Vault-->>Facade: { commitOid }
 ```
 
 The vault entry is now the durable slug source of truth. Later callers can restore by slug instead of remembering the tree OID.
@@ -554,30 +554,30 @@ For normal plaintext uncompressed data, restore is a stream:
 ```mermaid
 sequenceDiagram
     autonumber
-    participant "App" as App
-    participant "Facade.restoreFile()" as Facade
-    participant "FileIOHelper.restoreFile()" as FileIO
-    participant "CasService.restoreStream()" as Cas
-    participant "RestorePlain" as Strategy
-    participant "ChunkRepository" as Chunks
-    participant "GitPersistenceAdapter" as Git
-    participant "Filesystem" as FS
+    participant App as App
+    participant Facade.restoreFile() as Facade
+    participant FileIOHelper.restoreFile() as FileIO
+    participant CasService.restoreStream() as Cas
+    participant RestorePlain as Strategy
+    participant ChunkRepository as Chunks
+    participant GitPersistenceAdapter as Git
+    participant Filesystem as FS
 
-    App->>Facade: "restoreFile({ manifest, outputPath, baseDirectory })"
-    Facade->>FileIO: "restoreFile(service, options)"
-    FileIO->>FileIO: "resolveSafeRestorePath()"
-    FileIO->>Cas: "createFileRestorePlan()"
-    Cas-->>FileIO: "stream plan"
-    FileIO->>Cas: "restoreStream({ manifest })"
-    Cas->>Strategy: "RestoreStrategy.for(...)"
-    Strategy->>Chunks: "iterVerifiedChunkBlobs(manifest)"
-    Chunks->>Git: "readBlobStream(blob)"
-    Git-->>Chunks: "blob bytes"
-    Chunks->>Chunks: "SHA-256 check"
-    Chunks-->>Strategy: "verified bytes"
-    Strategy-->>FileIO: "byte chunks"
-    FileIO->>FS: "write output"
-    FileIO-->>App: "{ bytesWritten }"
+    App->>Facade: restoreFile({ manifest, outputPath, baseDirectory })
+    Facade->>FileIO: restoreFile(service, options)
+    FileIO->>FileIO: resolveSafeRestorePath()
+    FileIO->>Cas: createFileRestorePlan()
+    Cas-->>FileIO: stream plan
+    FileIO->>Cas: restoreStream({ manifest })
+    Cas->>Strategy: RestoreStrategy.for(...)
+    Strategy->>Chunks: iterVerifiedChunkBlobs(manifest)
+    Chunks->>Git: readBlobStream(blob)
+    Git-->>Chunks: blob bytes
+    Chunks->>Chunks: SHA-256 check
+    Chunks-->>Strategy: verified bytes
+    Strategy-->>FileIO: byte chunks
+    FileIO->>FS: write output
+    FileIO-->>App: { bytesWritten }
 ```
 
 # Golden Path 2: Human CLI Store and Restore
@@ -644,22 +644,22 @@ The agent CLI exists for automation that needs structured status instead of huma
 ```mermaid
 sequenceDiagram
     autonumber
-    participant "Automation" as Automation
-    participant "runAgentCli()" as Agent
-    participant "AgentSession" as Session
-    participant "executeAgentCommand()" as Command
-    participant "ContentAddressableStore" as Facade
+    participant Automation as Automation
+    participant runAgentCli() as Agent
+    participant AgentSession as Session
+    participant executeAgentCommand() as Command
+    participant ContentAddressableStore as Facade
 
-    Automation->>Agent: "git-cas agent store --request @payload.json"
-    Agent->>Agent: "resolve command name"
-    Agent->>Session: "createAgentSession({ command })"
-    Agent->>Command: "executeAgentCommand(command, args, deps)"
-    Command->>Session: "writeStart(redacted input)"
-    Command->>Facade: "perform CAS operation"
-    Facade-->>Command: "domain result"
-    Command-->>Agent: "outcome"
-    Agent->>Session: "writeResult(data)"
-    Agent->>Session: "writeEnd({ ok: true, exitCode: 0 })"
+    Automation->>Agent: git-cas agent store --request @payload.json
+    Agent->>Agent: resolve command name
+    Agent->>Session: createAgentSession({ command })
+    Agent->>Command: executeAgentCommand(command, args, deps)
+    Command->>Session: writeStart(redacted input)
+    Command->>Facade: perform CAS operation
+    Facade-->>Command: domain result
+    Command-->>Agent: outcome
+    Agent->>Session: writeResult(data)
+    Agent->>Session: writeEnd({ ok: true, exitCode: 0 })
 ```
 
 Agent errors are normalized with a stable code, retryability, optional documentation URL, optional hint, and metadata. `INTEGRITY_ERROR` maps to the verification-failed exit code. Invalid input and needs-input branches map to the invalid-input exit code.
@@ -1066,19 +1066,19 @@ If a source read fails, the pipeline closes the async iterator and reports `STRE
 ```mermaid
 sequenceDiagram
     autonumber
-    participant "Restore strategy" as Strategy
-    participant "PrefetchWindow" as Window
-    participant "Git blob reads" as Git
+    participant Restore strategy as Strategy
+    participant PrefetchWindow as Window
+    participant Git blob reads as Git
 
-    Strategy->>Window: "prefetchChunks(chunks, fetchFn, concurrency)"
-    Window->>Git: "fetch chunk 0"
-    Window->>Git: "fetch chunk 1"
-    Window->>Git: "fetch chunk 2"
-    Git-->>Window: "chunk 1 ready"
-    Git-->>Window: "chunk 0 ready"
-    Window-->>Strategy: "yield chunk 0"
-    Window->>Git: "fetch next chunk"
-    Window-->>Strategy: "yield chunk 1"
+    Strategy->>Window: prefetchChunks(chunks, fetchFn, concurrency)
+    Window->>Git: fetch chunk 0
+    Window->>Git: fetch chunk 1
+    Window->>Git: fetch chunk 2
+    Git-->>Window: chunk 1 ready
+    Git-->>Window: chunk 0 ready
+    Window-->>Strategy: yield chunk 0
+    Window->>Git: fetch next chunk
+    Window-->>Strategy: yield chunk 1
 ```
 
 The benefit is higher I/O throughput without unbounded memory growth or reordering.
@@ -1089,15 +1089,15 @@ Vault writes use optimistic concurrency. `VaultPersistence` updates `refs/cas/va
 
 ```mermaid
 stateDiagram-v2
-    [*] --> "Read vault head"
-    "Read vault head" --> "Build draft"
-    "Build draft" --> "Write blobs/tree/commit"
-    "Write blobs/tree/commit" --> "CAS update ref"
-    "CAS update ref" --> "Success"
-    "CAS update ref" --> "VAULT_CONFLICT"
-    "VAULT_CONFLICT" --> "Backoff with jitter"
-    "Backoff with jitter" --> "Read vault head"
-    "Success" --> [*]
+    [*] --> Read vault head
+    Read vault head --> Build draft
+    Build draft --> Write blobs/tree/commit
+    Write blobs/tree/commit --> CAS update ref
+    CAS update ref --> Success
+    CAS update ref --> VAULT_CONFLICT
+    VAULT_CONFLICT --> Backoff with jitter
+    Backoff with jitter --> Read vault head
+    Success --> [*]
 ```
 
 # Security Boundaries and Auth Flows
@@ -1121,18 +1121,18 @@ Legacy scheme identifiers such as `whole-v1`, `whole-v2`, `framed-v1`, `framed-v
 ```mermaid
 sequenceDiagram
     autonumber
-    participant "Caller" as Caller
-    participant "KeyResolver" as Resolver
-    participant "kdfPolicy" as Policy
-    participant "CryptoPort" as Crypto
-    participant "Manifest" as Manifest
+    participant Caller as Caller
+    participant KeyResolver as Resolver
+    participant kdfPolicy as Policy
+    participant CryptoPort as Crypto
+    participant Manifest as Manifest
 
-    Caller->>Resolver: "passphrase + kdfOptions"
-    Resolver->>Policy: "prepareKdfOptions()"
-    Policy-->>Resolver: "bounded params"
-    Resolver->>Crypto: "deriveKey(passphrase, params)"
-    Crypto-->>Resolver: "32-byte key + salt + stored params"
-    Resolver-->>Manifest: "encryption.kdf metadata"
+    Caller->>Resolver: passphrase + kdfOptions
+    Resolver->>Policy: prepareKdfOptions()
+    Policy-->>Resolver: bounded params
+    Resolver->>Crypto: deriveKey(passphrase, params)
+    Crypto-->>Resolver: 32-byte key + salt + stored params
+    Resolver-->>Manifest: encryption.kdf metadata
 ```
 
 Stored KDF metadata is validated before derivation during restore. That prevents repository-controlled manifests from forcing extreme KDF costs or malformed salts.
