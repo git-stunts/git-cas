@@ -111,20 +111,32 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With v6.0.0 shipped, these are candidate directions — not commitments.
+With v6.0.0 shipped, active work is tracked in GitHub Issues and Milestones.
+Repo docs hold design and evidence records, not the active queue.
 
-- **TUI modernization.** Keep dashboard and wizard actions sharing executable
+The next selected design record is
+[0045-v6-1-bounded-residency](./docs/design/0045-v6-1-bounded-residency/bounded-residency.md).
+It targets large-vault and large-blob residency hardening for
+[#38](https://github.com/git-stunts/git-cas/issues/38) in the
+[`v6.1.0` milestone](https://github.com/git-stunts/git-cas/milestone/2).
+
+The broader horizon remains:
+
+- **TUI modernization.** Track
+  [#39](https://github.com/git-stunts/git-cas/issues/39). Keep dashboard and
+  wizard actions sharing executable
   option-building truth while improving operator ergonomics around long-lived
   store, restore, vault, and diagnostics workflows.
-- **Browser/edge persistence adapter.** A `FetchPersistenceAdapter` or
+- **Browser/edge persistence adapter.** Track
+  [#41](https://github.com/git-stunts/git-cas/issues/41). A
+  `FetchPersistenceAdapter` or
   `IsomorphicGitAdapter` could enable browser-side restore (read path) without
   the `git` CLI. Write path is harder — it needs ref updates and tree creation.
-- **Formal crypto audit.** Engage a third-party security firm to review the
+- **Formal crypto audit.** Track
+  [#42](https://github.com/git-stunts/git-cas/issues/42). Engage a third-party
+  security firm to review the
   framing protocol, AAD binding, convergent key derivation, KDF policy
   enforcement, and key derivation paths.
-- **Performance optimization.** Profiling large-asset store/restore paths,
-  particularly CDC chunking throughput, convergent encryption overhead, and
-  PrefetchWindow tuning. The benchmarks baseline exists in `ADVANCED_GUIDE.md`.
 - **Adaptive frame sizing.** Investigate dynamic `frameBytes` selection based on
   payload characteristics to reduce per-frame overhead for small assets while
   maintaining streaming properties for large ones.

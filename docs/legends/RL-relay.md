@@ -11,7 +11,9 @@ Build a first-class machine-facing `git cas agent` contract and keep the shared
 application boundary explicit enough that later human-surface work can reuse it
 honestly.
 
-## Current METHOD Backlog
+## Current METHOD Tracker
+
+GitHub Issues and Milestones own current Relay work.
 
 - none currently
 

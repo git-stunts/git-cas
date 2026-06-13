@@ -6,7 +6,7 @@
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
-**Live backlog:** [docs/method/backlog/README.md](./docs/method/backlog/README.md)
+**Live tracker:** [GitHub Issues](https://github.com/git-stunts/git-cas/issues) and [Milestones](https://github.com/git-stunts/git-cas/milestones)
 
 ---
 
@@ -73,15 +73,22 @@
 - Web Crypto whole-object decrypt paths are now explicitly bounded by
   `maxDecryptionBufferSize` instead of collecting ciphertext without a guard.
   `framed` remains the actual cross-runtime streaming-encrypted mode.
-- Fresh work is now organized through METHOD backlog lanes and numbered cycle
-  directories.
+- Fresh work is now tracked through GitHub Issues and Milestones. Repo Markdown
+  carries design docs, witnesses, public docs, release history, and archived
+  planning source material.
 - TUI modernization is queued for the v6.x line after v6.0.0, not as a v6.0.0
   tag blocker.
 
 ## Active Queue Snapshot
 
-- [Vault Tree Memory Loading](./docs/method/backlog/bad-code/vault-tree-memory-loading.md)
-- [TR — GitPersistenceAdapter Full Materialization](./docs/method/backlog/bad-code/TR_persistence-adapter-materialization.md)
+- GitHub Issues are canonical. If this section and GitHub disagree, GitHub
+  wins and this section should be corrected.
+- Current selected release goalpost:
+  [#38 v6.1.0: Bounded Residency](https://github.com/git-stunts/git-cas/issues/38)
+  under the
+  [`v6.1.0` milestone](https://github.com/git-stunts/git-cas/milestone/2).
+- The next local design record is
+  [0045-v6-1-bounded-residency](./docs/design/0045-v6-1-bounded-residency/bounded-residency.md).
 
 ## Read Next
 

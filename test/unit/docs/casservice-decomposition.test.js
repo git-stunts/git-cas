@@ -36,7 +36,7 @@ describe('CasService decomposition boundary', () => {
 
   it('keeps audit and status docs aligned with the completed de-sludge', () => {
     const audit = read('docs/audit/2026-05-05_v6-release-readiness.md');
-    const releaseBlocker = read('docs/method/backlog/v6.0.0/REL_audit-blocker-burn-down.md');
+    const releaseBlocker = read('docs/archive/backlog-pre-issues/v6.0.0/REL_audit-blocker-burn-down.md');
     const status = read('STATUS.md');
 
     expect(audit).toContain('ISSUE-001: CasService.js Logic Leak');
@@ -51,7 +51,7 @@ describe('CasService decomposition boundary', () => {
   it('keeps architecture and backlog docs aligned with the extracted strategy layout', () => {
     const architecture = read('ARCHITECTURE.md');
     const guide = read('GUIDE.md');
-    const backlog = read('docs/method/backlog/bad-code/BAD-CODE-001_casservice-god-object.md');
+    const backlog = read('docs/archive/backlog-pre-issues/bad-code/BAD-CODE-001_casservice-god-object.md');
 
     expect(architecture.match(/^#### Value Objects \(`src\/domain\/value-objects\/`\)$/gm)).toHaveLength(1);
     expect(guide).toMatch(/Lean domain\s+facade/);

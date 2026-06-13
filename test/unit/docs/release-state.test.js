@@ -25,7 +25,7 @@ describe('release state docs', () => {
   });
 
   it('keeps the v6 release checklist evidence current with the pre-tag candidate', () => {
-    const releaseCard = read('docs/method/backlog/v6.0.0/REL_version-bump.md');
+    const releaseCard = read('docs/archive/backlog-pre-issues/v6.0.0/REL_version-bump.md');
 
     expect(releaseCard).toContain('v6 release-readiness polish');
     expect(releaseCard).toMatch(/168\s+files, 1502 passed, 2 skipped/);

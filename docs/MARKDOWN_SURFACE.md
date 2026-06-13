@@ -72,20 +72,18 @@ local-only surfaces.
 
 - [docs/method/process.md](./method/process.md): `KEEP` — canonical planning
   and delivery process for fresh work.
-- [docs/goalposts/README.md](./goalposts/README.md): `KEEP` — release
-  goalpost index between `ROADMAP.md` and numbered design cycles.
-- [docs/templates/goalpost.md](./templates/goalpost.md): `KEEP` — reusable
-  release-goalpost skeleton for fresh planning.
 - [docs/templates/design-doc.md](./templates/design-doc.md): `KEEP` —
   reusable METHOD cycle design skeleton for fresh planning.
+- [.github/ISSUE_TEMPLATE/goalpost.yml](../.github/ISSUE_TEMPLATE/goalpost.yml):
+  `KEEP` — reusable release-goalpost issue form for fresh planning.
+- [.github/ISSUE_TEMPLATE/slice.yml](../.github/ISSUE_TEMPLATE/slice.yml):
+  `KEEP` — reusable slice issue form for turn-sized proof work.
 - [docs/method/release.md](./method/release.md): `KEEP` — canonical release
   process for fresh work.
 - [docs/method/backlog/README.md](./method/backlog/README.md): `KEEP` —
-  canonical live backlog index.
+  retired backlog signpost that points active work to GitHub Issues.
 - [docs/design/0044-casservice-decomposition-plan](./design/0044-casservice-decomposition-plan/casservice-decomposition-plan.md):
   `KEEP` — landed design record for the decomposition trajectory.
-- [docs/method/backlog/bad-code/TR_platform-dependency-leaks.md](./method/backlog/bad-code/TR_platform-dependency-leaks.md):
-  `KEEP` — active debt backlog work item.
 - [docs/method/legends/README.md](./method/legends/README.md): `KEEP` —
   canonical legend index for fresh work.
 - [docs/method/legends/RL_relay.md](./method/legends/RL_relay.md): `KEEP` —
@@ -241,6 +239,6 @@ If the repo wants to act on this audit, the highest-value next changes are:
 2. decide whether [CLAUDE.md](../CLAUDE.md) should leave tracked root entirely
 3. collapse [STATUS.md](../STATUS.md) into other canonical surfaces and remove
    the duplicate snapshot doc
-4. keep [ROADMAP.md](../ROADMAP.md), [docs/goalposts/](./goalposts/README.md),
-   and [docs/design/](./design/README.md) synchronized as the release planning
-   stack evolves
+4. keep [ROADMAP.md](../ROADMAP.md), GitHub milestones/issues, and
+   [docs/design/](./design/README.md) synchronized as the release planning stack
+   evolves

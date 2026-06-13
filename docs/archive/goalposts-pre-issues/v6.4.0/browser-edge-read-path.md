@@ -21,7 +21,7 @@ restoring existing content without shelling out to the Git CLI.
 
 ## Current Truth
 
-- [BEARING.md](../../../BEARING.md) names browser/edge persistence as an open
+- [BEARING.md](../../../../BEARING.md) names browser/edge persistence as an open
   tension.
 - The current Git persistence path depends on the Git CLI through
   `@git-stunts/plumbing`.

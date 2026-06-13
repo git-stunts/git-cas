@@ -259,4 +259,4 @@ TUI-specific work may defer to the v6.x release line.
 ### Deferred To v6.x
 
 - **Operational Gap 3 - TUI Orphaned-Chunk Health Check:** Deferred to
-  [TUI — Orphaned-Chunk Health Check](../method/backlog/v6.x-tui/TUI_orphaned-chunk-health-check.md).
+  [TUI — Orphaned-Chunk Health Check](../archive/backlog-pre-issues/v6.x-tui/TUI_orphaned-chunk-health-check.md).

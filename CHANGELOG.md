@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **GitHub tracker templates** — added issue forms for goalposts, slices, bugs,
+  debt, and ideas, plus a pull request template that links issues, design proof,
+  validation, and release impact.
+
+### Changed
+
+- **GitHub Issues as canonical tracker** — release milestones, goalposts, slices,
+  and follow-on work now live in GitHub Issues and Milestones. Repo Markdown
+  carries design docs, witnesses, release history, public docs, and archived
+  planning source material, but does not own the active queue.
+
 ## [6.0.1] — 2026-05-09
 
 ### Added

@@ -21,7 +21,7 @@ evidence requires a breaking change. Otherwise the work remains in `v6.x`.
 
 ## Current Truth
 
-- [BEARING.md](../../../BEARING.md) names formal crypto audit as an open
+- [BEARING.md](../../../../BEARING.md) names formal crypto audit as an open
   tension.
 - `v6.0.0` simplified encryption schemes and added migration tooling.
 - No third-party audit result is currently recorded in the repo.

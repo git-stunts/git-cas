@@ -37,7 +37,7 @@ Machine-facing agent CLI for structured CI/CD or agentic workflows.
 
 ### 4. Contributing
 
-- Read `METHOD.md` and `BEARING.md` for project process.
+- Read `WORKFLOW.md`, `docs/method/process.md`, and `BEARING.md` for project process.
 - See [Architecture](#architecture) for orientation.
 
 ---

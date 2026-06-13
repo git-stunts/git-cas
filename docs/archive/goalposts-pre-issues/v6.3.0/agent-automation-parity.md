@@ -22,9 +22,9 @@ details.
 
 ## Current Truth
 
-- [STATUS.md](../../../STATUS.md) says the machine-facing `git cas agent`
+- [STATUS.md](../../../../STATUS.md) says the machine-facing `git cas agent`
   surface exists, but parity and portability are still partial.
-- [docs/design/](../../design/README.md) contains landed Relay and agent CLI
+- [docs/design/](../../../design/README.md) contains landed Relay and agent CLI
   design history.
 
 ## Scope

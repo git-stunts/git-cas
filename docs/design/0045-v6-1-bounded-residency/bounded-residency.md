@@ -4,8 +4,9 @@ cycle: "0045"
 task_id: "bounded-residency"
 legend: "PERF"
 release_home: "v6.1.0"
-goalpost: "docs/goalposts/v6.1.0/bounded-residency.md"
-issue: "not opened yet"
+issue: "https://github.com/git-stunts/git-cas/issues/38"
+goalpost_issue: "https://github.com/git-stunts/git-cas/issues/38"
+tracker_source: "github"
 status: "draft"
 base_commit: "662fcc7661114715670c0eb48e78bcce47cae43c"
 owners:
@@ -15,8 +16,8 @@ sponsors:
   agent: "Codex"
 blocking_issues: []
 supersedes:
-  - "docs/method/backlog/bad-code/vault-tree-memory-loading.md"
-  - "docs/method/backlog/bad-code/TR_persistence-adapter-materialization.md"
+  - "docs/archive/backlog-pre-issues/bad-code/vault-tree-memory-loading.md"
+  - "docs/archive/backlog-pre-issues/bad-code/TR_persistence-adapter-materialization.md"
 superseded_by: null
 created: "2026-06-13"
 updated: "2026-06-13"
@@ -26,11 +27,17 @@ updated: "2026-06-13"
 
 ## Linked Issue
 
-- `not opened yet`
+- https://github.com/git-stunts/git-cas/issues/38
 
-## Linked Goalpost
+## Linked Tracker
 
-- [v6.1.0 Bounded Residency](../../goalposts/v6.1.0/bounded-residency.md)
+- Milestone: `v6.1.0`
+- Goalpost issue: https://github.com/git-stunts/git-cas/issues/38
+- Slice issues:
+  - https://github.com/git-stunts/git-cas/issues/43
+  - https://github.com/git-stunts/git-cas/issues/44
+  - https://github.com/git-stunts/git-cas/issues/45
+  - https://github.com/git-stunts/git-cas/issues/46
 
 ## Design Type
 
@@ -72,10 +79,10 @@ without overstating custom adapter guarantees.
 
 ## Current Truth
 
-- `docs/method/backlog/bad-code/vault-tree-memory-loading.md` says
+- `docs/archive/backlog-pre-issues/bad-code/vault-tree-memory-loading.md` says
   `VaultService.#readCachedVaultTree` and dependencies read and parse an entire
   Git tree into a slug map.
-- `docs/method/backlog/bad-code/TR_persistence-adapter-materialization.md` says
+- `docs/archive/backlog-pre-issues/bad-code/TR_persistence-adapter-materialization.md` says
   `GitPersistenceAdapter.readBlob` materialization creates O(N) residency
   pressure.
 - `src/infrastructure/adapters/GitPersistenceAdapter.js` exposes
@@ -108,7 +115,7 @@ This cycle includes:
   `readBlobStream()` when payload size is unbounded.
 - Implementation changes inside `VaultService`, `VaultPersistence`,
   `ChunkRepository`, `ManifestRepository`, or adapters as needed.
-- Documentation updates to the goalpost, backlog cards, `STATUS.md`,
+- Documentation updates to the GitHub issues, design witness, `STATUS.md`,
   `CHANGELOG.md`, and release evidence.
 
 ## Non-Goals
@@ -245,7 +252,7 @@ Agents can inspect the result through:
 - stable test names
 - `CasError` codes and metadata
 - command transcripts in `docs/design/0045-v6-1-bounded-residency/witness/`
-- goalpost closeout checkboxes
+- GitHub issue closeout tasks
 - changelog entries that name the actual bounded surfaces
 
 ## Linked Invariants
@@ -319,7 +326,7 @@ The implementation must be proven through:
 - Add streaming vault list tests.
 - Add or tighten `readBlob()`/`readBlobStream()` residency tests.
 - Implement the bounded read behavior.
-- Update docs, changelog, goalpost, and witness evidence.
+- Update docs, changelog, GitHub issue closeout, and witness evidence.
 
 Each slice should be independently reviewable and should close with a concrete
 test or witness.
@@ -339,8 +346,9 @@ Behavior tests required:
 
 Documentation/process tests, only if relevant:
 
-- [ ] Goalpost and roadmap links point to real files.
-- [ ] Backlog cards are updated or dispositioned after implementation.
+- [ ] GitHub issue links point to the canonical goalpost and slice issues.
+- [ ] Archived backlog inputs are dispositioned through GitHub issue comments or
+      closeout notes after implementation.
 
 Rule: documentation tests cannot be the only proof for implementation work.
 
@@ -353,7 +361,7 @@ The work is done when:
 - [ ] Runtime tests prove the blob read contract.
 - [ ] Errors are explicit when safe streaming support is missing.
 - [ ] Docs, changelog, and release notes are updated.
-- [ ] Goalpost closeout is updated.
+- [ ] Goalpost issue closeout is updated.
 - [ ] CI and local validation are green.
 
 ## Validation Plan
@@ -397,7 +405,7 @@ Mitigations:
 
 ## Follow-On Debt
 
-Create backlog files or GitHub issues for:
+Create GitHub issues for:
 
 - public paginated vault APIs, if tests prove operator need
 - browser/edge read-path adapter work
@@ -407,9 +415,13 @@ Create backlog files or GitHub issues for:
 
 | Issue | Role | Expected disposition |
 | --- | --- | --- |
-| `docs/method/backlog/bad-code/vault-tree-memory-loading.md` | primary input | close or mark resolved when tests and implementation land |
-| `docs/method/backlog/bad-code/TR_persistence-adapter-materialization.md` | primary input | close or rewrite to remaining custom-adapter risk |
-| `not opened yet` | umbrella issue | open before implementation PR |
+| `docs/archive/backlog-pre-issues/bad-code/vault-tree-memory-loading.md` | historical input | cite from the goalpost issue and mark resolved when tests and implementation land |
+| `docs/archive/backlog-pre-issues/bad-code/TR_persistence-adapter-materialization.md` | historical input | cite from the goalpost issue or create a narrower follow-up issue for remaining custom-adapter risk |
+| https://github.com/git-stunts/git-cas/issues/38 | umbrella issue | update and close when all accepted slices land |
+| https://github.com/git-stunts/git-cas/issues/43 | slice | close when targeted vault lookup proof lands |
+| https://github.com/git-stunts/git-cas/issues/44 | slice | close when streaming vault list proof lands |
+| https://github.com/git-stunts/git-cas/issues/45 | slice | close when blob read residency proof lands |
+| https://github.com/git-stunts/git-cas/issues/46 | slice | close when docs, witness, and release evidence are updated |
 
 ## Done Does Not Mean
 

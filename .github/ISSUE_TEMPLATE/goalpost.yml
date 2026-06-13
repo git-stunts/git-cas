@@ -1,0 +1,85 @@
+name: Goalpost
+description: Release-scale feature, invariant, or evidence packet.
+title: "vX.Y.Z: <goalpost title>"
+labels:
+  - type:goalpost
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Goalposts are tracked in GitHub Issues. Design docs and witnesses may
+        live in the repo, but this issue owns work state.
+  - type: input
+    id: release
+    attributes:
+      label: Release milestone
+      description: Target version milestone, for example v6.1.0.
+      placeholder: v6.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: State the release-scale outcome this goalpost unlocks.
+    validations:
+      required: true
+  - type: textarea
+    id: current-truth
+    attributes:
+      label: Current truth
+      description: Cite repo-visible facts, commands, docs, tests, PRs, or issues.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is included?
+      value: |
+        - 
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What is explicitly excluded?
+      value: |
+        - 
+    validations:
+      required: true
+  - type: textarea
+    id: slices
+    attributes:
+      label: Slices
+      description: Link child issues or list turn-sized slices until child issues exist.
+      value: |
+        - [ ] Slice 1:
+        - [ ] Slice 2:
+    validations:
+      required: true
+  - type: input
+    id: design
+    attributes:
+      label: Design doc
+      description: Link the repo design doc, or write "needed".
+      placeholder: docs/design/NNNN-slug/slug.md
+    validations:
+      required: true
+  - type: textarea
+    id: proof
+    attributes:
+      label: Required proof
+      description: Tests, fixtures, witnesses, schemas, commands, or release evidence required before closeout.
+      value: |
+        - 
+    validations:
+      required: true
+  - type: textarea
+    id: release-impact
+    attributes:
+      label: Release gate impact
+      description: Changelog, docs, package surface, migration posture, or release evidence impact.
+    validations:
+      required: true

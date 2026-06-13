@@ -24,7 +24,9 @@ behavior.
 - machine-facing commands emit explicit records and exit codes
 - human and agent surfaces stay separate over one shared core
 
-## Current Backlog
+## Current Tracker
+
+GitHub Issues and Milestones own current Relay work.
 
 - none currently
 

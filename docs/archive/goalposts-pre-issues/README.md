@@ -1,8 +1,8 @@
 # Goalposts
 
-Goalposts are release-scale commitments. They sit between
-[ROADMAP.md](../../ROADMAP.md) and numbered METHOD cycles under
-[docs/design/](../design/README.md).
+Goalposts were release-scale commitments. They sat between
+[ROADMAP.md](../../../ROADMAP.md) and numbered METHOD cycles under
+[docs/design/](../../design/README.md).
 
 Use goalposts when a release needs more structure than a single backlog card:
 
@@ -24,5 +24,5 @@ Use goalposts when a release needs more structure than a single backlog card:
 
 ## Template
 
-New goalposts should start from
-[docs/templates/goalpost.md](../templates/goalpost.md).
+New goalposts now start from the
+[GitHub goalpost issue form](../../../.github/ISSUE_TEMPLATE/goalpost.yml).

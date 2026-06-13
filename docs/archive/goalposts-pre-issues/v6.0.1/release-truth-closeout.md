@@ -22,12 +22,12 @@ evidence all agree with what is on `main`.
 
 ## Current Truth
 
-- [STATUS.md](../../../STATUS.md) describes `v6.0.1` as a patch candidate on
+- [STATUS.md](../../../../STATUS.md) describes `v6.0.1` as a patch candidate on
   `main` and records `npm run release:verify -- --skip-jsr` passing 12/12 steps
   with 5,383 observed tests.
-- [ROADMAP.md](../../../ROADMAP.md) now treats release planning as goalpost
+- [ROADMAP.md](../../../../ROADMAP.md) now treats release planning as goalpost
   driven rather than milestone fiction.
-- [docs/method/backlog/README.md](../../method/backlog/README.md) has empty
+- [docs/method/backlog/README.md](../../../method/backlog/README.md) has empty
   `asap/` and `up-next/` lanes.
 - Some older TUI backlog cards still describe pre-ship states and need a truth
   pass before they become `v6.2.0` goalpost work.

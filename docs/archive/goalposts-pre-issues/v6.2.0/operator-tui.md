@@ -22,10 +22,10 @@ agent-readable evidence.
 
 ## Current Truth
 
-- [BEARING.md](../../../BEARING.md) names TUI modernization as an open tension.
-- [docs/method/backlog/v6.x-tui/](../../method/backlog/v6.x-tui/) contains the
+- [BEARING.md](../../../../BEARING.md) names TUI modernization as an open tension.
+- [docs/archive/backlog-pre-issues/v6.x-tui/](../../backlog-pre-issues/v6.x-tui/) contains the
   v6.x TUI lane.
-- [docs/method/backlog/bad-code/TUI_store-wizard-execution-gap.md](../../method/backlog/bad-code/TUI_store-wizard-execution-gap.md)
+- [docs/archive/backlog-pre-issues/bad-code/TUI_store-wizard-execution-gap.md](../../backlog-pre-issues/bad-code/TUI_store-wizard-execution-gap.md)
   is marked resolved in the backlog index, so the v6.x TUI lane needs a truth
   pass before implementation begins.
 

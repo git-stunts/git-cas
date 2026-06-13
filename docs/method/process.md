@@ -5,6 +5,11 @@ _A backlog, a loop, and honest bookkeeping._
 This file is the canonical planning and delivery process for fresh work in
 `git-cas`.
 
+The core rule is:
+
+> If it is actionable work, it must be a GitHub Issue. If it only appears in a
+> Markdown file, it is not tracked work.
+
 ## Principles
 
 - The human and the agent sit at the same table. Both are named in every
@@ -23,24 +28,25 @@ This file is the canonical planning and delivery process for fresh work in
   over hardcoded left/right assumptions.
 - Agent surfaces must be explicit and inspectable. Design must say what is
   agent-generated, what evidence it relies on, and what action it expects next.
-- The filesystem is the database. A directory is a priority. A filename is an
-  identity. Moving a file is a decision.
+- GitHub Issues are the tracker. Milestones, labels, issue state, issue links,
+  and pull requests own active work status.
+- The filesystem is the design and evidence ledger. Markdown explains decisions,
+  proof plans, witnesses, public docs, and historical context; it does not own
+  open work state.
 - Process should stay calm. No sprints, velocity theater, or burndown charts.
 
 ## Structure
 
-Fresh planning now uses:
+Fresh work now uses:
 
 ```text
+GitHub
+  milestones/
+  issues/
+  labels/
+
 docs/
-  goalposts/
   method/
-    backlog/
-      inbox/
-      asap/
-      up-next/
-      cool-ideas/
-      bad-code/
     legends/
     retro/<cycle>/<task>.md
     graveyard/
@@ -56,71 +62,67 @@ Repo-specific notes:
 - `docs/design/<cycle>/witness/` holds playback evidence for the cycle.
 - Top-level legacy cycle docs already in `docs/design/` remain in place for
   history and link stability.
-- Legacy planning compatibility surfaces remain in `docs/BACKLOG/` and
-  `docs/legends/`, but they are no longer the source of truth for fresh work.
+- Legacy planning compatibility surfaces remain in `docs/BACKLOG/`,
+  `docs/legends/`, and `docs/archive/`, but they are not active tracking
+  surfaces.
 
 ## Roadmap And Goalposts
 
-[ROADMAP.md](../../ROADMAP.md) lists upcoming versioned releases. A release is
-made of goalposts, and a goalpost is a release-scale feature, invariant, or
-evidence packet that must be met before that release can honestly ship.
+[ROADMAP.md](../../ROADMAP.md) lists the intended release train and points to
+GitHub Milestones. A release milestone is made of GitHub Issues:
 
-Goalpost docs live in [docs/goalposts/](../goalposts/README.md). They do not
-replace backlog items or design cycles:
+- `type:goalpost` issues own release-scale features, invariants, or evidence
+  packets.
+- `type:slice` issues or sub-issues own turn-sized proof work.
+- Pull requests should normally carry one goalpost issue or one coherent slice
+  under a goalpost.
 
-- backlog files capture raw debt and ideas
-- goalposts choose which work belongs to a versioned release
-- design cycles make one goalpost implementable and testable
-- pull requests should normally carry one goalpost
+Goalposts and slices are tracked in GitHub, not in repo-local Markdown.
 
-Goalposts are subdivided into slices. A slice should be small enough to finish
-in one focused turn and should name its expected proof.
+Use [docs/templates/design-doc.md](../templates/design-doc.md) for new cycle
+designs. Use the GitHub issue forms under `.github/ISSUE_TEMPLATE/` for
+goalposts, slices, bugs, debt, and ideas.
 
-Use [docs/templates/goalpost.md](../templates/goalpost.md) for new goalposts and
-[docs/templates/design-doc.md](../templates/design-doc.md) for new cycle
-designs.
+## GitHub Tracker
 
-## Backlog
+GitHub owns:
 
-Backlog items are Markdown files. The directory lane is the priority.
+- release membership through milestones
+- work identity through issues
+- priority and routing through labels
+- status through issue state and labels
+- parent/child relationships through sub-issues, linked issues, or task lists
+- pull request linkage through closing keywords and issue references
 
-### Lanes
+Recommended label families:
 
-- `inbox/` — raw capture, anyone anytime
-- `asap/` — pull this soon
-- `up-next/` — likely after the current pull
-- `cool-ideas/` — interesting, not committed
-- `bad-code/` — working debt that bothers us
+- `type:goalpost`, `type:slice`, `type:bug`, `type:debt`, `type:idea`,
+  `type:design`, `type:release`
+- `area:storage`, `area:vault`, `area:tui`, `area:agent`, `area:docs`,
+  `area:security`, `area:runtime`
+- `status:blocked`, `status:needs-design`, `status:ready`,
+  `status:in-progress`, `status:review`, `status:carried-forward`
 
-Anything outside those lanes but still under `docs/method/backlog/` is an
-exception surface and should be rare.
+## Retired Repo Backlog
 
-### Naming
+The former repo-local backlog is retired. Historical cards may remain under
+`docs/archive/`, but active work must be promoted to GitHub Issues before it is
+considered tracked.
 
-Use a legend prefix when the work belongs to a named domain. Do not use numeric
-IDs in backlog filenames.
+Do not add new work cards under `docs/method/backlog/`. Use GitHub Issues.
 
-Examples:
+## Promoting Work To Design
 
-- `TR_streaming-encrypted-restore.md`
-- `RL_agent-session-protocol.md`
-- `debt-tui-layout-coupling.md`
+Pulling a GitHub Issue into a design cycle means:
 
-### Promoting
-
-Pulling a backlog item into a cycle means:
-
-1. remove the backlog file from its lane
+1. confirm the issue is in the correct milestone and has the right type labels
 2. create the next numbered cycle directory under `docs/design/`
 3. write the cycle doc inside that directory
-
-`git-cas` cycle directories now use four-digit sequential prefixes:
+4. link the design doc from the issue
+5. keep issue status in GitHub, not in Markdown
 
 - `docs/design/0020-method-adoption/`
 - `docs/design/0021-something-else/`
-
-The promoted backlog file does not go back. Follow-on work re-enters the
-backlog as a new file if the cycle pivots or ends partial.
 
 ### Empty-State Style
 

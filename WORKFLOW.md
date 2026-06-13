@@ -5,11 +5,11 @@ This file is the root signpost for how `git-cas` plans and ships work.
 Fresh work now follows the METHOD in
 [docs/method/process.md](./docs/method/process.md).
 
-Current planning truth lives in:
+Work tracking truth lives in GitHub Issues and Milestones.
+
+Repo planning and evidence docs live in:
 
 - [ROADMAP.md](./ROADMAP.md)
-- [docs/goalposts/](./docs/goalposts/README.md)
-- [docs/method/backlog/](./docs/method/backlog/README.md)
 - [docs/method/legends/](./docs/method/legends/README.md)
 - [docs/design/](./docs/design/README.md)
 - [docs/method/release.md](./docs/method/release.md)
@@ -23,3 +23,6 @@ Legacy compatibility surfaces remain for historical links and older cycle docs:
 
 If a METHOD surface and a legacy compatibility surface disagree, the METHOD
 surface wins and the legacy surface should be corrected or retired.
+
+If a repo doc and GitHub Issues disagree about actionable work, GitHub Issues
+win.

@@ -23,17 +23,17 @@ trees or blobs.
 
 ## Current Truth
 
-- [docs/method/backlog/bad-code/vault-tree-memory-loading.md](../../method/backlog/bad-code/vault-tree-memory-loading.md)
+- [docs/archive/backlog-pre-issues/bad-code/vault-tree-memory-loading.md](../../backlog-pre-issues/bad-code/vault-tree-memory-loading.md)
   names full vault tree loading as active debt.
-- [docs/method/backlog/bad-code/TR_persistence-adapter-materialization.md](../../method/backlog/bad-code/TR_persistence-adapter-materialization.md)
+- [docs/archive/backlog-pre-issues/bad-code/TR_persistence-adapter-materialization.md](../../backlog-pre-issues/bad-code/TR_persistence-adapter-materialization.md)
   names `GitPersistenceAdapter.readBlob()` materialization pressure as active
   debt.
-- [src/infrastructure/adapters/GitPersistenceAdapter.js](../../../src/infrastructure/adapters/GitPersistenceAdapter.js)
+- [src/infrastructure/adapters/GitPersistenceAdapter.js](../../../../src/infrastructure/adapters/GitPersistenceAdapter.js)
   already provides `readBlobStream()`, a default `readBlob()` safety limit, and
   tree iteration helpers.
-- [src/domain/services/VaultPersistence.js](../../../src/domain/services/VaultPersistence.js)
+- [src/domain/services/VaultPersistence.js](../../../../src/domain/services/VaultPersistence.js)
   already contains direct tree-entry and streaming tree iteration boundaries.
-- [src/domain/services/VaultService.js](../../../src/domain/services/VaultService.js)
+- [src/domain/services/VaultService.js](../../../../src/domain/services/VaultService.js)
   still has cached vault tree paths that can turn single-entry work into
   whole-tree residency.
 

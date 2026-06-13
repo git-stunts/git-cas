@@ -40,6 +40,6 @@ No design drift is currently visible inside this cycle.
 
 - No new cool-ideas card came out of this cycle.
 - Existing streaming follow-on work remains captured in
-  [TR — Streaming Decryption](../../backlog/cool-ideas/TR_streaming-decryption.md)
+  [TR - Streaming Decryption](../../../archive/backlog-pre-issues/cool-ideas/TR_streaming-decryption.md)
   and
   [TR — Streaming Encrypted Restore](../0027-framed-v1-streaming-restore/framed-v1-streaming-restore.md).

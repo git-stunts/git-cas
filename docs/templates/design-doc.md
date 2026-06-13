@@ -24,8 +24,9 @@ cycle: "<NNNN>"
 task_id: "<slug>"
 legend: "<API|DX|HYGIENE|INFRA|PERF|PROTO|RELEASE|SLUDGE|TRUST|TUI>"
 release_home: "vX.Y.Z|none"
-goalpost: "docs/goalposts/vX.Y.Z/<goalpost>.md|none"
-issue: "https://github.com/git-stunts/git-cas/issues/<number>|not opened yet"
+issue: "https://github.com/git-stunts/git-cas/issues/<number>"
+goalpost_issue: "https://github.com/git-stunts/git-cas/issues/<number>|none"
+tracker_source: "github"
 status: "draft|active|landed|superseded"
 base_commit: "<fully-qualified-sha>"
 owners:
@@ -41,19 +42,23 @@ updated: "YYYY-MM-DD"
 ---
 ```
 
-Status meanings:
+Status meanings are local design-doc lifecycle states only. They do not replace
+GitHub Issue state:
 
 - `draft`: not yet committed as active work.
 - `active`: pulled into a cycle; sponsors own the hill.
 - `landed`: implementation and witness evidence merged or otherwise complete.
 - `superseded`: replaced by another design; `superseded_by` points at it.
 
+GitHub Issues remain the canonical tracker for open, blocked, active, review,
+carried-forward, and closed work.
+
 ## Required Sections
 
 Every new cycle design doc must include these sections:
 
 - Linked Issue
-- Linked Goalpost
+- Linked Tracker
 - Design Type
 - Decision Summary
 - Sponsored Human
@@ -134,8 +139,9 @@ cycle: "<NNNN>"
 task_id: "<slug>"
 legend: "<API|DX|HYGIENE|INFRA|PERF|PROTO|RELEASE|SLUDGE|TRUST|TUI>"
 release_home: "vX.Y.Z|none"
-goalpost: "docs/goalposts/vX.Y.Z/<goalpost>.md|none"
-issue: "https://github.com/git-stunts/git-cas/issues/<number>|not opened yet"
+issue: "https://github.com/git-stunts/git-cas/issues/<number>"
+goalpost_issue: "https://github.com/git-stunts/git-cas/issues/<number>|none"
+tracker_source: "github"
 status: "draft|active|landed|superseded"
 base_commit: "<fully-qualified-sha>"
 owners:
@@ -154,11 +160,13 @@ updated: "YYYY-MM-DD"
 
 ## Linked Issue
 
-- `not opened yet`
+- https://github.com/git-stunts/git-cas/issues/<number>
 
-## Linked Goalpost
+## Linked Tracker
 
-- `docs/goalposts/vX.Y.Z/<goalpost>.md`
+- Milestone: `vX.Y.Z`
+- Goalpost issue: https://github.com/git-stunts/git-cas/issues/<number>
+- Slice issues: https://github.com/git-stunts/git-cas/issues/<number>
 
 ## Design Type
 
@@ -420,14 +428,13 @@ Mitigations:
 
 ## Follow-On Debt
 
-Create GitHub issues or backlog files for anything deferred. Do not hide future
-work in prose.
+Create GitHub issues for anything deferred. Do not hide future work in prose.
 
 ## Tracker Disposition
 
 | Issue | Role | Expected disposition |
 | --- | --- | --- |
-| not opened yet | primary / blocks / blocked-by / follow-on | close / update / leave open / create follow-up |
+| https://github.com/git-stunts/git-cas/issues/<number> | primary / blocks / blocked-by / follow-on | close / update / leave open / create follow-up |
 
 ## Done Does Not Mean
 
@@ -441,5 +448,5 @@ Fill this in after implementation.
 
 PR:
 
-- `not opened yet`
+- https://github.com/git-stunts/git-cas/pull/<number>
 ````

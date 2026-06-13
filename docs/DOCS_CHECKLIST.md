@@ -21,7 +21,7 @@ truth and discoverability failures that keep surfacing late in review.
   Check that adjacent top-level docs can find each other where a maintainer or
   reviewer would reasonably expect a link.
 - Planning index hygiene:
-  If a roadmap entry, goalpost, backlog card, cycle doc, or legend state
+  If a roadmap entry, GitHub issue, milestone, cycle doc, or legend state
   changed, update the affected indexes in the same change.
 - Empty-state wording:
   If an index or legend now has an empty list, use the documented house style
@@ -43,8 +43,7 @@ changes:
 - [docs/API.md](./API.md)
 - [docs/THREAT_MODEL.md](./THREAT_MODEL.md)
 - [ADVANCED_GUIDE.md](../ADVANCED_GUIDE.md)
-- planning indexes under [`ROADMAP.md`](../ROADMAP.md),
-  [`docs/goalposts/`](./goalposts/README.md),
+- planning signposts under [`ROADMAP.md`](../ROADMAP.md),
   [`docs/method/backlog/`](./method/backlog/README.md),
   [`docs/design/`](./design/README.md),
   [`docs/archive/BACKLOG/`](./archive/BACKLOG/README.md), and
@@ -65,7 +64,7 @@ At minimum, confirm the following before review:
 - summary docs link canonical truth instead of becoming a second narrative
 - security-sensitive docs route to [SECURITY.md](../SECURITY.md) and
   [docs/THREAT_MODEL.md](./THREAT_MODEL.md) where those boundaries matter
-- planning indexes and legends point to the current roadmap, goalpost, backlog,
+- planning signposts and legends point to the current GitHub tracker, roadmap,
   design, retro, and archive surfaces they describe
 - no touched doc loses an important discoverability link that existed before
 
@@ -74,22 +73,21 @@ At minimum, confirm the following before review:
 Run this extra pass whenever a branch changes:
 
 - `ROADMAP.md`
-- `docs/goalposts/README.md`
 - `docs/method/backlog/README.md`
 - `docs/design/README.md`
 - `docs/method/legends/README.md`
 - `docs/archive/BACKLOG/README.md`
 - a legend's current-cycle summary
-- a backlog card's lifecycle state
+- a GitHub issue or milestone's lifecycle state
 - a legacy planning compatibility signpost
 
 Confirm all of the following before review:
 
-- live backlog entries are still pending, in cycle, or carrying unresolved
+- live GitHub issues are still pending, in cycle, or carrying unresolved
   follow-on work
 - active cycle directories are represented in `docs/design/`
 - archived backlog history reflects moved or retired backlog cards
-- legend summaries agree with the current backlog and design surfaces
+- legend summaries agree with the current GitHub tracker and design surfaces
 - legacy compatibility surfaces still point at the active METHOD truth
 - empty-state wording does not introduce a new house style accidentally
 
@@ -105,8 +103,7 @@ This checklist is most useful when a change touches files like:
 - [docs/API.md](./API.md)
 - [docs/THREAT_MODEL.md](./THREAT_MODEL.md)
 - [ADVANCED_GUIDE.md](../ADVANCED_GUIDE.md)
-- planning indexes under [`ROADMAP.md`](../ROADMAP.md),
-  [`docs/goalposts/`](./goalposts/README.md),
+- planning signposts under [`ROADMAP.md`](../ROADMAP.md),
   [`docs/method/backlog/`](./method/backlog/README.md),
   [`docs/design/`](./design/README.md),
   [`docs/archive/BACKLOG/`](./archive/BACKLOG/README.md), and
@@ -124,6 +121,6 @@ Before a doc-heavy branch is ready for review:
 - the changed docs point at the right canonical truth
 - the pre-PR doc cross-link audit passed for the touched surfaces
 - public and internal boundaries are not blurred
-- planning indexes match the release, goalpost, backlog, and design files they
-  describe
+- planning signposts match the GitHub milestones, GitHub issues, release docs,
+  and design files they describe
 - empty-state wording does not introduce a new style accidentally

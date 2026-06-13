@@ -8,7 +8,9 @@ const markdownLinkIt = existsSync(path.join(repoRoot, '.git')) ? it : it.skip;
 
 function trackedMarkdownFiles() {
   const output = execFileSync('git', ['ls-files', '*.md'], { encoding: 'utf8' }).trim();
-  return output ? output.split('\n') : [];
+  return output
+    ? output.split('\n').filter((file) => existsSync(path.join(repoRoot, file)))
+    : [];
 }
 
 function stripCodeFences(markdown) {
