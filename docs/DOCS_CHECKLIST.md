@@ -21,8 +21,8 @@ truth and discoverability failures that keep surfacing late in review.
   Check that adjacent top-level docs can find each other where a maintainer or
   reviewer would reasonably expect a link.
 - Planning index hygiene:
-  If a backlog card, cycle doc, or legend state changed, update the affected
-  indexes in the same change.
+  If a roadmap entry, goalpost, backlog card, cycle doc, or legend state
+  changed, update the affected indexes in the same change.
 - Empty-state wording:
   If an index or legend now has an empty list, use the documented house style
   `- none currently` instead of inventing a new phrase.
@@ -43,7 +43,9 @@ changes:
 - [docs/API.md](./API.md)
 - [docs/THREAT_MODEL.md](./THREAT_MODEL.md)
 - [ADVANCED_GUIDE.md](../ADVANCED_GUIDE.md)
-- planning indexes under [`docs/method/backlog/`](./method/backlog/README.md),
+- planning indexes under [`ROADMAP.md`](../ROADMAP.md),
+  [`docs/goalposts/`](./goalposts/README.md),
+  [`docs/method/backlog/`](./method/backlog/README.md),
   [`docs/design/`](./design/README.md),
   [`docs/archive/BACKLOG/`](./archive/BACKLOG/README.md), and
   [`docs/method/legends/`](./method/legends/README.md)
@@ -63,14 +65,16 @@ At minimum, confirm the following before review:
 - summary docs link canonical truth instead of becoming a second narrative
 - security-sensitive docs route to [SECURITY.md](../SECURITY.md) and
   [docs/THREAT_MODEL.md](./THREAT_MODEL.md) where those boundaries matter
-- planning indexes and legends point to the current backlog, design, retro, and
-  archive surfaces they describe
+- planning indexes and legends point to the current roadmap, goalpost, backlog,
+  design, retro, and archive surfaces they describe
 - no touched doc loses an important discoverability link that existed before
 
 ## Planning Index Review
 
 Run this extra pass whenever a branch changes:
 
+- `ROADMAP.md`
+- `docs/goalposts/README.md`
 - `docs/method/backlog/README.md`
 - `docs/design/README.md`
 - `docs/method/legends/README.md`
@@ -101,7 +105,9 @@ This checklist is most useful when a change touches files like:
 - [docs/API.md](./API.md)
 - [docs/THREAT_MODEL.md](./THREAT_MODEL.md)
 - [ADVANCED_GUIDE.md](../ADVANCED_GUIDE.md)
-- planning indexes under [`docs/method/backlog/`](./method/backlog/README.md),
+- planning indexes under [`ROADMAP.md`](../ROADMAP.md),
+  [`docs/goalposts/`](./goalposts/README.md),
+  [`docs/method/backlog/`](./method/backlog/README.md),
   [`docs/design/`](./design/README.md),
   [`docs/archive/BACKLOG/`](./archive/BACKLOG/README.md), and
   [`docs/method/legends/`](./method/legends/README.md)
@@ -118,5 +124,6 @@ Before a doc-heavy branch is ready for review:
 - the changed docs point at the right canonical truth
 - the pre-PR doc cross-link audit passed for the touched surfaces
 - public and internal boundaries are not blurred
-- planning indexes match the files they describe
+- planning indexes match the release, goalpost, backlog, and design files they
+  describe
 - empty-state wording does not introduce a new style accidentally

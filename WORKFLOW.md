@@ -7,6 +7,8 @@ Fresh work now follows the METHOD in
 
 Current planning truth lives in:
 
+- [ROADMAP.md](./ROADMAP.md)
+- [docs/goalposts/](./docs/goalposts/README.md)
 - [docs/method/backlog/](./docs/method/backlog/README.md)
 - [docs/method/legends/](./docs/method/legends/README.md)
 - [docs/design/](./docs/design/README.md)

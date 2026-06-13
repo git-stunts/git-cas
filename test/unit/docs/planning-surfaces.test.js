@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
@@ -24,6 +24,23 @@ function sectionBody(markdown, heading) {
 
 function markdownLinks(markdown) {
   return [...markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map((match) => match[1]);
+}
+
+function localMarkdownLinks(markdown) {
+  return markdownLinks(markdown)
+    .filter((link) => !link.startsWith('http'))
+    .filter((link) => !link.startsWith('#'));
+}
+
+function assertLocalMarkdownLinksExist(file) {
+  const directory = path.dirname(file);
+  const missing = localMarkdownLinks(read(file))
+    .map((link) => link.split('#')[0])
+    .filter(Boolean)
+    .map((link) => path.normalize(path.join(directory, link)))
+    .filter((target) => !existsSync(path.join(repoRoot, target)));
+
+  expect(missing).toEqual([]);
 }
 
 function statusLine(markdown) {
@@ -114,6 +131,19 @@ describe('planning surfaces', () => { // eslint-disable-line max-lines-per-funct
       for (const link of links) {
         expect(() => read(path.join(path.dirname(file), link))).not.toThrow();
       }
+    }
+  });
+
+  it('keeps roadmap goalpost links pointed at real planning docs', () => {
+    const files = [
+      'ROADMAP.md',
+      'WORKFLOW.md',
+      'docs/goalposts/README.md',
+      'docs/method/process.md',
+    ];
+
+    for (const file of files) {
+      assertLocalMarkdownLinksExist(file);
     }
   });
 });

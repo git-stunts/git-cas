@@ -33,6 +33,7 @@ Fresh planning now uses:
 
 ```text
 docs/
+  goalposts/
   method/
     backlog/
       inbox/
@@ -57,6 +58,27 @@ Repo-specific notes:
   history and link stability.
 - Legacy planning compatibility surfaces remain in `docs/BACKLOG/` and
   `docs/legends/`, but they are no longer the source of truth for fresh work.
+
+## Roadmap And Goalposts
+
+[ROADMAP.md](../../ROADMAP.md) lists upcoming versioned releases. A release is
+made of goalposts, and a goalpost is a release-scale feature, invariant, or
+evidence packet that must be met before that release can honestly ship.
+
+Goalpost docs live in [docs/goalposts/](../goalposts/README.md). They do not
+replace backlog items or design cycles:
+
+- backlog files capture raw debt and ideas
+- goalposts choose which work belongs to a versioned release
+- design cycles make one goalpost implementable and testable
+- pull requests should normally carry one goalpost
+
+Goalposts are subdivided into slices. A slice should be small enough to finish
+in one focused turn and should name its expected proof.
+
+Use [docs/templates/goalpost.md](../templates/goalpost.md) for new goalposts and
+[docs/templates/design-doc.md](../templates/design-doc.md) for new cycle
+designs.
 
 ## Backlog
 

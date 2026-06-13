@@ -38,8 +38,9 @@ local-only surfaces.
   work, now as a root signpost into `docs/method/`; belongs at the repo root.
 - [ARCHITECTURE.md](../ARCHITECTURE.md): `KEEP` — canonical high-level
   architecture map; still useful as a root-level reference.
-- [ROADMAP.md](../ROADMAP.md): `KEEP`, `MERGE` — a slim sequence-context
-  signpost is useful at the repo root, but it should stay derivative.
+- [ROADMAP.md](../ROADMAP.md): `KEEP` — versioned release index and goalpost
+  routing surface; belongs at the repo root because it is the maintainer's
+  shortest path from current state to planned releases.
 - [STATUS.md](../STATUS.md): `KEEP`, `MERGE` — compact snapshot value is real,
   but it should stay derivative and slim.
 - [GRAVEYARD.md](../GRAVEYARD.md): `KEEP`, `MOVE` — still useful historical
@@ -71,6 +72,12 @@ local-only surfaces.
 
 - [docs/method/process.md](./method/process.md): `KEEP` — canonical planning
   and delivery process for fresh work.
+- [docs/goalposts/README.md](./goalposts/README.md): `KEEP` — release
+  goalpost index between `ROADMAP.md` and numbered design cycles.
+- [docs/templates/goalpost.md](./templates/goalpost.md): `KEEP` — reusable
+  release-goalpost skeleton for fresh planning.
+- [docs/templates/design-doc.md](./templates/design-doc.md): `KEEP` —
+  reusable METHOD cycle design skeleton for fresh planning.
 - [docs/method/release.md](./method/release.md): `KEEP` — canonical release
   process for fresh work.
 - [docs/method/backlog/README.md](./method/backlog/README.md): `KEEP` —
@@ -234,5 +241,6 @@ If the repo wants to act on this audit, the highest-value next changes are:
 2. decide whether [CLAUDE.md](../CLAUDE.md) should leave tracked root entirely
 3. collapse [STATUS.md](../STATUS.md) into other canonical surfaces and remove
    the duplicate snapshot doc
-4. shrink and relocate [ROADMAP.md](../ROADMAP.md) once its remaining migration
-   value is absorbed elsewhere
+4. keep [ROADMAP.md](../ROADMAP.md), [docs/goalposts/](./goalposts/README.md),
+   and [docs/design/](./design/README.md) synchronized as the release planning
+   stack evolves
