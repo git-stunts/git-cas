@@ -2,7 +2,7 @@
 
 **Last tagged release:** `v6.0.0` (`2026-05-09`)
 **Current release state:** `v6.0.1` patch candidate on `main`; `v6.0.0` is published to npm and GitHub Releases, and JSR publication is deferred for the v6.0.x line.
-**Latest verification:** root-doc cleanup: `npx eslint .` and `npm test` passed on `2026-06-13` (`187` files, `1,644` passed, `2` skipped).
+**Latest local verification:** PR #47 review cleanup on `2026-06-13`: `git diff --check`, focused docs tests, `npx eslint .`, and `npm test` passed. GitHub PR CI remains the merge gate.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)

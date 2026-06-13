@@ -160,8 +160,8 @@ If a posture is not relevant, say so explicitly.
 
 ### The Loop
 
-0. Pull the work from the backlog and own it.
-1. Write the design doc in `docs/design/<cycle>/`.
+0. Select or open the canonical GitHub Issue and own it.
+1. Write or revise the design doc in `docs/design/<cycle>/`.
 2. Write failing tests. Default to the agent surface first unless the design
    explicitly says otherwise.
 3. Make the tests pass.
@@ -169,7 +169,8 @@ If a posture is not relevant, say so explicitly.
    playback questions for both the human and agent views.
 5. Open the PR and iterate until merge.
 6. After merge, write the retro in `docs/method/retro/<cycle>/<task>.md`,
-   perform the drift check, and feed new debt or ideas back into the backlog.
+   perform the drift check, and open GitHub follow-up issues for new debt or
+   ideas.
 
 ## Playback And Witness
 

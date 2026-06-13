@@ -37,7 +37,7 @@ body:
       label: Scope
       description: What is included?
       value: |
-        - 
+        - <in scope>
     validations:
       required: true
   - type: textarea
@@ -46,7 +46,7 @@ body:
       label: Out of scope
       description: What is explicitly excluded?
       value: |
-        - 
+        - <out of scope>
     validations:
       required: true
   - type: textarea
@@ -73,7 +73,7 @@ body:
       label: Required proof
       description: Tests, fixtures, witnesses, schemas, commands, or release evidence required before closeout.
       value: |
-        - 
+        - <proof>
     validations:
       required: true
   - type: textarea

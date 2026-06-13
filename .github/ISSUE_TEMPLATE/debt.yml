@@ -30,7 +30,7 @@ body:
     attributes:
       label: Proof needed
       value: |
-        - 
+        - <proof>
     validations:
       required: true
   - type: input

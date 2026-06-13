@@ -131,13 +131,11 @@ that checklist pass.
 
 ## Directory Model
 
-New planning work uses:
+Fresh work uses:
 
 - GitHub Issues and Milestones
-- [`docs/method/backlog/`](./docs/method/backlog/README.md)
 - [`docs/method/legends/`](./docs/method/legends/README.md)
 - [`docs/method/retro/`](./docs/method/retro/README.md)
-- [`docs/method/graveyard/`](./docs/method/graveyard/README.md)
 - [`docs/design/`](./docs/design/)
 - [`docs/invariants/`](./docs/invariants/)
 - [`test/cycles/`](./test/cycles/)

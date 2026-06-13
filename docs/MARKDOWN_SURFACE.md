@@ -47,6 +47,9 @@ local-only surfaces.
   longer occupies a tracked planning surface.
 - [CLAUDE.md](../CLAUDE.md): `KEEP` — compatibility pointer only; canonical
   agent/operator instructions live in [AGENTS.md](../AGENTS.md).
+- [AGENTS.md](../AGENTS.md): `KEEP` — canonical agent/operator recovery,
+  Git, and playback instructions; tracked because compatibility pointers route
+  here.
 
 ## Canonical Docs Under `docs/`
 
@@ -226,7 +229,6 @@ These files are not part of the tracked Markdown audit and should remain out of
 the canonical tracked doctrine surface unless the repo makes an explicit policy
 change:
 
-- `AGENTS.md`
 - `EDITORS-REPORT.md`
 - `.claude/bad_code.md`
 - `.claude/cool_ideas.md`

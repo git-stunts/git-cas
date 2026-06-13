@@ -24,7 +24,7 @@ body:
       label: Evidence
       description: Commands, files, logs, tests, screenshots, or examples.
       value: |
-        - 
+        - <evidence>
     validations:
       required: true
   - type: dropdown

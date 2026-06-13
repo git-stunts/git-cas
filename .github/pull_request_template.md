@@ -1,6 +1,7 @@
 ## Linked Issue
 
-- Closes #
+- Refs #
+- Closes # only when this PR completes the issue.
 
 ## Design / Proof
 

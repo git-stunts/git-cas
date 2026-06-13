@@ -32,7 +32,7 @@ body:
       label: Expected proof
       description: What proves this slice is done?
       value: |
-        - 
+        - <proof>
     validations:
       required: true
   - type: textarea
