@@ -38,14 +38,18 @@ local-only surfaces.
   work, now as a root signpost into `docs/method/`; belongs at the repo root.
 - [ARCHITECTURE.md](../ARCHITECTURE.md): `KEEP` — canonical high-level
   architecture map; still useful as a root-level reference.
-- [ROADMAP.md](../ROADMAP.md): `KEEP`, `MERGE` — a slim sequence-context
-  signpost is useful at the repo root, but it should stay derivative.
+- [ROADMAP.md](../ROADMAP.md): `KEEP` — versioned release index and goalpost
+  routing surface; belongs at the repo root because it is the maintainer's
+  shortest path from current state to planned releases.
 - [STATUS.md](../STATUS.md): `KEEP`, `MERGE` — compact snapshot value is real,
   but it should stay derivative and slim.
-- [GRAVEYARD.md](../GRAVEYARD.md): `KEEP`, `MOVE` — still useful historical
-  context, but it belongs under `docs/archive/` instead of the repo root.
-- [CLAUDE.md](../CLAUDE.md): `CUT`, `MOVE` — tool-specific instruction files
-  should not occupy tracked root doctrine alongside canonical project docs.
+- `GRAVEYARD.md`: `CUT` — removed from the root; stale historical task text no
+  longer occupies a tracked planning surface.
+- [CLAUDE.md](../CLAUDE.md): `KEEP` — compatibility pointer only; canonical
+  agent/operator instructions live in [AGENTS.md](../AGENTS.md).
+- [AGENTS.md](../AGENTS.md): `KEEP` — canonical agent/operator recovery,
+  Git, and playback instructions; tracked because compatibility pointers route
+  here.
 
 ## Canonical Docs Under `docs/`
 
@@ -71,14 +75,18 @@ local-only surfaces.
 
 - [docs/method/process.md](./method/process.md): `KEEP` — canonical planning
   and delivery process for fresh work.
+- [docs/templates/design-doc.md](./templates/design-doc.md): `KEEP` —
+  reusable METHOD cycle design skeleton for fresh planning.
+- [.github/ISSUE_TEMPLATE/goalpost.yml](../.github/ISSUE_TEMPLATE/goalpost.yml):
+  `KEEP` — reusable release-goalpost issue form for fresh planning.
+- [.github/ISSUE_TEMPLATE/slice.yml](../.github/ISSUE_TEMPLATE/slice.yml):
+  `KEEP` — reusable slice issue form for turn-sized proof work.
 - [docs/method/release.md](./method/release.md): `KEEP` — canonical release
   process for fresh work.
 - [docs/method/backlog/README.md](./method/backlog/README.md): `KEEP` —
-  canonical live backlog index.
+  retired backlog signpost that points active work to GitHub Issues.
 - [docs/design/0044-casservice-decomposition-plan](./design/0044-casservice-decomposition-plan/casservice-decomposition-plan.md):
   `KEEP` — landed design record for the decomposition trajectory.
-- [docs/method/backlog/bad-code/TR_platform-dependency-leaks.md](./method/backlog/bad-code/TR_platform-dependency-leaks.md):
-  `KEEP` — active debt backlog work item.
 - [docs/method/legends/README.md](./method/legends/README.md): `KEEP` —
   canonical legend index for fresh work.
 - [docs/method/legends/RL_relay.md](./method/legends/RL_relay.md): `KEEP` —
@@ -221,7 +229,6 @@ These files are not part of the tracked Markdown audit and should remain out of
 the canonical tracked doctrine surface unless the repo makes an explicit policy
 change:
 
-- `AGENTS.md`
 - `EDITORS-REPORT.md`
 - `.claude/bad_code.md`
 - `.claude/cool_ideas.md`
@@ -230,9 +237,8 @@ change:
 
 If the repo wants to act on this audit, the highest-value next changes are:
 
-1. move [GRAVEYARD.md](../GRAVEYARD.md) under `docs/archive/`
-2. decide whether [CLAUDE.md](../CLAUDE.md) should leave tracked root entirely
-3. collapse [STATUS.md](../STATUS.md) into other canonical surfaces and remove
+1. collapse [STATUS.md](../STATUS.md) into other canonical surfaces and remove
    the duplicate snapshot doc
-4. shrink and relocate [ROADMAP.md](../ROADMAP.md) once its remaining migration
-   value is absorbed elsewhere
+2. keep [ROADMAP.md](../ROADMAP.md), GitHub milestones/issues, and
+   [docs/design/](./design/README.md) synchronized as the release planning stack
+   evolves

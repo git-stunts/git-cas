@@ -1,0 +1,49 @@
+name: Bug
+description: Runtime, CLI, docs, release, or workflow behavior that is wrong.
+title: "bug: <short description>"
+labels:
+  - type:bug
+body:
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior
+      description: What happens now?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Commands, files, logs, tests, screenshots, or examples.
+      value: |
+        - <evidence>
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - storage
+        - vault
+        - tui
+        - agent
+        - docs
+        - security
+        - runtime
+        - release
+    validations:
+      required: true
+  - type: input
+    id: milestone
+    attributes:
+      label: Suggested milestone
+      placeholder: v6.1.0

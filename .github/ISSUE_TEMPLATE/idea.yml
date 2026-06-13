@@ -1,0 +1,27 @@
+name: Idea
+description: Raw opportunity that is not yet committed work.
+title: "idea: <short description>"
+labels:
+  - type:idea
+body:
+  - type: textarea
+    id: opportunity
+    attributes:
+      label: Opportunity
+      description: What could become valuable?
+    validations:
+      required: true
+  - type: textarea
+    id: why-not-now
+    attributes:
+      label: Why not now?
+      description: What blocks this from becoming tracked work?
+    validations:
+      required: true
+  - type: textarea
+    id: promotion
+    attributes:
+      label: Promotion criteria
+      description: What would make this ready for a goalpost, slice, bug, or debt issue?
+    validations:
+      required: true

@@ -90,9 +90,15 @@ The working source of truth is:
 - [WORKFLOW.md](./WORKFLOW.md)
 - [docs/method/process.md](./docs/method/process.md)
 
-Fresh planning work now lives in:
+Fresh tracking now lives in GitHub Issues and Milestones. If work is actionable,
+it must be an issue. Repo Markdown may explain design, evidence, release notes,
+or historical context, but it does not own active work state.
 
-- backlog lanes under [`docs/method/backlog/`](./docs/method/backlog/README.md)
+Fresh planning records now live in:
+
+- GitHub milestones for versioned releases
+- GitHub `type:goalpost` issues for release-scale outcomes
+- GitHub `type:slice` issues or sub-issues for turn-sized work
 - legends under [`docs/method/legends/`](./docs/method/legends/README.md)
 - numbered cycle directories under [`docs/design/`](./docs/design/README.md)
 - retros under `docs/method/retro/<cycle>/`
@@ -110,9 +116,9 @@ Every cycle must name:
 - non-goals
 
 Fresh work should be grounded in human or agent value, not backend vanity. If
-the playback question is unclear, the work belongs in a METHOD backlog lane,
-usually [`docs/method/backlog/inbox/`](./docs/method/backlog/README.md), not in
-an active cycle doc.
+the playback question is unclear, open an `idea` issue or leave the work
+untracked until it can be stated clearly. Do not add new repo-local backlog
+cards.
 
 Before opening a doc-heavy pull request, run the short maintainer pass in
 [docs/DOCS_CHECKLIST.md](./docs/DOCS_CHECKLIST.md).
@@ -125,18 +131,20 @@ that checklist pass.
 
 ## Directory Model
 
-New planning work uses:
+Fresh work uses:
 
-- [`docs/method/backlog/`](./docs/method/backlog/README.md)
+- GitHub Issues and Milestones
 - [`docs/method/legends/`](./docs/method/legends/README.md)
 - [`docs/method/retro/`](./docs/method/retro/README.md)
-- [`docs/method/graveyard/`](./docs/method/graveyard/README.md)
 - [`docs/design/`](./docs/design/)
 - [`docs/invariants/`](./docs/invariants/)
 - [`test/cycles/`](./test/cycles/)
 
-Legacy compatibility planning surfaces remain in [`docs/BACKLOG/`](./docs/BACKLOG/README.md)
-and [`docs/legends/`](./docs/legends/README.md), but fresh planning should not
+The retired repo-local backlog remains as a signpost in
+[`docs/method/backlog/`](./docs/method/backlog/README.md), and historical cards
+live under `docs/archive/`. Legacy compatibility planning surfaces remain in
+[`docs/BACKLOG/`](./docs/BACKLOG/README.md) and
+[`docs/legends/`](./docs/legends/README.md), but fresh tracking should not
 start there.
 
 ## Build Order
@@ -156,13 +164,13 @@ Do not treat implementation details as the primary unit of correctness.
 
 Each cycle should follow the same explicit loop:
 
-1. design docs first
-2. tests as spec second
-3. implementation third
-4. human and agent playback witness
-5. pull request and merge
-6. retrospective after merge
-7. update `docs/method/backlog/` with debt, follow-on work, and cool ideas
+1. open or select the canonical GitHub Issue
+2. write or revise design docs
+3. tests as spec
+4. implementation
+5. human and agent playback witness
+6. pull request and merge
+7. create GitHub follow-up issues for debt, follow-on work, and ideas
 8. update the root [CHANGELOG.md](./CHANGELOG.md)
 9. rewrite the root README when reality changed materially
 
@@ -323,6 +331,7 @@ Before making non-trivial changes, read:
 - [docs/method/process.md](./docs/method/process.md)
 - [STATUS.md](./STATUS.md)
 - [ROADMAP.md](./ROADMAP.md)
+- GitHub Issues and Milestones for current work state
 - [docs/method/legends/README.md](./docs/method/legends/README.md)
 - [docs/invariants/README.md](./docs/invariants/README.md)
 - [docs/method/backlog/README.md](./docs/method/backlog/README.md)

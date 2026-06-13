@@ -10,11 +10,11 @@ Current legend truth now lives in
 Keep the repo honest about what `git-cas` is, how it works, what it protects,
 and what tradeoffs it makes.
 
-## Current METHOD Backlog
+## Current METHOD Tracker
 
-- none currently in `asap/`
-- none currently in `up-next/`
-- [TR — Platform Dependency Leaks](../method/backlog/bad-code/TR_platform-dependency-leaks.md)
+GitHub Issues and Milestones own current Truth work.
+
+- none currently tracked in this file
 
 ## Legacy Landed Truth Cycles
 

@@ -1,6 +1,6 @@
 # TR — Streaming Decryption
 
-Legend: [TR — Truth](../../legends/TR_truth.md)
+Legend: [TR - Truth](../../../method/legends/TR_truth.md)
 
 ## Idea
 

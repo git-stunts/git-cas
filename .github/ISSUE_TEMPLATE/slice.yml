@@ -1,0 +1,55 @@
+name: Slice
+description: Turn-sized work under a goalpost.
+title: "<goalpost>: <slice title>"
+labels:
+  - type:slice
+body:
+  - type: input
+    id: parent
+    attributes:
+      label: Parent goalpost
+      description: Link the parent goalpost issue.
+      placeholder: "#123"
+    validations:
+      required: true
+  - type: textarea
+    id: work
+    attributes:
+      label: Smallest testable work
+      description: Define one focused unit of work.
+    validations:
+      required: true
+  - type: textarea
+    id: red-test
+    attributes:
+      label: RED test
+      description: Name the first failing test or witness this slice should create.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-proof
+    attributes:
+      label: Expected proof
+      description: What proves this slice is done?
+      value: |
+        - <proof>
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation command
+      value: |
+        ```bash
+        npx eslint .
+        npm test
+        ```
+    validations:
+      required: true
+  - type: textarea
+    id: closeout
+    attributes:
+      label: Closeout condition
+      description: What must be true before this issue closes?
+    validations:
+      required: true

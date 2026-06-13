@@ -20,16 +20,16 @@ discovering later that an important boundary, tradeoff, or workflow was stale.
 
 ## How We Know
 
-- backlog and design surfaces agree
+- GitHub tracker and design surfaces agree
 - canonical docs point to the right adjacent truths
 - threat, benchmark, and architecture claims match shipped behavior
 - follow-on investigative work is named instead of hand-waved
 
-## Current Backlog
+## Current Tracker
 
-- none currently in `asap/`
-- none currently in `up-next/`
-- [TR — Platform Dependency Leaks](../backlog/bad-code/TR_platform-dependency-leaks.md)
+GitHub Issues and Milestones own current Truth work.
+
+- none currently tracked in this file
 
 ## Historical Context
 

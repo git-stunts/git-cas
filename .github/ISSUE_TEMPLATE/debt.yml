@@ -1,0 +1,40 @@
+name: Debt
+description: Working behavior that needs cleanup, scale hardening, or clearer boundaries.
+title: "debt: <short description>"
+labels:
+  - type:debt
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What works today but bothers us?
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk
+      description: What failure mode, maintenance cost, or operator cost does this create?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-shape
+    attributes:
+      label: Proposed shape
+      description: What direction should a future design explore?
+    validations:
+      required: true
+  - type: textarea
+    id: proof
+    attributes:
+      label: Proof needed
+      value: |
+        - <proof>
+    validations:
+      required: true
+  - type: input
+    id: design
+    attributes:
+      label: Design doc, if known
+      placeholder: docs/design/NNNN-slug/slug.md

@@ -38,4 +38,4 @@ No design drift is visible inside this cycle.
 - Existing follow-on streaming work remains captured in
   [TR — Streaming Encrypted Restore](../0027-framed-v1-streaming-restore/framed-v1-streaming-restore.md)
   and
-  [TR — Streaming Decryption](../../backlog/cool-ideas/TR_streaming-decryption.md).
+  [TR - Streaming Decryption](../../../archive/backlog-pre-issues/cool-ideas/TR_streaming-decryption.md).

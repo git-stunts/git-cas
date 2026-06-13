@@ -2,16 +2,19 @@
 
 This directory is retained so pre-METHOD links keep working.
 
-Fresh backlog truth now lives in [docs/method/backlog/](../method/backlog/README.md).
+Fresh work-tracking truth now lives in GitHub Issues and Milestones. If work is
+actionable, it must be represented by a GitHub Issue.
 
-Use that directory for:
+Use GitHub for:
 
 - inbox capture
 - lane priority
 - current pull decisions
 - new backlog items
 
-Historical planning cards still live in
-[docs/archive/BACKLOG/](../archive/BACKLOG/README.md).
+Repo-local backlog signposts now live in
+[docs/method/backlog/](../method/backlog/README.md). Historical planning cards
+live in [docs/archive/BACKLOG/](../archive/BACKLOG/README.md) and
+[docs/archive/backlog-pre-issues/](../archive/backlog-pre-issues/).
 
 This legacy directory intentionally no longer carries live backlog cards.

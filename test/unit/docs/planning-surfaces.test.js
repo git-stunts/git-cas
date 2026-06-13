@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
@@ -26,25 +26,21 @@ function markdownLinks(markdown) {
   return [...markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map((match) => match[1]);
 }
 
-function statusLine(markdown) {
-  return markdown.match(/^-\s+\*\*Status\*\*:\s*(.+)$/mu)?.[1] ?? '';
+function localMarkdownLinks(markdown) {
+  return markdownLinks(markdown)
+    .filter((link) => !link.startsWith('http'))
+    .filter((link) => !link.startsWith('#'));
 }
 
-function activeLinksForLane(markdown, lane) {
-  const body = sectionBody(markdown, `### \`${lane}/\``);
-  const activeStart = body.indexOf('Active:');
-  if (activeStart === -1) {
-    return [];
-  }
-  const activeBody = body.slice(activeStart);
-  const resolvedStart = activeBody.indexOf('\nResolved');
-  return markdownLinks(resolvedStart === -1 ? activeBody : activeBody.slice(0, resolvedStart));
-}
+function assertLocalMarkdownLinksExist(file) {
+  const directory = path.dirname(file);
+  const missing = localMarkdownLinks(read(file))
+    .map((link) => link.split('#')[0])
+    .filter(Boolean)
+    .map((link) => path.normalize(path.join(directory, link)))
+    .filter((target) => !existsSync(path.join(repoRoot, target)));
 
-function laneFiles(lane) {
-  return readdirSync(path.join(repoRoot, 'docs/method/backlog', lane))
-    .filter((name) => !name.startsWith('.'))
-    .sort();
+  expect(missing).toEqual([]);
 }
 
 function cycleDirs() {
@@ -54,34 +50,48 @@ function cycleDirs() {
     .sort();
 }
 
+function archivedGoalpostFiles() {
+  const root = path.join(repoRoot, 'docs/archive/goalposts-pre-issues');
+  return readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => readdirSync(path.join(root, entry.name))
+      .filter((name) => name.endsWith('.md'))
+      .map((name) => path.posix.join('docs/archive/goalposts-pre-issues', entry.name, name)))
+    .sort();
+}
+
 describe('planning surfaces', () => { // eslint-disable-line max-lines-per-function
-  it('uses the canonical empty-state bullet across planning surfaces', () => {
+  it('keeps GitHub Issues named as the canonical work tracker', () => {
     const checks = [
-      ['docs/design/README.md', '## Landed METHOD Cycles'],
-      ['docs/method/backlog/README.md', "### `inbox/`"],
-      ['docs/legends/RL-relay.md', '## Current METHOD Backlog'],
-      ['docs/method/legends/RL_relay.md', '## Current Backlog'],
+      ['ROADMAP.md', 'GitHub Issues and Milestones are the source of truth'],
+      ['WORKFLOW.md', 'Work tracking truth lives in GitHub Issues and Milestones'],
+      ['docs/method/process.md', 'If it is actionable work, it must be a GitHub Issue'],
+      ['docs/method/backlog/README.md', 'This directory is no longer an active work tracker'],
+      ['docs/method/legends/TR_truth.md', 'GitHub Issues and Milestones own current Truth work'],
+      ['docs/legends/TR-truth.md', 'GitHub Issues and Milestones own current Truth work'],
     ];
 
-    for (const [file, heading] of checks) {
-      expect(sectionBody(read(file), heading)).toContain('- none currently');
+    for (const [file, expected] of checks) {
+      expect(read(file)).toContain(expected);
     }
   });
 
-  it('keeps the backlog index in sync with the live lane files', () => {
-    const backlog = read('docs/method/backlog/README.md');
-
-    const expectations = [
-      ['### `asap/`', laneFiles('asap')],
-      ['### `up-next/`', laneFiles('up-next')],
-      ['### `cool-ideas/`', laneFiles('cool-ideas')],
-      ['### `bad-code/`', laneFiles('bad-code')],
+  it('publishes GitHub issue forms for canonical tracker work types', () => {
+    const forms = [
+      '.github/ISSUE_TEMPLATE/goalpost.yml',
+      '.github/ISSUE_TEMPLATE/slice.yml',
+      '.github/ISSUE_TEMPLATE/bug.yml',
+      '.github/ISSUE_TEMPLATE/debt.yml',
+      '.github/ISSUE_TEMPLATE/idea.yml',
     ];
 
-    for (const [heading, files] of expectations) {
-      const links = markdownLinks(sectionBody(backlog, heading)).map((link) => path.basename(link)).sort();
-      expect(links).toEqual(files);
+    for (const form of forms) {
+      expect(existsSync(path.join(repoRoot, form))).toBe(true);
     }
+
+    expect(read('.github/ISSUE_TEMPLATE/goalpost.yml')).toContain('type:goalpost');
+    expect(read('.github/ISSUE_TEMPLATE/slice.yml')).toContain('type:slice');
+    expect(read('docs/method/process.md')).toContain('.github/ISSUE_TEMPLATE/');
   });
 
   it('keeps the active design index in sync with numbered cycle directories', () => {
@@ -93,27 +103,51 @@ describe('planning surfaces', () => { // eslint-disable-line max-lines-per-funct
     expect(links).toEqual(cycleDirs());
   });
 
-  it('does not list resolved bad-code cards under Active', () => {
+  it('keeps the retired repo backlog from acting like a live queue', () => {
     const backlog = read('docs/method/backlog/README.md');
-    const resolvedActiveCards = activeLinksForLane(backlog, 'bad-code')
-      .map((link) => path.normalize(path.join('docs/method/backlog', link)))
-      .filter((file) => statusLine(read(file)).startsWith('Resolved'));
 
-    expect(resolvedActiveCards).toEqual([]);
+    expect(backlog).toContain('Do not add new work cards here.');
+    expect(backlog).toContain('docs/archive/backlog-pre-issues/');
+    expect(backlog).not.toContain('bad-code/');
+    expect(backlog).not.toContain('cool-ideas/');
+    assertLocalMarkdownLinksExist('docs/method/backlog/README.md');
   });
 
-  it('keeps current legend backlog links pointed at real backlog files', () => {
+  it('keeps current legend tracker summaries out of repo-local backlog lanes', () => {
     const files = [
       'docs/method/legends/TR_truth.md',
+      'docs/method/legends/RL_relay.md',
       'docs/legends/TR-truth.md',
+      'docs/legends/RL-relay.md',
     ];
 
     for (const file of files) {
-      const section = sectionBody(read(file), '## Current Backlog') || sectionBody(read(file), '## Current METHOD Backlog');
-      const links = markdownLinks(section);
-      for (const link of links) {
-        expect(() => read(path.join(path.dirname(file), link))).not.toThrow();
-      }
+      const section = sectionBody(read(file), '## Current Tracker')
+        || sectionBody(read(file), '## Current METHOD Tracker');
+      expect(section).toContain('GitHub Issues and Milestones');
+      expect(section).not.toContain('method/backlog');
+      assertLocalMarkdownLinksExist(file);
+    }
+  });
+
+  it('keeps roadmap and process links pointed at real repo docs', () => {
+    const files = [
+      'ROADMAP.md',
+      'WORKFLOW.md',
+      'docs/method/process.md',
+      'docs/templates/design-doc.md',
+    ];
+
+    for (const file of files) {
+      assertLocalMarkdownLinksExist(file);
+    }
+  });
+
+  it('keeps archived goalpost identity paths pointed at their archived files', () => {
+    for (const file of archivedGoalpostFiles()) {
+      const goalpostDoc = read(file).match(/^\| Goalpost doc \| `([^`]+)` \|$/mu)?.[1];
+
+      expect(goalpostDoc).toBe(file);
     }
   });
 });
