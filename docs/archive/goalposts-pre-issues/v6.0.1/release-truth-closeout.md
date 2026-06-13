@@ -7,7 +7,7 @@
 | Goalpost id | `v6.0.1-gp-release-truth-closeout` |
 | Release home | `v6.0.1` |
 | Umbrella issue | `not opened yet` |
-| Goalpost doc | `docs/goalposts/v6.0.1/release-truth-closeout.md` |
+| Goalpost doc | `docs/archive/goalposts-pre-issues/v6.0.1/release-truth-closeout.md` |
 | Design cycle | `not active yet` |
 | Slice budget | `3` |
 | Status | `scaffolded` |

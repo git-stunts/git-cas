@@ -7,7 +7,7 @@
 | Goalpost id | `v7.0.0-gp-protocol-audit-response` |
 | Release home | `v7.0.0` |
 | Umbrella issue | `not opened yet` |
-| Goalpost doc | `docs/goalposts/v7.0.0/protocol-audit-response.md` |
+| Goalpost doc | `docs/archive/goalposts-pre-issues/v7.0.0/protocol-audit-response.md` |
 | Design cycle | `not active yet` |
 | Slice budget | `unknown` |
 | Status | `planned` |

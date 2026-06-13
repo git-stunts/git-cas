@@ -7,7 +7,7 @@
 | Goalpost id | `v6.3.0-gp-agent-automation-parity` |
 | Release home | `v6.3.0` |
 | Umbrella issue | `not opened yet` |
-| Goalpost doc | `docs/goalposts/v6.3.0/agent-automation-parity.md` |
+| Goalpost doc | `docs/archive/goalposts-pre-issues/v6.3.0/agent-automation-parity.md` |
 | Design cycle | `not active yet` |
 | Slice budget | `5` |
 | Status | `planned` |

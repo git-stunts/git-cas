@@ -7,7 +7,7 @@
 | Goalpost id | `v6.1.0-gp-bounded-residency` |
 | Release home | `v6.1.0` |
 | Umbrella issue | `not opened yet` |
-| Goalpost doc | `docs/goalposts/v6.1.0/bounded-residency.md` |
+| Goalpost doc | `docs/archive/goalposts-pre-issues/v6.1.0/bounded-residency.md` |
 | Design cycle | `docs/design/0045-v6-1-bounded-residency/bounded-residency.md` |
 | Slice budget | `5` |
 | Status | `scaffolded` |

@@ -7,7 +7,7 @@
 | Goalpost id | `v6.4.0-gp-browser-edge-read-path` |
 | Release home | `v6.4.0` |
 | Umbrella issue | `not opened yet` |
-| Goalpost doc | `docs/goalposts/v6.4.0/browser-edge-read-path.md` |
+| Goalpost doc | `docs/archive/goalposts-pre-issues/v6.4.0/browser-edge-read-path.md` |
 | Design cycle | `not active yet` |
 | Slice budget | `6` |
 | Status | `planned` |

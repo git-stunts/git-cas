@@ -50,6 +50,16 @@ function cycleDirs() {
     .sort();
 }
 
+function archivedGoalpostFiles() {
+  const root = path.join(repoRoot, 'docs/archive/goalposts-pre-issues');
+  return readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => readdirSync(path.join(root, entry.name))
+      .filter((name) => name.endsWith('.md'))
+      .map((name) => path.posix.join('docs/archive/goalposts-pre-issues', entry.name, name)))
+    .sort();
+}
+
 describe('planning surfaces', () => { // eslint-disable-line max-lines-per-function
   it('keeps GitHub Issues named as the canonical work tracker', () => {
     const checks = [
@@ -130,6 +140,14 @@ describe('planning surfaces', () => { // eslint-disable-line max-lines-per-funct
 
     for (const file of files) {
       assertLocalMarkdownLinksExist(file);
+    }
+  });
+
+  it('keeps archived goalpost identity paths pointed at their archived files', () => {
+    for (const file of archivedGoalpostFiles()) {
+      const goalpostDoc = read(file).match(/^\| Goalpost doc \| `([^`]+)` \|$/mu)?.[1];
+
+      expect(goalpostDoc).toBe(file);
     }
   });
 });

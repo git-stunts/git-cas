@@ -7,7 +7,7 @@
 | Goalpost id | `v6.2.0-gp-operator-tui` |
 | Release home | `v6.2.0` |
 | Umbrella issue | `not opened yet` |
-| Goalpost doc | `docs/goalposts/v6.2.0/operator-tui.md` |
+| Goalpost doc | `docs/archive/goalposts-pre-issues/v6.2.0/operator-tui.md` |
 | Design cycle | `not active yet` |
 | Slice budget | `6` |
 | Status | `planned` |
