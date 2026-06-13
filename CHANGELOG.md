@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and follow-on work now live in GitHub Issues and Milestones. Repo Markdown
   carries design docs, witnesses, release history, public docs, and archived
   planning source material, but does not own the active queue.
+- **Root-doc accuracy cleanup** — the README product statement is now
+  version-neutral, `STATUS.md` records the latest docs validation snapshot,
+  `CLAUDE.md` delegates to `AGENTS.md`, and the stale root `GRAVEYARD.md` file
+  has been removed.
 
 ## [6.0.1] — 2026-05-09
 

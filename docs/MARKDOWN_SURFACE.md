@@ -43,10 +43,10 @@ local-only surfaces.
   shortest path from current state to planned releases.
 - [STATUS.md](../STATUS.md): `KEEP`, `MERGE` — compact snapshot value is real,
   but it should stay derivative and slim.
-- [GRAVEYARD.md](../GRAVEYARD.md): `KEEP`, `MOVE` — still useful historical
-  context, but it belongs under `docs/archive/` instead of the repo root.
-- [CLAUDE.md](../CLAUDE.md): `CUT`, `MOVE` — tool-specific instruction files
-  should not occupy tracked root doctrine alongside canonical project docs.
+- `GRAVEYARD.md`: `CUT` — removed from the root; stale historical task text no
+  longer occupies a tracked planning surface.
+- [CLAUDE.md](../CLAUDE.md): `KEEP` — compatibility pointer only; canonical
+  agent/operator instructions live in [AGENTS.md](../AGENTS.md).
 
 ## Canonical Docs Under `docs/`
 
@@ -235,10 +235,8 @@ change:
 
 If the repo wants to act on this audit, the highest-value next changes are:
 
-1. move [GRAVEYARD.md](../GRAVEYARD.md) under `docs/archive/`
-2. decide whether [CLAUDE.md](../CLAUDE.md) should leave tracked root entirely
-3. collapse [STATUS.md](../STATUS.md) into other canonical surfaces and remove
+1. collapse [STATUS.md](../STATUS.md) into other canonical surfaces and remove
    the duplicate snapshot doc
-4. keep [ROADMAP.md](../ROADMAP.md), GitHub milestones/issues, and
+2. keep [ROADMAP.md](../ROADMAP.md), GitHub milestones/issues, and
    [docs/design/](./design/README.md) synchronized as the release planning stack
    evolves
