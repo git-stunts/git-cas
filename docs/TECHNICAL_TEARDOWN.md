@@ -1,139 +1,134 @@
-# Table of Contents
+# Technical Teardown: `git-cas`
 
-| Section | Line |
-| :--- | ---: |
-| Mind Map | 28 |
-| Domain Dictionary | 72 |
-| Introduction | 102 |
-| The Entry Point | 130 |
-| Bootstrapping vs. Runtime | 247 |
-| The System Model | 277 |
-| The Data Source of Truth | 358 |
-| Golden Path 1: Library Store, Publish, Vault, Restore | 388 |
-| Golden Path 2: Human CLI Store and Restore | 583 |
-| Golden Path 3: Agent JSONL Automation | 640 |
-| Store Pipeline Internals | 683 |
-| Restore Pipeline Internals | 803 |
-| Anatomy of Payloads | 866 |
-| Concurrency and Asynchronous Flows | 1039 |
-| Security Boundaries and Auth Flows | 1103 |
-| External Dependencies and Borders | 1177 |
-| Configuration and Environment Tuning | 1197 |
-| Unhappy Paths and Error Handling | 1261 |
-| Trade-Offs: Why It Is Built This Way | 1326 |
-| Testing and Verification Posture | 1343 |
-| Current Repository Vault Snapshot | 1363 |
-| Reading Map | 1390 |
+This document is a zero-to-hero technical teardown of `git-cas`, an
+ES module package that stores, verifies, encrypts, restores, and indexes binary
+artifacts inside Git.
 
-# Mind Map
+The explanation starts at the exact executable entry points, then descends
+through bootstrapping, the public facade, domain services, byte pipelines, Git
+persistence, security boundaries, and failure behavior. The goal is to make the
+system understandable to a reader who has never seen this project or this
+domain before.
 
-```mermaid
-mindmap
-  root(("git-cas"))
-    Entry Surfaces
-      Library facade: index.js
-      Human CLI and TUI: bin/git-cas.js
-      Agent protocol: bin/agent/cli.js
-    Domain Core
-      CasService orchestration
-      Store strategies
-      Restore strategies
-      VaultService orchestration
-    Data Model
-      Git blobs
-      Manifests
-      Git trees
-      refs/cas/vault
-    Byte Processing
-      Fixed chunking
-      Content-defined chunking
-      Compression
-      AES-256-GCM encryption
-    Security
-      AAD binding
-      KDF policy
-      Envelope recipients
-      Restore path containment
-      Vault privacy mode
-    Ports and Adapters
-      CryptoPort
-      GitPersistencePort
-      GitRefPort
-      ChunkingPort
-      CodecPort
-      CompressionPort
-      ObservabilityPort
-    Runtime Support
-      Node.js
-      Bun
-      Deno and Web Crypto
-```
+Primary code landmarks:
 
-# Domain Dictionary
+| Landmark | File |
+| --- | --- |
+| Package definition and executable registration | [package.json](../package.json) |
+| Library facade and public API | [index.js](../index.js) |
+| Human CLI process entry | [bin/git-cas.js](../bin/git-cas.js) |
+| Agent CLI process entry | [bin/agent/cli.js](../bin/agent/cli.js) |
+| CAS domain orchestrator | [src/domain/services/CasService.js](../src/domain/services/CasService.js) |
+| Vault domain orchestrator | [src/domain/services/VaultService.js](../src/domain/services/VaultService.js) |
+| Git blob/tree adapter | [src/infrastructure/adapters/GitPersistenceAdapter.js](../src/infrastructure/adapters/GitPersistenceAdapter.js) |
+| Git ref adapter | [src/infrastructure/adapters/GitRefAdapter.js](../src/infrastructure/adapters/GitRefAdapter.js) |
+| Manifest schema | [src/domain/schemas/ManifestSchema.js](../src/domain/schemas/ManifestSchema.js) |
+| Architecture map | [ARCHITECTURE.md](../ARCHITECTURE.md) |
 
-This project stores and restores bytes, but the code speaks in a precise storage vocabulary. The following terms are the minimum set needed before reading the execution paths.
+## Table of Contents
 
-| Term | Meaning in `git-cas` | Why It Matters |
-| :--- | :--- | :--- |
-| CAS | Content-addressable storage. Data is addressed by a digest of its content rather than by a mutable filename. | It lets stored bytes be verified and deduplicated. |
-| Git object database | The `.git/objects` storage layer used by Git for blobs, trees, and commits. | `git-cas` uses this as the durable storage substrate. |
-| Blob | A Git object that stores raw bytes. | Every stored chunk is ultimately written as a Git blob. |
-| Tree | A Git object that maps names to blobs or other trees. | `git-cas` publishes a manifest plus chunks as a tree so Git can keep them reachable. |
-| Ref | A named pointer inside Git, such as `refs/cas/vault`. | The vault is anchored by a stable ref so Git garbage collection does not discard stored assets. |
-| Chunk | A contiguous slice of stored bytes. | Chunking enables deduplication and parallel restore. |
-| Fixed chunking | Splitting input into equal-sized chunks, with a smaller final chunk if needed. | It is predictable and simple, but small edits shift all later chunk boundaries. |
-| CDC | Content-defined chunking. Boundaries are determined by the byte content using a rolling hash. | It preserves deduplication when bytes are inserted or deleted near the front of a file. |
-| Buzhash | The rolling hash algorithm used by the CDC chunker. | It lets the chunker scan for content-defined boundaries without rehashing every window from scratch. |
-| Manifest | The structured metadata that describes how to rebuild an asset. | It is the authoritative source of chunk order, digest, encryption, compression, and format metadata. |
-| Merkle manifest | A large-manifest layout where a root manifest points to sub-manifest blobs. | It keeps large assets manageable while preserving logical chunk order. |
-| Slug | A user-facing logical name for a stored asset, such as `assets/v1`. | Vault operations use slugs to find asset trees. |
-| Vault | A Git commit chain rooted at `refs/cas/vault` that maps slugs to asset tree OIDs. | It is the GC-safe index of named assets. |
-| OID | A Git object identifier, accepted as 40-hex SHA-1 or 64-hex SHA-256. | All persisted Git objects are referenced by OID. |
-| GCM | Galois/Counter Mode, an authenticated encryption mode. | `git-cas` uses AES-256-GCM for confidentiality and integrity. |
-| AAD | Additional Authenticated Data. Data authenticated by AES-GCM but not encrypted. | `git-cas` binds ciphertext to slugs and frame indexes so copied ciphertext cannot be silently moved between manifests. |
-| DEK | Data encryption key. | Envelope encryption uses a random DEK to encrypt content. |
-| KEK | Key encryption key. | Recipient keys wrap and unwrap the DEK. |
+- [Domain Dictionary](#domain-dictionary)
+- [The Entry Point](#the-entry-point)
+- [Bootstrapping vs. Runtime](#bootstrapping-vs-runtime)
+- [The System Model](#the-system-model)
+- [Source of Truth](#source-of-truth)
+- [Golden Path 1: Library Store, Publish, Vault, Restore](#golden-path-1-library-store-publish-vault-restore)
+- [Golden Path 2: Human CLI Store and Restore](#golden-path-2-human-cli-store-and-restore)
+- [Golden Path 3: Agent JSONL Automation](#golden-path-3-agent-jsonl-automation)
+- [Store Pipeline Internals](#store-pipeline-internals)
+- [Restore Pipeline Internals](#restore-pipeline-internals)
+- [Vault Pipeline Internals](#vault-pipeline-internals)
+- [Anatomy of Payloads](#anatomy-of-payloads)
+- [Concurrency and Asynchronous Flows](#concurrency-and-asynchronous-flows)
+- [Security Boundaries and Auth Flows](#security-boundaries-and-auth-flows)
+- [External Dependencies and Borders](#external-dependencies-and-borders)
+- [Configuration and Environment Tuning](#configuration-and-environment-tuning)
+- [Unhappy Paths and Error Handling](#unhappy-paths-and-error-handling)
+- [Design Highlights](#design-highlights)
+- [Trade-Offs](#trade-offs)
+- [Testing and Verification Posture](#testing-and-verification-posture)
+- [Reading Map](#reading-map)
+
+## Domain Dictionary
+
+Before reading the code paths, learn the vocabulary. The project is small
+enough to fit in one repository, but it is built from several storage,
+cryptography, Git, and runtime concepts.
+
+| Term | Meaning in `git-cas` | Why it matters |
+| --- | --- | --- |
+| CAS | Content-addressable storage. Data is addressed by a digest of its contents rather than by a mutable name. | The system can verify that restored bytes match what was stored. |
+| Git object database | The `.git/objects` store that holds Git blobs, trees, and commits. | This is the durable storage backend. There is no external artifact server. |
+| Blob | A Git object containing raw bytes. | Stored chunks, manifests, vault metadata, and privacy indexes are persisted as blobs. |
+| Tree | A Git object mapping names to blobs or nested trees. | Each published asset is a tree containing a manifest and reachable chunk blobs. |
+| Commit | A Git object pointing at a tree and optional parent commit. | The vault is a commit chain, so vault history is normal Git history. |
+| Ref | A named Git pointer, such as `refs/cas/vault`. | The vault ref keeps named asset trees reachable and GC-safe. |
+| OID | Git object identifier, accepted as lowercase 40-hex SHA-1 or 64-hex SHA-256. | Blobs, trees, commits, and manifest chunk references are all OIDs. |
+| Chunk | A contiguous byte slice of an asset. | Chunking enables deduplication, verification, and parallel restore. |
+| Fixed chunking | Splitting input into fixed byte sizes. | Predictable, simple, and stable when bytes change near the end of a file. |
+| CDC | Content-defined chunking. Boundaries are chosen by rolling hash over content. | Insertions near the front of a file do not shift every later chunk boundary. |
+| Buzhash | The rolling hash used by the CDC chunker. | It lets the chunker scan for boundaries without hashing each window from scratch. |
+| Manifest | Metadata describing how to rebuild an asset. | It is the source of truth for chunk order, digest, compression, encryption, and format. |
+| Merkle manifest | A two-level manifest layout for large chunk lists. | It bounds root manifest size by moving chunk groups into sub-manifest blobs. |
+| Slug | A user-facing logical name such as `assets/logo/v1`. | Vault commands resolve slugs to asset tree OIDs. |
+| Vault | The slug-to-tree index rooted at `refs/cas/vault`. | It gives named assets a stable, Git-native reachability anchor. |
+| GCM | AES-GCM authenticated encryption. | `git-cas` gets confidentiality and tamper detection in one primitive. |
+| AAD | Additional Authenticated Data. It is authenticated but not encrypted. | Whole and framed encryption bind ciphertext to a slug, and framed mode also binds frame index. |
+| DEK | Data encryption key. | Envelope encryption uses one DEK for the content. |
+| KEK | Key encryption key. | A recipient's key wraps or unwraps the DEK. |
 | KDF | Key derivation function. | Passphrases become 32-byte AES keys through PBKDF2 or scrypt. |
-| Envelope encryption | Encrypting content with a DEK and wrapping that DEK for each recipient. | Recipients can be added or rotated without re-encrypting all data blobs. |
-| Convergent encryption | Deterministic per-chunk encryption derived from the plaintext chunk hash. | It preserves deduplication for encrypted CDC stores while exposing content-equality leakage. |
-| Port | An abstract dependency interface used by the domain layer. | Ports keep the core runtime-agnostic. |
-| Adapter | A concrete implementation of a port. | Adapters isolate Node, Bun, Deno, Git CLI, zlib, and EventEmitter details. |
+| Envelope encryption | Store data under a DEK, then wrap that DEK for each recipient. | Recipients can be added or rotated without re-encrypting all chunk blobs. |
+| Convergent encryption | Deterministic per-chunk encryption derived from plaintext digest. | It preserves deduplication for encrypted CDC stores, with known equality-leakage trade-offs. |
+| Port | Abstract interface that the domain layer depends on. | Ports keep domain code free of Node, Git shelling, zlib, and runtime globals. |
+| Adapter | Concrete implementation of a port. | Adapters connect the domain to Git CLI, crypto runtime, filesystem, compression, and observability. |
 
-# Introduction
+## The Entry Point
 
-`git-cas` is a content-addressable storage engine that stores binary artifacts inside Git. Unlike Git LFS, it does not move the bytes to a separate service. It writes chunk blobs directly into Git, records reconstruction metadata in a manifest, publishes a Git tree for reachability, and can index that tree by a human slug through a vault ref.
-
-The project currently presents three user-facing ingress surfaces over one shared core:
-
-| Surface | Entry File | Primary Audience | Contract |
-| :--- | :--- | :--- | :--- |
-| Library facade | `index.js` | JavaScript and TypeScript callers | Object methods such as `storeFile()`, `createTree()`, `addToVault()`, and `restoreFile()`. |
-| Human CLI and TUI | `bin/git-cas.js` | Terminal users and operators | `git-cas store`, `git-cas restore`, `git-cas vault`, `git-cas doctor`, and dashboard commands. |
-| Agent CLI | `bin/agent/cli.js` | CI systems and automation agents | JSONL session messages with structured start, result, warning, error, and end events. |
-
-The codebase follows a hexagonal dependency direction. The domain layer does not import Node APIs, Git shelling, zlib, EventEmitter, or runtime globals. It depends on ports. Infrastructure implements those ports. The facade wires everything together.
+`git-cas` has three entry surfaces over one shared core.
 
 ```mermaid
 flowchart TD
-    A("Caller") --> B("Entry surface")
-    B --> C("ContentAddressableStore facade")
-    C --> D("CasService")
-    C --> E("VaultService")
-    D --> F("Ports")
-    E --> F
-    F --> G("Infrastructure adapters")
-    G --> H("Git CLI, crypto runtime, zlib, filesystem")
+    P["package.json"] --> E1["main: index.js"]
+    P --> E2["bin: git-cas -> bin/git-cas.js"]
+    E2 -->|"argv[2] === agent"| E3["bin/agent/cli.js"]
+
+    E1 --> F["ContentAddressableStore facade"]
+    E2 --> F
+    E3 --> F
+
+    F --> C["CasService"]
+    F --> V["VaultService"]
 ```
 
-The rest of this document starts at the executable entry points, then progressively descends into storage, byte transforms, encryption, vaulting, failure behavior, and design trade-offs.
+### Package Execution Contract
 
-# The Entry Point
+The package declares:
 
-There are three exact starts depending on how the software is invoked. All three converge on the same domain services.
+```json
+{
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "git-cas": "bin/git-cas.js"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./service": "./src/domain/services/CasService.js",
+    "./schema": "./src/domain/schemas/ManifestSchema.js"
+  }
+}
+```
 
-## Library Entry: `index.js`
+That creates three practical execution starts:
 
-For package users, execution starts when an application imports the package and calls a facade factory:
+1. A library caller imports `@git-stunts/git-cas`, which loads `index.js`.
+2. A human runs `git-cas ...`, which starts `bin/git-cas.js`.
+3. An automation system runs `git-cas agent ...`, which is detected by
+   `bin/git-cas.js` and delegated to `bin/agent/cli.js`.
+
+### Library Entry: `index.js`
+
+For library usage, the first meaningful project code is the facade:
 
 ```js
 import ContentAddressableStore from '@git-stunts/git-cas';
@@ -141,54 +136,50 @@ import ContentAddressableStore from '@git-stunts/git-cas';
 const cas = await ContentAddressableStore.open({ cwd: '.' });
 ```
 
-The class `ContentAddressableStore` lives in `index.js`. Its `open()` factory builds Git plumbing for the chosen working directory and returns a facade instance. It does not immediately construct every domain service. The facade lazily initializes the real services through `#getService()` and `#initService()` the first time a method needs them.
-
-The facade is intentionally not the storage engine. Its job is composition:
-
-| Facade Responsibility | Concrete Wiring |
-| :--- | :--- |
-| Git byte and tree I/O | `GitPersistenceAdapter` |
-| Git ref and commit I/O | `GitRefAdapter` |
-| Runtime crypto | `createCryptoAdapter()` |
-| Manifest codec | `JsonCodec` by default, or `CborCodec` |
-| Chunking | `resolveChunker()` or `FixedChunker` |
-| Compression | `NodeCompressionAdapter` |
-| Observability | `SilentObserver` by default |
-| CAS engine | `CasService` |
-| Vault engine | `VaultService` |
+`ContentAddressableStore.open()` creates Git plumbing for a working directory
+and returns a facade instance. The heavy services are not constructed
+immediately. They are created lazily when the caller first invokes a method that
+needs them.
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant App as App
-    participant ContentAddressableStore.open() as Open
-    participant createGitPlumbing() as Plumbing
-    participant ContentAddressableStore as Facade
-    participant CasService as Cas
-    participant VaultService as Vault
+    participant App as Caller
+    participant Facade as ContentAddressableStore
+    participant Plumbing as createGitPlumbing
+    participant Service as CasService/VaultService
 
-    App->>Open: open({ cwd })
-    Open->>Plumbing: create Git plumbing for cwd
-    Plumbing-->>Open: plumbing
-    Open-->>App: facade instance
-    App->>Facade: storeFile(...)
-    Facade->>Facade: #getService()
-    Facade->>Cas: construct with ports
-    Facade->>Vault: construct with persistence/ref/crypto
-    Facade->>Cas: delegate storeFile workflow
+    App->>Facade: open({ cwd })
+    Facade->>Plumbing: createGitPlumbing({ cwd })
+    Plumbing-->>Facade: GitPlumbing instance
+    Facade-->>App: facade with config
+    App->>Facade: storeFile(...) or restoreFile(...)
+    Facade->>Service: lazy #getService()
+    Service-->>Facade: initialized domain services
 ```
 
-The most important bootstrapping detail is lazy service construction. This lets callers create a facade cheaply, override adapters, and pay runtime discovery only when they perform an operation.
+The lazy service promise is important. Adapter discovery can be asynchronous,
+especially when selecting runtime-specific crypto adapters. Lazy boot also
+means a caller can construct a facade without paying for Git, crypto, vault,
+and compression objects until an operation needs them.
 
-## Human CLI Entry: `bin/git-cas.js`
+### Human CLI Entry: `bin/git-cas.js`
 
-For terminal users, execution begins at the Node shebang:
+The human CLI starts at the shebang:
 
 ```js
 #!/usr/bin/env node
 ```
 
-The CLI imports `commander`, installs broken-pipe handlers, computes its build version, and then checks one special case before registering human commands:
+Then it:
+
+1. reads package version information
+2. installs broken-pipe handlers
+3. checks whether the first command is `agent`
+4. configures Commander commands for human usage
+5. calls `program.parseAsync()`
+6. flushes stdio before exit
+
+The branch for automation happens before Commander owns the process:
 
 ```js
 if (process.argv[2] === 'agent') {
@@ -197,115 +188,139 @@ if (process.argv[2] === 'agent') {
 }
 ```
 
-That means `git-cas agent ...` is routed into the machine-facing protocol before the normal Commander command tree is parsed.
+The rest of `bin/git-cas.js` is the human command surface:
 
-For normal human commands, `bin/git-cas.js` builds a Commander program with global `--quiet` and `--json` flags, then registers commands such as `store`, `tree`, `inspect`, `restore`, `verify`, `doctor`, `vault init`, `vault list`, `vault stats`, `vault remove`, `vault info`, `vault history`, `vault rotate`, `vault dashboard`, `rotate`, and `recipient`.
+| Command family | Purpose |
+| --- | --- |
+| `store` | Store bytes, optionally publish a tree and add it to the vault. |
+| `restore` | Resolve by slug or tree OID and write bytes to disk. |
+| `tree` | Turn a manifest file into a Git tree. |
+| `inspect` | Read and render a manifest. |
+| `verify` | Check chunk digests and, when credentials are supplied, encryption auth. |
+| `doctor` | Inspect vault health and deduplication state. |
+| `vault ...` | Initialize, list, inspect, mutate, rotate, and dashboard the vault. |
+| `recipient ...` | Manage envelope-encryption recipients. |
 
-The CLI helper `createCas(cwd, opts)` performs the same composition as the library factory, but from a command context:
+### Agent Entry: `bin/agent/cli.js`
 
-```mermaid
-flowchart TD
-    A("node bin/git-cas.js store file --slug s --tree") --> B("Commander parses command")
-    B --> C("runAction wraps errors")
-    C --> D("load .casrc")
-    D --> E("merge CLI flags over config")
-    E --> F("createCas(cwd, opts)")
-    F --> G("ContentAddressableStore")
-    G --> H("CasService and VaultService")
-```
-
-## Agent Entry: `bin/agent/cli.js`
-
-For automation, execution begins either directly through `bin/agent/cli.js` or indirectly through `git-cas agent ...`. The exported `runAgentCli(argv, deps)` function resolves the command name, creates a JSONL protocol session, executes the command, then maps success or failure into structured messages.
-
-The command resolver treats nested nouns specially:
-
-| Input Shape | Resolved Command |
-| :--- | :--- |
-| No args | `agent` |
-| `vault init` | `vault.init` |
-| `vault list` | `vault.list` |
-| `recipient add` | `recipient.add` |
-| `store` | `store` |
-
-The agent session writes rows with a stable protocol name:
-
-```json
-{
-  "protocol": "git-cas-agent/v1",
-  "command": "store",
-  "type": "result",
-  "seq": 2,
-  "ts": "2026-05-25T20:00:00.000Z",
-  "data": {
-    "slug": "assets/v1",
-    "treeOid": "0123456789abcdef0123456789abcdef01234567"
-  }
-}
-```
-
-# Bootstrapping vs. Runtime
-
-Bootstrapping is the phase where the system decides what collaborators exist. Runtime is the phase where a specific asset is stored, restored, verified, or indexed.
-
-| Phase | What Happens | State Source |
-| :--- | :--- | :--- |
-| Package import | ESM imports are loaded and classes become available. | JavaScript module graph in memory. |
-| Facade construction | `ContentAddressableStore` records configuration but may not initialize services yet. | Facade private fields in memory. |
-| Service initialization | Ports and adapters are constructed. | Memory, plus runtime detection through globals such as `Bun` and `Deno`. |
-| Store runtime | Source bytes are transformed, chunked, hashed, written as blobs, and recorded in a manifest. | Streaming memory plus Git object database. |
-| Tree publication runtime | Manifest bytes and chunk references are written into a Git tree. | Git blobs and trees. |
-| Vault mutation runtime | Slug-to-tree mapping is committed and `refs/cas/vault` is compare-and-swap updated. | Git commit chain and ref. |
-| Restore runtime | Manifest is read, chunks are fetched, integrity is verified, transforms are reversed, and output is emitted. | Git object database, stream buffers, optional output file. |
-
-```mermaid
-stateDiagram-v2
-    direction LR
-    [*] --> "Construct Facade"
-    "Construct Facade" --> "Lazy Init Services"
-    "Lazy Init Services" --> "Runtime Operation"
-    "Runtime Operation" --> "Store"
-    "Runtime Operation" --> "Restore"
-    "Runtime Operation" --> "Vault Mutation"
-    "Runtime Operation" --> "Verify"
-    "Store" --> [*]
-    "Restore" --> [*]
-    "Vault Mutation" --> [*]
-    "Verify" --> [*]
-```
-
-# The System Model
-
-At the highest level, `git-cas` does four things:
-
-1. It turns input bytes into chunk blobs stored in Git.
-2. It records reconstruction instructions in a manifest.
-3. It emits a Git tree that keeps the manifest and chunks reachable.
-4. It optionally indexes the tree under a slug through `refs/cas/vault`.
-
-The architectural dependency direction is inward:
+The agent entry is narrower and more explicit. It turns argv into a command
+name, opens a JSONL session, executes the command, and always emits structured
+end state.
 
 ```mermaid
 flowchart TD
-    A("Facade: index.js") --> B("Domain: src/domain")
-    B --> C("Ports: src/ports")
-    D("Infrastructure: src/infrastructure") --> C
-    A --> D
+    A["runAgentCli(argv)"] --> B["resolveCommand(argv)"]
+    B --> C["createAgentSession"]
+    C --> D["executeAgentCommand"]
+    D --> E{"success?"}
+    E -->|"yes"| F["write result"]
+    F --> G["write end { ok: true }"]
+    E -->|"needs input"| H["write needs-input"]
+    H --> I["write end { ok: false }"]
+    E -->|"error"| J["write error"]
+    J --> I
 ```
 
-The domain talks in these abstractions:
+The agent protocol uses:
 
-| Port                 | Responsibility                                                             | Default Adapter                                                 |
-| :------------------- | :------------------------------------------------------------------------- | :-------------------------------------------------------------- |
-| `CryptoPort`         | SHA-256, random bytes, AES-GCM, HMAC, KDF, deterministic nonce encryption. | `NodeCryptoAdapter`, `BunCryptoAdapter`, or `WebCryptoAdapter`. |
-| `GitPersistencePort` | Write/read blobs, write/read trees, stream blob reads.                     | `GitPersistenceAdapter`.                                        |
-| `GitRefPort`         | Resolve refs, resolve commit trees, create commits, update refs.           | `GitRefAdapter`.                                                |
-| `ChunkingPort`       | Convert an async byte source into chunks.                                  | `FixedChunker` or `CdcChunker`.                                 |
-| `CodecPort`          | Encode/decode manifest metadata.                                           | `JsonCodec` or `CborCodec`.                                     |
-| `CompressionPort`    | Compress/decompress buffers and streams.                                   | `NodeCompressionAdapter`.                                       |
-| `ObservabilityPort`  | Metrics, logs, spans.                                                      | `SilentObserver`, `EventEmitterObserver`, `StatsCollector`.     |
+- stable command names
+- `start`, `progress`, `result`, `warning`, `error`, `needs-input`, and `end`
+  records
+- explicit exit codes
+- redacted start payloads for secrets
 
-The domain services are cohesive rather than monolithic:
+This is not just a CLI with `--json`. It is a session protocol designed for
+automation.
+
+## Bootstrapping vs. Runtime
+
+Bootstrapping is the setup phase. Runtime is the operation phase.
+
+```mermaid
+flowchart LR
+    subgraph Bootstrap
+        A["load .casrc"]
+        B["parse CLI flags or API options"]
+        C["create Git plumbing"]
+        D["select crypto adapter"]
+        E["construct ports/adapters"]
+        F["construct CasService and VaultService"]
+    end
+
+    subgraph Runtime
+        G["store bytes"]
+        H["restore bytes"]
+        I["read/write vault"]
+        J["verify integrity"]
+        K["emit metrics/progress"]
+    end
+
+    A --> B --> C --> D --> E --> F --> G
+    F --> H
+    F --> I
+    F --> J
+    F --> K
+```
+
+### Bootstrap Responsibilities
+
+The facade owns composition, not storage logic.
+
+During `#initService()`, `index.js`:
+
+1. creates `GitPersistenceAdapter`
+2. creates or accepts a `CryptoPort`
+3. chooses a chunker
+4. creates `CasService`
+5. creates `GitRefAdapter`
+6. creates `VaultService`
+
+The domain receives ready-to-use collaborators. It does not discover runtimes or
+open Git repositories by itself.
+
+### Runtime Responsibilities
+
+Once bootstrapped, runtime operations are domain use cases:
+
+- `CasService.store()` validates options, transforms bytes, writes chunks, and
+  returns an immutable `Manifest`.
+- `CasService.createTree()` serializes the manifest and writes a Git tree.
+- `VaultService.addToVault()` mutates `refs/cas/vault` with optimistic
+  concurrency.
+- `CasService.restoreStream()` verifies, decrypts, decompresses, and yields
+  bytes.
+- `FileIOHelper.restoreFile()` turns restored bytes into a safe filesystem
+  write.
+
+The separation matters because it keeps platform details at the edge. A browser
+adapter, remote adapter, or custom crypto adapter can be introduced at the port
+boundary without rewriting manifest or vault rules.
+
+## The System Model
+
+At the highest level, `git-cas` stores bytes in Git and stores enough metadata
+to reconstruct those bytes later.
+
+```mermaid
+flowchart TD
+    Source["input bytes"] --> Transform["compression/encryption/chunking"]
+    Transform --> Blobs["Git chunk blobs"]
+    Transform --> Manifest["manifest metadata"]
+    Manifest --> ManifestBlob["manifest blob"]
+    ManifestBlob --> Tree["asset Git tree"]
+    Blobs --> Tree
+    Tree --> Vault["refs/cas/vault slug index"]
+```
+
+The system has two related but distinct stores:
+
+1. The asset store: chunk blobs plus a manifest tree.
+2. The vault store: a ref-backed index from slugs to asset tree OIDs.
+
+The asset tree can exist without the vault. A caller can store data and keep the
+manifest JSON or tree OID themselves. The vault is the managed name index.
+
+### Layer Diagram
 
 ```mermaid
 classDiagram
@@ -313,672 +328,1096 @@ classDiagram
       +open(options)
       +storeFile(options)
       +store(options)
-      +restoreFile(options)
       +createTree(options)
+      +restoreFile(options)
+      +restoreStream(options)
       +addToVault(options)
+      +listVault(options)
       +resolveVaultEntry(options)
     }
+
     class CasService {
       +store(options)
-      +restoreStream(options)
       +createTree(options)
       +readManifest(options)
+      +restoreStream(options)
       +verifyIntegrity(manifest)
     }
+
     class VaultService {
       +initVault(options)
       +addToVault(options)
       +listVault(options)
+      +iterateVault(options)
       +resolveVaultEntry(options)
       +removeFromVault(options)
     }
-    class ChunkRepository {
-      +chunkAndStore(source, manifestData)
-      +readAndVerifyChunk(chunk)
-      +iterVerifiedChunkBlobs(manifest)
-    }
-    class ManifestRepository {
-      +createTree(options)
-      +readManifest(options)
-      +verifyManifestHash(decoded, treeOid)
-    }
-    class KeyResolver {
-      +resolveForStore(...)
-      +resolveForDecryption(...)
-      +resolveRecipients(recipients)
-    }
+
+    class ChunkRepository
+    class ManifestRepository
+    class StoreStrategy
+    class RestoreStrategy
+    class KeyResolver
+    class VaultPersistence
+    class VaultPrivacyIndex
+    class VaultStateCache
 
     ContentAddressableStore --> CasService
     ContentAddressableStore --> VaultService
     CasService --> ChunkRepository
     CasService --> ManifestRepository
+    CasService --> StoreStrategy
+    CasService --> RestoreStrategy
     CasService --> KeyResolver
+    VaultService --> VaultPersistence
+    VaultService --> VaultPrivacyIndex
+    VaultService --> VaultStateCache
 ```
 
-# The Data Source of Truth
+### Port and Adapter Diagram
 
-The source of truth changes as a payload moves through the system. This is critical: not every intermediate representation is durable.
+```mermaid
+flowchart LR
+    subgraph Domain["Domain layer"]
+        C["CasService"]
+        V["VaultService"]
+        CR["ChunkRepository"]
+        MR["ManifestRepository"]
+    end
 
-| Stage | Source of Truth | Durable? | Notes |
-| :--- | :--- | :--- | :--- |
-| Caller input | File, async iterable, stdin, or generated bytes. | Depends on caller. | `git-cas` has not stored anything yet. |
-| Prepared stream | Async iterable in memory. | No. | Compression or encryption may wrap the source. |
-| Chunk blob | Git blob object. | Yes, if reachable or retained by Git object database. | Blob reachability is strengthened after tree/vault publication. |
-| Manifest object | `Manifest` value object in memory. | No. | It is immutable but not durable until encoded and written. |
-| Manifest blob | Git blob named `manifest.json` or `manifest.cbor` in an asset tree. | Yes. | This is the reconstruction authority. |
-| Asset tree | Git tree containing manifest and chunk blob entries. | Yes. | The tree keeps the manifest and chunks reachable if referenced. |
-| Vault entry | Commit under `refs/cas/vault`. | Yes. | This is the slug-to-tree source of truth. |
-| Restore output stream | Async iterable emitted to caller. | No. | Authenticated/verified bytes flow out. |
-| Restore file | Filesystem path under caller-approved `baseDirectory`. | Yes, outside Git. | `restoreFile()` enforces path containment. |
+    subgraph Ports["Ports"]
+        CP["CryptoPort"]
+        GP["GitPersistencePort"]
+        RP["GitRefPort"]
+        CHP["ChunkingPort"]
+        CODEC["CodecPort"]
+        COMP["CompressionPort"]
+        OBS["ObservabilityPort"]
+    end
 
-The manifest, not the tree layout, is authoritative for reconstruction order. The tree may contain one entry per unique chunk digest, but the manifest records repeated chunks and their exact order.
+    subgraph Adapters["Infrastructure adapters"]
+        NC["NodeCryptoAdapter"]
+        BC["BunCryptoAdapter"]
+        WC["WebCryptoAdapter"]
+        GIT["GitPersistenceAdapter"]
+        REF["GitRefAdapter"]
+        FIX["FixedChunker"]
+        CDC["CdcChunker"]
+        JSON["JsonCodec"]
+        CBOR["CborCodec"]
+        GZIP["NodeCompressionAdapter"]
+        EVENTS["EventEmitterObserver"]
+    end
+
+    C --> CP
+    C --> GP
+    C --> CHP
+    C --> CODEC
+    C --> COMP
+    C --> OBS
+    V --> GP
+    V --> RP
+    V --> CP
+    NC --> CP
+    BC --> CP
+    WC --> CP
+    GIT --> GP
+    REF --> RP
+    FIX --> CHP
+    CDC --> CHP
+    JSON --> CODEC
+    CBOR --> CODEC
+    GZIP --> COMP
+    EVENTS --> OBS
+```
+
+The dependency direction is deliberately one-way. Domain code imports ports and
+value objects. Infrastructure imports domain abstractions and implements them.
+
+## Source of Truth
+
+State moves through several places. The key to understanding `git-cas` is to
+know which place is authoritative at each moment.
+
+| State | Source of truth | Lifetime |
+| --- | --- | --- |
+| Package version | `package.json` and generated `src/package-version.js` | Release lifetime |
+| Runtime configuration | API options, CLI flags, `.casrc`, environment variables | Process lifetime |
+| Active facade configuration | Private `#config` in `ContentAddressableStore` | Facade instance lifetime |
+| Chunk bytes during store | Async iterable stream | Operation lifetime |
+| Chunk blobs | Git object database | Durable |
+| Chunk order and digests | Manifest object and serialized manifest blob | Durable after tree publication |
+| Asset reachability | Asset Git tree | Durable while reachable |
+| Named asset lookup | `refs/cas/vault` commit chain | Durable and GC-safe |
+| Vault metadata | `.vault.json` blob in the vault tree | Durable |
+| Privacy slug reverse map | encrypted `.privacy-index` blob in the vault tree | Durable |
+| Cached vault parse results | `VaultStateCache` keyed by tree OID | Process memory |
+| Human CLI progress | `EventEmitterObserver` and progress renderers | Operation lifetime |
+| Agent automation state | JSONL session records | Process output |
 
 ```mermaid
 erDiagram
-    VAULT_REF ||--o{ VAULT_COMMIT : points_to_latest
-    VAULT_COMMIT ||--|| VAULT_TREE : has_tree
-    VAULT_TREE ||--|| VAULT_METADATA_BLOB : contains
-    VAULT_TREE ||--o{ ASSET_TREE_ENTRY : maps_slug_to_tree
     ASSET_TREE ||--|| MANIFEST_BLOB : contains
-    ASSET_TREE ||--o{ CHUNK_BLOB : keeps_reachable
-    MANIFEST_BLOB ||--o{ CHUNK_ENTRY : declares_ordered_chunks
-    CHUNK_ENTRY }o--|| CHUNK_BLOB : references_blob_oid
+    ASSET_TREE ||--o{ CHUNK_BLOB : references
+    MANIFEST_BLOB ||--o{ CHUNK_ENTRY : declares
+    CHUNK_ENTRY }o--|| CHUNK_BLOB : points_to
+    VAULT_REF ||--|| VAULT_COMMIT : points_to
+    VAULT_COMMIT ||--|| VAULT_TREE : points_to
+    VAULT_TREE ||--|| VAULT_METADATA : contains
+    VAULT_TREE ||--o{ VAULT_ENTRY : contains
+    VAULT_ENTRY }o--|| ASSET_TREE : points_to
 ```
 
-# Golden Path 1: Library Store, Publish, Vault, Restore
+There is no SQLite database, Redis cache, service API, or daemon. Git is the
+durable database. In-memory structures are performance helpers or operation
+drafts, not authoritative storage.
 
-The library golden path is the most complete end-to-end flow. It starts with application code and ends with verified restored bytes.
+## Golden Path 1: Library Store, Publish, Vault, Restore
+
+This is the core successful path:
+
+1. Store a file.
+2. Publish a Git tree.
+3. Add the tree to the vault under a slug.
+4. Resolve the slug later.
+5. Restore the file safely.
+
+### Caller Code
 
 ```js
 import ContentAddressableStore from '@git-stunts/git-cas';
 
 const cas = await ContentAddressableStore.open({ cwd: '.' });
+
 const manifest = await cas.storeFile({
-  filePath: './asset.bin',
-  slug: 'assets/v1'
+  filePath: './data.bin',
+  slug: 'assets/data/v1',
 });
+
 const treeOid = await cas.createTree({ manifest });
-await cas.addToVault({ slug: 'assets/v1', treeOid });
-const readBack = await cas.readManifest({ treeOid });
+await cas.addToVault({ slug: 'assets/data/v1', treeOid });
+
+const resolvedTreeOid = await cas.resolveVaultEntry({ slug: 'assets/data/v1' });
+const restoredManifest = await cas.readManifest({ treeOid: resolvedTreeOid });
+
 await cas.restoreFile({
-  manifest: readBack,
-  outputPath: './asset-restored.bin',
-  baseDirectory: process.cwd()
+  manifest: restoredManifest,
+  outputPath: './restored/data.bin',
+  baseDirectory: process.cwd(),
 });
 ```
 
-## Step 1: Open the Facade
-
-`ContentAddressableStore.open({ cwd })` constructs a `@git-stunts/plumbing` instance for the working tree. The state lives in memory as facade configuration. No Git objects are written.
-
-## Step 2: Store the File
-
-`storeFile()` is a file convenience wrapper. It creates a Node read stream, chooses a filename default from `path.basename(filePath)`, and calls `CasService.store()`.
-
-The source of truth at this moment is still the original file. The source stream is just a transient view of it.
+### End-to-End Sequence
 
 ```mermaid
 sequenceDiagram
-    autonumber
     participant App as App
-    participant Facade as Facade
-    participant FileIOHelper.storeFile() as FileIO
-    participant CasService.store() as Cas
-    participant StoreStrategy as Strategy
-    participant ChunkRepository as Chunks
-    participant GitPersistenceAdapter as Git
+    participant Facade as ContentAddressableStore
+    participant FileIO as FileIOHelper
+    participant Cas as CasService
+    participant Chunks as ChunkRepository
+    participant ManifestRepo as ManifestRepository
+    participant Vault as VaultService
+    participant Git as Git adapters
 
     App->>Facade: storeFile({ filePath, slug })
+    Facade->>Cas: lazy #getService()
     Facade->>FileIO: storeFile(service, options)
     FileIO->>Cas: store({ source, slug, filename })
-    Cas->>Cas: validate input and build store plan
-    Cas->>Strategy: select plaintext, convergent, framed, or whole
-    Strategy->>Chunks: chunkAndStore(processedSource)
+    Cas->>Cas: validate options and build store plan
+    Cas->>Chunks: chunkAndStore(source, manifestData)
     Chunks->>Git: writeBlob(chunk bytes)
-    Git-->>Chunks: blob OID
-    Chunks-->>Cas: chunk entries
-    Cas-->>Facade: Manifest
-    Facade-->>App: Manifest
-```
+    Git-->>Chunks: chunk blob OID
+    Chunks-->>Cas: ordered chunk entries
+    Cas-->>Facade: immutable Manifest
+    Facade-->>App: manifest
 
-## Step 3: Build the Initial Manifest Data
+    App->>Facade: createTree({ manifest })
+    Facade->>Cas: createTree(...)
+    Cas->>ManifestRepo: createTree(...)
+    ManifestRepo->>Git: writeBlob(serialized manifest)
+    ManifestRepo->>Git: writeTree(manifest + chunks)
+    Git-->>ManifestRepo: asset tree OID
+    ManifestRepo-->>Facade: tree OID
 
-Before chunking finishes, `CasService` builds mutable manifest data:
-
-```json
-{
-  "slug": "assets/v1",
-  "filename": "asset.bin",
-  "formatVersion": "6.0.1",
-  "size": 0,
-  "chunks": []
-}
-```
-
-This object is not yet durable and not yet a valid completed manifest. `StorePipeline` appends chunk entries in source order after writes complete.
-
-## Step 4: Chunk and Store
-
-The default chunker is fixed-size chunking with a 256 KiB chunk size. Each chunk is hashed with SHA-256, written to Git as a blob, and appended to the manifest entries.
-
-For a small file, the final manifest may look like this:
-
-```json
-{
-  "version": 1,
-  "formatVersion": "6.0.1",
-  "slug": "assets/v1",
-  "filename": "asset.bin",
-  "size": 27,
-  "chunks": [
-    {
-      "index": 0,
-      "size": 27,
-      "digest": "4ddf7fd96ffcf749d2f1ee6efb64cc88f94c1f63b65abe8f12f1fdc42180a7d9",
-      "blob": "0123456789abcdef0123456789abcdef01234567"
-    }
-  ]
-}
-```
-
-The chunk blob is durable after `writeBlob()`, but not yet intentionally reachable through a published asset tree or vault entry. If a later write fails, `StorePipeline` reports orphaned blob metadata so callers can understand partial side effects.
-
-## Step 5: Publish the Tree
-
-`createTree({ manifest })` delegates to `ManifestRepository.createTree()`.
-
-For a normal non-Merkle asset, it:
-
-1. Converts the immutable manifest back to mutable JSON.
-2. Computes a `manifestHash` over the hashable encoded manifest.
-3. Encodes the manifest as JSON or CBOR.
-4. Writes the manifest as a Git blob.
-5. Builds tree records for `manifest.<ext>` and the unique chunk blobs.
-6. Calls Git `mktree` through the persistence adapter.
-
-```mermaid
-flowchart TD
-    A("Manifest value object") --> B("toJSON mutable manifest data")
-    B --> C("Compute manifestHash")
-    C --> D("Codec encode")
-    D --> E("writeBlob manifest")
-    E --> F("Build tree entries")
-    F --> G("writeTree via git mktree")
-    G --> H("Asset tree OID")
-```
-
-Now the asset tree is durable. Its tree OID can be stored externally, committed elsewhere, or added to the vault.
-
-## Step 6: Add to the Vault
-
-`addToVault({ slug, treeOid })` updates the GC-safe slug index.
-
-The vault is not a database. It is a Git commit chain under `refs/cas/vault`. Each vault commit has a tree containing `.vault.json` and zero or more slug-to-asset tree entries.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Facade as Facade
-    participant VaultService as Vault
-    participant VaultPersistence as Persistence
-    participant GitRefAdapter as Ref
-    participant GitPersistenceAdapter as Git
-
-    Facade->>Vault: addToVault({ slug, treeOid })
-    Vault->>Persistence: resolveHead()
-    Persistence->>Ref: resolveRef('refs/cas/vault')
-    Ref-->>Persistence: current commit or not found
-    Vault->>Vault: create mutation draft
-    Vault->>Git: writeBlob(.vault.json)
-    Vault->>Git: writeTree(vault records)
-    Vault->>Ref: createCommit({ treeOid, parentOid })
-    Vault->>Ref: updateRef(expectedOldOid)
-    Ref-->>Vault: CAS update accepted
-    Vault-->>Facade: { commitOid }
-```
-
-The vault entry is now the durable slug source of truth. Later callers can restore by slug instead of remembering the tree OID.
-
-## Step 7: Read the Manifest
-
-`readManifest({ treeOid })` reads the asset tree, finds `manifest.json` or `manifest.cbor`, decodes it, verifies `manifestHash` if present, rejects legacy encryption schemes in normal mode, resolves Merkle sub-manifests if needed, and constructs an immutable `Manifest`.
-
-## Step 8: Restore the File
-
-`restoreFile()` first requires a `baseDirectory`. It resolves the requested output path against that boundary, canonicalizes symlinks in existing path components, and rejects output paths that escape the base directory.
-
-After path approval, it asks `CasService.createFileRestorePlan()` whether the restore can stream directly or must use a bounded temporary-file path.
-
-For normal plaintext uncompressed data, restore is a stream:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant App as App
-    participant Facade.restoreFile() as Facade
-    participant FileIOHelper.restoreFile() as FileIO
-    participant CasService.restoreStream() as Cas
-    participant RestorePlain as Strategy
-    participant ChunkRepository as Chunks
-    participant GitPersistenceAdapter as Git
-    participant Filesystem as FS
+    App->>Facade: addToVault({ slug, treeOid })
+    Facade->>Vault: addToVault(...)
+    Vault->>Vault: read current vault state
+    Vault->>Vault: mutate draft map
+    Vault->>Git: write vault commit tree
+    Vault->>Git: update refs/cas/vault with expected old OID
+    Git-->>Vault: commit OID
+    Vault-->>Facade: commit OID
 
     App->>Facade: restoreFile({ manifest, outputPath, baseDirectory })
+    Facade->>Facade: require baseDirectory
     Facade->>FileIO: restoreFile(service, options)
-    FileIO->>FileIO: resolveSafeRestorePath()
-    FileIO->>Cas: createFileRestorePlan()
-    Cas-->>FileIO: stream plan
-    FileIO->>Cas: restoreStream({ manifest })
-    Cas->>Strategy: RestoreStrategy.for(...)
-    Strategy->>Chunks: iterVerifiedChunkBlobs(manifest)
-    Chunks->>Git: readBlobStream(blob)
-    Git-->>Chunks: blob bytes
-    Chunks->>Chunks: SHA-256 check
-    Chunks-->>Strategy: verified bytes
-    Strategy-->>FileIO: byte chunks
-    FileIO->>FS: write output
-    FileIO-->>App: { bytesWritten }
+    FileIO->>FileIO: canonicalize safe output path
+    FileIO->>Cas: createFileRestorePlan(...)
+    Cas->>Chunks: read and verify chunks
+    Chunks->>Git: cat-file blob
+    Git-->>Chunks: chunk bytes
+    Chunks-->>Cas: verified byte stream
+    Cas-->>FileIO: restore source
+    FileIO-->>App: bytesWritten
 ```
 
-# Golden Path 2: Human CLI Store and Restore
+### Step 1: The Facade Resolves Per-Operation Chunking
 
-The human CLI golden path wraps the same facade with parsing, config merging, progress UI, and structured error output.
+`ContentAddressableStore.storeFile()` first calls `withOperationChunker()`.
 
-```bash
-git-cas store data.bin --slug assets/v1 --tree
-git-cas restore --slug assets/v1 --out data-restored.bin
-```
+That helper exists because chunking can be configured at two levels:
 
-## Store Command
+- constructor or `.open()` defaults
+- per-operation overrides
 
-When a user runs `git-cas store`, Commander parses the file positional and flags. The command then:
-
-1. Warns if an inline passphrase flag was used.
-2. Validates mutually exclusive credential sources.
-3. Requires `--force` to be paired with `--tree`.
-4. Loads `.casrc` from the working directory if present.
-5. Merges CLI flags over config defaults.
-6. Constructs `ContentAddressableStore` with an `EventEmitterObserver`.
-7. Resolves key or recipient inputs.
-8. Attaches a progress renderer to observability events.
-9. Calls `cas.storeFile()`.
-10. If `--tree` is set, calls `createTree()` and `addToVault()`.
-11. Writes either a JSON payload or a plain tree OID.
+Per-operation configuration is converted into a `ChunkingPort` instance before
+control reaches `CasService`.
 
 ```mermaid
 flowchart TD
-    A("CLI store command") --> B("Validate flags")
-    B --> C("Load .casrc")
-    C --> D("Merge config")
-    D --> E("Resolve credentials")
-    E --> F("Attach progress observer")
-    F --> G("cas.storeFile()")
-    G --> H{"--tree?"}
-    H -->|"no"| I("Print manifest")
-    H -->|"yes"| J("createTree()")
-    J --> K("addToVault()")
-    K --> L("Print treeOid")
+    A["storeFile(options)"] --> B{"options.chunking?"}
+    B -->|"no"| C["pass options through"]
+    B -->|"yes"| D["resolveChunker({ chunking })"]
+    D --> E{"known config?"}
+    E -->|"cdc"| F["new CdcChunker"]
+    E -->|"fixed with size"| G["new FixedChunker"]
+    E -->|"fixed no size"| H["default FixedChunker"]
+    C --> I["FileIOHelper.storeFile"]
+    F --> I
+    G --> I
+    H --> I
 ```
 
-The state of truth follows the same storage model as the library path. The CLI does not maintain a separate database. It is command orchestration over the same facade.
+The source of truth for this phase is still the caller's input. No bytes have
+been written.
 
-## Restore Command
+### Step 2: File I/O Becomes an Async Byte Source
 
-When a user runs `git-cas restore`, the CLI:
+`FileIOHelper.storeFile()` converts a filesystem path into a Node read stream
+and calls `CasService.store()`.
 
-1. Validates that exactly one of `--slug` or `--oid` was provided.
-2. Creates the facade.
-3. Resolves the tree OID from the vault if a slug was used.
-4. Reads the manifest.
-5. Resolves the encryption key if needed.
-6. Resolves the output target into an absolute output path and containing base directory.
-7. Calls `restoreFile()`.
-8. Prints `bytesWritten`.
+At this boundary:
 
-The CLI restore path intentionally passes the output file's directory as the restore boundary. Library callers can choose a broader boundary such as a job workspace or tenant directory.
+- the filename defaults to `path.basename(filePath)`
+- the source becomes an `AsyncIterable<Uint8Array>`
+- the domain receives bytes, not a filesystem path
 
-# Golden Path 3: Agent JSONL Automation
+This is an important architectural boundary. The domain service stores byte
+streams. The filesystem helper adapts local files to that domain contract.
 
-The agent CLI exists for automation that needs structured status instead of human prose. Its protocol is line-oriented JSON. That lets CI systems and agent runtimes consume progress and errors incrementally.
+### Step 3: `CasService.store()` Validates and Plans
+
+`CasService.store()` validates:
+
+- `source` must be async iterable
+- recipients cannot be combined with direct keys or passphrases
+- direct key and passphrase cannot both be supplied
+- compression must be gzip if present
+- Merkle threshold must be a positive integer
+
+Then it builds a store plan:
+
+```mermaid
+flowchart TD
+    A["store(options)"] --> B["validate store options"]
+    B --> C["resolve operation chunker"]
+    C --> D{"recipients?"}
+    D -->|"yes"| E["KeyResolver.resolveRecipients"]
+    D -->|"no"| F["KeyResolver.resolveForStore"]
+    E --> G["StoreEncryptionConfig.resolve"]
+    F --> G
+    G --> H["build manifestData"]
+    H --> I{"compression?"}
+    I -->|"yes"| J["CompressionStreams.compress(source)"]
+    I -->|"no"| K["source unchanged"]
+    J --> L["_dispatchStore"]
+    K --> L
+```
+
+At this point, state lives in memory:
+
+- `keyInfo` contains the encryption key or wrapped-recipient metadata
+- `encryptionConfig` contains the chosen scheme
+- `manifestData` is a mutable draft object
+- source bytes are still streaming
+
+### Step 4: Strategy Selection Chooses the Byte Transform
+
+`StoreStrategy.for()` selects one of four strategy objects.
+
+```mermaid
+flowchart TD
+    A["StoreStrategy.for"] --> B{"keyInfo.key?"}
+    B -->|"no"| P["StorePlain"]
+    B -->|"yes"| C{"encryptionConfig.scheme"}
+    C -->|"whole"| W["StoreWhole"]
+    C -->|"framed"| F["StoreFramed"]
+    C -->|"convergent"| G["StoreConvergent"]
+    C -->|"missing/unknown"| E["INVALID_OPTIONS"]
+```
+
+This design avoids burying encryption behavior inside one large branch. The
+byte pipeline is explicit:
+
+| Strategy | Transform position | Main property |
+| --- | --- | --- |
+| `StorePlain` | no encryption | stores verified plaintext chunks |
+| `StoreWhole` | before chunking | one AES-GCM nonce/tag for the full stream |
+| `StoreFramed` | before chunking | independent encrypted records with per-frame AAD |
+| `StoreConvergent` | after chunking | deterministic per-chunk encryption that preserves dedupe |
+
+### Step 5: Chunk Write Creates Durable Git Blobs
+
+`ChunkRepository.storeChunk()` does the core persistence work:
+
+1. compute SHA-256 digest of the plaintext chunk
+2. optionally convergent-encrypt the chunk
+3. write the blob to Git
+4. return a manifest chunk entry
+
+For non-convergent modes, the digest is over the actual blob bytes because
+encryption already happened before chunking. For convergent mode, the digest is
+over plaintext and the blob is ciphertext plus tag.
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant Automation as Automation
-    participant runAgentCli() as Agent
-    participant AgentSession as Session
-    participant executeAgentCommand() as Command
-    participant ContentAddressableStore as Facade
+    participant Pipe as StorePipeline
+    participant Repo as ChunkRepository
+    participant Crypto as CryptoPort
+    participant Git as GitPersistenceAdapter
 
-    Automation->>Agent: git-cas agent store --request @payload.json
-    Agent->>Agent: resolve command name
-    Agent->>Session: createAgentSession({ command })
-    Agent->>Command: executeAgentCommand(command, args, deps)
-    Command->>Session: writeStart(redacted input)
-    Command->>Facade: perform CAS operation
-    Facade-->>Command: domain result
-    Command-->>Agent: outcome
-    Agent->>Session: writeResult(data)
-    Agent->>Session: writeEnd({ ok: true, exitCode: 0 })
+    Pipe->>Repo: storeChunk(buf, index, convergentKey?)
+    Repo->>Crypto: sha256(buf)
+    Crypto-->>Repo: digest
+    alt convergent
+        Repo->>Crypto: derive chunk key and nonce from digest
+        Repo->>Crypto: AES-GCM encrypt with deterministic nonce
+        Crypto-->>Repo: ciphertext || tag
+    else other modes
+        Repo->>Repo: blobData = buf
+    end
+    Repo->>Git: writeBlob(blobData)
+    Git-->>Repo: blob OID
+    Repo-->>Pipe: { index, size, digest, blob }
 ```
 
-Agent errors are normalized with a stable code, retryability, optional documentation URL, optional hint, and metadata. `INTEGRITY_ERROR` maps to the verification-failed exit code. Invalid input and needs-input branches map to the invalid-input exit code.
+Durable state appears for the first time here: chunk blobs are now in the Git
+object database.
+
+### Step 6: The Manifest Freezes the Reconstruction Contract
+
+After all chunk entries are appended, `CasService` creates a `Manifest` value
+object.
+
+The manifest is:
+
+- validated through Zod schemas
+- converted into immutable `Chunk` objects
+- deep-frozen so callers cannot mutate it accidentally
+- stamped with `formatVersion` when the service has one
+
+At this moment, the in-memory `Manifest` is the authoritative reconstruction
+contract, but it is not durable until `createTree()` serializes it and writes a
+Git tree.
+
+### Step 7: `createTree()` Publishes the Asset
+
+`ManifestRepository.createTree()` writes a manifest blob and a tree that points
+to the manifest and chunk blobs.
+
+For small chunk counts:
+
+```mermaid
+flowchart TD
+    A["Manifest"] --> B["manifest.toJSON()"]
+    B --> C["encodeForHash(manifestData)"]
+    C --> D["manifestHash = sha256(hashable bytes)"]
+    D --> E["codec.encode(manifestData)"]
+    E --> F["writeBlob(manifest)"]
+    F --> G["buildFlatManifestTreeEntries"]
+    G --> H["writeTree(entries)"]
+    H --> I["asset tree OID"]
+```
+
+For large chunk counts, the repository writes sub-manifest blobs and a root
+manifest with `version: 2` and `subManifests`.
+
+```mermaid
+flowchart TD
+    A["chunks length > merkleThreshold"] --> B["split chunks into groups"]
+    B --> C["write each group as sub-manifest blob"]
+    C --> D["root manifest has chunks: []"]
+    D --> E["root manifest has subManifests refs"]
+    E --> F["write root manifest blob"]
+    F --> G["write tree with root + sub-manifests + chunks"]
+```
+
+Now the asset tree OID is a durable, shareable pointer to the asset.
+
+### Step 8: `addToVault()` Gives the Tree a Name
+
+The vault maps `slug -> treeOid`.
+
+`VaultService.addToVault()`:
+
+1. validates the slug
+2. reads current vault state from `refs/cas/vault`
+3. clones a mutable draft
+4. checks whether overwrite is allowed
+5. writes a new vault tree and commit
+6. updates `refs/cas/vault` using compare-and-swap semantics
+
+The source of truth after success is `refs/cas/vault`, not the process memory.
+
+### Step 9: Restore Starts by Reading the Manifest
+
+Later, restore begins from either:
+
+- a direct tree OID
+- a vault slug resolved to a tree OID
+
+`ManifestRepository.readManifest()`:
+
+1. reads the tree
+2. finds `manifest.json` or `manifest.cbor`
+3. decodes it
+4. verifies `manifestHash` if present
+5. rejects legacy encryption schemes unless legacy migration mode is enabled
+6. resolves sub-manifest chunks if `version: 2`
+7. constructs an immutable `Manifest`
+
+The source of truth moves from Git object database into an immutable in-memory
+manifest for this restore operation.
+
+### Step 10: `restoreFile()` Enforces the Filesystem Boundary
+
+`ContentAddressableStore.restoreFile()` refuses to proceed unless
+`baseDirectory` is supplied. Then `FileIOHelper.restoreFile()` canonicalizes the
+destination path.
+
+```mermaid
+flowchart TD
+    A["restoreFile({ outputPath, baseDirectory })"] --> B{"baseDirectory present?"}
+    B -->|"no"| C["INVALID_OPTIONS"]
+    B -->|"yes"| D["path.resolve(baseDirectory, outputPath)"]
+    D --> E["realpath(baseDirectory)"]
+    E --> F["canonicalize existing target prefix"]
+    F --> G{"target inside base?"}
+    G -->|"no"| H["SECURITY_BOUNDARY_VIOLATION"]
+    G -->|"yes"| I["restore bytes to target"]
+```
+
+Whole-object encrypted file restores are special. They can use a temp-file path
+so authentication failure does not leave a partial output file behind.
+
+## Golden Path 2: Human CLI Store and Restore
+
+The human CLI path starts in `bin/git-cas.js` and converges on the same facade.
+
+### CLI Store Command
+
+Example:
+
+```bash
+git-cas store data.bin --slug assets/data/v1 --tree
+```
+
+Command flow:
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant CLI as bin/git-cas.js
+    participant Config as .casrc loader
+    participant Creds as credential resolver
+    participant Facade as ContentAddressableStore
+    participant Progress as EventEmitterObserver
+    participant Domain as CasService/VaultService
+
+    User->>CLI: git-cas store data.bin --slug assets/data/v1 --tree
+    CLI->>CLI: validate flags
+    CLI->>Config: loadConfig(cwd)
+    Config-->>CLI: config defaults
+    CLI->>Config: mergeConfig(flags, config)
+    CLI->>Facade: createCas(cwd, { observability, ...casConfig })
+    CLI->>Creds: resolve key/passphrase/recipient inputs
+    CLI->>Progress: attach store progress
+    CLI->>Facade: storeFile(storeOpts)
+    Facade->>Domain: store bytes
+    CLI->>Facade: createTree({ manifest })
+    CLI->>Facade: addToVault({ slug, treeOid })
+    CLI->>Progress: detach progress
+    CLI-->>User: tree OID or JSON
+```
+
+The command adds human behaviors around the domain:
+
+- inline passphrase warnings
+- `.casrc` defaults
+- flag parsing and validation
+- progress rendering
+- text or JSON output
+- vault insertion when `--tree` is supplied
+
+The actual storage rules are still domain rules.
+
+### CLI Restore Command
+
+Example:
+
+```bash
+git-cas restore --slug assets/data/v1 --out data-restored.bin
+```
+
+Command flow:
+
+```mermaid
+flowchart TD
+    A["parse restore flags"] --> B["validate exactly one of slug or oid"]
+    B --> C["load .casrc"]
+    C --> D["create facade with observer"]
+    D --> E{"slug or oid?"}
+    E -->|"slug"| F["resolveVaultEntry"]
+    E -->|"oid"| G["use direct tree OID"]
+    F --> H["readManifest"]
+    G --> H
+    H --> I["resolve encryption key if needed"]
+    I --> J["resolveRestoreOutputTarget"]
+    J --> K["cas.restoreFile"]
+    K --> L["print bytesWritten"]
+```
+
+`resolveRestoreOutputTarget()` chooses the parent directory of the output as the
+restore authority boundary. The facade then passes that boundary into
+`restoreFile()`.
+
+## Golden Path 3: Agent JSONL Automation
+
+The agent path exists for programs that need machine-stable behavior rather
+than terminal formatting.
+
+Example:
+
+```bash
+git-cas agent store data.bin --slug assets/data/v1 --tree
+```
+
+### Agent Command Resolution
+
+`bin/agent/cli.js` maps argv to a canonical command name:
+
+| Input | Canonical command |
+| --- | --- |
+| `store` | `store` |
+| `vault list` | `vault.list` |
+| `vault init` | `vault.init` |
+| `recipient add` | `recipient.add` |
+
+Then `executeAgentCommand()` dispatches to a handler.
+
+```mermaid
+sequenceDiagram
+    participant Agent as Agent process
+    participant CLI as runAgentCli
+    participant Session as createAgentSession
+    participant Dispatch as executeAgentCommand
+    participant Handler as command handler
+    participant Facade as ContentAddressableStore
+
+    Agent->>CLI: argv
+    CLI->>CLI: resolveCommand(argv)
+    CLI->>Session: createAgentSession({ command })
+    CLI->>Dispatch: executeAgentCommand(command, args)
+    Dispatch->>Handler: handler(args, stdin, session)
+    Handler->>Session: writeStart(redacted input)
+    Handler->>Facade: perform domain operation
+    Handler-->>Dispatch: { data, exitCode? }
+    Dispatch-->>CLI: outcome
+    CLI->>Session: writeResult(data)
+    CLI->>Session: writeEnd({ ok, exitCode })
+```
+
+### Agent JSONL Payload
+
+A successful agent session emits one JSON object per line.
 
 ```json
 {
   "protocol": "git-cas-agent/v1",
-  "command": "restore",
-  "type": "error",
-  "seq": 3,
-  "ts": "2026-05-25T20:00:00.000Z",
+  "command": "store",
+  "type": "start",
+  "seq": 1,
+  "ts": "2026-06-30T00:00:00.000Z",
   "data": {
-    "code": "MISSING_KEY",
-    "message": "Encryption key required to restore encrypted content",
-    "retryable": false,
-    "hint": "Provide --key-file, --vault-passphrase, --vault-passphrase-file, or --os-keychain-target"
+    "input": {
+      "cwd": ".",
+      "file": "data.bin",
+      "slug": "assets/data/v1",
+      "tree": true
+    }
   }
 }
 ```
 
-# Store Pipeline Internals
-
-`CasService.store()` is the core store entry. It does not publish a Git tree and does not mutate the vault. It returns a manifest value object.
-
-```mermaid
-flowchart TD
-    A("CasService.store(options)") --> B("Validate source, credentials, compression, threshold")
-    B --> C("Resolve key material")
-    C --> D("Resolve encryption scheme")
-    D --> E("Build manifest data")
-    E --> F{"Compression?"}
-    F -->|"yes"| G("CompressionStreams.compress(source)")
-    F -->|"no"| H("Original source")
-    G --> I("StoreStrategy.for(...)")
-    H --> I
-    I --> J("Strategy executes byte transform")
-    J --> K("ChunkRepository.chunkAndStore(...)")
-    K --> L("Manifest constructor validates and freezes")
-    L --> M("StoreSuccess returns manifest")
-```
-
-## Validation
-
-The first state is side-effect free. `CasService` verifies that the source is async-iterable, encryption key and passphrase are not both present, recipients are not mixed with direct key/passphrase input, compression is supported, and the Merkle threshold is valid.
-
-This matters because no Git object should be written for obviously malformed requests.
-
-## Key Resolution
-
-`KeyResolver` owns key policy:
-
-| Input | Result |
-| :--- | :--- |
-| No key, no passphrase, no recipients | Plaintext store. |
-| Raw `encryptionKey` | Direct AES key after 32-byte validation. |
-| `passphrase` | Derived 32-byte key plus KDF metadata. |
-| `recipients` | Random DEK plus wrapped DEK entries for each recipient. |
-
-For passphrases, KDF parameters are normalized and checked against policy before deriving. PBKDF2 defaults to 600,000 SHA-512 iterations. scrypt defaults to `N=131072`, `r=8`, `p=1`, with policy bounds.
-
-## Scheme Resolution
-
-`StoreEncryptionConfig` decides how encryption enters the byte pipeline.
-
-| Condition | Scheme |
-| :--- | :--- |
-| No key material | No encryption. |
-| Explicit `whole` | Whole-object AES-GCM. |
-| Explicit `framed` | Framed AES-GCM. |
-| Explicit `convergent` | Per-chunk deterministic encryption. |
-| CDC plus encryption, no explicit opt-out | `convergent`. |
-| Fixed chunking plus encryption | `framed`. |
-
-```mermaid
-flowchart TD
-    A("Has encryption key material?") -->|"no"| B("StorePlain")
-    A -->|"yes"| C{"Explicit scheme?"}
-    C -->|"whole"| D("StoreWhole")
-    C -->|"framed"| E("StoreFramed")
-    C -->|"convergent"| F("StoreConvergent")
-    C -->|"none"| G{"Chunker strategy is cdc?"}
-    G -->|"yes"| F
-    G -->|"no"| E
-```
-
-The notable design choice is the CDC default. Normal encryption makes ciphertext pseudorandom, which destroys CDC deduplication. Convergent encryption preserves deduplication by encrypting each chunk deterministically from its plaintext digest. That trades confidentiality of content equality for storage efficiency.
-
-## Plain Store
-
-`StorePlain` passes the prepared source directly to `ChunkRepository.chunkAndStore()`.
-
-The chunk repository hashes the plaintext chunk, writes the plaintext chunk as a Git blob, and records:
-
 ```json
 {
-  "index": 0,
-  "size": 262144,
-  "digest": "64-char-sha256-of-stored-bytes",
-  "blob": "40-or-64-char-git-oid"
+  "protocol": "git-cas-agent/v1",
+  "command": "store",
+  "type": "result",
+  "seq": 2,
+  "ts": "2026-06-30T00:00:00.100Z",
+  "data": {
+    "slug": "assets/data/v1",
+    "treeOid": "0123456789abcdef0123456789abcdef01234567",
+    "commitOid": "89abcdef0123456789abcdef0123456789abcdef",
+    "addedToVault": true,
+    "chunkCount": 4,
+    "encrypted": false,
+    "compressed": false
+  }
 }
 ```
 
-## Framed Store
+If a command cannot run without more credentials, the agent path can emit
+`needs-input`. That is a better automation contract than a prompt.
 
-`StoreFramed` encrypts frames before chunking. Each plaintext frame becomes a serialized record:
+## Store Pipeline Internals
 
-```text
-[4-byte ciphertext length][12-byte nonce][16-byte tag][ciphertext]
-```
-
-The record stream is then chunked and written. The manifest records `scheme: "framed"` and `frameBytes`.
-
-Framed AAD is:
-
-```text
-UTF-8(slug) || 0x00 || uint32_be(frameIndex)
-```
-
-This binds each frame to both the manifest slug and the frame position.
-
-## Whole Store
-
-`StoreWhole` creates an AES-GCM encryption stream around the entire prepared source. The encrypted stream is chunked afterward. The manifest stores one nonce and one tag for the whole ciphertext.
-
-Whole encryption has a clean authentication model, but restore must respect the whole-object authentication boundary. For file restore, the implementation uses a bounded temporary-file strategy where needed so partial unauthenticated output is not published as final output.
-
-## Convergent Store
-
-`StoreConvergent` chunks first, then encrypts each plaintext chunk after calculating its plaintext digest.
-
-For each chunk:
-
-```text
-chunkKey = HMAC-SHA256(masterKey, "git-cas-convergent-key:<digest>")[0..31]
-chunkNonce = HMAC-SHA256(masterKey, "git-cas-convergent-nonce:<digest>")[0..11]
-blob = AES-256-GCM(plaintext, chunkKey, chunkNonce).ciphertext || tag
-```
-
-The manifest chunk digest remains the plaintext digest. During restore, the expected digest is used to derive the same key and nonce, decrypt the blob, and verify the plaintext digest.
-
-# Restore Pipeline Internals
-
-`CasService.restoreStream()` is the streaming restore core. `restore()` materializes that stream into memory. `restoreFile()` writes it to disk after path safety checks and strategy planning.
+The store pipeline is the most important runtime path in the project.
 
 ```mermaid
-flowchart TD
-    A("Manifest") --> B("Validate encryption metadata")
-    B --> C("Resolve decryption key if needed")
-    C --> D{"Scheme or compression"}
-    D -->|"plaintext"| E("RestorePlain")
-    D -->|"gzip plaintext"| F("RestoreCompressed")
-    D -->|"convergent"| G("RestoreConvergent")
-    D -->|"framed"| H("RestoreFramed")
-    D -->|"whole"| I("RestoreWhole")
-    E --> J("Verified bytes")
-    F --> J
+flowchart LR
+    A["source bytes"] --> B{"gzip?"}
+    B -->|"yes"| C["CompressionStreams.compress"]
+    B -->|"no"| D["source unchanged"]
+    C --> E{"encryption scheme"}
+    D --> E
+    E -->|"plain"| F["chunker"]
+    E -->|"whole"| G["AES-GCM stream then chunker"]
+    E -->|"framed"| H["frame encrypt then chunker"]
+    E -->|"convergent"| I["chunker then per-chunk encrypt"]
+    F --> J["Git blobs"]
     G --> J
     H --> J
     I --> J
+    J --> K["Manifest"]
 ```
 
-## Restore Plan Selection
+### Fixed Chunking
 
-`RestoreStrategy.for()` dispatches by encryption metadata first, then compression:
+`FixedChunker` buffers incoming bytes and yields exact `chunkSize` chunks. The
+final chunk may be smaller. An empty source yields no chunks.
 
-| Manifest Shape | Restore Strategy |
-| :--- | :--- |
+Default chunk size is 256 KiB.
+
+Fixed chunking is predictable and cheap. Its weakness is edit shifting: insert
+one byte near the front and every later fixed boundary moves.
+
+### Content-Defined Chunking
+
+`CdcChunker` uses a Buzhash rolling hash with a 64-byte window. It tracks a
+current chunk buffer and decides boundaries only after `minChunkSize`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> FillWindow
+    FillWindow --> PreMin: window has 64 bytes
+    PreMin --> ScanBoundary: chunkLen >= min
+    ScanBoundary --> EmitChunk: hash matches mask
+    ScanBoundary --> EmitChunk: chunkLen >= max
+    EmitChunk --> FillWindow: reset state
+    ScanBoundary --> FlushFinal: source ended
+    FlushFinal --> [*]
+```
+
+Normalized mode uses two masks:
+
+- a stricter mask below target size
+- a looser mask above target size
+
+That is a FastCDC-style normalization. It concentrates chunk sizes near the
+target and improves deduplication shape.
+
+### StorePipeline Backpressure
+
+`StorePipeline` coordinates chunking and writing with a semaphore.
+
+The subtle design point: it acquires write capacity before pulling the next
+chunk. That means slow Git writes apply backpressure to the upstream source.
+The process does not eagerly read the whole input file into memory just because
+the filesystem can produce bytes faster than Git can store them.
+
+```mermaid
+flowchart TD
+    A["acquire semaphore"] --> B{"previous write error?"}
+    B -->|"yes"| C["close source iterator"]
+    B -->|"no"| D["iterator.next()"]
+    D --> E{"done?"}
+    E -->|"yes"| F["await in-flight writes"]
+    E -->|"no"| G["launch async chunk write"]
+    G --> H["release semaphore when write finishes"]
+    H --> A
+    F --> I["append ordered entries to manifestData"]
+```
+
+The pipeline stores results by chunk index and appends them after all writes
+settle, preserving manifest order even if Git writes complete out of order.
+
+### Store Errors Preserve Cleanup Evidence
+
+If the source stream fails or a write fails, `StorePipeline` wraps the failure
+with:
+
+- `chunksDispatched`
+- `failedIndex` when known
+- `orphanedBlobs`, the blobs written before failure
+- the original error
+
+That does not automatically delete blobs. Git object cleanup is a substrate
+concern. But the error metadata gives operators enough information to diagnose
+partial store attempts.
+
+## Restore Pipeline Internals
+
+Restore unwinds store transforms in reverse order.
+
+```mermaid
+flowchart LR
+    A["Git blobs"] --> B["read and verify chunk digest"]
+    B --> C{"scheme"}
+    C -->|"plain"| D["yield plaintext"]
+    C -->|"compressed only"| E["decompress stream"]
+    C -->|"convergent"| F["per-chunk decrypt and verify plaintext digest"]
+    C -->|"framed"| G["parse records and decrypt per frame"]
+    C -->|"whole"| H["whole-object decrypt with bounded buffering or stream"]
+    E --> I["restored bytes"]
+    F --> I
+    G --> I
+    H --> I
+    D --> I
+```
+
+`RestoreStrategy.for()` selects:
+
+| Manifest condition | Strategy |
+| --- | --- |
 | `encryption.scheme === "convergent"` | `RestoreConvergent` |
 | `encryption.scheme === "framed"` | `RestoreFramed` |
 | `encryption.scheme === "whole"` | `RestoreWhole` |
-| No encryption, compression present | `RestoreCompressed` |
-| No encryption, no compression | `RestorePlain` |
+| no encryption but compression present | `RestoreCompressed` |
+| neither encryption nor compression | `RestorePlain` |
 
-## Plain Restore
+### Plain Restore
 
-`RestorePlain` iterates `ChunkRepository.iterVerifiedChunkBlobs(manifest)`. Every chunk is fetched from Git, hashed, compared against the manifest digest, and only then yielded.
+Plain restore is streaming:
 
-The manifest is the source of ordering truth, so repeated chunks are emitted multiple times even if their blob OID appears once in the tree.
+1. read each chunk blob
+2. hash it
+3. compare hash to manifest digest
+4. yield bytes in manifest order
 
-## Compressed Restore
+When `concurrency > 1`, `ChunkRepository.iterVerifiedChunkBlobs()` uses
+`PrefetchWindow` to read ahead while preserving output order.
 
-`RestoreCompressed` verifies stored chunk bytes, then streams them through the compression port's decompressor. For gzip on Node, this uses `node:zlib` streaming APIs.
+### Compressed Plaintext Restore
 
-If decompression fails, `CompressionStreams` normalizes the failure into a domain error.
+Compressed plaintext restore reads verified chunks and streams them through
+`CompressionStreams.decompress()`.
 
-## Framed Restore
+Errors from the compression adapter are normalized into `INTEGRITY_ERROR`
+because corrupted compressed bytes are a data integrity failure from the
+caller's perspective.
 
-`RestoreFramed` first verifies chunk digests over the serialized encrypted record stream. Then `FramedRecordCodec` parses records, reconstructs AES-GCM metadata from each record header, rebuilds the AAD for the slug and frame index, decrypts, and yields plaintext frames.
+### Convergent Restore
 
-This means framed restore can authenticate and emit incrementally. It is the preferred encrypted streaming mode for large assets.
+Convergent restore reads ciphertext chunks, then calls
+`ConvergentEncryption.decryptAndVerifyChunk()`.
 
-## Whole Restore
+That method:
 
-`RestoreWhole` preserves a single authentication boundary. It may stream decryption through a runtime crypto adapter, but the authentication tag is only final after the complete ciphertext is processed. Buffered whole restore paths enforce `maxRestoreBufferSize`.
+1. splits the blob into ciphertext and 16-byte GCM tag
+2. derives the chunk key from the expected plaintext digest
+3. derives the nonce from the expected plaintext digest
+4. decrypts
+5. hashes plaintext
+6. compares plaintext hash to the manifest digest
 
-If the manifest is compressed and whole-encrypted, restore decrypts the bounded ciphertext first, then decompresses.
+This double check is central to the design. The manifest digest remains a
+plaintext identity even though the Git blob stores ciphertext.
 
-## Convergent Restore
+### Framed Restore
 
-`RestoreConvergent` asks `ChunkRepository.iterConvergentChunks(manifest, key)` for plaintext chunks. Each chunk decrypts independently. The tag is stored at the end of each blob, while key and nonce are derived from the expected plaintext digest.
+Framed restore parses a byte stream of records. Each record layout is:
 
-This is both a performance and integrity design: a corrupted chunk fails locally without waiting for the entire asset.
-
-# Anatomy of Payloads
-
-This section shows the shapes that cross module boundaries.
-
-## Store Options
-
-Library callers pass a store request like:
-
-```json
-{
-  "filePath": "./asset.bin",
-  "slug": "assets/v1",
-  "chunking": {
-    "strategy": "cdc",
-    "targetChunkSize": 65536,
-    "minChunkSize": 16384,
-    "maxChunkSize": 262144
-  },
-  "compression": {
-    "algorithm": "gzip"
-  },
-  "encryption": {
-    "scheme": "convergent"
-  }
-}
+```text
+4 bytes ciphertext length
+12 bytes AES-GCM nonce
+16 bytes AES-GCM tag
+N bytes ciphertext
 ```
 
-At runtime, key material fields such as `encryptionKey`, `passphrase`, and recipient keys are `Uint8Array` or strings, not JSON-safe values. They must not be logged. `RedactingObservability` exists to reduce accidental secret exposure in observability payloads.
+AAD is:
 
-## Manifest
+```text
+UTF-8 slug + NUL + uint32_be(frameIndex)
+```
 
-The manifest is validated by `ManifestSchema` and wrapped by the immutable `Manifest` value object.
+That means a frame cannot be silently copied to a different slug or frame
+position without failing authentication.
+
+### Whole Restore
+
+Whole encryption authenticates the entire encrypted object with one tag.
+Because AES-GCM final authentication is at stream end, whole-object restore has
+two behaviors:
+
+- `restoreStream()` buffers up to `maxRestoreBufferSize` for encrypted or
+  compressed paths.
+- `restoreFile()` can use a bounded source and a temp file path to avoid
+  publishing partial output before authentication completes.
+
+This is a deliberate security trade-off: whole-object auth is simple and strong,
+but it is less memory-friendly than framed mode for very large payloads.
+
+## Vault Pipeline Internals
+
+The vault is not an external database. It is a Git ref:
+
+```text
+refs/cas/vault -> vault commit -> vault tree
+```
+
+Each vault tree contains:
+
+- `.vault.json`, always
+- one asset entry per slug, either plain encoded slug names or HMAC names
+- `.privacy-index` when privacy mode is enabled
+
+### Vault State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> NoVault
+    NoVault --> PlainVault: initVault()
+    NoVault --> EncryptedVault: initVault(passphrase)
+    EncryptedVault --> PrivateVault: initVault(passphrase, privacy=true)
+    PlainVault --> PlainVault: add/remove/update
+    EncryptedVault --> EncryptedVault: add/remove/update/rotate
+    PrivateVault --> PrivateVault: add/remove/update/rotate
+```
+
+### Optimistic Concurrency
+
+All vault mutations use the same retry shape.
+
+```mermaid
+sequenceDiagram
+    participant Caller as Caller
+    participant Vault as VaultService
+    participant Persist as VaultPersistence
+    participant Ref as GitRefAdapter
+
+    Caller->>Vault: addToVault/remove/init
+    loop up to maxAttempts
+        Vault->>Persist: resolveHead()
+        Persist-->>Vault: current commit/tree or null
+        Vault->>Vault: create isolated draft
+        Vault->>Vault: mutate draft
+        Vault->>Persist: writeCommit(entries, metadata, parentCommitOid)
+        Persist->>Ref: updateRef(ref, newOid, expectedOldOid)
+        alt ref unchanged
+            Ref-->>Persist: success
+            Persist-->>Vault: commitOid
+            Vault-->>Caller: commitOid
+        else concurrent update
+            Ref-->>Persist: CAS mismatch
+            Persist-->>Vault: VAULT_CONFLICT
+            Vault->>Vault: wait with retry policy
+        end
+    end
+```
+
+The source of truth is always the current ref. Each retry rereads it and builds
+a new draft, so concurrent writes do not merge stale in-memory state.
+
+### Plain Vault Tree
+
+In plain mode, tree entry names are encoded slugs.
+
+```text
+.vault.json
+assets%2Fdata%2Fv1 -> <asset tree oid>
+```
+
+The plain tree exposes slug names to anyone who can read the repository.
+
+### Privacy Vault Tree
+
+In privacy mode, tree entry names are HMACs.
+
+```text
+.vault.json
+.privacy-index
+4c7f...64hex -> <asset tree oid>
+```
+
+The encrypted privacy index maps real slugs back to HMAC names.
+
+```mermaid
+flowchart TD
+    A["slug"] --> B["derive privacy key from vault key"]
+    B --> C["HMAC-SHA256(slug)"]
+    C --> D["tree entry name"]
+    A --> E["slug -> hmac map"]
+    E --> F["encrypt map with vault key"]
+    F --> G[".privacy-index blob"]
+```
+
+Privacy mode trades operational complexity for metadata confidentiality. The
+vault can still resolve one slug directly by computing its HMAC name, but list
+operations need the encrypted index.
+
+## Anatomy of Payloads
+
+This section pauses the execution narrative and shows what the data looks like.
+
+### Manifest Payload
+
+A simple plaintext manifest looks like this:
 
 ```json
 {
   "version": 1,
   "formatVersion": "6.0.1",
-  "manifestHash": "64-char-sha256-of-hashable-manifest",
-  "slug": "assets/v1",
-  "filename": "asset.bin",
+  "slug": "assets/data/v1",
+  "filename": "data.bin",
   "size": 524288,
-  "chunking": {
-    "strategy": "cdc",
-    "params": {
-      "target": 65536,
-      "min": 16384,
-      "max": 262144,
-      "normalized": true
-    }
-  },
-  "compression": {
-    "algorithm": "gzip"
-  },
-  "encryption": {
-    "scheme": "convergent",
-    "algorithm": "aes-256-gcm",
-    "encrypted": true,
-    "kdf": {
-      "algorithm": "pbkdf2",
-      "salt": "base64-salt",
-      "iterations": 600000,
-      "keyLength": 32
-    }
-  },
   "chunks": [
     {
       "index": 0,
-      "size": 65536,
-      "digest": "64-char-sha256",
-      "blob": "40-or-64-char-git-oid"
+      "size": 262144,
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "blob": "0123456789abcdef0123456789abcdef01234567"
+    },
+    {
+      "index": 1,
+      "size": 262144,
+      "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "blob": "89abcdef0123456789abcdef0123456789abcdef"
     }
-  ]
+  ],
+  "manifestHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 }
 ```
 
-## Framed Encrypted Manifest Metadata
+The manifest schema accepts:
+
+- `version` 1 or 2
+- optional `formatVersion` in semver form
+- `manifestHash` as SHA-256 hex
+- chunk OIDs as 40-hex or 64-hex Git object IDs
+- optional `encryption`
+- optional `compression`
+- optional `chunking`
+- optional `subManifests`
+
+### Encrypted Manifest Metadata
+
+Whole encryption stores nonce and tag at manifest level:
 
 ```json
 {
-  "scheme": "framed",
-  "algorithm": "aes-256-gcm",
-  "encrypted": true,
-  "frameBytes": 65536
+  "encryption": {
+    "scheme": "whole",
+    "algorithm": "aes-256-gcm",
+    "encrypted": true,
+    "nonce": "base64-12-byte-nonce",
+    "tag": "base64-16-byte-tag"
+  }
 }
 ```
 
-Framed metadata must not contain top-level `nonce` or `tag`, because each record carries its own nonce and tag.
-
-## Whole Encrypted Manifest Metadata
+Framed encryption stores frame size, but nonce and tag live in each framed
+record:
 
 ```json
 {
-  "scheme": "whole",
-  "algorithm": "aes-256-gcm",
-  "encrypted": true,
-  "nonce": "12-byte-base64-nonce",
-  "tag": "16-byte-base64-tag"
+  "encryption": {
+    "scheme": "framed",
+    "algorithm": "aes-256-gcm",
+    "encrypted": true,
+    "frameBytes": 65536
+  }
 }
 ```
 
-Whole metadata has one nonce and one tag for the entire encrypted payload.
-
-## Envelope Recipient Entry
+Convergent encryption stores neither nonce nor tag in the manifest because they
+are per-chunk and derived/stored with chunk blobs:
 
 ```json
 {
-  "label": "alice",
-  "wrappedDek": "32-byte-base64-ciphertext",
-  "nonce": "12-byte-base64-nonce",
-  "tag": "16-byte-base64-tag"
+  "encryption": {
+    "scheme": "convergent",
+    "algorithm": "aes-256-gcm",
+    "encrypted": true
+  }
 }
 ```
 
-The recipient key unwraps the DEK. The DEK decrypts the asset. Adding a recipient rewrites metadata, not the data blobs.
+Envelope encryption adds recipient-wrapped DEKs:
 
-## Vault Metadata
+```json
+{
+  "encryption": {
+    "scheme": "framed",
+    "algorithm": "aes-256-gcm",
+    "encrypted": true,
+    "frameBytes": 65536,
+    "recipients": [
+      {
+        "label": "build-system",
+        "wrappedDek": "base64-32-byte-ciphertext",
+        "nonce": "base64-12-byte-nonce",
+        "tag": "base64-16-byte-tag"
+      }
+    ]
+  }
+}
+```
+
+### Merkle Manifest Payload
+
+Large manifests use `version: 2`.
+
+```json
+{
+  "version": 2,
+  "formatVersion": "6.0.1",
+  "slug": "assets/huge/v1",
+  "filename": "huge.bin",
+  "size": 1048576000,
+  "chunks": [],
+  "subManifests": [
+    {
+      "oid": "0123456789abcdef0123456789abcdef01234567",
+      "chunkCount": 1000,
+      "startIndex": 0
+    },
+    {
+      "oid": "89abcdef0123456789abcdef0123456789abcdef",
+      "chunkCount": 640,
+      "startIndex": 1000
+    }
+  ],
+  "manifestHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+}
+```
+
+On read, `ManifestRepository` expands `subManifests` back into an ordered
+`chunks` array before constructing the immutable `Manifest`.
+
+### Vault Metadata Payload
 
 Plain vault metadata is minimal:
 
@@ -988,7 +1427,7 @@ Plain vault metadata is minimal:
 }
 ```
 
-Encrypted vault metadata adds KDF and verifier information:
+Encrypted vault metadata includes KDF policy and a verifier:
 
 ```json
 {
@@ -998,408 +1437,593 @@ Encrypted vault metadata adds KDF and verifier information:
     "kdf": {
       "algorithm": "pbkdf2",
       "salt": "base64-salt",
-      "iterations": 600000,
+      "iterations": 310000,
       "keyLength": 32
     },
     "verifier": {
       "version": 1,
       "ciphertext": "base64-ciphertext",
       "meta": {
-        "scheme": "whole",
         "algorithm": "aes-256-gcm",
-        "nonce": "base64-nonce",
-        "tag": "base64-tag",
-        "encrypted": true
+        "encrypted": true,
+        "nonce": "base64-12-byte-nonce",
+        "tag": "base64-16-byte-tag"
       }
     }
   },
-  "encryptionCount": 42
+  "encryptionCount": 12
 }
 ```
 
-Privacy-enabled vaults also store `privacy.enabled` and `privacy.indexMeta`, plus an encrypted `.privacy-index` blob.
-
-## Agent JSONL Row
+Privacy mode adds:
 
 ```json
 {
-  "protocol": "git-cas-agent/v1",
-  "command": "doctor",
-  "type": "result",
-  "seq": 2,
-  "ts": "2026-05-25T20:00:00.000Z",
-  "data": {
-    "status": "ok",
-    "hasVault": true,
-    "entryCount": 0
+  "privacy": {
+    "enabled": true,
+    "indexMeta": {
+      "algorithm": "aes-256-gcm",
+      "encrypted": true,
+      "nonce": "base64-12-byte-nonce",
+      "tag": "base64-16-byte-tag"
+    }
   }
 }
 ```
 
-# Concurrency and Asynchronous Flows
+### Structured Error Payload
 
-The project uses async iterables as its byte-stream contract. This works across Node streams, generated byte sources, compression streams, encryption streams, and Git blob streams.
+`CasError` is the common machine-readable error shape:
 
-## Store-Side Concurrency
-
-`StorePipeline` coordinates chunk writes with a semaphore. It acquires capacity before pulling the next chunk, which applies backpressure all the way upstream. That is important for large files: the source stream should not be consumed faster than Git blob writes can finish.
-
-```mermaid
-flowchart TD
-    A("Pull next chunk only after semaphore acquire") --> B("Launch async write")
-    B --> C("Hash bytes")
-    C --> D("Optional convergent encrypt")
-    D --> E("writeBlob")
-    E --> F("Record result by index")
-    F --> G("Release semaphore")
-    G --> H("Append entries in index order")
+```json
+{
+  "name": "CasError",
+  "message": "Chunk 3 integrity check failed",
+  "code": "INTEGRITY_ERROR",
+  "meta": {
+    "chunkIndex": 3,
+    "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "actual": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  }
+}
 ```
 
-The write tasks may finish out of order, but the manifest entries are appended by chunk index. This preserves deterministic reconstruction order while still allowing parallel Git writes.
+Human CLI errors become text or JSON. Agent errors become JSONL `error` records
+with `retryable`, hints, optional documentation URL, and metadata.
 
-If a source read fails, the pipeline closes the async iterator and reports `STREAM_ERROR`. If a write fails, it reports `STORE_ERROR` with `failedIndex`, `chunksDispatched`, and `orphanedBlobs`.
+## Concurrency and Asynchronous Flows
 
-## Restore-Side Prefetch
+The system is asynchronous because every meaningful operation can involve
+streams, subprocesses, filesystem writes, or crypto.
 
-`PrefetchWindow` reads ahead with a sliding window but yields chunks in manifest order.
+### Async Iterable as the Byte Contract
+
+The domain stores and restores `AsyncIterable<Uint8Array>`.
+
+That single abstraction lets the same domain code handle:
+
+- Node file streams
+- encrypted transform streams
+- gzip streams
+- chunkers
+- Git blob streams
+- synthetic in-memory test sources
+
+### Store Concurrency
+
+`StorePipeline` writes chunks concurrently up to `concurrency`.
+
+```mermaid
+flowchart LR
+    S["source iterator"] --> Q["semaphore"]
+    Q --> W1["write chunk 0"]
+    Q --> W2["write chunk 1"]
+    Q --> W3["write chunk 2"]
+    W1 --> R["results[index]"]
+    W2 --> R
+    W3 --> R
+    R --> M["append in manifest order"]
+```
+
+Default concurrency is 1. Constructor validation allows 1 through 64.
+
+Higher concurrency can improve Git subprocess throughput. It also increases
+in-flight memory and can increase pressure on the Git object database.
+
+### Restore Concurrency
+
+`PrefetchWindow` reads ahead while yielding in manifest order.
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant Restore strategy as Strategy
-    participant PrefetchWindow as Window
-    participant Git blob reads as Git
+    participant Restore as Restore strategy
+    participant Window as PrefetchWindow
+    participant Git as Git blob reads
 
-    Strategy->>Window: prefetchChunks(chunks, fetchFn, concurrency)
+    Restore->>Window: chunks, fetchFn, concurrency=3
     Window->>Git: fetch chunk 0
     Window->>Git: fetch chunk 1
     Window->>Git: fetch chunk 2
     Git-->>Window: chunk 1 ready
     Git-->>Window: chunk 0 ready
-    Window-->>Strategy: yield chunk 0
-    Window->>Git: fetch next chunk
-    Window-->>Strategy: yield chunk 1
+    Window-->>Restore: yield chunk 0
+    Window->>Git: fetch chunk 3
+    Window-->>Restore: yield chunk 1
 ```
 
-The benefit is higher I/O throughput without unbounded memory growth or reordering.
+The implementation waits for the slot matching the yield cursor. A later chunk
+can finish first, but it cannot be yielded before earlier chunks.
 
-## Vault Mutation Concurrency
+### Vault Retry Concurrency
 
-Vault writes use optimistic concurrency. `VaultPersistence` updates `refs/cas/vault` with an expected old OID. If another process changed the ref first, the update is classified as `VAULT_CONFLICT`. `VaultService` retries through `VaultMutationRetryPolicy` with exponential backoff and jitter.
+Vault concurrency is optimistic rather than locked:
 
-```mermaid
-stateDiagram-v2
-    [*] --> Read vault head
-    Read vault head --> Build draft
-    Build draft --> Write blobs/tree/commit
-    Write blobs/tree/commit --> CAS update ref
-    CAS update ref --> Success
-    CAS update ref --> VAULT_CONFLICT
-    VAULT_CONFLICT --> Backoff with jitter
-    Backoff with jitter --> Read vault head
-    Success --> [*]
-```
+- read current ref
+- draft a new state
+- write a new commit
+- update ref with expected old OID
+- retry if someone else won the race
 
-# Security Boundaries and Auth Flows
+This matches Git's native model and avoids a separate lock database.
 
-`git-cas` is not an authorization system. It does not decide who may read a repository. Instead, it provides confidentiality and integrity boundaries for stored content when encryption is used, and it validates restore paths and metadata before trusting repository-controlled bytes.
+## Security Boundaries and Auth Flows
 
-## AES-GCM Boundaries
+`git-cas` does not authenticate users in the web-application sense. There is no
+session cookie, JWT, or server-side authorization layer. The security model is:
 
-All current encryption schemes use AES-256-GCM.
+- Git repository access controls who can read or write objects and refs.
+- Possession of keys or passphrases controls encrypted content access.
+- Structured validation and authenticated encryption detect tampering.
+- Filesystem restore is constrained by an explicit base directory.
 
-| Scheme | Authentication Boundary | Nonce Source | AAD |
-| :--- | :--- | :--- | :--- |
-| `whole` | Entire payload | Random 96-bit nonce | UTF-8 slug |
-| `framed` | One frame record | Random 96-bit nonce per frame | UTF-8 slug, NUL, frame index |
-| `convergent` | One chunk blob | HMAC-derived deterministic nonce | No external AAD; digest-derived key and nonce bind to plaintext digest |
+### Credential Sources
 
-Legacy scheme identifiers such as `whole-v1`, `whole-v2`, `framed-v1`, `framed-v2`, and `convergent-v1` are rejected during manifest read in normal mode with `LEGACY_SCHEME`.
+Human CLI and agent code share credential resolution logic. Supported sources
+include:
 
-## Passphrase Flow
+| Source | Use |
+| --- | --- |
+| `--key-file` | raw 32-byte AES key |
+| `--vault-passphrase-file` | passphrase from file, including `-` for stdin in supported flows |
+| `--vault-passphrase` | inline passphrase, warned as unsafe |
+| `GIT_CAS_PASSPHRASE` | environment passphrase |
+| `--os-keychain-target` | secret loaded through `@git-stunts/vault` |
+| envelope recipients | wrapped DEK entries in manifest metadata |
+
+Conflicting sources are rejected. For example, a raw key file cannot be combined
+with a passphrase source.
+
+### Passphrase Auth Flow
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant Caller as Caller
-    participant KeyResolver as Resolver
-    participant kdfPolicy as Policy
-    participant CryptoPort as Crypto
-    participant Manifest as Manifest
+    participant CLI as CLI or agent
+    participant Creds as credentials.js
+    participant Facade as ContentAddressableStore
+    participant Vault as VaultService
+    participant Crypto as CryptoPort
 
-    Caller->>Resolver: passphrase + kdfOptions
-    Resolver->>Policy: prepareKdfOptions()
-    Policy-->>Resolver: bounded params
-    Resolver->>Crypto: deriveKey(passphrase, params)
-    Crypto-->>Resolver: 32-byte key + salt + stored params
-    Resolver-->>Manifest: encryption.kdf metadata
+    CLI->>Creds: resolve passphrase source
+    Creds->>Facade: getVaultMetadata()
+    Facade->>Vault: getVaultMetadata()
+    Vault-->>Creds: metadata.encryption.kdf
+    Creds->>Crypto: deriveKey(passphrase, stored KDF params)
+    Crypto-->>Creds: 32-byte key
+    Creds->>Facade: verifyVaultKey({ encryptionKey })
+    Facade->>Vault: verifyVaultKey
+    Vault-->>Creds: verified
+    Creds-->>CLI: encryptionKey
 ```
 
-Stored KDF metadata is validated before derivation during restore. That prevents repository-controlled manifests from forcing extreme KDF costs or malformed salts.
+The verifier prevents a wrong passphrase from being accepted as a vault key.
 
-## Envelope Recipient Flow
+### Encryption Scheme Security Boundaries
 
-Envelope encryption separates data encryption from recipient access:
+| Scheme | Boundary | What is authenticated |
+| --- | --- | --- |
+| `whole` | entire encrypted object | ciphertext plus slug AAD |
+| `framed` | each frame | frame ciphertext plus slug and frame index AAD |
+| `convergent` | each chunk | ciphertext/tag plus plaintext digest verification |
 
-1. Generate a random DEK.
-2. Encrypt content with the DEK.
-3. Encrypt the DEK once per recipient using that recipient's KEK.
-4. Store recipient labels and wrapped DEK metadata in the manifest.
+Legacy scheme identifiers such as `whole-v1` and `framed-v1` are rejected at
+read time with `LEGACY_SCHEME`. The only migration path is the migration script,
+not compatibility branches hidden in normal runtime.
 
-On restore, `KeyResolver` attempts each recipient entry and uses the first successfully unwrapped DEK. It iterates all recipients rather than immediately exposing which entry matched.
+### Restore Path Boundary
 
-## Vault Key Verification
+`restoreFile()` requires `baseDirectory`. The helper resolves symlinks in the
+existing path prefix and rejects paths escaping the base.
 
-Encrypted vaults store a small AES-GCM verifier in `.vault.json`. When a caller supplies a vault key, `VaultKeyVerifier` decrypts the verifier with fixed AAD and compares the plaintext with a constant-time byte comparison.
+This blocks path traversal mistakes like:
 
-This closes an important ambiguity: without a verifier, an empty encrypted vault cannot distinguish "correct key, no entries" from "wrong key, no decryptable privacy index yet."
+```js
+await cas.restoreFile({
+  manifest,
+  outputPath: '../../outside.bin',
+  baseDirectory: '/repo/safe-area'
+});
+```
 
-## Restore Path Boundary
+### Privacy Boundary
 
-`restoreFile()` requires `baseDirectory`. It resolves the output path under that directory, canonicalizes symlinks in existing path prefixes, and rejects paths that escape the boundary.
+Vault privacy mode hides slugs from bare repository readers by:
+
+1. deriving a privacy key from the vault encryption key
+2. HMACing each slug into a persisted tree entry name
+3. encrypting the reverse slug-to-HMAC index
+
+Readers without the key can still see the count and object IDs of vault
+entries, but not the human slug names.
+
+## External Dependencies and Borders
+
+The project intentionally centralizes external dependencies at boundaries.
 
 ```mermaid
 flowchart TD
-    A("restoreFile outputPath + baseDirectory") --> B("path.resolve(base, output)")
-    B --> C("realpath(base)")
-    C --> D("canonicalize existing target prefix")
-    D --> E{"target inside base?"}
-    E -->|"yes"| F("write stream or temp file")
-    E -->|"no"| G("SECURITY_BOUNDARY_VIOLATION")
+    subgraph OurCode["git-cas code"]
+        CLI["bin/"]
+        Facade["index.js"]
+        Domain["src/domain"]
+        Ports["src/ports"]
+        Infra["src/infrastructure"]
+    end
+
+    subgraph External["external code and OS"]
+        Commander["commander"]
+        Plumbing["@git-stunts/plumbing"]
+        Alfred["@git-stunts/alfred"]
+        VaultPkg["@git-stunts/vault"]
+        Bijou["@flyingrobots/bijou*"]
+        Zod["zod"]
+        Cbor["cbor-x"]
+        NodeCrypto["node:crypto/WebCrypto"]
+        NodeFS["node:fs and streams"]
+        GitCLI["git executable"]
+    end
+
+    CLI --> Commander
+    CLI --> Bijou
+    CLI --> VaultPkg
+    Infra --> Plumbing
+    Infra --> Alfred
+    Infra --> Cbor
+    Infra --> NodeCrypto
+    Infra --> NodeFS
+    Domain --> Zod
+    Plumbing --> GitCLI
 ```
 
-## Observability Redaction
+### Where Our Code Ends
 
-`CasService` and `VaultService` wrap observer instances with `RedactingObservability`. This protects common sensitive fields from being emitted accidentally through metrics or logs.
+| Border | Our abstraction | External implementation |
+| --- | --- | --- |
+| Git object I/O | `GitPersistencePort` | `@git-stunts/plumbing` running `git` commands |
+| Git ref I/O | `GitRefPort` | `git rev-parse`, `commit-tree`, `update-ref` |
+| Cryptography | `CryptoPort` | Node crypto, Bun adapter, Web Crypto adapter |
+| Compression | `CompressionPort` | Node compression adapter |
+| Manifest encoding | `CodecPort` | JSON codec or CBOR codec using `cbor-x` |
+| CLI parsing | command definitions | `commander` |
+| TUI rendering | UI blocks | `@flyingrobots/bijou` packages |
+| OS keychain | passphrase resolver | `@git-stunts/vault` |
 
-This is not a replacement for careful API design. It is a defense-in-depth layer around observability.
+The domain layer should not know which runtime it is in. That is why
+`createCryptoAdapter()` lives under infrastructure and why the facade wires it
+into `CasService`.
 
-# External Dependencies and Borders
+## Configuration and Environment Tuning
 
-The clean boundary question is: where does `git-cas` code end and someone else's code begin?
+Configuration enters through three routes:
 
-| Dependency | Boundary | Used For |
-| :--- | :--- | :--- |
-| Git CLI | `@git-stunts/plumbing` through Git adapters | `hash-object`, `cat-file`, `mktree`, `ls-tree`, `rev-parse`, `commit-tree`, `update-ref`. |
-| `@git-stunts/plumbing` | Infrastructure factory and adapters | Runtime shell execution and stream execution. |
-| `@git-stunts/alfred` | Adapter policy | Timeout policy around Git I/O. |
-| Node `crypto` | `NodeCryptoAdapter` | SHA-256, random bytes, AES-GCM, PBKDF2, scrypt, HMAC. |
-| Web Crypto | `WebCryptoAdapter` | Deno-compatible crypto, with one-shot AES-GCM constraints. |
-| Node `zlib` | `NodeCompressionAdapter` | gzip and gunzip buffers/streams. |
-| `commander` | `bin/git-cas.js` | Human CLI argument parsing. |
-| `zod` | Manifest schemas | Manifest and chunk validation. |
-| `cbor-x` | `CborCodec` | Compact binary manifest encoding. |
-| `@git-stunts/vault` | Passphrase source helper | OS keychain lookup for passphrase sources. |
-| `@flyingrobots/bijou*` | UI rendering | CLI/TUI visual surfaces. |
+1. API constructor or `ContentAddressableStore.open()` options
+2. human CLI flags
+3. `.casrc` defaults plus environment variables for passphrases
 
-The domain should not import these directly. The Graft structural map confirms the domain is organized around services, strategies, value objects, schemas, and ports, while runtime dependencies live in infrastructure and CLI modules.
+### `.casrc`
 
-# Configuration and Environment Tuning
+The CLI reads `.casrc` from the working directory. CLI flags override it.
 
-`git-cas` behavior changes through constructor options, CLI flags, `.casrc`, environment variables, and runtime detection.
-
-## Facade and Service Options
-
-| Option | Default | Effect |
-| :--- | :--- | :--- |
-| `chunkSize` | `256 * 1024` | Fixed chunk size when using `FixedChunker`. |
-| `chunking.strategy` | `fixed` | Selects fixed or CDC chunking. |
-| `merkleThreshold` | `1000` | Chunk count above which `createTree()` writes Merkle sub-manifests. |
-| `concurrency` | `1` | Maximum parallel chunk writes and restore prefetch reads. |
-| `maxRestoreBufferSize` | `512 MiB` | Maximum buffered encrypted/compressed restore. |
-| `maxBlobSize` | `10 MiB` | Maximum metadata blob read size for manifests/sub-manifests by default. |
-| `codec` | JSON | Manifest encoding. |
-| `compressionAdapter` | Node gzip adapter | Compression implementation. |
-| `crypto` | Auto-detected | Runtime crypto backend. |
-
-Increasing `concurrency` improves throughput when Git I/O latency dominates, but it increases in-flight memory and concurrent Git subprocess pressure. Increasing `maxRestoreBufferSize` allows larger whole-object encrypted restores, but raises worst-case memory use.
-
-## `.casrc`
-
-The human CLI loads `.casrc` from the working directory. CLI flags override config values.
+Supported keys include:
 
 ```json
 {
+  "chunkSize": 262144,
   "strategy": "cdc",
   "concurrency": 4,
+  "codec": "json",
   "compression": "gzip",
-  "merkleThreshold": 500,
-  "maxRestoreBufferSize": 268435456,
+  "merkleThreshold": 1000,
+  "maxRestoreBufferSize": 536870912,
   "cdc": {
-    "minChunkSize": 16384,
-    "targetChunkSize": 65536,
-    "maxChunkSize": 262144
+    "minChunkSize": 65536,
+    "targetChunkSize": 262144,
+    "maxChunkSize": 1048576
   }
 }
 ```
 
-The config parser validates integer ranges, enum values, CDC ordering, and maximum chunk sizes before it constructs the facade.
+### Tuning Levers
 
-## Environment Variables
+| Lever | Default | Impact |
+| --- | --- | --- |
+| `chunkSize` | 256 KiB | Larger chunks reduce manifest size but reduce dedup granularity. |
+| `strategy` | `fixed` | `cdc` improves shift-resistant dedupe at higher CPU cost. |
+| `concurrency` | 1 | Higher values improve I/O parallelism but increase in-flight memory and Git pressure. |
+| `codec` | JSON | CBOR can reduce manifest size but is less human-readable. |
+| `compression` | off | Gzip can shrink data before chunking but can reduce dedupe across already-compressed data. |
+| `merkleThreshold` | 1000 | Lower values create more sub-manifests; higher values keep a larger root manifest. |
+| `maxRestoreBufferSize` | 512 MiB | Bounds whole encrypted or compressed buffered restore. |
+| `maxBlobSize` | 10 MiB | Bounds metadata blob reads by default. |
+| `encryption.frameBytes` | 64 KiB | Larger frames reduce overhead; smaller frames improve streaming granularity. |
+| `GIT_CAS_PASSPHRASE` | unset | Ambient passphrase source for CLI flows. |
 
-| Environment Variable | Used By | Effect |
-| :--- | :--- | :--- |
-| `GIT_CAS_PASSPHRASE` | Human CLI passphrase resolution | Supplies a vault passphrase when no explicit file, inline, or OS keychain source is provided. |
+### Auto-Selected Convergent Encryption
 
-Inline passphrase flags are accepted but warned against because shell history and process listings may expose secrets.
-
-## Runtime Detection
-
-`createCryptoAdapter()` selects crypto by runtime globals:
-
-```mermaid
-flowchart TD
-    A("createCryptoAdapter()") --> B{"globalThis.Bun?"}
-    B -->|"yes"| C("BunCryptoAdapter")
-    B -->|"no"| D{"globalThis.Deno?"}
-    D -->|"yes"| E("WebCryptoAdapter")
-    D -->|"no"| F("NodeCryptoAdapter")
-```
-
-Web Crypto AES-GCM is one-shot, so the Web Crypto adapter buffers streaming encryption and decryption up to configured limits. This is why framed encryption is important for large encrypted restore workflows across runtimes.
-
-# Unhappy Paths and Error Handling
-
-Systems are defined by how they fail. `git-cas` uses structured domain errors with stable codes so CLI, agent, and library callers can react predictably.
+When encryption is enabled and the chunker is CDC, the default encrypted scheme
+becomes `convergent` unless the caller explicitly chooses another scheme.
 
 ```mermaid
 flowchart TD
-    A("Operation") --> B{"Validation error?"}
-    B -->|"yes"| C("INVALID_OPTIONS or INVALID_INPUT")
-    B -->|"no"| D{"Missing object or ref?"}
-    D -->|"yes"| E("MANIFEST_NOT_FOUND, GIT_REF_NOT_FOUND, VAULT_ENTRY_NOT_FOUND")
-    D -->|"no"| F{"Integrity/auth failure?"}
-    F -->|"yes"| G("INTEGRITY_ERROR or MANIFEST_INTEGRITY_ERROR")
-    F -->|"no"| H{"Resource boundary exceeded?"}
-    H -->|"yes"| I("RESTORE_TOO_LARGE or capability error")
-    H -->|"no"| J{"Vault CAS conflict?"}
-    J -->|"yes"| K("VAULT_CONFLICT retry")
-    J -->|"no"| L("GIT_ERROR or domain-specific failure")
+    A["has encryption key?"] --> B{"explicit scheme?"}
+    B -->|"convergent"| C["convergent"]
+    B -->|"whole"| D["whole"]
+    B -->|"framed"| E["framed"]
+    B -->|"none"| F{"chunker.strategy === cdc?"}
+    F -->|"yes"| C
+    F -->|"no"| E
 ```
 
-## Malformed Store Request
+Why: normal randomized encryption destroys CDC dedupe. Convergent encryption
+preserves it, but exposes equality of identical plaintext chunks under the same
+key. The code logs a warning when it auto-selects this deterministic mode.
 
-If the source is not async-iterable, credentials are mutually exclusive, compression is unsupported, or chunking options are invalid, store fails before writing Git objects.
+## Unhappy Paths and Error Handling
 
-## Stream Failure During Store
+Systems are defined by their failure behavior. `git-cas` generally fails with a
+`CasError` carrying a stable code and metadata.
 
-If the source iterator throws after some chunks were written, `StorePipeline` reports `STREAM_ERROR` with how many chunks were dispatched and which blob OIDs may have been orphaned.
+### Error Flow
 
-## Git Blob Write Failure
+```mermaid
+flowchart TD
+    A["operation"] --> B{"validation failure?"}
+    B -->|"yes"| C["INVALID_OPTIONS / INVALID_SLUG / INVALID_OID"]
+    B -->|"no"| D{"Git failure?"}
+    D -->|"yes"| E["GIT_ERROR / GIT_REF_NOT_FOUND / VAULT_REF_UPDATE_FAILED"]
+    D -->|"no"| F{"integrity/auth failure?"}
+    F -->|"yes"| G["INTEGRITY_ERROR / MANIFEST_INTEGRITY_ERROR"]
+    F -->|"no"| H{"capacity boundary?"}
+    H -->|"yes"| I["RESTORE_TOO_LARGE / PERSISTENCE_CAPABILITY_REQUIRED"]
+    H -->|"no"| J{"vault conflict?"}
+    J -->|"yes"| K["VAULT_CONFLICT and retry if allowed"]
+    J -->|"no"| L["success"]
+```
 
-If a chunk write fails, `StorePipeline` reports `STORE_ERROR` and includes `failedIndex`, `chunksDispatched`, and `orphanedBlobs` where available.
+### Common Failure Cases
 
-## Legacy Manifest Scheme
+| Scenario | Code or behavior | Why |
+| --- | --- | --- |
+| Caller passes no async source to `store()` | `INVALID_OPTIONS` | Domain only stores async byte sources. |
+| Caller provides both key and passphrase | `INVALID_OPTIONS` | Key source must be unambiguous. |
+| Caller combines recipients with a direct key | `INVALID_OPTIONS` | Envelope and direct modes are mutually exclusive. |
+| Unknown chunking strategy | `INVALID_CHUNKING_STRATEGY` | Only `fixed` and `cdc` are supported. |
+| Manifest tree has no manifest blob | `MANIFEST_NOT_FOUND` | The tree is not a valid CAS asset tree. |
+| Manifest hash mismatch | `MANIFEST_INTEGRITY_ERROR` | Serialized manifest metadata was tampered or corrupted. |
+| Legacy encryption scheme appears | `LEGACY_SCHEME` | v6 runtime rejects old scheme identifiers at the boundary. |
+| Chunk digest mismatch | `INTEGRITY_ERROR` | Git blob bytes do not match manifest digest. |
+| Wrong decryption key | `INTEGRITY_ERROR`, `NO_MATCHING_RECIPIENT`, or `DEK_UNWRAP_FAILED` | Authentication or recipient unwrap fails. |
+| Whole/compressed restore exceeds buffer limit | `RESTORE_TOO_LARGE` | The configured memory boundary was crossed. |
+| Adapter cannot stream blob reads when needed | `PERSISTENCE_CAPABILITY_REQUIRED` | Buffered restore safety requires streamed reads. |
+| Restore path escapes base directory | `SECURITY_BOUNDARY_VIOLATION` | Filesystem boundary enforcement. |
+| Vault entry exists without force | `VAULT_ENTRY_EXISTS` | Avoids accidental overwrite. |
+| Vault privacy read without key | `VAULT_PRIVACY_KEY_REQUIRED` | Slugs are intentionally hidden. |
+| Concurrent vault update wins the race | `VAULT_CONFLICT` | Ref compare-and-swap detected stale parent. |
+| Vault head points to invalid commit/tree | `VAULT_HEAD_INVALID` | Ref exists but does not resolve to a valid tree. |
 
-If `readManifest()` sees a legacy scheme such as `whole-v1`, normal mode throws `LEGACY_SCHEME` and points operators to the migration script. This failure happens before restore begins.
+### CLI Error Presentation
 
-## Wrong Decryption Key
+The human CLI wraps actions with `runAction()`. It:
 
-Wrong direct keys, passphrases, or recipient keys fail as authentication or recipient errors. CLI and agent surfaces add hints such as "Check that the correct key or passphrase was used."
+- catches thrown errors
+- delays briefly on `INTEGRITY_ERROR`
+- sets exit code 1
+- writes either text or JSON
+- adds hints for known codes
 
-## Corrupt Chunk Blob
-
-For non-convergent chunks, the stored blob is hashed and compared to the manifest digest. A mismatch fails with `INTEGRITY_ERROR`.
-
-For convergent chunks, decryption happens with key and nonce derived from the expected digest, then the plaintext digest is checked. Either bad tag or bad digest fails.
-
-## Malformed Framed Ciphertext
-
-If a frame header is truncated, the record length exceeds `frameBytes`, or AES-GCM authentication fails, restore fails with `INTEGRITY_ERROR`.
-
-## Restore Too Large
-
-Whole encrypted or buffered compression paths enforce `maxRestoreBufferSize`. Metadata blob reads enforce `maxBlobSize`. Persistence adapters used for bounded buffered restore must provide `readBlobStream()` so limits can be enforced during reads.
-
-## Path Escape Attempt
-
-`restoreFile()` rejects output paths that escape `baseDirectory`, including through existing symlinked path components. It fails before publishing output.
-
-## Vault Conflict
-
-Concurrent vault writers may race on `refs/cas/vault`. CAS mismatch becomes `VAULT_CONFLICT`, which `VaultService` retries according to `VaultMutationRetryPolicy`. Permission errors or unrelated ref failures are not treated as retryable conflicts.
-
-## Privacy Index Corruption
-
-Privacy-enabled vault listings fail closed if `.privacy-index` is missing, metadata is missing, or decrypted index entries do not cover all HMAC-named tree entries. Returning a partial listing would hide corruption, so the service refuses.
-
-# Trade-Offs: Why It Is Built This Way
-
-| Decision | Benefit | Cost |
-| :--- | :--- | :--- |
-| Use Git as the storage substrate | Inherits Git replication, offline workflows, object integrity, and existing transport. | Depends on Git object model and, in the default adapter, the Git CLI. |
-| Keep domain behind ports | Supports Node, Bun, and Deno crypto differences without rewriting domain logic. | More classes and explicit wiring than a single script. |
-| Manifest as source of truth | Repeated chunks and order are precise and independent of tree layout. | Restore must trust and validate manifest metadata carefully. |
-| Tree publication separate from `store()` | Callers can inspect, diff, or discard manifests before publishing. | A store alone leaves blob side effects that are not automatically indexed. |
-| Vault as Git commit chain | GC-safe, inspectable, mergeable history with optimistic concurrency. | It is not a low-latency database and requires ref update discipline. |
-| CDC chunking | Better dedupe across shifted content. | More CPU and more complex chunk boundary logic. |
-| Convergent encryption for encrypted CDC | Preserves dedupe for encrypted chunks. | Reveals equality of known plaintext chunks under the same master key. |
-| Framed encryption default for fixed encrypted stores | Streaming authenticated restore without whole-file buffering. | Per-frame overhead of length, nonce, and tag. |
-| Whole encryption retained | Simple whole-object authentication and compatibility path. | Bounded buffering constraints for some restore modes. |
-| Strict legacy scheme rejection | Avoids silently accepting weaker or ambiguous formats. | Requires migration before old encrypted manifests restore normally. |
-| Restore path `baseDirectory` required | Prevents accidental or malicious path escape. | Library callers must be explicit. |
-| Agent JSONL protocol | Automation can parse structured progress and errors. | Maintains a second command contract beside the human CLI. |
-
-# Testing and Verification Posture
-
-The repository treats tests as executable specification. The package scripts include unit tests, integration tests, multi-runtime Docker-based tests, linting, release verification, and platform checks.
-
-Graft's structural/reference coverage pass for `src/domain/services` against `test/unit` reported:
-
-| Metric | Value |
-| :--- | ---: |
-| Source files scanned | 25 |
-| Test files scanned | 188 |
-| Exported symbols | 63 |
-| Structurally referenced exported symbols | 38 |
-| Unreferenced exported symbols | 25 |
-
-This is not execution coverage. It is a structural signal. Imports or mentions can count as references, and missing references are review prompts rather than proof of missing behavior.
-
-The notable finding from that pass is that most uncovered exports are declaration interfaces or constants. `ConvergentEncryption` had no direct structural test reference, while convergent behavior is exercised through `CasService` tests. That is an architectural test choice: the behavior is covered through the public service surface, but a direct service-level test could improve localization if convergent derivation regresses.
-
-The repo's own documentation states that full release verification recently passed 12 out of 12 steps with 5,383 observed tests. The current end-of-turn project checklist still requires `npm test` and `npx eslint .` after file changes.
-
-# Current Repository Vault Snapshot
-
-The current working repository also has a git-cas vault. This is a useful dogfood fact when reading the code.
-
-At inspection time:
-
-| Observation | Value |
-| :--- | :--- |
-| Vault ref | `refs/cas/vault` |
-| Current vault commit | `a9fed4ba3ad5389fc0fb799780642cb64741ae4e` |
-| Health | `ok` |
-| Entry count | `0` |
-| Metadata encrypted | `false` |
-| Current `.vault.json` | `{ "version": 1 }` |
-
-The recent vault history shows test entries were added and removed:
+Example text:
 
 ```text
-a9fed4b vault: remove test/vault-entry
-5420a7e vault: remove test/hello
-37b73a8 vault: add test/vault-entry
-2053e29 vault: init
-f3d06c3 vault: add test/hello
+error [INTEGRITY_ERROR]: Decryption failed: Integrity check error
+hint: Check that the correct key or passphrase was used
 ```
 
-This means the vault structure is present and healthy, but there are no currently indexed assets.
+### Agent Error Presentation
 
-# Reading Map
+The agent maps errors to exit codes:
 
-For a new maintainer, the best progressive reading order is:
+| Error type | Exit code |
+| --- | --- |
+| success | 0 |
+| general failure | 1 |
+| invalid input or needs input | 2 |
+| integrity verification failure | 3 |
 
-| Goal | Files |
-| :--- | :--- |
-| Understand the product promise | `README.md`, `GUIDE.md`, `docs/WALKTHROUGH.md` |
-| Understand architecture | `ARCHITECTURE.md`, `docs/STORE_RESTORE_PIPELINE.md`, `docs/VAULT_INTERNALS.md` |
-| Understand entry points | `index.js`, `bin/git-cas.js`, `bin/agent/cli.js` |
-| Understand storage runtime | `src/domain/services/CasService.js`, `src/domain/services/ChunkRepository.js`, `src/domain/services/ManifestRepository.js` |
-| Understand store/restore strategy | `src/domain/strategies/Store*.js`, `src/domain/strategies/Restore*.js`, `src/domain/strategies/FramedRecordCodec.js` |
-| Understand encryption policy | `src/domain/encryption/schemes.js`, `src/domain/value-objects/EncryptionMetadata.js`, `src/domain/value-objects/StoreEncryptionConfig.js`, `src/domain/services/KeyResolver.js` |
-| Understand vaults | `src/domain/services/VaultService.js`, `VaultPersistence.js`, `VaultTreeCodec.js`, `VaultMetadataCodec.js`, `VaultPrivacyIndex.js`, `VaultStateCache.js`, `VaultKeyVerifier.js` |
-| Understand runtime borders | `src/ports/*.js`, `src/infrastructure/adapters/*.js`, `src/infrastructure/chunkers/*.js`, `src/infrastructure/codecs/*.js` |
+Agent errors are JSONL records, so automation does not need to scrape terminal
+text.
 
-The shortest mental model is this: `ContentAddressableStore` wires the runtime, `CasService` moves and verifies bytes, `ManifestRepository` publishes and reads reconstruction metadata, `VaultService` maintains the slug index, and Git is the durable substrate underneath all of it.
+## Design Highlights
+
+This section calls out the project features that are most architecturally
+interesting.
+
+### 1. Git as the Artifact Database
+
+`git-cas` does not put large artifact bytes in a sidecar server. It writes
+chunks directly to Git's object database and uses trees and refs for reachability.
+
+That makes artifact distribution inherit Git's replication model. If a Git
+repository is mirrored, the CAS objects mirror with it.
+
+### 2. Strategy Objects Instead of Deep Conditionals
+
+The store and restore pipelines are polymorphic at the domain level:
+
+```mermaid
+classDiagram
+    class StoreStrategy {
+      +for(options)
+    }
+    class StorePlain {
+      +execute(options)
+    }
+    class StoreWhole {
+      +execute(options)
+    }
+    class StoreFramed {
+      +execute(options)
+    }
+    class StoreConvergent {
+      +execute(options)
+    }
+
+    StoreStrategy ..> StorePlain
+    StoreStrategy ..> StoreWhole
+    StoreStrategy ..> StoreFramed
+    StoreStrategy ..> StoreConvergent
+```
+
+The benefit is local reasoning. Whole-object AES-GCM, framed records, and
+convergent per-chunk encryption do not share much implementation. Keeping them
+separate prevents one storage method from accumulating every edge case.
+
+### 3. Convergent Encryption Closes the Encryption-vs-Dedupe Gap
+
+Randomized encryption normally makes identical plaintext chunks become
+different ciphertext chunks. That destroys dedupe.
+
+Convergent encryption derives per-chunk key and nonce from:
+
+```text
+chunkKey   = HMAC-SHA256(masterKey, "git-cas-convergent-key:<digest>")[0..31]
+chunkNonce = HMAC-SHA256(masterKey, "git-cas-convergent-nonce:<digest>")[0..11]
+```
+
+Identical plaintext chunks under the same master key produce identical
+ciphertext blobs, so Git can deduplicate them.
+
+The trade-off is visible and deliberate: an attacker who can guess plaintext can
+confirm equality. That is why callers can explicitly choose `framed` or `whole`
+instead.
+
+### 4. AAD Binds Ciphertext to Context
+
+Whole encryption authenticates the slug as AAD. Framed encryption authenticates
+the slug plus frame index.
+
+That protects against a class of substitution problems where a valid ciphertext
+is moved into the wrong manifest position. The bytes may still decrypt under the
+same key, but the AAD will not match.
+
+### 5. Vault Privacy Separates Lookup from Disclosure
+
+Plain vaults expose slug names in tree entries. Privacy vaults persist HMAC
+names and an encrypted reverse index.
+
+This is a compact design:
+
+- direct lookup computes one HMAC name
+- listing decrypts the index
+- Git still sees a normal tree
+- no separate encrypted database is required
+
+### 6. Manifest Integrity Hash
+
+Chunk digests protect chunk bytes. `manifestHash` protects the manifest metadata
+itself. That detects tampering with chunk order, encryption metadata, or other
+manifest fields before restore proceeds.
+
+### 7. Hexagonal Architecture with Byte Contracts
+
+Domain services use `Uint8Array`, async iterables, and ports. Infrastructure is
+where Node streams, Git subprocesses, CBOR, zlib, and crypto runtimes appear.
+
+That design is why Node, Bun, and Deno can share the same domain core.
+
+## Trade-Offs
+
+Every major design choice carries a cost.
+
+| Choice | Benefit | Cost |
+| --- | --- | --- |
+| Store objects in Git | offline replication, no artifact server, native reachability | repository growth and Git subprocess dependence |
+| Use manifests rather than Git tree alone | rich metadata, encryption and compression fields, chunk ordering | manifest must be validated and protected |
+| Use `refs/cas/vault` | GC-safe named assets with history | optimistic concurrency complexity |
+| Keep domain runtime-agnostic | Node/Bun/Deno portability | more adapters and constructor wiring |
+| Default to fixed chunking | simple and predictable | weaker dedupe after front edits |
+| Offer CDC | shift-resistant dedupe | more CPU and more tuning knobs |
+| Use whole encryption | simple one-tag authentication | bounded buffering for some restore paths |
+| Use framed encryption | streaming auth with bounded records | per-frame overhead |
+| Use convergent encryption | encrypted dedupe | plaintext equality leakage |
+| Use `.casrc` | reproducible CLI defaults | another config surface to validate |
+| Use JSONL agent protocol | automation-friendly session semantics | separate command parsing layer |
+
+## Testing and Verification Posture
+
+The repository treats tests as the executable spec. Current unit validation is
+run with:
+
+```bash
+npm test
+```
+
+Linting is:
+
+```bash
+npx eslint .
+```
+
+Documentation has regression tests for:
+
+- tracked Markdown links
+- planning surfaces pointing to GitHub Issues as the tracker
+- release-drift claims
+
+The multi-runtime surface is represented by package scripts for Node, Bun, and
+Deno test runs. The domain architecture is designed so those runtimes differ at
+adapter boundaries, not inside the storage rules.
+
+## Reading Map
+
+For the fastest path from this teardown into the code:
+
+1. Start with [index.js](../index.js). Read `ContentAddressableStore.open()`,
+   `#initService()`, `storeFile()`, `createTree()`, `restoreFile()`, and vault
+   delegation methods.
+2. Read [bin/git-cas.js](../bin/git-cas.js) to see how the human command
+   surface maps flags to facade calls.
+3. Read [bin/agent/cli.js](../bin/agent/cli.js) and
+   [bin/agent/commands/index.js](../bin/agent/commands/index.js) to see the
+   machine protocol.
+4. Read [src/domain/services/CasService.js](../src/domain/services/CasService.js)
+   for the store and restore orchestration.
+5. Read [src/domain/strategies/](../src/domain/strategies/) to understand the
+   encryption-specific byte paths.
+6. Read [src/domain/services/ChunkRepository.js](../src/domain/services/ChunkRepository.js),
+   [src/domain/services/StorePipeline.js](../src/domain/services/StorePipeline.js),
+   and [src/domain/services/PrefetchWindow.js](../src/domain/services/PrefetchWindow.js)
+   for chunk I/O and concurrency.
+7. Read [src/domain/services/ManifestRepository.js](../src/domain/services/ManifestRepository.js)
+   and [src/domain/schemas/ManifestSchema.js](../src/domain/schemas/ManifestSchema.js)
+   for durable manifest rules.
+8. Read [src/domain/services/VaultService.js](../src/domain/services/VaultService.js)
+   and [src/domain/services/VaultPersistence.js](../src/domain/services/VaultPersistence.js)
+   for the `refs/cas/vault` model.
+9. Read [docs/THREAT_MODEL.md](./THREAT_MODEL.md),
+   [docs/ENCRYPTION_MODES.md](./ENCRYPTION_MODES.md), and
+   [docs/VAULT_INTERNALS.md](./VAULT_INTERNALS.md) for deeper security and vault
+   design context.
+
+The mental model to keep: `git-cas` is a set of carefully bounded transforms
+from byte streams to Git objects and back. The manifest is the reconstruction
+contract. The vault is the name index. Ports keep the domain honest about where
+Git, crypto, compression, filesystems, and terminal behavior begin.
