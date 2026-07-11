@@ -15,13 +15,14 @@ should treat restored data, chunker output, codec output, and keys as
 ## Table of Contents
 
 1. [ContentAddressableStore](#contentaddressablestore)
-2. [Vault](#vault)
-3. [CasService](#casservice)
-4. [Events](#events)
-5. [Value Objects](#value-objects)
-6. [Ports](#ports)
-7. [Codecs](#codecs)
-8. [Error Codes](#error-codes)
+2. [Root Sets](#root-sets)
+3. [Vault](#vault)
+4. [CasService](#casservice)
+5. [Events](#events)
+6. [Value Objects](#value-objects)
+7. [Ports](#ports)
+8. [Codecs](#codecs)
+9. [Error Codes](#error-codes)
 
 ## ContentAddressableStore
 
@@ -904,6 +905,170 @@ Returns the configured chunk size in bytes.
 console.log(cas.chunkSize); // 262144
 ```
 
+## Root Sets
+
+Root sets retain a mutable current set of Git blobs or trees. They are intended
+for caches, indexes, checkpoints, and other derived state that must survive Git
+garbage collection while live but should become collectible after eviction.
+
+| Surface | Git state after write | History policy | Removal behavior | Typical use |
+| --- | --- | --- | --- | --- |
+| `createTree()` / plumbing | orphaned unless another ref reaches it | none | already prune-eligible after Git's grace period | immediate composition |
+| Root set | anchored while present | current generation only | becomes orphaned when no other ref reaches it | cache and derived state |
+| Vault | anchored | commit history retained | old generations remain reachable through vault history | durable named assets |
+
+The `pinned` and `evictable` entry values are application retention policy.
+Both are Git-anchored while present in a root set. `pinned` does not create a
+pack `.keep` file and does not make an object immune to explicit ref deletion.
+
+### Storage Structure
+
+```text
+refs/cas/rootsets/warp/state-cache -> parentless commit -> tree
+                                                        |-- .rootset.json
+                                                        |-- root-00000000 -> tree/blob
+                                                        `-- root-00000001 -> tree/blob
+```
+
+Every generation commit is parentless by default. Updating the ref therefore
+releases the previous generation instead of retaining it as history. OIDs in
+`.rootset.json` are descriptive; the Git tree entries are what make targets
+reachable.
+
+### Open A Root Set
+
+```javascript
+const rootSet = await cas.rootSets.open({
+  ref: 'refs/cas/rootsets/warp/state-cache',
+});
+```
+
+Root-set refs must be below `refs/cas/rootsets/`. Invalid or unsafe ref names
+fail with `ROOT_SET_REF_INVALID`.
+
+### put
+
+```javascript
+await rootSet.put({
+  name: snapshotId,
+  oid: payloadTreeOid,
+  type: 'tree',
+  retention: 'evictable',
+});
+```
+
+Adds or replaces one named entry. `type` must be `blob` or `tree` and must
+match the actual Git object type. `retention` defaults to `pinned` and may be
+`pinned` or `evictable`.
+
+The target is checked before metadata is written. Missing targets fail with
+`ROOT_SET_TARGET_MISSING`; type mismatches fail with
+`ROOT_SET_TARGET_TYPE_MISMATCH`.
+
+### list And contains
+
+```javascript
+const entries = await rootSet.list();
+const retained = await rootSet.contains(snapshotId);
+```
+
+`list()` returns canonical name-sorted entries. `contains(name)` checks the
+current snapshot.
+
+### remove
+
+```javascript
+const { removed } = await rootSet.remove({ name: snapshotId });
+```
+
+Removes one entry. When no other ref reaches its target, that target becomes
+orphaned and follows normal Git expiration and pruning rules. Removal is a
+no-op when the name is absent.
+
+### replace
+
+```javascript
+await rootSet.replace({
+  expectedHeadOid: (await rootSet.read()).headOid,
+  entries: liveSnapshots.map(({ id, payloadRef }) => ({
+    name: id,
+    oid: payloadRef,
+    type: 'tree',
+    retention: 'evictable',
+  })),
+});
+```
+
+Atomically replaces the current set. This is the preferred integration for an
+application that already has an authoritative live-entry index. Pass
+`expectedHeadOid` (including `null` for a set that must not exist yet) when the
+replacement was derived from a particular generation. A stale expectation
+fails with `ROOT_SET_CONFLICT` instead of overwriting newer state.
+
+### mutate
+
+```javascript
+const { headOid } = await rootSet.read();
+await rootSet.mutate(
+  (entries) => entries.filter((entry) => shouldKeep(entry)),
+  { expectedHeadOid: headOid },
+);
+```
+
+Runs a compare-and-swap read/modify/write operation. The callback receives a
+frozen snapshot and returns the next iterable of entries. Without
+`expectedHeadOid`, conflicts are retried against a fresh snapshot. With an
+expected head, the callback is guarded to that generation and any stale read
+or write conflict is returned to the caller without retrying.
+
+### doctor
+
+```javascript
+const report = await rootSet.doctor();
+```
+
+Returns a non-mutating report with:
+
+- `healthy`, `ref`, `headOid`, `treeOid`, and `entryCount`
+- `policyCounts` for `pinned` and `evictable`
+- `reachabilityCounts` for `anchored`, `missing`, `unknown`, `orphaned`, and
+  `volatile`
+- per-target existence and actual Git object type
+- stable issue codes for missing or mismatched targets
+
+Current members are `anchored`. `orphaned` and `volatile` describe objects
+outside the current root set and are reported as zero by a single-set doctor;
+repository-wide classification remains a Git maintenance concern.
+
+### repair
+
+```javascript
+await rootSet.repair({ entries: authoritativeLiveEntries });
+```
+
+Replaces a missing or malformed root-set head from an authoritative entry
+list, without trusting the current metadata. Repair can only adopt objects that
+still exist. Run repair before destructive cleanup:
+
+1. Read the application's authoritative live OIDs.
+2. Call `doctor()` and compare the application index with `list()`.
+3. Call `repair({ entries })` to anchor every known-live object.
+4. Re-run `doctor()` and require `healthy: true`.
+5. Only then run a Git prune dry-run or garbage collection.
+
+### Direct Services
+
+`RootSet` and `RootSetRegistry` are exported from the package root. Normal
+callers should use `cas.rootSets.open(...)`; `getRootSetRegistry()` exposes the
+shared registry for advanced composition.
+
+Custom persistence implementations that support root sets must implement
+`readObjectType(oid)`, and custom ref adapters must implement
+`resolveParents(commitOid)`. The default Git adapters use `git cat-file -t`
+and `git rev-list --parents` so missing targets, repository read failures, and
+parentful heads remain distinct doctor findings. Existing store, restore, and
+vault paths do not call these methods.
+
 ## Vault
 
 The vault provides GC-safe storage by maintaining a single Git ref (`refs/cas/vault`) pointing to a commit chain. The commit's tree indexes all stored assets by slug. This prevents `git gc` from garbage-collecting stored data.
@@ -1751,6 +1916,19 @@ Reads a Git tree object.
 
 **Returns:** `Promise<Array<{ mode: string, type: string, oid: string, name: string }>>`
 
+##### readObjectType
+
+```javascript
+await port.readObjectType(oid);
+```
+
+Reads an object's Git type without materializing its content. Root sets use
+this capability to reject missing targets and type mismatches before changing
+a ref.
+
+**Returns:** `Promise<string>` - Git object type such as `blob`, `tree`, or
+`commit`
+
 **Example Implementation:**
 
 ```javascript
@@ -1772,6 +1950,10 @@ class CustomGitAdapter {
   }
 
   async readTree(treeOid) {
+    // Implementation
+  }
+
+  async readObjectType(oid) {
     // Implementation
   }
 }
@@ -2153,6 +2335,16 @@ new CasError({ message, code, meta, documentationUrl });
 | `GIT_REF_NOT_FOUND`                   | Git ref lookup found no ref; vault reads normalize this to empty state                                             | `GitRefAdapter`, `VaultPersistence`                                             |
 | `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value                                                    | `store()`, `restore()`                                                          |
 | `INVALID_SLUG`                        | Slug fails validation (empty, control chars, `..` segments, etc.)                                                  | `addToVault()`                                                                  |
+| `ROOT_SET_REF_INVALID`                | Ref is outside `refs/cas/rootsets/*` or is not a safe Git ref                                                      | `rootSets.open()`                                                               |
+| `ROOT_SET_ENTRY_INVALID`              | Entry name, OID, type, retention, or duplicate-name validation failed                                              | `put()`, `replace()`, `mutate()`, `repair()`                                    |
+| `ROOT_SET_TARGET_MISSING`             | A requested target OID does not exist                                                                              | `put()`, `replace()`, `mutate()`, `repair()`                                    |
+| `ROOT_SET_TARGET_UNREADABLE`          | Git could not inspect a target, but did not prove that it was missing                                               | Root-set mutation and doctor                                                    |
+| `ROOT_SET_TARGET_TYPE_MISMATCH`       | Declared blob/tree type does not match the Git object                                                              | `put()`, `replace()`, `mutate()`, `repair()`                                    |
+| `ROOT_SET_CONFLICT`                   | Concurrent root-set update exhausted bounded compare-and-swap retries                                              | Root-set mutations and repair                                                   |
+| `ROOT_SET_HEAD_INVALID`               | Root-set ref cannot resolve to a readable commit tree                                                              | `read()`, `list()`, `doctor()`                                                  |
+| `ROOT_SET_METADATA_INVALID`           | `.rootset.json` is malformed, non-canonical, or belongs to another ref                                              | `read()`, `list()`, `doctor()`                                                  |
+| `ROOT_SET_TREE_INVALID`               | Metadata and the Git tree's actual reachability edges disagree                                                     | `read()`, `list()`, `doctor()`                                                  |
+| `ROOT_SET_REF_UPDATE_FAILED`          | Root-set ref update failed for a non-conflict reason                                                               | Root-set mutations and repair                                                   |
 | `VAULT_ENTRY_NOT_FOUND`               | Slug does not exist in vault                                                                                       | `removeFromVault()`, `resolveVaultEntry()`                                      |
 | `VAULT_ENTRY_EXISTS`                  | Slug already exists (use `force` to overwrite)                                                                     | `addToVault()`                                                                  |
 | `VAULT_CONFLICT`                      | Concurrent vault update detected (CAS failure after retries)                                                       | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()`   |

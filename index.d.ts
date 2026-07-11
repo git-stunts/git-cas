@@ -150,6 +150,7 @@ export declare class GitPersistencePortBase {
   iterateTree(
     treeOid: string
   ): AsyncIterable<{ mode: string; type: string; oid: string; name: string }>;
+  readObjectType(oid: string): Promise<string>;
   setMaxBlobSize?(maxBlobSize: number): void;
 }
 
@@ -157,6 +158,7 @@ export declare class GitPersistencePortBase {
 export declare class GitRefPortBase {
   resolveRef(ref: string): Promise<string>;
   resolveTree(commitOid: string): Promise<string>;
+  resolveParents(commitOid: string): Promise<string[]>;
   createCommit(options: {
     treeOid: string;
     parentOid?: string | null;
@@ -285,6 +287,92 @@ export type ContentAddressableStoreCodecFactoryOptions = Omit<
 export interface VaultEntry {
   slug: string;
   treeOid: string;
+}
+
+export type RootSetEntryType = 'blob' | 'tree';
+export type RootSetRetention = 'pinned' | 'evictable';
+
+/** One Git object retained by a root set while the entry is present. */
+export interface RootSetEntry {
+  name: string;
+  oid: string;
+  type: RootSetEntryType;
+  retention: RootSetRetention;
+}
+
+export interface RootSetState {
+  ref: string;
+  headOid: string | null;
+  treeOid: string | null;
+  entries: RootSetEntry[];
+}
+
+export interface RootSetMutationResult {
+  changed: boolean;
+  commitOid: string | null;
+  treeOid: string | null;
+  entries: RootSetEntry[];
+}
+
+export interface RootSetDoctorResult {
+  healthy: boolean;
+  ref: string;
+  headOid?: string | null;
+  treeOid?: string | null;
+  entryCount?: number;
+  entries?: RootSetEntry[];
+  policyCounts?: { pinned: number; evictable: number };
+  reachabilityCounts?: {
+    anchored: number;
+    missing: number;
+    unknown: number;
+    orphaned: number;
+    volatile: number;
+  };
+  targets?: Array<RootSetEntry & {
+    exists: boolean | null;
+    actualType: string | null;
+    reachability: 'anchored' | 'missing' | 'unknown';
+  }>;
+  issues?: Array<Record<string, unknown>>;
+  error?: { code: string; message: string };
+}
+
+export declare class RootSet {
+  readonly ref: string;
+  read(): Promise<RootSetState>;
+  list(): Promise<RootSetEntry[]>;
+  contains(name: string): Promise<boolean>;
+  put(entry: Omit<RootSetEntry, 'retention'> & { retention?: RootSetRetention }): Promise<
+    RootSetMutationResult & { entry: RootSetEntry; previous: RootSetEntry | null }
+  >;
+  remove(options: { name: string }): Promise<
+    RootSetMutationResult & { removed: RootSetEntry | null }
+  >;
+  replace(options: {
+    entries: Iterable<RootSetEntry>;
+    expectedHeadOid?: string | null;
+  }): Promise<RootSetMutationResult>;
+  mutate(
+    mutator: (
+      entries: ReadonlyArray<Readonly<RootSetEntry>>,
+    ) => Iterable<RootSetEntry> | Promise<Iterable<RootSetEntry>>,
+    options?: { expectedHeadOid?: string | null },
+  ): Promise<RootSetMutationResult>;
+  doctor(): Promise<RootSetDoctorResult>;
+  repair(options: { entries: Iterable<RootSetEntry> }): Promise<{
+    repaired: true;
+    commitOid: string;
+    treeOid: string;
+    entries: RootSetEntry[];
+  }>;
+}
+
+export declare class RootSetRegistry {
+  open(options: {
+    ref: string;
+    retry?: { maxAttempts?: number; baseDelayMs?: number };
+  }): RootSet;
 }
 
 /** Encrypted vault key verifier stored in .vault.json. */
@@ -448,8 +536,16 @@ export default class ContentAddressableStore {
 
   get chunkSize(): number;
 
+  readonly rootSets: {
+    open(options: {
+      ref: string;
+      retry?: { maxAttempts?: number; baseDelayMs?: number };
+    }): Promise<RootSet>;
+  };
+
   getService(): Promise<CasService>;
   getVaultService(): Promise<VaultService>;
+  getRootSetRegistry(): Promise<RootSetRegistry>;
 
   static open(options?: ContentAddressableStoreOpenOptions): Promise<ContentAddressableStore>;
 

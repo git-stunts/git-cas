@@ -68,4 +68,13 @@ export default class GitPersistencePort {
   iterateTree(_treeOid) {
     throw new Error('Not implemented');
   }
+
+  /**
+   * Reads the Git object type without materializing object content.
+   * @param {string} _oid - Git object ID.
+   * @returns {Promise<string>} Git object type such as `blob`, `tree`, or `commit`.
+   */
+  async readObjectType(_oid) {
+    throw new Error('Not implemented');
+  }
 }

@@ -7,14 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.1.0] — 2026-07-11
+
 ### Added
 
+- **Mutable GC-safe root sets** — `cas.rootSets.open()` now anchors named blob
+  and tree OIDs under `refs/cas/rootsets/*` while entries are live. Root-set
+  generations use parentless commits so removed targets can become prunable
+  instead of remaining reachable through storage history.
+- **Root-set doctor and repair** — root sets validate ref, metadata, tree-edge,
+  target-existence, and target-type truth; report retention policy separately
+  from Git reachability; and can rebuild a malformed head from an authoritative
+  live-entry list.
+- **Root-set compare-and-swap mutations** — `put()`, `remove()`, `replace()`,
+  and `mutate()` use bounded conflict retries without silently losing
+  concurrent updates.
 - **GitHub tracker templates** — added issue forms for goalposts, slices, bugs,
   debt, and ideas, plus a pull request template that links issues, design proof,
   validation, and release impact.
 
 ### Changed
 
+- **Git object type port** — `GitPersistencePort.readObjectType()` and the Git
+  adapter now inspect target type without materializing object content.
 - **GitHub Issues as canonical tracker** — release milestones, goalposts, slices,
   and follow-on work now live in GitHub Issues and Milestones. Repo Markdown
   carries design docs, witnesses, release history, public docs, and archived
@@ -23,8 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   version-neutral, `STATUS.md` records the latest docs validation snapshot,
   `CLAUDE.md` delegates to `AGENTS.md`, and the stale root `GRAVEYARD.md` file
   has been removed.
+- **6.1.0 release verification** — `npm run release:verify -- --skip-jsr`
+  passed 12/12 steps with 5,521 observed tests across Node, Bun, Deno, and all
+  three integration runtimes. JSR remains intentionally skipped behind the
+  documented upstream toolchain gate.
 
-## [6.0.1] — 2026-05-09
+## [6.0.1] — 2026-06-13
 
 ### Added
 

@@ -160,6 +160,18 @@ describe('README routing', () => {
   });
 });
 
+describe('root-set release documentation', () => {
+  it('distinguishes root sets from unrooted plumbing and vault history', () => {
+    const api = read('docs/API.md');
+    const upgrading = read('UPGRADING.md');
+
+    expect(api).toContain('| Root set | anchored while present | current generation only |');
+    expect(api).toContain('`pinned` does not create a\npack `.keep` file');
+    expect(api).toContain('await rootSet.repair({ entries: authoritativeLiveEntries });');
+    expect(upgrading).toContain('adopt every\nstill-live OID before running destructive Git cleanup');
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');

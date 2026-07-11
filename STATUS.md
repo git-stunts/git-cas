@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.0.0` (`2026-05-09`)
-**Current release state:** `v6.0.1` patch candidate on `main`; `v6.0.0` is published to npm and GitHub Releases, and JSR publication is deferred for the v6.0.x line.
-**Latest local verification:** PR #47 review cleanup on `2026-06-13`: `git diff --check`, focused docs tests, `npx eslint .`, and `npm test` passed. GitHub PR CI remains the merge gate.
+**Last tagged release:** `v6.0.1` (`2026-06-13`)
+**Current release state:** `v6.1.0` release candidate on `main`; `v6.0.1` is published to npm and GitHub Releases, and JSR publication remains deferred behind the upstream toolchain gate.
+**Latest local verification:** `npm run release:verify -- --skip-jsr` passed 12/12 steps with 5,521 observed tests on `2026-07-11`, including Node, Bun, and Deno unit and integration suites plus the Git prune dry-run proof.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,8 +18,8 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.0.0 artifact posture** — npm publication and the GitHub Release are
-  complete for tag `v6.0.0`. JSR publication is deferred because the current
+- **v6.0.1 artifact posture** — npm publication and the GitHub Release are
+  complete through tag `v6.0.1`. JSR publication is deferred because the current
   `jsr`/Deno toolchain panics before package validation; it can return in a
   later 6.x maintenance change once its dry-run is healthy.
 - **v6.0.0 encryption scheme simplification** — `whole-v1`/`whole-v2` collapsed
@@ -64,6 +64,10 @@
 - `ContentAddressableStore.store()` and `storeFile()` accept per-operation
   `chunking` overrides, so one store can use CDC or fixed chunking without
   mutating the facade's default chunker.
+- `ContentAddressableStore.rootSets.open()` provides ref-backed current-set
+  retention for caches and derived state. Present entries are Git-anchored;
+  removed entries are not retained by root-set commit history. Root sets expose
+  compare-and-swap mutation plus doctor/repair reports.
 - Manifest parsing now rejects unsupported encryption schemes,
   `encrypted: false`, malformed AES-GCM nonce/tag values, and framed manifests
   that omit `frameBytes`, across both JSON and CBOR manifest codecs.

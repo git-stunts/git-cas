@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import ContentAddressableStore, * as packageApi from '../../../index.js';
+import { PACKAGE_VERSION } from '../../../src/package-version.js';
 
 describe('ContentAddressableStore error surface', () => {
   it('re-exports CasError for public instanceof checks', () => {
@@ -18,7 +19,7 @@ describe('ContentAddressableStore error surface', () => {
     ).rejects.toMatchObject({
       code: 'INVALID_OPTIONS',
       message: expect.stringContaining('process.cwd()'),
-      documentationUrl: 'https://github.com/git-stunts/git-cas/blob/v6.0.1/docs/API.md#restorefile',
+      documentationUrl: `https://github.com/git-stunts/git-cas/blob/v${PACKAGE_VERSION}/docs/API.md#restorefile`,
     });
   });
 });

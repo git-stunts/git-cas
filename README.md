@@ -20,6 +20,9 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 - **Deduplication by Default**: Content-defined chunking (CDC) with Buzhash rolling hash identifies repeated patterns across files and versions, minimizing repository growth.
 - **Cryptographic Trust**: Every chunk is verified against a SHA-256 digest. Optional AES-256-GCM encryption with multi-recipient envelope support ensures privacy at rest, and `framed` binds per-frame AAD to prevent cross-manifest blob swaps.
 - **GC-Safe Vault**: Named assets are indexed through a stable ref (`refs/cas/vault`) with optimistic concurrency, preventing Git garbage collection from reclaiming referenced blobs.
+- **Mutable Root Sets**: Cache and derived-state trees can be anchored under
+  `refs/cas/rootsets/*` while live, then become collectible after eviction,
+  without vault history retaining every prior generation.
 - **Key Lifecycle**: Envelope encryption separates DEKs from KEKs. Rotate passphrases across an entire vault without re-encrypting data blobs. Privacy mode HMAC-hashes slug names to prevent metadata discovery.
 - **Runtime-Adaptive**: A single core supports Node.js 22+, Bun, and Deno through a strict hexagonal port architecture with runtime-specific crypto adapters.
 
@@ -28,7 +31,7 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
 `npm run upgrade` in dry-run mode before restoring old encrypted vault entries.
 For the release overview, see the
-[v6.0.0 Release Notes](./docs/releases/v6.0.0.md).
+[v6.1.0 Release Notes](./docs/releases/v6.1.0.md).
 
 ### 1. CLI Usage
 
@@ -70,6 +73,7 @@ The README is the front door. Detailed mechanics live in the guide set:
 | Encryption scheme selection                             | [Encryption Modes](./docs/ENCRYPTION_MODES.md)               |
 | CDC internals, Merkle manifests, KDF policy, and tuning | [Advanced Guide](./ADVANCED_GUIDE.md)                        |
 | Ports, adapters, and collaborator boundaries            | [Architecture](./ARCHITECTURE.md)                            |
+| GC retention for caches and derived state               | [Root Sets](./docs/API.md#root-sets)                         |
 | v5 to v6 migration                                      | [Upgrading](./UPGRADING.md)                                  |
 
 Core capabilities:
@@ -84,6 +88,9 @@ Core capabilities:
   deduplication.
 - **Vault indexing**: named assets live under `refs/cas/vault` so Git garbage
   collection does not reclaim referenced blobs.
+- **Root-set retention**: current cache entries live under caller-owned
+  `refs/cas/rootsets/*` refs. Entries are Git-reachable while present, and old
+  set generations are not retained as commit history.
 - **Envelope recipients**: multi-recipient key wrapping and recipient rotation
   avoid re-encrypting data blobs.
 - **Operational diagnostics**: `git-cas doctor` validates vault health and
@@ -130,6 +137,8 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
 - **[Workflow](https://github.com/git-stunts/git-cas/blob/main/WORKFLOW.md)**: Repo work doctrine, cycles, and invariants.
 - **[Contributing](https://github.com/git-stunts/git-cas/blob/main/CONTRIBUTING.md)**, **[Code of Conduct](./CODE_OF_CONDUCT.md)**, and **[Support](./SUPPORT.md)**: Project participation and help paths.
 - **[v6.0.0 Release Notes](./docs/releases/v6.0.0.md)**: Major-release summary, upgrade call-to-action, and publication notes.
+- **[v6.1.0 Release Notes](./docs/releases/v6.1.0.md)**: Root-set retention,
+  doctor/repair, and GC-policy guidance.
 - **[Upgrading](./UPGRADING.md)**: Migration guide for v5 → v6.
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.
 

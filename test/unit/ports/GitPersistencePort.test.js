@@ -35,4 +35,8 @@ describe('GitPersistencePort – abstract methods', () => {
       }
     }).rejects.toThrow('Not implemented');
   });
+
+  it('readObjectType() throws Not implemented', async () => {
+    await expect(port.readObjectType('object-oid')).rejects.toThrow('Not implemented');
+  });
 });

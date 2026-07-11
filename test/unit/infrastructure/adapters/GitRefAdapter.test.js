@@ -56,6 +56,27 @@ describe('GitRefAdapter.resolveRef()', () => {
   });
 });
 
+describe('GitRefAdapter.resolveParents()', () => {
+  it('returns direct commit parents and recognizes a parentless commit', async () => {
+    const { adapter, plumbing } = createAdapter();
+    const commitOid = 'a'.repeat(40);
+    const firstParent = 'b'.repeat(40);
+    const secondParent = 'c'.repeat(40);
+    plumbing.execute
+      .mockResolvedValueOnce(`${commitOid} ${firstParent} ${secondParent}`)
+      .mockResolvedValueOnce(commitOid);
+
+    await expect(adapter.resolveParents(commitOid)).resolves.toEqual([
+      firstParent,
+      secondParent,
+    ]);
+    await expect(adapter.resolveParents(commitOid)).resolves.toEqual([]);
+    expect(plumbing.execute).toHaveBeenNthCalledWith(1, {
+      args: ['rev-list', '--parents', '-n', '1', commitOid],
+    });
+  });
+});
+
 describe('GitRefAdapter.updateRef()', () => {
   it('uses Git create-only CAS semantics when expectedOldOid is null', async () => {
     const { adapter, plumbing } = createAdapter();

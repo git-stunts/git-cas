@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import { CasError, createCasError, ErrorCodes } from '../../domain/errors/index.js';
+import { errorDetailsText } from '../../domain/helpers/gitRefErrors.js';
 
 /**
  * Default resilience policy: 30 s timeout (no retry).
@@ -181,6 +182,27 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
   }
 
   /**
+   * @override
+   * @param {string} oid - Git object ID.
+   * @returns {Promise<string>} Git object type.
+   */
+  async readObjectType(oid) {
+    try {
+      return await this.policy.execute(() =>
+        this.plumbing.execute({ args: ['cat-file', '-t', oid] }),
+      );
+    } catch (err) {
+      if (isMissingGitObjectError(err)) {
+        throw new CasError(`Git object not found: ${oid}`, ErrorCodes.GIT_OBJECT_NOT_FOUND, {
+          oid,
+          originalError: err,
+        });
+      }
+      throw err;
+    }
+  }
+
+  /**
    * Bun can surface unhandled EPIPE writes when large buffers are fed through
    * `git hash-object --stdin`. Write the blob to a temp file and hash the file
    * directly instead. `--no-filters` preserves raw bytes.
@@ -309,4 +331,11 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       name: entry.slice(tabIndex + 1),
     };
   }
+}
+
+function isMissingGitObjectError(err) {
+  const message = errorDetailsText(err).toLowerCase();
+  return message.includes('could not get object info') ||
+    message.includes('not a valid object name') ||
+    message.includes('bad object');
 }

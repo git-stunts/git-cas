@@ -1,6 +1,33 @@
-# Upgrading to git-cas v6.0.0
+# Upgrading git-cas
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
+
+## v6.0.1 To v6.1.0
+
+v6.1.0 is API-additive and does not require stored-data migration. It adds root
+sets for mutable, GC-safe retention of cache and derived-state objects.
+
+Applications that persisted tree OIDs only inside JSON should adopt every
+still-live OID before running destructive Git cleanup:
+
+```javascript
+const rootSet = await cas.rootSets.open({
+  ref: 'refs/cas/rootsets/my-application/cache',
+});
+
+await rootSet.repair({
+  entries: liveRecords.map((record) => ({
+    name: record.id,
+    oid: record.treeOid,
+    type: 'tree',
+    retention: 'evictable',
+  })),
+});
+```
+
+Repair cannot recover objects that Git already pruned. Verify
+`(await rootSet.doctor()).healthy` before garbage collection. Existing vault
+entries and ordinary branch/tag references need no change.
 
 ## Quick Start
 

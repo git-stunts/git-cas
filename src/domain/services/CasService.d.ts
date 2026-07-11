@@ -78,6 +78,7 @@ export interface GitPersistencePort {
   iterateTree(
     treeOid: string
   ): AsyncIterable<{ mode: string; type: string; oid: string; name: string }>;
+  readObjectType(oid: string): Promise<string>;
   setMaxBlobSize?(maxBlobSize: number): void;
 }
 

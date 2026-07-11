@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import GitPersistencePort from '../../src/ports/GitPersistencePort.js';
+import { CasError, ErrorCodes } from '../../src/domain/errors/index.js';
 
 function copyBytes(content) {
   return Uint8Array.from(content);
@@ -93,5 +94,15 @@ export default class MemoryPersistenceAdapter extends GitPersistencePort {
     for (const entry of await this.readTree(treeOid)) {
       yield entry;
     }
+  }
+
+  async readObjectType(oid) {
+    if (this.#blobs.has(oid)) {
+      return 'blob';
+    }
+    if (this.#trees.has(oid)) {
+      return 'tree';
+    }
+    throw new CasError(`Object not found: ${oid}`, ErrorCodes.GIT_OBJECT_NOT_FOUND, { oid });
   }
 }

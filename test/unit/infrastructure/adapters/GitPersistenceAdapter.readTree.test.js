@@ -90,6 +90,37 @@ describe('GitPersistenceAdapter.readTreeEntry() – path lookup', () => {
   });
 });
 
+describe('GitPersistenceAdapter.readObjectType()', () => {
+  it('reads type without materializing the object', async () => {
+    const plumbing = mockPlumbing('tree');
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    await expect(adapter.readObjectType('a'.repeat(40))).resolves.toBe('tree');
+    expect(plumbing.execute).toHaveBeenCalledWith({
+      args: ['cat-file', '-t', 'a'.repeat(40)],
+    });
+  });
+
+  it('normalizes only Git missing-object errors', async () => {
+    const missing = Object.assign(new Error('Git command failed'), {
+      details: { stderr: 'fatal: git cat-file: could not get object info' },
+    });
+    const plumbing = { execute: vi.fn().mockRejectedValue(missing) };
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    await expect(adapter.readObjectType('f'.repeat(40)))
+      .rejects.toMatchObject({ code: 'GIT_OBJECT_NOT_FOUND' });
+  });
+
+  it('preserves non-missing inspection failures', async () => {
+    const denied = new Error('permission denied');
+    const plumbing = { execute: vi.fn().mockRejectedValue(denied) };
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    await expect(adapter.readObjectType('f'.repeat(40))).rejects.toBe(denied);
+  });
+});
+
 describe('GitPersistenceAdapter.iterateTree() – streaming', () => {
   it('parses NUL-delimited tree entries across stream chunk boundaries', async () => {
     const adapter = streamAdapterFor([

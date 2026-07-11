@@ -23,6 +23,15 @@ export default class GitRefPort {
   }
 
   /**
+   * Resolves the direct parent OIDs from a commit OID.
+   * @param {string} _commitOid - Git commit OID.
+   * @returns {Promise<string[]>} Direct parent OIDs; empty for a root commit.
+   */
+  async resolveParents(_commitOid) {
+    throw new Error('Not implemented');
+  }
+
+  /**
    * Creates a Git commit object.
    * @param {Object} _options
    * @param {string} _options.treeOid - Tree OID for the commit.

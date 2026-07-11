@@ -14,10 +14,11 @@ timeline
 
 ## Current State
 
-`v6.0.0` shipped on `2026-05-09`. The encryption surface has been simplified,
-the dedup-with-encryption gap is closed, and npm plus GitHub Releases are the
-active publication surfaces while JSR remains deferred behind the upstream
-toolchain blocker.
+`v6.0.1` shipped on `2026-06-13`. The encryption surface is simplified, the
+dedup-with-encryption gap is closed, and npm plus GitHub Releases are the active
+publication surfaces while JSR remains deferred behind the upstream toolchain
+blocker. The `v6.1.0` candidate adds mutable root-set retention for GC-safe
+caches and derived state.
 
 What exists now:
 
@@ -56,6 +57,10 @@ What exists now:
   anyone with bare repo read access.
 - **Manifest-level integrity hash.** Manifests carry a top-level integrity
   digest for fast tamper detection without chunk-by-chunk verification.
+- **Mutable root sets.** `ContentAddressableStore.rootSets.open()` anchors
+  current cache and derived-state objects under `refs/cas/rootsets/*`. Updates
+  use parentless commits and compare-and-swap ref writes so removed entries can
+  become prunable instead of staying reachable through storage history.
 - **Migration script.** `scripts/migrate-encryption.js` upgrades legacy v1/v2
   manifests to the current scheme identifiers.
 

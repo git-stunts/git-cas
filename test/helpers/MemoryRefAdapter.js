@@ -41,6 +41,18 @@ export default class MemoryRefAdapter extends GitRefPort {
     return commit.treeOid;
   }
 
+  async resolveParents(commitOidToResolve) {
+    const commit = this.#commits.get(commitOidToResolve);
+    if (!commit) {
+      throw new CasError(
+        `Commit not found: ${commitOidToResolve}`,
+        ErrorCodes.GIT_ERROR,
+        { commitOid: commitOidToResolve },
+      );
+    }
+    return commit.parentOid ? [commit.parentOid] : [];
+  }
+
   async createCommit({ treeOid, parentOid, message }) {
     const oid = commitOid({ treeOid, parentOid, message });
     this.#commits.set(oid, { treeOid, parentOid, message });

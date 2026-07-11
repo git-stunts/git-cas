@@ -55,6 +55,7 @@ describe('MemoryPersistenceAdapter', () => {
     expect(readBack.slug).toBe('memory/demo');
     expect(persistence.blobCount).toBeGreaterThan(0);
     expect(persistence.treeCount).toBe(1);
+    await expect(persistence.readObjectType(treeOid)).resolves.toBe('tree');
     expectBytesEqual(buffer, original);
   });
 

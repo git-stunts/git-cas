@@ -59,3 +59,17 @@ describe('Type declaration accuracy', () => {
     expect(source).toMatch(/@param\s+\{Manifest\}\s+newManifest/);
   });
 });
+
+describe('Root-set declaration accuracy', () => {
+  it('declares the public root-set namespace and doctor policy facts', () => {
+    const declarations = read('index.d.ts');
+
+    expect(declarations).toContain('readonly rootSets: {');
+    expect(declarations).toContain('export declare class RootSet');
+    expect(declarations).toContain('policyCounts?: { pinned: number; evictable: number };');
+    expect(declarations).toContain("reachability: 'anchored' | 'missing' | 'unknown';");
+    expect(declarations).toContain('expectedHeadOid?: string | null;');
+    expect(declarations).toContain('readObjectType(oid: string): Promise<string>;');
+    expect(declarations).toContain('resolveParents(commitOid: string): Promise<string[]>;');
+  });
+});

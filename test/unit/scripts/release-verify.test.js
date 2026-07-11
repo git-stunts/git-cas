@@ -194,6 +194,12 @@ describe('release verify execution', () => {
     expect(exampleSteps.every((step) => step.command === 'node')).toBe(true);
   });
 
+  it('serializes Bun unit files to avoid CPU-heavy test starvation', () => {
+    const bunStep = RELEASE_STEPS.find((step) => step.id === 'unit-bun');
+
+    expect(bunStep?.args).toContain('--no-file-parallelism');
+  });
+
   it('runs the release steps in order and aggregates test counts', async () => {
     const runner = makeSuccessRunner();
 

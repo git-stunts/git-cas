@@ -4,10 +4,10 @@ cycle: "0046"
 task_id: "gc-retention-root-sets"
 legend: "API"
 release_home: "v6.1.0"
-issue: "https://github.com/git-stunts/git-cas/issues/38"
+issue: "https://github.com/git-stunts/git-cas/issues/48"
 goalpost_issue: "https://github.com/git-stunts/git-cas/issues/38"
 tracker_source: "github"
-status: "draft"
+status: "active"
 base_commit: "19bcf9b0b6738f811c0c49408d5cb06e1c348bee"
 owners:
   - "@git-stunts"
@@ -27,16 +27,13 @@ updated: "2026-07-11"
 
 ## Linked Issue
 
-- https://github.com/git-stunts/git-cas/issues/38
-
-Dedicated slice issues have not been opened yet. This design must stay `draft`
-until the root-set implementation and proof slices have canonical GitHub issues.
+- https://github.com/git-stunts/git-cas/issues/48
 
 ## Linked Tracker
 
 - Milestone: `v6.1.0`
 - Goalpost issue: https://github.com/git-stunts/git-cas/issues/38
-- Slice issues: `not opened yet`
+- Slice issue: https://github.com/git-stunts/git-cas/issues/48
 
 ## Design Type
 
@@ -465,8 +462,8 @@ The implementation must be proven through:
 - Add compare-and-swap update and conflict tests.
 - Add doctor checks for root-set health and prune-risk findings.
 - Update API docs, guide/walkthrough language, and release evidence.
-- Open dedicated GitHub slice issues before moving this design from `draft` to
-  `active`.
+- Track implementation, Git reachability proof, doctor/repair, docs, and
+  release evidence in the unified slice issue #48.
 
 Each slice should be independently reviewable and should close with behavior
 tests or a witness.
@@ -475,25 +472,25 @@ tests or a witness.
 
 Behavior tests required:
 
-- [ ] Root-set `put()` anchors a tree so `git prune -n --expire=now` does not
+- [x] Root-set `put()` anchors a tree so `git prune -n --expire=now` does not
       list the target tree or its reachable payload blobs.
-- [ ] Root-set `remove()` releases a tree so `git prune -n --expire=now` lists
+- [x] Root-set `remove()` releases a tree so `git prune -n --expire=now` lists
       the target when no other ref reaches it.
-- [ ] `replace()` writes exactly the supplied live set and drops entries absent
+- [x] `replace()` writes exactly the supplied live set and drops entries absent
       from the replacement.
-- [ ] Concurrent `replace()` with a stale expected head fails with a conflict
+- [x] Concurrent `replace()` with a stale expected head fails with a conflict
       error.
-- [ ] Invalid refs, names, OIDs, object types, and retention policies fail
+- [x] Invalid refs, names, OIDs, object types, and retention policies fail
       before writing Git objects.
-- [ ] Doctor reports missing root-set targets and malformed metadata.
-- [ ] Doctor separates `pinned` and `evictable` policy from `anchored`,
+- [x] Doctor reports missing root-set targets and malformed metadata.
+- [x] Doctor separates `pinned` and `evictable` policy from `anchored`,
       `orphaned`, and `volatile` reachability.
 
 Documentation/process tests, only if relevant:
 
-- [ ] API docs include a retention matrix for plumbing, root sets, and vault.
-- [ ] The design witness records prune dry-run commands and outputs.
-- [ ] GitHub issue links point to the goalpost and slice issues before active
+- [x] API docs include a retention matrix for plumbing, root sets, and vault.
+- [x] The design witness records prune dry-run commands and outputs.
+- [x] GitHub issue links point to the goalpost and unified slice issue before active
       implementation.
 
 Rule: documentation tests cannot be the only proof for implementation work.
@@ -502,16 +499,16 @@ Rule: documentation tests cannot be the only proof for implementation work.
 
 The work is done when:
 
-- [ ] Public API can create/open a root set and add, remove, replace, and list
+- [x] Public API can create/open a root set and add, remove, replace, and list
       entries.
-- [ ] Root-set writes use compare-and-swap ref updates.
-- [ ] Current entries are Git-reachable from the root-set ref.
-- [ ] Removed entries are not retained by root-set history by default.
-- [ ] Git-backed tests prove add/remove prune dry-run behavior.
-- [ ] Doctor reports root-set integrity and prune-risk facts.
-- [ ] Docs clearly distinguish unrooted plumbing, root-set anchoring, and vault
+- [x] Root-set writes use compare-and-swap ref updates.
+- [x] Current entries are Git-reachable from the root-set ref.
+- [x] Removed entries are not retained by root-set history by default.
+- [x] Git-backed tests prove add/remove prune dry-run behavior.
+- [x] Doctor reports root-set integrity and prune-risk facts.
+- [x] Docs clearly distinguish unrooted plumbing, root-set anchoring, and vault
       durability.
-- [ ] Dedicated GitHub slice issues are opened and linked.
+- [x] The unified GitHub implementation slice is opened and linked.
 - [ ] CI and local validation are green.
 
 ## Validation Plan
@@ -564,6 +561,8 @@ Mitigations:
 
 Create GitHub issues for:
 
+- repository-wide reachability classification for root-set doctor output
+  ([#49](https://github.com/git-stunts/git-cas/issues/49))
 - WARP state-cache migration onto root sets after the API lands
 - root-set sharding or streaming list support if large sets need bounded reads
 - optional historical root sets if any caller needs audit history
@@ -575,10 +574,7 @@ Create GitHub issues for:
 | Issue | Role | Expected disposition |
 | --- | --- | --- |
 | https://github.com/git-stunts/git-cas/issues/38 | current `v6.1.0` goalpost | link this draft as scale/GC-safety design input |
-| root-set API slice | not opened yet | open before implementation starts |
-| root-set Git reachability proof slice | not opened yet | open before implementation starts |
-| root-set doctor/repair slice | not opened yet | open before implementation starts |
-| docs and witness slice | not opened yet | open before implementation starts |
+| https://github.com/git-stunts/git-cas/issues/48 | unified root-set implementation slice | close after release proof and downstream adoption begin |
 
 ## Done Does Not Mean
 
@@ -593,20 +589,43 @@ When this lands, it does not prove:
 
 ## Retrospective
 
-Fill this in after implementation.
-
 What changed from the design:
 
-- `not implemented yet`
+- Implementation stayed with one unified slice issue (#48) instead of splitting
+  the work into several tracker issues.
+- The first release has no caller-defined metadata field. Entry name, target
+  OID, target type, and retention policy are the complete canonical record.
+- `contains(name)` tests entry membership by name. It does not search by OID.
+- Target validation required `GitPersistencePort.readObjectType()`, while
+  enforcing parentless heads required `GitRefPort.resolveParents()`.
+- `replace()` and `mutate()` expose `expectedHeadOid` so callers can guard a
+  state derived from a specific generation; unguarded calls retain bounded
+  retry behavior.
+- The release gate serializes Bun unit files and all integration files to avoid
+  runtime starvation and transient Git subprocess failures under contention.
 
 What the tests proved:
 
-- `not implemented yet`
+- Current entries are real Git tree edges reachable from a root-set ref.
+- Removing the only edge makes the target tree appear in an immediate prune
+  dry-run without running destructive cleanup.
+- Every root-set generation is parentless, stale guarded updates conflict, and
+  unguarded mutations retry from freshly read state.
+- Invalid targets do not publish a ref, and malformed state can be diagnosed
+  and rebuilt from an authoritative entry list.
+- The release verifier passed 12/12 steps and observed 5,521 tests across Node,
+  Bun, Deno, and their integration suites.
 
 What remains open:
 
-- `not implemented yet`
+- Repository-wide classification of objects anchored by other refs versus
+  orphaned or volatile is outside a single root set's bounded doctor report.
+- Large-set sharding or streaming, optional historical root sets, CLI mutation,
+  and privacy-preserving entry names remain follow-on work.
+- WARP must adopt existing live payloads before cleanup and provide its own
+  doctor/repair path; already-pruned payloads remain unrecoverable.
 
 PR:
 
-- `not opened yet`
+- No PR. The maintainer authorized a direct `main` implementation and release
+  for this cross-repository repair.

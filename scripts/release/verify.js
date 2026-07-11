@@ -63,7 +63,10 @@ export const RELEASE_STEPS = [
     id: 'unit-bun',
     label: 'Unit Tests (Bun)',
     command: 'docker',
-    args: ['compose', 'run', '--build', '--rm', 'test-bun', 'bunx', 'vitest', 'run', 'test/unit'],
+    args: [
+      'compose', 'run', '--build', '--rm', 'test-bun',
+      'bunx', 'vitest', 'run', 'test/unit', '--no-file-parallelism',
+    ],
     testCount: true,
   },
   {

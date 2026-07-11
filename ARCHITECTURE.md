@@ -116,6 +116,7 @@ The public entrypoint is [index.js](./index.js).
 - wires persistence, ref, codec, crypto, chunking, compression, and
   observability adapters
 - exposes convenience methods like `storeFile()` and `restoreFile()`
+- exposes `rootSets.open()` for mutable current-generation Git reachability
 
 The facade is orchestration glue. It is not the storage engine itself.
 
@@ -137,6 +138,12 @@ The facade is orchestration glue. It is not the storage engine itself.
   formats to `VaultMetadataCodec` and `VaultTreeCodec`, privacy indexing to
   `VaultPrivacyIndex`, vault-key verification to `VaultKeyVerifier`, retry timing
   to `VaultMutationRetryPolicy`, and slug validation to `Slug`.
+
+- **`RootSetRegistry` and `RootSet`** — open and mutate caller-owned refs under
+  `refs/cas/rootsets/*`. Root-set mutations retain only the current generation,
+  validate target existence and type, and use bounded compare-and-swap retries.
+  `RootSetPersistence`, `RootSetMetadataCodec`, and `RootSetTreeCodec` own the
+  ref, metadata, and real Git reachability boundaries.
 
 - **`KeyResolver`** — resolves key sources: passphrase-derived keys via KDF,
   envelope recipient DEK wrapping and unwrapping. `CasService` delegates all key
@@ -190,7 +197,9 @@ The facade is orchestration glue. It is not the storage engine itself.
 
 - **`Manifest`** — immutable representation of stored asset metadata.
 - **`Chunk`** — immutable representation of one manifest chunk entry.
-- **`Oid`** — immutable Git object identifier value with 40-hex validation.
+- **`Oid`** — immutable Git object identifier value with 40- or 64-hex
+  validation.
+- **`RootSetRef`** — immutable validated ref below `refs/cas/rootsets/`.
 - **`Slug`** — immutable vault slug representation. It enforces vault slug
   limits and exposes `.toTreePath()` for the percent-encoded Git tree-entry name
   used by plain vault trees.
@@ -232,8 +241,8 @@ with methods that throw "not implemented" by default.
   mode.
 - **`GitPersistencePort`** — blob read/write, tree read/write, and
   `readBlobStream` for streaming chunk retrieval.
-- **`GitRefPort`** — ref resolution, commit creation, and compare-and-swap ref
-  updates.
+- **`GitRefPort`** — ref/tree/parent resolution, commit creation, and
+  compare-and-swap ref updates.
 - **`ChunkingPort`** — strategy interface for fixed-size and content-defined
   chunking.
 - **`CodecPort`** — manifest serialization and deserialization.

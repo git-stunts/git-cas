@@ -25,6 +25,7 @@ describe('MemoryRefAdapter missing refs', () => {
 
     await expect(ref.resolveRef(VAULT_REF)).resolves.toBe(commitOid);
     await expect(ref.resolveTree(commitOid)).resolves.toBe('tree-a');
+    await expect(ref.resolveParents(commitOid)).resolves.toEqual([]);
   });
 });
 
@@ -63,6 +64,7 @@ describe('MemoryRefAdapter CAS updates', () => {
     });
 
     await expect(ref.resolveRef(VAULT_REF)).resolves.toBe(second);
+    await expect(ref.resolveParents(second)).resolves.toEqual([first]);
   });
 });
 

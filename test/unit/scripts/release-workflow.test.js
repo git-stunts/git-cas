@@ -45,4 +45,11 @@ describe('release workflow publishing', () => {
     expect(releaseJob).toContain('FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true');
     expect(releaseJob).not.toContain('ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION');
   });
+
+  it('serializes every runtime integration command', () => {
+    for (const relPath of ['.github/workflows/ci.yml', '.github/workflows/release.yml']) {
+      const workflow = read(relPath);
+      expect(workflow.match(/--no-file-parallelism/gu)).toHaveLength(3);
+    }
+  });
 });

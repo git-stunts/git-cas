@@ -8,6 +8,8 @@
 // ---------------------------------------------------------------------------
 import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
+import RootSet from './src/domain/services/RootSet.js';
+import RootSetRegistry from './src/domain/services/RootSetRegistry.js';
 import rotateVaultPassphrase from './src/domain/services/rotateVaultPassphrase.js';
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';
 import GitRefAdapter from './src/infrastructure/adapters/GitRefAdapter.js';
@@ -50,6 +52,8 @@ function withOperationChunker(options) {
 export {
   CasService,
   VaultService,
+  RootSet,
+  RootSetRegistry,
   GitPersistenceAdapter,
   GitRefAdapter,
   JsonCodec,
@@ -131,12 +135,17 @@ export default class ContentAddressableStore {
     };
     this.service = null;
     this.#servicePromise = null;
+    this.rootSets = Object.freeze({
+      open: async (options) => (await this.#getRootSetRegistry()).open(options),
+    });
   }
 
   /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, maxBlobSize?: number, compressionAdapter?: * }} */
   #config;
   /** @type {VaultService|null} */
   #vault = null;
+  /** @type {RootSetRegistry|null} */
+  #rootSetRegistry = null;
   #servicePromise = null;
 
   /**
@@ -192,6 +201,7 @@ export default class ContentAddressableStore {
       crypto,
       observability: this.service.observability,
     });
+    this.#rootSetRegistry = new RootSetRegistry({ persistence, ref });
 
     return this.service;
   }
@@ -204,6 +214,16 @@ export default class ContentAddressableStore {
   async #getVault() {
     await this.#getService();
     return this.#vault;
+  }
+
+  /**
+   * Lazily initializes and returns the root-set registry.
+   * @private
+   * @returns {Promise<RootSetRegistry>}
+   */
+  async #getRootSetRegistry() {
+    await this.#getService();
+    return this.#rootSetRegistry;
   }
 
   /**
@@ -220,6 +240,14 @@ export default class ContentAddressableStore {
    */
   async getVaultService() {
     return await this.#getVault();
+  }
+
+  /**
+   * Lazily initializes and returns the root-set registry.
+   * @returns {Promise<RootSetRegistry>}
+   */
+  async getRootSetRegistry() {
+    return await this.#getRootSetRegistry();
   }
 
   /**

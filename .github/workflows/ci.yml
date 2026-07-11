@@ -44,11 +44,11 @@ jobs:
         runtime: [node, bun, deno]
         include:
           - runtime: node
-            integration_cmd: pnpm vitest run test/integration
+            integration_cmd: pnpm vitest run test/integration --no-file-parallelism
           - runtime: bun
-            integration_cmd: bunx vitest run test/integration
+            integration_cmd: bunx vitest run test/integration --no-file-parallelism
           - runtime: deno
-            integration_cmd: deno run -A npm:vitest run test/integration
+            integration_cmd: deno run -A npm:vitest run test/integration --no-file-parallelism
     steps:
       - uses: actions/checkout@v6
       - name: Build test-${{ matrix.runtime }}

@@ -66,6 +66,26 @@ export default class GitRefAdapter extends GitRefPort {
 
   /**
    * @override
+   * @param {string} commitOid - Git commit OID.
+   * @returns {Promise<string[]>} Direct parent OIDs.
+   */
+  async resolveParents(commitOid) {
+    const line = await this.policy.execute(() =>
+      this.plumbing.execute({ args: ['rev-list', '--parents', '-n', '1', commitOid] }),
+    );
+    const [resolvedCommit, ...parents] = line.trim().split(/\s+/u);
+    if (!resolvedCommit) {
+      throw new CasError(
+        `Git commit not found: ${commitOid}`,
+        ErrorCodes.GIT_ERROR,
+        { commitOid },
+      );
+    }
+    return parents;
+  }
+
+  /**
+   * @override
    * @param {Object} options
    * @param {string} options.treeOid - Tree OID for the commit.
    * @param {string|null} [options.parentOid] - Parent commit OID.

@@ -28,6 +28,7 @@ and [THREAT_MODEL.md](./THREAT_MODEL.md).
     11b. [Multi-Recipient Encryption & Key Rotation](#11b-multi-recipient-encryption--key-rotation)
 12. [Merkle Manifests](#12-merkle-manifests)
 13. [Vault](#13-vault)
+13b. [Root Sets](#13b-root-sets)
 14. [Architecture](#14-architecture)
 15. [Codec System](#15-codec-system)
 16. [Error Handling](#16-error-handling)
@@ -212,6 +213,11 @@ The tree contains one entry for the manifest file (named `manifest.json` or
 `manifest.cbor` depending on the codec) and one entry per chunk, named by
 its SHA-256 digest. This tree OID is a standard Git object -- you can commit
 it, tag it, push it, or embed it in a larger tree.
+
+The returned OID is not durable by itself. Use a branch or tag for ordinary Git
+history, the vault for durable named history, or a root set for a mutable
+current-generation cache. A JSON field containing the OID does not make Git
+consider the object reachable.
 
 ### Codecs
 
@@ -1376,6 +1382,46 @@ Slugs are validated strictly:
 - Each segment <= 255 bytes, total <= 1024 bytes
 
 Invalid slugs throw `INVALID_SLUG`.
+
+---
+
+## 13b. Root Sets
+
+Root sets are the GC-safe surface for caches and derived state. Unlike the
+vault, they retain only the current generation by default.
+
+```javascript
+const snapshots = await cas.rootSets.open({
+  ref: 'refs/cas/rootsets/warp/state-cache',
+});
+
+await snapshots.put({
+  name: snapshotId,
+  oid: payloadTreeOid,
+  type: 'tree',
+  retention: 'evictable',
+});
+```
+
+While the entry is present, the root-set ref reaches the target tree and its
+payload blobs. After `remove({ name })`, the target follows normal Git grace
+period and pruning rules if no other ref reaches it.
+
+For an existing application index, adopt all still-live OIDs before cleanup:
+
+```javascript
+const report = await snapshots.doctor();
+if (!report.healthy) {
+  await snapshots.repair({ entries: authoritativeLiveEntries });
+}
+```
+
+`pinned` and `evictable` are application policy labels. Both entries are
+anchored while present. Root sets do not create pack `.keep` files, encrypt
+entry names, or preserve mutation history.
+
+See [API Reference: Root Sets](./API.md#root-sets) for the full mutation,
+doctor, repair, and error contracts.
 
 ---
 
