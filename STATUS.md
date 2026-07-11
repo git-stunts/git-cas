@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.0.1` (`2026-06-13`)
-**Current release state:** `v6.1.0` release candidate on `main`; `v6.0.1` is published to npm and GitHub Releases, and JSR publication remains deferred behind the upstream toolchain gate.
-**Latest verification:** `npm run release:verify -- --skip-jsr` passed 12/12 steps with 5,521 observed tests on `2026-07-11`; GitHub Actions run `29169839107` also passed lint, host unit tests, and Node, Bun, and Deno Docker suites.
+**Last tagged release:** `v6.1.0` (`2026-07-11`)
+**Current release state:** `v6.1.0` is published to npm and GitHub Releases; JSR publication remains deferred behind the upstream toolchain gate.
+**Latest verification:** `npm run release:verify -- --skip-jsr` passed 12/12 steps with 5,521 observed tests on `2026-07-11`; release run `29170112655` also passed lint, unit tests, Node/Bun/Deno integration, npm trusted publication, and GitHub Release creation.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,8 +18,8 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.0.1 artifact posture** — npm publication and the GitHub Release are
-  complete through tag `v6.0.1`. JSR publication is deferred because the current
+- **v6.1.0 artifact posture** — npm publication and the GitHub Release are
+  complete through tag `v6.1.0`. JSR publication is deferred because the current
   `jsr`/Deno toolchain panics before package validation; it can return in a
   later 6.x maintenance change once its dry-run is healthy.
 - **v6.0.0 encryption scheme simplification** — `whole-v1`/`whole-v2` collapsed
