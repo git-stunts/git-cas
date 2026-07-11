@@ -133,6 +133,10 @@ Lint, all three examples, build metadata stamping, and the npm package dry-run
 also passed. JSR remained intentionally skipped under the documented upstream
 toolchain gate.
 
+GitHub Actions CI for implementation commit `50b0ee1` also passed lint, host
+unit tests, and the Node, Bun, and Deno Docker unit-plus-integration jobs:
+https://github.com/git-stunts/git-cas/actions/runs/29169839107
+
 ## Proof Stories
 
 | Story | Result | Evidence |

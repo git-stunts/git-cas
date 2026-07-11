@@ -2,7 +2,7 @@
 
 **Last tagged release:** `v6.0.1` (`2026-06-13`)
 **Current release state:** `v6.1.0` release candidate on `main`; `v6.0.1` is published to npm and GitHub Releases, and JSR publication remains deferred behind the upstream toolchain gate.
-**Latest local verification:** `npm run release:verify -- --skip-jsr` passed 12/12 steps with 5,521 observed tests on `2026-07-11`, including Node, Bun, and Deno unit and integration suites plus the Git prune dry-run proof.
+**Latest verification:** `npm run release:verify -- --skip-jsr` passed 12/12 steps with 5,521 observed tests on `2026-07-11`; GitHub Actions run `29169839107` also passed lint, host unit tests, and Node, Bun, and Deno Docker suites.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)

@@ -94,9 +94,13 @@ describe('planning surfaces', () => { // eslint-disable-line max-lines-per-funct
     expect(read('docs/method/process.md')).toContain('.github/ISSUE_TEMPLATE/');
   });
 
-  it('keeps the active design index in sync with numbered cycle directories', () => {
+  it('keeps the METHOD design index in sync with numbered cycle directories', () => {
     const designReadme = read('docs/design/README.md');
-    const links = markdownLinks(sectionBody(designReadme, '## Active METHOD Cycles'))
+    const indexedCycles = [
+      sectionBody(designReadme, '## Active METHOD Cycles'),
+      sectionBody(designReadme, '## Landed METHOD Cycles'),
+    ].join('\n');
+    const links = markdownLinks(indexedCycles)
       .map((link) => link.split('/')[1])
       .sort();
 

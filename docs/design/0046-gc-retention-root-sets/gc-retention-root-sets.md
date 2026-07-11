@@ -7,7 +7,7 @@ release_home: "v6.1.0"
 issue: "https://github.com/git-stunts/git-cas/issues/48"
 goalpost_issue: "https://github.com/git-stunts/git-cas/issues/38"
 tracker_source: "github"
-status: "active"
+status: "landed"
 base_commit: "19bcf9b0b6738f811c0c49408d5cb06e1c348bee"
 owners:
   - "@git-stunts"
@@ -509,7 +509,7 @@ The work is done when:
 - [x] Docs clearly distinguish unrooted plumbing, root-set anchoring, and vault
       durability.
 - [x] The unified GitHub implementation slice is opened and linked.
-- [ ] CI and local validation are green.
+- [x] CI and local validation are green.
 
 ## Validation Plan
 

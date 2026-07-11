@@ -37,11 +37,10 @@ process in [docs/method/process.md](../method/process.md).
 - [0043-vault-retry-abstraction — vault-retry-abstraction](./0043-vault-retry-abstraction/vault-retry-abstraction.md)
 - [0044-casservice-decomposition-plan — casservice-decomposition-plan](./0044-casservice-decomposition-plan/casservice-decomposition-plan.md)
 - [0045-v6-1-bounded-residency — bounded-residency](./0045-v6-1-bounded-residency/bounded-residency.md)
-- [0046-gc-retention-root-sets — gc-retention-root-sets](./0046-gc-retention-root-sets/gc-retention-root-sets.md)
 
 ## Landed METHOD Cycles
 
-- none currently
+- [0046-gc-retention-root-sets — gc-retention-root-sets](./0046-gc-retention-root-sets/gc-retention-root-sets.md)
 
 ## Legacy Landed Cycle Docs
 
