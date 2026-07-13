@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import BundleService from '../../../../src/domain/services/BundleService.js';
+import CacheIndex from '../../../../src/domain/services/CacheIndex.js';
 import CacheSetRegistry from '../../../../src/domain/services/CacheSetRegistry.js';
 import PageService from '../../../../src/domain/services/PageService.js';
 import parseApplicationHandle from '../../../../src/domain/value-objects/ApplicationHandle.js';
@@ -18,6 +19,7 @@ function makeServices(policy) {
   const ref = new MemoryRefAdapter();
   const pages = new PageService({ persistence, clock });
   const services = {};
+  const crypto = new NodeCryptoAdapter();
   const resolveHandle = async (value, context) => {
     resolutionCount += 1;
     const handle = parseApplicationHandle(value);
@@ -40,7 +42,7 @@ function makeServices(policy) {
     bundles: services.bundles,
     pages,
     resolveHandle,
-    crypto: new NodeCryptoAdapter(),
+    crypto,
     clock,
   });
   const open = (override = policy) => registry.open({
@@ -53,6 +55,8 @@ function makeServices(policy) {
     pages,
     persistence,
     ref,
+    bundles: services.bundles,
+    crypto,
     get resolutionCount() { return resolutionCount; },
     advance: (milliseconds) => { time += milliseconds; },
   };
@@ -296,6 +300,27 @@ describe('CacheSet doctor and repair', () => {
         { key: 'same', handle },
       ],
     })).rejects.toMatchObject({ code: 'CACHE_ENTRY_INVALID' });
+  });
+
+});
+
+describe('CacheSet malformed indexes', () => {
+  it('rejects non-canonical entry bundles and non-bundle members', async () => {
+    const { bundles, crypto, pages } = makeServices();
+    const target = await page(pages, 'target');
+    const malformedEntry = await bundles.put({
+      members: { extra: target, meta: target, target },
+    });
+    const digest = '0'.repeat(64);
+    const malformedIndex = await bundles.put({
+      members: { '.cache/state': target, [`entries/${digest}`]: target },
+    });
+    const index = new CacheIndex({ bundles, pages, crypto });
+
+    await expect(index.assertEntryShape(malformedEntry.handle))
+      .rejects.toMatchObject({ code: 'CACHE_STATE_INVALID' });
+    await expect(index.getEntry(malformedIndex.handle, digest))
+      .rejects.toMatchObject({ code: 'CACHE_STATE_INVALID' });
   });
 });
 
