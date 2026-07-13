@@ -172,6 +172,21 @@ describe('root-set release documentation', () => {
   });
 });
 
+describe('application storage release documentation', () => {
+  it('ships and links the v6.2.0 ownership and migration contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.2.0.md');
+
+    expect(readme).toContain('[v6.2.0 Release Notes](./docs/releases/v6.2.0.md)');
+    expect(upgrading).toContain('Applications should stop treating a naked Git object ID');
+    expect(upgrading).toContain('`cas.diagnostics.doctor()`');
+    expect(releaseNotes).toContain('# git-cas v6.2.0 Release Notes');
+    expect(releaseNotes).toContain('A handle is not a durability claim');
+    expect(releaseNotes).toContain('does not run `git gc` or destructive prune');
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');

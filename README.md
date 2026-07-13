@@ -43,7 +43,7 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
 `npm run upgrade` in dry-run mode before restoring old encrypted vault entries.
 For the release overview, see the
-[v6.1.0 Release Notes](./docs/releases/v6.1.0.md).
+[v6.2.0 Release Notes](./docs/releases/v6.2.0.md).
 
 ### 1. CLI Usage
 
@@ -183,6 +183,9 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
 - **[v6.0.0 Release Notes](./docs/releases/v6.0.0.md)**: Major-release summary, upgrade call-to-action, and publication notes.
 - **[v6.1.0 Release Notes](./docs/releases/v6.1.0.md)**: Root-set retention,
   doctor/repair, and GC-policy guidance.
+- **[v6.2.0 Release Notes](./docs/releases/v6.2.0.md)**: Opaque application
+  storage, managed cache and replay lifecycles, retention evidence, and
+  repository diagnostics.
 - **[Upgrading](./UPGRADING.md)**: Migration guide for v5 → v6.
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.
 

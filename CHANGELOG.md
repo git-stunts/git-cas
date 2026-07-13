@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.0] — 2026-07-13
+
 ### Added
 
 - **Application storage ownership contract** — cycle API-0047 defines opaque
@@ -62,6 +64,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **6.2.0 release verification** — `pnpm run release:verify` passed all 13
+  steps with 6,124 observed tests across Node, Bun, Deno, and all three
+  real-Git integration runtimes. npm and JSR metadata now agree on `6.2.0`;
+  build stamping, npm package inspection, and the JSR publish dry-run passed.
 - **Safe prune inspection dependency** — repository diagnostics require
   `@git-stunts/plumbing` 3.1.0, whose public API fixes the exact non-mutating
   `git prune --dry-run --verbose --no-progress --expire=<cutoff>` contract.

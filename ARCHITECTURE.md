@@ -11,12 +11,17 @@ metadata exposure, see [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md).
 
 `git-cas` uses Git as the storage substrate, not as a user-facing abstraction.
 
-At a high level, the system does four things:
+At a high level, the system does five things:
 
 1. turns input bytes into chunk blobs stored in Git
 2. records how to rebuild those bytes in a manifest
-3. emits a Git tree that keeps the manifest and chunk blobs reachable
-4. optionally indexes trees by slug through a GC-safe vault ref
+3. exposes assets, pages, and bundles through opaque application handles
+4. retains or publishes handle graphs through explicit lifecycle policies
+5. inspects repository reachability and managed-storage health without mutation
+
+Low-level blob, manifest, and tree operations remain available. Application
+code can use the higher-level capabilities without constructing Git trees,
+persisting naked object IDs, or implementing its own cache ref protocol.
 
 The same core supports:
 
@@ -81,6 +86,27 @@ credential resolution share `bin/credentials.js` so raw key files,
 passphrase-derived vault keys, and encrypted restore input requirements stay
 consistent across human and machine command surfaces.
 
+Application-facing lifecycle capabilities sit above the same CAS and Git
+ports:
+
+```mermaid
+flowchart TD
+    APP[Application]
+    HANDLE[Assets / Pages / Bundles]
+    POLICY[Retention / Publication / Cache / Expiring Set]
+    CAS[CAS Pipeline]
+    GIT[Git Objects and Refs]
+    DOCTOR[Repository Diagnostics]
+
+    APP --> HANDLE
+    HANDLE --> CAS
+    HANDLE --> POLICY
+    CAS --> GIT
+    POLICY --> GIT
+    DOCTOR --> GIT
+    APP --> DOCTOR
+```
+
 ## Store Pipeline
 
 ```
@@ -117,6 +143,10 @@ The public entrypoint is [index.js](./index.js).
   observability adapters
 - exposes convenience methods like `storeFile()` and `restoreFile()`
 - exposes `rootSets.open()` for mutable current-generation Git reachability
+- exposes opaque `assets`, `pages`, and `bundles` capability groups
+- exposes `retention`, `publications`, `caches`, and `expiringSets` for explicit
+  reachability and lifecycle policy
+- exposes read-only repository evidence through `diagnostics.doctor()`
 
 The facade is orchestration glue. It is not the storage engine itself.
 
@@ -144,6 +174,28 @@ The facade is orchestration glue. It is not the storage engine itself.
   validate target existence and type, and use bounded compare-and-swap retries.
   `RootSetPersistence`, `RootSetMetadataCodec`, and `RootSetTreeCodec` own the
   ref, metadata, and real Git reachability boundaries.
+
+- **`AssetService`, `PageService`, and `BundleService`** — stage application
+  payloads behind immutable opaque handles. Pages enforce bounded blob size;
+  bundles build deterministic bounded-fanout trees and support targeted member
+  traversal without hydrating the complete structure.
+
+- **`RetentionService` and `PublicationService`** — validate complete handle
+  graphs, then either retain them in a RootSet with generation-scoped evidence
+  or publish them atomically under an allowlisted application ref.
+
+- **`CacheSetRegistry` and `CacheSet`** — own cache index generations,
+  compare-and-swap replacement, TTL, entry and logical-byte limits,
+  approximate-LRU sweeps, coalesced touches, doctor, and authoritative repair
+  under `refs/cas/caches/*`.
+
+- **`ExpiringSetRegistry` and `ExpiringSet`** — own digest-only replay markers
+  under `refs/cas/expiring/*`. Admission is atomic, membership reads are
+  side-effect free, and only expired entries can be released.
+
+- **`RepositoryDoctor`** — streams object, ref, reflog-reachability, and safe
+  prune-dry-run evidence to classify repository objects and summarize managed
+  CacheSet, RootSet, ExpiringSet, and Vault usage.
 
 - **`KeyResolver`** — resolves key sources: passphrase-derived keys via KDF,
   envelope recipient DEK wrapping and unwrapping. `CasService` delegates all key
@@ -200,6 +252,14 @@ The facade is orchestration glue. It is not the storage engine itself.
 - **`Oid`** — immutable Git object identifier value with 40- or 64-hex
   validation.
 - **`RootSetRef`** — immutable validated ref below `refs/cas/rootsets/`.
+- **`AssetHandle`, `PageHandle`, and `BundleHandle`** — canonical repository-
+  independent locators for validated application payload graphs.
+- **`RetentionWitness`** — immutable evidence naming the generation and real
+  Git tree edge that retained or published a handle graph.
+- **`CacheKey`, `CachePolicy`, `CacheHit`, and `CacheSetRef`** — validated cache
+  identity, policy, lookup evidence, and namespace boundaries.
+- **`ExpiringMarker`, `ExpiringSetKey`, and `ExpiringSetRef`** — validated
+  replay-marker evidence, domain-separated key identity, and namespace refs.
 - **`Slug`** — immutable vault slug representation. It enforces vault slug
   limits and exposes `.toTreePath()` for the percent-encoded Git tree-entry name
   used by plain vault trees.
@@ -249,6 +309,8 @@ with methods that throw "not implemented" by default.
 - **`CompressionPort`** — compress/decompress for both byte arrays and streams.
 - **`ObservabilityPort`** — metrics, logs, and spans without binding the domain
   to any runtime event API.
+- **`RepositoryInspectionPort`** — non-mutating streams for objects, refs,
+  reachable IDs, safe prunable candidates, and reachable physical bytes.
 
 ### Infrastructure (`src/infrastructure/`)
 
@@ -267,6 +329,9 @@ Git:
   `@git-stunts/plumbing` to shell out to the `git` CLI.
 - **`GitRefAdapter`** — `GitRefPort` implementation using
   `@git-stunts/plumbing`.
+- **`GitRepositoryInspectionAdapter`** — `RepositoryInspectionPort`
+  implementation using streamed Git inventories and plumbing's non-mutating
+  prunable-object inspection.
 
 Compression:
 - **`NodeCompressionAdapter`** — `CompressionPort` backed by `node:zlib`.
@@ -361,6 +426,46 @@ For Merkle assets the tree contains:
 
 Chunk blobs are deduplicated at the tree-entry level by digest. The manifest
 still remains authoritative for repeated-chunk order and multiplicity.
+
+### Application Handles And Structured Materializations
+
+An opaque handle is a canonical content locator, not a durability claim. Asset
+handles identify existing CAS trees. Page handles identify bounded immutable
+blobs. Bundle handles identify deterministic descriptor trees whose leaves are
+assets, pages, or nested bundles.
+
+Bundle traversal reads only the descriptor path and selected payload required
+for a named member. Validation re-enforces persisted path, descriptor-byte,
+fanout, and nesting limits before a graph is retained or published.
+
+### Retention And Publication
+
+RootSets, CacheSets, ExpiringSets, application publications, and the Vault all
+make objects Git-reachable, but they encode different lifecycle contracts:
+
+| Surface | Ref namespace | Lifecycle |
+| --- | --- | --- |
+| RootSet | `refs/cas/rootsets/*` | Caller-managed current generation |
+| CacheSet | `refs/cas/caches/*` | TTL/capacity/approximate-LRU managed cache |
+| ExpiringSet | `refs/cas/expiring/*` | Expiry-only replay protection |
+| Publication | Caller-allowlisted ref | Application-controlled causal history |
+| Vault | `refs/cas/vault` | History-preserving named assets |
+
+High-level retention, CacheSet, ExpiringSet, and application publication
+operations return generation-scoped retention evidence. Replacing a parentless
+current-generation head releases old edges when no other ref or reflog reaches
+them; Git's normal grace and pruning policy still controls physical deletion.
+
+### Repository Diagnostics
+
+`cas.diagnostics.doctor()` reports total, anchored, orphaned, volatile, and
+unreachable object evidence plus managed-storage summaries. Ref and reflog
+reachability defines anchored objects; volatile objects come only from safe
+prune dry-run output for the selected expiry cutoff.
+
+The report names limits Git cannot prove exactly, including per-owner
+deduplicated physical bytes and packed-object age. The inspection surface has
+no object-write, ref-update, GC, or destructive prune operation.
 
 ### Vault
 
