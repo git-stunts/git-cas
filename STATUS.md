@@ -94,11 +94,12 @@
 
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
-- Current selected release goalpost:
+- Latest completed release goalpost:
   [#50 v6.2.0: Application Storage and Cache Ownership Boundary](https://github.com/git-stunts/git-cas/issues/50)
   under the
   [`v6.2.0` milestone](https://github.com/git-stunts/git-cas/milestone/3).
-- The next local design record is
+- No later release goalpost or design is selected in this snapshot. The latest
+  landed local design record is
   [0047-application-storage-cache-boundary](./docs/design/0047-application-storage-cache-boundary/application-storage-cache-boundary.md).
 
 ## Read Next
