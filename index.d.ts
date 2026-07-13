@@ -77,6 +77,79 @@ export declare class AssetHandle implements AssetHandleData {
   toJSON(): AssetHandleData;
 }
 
+export interface PageHandleData {
+  version: 1;
+  kind: 'page';
+  format: 'blob';
+  codec: 'raw';
+  hashAlgorithm: 'sha1' | 'sha256';
+  oid: string;
+}
+
+export interface PageHandleInit {
+  version?: 1;
+  kind?: 'page';
+  format?: 'blob';
+  codec?: 'raw';
+  hashAlgorithm?: 'sha1' | 'sha256';
+  oid: string;
+}
+
+export type PageHandleInput = PageHandle | PageHandleData | PageHandleInit | string;
+
+/** Repository-independent locator for one immutable raw page blob. */
+export declare class PageHandle implements PageHandleData {
+  readonly version: 1;
+  readonly kind: 'page';
+  readonly format: 'blob';
+  readonly codec: 'raw';
+  readonly hashAlgorithm: 'sha1' | 'sha256';
+  readonly oid: string;
+  constructor(value: PageHandleInit);
+  static from(value: PageHandleInput): PageHandle;
+  static parse(token: string): PageHandle;
+  toString(): string;
+  toJSON(): PageHandleData;
+}
+
+export interface BundleHandleData {
+  version: 1;
+  kind: 'bundle';
+  format: 'fanout-tree';
+  codec: string;
+  hashAlgorithm: 'sha1' | 'sha256';
+  oid: string;
+}
+
+export interface BundleHandleInit {
+  version?: 1;
+  kind?: 'bundle';
+  format?: 'fanout-tree';
+  codec: string;
+  hashAlgorithm?: 'sha1' | 'sha256';
+  oid: string;
+}
+
+export type BundleHandleInput = BundleHandle | BundleHandleData | BundleHandleInit | string;
+
+/** Repository-independent locator for one structured fanout bundle tree. */
+export declare class BundleHandle implements BundleHandleData {
+  readonly version: 1;
+  readonly kind: 'bundle';
+  readonly format: 'fanout-tree';
+  readonly codec: string;
+  readonly hashAlgorithm: 'sha1' | 'sha256';
+  readonly oid: string;
+  constructor(value: BundleHandleInit);
+  static from(value: BundleHandleInput): BundleHandle;
+  static parse(token: string): BundleHandle;
+  toString(): string;
+  toJSON(): BundleHandleData;
+}
+
+export type ApplicationHandle = AssetHandle | BundleHandle | PageHandle;
+export type ApplicationHandleInput = AssetHandleInput | BundleHandleInput | PageHandleInput;
+
 export interface StagedAssetData {
   version: 1;
   state: 'staged';
@@ -112,6 +185,85 @@ export declare class StagedAsset {
   toJSON(): StagedAssetData;
 }
 
+export interface StagedPageData {
+  version: 1;
+  state: 'staged';
+  handle: string;
+  page: { size: number };
+  retention: {
+    policy: null;
+    reachability: 'unanchored';
+    protection: 'not-established';
+  };
+  observedAt: string;
+}
+
+/** Result for a page blob written without a reachability root. */
+export declare class StagedPage {
+  readonly version: 1;
+  readonly state: 'staged';
+  readonly handle: PageHandle;
+  readonly page: Readonly<{ size: number }>;
+  readonly retention: Readonly<{
+    policy: null;
+    reachability: 'unanchored';
+    protection: 'not-established';
+  }>;
+  readonly observedAt: string;
+  constructor(value: { handle: PageHandleInput; size: number; observedAt: string });
+  toJSON(): StagedPageData;
+}
+
+export interface BundleLimits {
+  maxMembers: number;
+  maxMemberPathBytes: number;
+  maxDescriptorBytes: number;
+  maxFanoutEntries: number;
+  maxFanoutDepth: number;
+}
+
+export interface StagedBundleData {
+  version: 1;
+  state: 'staged';
+  handle: string;
+  bundle: { memberCount: number; indexDepth: number; descriptorBytes: number };
+  limits: BundleLimits;
+  retention: {
+    policy: null;
+    reachability: 'unanchored';
+    protection: 'not-established';
+  };
+  observedAt: string;
+}
+
+/** Result for a structured bundle written without a reachability root. */
+export declare class StagedBundle {
+  readonly version: 1;
+  readonly state: 'staged';
+  readonly handle: BundleHandle;
+  readonly bundle: Readonly<{
+    memberCount: number;
+    indexDepth: number;
+    descriptorBytes: number;
+  }>;
+  readonly limits: Readonly<BundleLimits>;
+  readonly retention: Readonly<{
+    policy: null;
+    reachability: 'unanchored';
+    protection: 'not-established';
+  }>;
+  readonly observedAt: string;
+  constructor(value: {
+    handle: BundleHandleInput;
+    memberCount: number;
+    indexDepth: number;
+    descriptorBytes: number;
+    limits: BundleLimits;
+    observedAt: string;
+  });
+  toJSON(): StagedBundleData;
+}
+
 export type RetentionPolicy = 'pinned' | 'evictable';
 export type RetentionReachability = 'anchored' | 'orphaned' | 'volatile';
 export type RetentionRootKind = 'root-set' | 'publication' | 'cache-set' | 'expiring-set';
@@ -136,13 +288,13 @@ export interface RetentionWitnessData {
 /** Immutable evidence for one observed retaining Git generation. */
 export declare class RetentionWitness {
   readonly version: 1;
-  readonly handle: AssetHandle;
+  readonly handle: ApplicationHandle;
   readonly policy: RetentionPolicy;
   readonly reachability: RetentionReachability;
   readonly root: Readonly<RetentionRoot>;
   readonly observedAt: string;
   constructor(value: {
-    handle: AssetHandleInput;
+    handle: ApplicationHandleInput;
     policy: RetentionPolicy;
     reachability: RetentionReachability;
     root: RetentionRoot;
@@ -247,7 +399,7 @@ export declare class CryptoPortBase {
 export declare class GitPersistencePortBase {
   writeBlob(content: Uint8Array): Promise<string>;
   writeTree(entries: string[]): Promise<string>;
-  readBlob(oid: string): Promise<Uint8Array>;
+  readBlob(oid: string, maxBytes?: number): Promise<Uint8Array>;
   readBlobStream(oid: string): Promise<AsyncIterable<Uint8Array>>;
   readTree(
     treeOid: string
@@ -260,6 +412,7 @@ export declare class GitPersistencePortBase {
     treeOid: string
   ): AsyncIterable<{ mode: string; type: string; oid: string; name: string }>;
   readObjectType(oid: string): Promise<string>;
+  readObjectSize(oid: string): Promise<number>;
   setMaxBlobSize?(maxBlobSize: number): void;
 }
 
@@ -374,6 +527,12 @@ export interface ContentAddressableStoreOptions {
   maxRestoreBufferSize?: number;
   /** Safety limit for readBlob metadata in bytes. @default 10485760 (10 MiB) */
   maxBlobSize?: number;
+  /** Maximum immutable page size in bytes. @default 16777216 (16 MiB) */
+  maxPageSize?: number;
+  /** Repository-wide maximum bundle admission limits. */
+  bundleLimits?: Partial<BundleLimits>;
+  /** Maximum nested bundle depth. @default 32 */
+  maxBundleNestingDepth?: number;
   /** Application-owned ref prefixes permitted for generic publication. */
   applicationRefPrefixes?: string[];
   /** Injectable clock used for deterministic lifecycle evidence. */
@@ -663,6 +822,51 @@ export interface AssetCapability {
   }): AsyncIterable<Uint8Array>;
 }
 
+export type PageSource =
+  | Uint8Array
+  | Iterable<Uint8Array>
+  | AsyncIterable<Uint8Array>;
+
+export interface PageCapability {
+  put(options: { source: PageSource; maxBytes?: number }): Promise<StagedPage>;
+  get(options: { handle: PageHandleInput; maxBytes?: number }): Promise<Uint8Array>;
+  open(options: { handle: PageHandleInput }): AsyncIterable<Uint8Array>;
+}
+
+export type BundleMemberInput =
+  | ApplicationHandleInput
+  | PageSource
+  | { source: PageSource; maxBytes?: number };
+
+export interface BundleMember {
+  readonly version: 1;
+  readonly path: string;
+  readonly handle: ApplicationHandle;
+  readonly type: 'blob' | 'tree';
+  readonly size: number | null;
+}
+
+export interface BundleCapability {
+  put(options: {
+    members:
+      | Record<string, BundleMemberInput>
+      | Map<string, BundleMemberInput>
+      | Array<[string, BundleMemberInput]>;
+    limits?: Partial<BundleLimits>;
+  }): Promise<StagedBundle>;
+  putOrdered(options: {
+    members:
+      | Iterable<[string, BundleMemberInput]>
+      | AsyncIterable<[string, BundleMemberInput]>;
+    limits?: Partial<BundleLimits>;
+  }): Promise<StagedBundle>;
+  getMember(options: {
+    handle: BundleHandleInput;
+    path: string;
+  }): Promise<BundleMember | null>;
+  openMember(options: { handle: BundleHandleInput; path: string }): AsyncIterable<Uint8Array>;
+}
+
 export interface RetentionResult {
   readonly changed: boolean;
   readonly witness: RetentionWitness;
@@ -670,7 +874,7 @@ export interface RetentionResult {
 
 export interface RetentionCapability {
   retain(options: {
-    handle: AssetHandleInput;
+    handle: ApplicationHandleInput;
     root: { ref: string; name: string };
     policy?: RetentionPolicy;
   }): Promise<RetentionResult>;
@@ -680,13 +884,13 @@ export interface PublicationResult {
   readonly operation: 'publication';
   readonly commitId: string;
   readonly ref: string;
-  readonly root: AssetHandle;
+  readonly root: ApplicationHandle;
   readonly witness: RetentionWitness;
 }
 
 export interface PublicationCapability {
   commit(options: {
-    root: AssetHandleInput;
+    root: ApplicationHandleInput;
     commit: { message: string; parents?: string[] };
     ref: { name: string; expected: string | null };
   }): Promise<PublicationResult>;
@@ -711,6 +915,8 @@ export default class ContentAddressableStore {
   };
 
   readonly assets: AssetCapability;
+  readonly pages: PageCapability;
+  readonly bundles: BundleCapability;
   readonly retention: RetentionCapability;
   readonly publications: PublicationCapability;
 

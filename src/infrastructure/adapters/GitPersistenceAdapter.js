@@ -203,6 +203,36 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
   }
 
   /**
+   * @override
+   * @param {string} oid - Git object ID.
+   * @returns {Promise<number>} Git object size in bytes.
+   */
+  async readObjectSize(oid) {
+    let output;
+    try {
+      output = await this.policy.execute(() =>
+        this.plumbing.execute({ args: ['cat-file', '-s', oid] }),
+      );
+    } catch (err) {
+      if (isMissingGitObjectError(err)) {
+        throw new CasError(`Git object not found: ${oid}`, ErrorCodes.GIT_OBJECT_NOT_FOUND, {
+          oid,
+          originalError: err,
+        });
+      }
+      throw err;
+    }
+    const size = Number(output);
+    if (!Number.isSafeInteger(size) || size < 0) {
+      throw new CasError(`Git object has an invalid size: ${oid}`, ErrorCodes.GIT_ERROR, {
+        oid,
+        output,
+      });
+    }
+    return size;
+  }
+
+  /**
    * Bun can surface unhandled EPIPE writes when large buffers are fed through
    * `git hash-object --stdin`. Write the blob to a temp file and hash the file
    * directly instead. `--no-filters` preserves raw bytes.

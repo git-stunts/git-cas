@@ -79,9 +79,15 @@ describe('Application-storage declaration accuracy', () => {
     const declarations = read('index.d.ts');
 
     expect(declarations).toContain('export declare class AssetHandle');
+    expect(declarations).toContain('export declare class BundleHandle');
+    expect(declarations).toContain('export declare class PageHandle');
     expect(declarations).toContain('export declare class StagedAsset');
+    expect(declarations).toContain('export declare class StagedBundle');
+    expect(declarations).toContain('export declare class StagedPage');
     expect(declarations).toContain('export declare class RetentionWitness');
     expect(declarations).toContain('readonly assets: AssetCapability;');
+    expect(declarations).toContain('readonly bundles: BundleCapability;');
+    expect(declarations).toContain('readonly pages: PageCapability;');
     expect(declarations).toContain('readonly retention: RetentionCapability;');
     expect(declarations).toContain('readonly publications: PublicationCapability;');
     expect(declarations).toContain('applicationRefPrefixes?: string[];');

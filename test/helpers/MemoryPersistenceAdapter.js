@@ -62,10 +62,17 @@ export default class MemoryPersistenceAdapter extends GitPersistencePort {
     return oid;
   }
 
-  async readBlob(oid) {
+  async readBlob(oid, maxBytes) {
     const bytes = this.#blobs.get(oid);
     if (!bytes) {
       throw new Error(`Blob not found: ${oid}`);
+    }
+    if (maxBytes !== undefined && bytes.length > maxBytes) {
+      throw new CasError(
+        `Blob ${oid} exceeds safety limit of ${maxBytes} bytes`,
+        ErrorCodes.RESTORE_TOO_LARGE,
+        { oid, maxBytes },
+      );
     }
     return copyBytes(bytes);
   }
@@ -86,7 +93,10 @@ export default class MemoryPersistenceAdapter extends GitPersistencePort {
   }
 
   async readTreeEntry(treeOid, treePath) {
-    const entries = await this.readTree(treeOid);
+    const entries = this.#trees.get(treeOid);
+    if (!entries) {
+      throw new Error(`Tree not found: ${treeOid}`);
+    }
     return entries.find((entry) => entry.name === treePath) || null;
   }
 
@@ -104,5 +114,22 @@ export default class MemoryPersistenceAdapter extends GitPersistencePort {
       return 'tree';
     }
     throw new CasError(`Object not found: ${oid}`, ErrorCodes.GIT_OBJECT_NOT_FOUND, { oid });
+  }
+
+  async readObjectSize(oid) {
+    if (this.#blobs.has(oid)) {
+      return this.#blobs.get(oid).length;
+    }
+    if (this.#trees.has(oid)) {
+      const lines = this.#trees.get(oid).map(
+        (entry) => `${entry.mode} ${entry.type} ${entry.oid}\t${entry.name}`
+      );
+      return Buffer.byteLength(lines.join('\n'));
+    }
+    throw new CasError(`Object not found: ${oid}`, ErrorCodes.GIT_OBJECT_NOT_FOUND, { oid });
+  }
+
+  deleteObject(oid) {
+    return this.#blobs.delete(oid) || this.#trees.delete(oid);
   }
 }

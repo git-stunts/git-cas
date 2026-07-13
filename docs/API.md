@@ -75,6 +75,9 @@ new ContentAddressableStore(options);
 - `options.chunker` (optional): Pre-built ChunkingPort instance (advanced; overrides `chunking`)
 - `options.maxRestoreBufferSize` (optional): Max bytes for buffered encrypted/compressed restore (default: 536870912 / 512 MiB)
 - `options.maxBlobSize` (optional): Max bytes for metadata blob reads (default: 10485760 / 10 MiB)
+- `options.maxPageSize` (optional): Maximum immutable page bytes (default: 16777216 / 16 MiB)
+- `options.bundleLimits` (optional): Repository maximums for bundle members, path bytes, descriptor bytes, fanout entries, and fanout depth
+- `options.maxBundleNestingDepth` (optional): Maximum nested bundle depth (default: 32)
 - `options.compressionAdapter` (optional): CompressionPort implementation (default: NodeCompressionAdapter)
 - `options.applicationRefPrefixes` (optional): Explicit application-owned ref prefixes allowed for generic publication; publication is disabled when omitted, and Git/CAS-managed namespaces are always reserved
 - `options.clock` (optional): `{ now(): Date }` clock used for deterministic staged results and retention witnesses
@@ -995,10 +998,110 @@ Validates an existing git-cas manifest tree and wraps it in the same staged
 result returned by `assets.put()`. This is a migration bridge for callers that
 already persisted raw tree OIDs; new application code should exchange handles.
 
-### `AssetHandle`
+### `pages.put()`, `pages.open()`, and `pages.get()`
 
-`AssetHandle` is an immutable, versioned content locator. Its canonical token
-has this shape:
+```javascript
+const staged = await cas.pages.put({ source, maxBytes });
+
+for await (const chunk of cas.pages.open({ handle: staged.handle })) {
+  consume(chunk);
+}
+
+const bytes = await cas.pages.get({ handle: staged.handle, maxBytes });
+```
+
+A page is one immutable raw Git blob intended for a bounded trie, index, or
+materialization node. `source` may be a `Uint8Array`, `Iterable<Uint8Array>`, or
+`AsyncIterable<Uint8Array>`. The facade default `maxPageSize` is 16 MiB; an
+operation may lower that bound with `maxBytes` but cannot raise it.
+
+`put()` returns an immutable `StagedPage` and identical bytes deduplicate to the
+same `PageHandle`. `open()` validates the blob type and size through Git object
+metadata before streaming it. `get()` additionally collects the page under its
+effective byte bound. An imported handle above the configured maximum fails
+with `PAGE_TOO_LARGE` without materializing the blob.
+
+The canonical page token is:
+
+```text
+git-cas:1:page:blob:raw:<sha1|sha256>:<oid>
+```
+
+### `bundles.put()` and `bundles.putOrdered()`
+
+```javascript
+const staged = await cas.bundles.put({
+  members: {
+    'nodes/root': nodePageHandle,
+    'edges/root': edgePageHandle,
+    'state/frontier': frontierBytes,
+  },
+  limits: { maxFanoutEntries: 256 },
+});
+
+const streamed = await cas.bundles.putOrdered({
+  members: orderedAsyncMemberPairs,
+});
+```
+
+Members are named application handles, byte sources, or `{ source, maxBytes }`
+page inputs. Inline bytes are staged as pages. Existing assets, pages, and
+bundles remain immutable; a bundle tree creates direct Git reachability edges
+to every member handle. `put()` sorts an in-memory object, `Map`, or pair array.
+`putOrdered()` consumes an already sorted iterable and rejects duplicate or
+out-of-order canonical paths, enabling construction with bounded resident
+state.
+
+Repository defaults, which an operation may only lower, are:
+
+| Limit | Default |
+| --- | ---: |
+| `maxMembers` | 100,000 |
+| `maxMemberPathBytes` | 512 bytes |
+| `maxDescriptorBytes` | 64 MiB |
+| `maxFanoutEntries` | 1,024 Git entries per node |
+| `maxFanoutDepth` | 8 levels |
+
+Paths must be non-empty NFC text, use `/` separators, and cannot contain empty,
+`.` or `..` segments, backslashes, NULs, or control characters. Construction
+is deterministic across input chunking and in-memory member order. A staged
+bundle remains unanchored until retention or publication succeeds.
+
+The canonical bundle token is:
+
+```text
+git-cas:1:bundle:fanout-tree:<codec>:<sha1|sha256>:<oid>
+```
+
+### `bundles.getMember()` and `bundles.openMember()`
+
+```javascript
+const member = await cas.bundles.getMember({
+  handle: materializationHandle,
+  path: 'nodes/root',
+});
+
+for await (const chunk of cas.bundles.openMember({
+  handle: materializationHandle,
+  path: 'nodes/root',
+})) {
+  consume(chunk);
+}
+```
+
+`getMember()` returns the selected member descriptor or `null`. `openMember()`
+streams one selected page or asset and fails with `BUNDLE_MEMBER_NOT_FOUND` for
+an absent path. A nested bundle is a structured handle rather than a byte
+stream and fails with `BUNDLE_MEMBER_NOT_STREAMABLE` when opened directly.
+
+Both operations traverse only the bounded fanout path needed for the selected
+member. Full graph validation is deliberately reserved for retention,
+publication, and internal bundle-root validation.
+
+### Application Handles
+
+`AssetHandle`, `PageHandle`, and `BundleHandle` are immutable, versioned content
+locators. The asset token has this shape:
 
 ```text
 git-cas:1:asset:manifest-tree:<codec>:<sha1|sha256>:<oid>
@@ -1030,8 +1133,8 @@ const result = await cas.retention.retain({
 });
 ```
 
-Validates the handle graph, installs its tree in the named current-generation
-RootSet, and returns:
+Validates an asset, page, or bundle handle graph, installs its root in the named
+current-generation RootSet, and returns:
 
 ```javascript
 {
@@ -1070,7 +1173,8 @@ Generic publication is available only below a constructor-configured
 1. validates the complete supported handle graph;
 2. validates at most 64 ordered parent commit IDs and a commit message of at
    most 1 MiB;
-3. creates a commit whose tree is the validated handle root; and
+3. creates a commit whose tree is the validated handle root; blob-backed pages
+   use a deterministic single-entry wrapper tree; and
 4. updates the application ref with compare-and-swap semantics.
 
 `ref.expected` is mandatory. Use `null` to require that the ref not exist.
@@ -1086,7 +1190,7 @@ normal Git pruning; it cannot publish a partial ref state.
   operation: 'publication',
   commitId,
   ref,
-  root: AssetHandle,
+  root: AssetHandle | PageHandle | BundleHandle,
   witness: RetentionWitness,
 }
 ```
@@ -1100,7 +1204,7 @@ generation later.
 ```javascript
 {
   version: 1,
-  handle: AssetHandle,
+  handle: AssetHandle | PageHandle | BundleHandle,
   policy: 'pinned' | 'evictable',
   reachability: 'anchored' | 'orphaned' | 'volatile',
   root: {
@@ -2546,11 +2650,24 @@ new CasError({ message, code, meta, documentationUrl });
 | `GIT_ERROR`                           | Underlying Git plumbing command failed                                                                             | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`                 |
 | `GIT_REF_NOT_FOUND`                   | Git ref lookup found no ref; vault reads normalize this to empty state                                             | `GitRefAdapter`, `VaultPersistence`                                             |
 | `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value                                                    | `store()`, `restore()`                                                          |
-| `HANDLE_INVALID`                      | Handle object or canonical token is malformed or unsupported                                                       | `AssetHandle`, `StagedAsset`                                                    |
+| `HANDLE_INVALID`                      | Handle object, canonical token, or staged result is malformed or unsupported                                       | Application handles and staged results                                          |
 | `HANDLE_KIND_MISMATCH`                | A handle has a valid envelope but the wrong content kind                                                           | Handle parsing and application storage                                          |
 | `HANDLE_CODEC_MISMATCH`               | Handle manifest codec differs from the active CAS codec                                                            | `assets.open()`, `assets.adopt()`, retention, publication                       |
 | `HANDLE_TARGET_MISSING`               | The repository does not contain the complete object graph referenced by a handle                                   | `assets.open()`, `assets.adopt()`, retention, publication                       |
 | `HANDLE_TARGET_TYPE_MISMATCH`         | A handle root or referenced object has the wrong Git object type                                                   | Application storage validation                                                  |
+| `PAGE_TOO_LARGE`                      | Page input or imported page blob exceeds the effective byte bound                                                  | `pages.put()`, `pages.get()`, `pages.open()`                                    |
+| `BUNDLE_CORRUPT`                      | Persisted bundle descriptors, edges, ranges, or target summaries disagree                                          | Bundle reads, retention, publication                                             |
+| `BUNDLE_DESCRIPTOR_LIMIT`             | Bundle descriptor bytes exceed admission or repository read policy                                                 | Bundle construction and validation                                               |
+| `BUNDLE_DUPLICATE_PATH`               | Two ordered bundle members use the same canonical path                                                             | `bundles.putOrdered()`                                                           |
+| `BUNDLE_FANOUT_LIMIT`                 | Bundle tree width, depth, or nesting exceeds policy                                                                | Bundle construction and validation                                               |
+| `BUNDLE_LIMIT_INVALID`                | Configured or per-operation bundle limits are malformed or attempt to raise repository policy                     | Facade construction, bundle writes                                               |
+| `BUNDLE_MEMBER_INVALID`               | Bundle member input or resolved handle target is invalid                                                           | Bundle construction                                                              |
+| `BUNDLE_MEMBER_LIMIT`                 | Bundle member count exceeds admission or repository read policy                                                    | Bundle construction and validation                                               |
+| `BUNDLE_MEMBER_NOT_FOUND`             | Requested bundle member path is absent                                                                             | `bundles.openMember()`                                                           |
+| `BUNDLE_MEMBER_NOT_STREAMABLE`        | Requested member is a nested structured bundle rather than bytes                                                   | `bundles.openMember()`                                                           |
+| `BUNDLE_MEMBER_ORDER`                 | Ordered bundle input is not strictly increasing by canonical path                                                  | `bundles.putOrdered()`                                                           |
+| `BUNDLE_PATH_INVALID`                 | Bundle member path is empty, unsafe, or non-canonical                                                              | Bundle writes and reads                                                          |
+| `BUNDLE_PATH_LIMIT`                   | Bundle member path exceeds its UTF-8 byte bound                                                                    | Bundle construction and validation                                               |
 | `RETENTION_WITNESS_INVALID`           | Witness policy, reachability, root evidence, generation, or timestamp is invalid                                   | `RetentionWitness`                                                              |
 | `PUBLICATION_INVALID`                 | Publication message, parent list, expected head, dependency, or clock input is invalid                             | `publications.commit()`                                                         |
 | `PUBLICATION_REF_FORBIDDEN`           | Target ref is invalid, reserved, or outside configured application namespaces                                      | `publications.commit()`                                                         |

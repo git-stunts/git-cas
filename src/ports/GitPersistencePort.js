@@ -24,9 +24,10 @@ export default class GitPersistencePort {
   /**
    * Reads a Git blob by its OID.
    * @param {string} _oid - Git object ID.
+   * @param {number} [_maxBytes] - Maximum bytes the adapter may materialize.
    * @returns {Promise<Uint8Array>} The blob content.
    */
-  async readBlob(_oid) {
+  async readBlob(_oid, _maxBytes) {
     throw new Error('Not implemented');
   }
 
@@ -75,6 +76,15 @@ export default class GitPersistencePort {
    * @returns {Promise<string>} Git object type such as `blob`, `tree`, or `commit`.
    */
   async readObjectType(_oid) {
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Reads the Git object size without materializing object content.
+   * @param {string} _oid - Git object ID.
+   * @returns {Promise<number>} Object size in bytes.
+   */
+  async readObjectSize(_oid) {
     throw new Error('Not implemented');
   }
 }
