@@ -186,6 +186,36 @@ describe('ExpiringSet admission guards', () => {
   });
 });
 
+describe('ExpiringSet admission retries', () => {
+  it('rejects a window that expires after a ref conflict', async () => {
+    const services = makeServices();
+    const set = services.registry.open({
+      namespace: DEFAULT_NAMESPACE,
+      retry: { maxAttempts: 2, baseDelayMs: 0 },
+    });
+    const updateRef = services.ref.updateRef.bind(services.ref);
+    let conflicted = false;
+    services.ref.updateRef = async (options) => {
+      if (!conflicted) {
+        conflicted = true;
+        services.advance(1001);
+        throw new CasError('Injected ref conflict', ErrorCodes.GIT_ERROR, {
+          expectedOldOid: options.expectedOldOid,
+          actualOldOid: options.expectedOldOid,
+        });
+      }
+      return await updateRef(options);
+    };
+
+    await expect(set.addIfAbsent('retry-expiry', {
+      expiresAt: future(services.clock, 1000),
+    })).rejects.toMatchObject({ code: 'EXPIRING_SET_MARKER_INVALID' });
+    expect(conflicted).toBe(true);
+    await expect(services.ref.resolveRef(set.ref))
+      .rejects.toMatchObject({ code: 'GIT_REF_NOT_FOUND' });
+  });
+});
+
 describe('ExpiringSet expiry-only release', () => {
   it('treats expiry as a read-only miss and releases only on sweep', async () => {
     const { advance, clock, open, ref } = makeServices();
