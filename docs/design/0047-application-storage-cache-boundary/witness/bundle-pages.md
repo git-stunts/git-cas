@@ -4,6 +4,8 @@ Implementation slice: [#51](https://github.com/git-stunts/git-cas/issues/51)
 
 Implementation commit: `5fc084de4735c828edeede4c540a9c09531223af`
 
+Review-hardening commit: `c76d26da2965dbcea41f7e3b50628016efdebe04`
+
 ## Claim
 
 Applications can store bounded immutable pages and deterministic structured
@@ -163,6 +165,56 @@ The final proof drives 5,000 members and asserts that a fanout tree exists after
 the first 32 inputs, before source exhaustion.
 [cite: `test/unit/domain/services/BundleService.test.js#174-195@5fc084de4735c828edeede4c540a9c09531223af`]
 
+### CL-011: Missing-target mapping assumed native `Error` instances
+
+Missing-target admission now reads a string `message` from any thrown value,
+with a regression for a plain-object throwable.
+[cite: `src/domain/helpers/handleTarget.js#32-48@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+[cite: `test/unit/domain/helpers/handleTarget.test.js#1-19@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+
+### CL-012: Canonical-path diagnostics conflated validation and mismatch
+
+Descriptor validation now preserves the original normalization error only when
+normalization fails, and reports a distinct corruption shape if a successful
+normalization ever differs from persisted bytes.
+[cite: `src/domain/services/BundleDescriptorCodec.js#238-248@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+[cite: `test/unit/domain/services/BundleService.test.js#259-279@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+
+### CL-013: Root descriptor reads used the adapter's broader default
+
+Root descriptors are now bounded before materialization by the repository's
+configured descriptor limit, before the persisted limit is decoded and
+rechecked.
+[cite: `src/domain/services/BundleService.js#253-276@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+[cite: `test/unit/domain/services/BundleService.test.js#282-294@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+
+### CL-014: The persistence declaration understated its runtime contract
+
+`readObjectSize()` is now mandatory in the TypeScript persistence port, matching
+page admission's existing fail-closed runtime requirement.
+[cite: `src/domain/services/CasService.d.ts#78-84@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+
+### CL-015: A trailing high surrogate escaped path admission
+
+Path validation explicitly rejects a high surrogate in the final code-unit
+position, and the unsafe-path corpus covers that exact boundary.
+[cite: `src/domain/value-objects/BundlePath.js#57-74@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+[cite: `test/unit/domain/services/BundleAdmission.test.js#20-30@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+
+### CL-016: Review-critical admission branches lacked direct regression proof
+
+Tests now exercise non-iterable page input and all three supported application
+handle kinds in retention witnesses.
+[cite: `test/unit/domain/services/PageService.test.js#74-82@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+[cite: `test/unit/domain/value-objects/ApplicationStorageResults.test.js#129-152@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+
+### CL-017: Git metadata queries duplicated error mapping
+
+Type and size inspection now share one missing-object mapper, while the size
+regression explicitly proves the operation never opens an object stream.
+[cite: `src/infrastructure/adapters/GitPersistenceAdapter.js#184-229@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+[cite: `test/unit/infrastructure/adapters/GitPersistenceAdapter.readTree.test.js#124-135@c76d26da2965dbcea41f7e3b50628016efdebe04`]
+
 ## Residual Constraints
 
 - A page is intentionally materialized as one bounded byte unit during
@@ -180,9 +232,9 @@ the first 32 inputs, before source exhaustion.
 ## Validation
 
 - `pnpm lint`
-- `pnpm test`: 203 files passed; 1,783 tests passed; 2 skipped
+- `pnpm test`: 204 files passed; 1,789 tests passed; 2 skipped
 - `pnpm test:integration:node`: 7 files and 165 tests passed
 - `pnpm test:integration:bun`: 7 files and 165 tests passed
 - `pnpm test:integration:deno`: 7 files and 165 tests passed
-- Graft structural review: 37 files; no breaking changes
+- Graft structural review: no breaking changes
 - Graft export review: additive minor surface; no removals or changed exports
