@@ -51,7 +51,9 @@ It passed 13/13 steps and observed 6,124 tests:
 | Node integration | pass | 174 |
 | Bun integration | pass | 174 |
 | Deno integration | pass | 174 |
-| Three runnable examples | pass | - |
+| Example: store-and-restore | pass | - |
+| Example: encrypted-workflow | pass | - |
+| Example: progress-tracking | pass | - |
 | Build metadata stamp | pass | - |
 | npm pack dry-run | pass | - |
 | JSR publish dry-run | pass | - |
