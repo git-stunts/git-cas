@@ -13,6 +13,23 @@ function v6Heading(changelog) {
 }
 
 describe('release state docs', () => {
+  it('records the published v6.2.0 artifact and provenance state', () => {
+    const status = read('STATUS.md');
+    const witness = read(
+      'docs/design/0047-application-storage-cache-boundary/witness/release-publication.md'
+    );
+
+    expect(status).toContain('**Last tagged release:** `v6.2.0` (`2026-07-13`)');
+    expect(status).toContain('`v6.2.0` is published to npm with provenance');
+    expect(status).toContain('release run `29280878104`');
+    expect(status).toContain('Latest completed release goalpost:');
+    expect(status).not.toContain('Current selected release goalpost:');
+    expect(witness).toContain('432c5d9effb12c9f66536f1386791bb4421f3cea');
+    expect(witness).toContain('sha512-m8+ZzgNhKU6pVS9pjqJlwAnwYI/s+NMEnINC+Q0g3h6T6mNPdH8U0jb4nEoxU9N1TF+Ut5bjtRMRRaYT75dlew==');
+    expect(witness).toContain('https://slsa.dev/provenance/v1');
+    expect(witness).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.2.0');
+  });
+
   it('keeps v6.0.0 marked released once the tag workflow has published', () => {
     const changelogHeading = v6Heading(read('CHANGELOG.md'));
     const status = read('STATUS.md');
