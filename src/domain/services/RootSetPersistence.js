@@ -27,10 +27,11 @@ export default class RootSetPersistence {
     rootSetRef,
     persistence,
     ref,
-    metadataCodec = new RootSetMetadataCodec(),
+    refType = RootSetRef,
+    metadataCodec = new RootSetMetadataCodec({ refType }),
     treeCodec = new RootSetTreeCodec(),
   }) {
-    this.rootSetRef = RootSetRef.from(rootSetRef).toString();
+    this.rootSetRef = refType.from(rootSetRef).toString();
     RootSetPersistence.#validateDependencies(persistence, ref);
     this.persistence = persistence;
     this.ref = ref;

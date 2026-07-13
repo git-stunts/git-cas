@@ -14,6 +14,12 @@ const SLOT_PATTERN = /^root-[0-9]{8}$/;
  * Canonical JSON codec for `.rootset.json` snapshots.
  */
 export default class RootSetMetadataCodec {
+  #refType;
+
+  constructor({ refType = RootSetRef } = {}) {
+    this.#refType = refType;
+  }
+
   /**
    * @param {{ ref: string, entries: Iterable<object> }} options
    * @returns {Uint8Array}
@@ -27,7 +33,7 @@ export default class RootSetMetadataCodec {
    * @returns {{ version: 1, ref: string, entries: Array<object> }}
    */
   create({ ref, entries }) {
-    const rootSetRef = RootSetRef.from(ref).toString();
+    const rootSetRef = this.#refType.from(ref).toString();
     return {
       version: ROOT_SET_METADATA_VERSION,
       ref: rootSetRef,
@@ -148,7 +154,7 @@ export default class RootSetMetadataCodec {
   }
 
   #assertExpectedRef(actualRef, expectedRef) {
-    if (expectedRef === undefined || actualRef === RootSetRef.from(expectedRef).toString()) {
+    if (expectedRef === undefined || actualRef === this.#refType.from(expectedRef).toString()) {
       return;
     }
     throw this.#metadataError('Root-set metadata ref does not match the requested ref', {

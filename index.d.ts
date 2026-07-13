@@ -302,6 +302,61 @@ export declare class RetentionWitness {
   });
   toJSON(): RetentionWitnessData;
 }
+
+export interface CachePolicyData {
+  maxEntries: number;
+  maxBytes: number | null;
+  accessResolutionMs: number;
+}
+
+export type CachePolicyOptions = Partial<CachePolicyData>;
+
+/** Immutable admission and eviction policy for one CacheSet. */
+export declare class CachePolicy implements CachePolicyData {
+  readonly maxEntries: number;
+  readonly maxBytes: number | null;
+  readonly accessResolutionMs: number;
+  constructor(value?: CachePolicyOptions);
+  static from(value?: CachePolicy | CachePolicyOptions): CachePolicy;
+  toJSON(): CachePolicyData;
+}
+
+export interface CacheHitData {
+  key: string;
+  handle: string;
+  policy: RetentionPolicy;
+  expiresAt: string | null;
+  logicalBytes: number;
+  createdAt: string;
+  accessedAt: string;
+  generation: string;
+  evidence: RetentionWitnessData;
+}
+
+/** Immutable result for one live cache entry. */
+export declare class CacheHit {
+  readonly key: string;
+  readonly handle: ApplicationHandle;
+  readonly policy: RetentionPolicy;
+  readonly expiresAt: string | null;
+  readonly logicalBytes: number;
+  readonly createdAt: string;
+  readonly accessedAt: string;
+  readonly generation: string;
+  readonly evidence: RetentionWitness;
+  constructor(value: {
+    key: string;
+    handle: ApplicationHandleInput;
+    policy: RetentionPolicy;
+    expiresAt: string | null;
+    logicalBytes: number;
+    createdAt: string;
+    accessedAt: string;
+    generation: string;
+    evidence: RetentionWitness | ConstructorParameters<typeof RetentionWitness>[0];
+  });
+  toJSON(): CacheHitData;
+}
 export type {
   CryptoPort,
   CodecPort,
@@ -629,6 +684,7 @@ export declare class RootSet {
   mutate(
     mutator: (
       entries: ReadonlyArray<Readonly<RootSetEntry>>,
+      state: Readonly<Omit<RootSetState, 'entries'>>,
     ) => Iterable<RootSetEntry> | Promise<Iterable<RootSetEntry>>,
     options?: { expectedHeadOid?: string | null },
   ): Promise<RootSetMutationResult>;
@@ -646,6 +702,123 @@ export declare class RootSetRegistry {
     ref: string;
     retry?: { maxAttempts?: number; baseDelayMs?: number };
   }): RootSet;
+}
+
+export interface CacheEntryOptions {
+  retention?: RetentionPolicy;
+  expiresAt?: Date | string | null;
+  expectedHandle?: ApplicationHandleInput;
+}
+
+export interface CachePolicyReport {
+  readonly satisfied: boolean;
+  readonly entryCount: number;
+  readonly logicalBytes: number;
+  readonly pinnedEntries: number;
+  readonly evictableEntries: number;
+  readonly expiredEntries: number;
+  readonly limits: Readonly<CachePolicyData>;
+}
+
+export interface CacheStoreResult {
+  readonly changed: boolean;
+  readonly accepted: boolean;
+  readonly hit: CacheHit | null;
+  readonly previous: CacheHit | null;
+  readonly generation: string | null;
+  readonly policy: CachePolicyReport | null;
+  readonly witness: RetentionWitness | null;
+}
+
+export interface CacheMutationResult {
+  readonly changed: boolean;
+  readonly generation: string | null;
+  readonly policy: CachePolicyReport | null;
+  readonly witness: RetentionWitness | null;
+}
+
+export interface CacheEntryMetadata {
+  readonly version: 1;
+  readonly accountingVersion: 1;
+  readonly key: string;
+  readonly keyDigest: string;
+  readonly handle: string;
+  readonly policy: RetentionPolicy;
+  readonly expiresAt: string | null;
+  readonly logicalBytes: number;
+  readonly createdAt: string;
+  readonly accessedAt: string;
+}
+
+export interface CacheState {
+  readonly version: 1;
+  readonly accountingVersion: 1;
+  readonly namespace: string;
+  readonly policy: CachePolicyData;
+  readonly entryCount: number;
+  readonly logicalBytes: number;
+  readonly pinnedEntries: number;
+  readonly evictableEntries: number;
+  readonly expiredEntries: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly oldestAccessedAt: string | null;
+  readonly nextExpiry: string | null;
+}
+
+export interface CacheInspection {
+  readonly namespace: string;
+  readonly ref: string;
+  readonly generation: string | null;
+  readonly state: Readonly<CacheState> | null;
+  readonly observed: Readonly<Omit<CacheState, 'version' | 'accountingVersion' | 'namespace' | 'policy' | 'createdAt' | 'updatedAt'>> | null;
+  readonly policy: CachePolicyReport | null;
+  readonly entries: ReadonlyArray<Readonly<CacheEntryMetadata>>;
+  readonly nextCursor: string | null;
+}
+
+/** RootSet-backed lifecycle manager for application cache handles. */
+export declare class CacheSet {
+  private constructor();
+  readonly ref: string;
+  get(key: string): Promise<CacheHit | null>;
+  put(key: string, handle: ApplicationHandleInput, options?: CacheEntryOptions): Promise<CacheStoreResult>;
+  replace(key: string, handle: ApplicationHandleInput, options?: CacheEntryOptions): Promise<CacheStoreResult>;
+  remove(key: string): Promise<CacheMutationResult & { readonly removed: CacheHit | null }>;
+  touch(key: string): Promise<CacheMutationResult & { readonly hit: CacheHit | null }>;
+  sweep(): Promise<CacheMutationResult & { readonly removed: number }>;
+  inspect(options?: { limit?: number; cursor?: string | null }): Promise<CacheInspection>;
+  doctor(): Promise<Readonly<{
+    healthy: boolean;
+    root: RootSetDoctorResult;
+    state?: Readonly<CacheState>;
+    observed?: CacheInspection['observed'];
+    policy?: CachePolicyReport;
+    issues: ReadonlyArray<Record<string, unknown>>;
+  }>>;
+  repair(options: {
+    entries: Iterable<{
+      key: string;
+      handle: ApplicationHandleInput;
+      retention?: RetentionPolicy;
+      expiresAt?: Date | string | null;
+      createdAt?: Date | string;
+      accessedAt?: Date | string;
+    }> | AsyncIterable<{
+      key: string;
+      handle: ApplicationHandleInput;
+      retention?: RetentionPolicy;
+      expiresAt?: Date | string | null;
+      createdAt?: Date | string;
+      accessedAt?: Date | string;
+    }>;
+    policy?: CachePolicyOptions;
+  }): Promise<Readonly<{
+    repaired: true;
+    generation: string;
+    policy: CachePolicyReport;
+    witness: RetentionWitness;
+  }>>;
 }
 
 /** Encrypted vault key verifier stored in .vault.json. */
@@ -844,6 +1017,7 @@ export interface BundleMember {
   readonly handle: ApplicationHandle;
   readonly type: 'blob' | 'tree';
   readonly size: number | null;
+  readonly logicalBytes: number;
 }
 
 export interface BundleCapability {
@@ -864,7 +1038,16 @@ export interface BundleCapability {
     handle: BundleHandleInput;
     path: string;
   }): Promise<BundleMember | null>;
+  iterateMembers(options: { handle: BundleHandleInput }): AsyncIterable<BundleMember>;
   openMember(options: { handle: BundleHandleInput; path: string }): AsyncIterable<Uint8Array>;
+}
+
+export interface CacheCapability {
+  open(options: {
+    namespace: string;
+    policy?: CachePolicyOptions;
+    retry?: { maxAttempts?: number; baseDelayMs?: number };
+  }): Promise<CacheSet>;
 }
 
 export interface RetentionResult {
@@ -913,6 +1096,8 @@ export default class ContentAddressableStore {
       retry?: { maxAttempts?: number; baseDelayMs?: number };
     }): Promise<RootSet>;
   };
+
+  readonly caches: CacheCapability;
 
   readonly assets: AssetCapability;
   readonly pages: PageCapability;

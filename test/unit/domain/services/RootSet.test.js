@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import RootSet from '../../../../src/domain/services/RootSet.js';
 import { CasError, ErrorCodes } from '../../../../src/domain/errors/index.js';
+import CacheSetRef from '../../../../src/domain/value-objects/CacheSetRef.js';
+import RootSetMetadataCodec from '../../../../src/domain/services/RootSetMetadataCodec.js';
 
 const REF = 'refs/cas/rootsets/warp/state-cache';
 const ENTRY = {
@@ -62,6 +64,27 @@ describe('RootSet mutations', () => {
     }));
   });
 
+});
+
+describe('RootSet ref validators', () => {
+  it('keeps root-set refs strict while allowing an injected managed ref type', () => {
+    const persistence = {
+      read: vi.fn(),
+      write: vi.fn(),
+      resolveRefOnly: vi.fn(),
+      inspectTargets: vi.fn(),
+    };
+    const cacheRef = 'refs/cas/caches/git-warp/materializations';
+
+    expect(() => new RootSet({ ref: cacheRef, persistence }))
+      .toThrow(expect.objectContaining({ code: 'ROOT_SET_REF_INVALID' }));
+    expect(new RootSet({
+      ref: cacheRef,
+      persistence,
+      refType: CacheSetRef,
+      metadataCodec: new RootSetMetadataCodec({ refType: CacheSetRef }),
+    }).ref).toBe(cacheRef);
+  });
 });
 
 describe('RootSet expected-head conflicts', () => {

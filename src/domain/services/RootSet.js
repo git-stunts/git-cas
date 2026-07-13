@@ -25,9 +25,10 @@ export default class RootSet {
     ref,
     persistence,
     retry,
-    metadataCodec = new RootSetMetadataCodec(),
+    refType = RootSetRef,
+    metadataCodec = new RootSetMetadataCodec({ refType }),
   }) {
-    this.ref = RootSetRef.from(ref).toString();
+    this.ref = refType.from(ref).toString();
     RootSet.#validatePersistence(persistence);
     this.persistence = persistence;
     this.#metadataCodec = metadataCodec;
@@ -108,7 +109,7 @@ export default class RootSet {
   }
 
   /**
-   * @param {(entries: ReadonlyArray<object>) => Iterable<object>|Promise<Iterable<object>>} mutator
+   * @param {(entries: ReadonlyArray<object>, state: Readonly<object>) => Iterable<object>|Promise<Iterable<object>>} mutator
    * @param {{ expectedHeadOid?: string|null }} [options]
    * @returns {Promise<object>}
    */
@@ -120,8 +121,11 @@ export default class RootSet {
         { mutatorType: typeof mutator },
       );
     }
-    return await this.#mutateEntries(async (entries) => (
-      await mutator(Object.freeze(entries.map((entry) => Object.freeze({ ...entry }))))
+    return await this.#mutateEntries(async (entries, state) => (
+      await mutator(
+        Object.freeze(entries.map((entry) => Object.freeze({ ...entry }))),
+        Object.freeze({ ref: state.ref, headOid: state.headOid, treeOid: state.treeOid }),
+      )
     ), 'root-set: mutate current roots', RootSet.#normalizeExpectedHead(expectedHeadOid));
   }
 
@@ -194,7 +198,7 @@ export default class RootSet {
     for (let attempt = 0; attempt < this.#retry.maxAttempts; attempt++) {
       const state = await this.read();
       this.#assertExpectedHead(state.headOid, expectedHeadOid);
-      const entries = this.#metadataCodec.normalizeEntries(await transform(state.entries));
+      const entries = this.#metadataCodec.normalizeEntries(await transform(state.entries, state));
       if (RootSet.#entriesEqual(state.entries, entries)) {
         return {
           changed: false,

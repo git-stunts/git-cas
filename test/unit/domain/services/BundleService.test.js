@@ -194,6 +194,75 @@ describe('BundleService streaming bulk load', () => {
   });
 });
 
+describe('BundleService logical accounting and iteration', () => {
+  it('counts repeated child handles once and streams canonical members', async () => {
+    const { bundles, pages } = makeServices();
+    const shared = await pages.put({ source: Buffer.from('shared') });
+    const staged = await bundles.put({
+      members: { second: shared.handle, first: shared.handle },
+    });
+
+    const root = await bundles.resolveRoot(staged.handle);
+    const members = [];
+    for await (const member of bundles.iterateMembers({ handle: staged.handle })) {
+      members.push({ path: member.path, logicalBytes: member.logicalBytes });
+    }
+
+    expect(root.logicalBytes).toBe(staged.bundle.descriptorBytes + shared.page.size);
+    expect(members).toEqual([
+      { path: 'first', logicalBytes: shared.page.size },
+      { path: 'second', logicalBytes: shared.page.size },
+    ]);
+  });
+
+  it('yields validated members before inspecting later targets', async () => {
+    const { bundles, pages, persistence } = makeServices();
+    const first = await pages.put({ source: Buffer.from('first') });
+    const second = await pages.put({ source: Buffer.from('second') });
+    const staged = await bundles.put({
+      members: { first: first.handle, second: second.handle },
+    });
+    persistence.deleteObject(second.handle.oid);
+
+    const members = bundles.iterateMembers({ handle: staged.handle })[Symbol.asyncIterator]();
+
+    await expect(members.next()).resolves.toMatchObject({
+      done: false,
+      value: { path: 'first', handle: first.handle },
+    });
+    await expect(members.next()).rejects.toBeDefined();
+  });
+
+  it('charges one nested bundle transitively when its handle repeats', async () => {
+    const { bundles } = makeServices();
+    const inner = await bundles.put({ members: { page: Buffer.from('inner') } });
+    const innerRoot = await bundles.resolveRoot(inner.handle);
+    const outer = await bundles.put({ members: { left: inner.handle, right: inner.handle } });
+    const outerRoot = await bundles.resolveRoot(outer.handle);
+
+    expect(outerRoot.logicalBytes).toBe(outer.bundle.descriptorBytes + innerRoot.logicalBytes);
+  });
+
+});
+
+describe('BundleService prevalidated references', () => {
+  it('remain compatible with full validation', async () => {
+    const { bundles, pages } = makeServices();
+    const child = await pages.put({ source: Buffer.from('child') });
+    const nested = await bundles.put({ members: { child: child.handle } });
+    const staged = await bundles.putOrderedReferences({
+      members: [
+        ['nested', { handle: nested.handle, size: null }],
+        ['page', { handle: child.handle, size: child.page.size }],
+      ],
+    });
+
+    await expect(bundles.resolveRoot(staged.handle)).resolves.toMatchObject({
+      memberCount: 2,
+    });
+  });
+});
+
 describe('BundleService targeted reads and corruption evidence', () => {
   it('opens only the selected member payload', async () => {
     const { bundles, pages, persistence } = makeServices({

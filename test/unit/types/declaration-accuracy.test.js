@@ -90,6 +90,10 @@ describe('Application-storage declaration accuracy', () => {
     expect(declarations).toContain('readonly pages: PageCapability;');
     expect(declarations).toContain('readonly retention: RetentionCapability;');
     expect(declarations).toContain('readonly publications: PublicationCapability;');
+    expect(declarations).toContain('export declare class CacheSet');
+    expect(declarations).toContain('export declare class CacheHit');
+    expect(declarations).toContain('readonly caches: CacheCapability;');
+    expect(declarations).toContain('iterateMembers(options: { handle: BundleHandleInput })');
     expect(declarations).toContain('applicationRefPrefixes?: string[];');
     expect(declarations).toContain('parentOids?: string[];');
   });

@@ -85,6 +85,14 @@ export default class BundleService {
     return await this.#putOrdered(members, limits);
   }
 
+  /** @internal Builds from handles whose complete support graphs were already validated. */
+  async putOrderedReferences({ members, limits }) {
+    if (!isIterable(members)) {
+      throw createCasError('Ordered bundle members must be an iterable', ErrorCodes.BUNDLE_MEMBER_INVALID);
+    }
+    return await this.#putOrdered(members, limits, { validateTargets: false });
+  }
+
   /**
    * Returns one targeted member descriptor without opening its payload.
    *
@@ -92,6 +100,12 @@ export default class BundleService {
    * @returns {Promise<object|null>}
    */
   async getMember({ handle: value, path: rawPath }) {
+    const member = await this.getMemberReference({ handle: value, path: rawPath });
+    return member === null ? null : await this.#resolveMemberReference(member, BundleHandle.from(value));
+  }
+
+  /** @internal Returns one descriptor after validating only its direct Git edge. */
+  async getMemberReference({ handle: value, path: rawPath }) {
     const handle = BundleHandle.from(value);
     const path = normalizeBundlePath(rawPath, this.#limits.maxMemberPathBytes);
     const root = await this.#readRoot(handle);
@@ -99,7 +113,12 @@ export default class BundleService {
     while (true) {
       const node = await this.#readNode(nodeOid, root.descriptor.limits);
       if (node.descriptor.kind === 'leaf') {
-        return await this.#memberFromLeaf({ bundleHandle: handle, nodeOid, descriptor: node.descriptor, path });
+        return await this.#referenceFromLeaf({
+          bundleHandle: handle,
+          nodeOid,
+          descriptor: node.descriptor,
+          path,
+        });
       }
       const child = findRange(node.descriptor.entries, path);
       if (!child) {
@@ -152,7 +171,12 @@ export default class BundleService {
     }
     const handle = BundleHandle.from(value);
     const root = await this.#readRoot(handle);
-    const budget = { memberCount: 0, descriptorBytes: root.descriptorBytes };
+    const budget = {
+      memberCount: 0,
+      descriptorBytes: root.descriptorBytes,
+      logicalBytes: root.descriptorBytes,
+      handles: new Set(),
+    };
     const summary = await this.#validateNode(root.index.oid, {
       nestingDepth,
       limits: root.descriptor.limits,
@@ -171,12 +195,80 @@ export default class BundleService {
       oid: handle.oid,
       type: 'tree',
       size: null,
+      logicalBytes: budget.logicalBytes,
       memberCount: summary.count,
       indexDepth: summary.depth,
     });
   }
 
-  async #putOrdered(members, overrides) {
+  /** Streams validated member descriptors in canonical path order. */
+  async *iterateMembers({ handle: value }) {
+    yield* this.#iterateMemberReferences(value, { validateTargets: true });
+  }
+
+  /** @internal Streams descriptors after validating only their direct Git edges. */
+  async *iterateMemberReferences({ handle: value }) {
+    yield* this.#iterateMemberReferences(value, { validateTargets: false });
+  }
+
+  async *#iterateMemberReferences(value, { validateTargets }) {
+    const handle = BundleHandle.from(value);
+    const root = await this.#readRoot(handle);
+    const budget = {
+      memberCount: 0,
+      descriptorBytes: root.descriptorBytes,
+    };
+    const context = { limits: root.descriptor.limits, budget, validateTargets };
+    const summary = yield* this.#iterateNode(handle, root.index.oid, context);
+    assertSummary(root.descriptor, summary);
+    if (budget.memberCount !== summary.count) {
+      throw corrupt('Bundle iteration budget does not match its member count', {
+        expectedMembers: summary.count,
+        observedMembers: budget.memberCount,
+      });
+    }
+  }
+
+  async *#iterateNode(handle, treeOid, context) {
+    const { limits, budget, validateTargets } = context;
+    const node = await this.#readNode(treeOid, limits);
+    budget.descriptorBytes += node.descriptorBytes;
+    if (budget.descriptorBytes > limits.maxDescriptorBytes) {
+      throw corrupt('Bundle descriptors exceed their persisted byte limit', {
+        descriptorBytes: budget.descriptorBytes,
+        maxDescriptorBytes: limits.maxDescriptorBytes,
+      });
+    }
+    if (node.descriptor.kind === 'leaf') {
+      budget.memberCount += node.descriptor.count;
+      if (budget.memberCount > limits.maxMembers) {
+        throw corrupt('Bundle members exceed their persisted limit', {
+          memberCount: budget.memberCount,
+          maxMembers: limits.maxMembers,
+        });
+      }
+      for (const entry of node.descriptor.entries) {
+        const reference = await this.#referenceFromLeaf({
+          bundleHandle: handle,
+          nodeOid: treeOid,
+          descriptor: node.descriptor,
+          path: entry.path,
+        });
+        yield validateTargets
+          ? await this.#resolveMemberReference(reference, handle)
+          : reference;
+      }
+      return summaryOf(node.descriptor, treeOid);
+    }
+    for (const child of node.descriptor.entries) {
+      const edge = await this.#requiredEdge(treeOid, child.slot, 'tree');
+      const actual = yield* this.#iterateNode(handle, edge.oid, context);
+      assertChildSummary(child, actual, treeOid);
+    }
+    return summaryOf(node.descriptor, treeOid);
+  }
+
+  async #putOrdered(members, overrides, { validateTargets = true } = {}) {
     const limits = this.#limits.lower(overrides);
     const observedAt = this.#observedAt();
     const staging = new StagingEvidence();
@@ -201,7 +293,11 @@ export default class BundleService {
             maxMembers: limits.maxMembers,
           });
         }
-        const member = await this.#prepareMember(path, value, { staging, validation });
+        const member = await this.#prepareMember(path, value, {
+          staging,
+          validation,
+          validateTargets,
+        });
         await builder.add(member);
         previousPath = path;
       }
@@ -219,7 +315,7 @@ export default class BundleService {
     }
   }
 
-  async #prepareMember(path, value, { staging, validation }) {
+  async #prepareMember(path, value, { staging, validation, validateTargets }) {
     const inline = inlinePageOptions(value);
     if (inline) {
       const staged = await this.#pages.put(inline);
@@ -233,10 +329,17 @@ export default class BundleService {
         size: staged.page.size,
       });
     }
+    return await this.#prepareHandleMember(path, value, { validation, validateTargets });
+  }
+
+  async #prepareHandleMember(path, value, { validation, validateTargets }) {
     let handle;
     try {
-      handle = parseApplicationHandle(value);
-      const target = await this.#resolveHandle(handle, { nestingDepth: 1, validation });
+      const reference = validateTargets ? null : bundleReference(value);
+      handle = parseApplicationHandle(reference?.handle ?? value);
+      const target = validateTargets
+        ? await this.#resolveHandle(handle, { nestingDepth: 1, validation })
+        : await this.#resolveHandleReference(handle, reference?.size);
       assertResolvedTarget(handle, target);
       return Object.freeze({
         path,
@@ -248,6 +351,27 @@ export default class BundleService {
     } catch (error) {
       throw augmentError(error, { memberPath: path, memberHandle: handle?.toString() ?? null });
     }
+  }
+
+  async #resolveHandleReference(handle, declaredSize) {
+    const type = handle.kind === 'page' ? 'blob' : 'tree';
+    await assertHandleObjectType({
+      persistence: this.#persistence,
+      handle,
+      oid: handle.oid,
+      expectedType: type,
+    });
+    const objectSize = type === 'blob' ? await this.#persistence.readObjectSize(handle.oid) : null;
+    const size = declaredSize === undefined ? objectSize : declaredSize;
+    if ((size !== null && (!Number.isSafeInteger(size) || size < 0)) ||
+        (type === 'blob' && size !== objectSize)) {
+      throw createCasError(
+        'Prevalidated bundle reference size does not match its target',
+        ErrorCodes.BUNDLE_MEMBER_INVALID,
+        { handle: handle.toString(), size, objectSize },
+      );
+    }
+    return Object.freeze({ oid: handle.oid, type, size });
   }
 
   async #readRoot(handle) {
@@ -311,7 +435,7 @@ export default class BundleService {
     });
   }
 
-  async #memberFromLeaf({ bundleHandle, nodeOid, descriptor, path }) {
+  async #referenceFromLeaf({ bundleHandle, nodeOid, descriptor, path }) {
     const entry = findPath(descriptor.entries, path);
     if (!entry) {
       return null;
@@ -327,12 +451,11 @@ export default class BundleService {
       });
     }
     try {
-      const target = await this.#resolveHandle(handle, { nestingDepth: 1 });
-      assertMemberTarget({
-        member: entry,
+      await assertHandleObjectType({
+        persistence: this.#persistence,
         handle,
-        target,
-        meta: { treeOid: nodeOid, memberPath: path },
+        oid: handle.oid,
+        expectedType: entry.type,
       });
     } catch (error) {
       throw augmentError(error, {
@@ -344,9 +467,36 @@ export default class BundleService {
     return Object.freeze({ version: 1, path, handle, type: entry.type, size: entry.size });
   }
 
+  async #resolveMemberReference(reference, bundleHandle) {
+    let target;
+    try {
+      target = await this.#resolveHandle(reference.handle, { nestingDepth: 1 });
+      assertMemberTarget({
+        member: reference,
+        handle: reference.handle,
+        target,
+        meta: { bundleHandle: bundleHandle.toString(), memberPath: reference.path },
+      });
+    } catch (error) {
+      throw augmentError(error, {
+        bundleHandle: bundleHandle.toString(),
+        memberPath: reference.path,
+        memberHandle: reference.handle.toString(),
+      });
+    }
+    return Object.freeze({
+      ...reference,
+      logicalBytes: target.logicalBytes ?? target.size ?? null,
+    });
+  }
+
   async #validateNode(treeOid, context) {
     const node = await this.#readNode(treeOid, context.limits);
     context.budget.descriptorBytes += node.descriptorBytes;
+    context.budget.logicalBytes = addLogicalBytes(
+      context.budget.logicalBytes,
+      node.descriptorBytes,
+    );
     if (context.budget.descriptorBytes > context.limits.maxDescriptorBytes) {
       throw corrupt('Bundle descriptors exceed their persisted byte limit', {
         descriptorBytes: context.budget.descriptorBytes,
@@ -395,6 +545,14 @@ export default class BundleService {
           target,
           meta: { treeOid, memberPath: member.path },
         });
+        const token = handle.toString();
+        if (!context.budget.handles.has(token)) {
+          context.budget.handles.add(token);
+          context.budget.logicalBytes = addLogicalBytes(
+            context.budget.logicalBytes,
+            target.logicalBytes ?? target.size,
+          );
+        }
       } catch (error) {
         throw augmentError(error, { treeOid, memberPath: member.path, memberHandle: handle.toString() });
       }
@@ -517,7 +675,14 @@ export default class BundleService {
   }
 
   static #assertPersistence(persistence) {
-    const methods = ['writeBlob', 'writeTree', 'readBlob', 'readTree', 'readObjectType'];
+    const methods = [
+      'writeBlob',
+      'writeTree',
+      'readBlob',
+      'readTree',
+      'readObjectType',
+      'readObjectSize',
+    ];
     if (!persistence || methods.some((method) => typeof persistence[method] !== 'function')) {
       throw createCasError('BundleService requires a complete persistence port', ErrorCodes.INVALID_OPTIONS);
     }
@@ -548,6 +713,14 @@ function inlinePageOptions(value) {
   }
   if (value && typeof value === 'object' && Object.hasOwn(value, 'source')) {
     return { source: value.source, maxBytes: value.maxBytes };
+  }
+  return null;
+}
+
+function bundleReference(value) {
+  if (value && typeof value === 'object' &&
+      Object.hasOwn(value, 'handle') && Object.hasOwn(value, 'size')) {
+    return value;
   }
   return null;
 }
@@ -661,4 +834,15 @@ function augmentError(error, meta) {
 
 function corrupt(message, meta) {
   return createCasError(message, ErrorCodes.BUNDLE_CORRUPT, meta);
+}
+
+function addLogicalBytes(current, added) {
+  if (!Number.isSafeInteger(added) || added < 0 || !Number.isSafeInteger(current + added)) {
+    throw createCasError(
+      'Bundle logical size could not be represented safely',
+      ErrorCodes.CACHE_LOGICAL_SIZE_UNKNOWN,
+      { current, added },
+    );
+  }
+  return current + added;
 }
