@@ -1073,13 +1073,19 @@ The canonical bundle token is:
 git-cas:1:bundle:fanout-tree:<codec>:<sha1|sha256>:<oid>
 ```
 
-### `bundles.getMember()` and `bundles.openMember()`
+### `bundles.getMember()`, `bundles.iterateMembers()`, and `bundles.openMember()`
 
 ```javascript
 const member = await cas.bundles.getMember({
   handle: materializationHandle,
   path: 'nodes/root',
 });
+
+for await (const member of cas.bundles.iterateMembers({
+  handle: materializationHandle,
+})) {
+  consumeDescriptor(member);
+}
 
 for await (const chunk of cas.bundles.openMember({
   handle: materializationHandle,
@@ -1094,9 +1100,18 @@ streams one selected page or asset and fails with `BUNDLE_MEMBER_NOT_FOUND` for
 an absent path. A nested bundle is a structured handle rather than a byte
 stream and fails with `BUNDLE_MEMBER_NOT_STREAMABLE` when opened directly.
 
-Both operations traverse only the bounded fanout path needed for the selected
-member. Full graph validation is deliberately reserved for retention,
-publication, and internal bundle-root validation.
+`iterateMembers()` validates each member support graph before yielding its
+immutable descriptor in canonical path order. Completing the iteration also
+validates the root and fanout summaries. It does not allocate an array or other
+cardinality-sized inventory for the member set. Bundle root resolution reports deterministic
+`logicalBytes`: descriptor bytes plus each distinct immediate member handle's
+transitive logical bytes. Repeating one handle within a bundle charges it once;
+using the same handle in two independent cache entries charges each entry.
+
+`getMember()` and `openMember()` traverse only the bounded fanout path needed
+for the selected member. `iterateMembers()` is the explicit full-index
+streaming surface; retention, publication, and bundle-root resolution also
+validate the complete graph.
 
 ### Application Handles
 
@@ -1332,7 +1347,8 @@ await rootSet.mutate(
 ```
 
 Runs a compare-and-swap read/modify/write operation. The callback receives a
-frozen snapshot and returns the next iterable of entries. Without
+frozen entry snapshot plus the observed `{ ref, headOid, treeOid }` generation
+context, and returns the next iterable of entries. Without
 `expectedHeadOid`, conflicts are retried against a fresh snapshot. With an
 expected head, the callback is guarded to that generation and any stale read
 or write conflict is returned to the caller without retrying.
@@ -1384,6 +1400,163 @@ Custom persistence implementations that support root sets must implement
 and `git rev-list --parents` so missing targets, repository read failures, and
 parentful heads remain distinct doctor findings. Existing store, restore, and
 vault paths do not call these methods.
+
+## Cache Sets
+
+Cache sets are the managed application cache surface. A caller supplies cache
+keys and application handles; git-cas owns the immutable index objects, Git
+reachability, compare-and-swap replacement, expiry, capacity policy,
+diagnostics, and repair.
+
+```javascript
+const cache = await cas.caches.open({
+  namespace: 'git-warp/materializations',
+  policy: {
+    maxEntries: 128,
+    maxBytes: 2 * 1024 * 1024 * 1024,
+    accessResolutionMs: 60 * 60 * 1000,
+  },
+});
+```
+
+The namespace maps to
+`refs/cas/caches/git-warp/materializations`. Namespaces contain 1 to 16
+slash-separated lowercase ASCII components and at most 240 bytes. Components
+start and end with an ASCII letter or digit, may contain `.` and `-`, and
+cannot contain `..`, end in `.lock`, or start with the reserved `git-cas-`
+prefix. Invalid namespaces fail with `COLLECTION_NAMESPACE_INVALID`.
+
+Cache keys are non-empty, well-formed Unicode in NFC form, contain no C0 or C1
+control characters, and encode to at most 1024 UTF-8 bytes. Keys are rejected
+rather than normalized. Their lowercase SHA-256 digest is the canonical index
+path; the original key remains in metadata and is checked on every read so a
+digest collision fails closed with `CACHE_ENTRY_INVALID`.
+
+The default cache policy is `maxEntries: 10000`, `maxBytes: null`, and
+`accessResolutionMs: 3600000` (one hour). `maxEntries` is bounded from 1 to
+99999. `maxBytes` is either `null` or a non-negative safe integer, and
+`accessResolutionMs` is a non-negative safe integer.
+
+### Storage And Reachability
+
+```text
+refs/cas/caches/<namespace> -> parentless generation commit
+                              `-- root-00000000 -> structured bundle index
+                                  |-- .cache/state -> immutable page
+                                  `-- entries/<sha256-key> -> entry bundle
+                                      |-- meta -> immutable page
+                                      `-- target -> asset/page/bundle handle
+```
+
+Every successful mutation builds and validates immutable pages and bundles
+before publishing one new generation with a guarded ref update. The generation
+commit is parentless, so the previous index and evicted targets become
+collectible when no other ref reaches them. A failed concurrent attempt may
+leave harmless unanchored objects; it cannot remove or overwrite the winning
+generation. CacheSet never runs Git garbage collection and never directly
+deletes an object.
+
+The ref is mutable because it names the current generation. Its metadata,
+entry records, indexes, and targets are immutable CAS objects. CacheSet does
+not maintain a second filesystem or process-memory cache.
+
+### put And replace
+
+```javascript
+const stored = await cache.put('optic:user:alice', materializationHandle, {
+  retention: 'evictable',
+  expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+});
+
+const replaced = await cache.replace('optic:user:alice', nextHandle, {
+  expectedHandle: materializationHandle,
+});
+```
+
+`put()` is an upsert unless `expectedHandle` is supplied; a guarded put requires
+that current target to exist and match. `replace()` always requires the key to
+already exist. On either operation, `expectedHandle` guards replacement to a
+particular current target.
+The result includes `changed`, `accepted`, `hit`, `previous`, `generation`, a
+capacity-policy report, and a `RetentionWitness` for the accepted target.
+
+Writes reject already-expired timestamps. `pinned` and `evictable` entries are
+both Git-reachable while present. Capacity sweeps may remove only `evictable`
+entries; explicit expiry applies to either policy. When pinned entries or the
+newly written entry alone exceed capacity, the write remains successful and
+returns `policy.satisfied: false` instead of silently dropping protected data.
+
+### get And touch
+
+```javascript
+const hit = await cache.get('optic:user:alice');
+if (hit) {
+  use(hit.handle);
+  await cache.touch(hit.key);
+}
+```
+
+`get(key)` returns an immutable `CacheHit` or `null`. Expired entries are cache
+misses. A hit contains the key, parsed application handle, retention policy,
+expiry, deterministic logical bytes, creation and access timestamps, current
+generation, and immutable retention evidence.
+
+`get()` never performs a durable write, including for an expired entry.
+`touch(key)` is the explicit access update. It writes only when the persisted
+`accessedAt` is at least `accessResolutionMs` old, coalescing approximate-LRU
+updates without turning every read into a Git ref mutation.
+
+### remove And sweep
+
+```javascript
+const removed = await cache.remove('optic:user:alice');
+const swept = await cache.sweep();
+```
+
+`remove()` releases one key. `sweep()` first releases expired entries, then
+evicts the oldest eligible entries until `maxEntries` and `maxBytes` are met.
+Eviction selection uses a fixed-size oldest-candidate heap and repeats bounded
+streaming passes when more candidates are needed; resident memory does not
+scale with cache cardinality.
+
+Logical-byte accounting is versioned and deterministic:
+
+- assets charge manifest logical size;
+- pages charge exact blob bytes;
+- bundles charge descriptor bytes plus transitive distinct child logical
+  bytes;
+- one repeated child handle in a bundle is charged once;
+- the same target under two cache keys is charged to both entries.
+
+### inspect And doctor
+
+```javascript
+const first = await cache.inspect({ limit: 100 });
+const next = await cache.inspect({ limit: 100, cursor: first.nextCursor });
+const report = await cache.doctor();
+```
+
+`inspect()` streams the index to compute exact aggregate counts and returns at
+most 1,000 entry records per call. Its cursor is the last returned SHA-256 key
+digest. `doctor()` does not mutate the repository. It validates the cache ref,
+parentless generation, RootSet edge, structured bundle support graph, key
+digests, target handles, canonical metadata, accounting version, persisted
+summary, and capacity posture.
+
+### repair
+
+```javascript
+await cache.repair({
+  entries: authoritativeEntries,
+  policy: { maxEntries: 128, maxBytes: 2 * 1024 * 1024 * 1024 },
+});
+```
+
+`repair()` rebuilds a missing or malformed generation from an authoritative
+bounded entry list without trusting current cache metadata. It validates every
+target before publishing the replacement generation and returns a retention
+witness for the repaired index. Run `doctor()` again and require
+`healthy: true` before any destructive repository maintenance.
 
 ## Vault
 
@@ -2668,6 +2841,13 @@ new CasError({ message, code, meta, documentationUrl });
 | `BUNDLE_MEMBER_ORDER`                 | Ordered bundle input is not strictly increasing by canonical path                                                  | `bundles.putOrdered()`                                                           |
 | `BUNDLE_PATH_INVALID`                 | Bundle member path is empty, unsafe, or non-canonical                                                              | Bundle writes and reads                                                          |
 | `BUNDLE_PATH_LIMIT`                   | Bundle member path exceeds its UTF-8 byte bound                                                                    | Bundle construction and validation                                               |
+| `COLLECTION_NAMESPACE_INVALID`        | Managed collection namespace or cache ref is not canonical                                                         | `caches.open()`                                                                  |
+| `CACHE_KEY_INVALID`                   | Cache key is empty, non-canonical, too large, or contains controls                                                  | CacheSet key operations                                                          |
+| `CACHE_ENTRY_INVALID`                 | Entry metadata, retention, expiry, handle identity, or key digest is invalid                                       | CacheSet writes and reads                                                        |
+| `CACHE_STATE_INVALID`                 | Cache state, structured index, counts, or namespace is inconsistent                                                | CacheSet reads, `doctor()`, and `repair()`                                       |
+| `CACHE_POLICY_INVALID`                | Cache entry, byte, access-resolution, or repair bound is invalid                                                    | `caches.open()`, CacheSet policy operations                                      |
+| `CACHE_LOGICAL_SIZE_UNKNOWN`          | A target has no deterministic safe-integer logical size                                                            | `put()`, `replace()`, accounting, and repair                                     |
+| `CACHE_CONFLICT`                      | Concurrent cache update exhausted bounded compare-and-swap retries                                                 | CacheSet mutations and repair                                                    |
 | `RETENTION_WITNESS_INVALID`           | Witness policy, reachability, root evidence, generation, or timestamp is invalid                                   | `RetentionWitness`                                                              |
 | `PUBLICATION_INVALID`                 | Publication message, parent list, expected head, dependency, or clock input is invalid                             | `publications.commit()`                                                         |
 | `PUBLICATION_REF_FORBIDDEN`           | Target ref is invalid, reserved, or outside configured application namespaces                                      | `publications.commit()`                                                         |

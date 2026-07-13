@@ -38,6 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contain no repository location, survive clone and mirror transfer, and fail
   explicitly when their referenced graph is absent or has the wrong codec or
   Git object type.
+- **Managed cache lifecycle** — `cas.caches.open()` now owns immutable
+  structured indexes under `refs/cas/caches/*`, compare-and-swap replacement,
+  TTL and approximate-LRU sweeps, entry and logical-byte limits, coalesced
+  explicit touches, retention witnesses, bounded inspection, doctor, and
+  authoritative repair. Cache misses never write durable metadata.
+- **Streaming bundle inventory and accounting** — `bundles.iterateMembers()`
+  yields canonical descriptors without allocating a member array, while bundle
+  validation reports deterministic transitive logical bytes with repeated
+  child handles charged once per bundle root.
 
 ### Changed
 
@@ -48,6 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   additive `parentOids` array while retaining the existing single-`parentOid`
   compatibility input. Create-only ref updates derive the Git null OID width
   from the repository's commit ID instead of assuming SHA-1.
+- **Root-set mutation context** — `RootSet.mutate()` callbacks now receive the
+  observed ref, head OID, and tree OID as an additive second argument, allowing
+  generation-scoped evidence to remain correct across conflict retries.
 
 ## [6.1.0] — 2026-07-11
 

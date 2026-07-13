@@ -12,6 +12,8 @@ import RootSet from './src/domain/services/RootSet.js';
 import RootSetRegistry from './src/domain/services/RootSetRegistry.js';
 import AssetService from './src/domain/services/AssetService.js';
 import BundleService from './src/domain/services/BundleService.js';
+import CacheSet from './src/domain/services/CacheSet.js';
+import CacheSetRegistry from './src/domain/services/CacheSetRegistry.js';
 import PageService from './src/domain/services/PageService.js';
 import PublicationService from './src/domain/services/PublicationService.js';
 import RetentionService from './src/domain/services/RetentionService.js';
@@ -61,6 +63,8 @@ export {
   VaultService,
   RootSet,
   RootSetRegistry,
+  CacheSet,
+  CacheSetRegistry,
   GitPersistenceAdapter,
   GitRefAdapter,
   JsonCodec,
@@ -85,6 +89,8 @@ export { default as StagedAsset } from './src/domain/value-objects/StagedAsset.j
 export { default as StagedBundle } from './src/domain/value-objects/StagedBundle.js';
 export { default as StagedPage } from './src/domain/value-objects/StagedPage.js';
 export { default as RetentionWitness } from './src/domain/value-objects/RetentionWitness.js';
+export { default as CacheHit } from './src/domain/value-objects/CacheHit.js';
+export { default as CachePolicy } from './src/domain/value-objects/CachePolicy.js';
 export { default as EventEmitterObserver } from './src/infrastructure/adapters/EventEmitterObserver.js';
 export { default as StatsCollector } from './src/infrastructure/adapters/StatsCollector.js';
 export { default as FixedChunker } from './src/infrastructure/chunkers/FixedChunker.js';
@@ -171,6 +177,9 @@ export default class ContentAddressableStore {
     this.rootSets = Object.freeze({
       open: async (options) => (await this.#getRootSetRegistry()).open(options),
     });
+    this.caches = Object.freeze({
+      open: async (options) => (await this.#getCacheSetRegistry()).open(options),
+    });
     this.assets = Object.freeze({
       put: async (options) => (await this.#getAssetService()).put(options),
       adopt: async (options) => (await this.#getAssetService()).adopt(options),
@@ -185,6 +194,7 @@ export default class ContentAddressableStore {
       put: async (options) => (await this.#getBundleService()).put(options),
       putOrdered: async (options) => (await this.#getBundleService()).putOrdered(options),
       getMember: async (options) => (await this.#getBundleService()).getMember(options),
+      iterateMembers: (options) => this.#iterateBundleMembers(options),
       openMember: (options) => this.#openBundleMember(options),
     });
     this.retention = Object.freeze({
@@ -211,6 +221,8 @@ export default class ContentAddressableStore {
   #vault = null;
   /** @type {RootSetRegistry|null} */
   #rootSetRegistry = null;
+  /** @type {CacheSetRegistry|null} */
+  #cacheSetRegistry = null;
   #servicePromise = null;
 
   /**
@@ -268,6 +280,15 @@ export default class ContentAddressableStore {
     });
     this.#rootSetRegistry = new RootSetRegistry({ persistence, ref });
     this.#initApplicationServices({ ref, cfg });
+    this.#cacheSetRegistry = new CacheSetRegistry({
+      persistence,
+      ref,
+      bundles: this.#bundleService,
+      pages: this.#pageService,
+      resolveHandle: (handle) => this.#resolveApplicationRoot(handle),
+      crypto,
+      clock: cfg.clock,
+    });
 
     return this.service;
   }
@@ -323,6 +344,12 @@ export default class ContentAddressableStore {
     return this.#rootSetRegistry;
   }
 
+  /** @returns {Promise<CacheSetRegistry>} */
+  async #getCacheSetRegistry() {
+    await this.#getService();
+    return this.#cacheSetRegistry;
+  }
+
   /** @returns {Promise<AssetService>} */
   async #getAssetService() {
     await this.#getService();
@@ -369,6 +396,12 @@ export default class ContentAddressableStore {
   async *#openBundleMember(options) {
     const bundles = await this.#getBundleService();
     yield* bundles.openMember(options);
+  }
+
+  /** @returns {AsyncIterable<object>} */
+  async *#iterateBundleMembers(options) {
+    const bundles = await this.#getBundleService();
+    yield* bundles.iterateMembers(options);
   }
 
   async #resolveApplicationRoot(value, context = {}) {
@@ -914,5 +947,6 @@ function cacheApplicationTarget(cache, key, target) {
     oid: target.oid,
     type: target.type,
     size: target.size ?? null,
+    logicalBytes: target.logicalBytes ?? target.size ?? null,
   }));
 }

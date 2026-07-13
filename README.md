@@ -23,6 +23,10 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 - **Mutable Root Sets**: Cache and derived-state trees can be anchored under
   `refs/cas/rootsets/*` while live, then become collectible after eviction,
   without vault history retaining every prior generation.
+- **Managed Cache Sets**: Applications can store handles under
+  `refs/cas/caches/*` with TTL, entry and logical-byte limits, approximate LRU
+  eviction, immutable retention evidence, bounded inspection, and repair.
+  Cache indexes and object reachability remain git-cas responsibilities.
 - **Opaque Application Handles**: Applications stage assets, immutable pages,
   and deterministic structured bundles through validated handles, then retain
   or publish them with generation-scoped evidence instead of managing Git
@@ -94,6 +98,7 @@ The README is the front door. Detailed mechanics live in the guide set:
 | Ports, adapters, and collaborator boundaries            | [Architecture](./ARCHITECTURE.md)                            |
 | Assets, pages, bundles, retention, and publication      | [Application storage](./docs/API.md#application-storage)     |
 | GC retention for caches and derived state               | [Root Sets](./docs/API.md#root-sets)                         |
+| Managed TTL and capacity caches                         | [Cache Sets](./docs/API.md#cache-sets)                       |
 | v5 to v6 migration                                      | [Upgrading](./UPGRADING.md)                                  |
 
 Core capabilities:
@@ -111,6 +116,10 @@ Core capabilities:
 - **Root-set retention**: current cache entries live under caller-owned
   `refs/cas/rootsets/*` refs. Entries are Git-reachable while present, and old
   set generations are not retained as commit history.
+- **Managed cache lifecycle**: `caches.open()` owns immutable cache indexes,
+  compare-and-swap replacement, expiry, capacity eviction, retention
+  witnesses, diagnostics, and repair. Reads do not write access metadata;
+  callers opt into coalesced access updates with `touch()`.
 - **Application storage**: `assets`, `pages`, `bundles`, `retention`, and
   `publications` compose streaming CAS writes, bounded structured
   materializations, targeted member reads, reachability roots,
