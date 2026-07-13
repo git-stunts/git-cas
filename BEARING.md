@@ -14,12 +14,11 @@ timeline
 
 ## Current State
 
-`v6.1.0` shipped on `2026-07-11`. The encryption surface is simplified, the
-dedup-with-encryption gap is closed, and npm plus GitHub Releases are the active
-publication surfaces while JSR remains deferred behind the upstream toolchain
-blocker. Mutable root sets now provide current-generation GC-safe retention.
-The emergency `v6.2.0` goalpost builds the application asset, bundle, page,
-cache, expiry, witness, and diagnostics APIs above that primitive.
+`v6.2.0` shipped on `2026-07-13`. Application asset, bundle, page, cache,
+expiry, witness, and repository-diagnostics APIs now sit above mutable root
+sets and the low-level CAS pipeline. npm plus GitHub Releases are the active
+publication surfaces. JSR validation is healthy, but JSR publication remains
+outside the release workflow.
 
 What exists now:
 
@@ -122,14 +121,15 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With v6.0.0 shipped, active work is tracked in GitHub Issues and Milestones.
+With v6.2.0 shipped, active work is tracked in GitHub Issues and Milestones.
 Repo docs hold design and evidence records, not the active queue.
 
-The next selected design record is
+The latest landed design record is
 [0047-application-storage-cache-boundary](./docs/design/0047-application-storage-cache-boundary/application-storage-cache-boundary.md).
-It targets the application storage and cache ownership boundary for
-[#50](https://github.com/git-stunts/git-cas/issues/50) in the
-[`v6.2.0` milestone](https://github.com/git-stunts/git-cas/milestone/3).
+Its release evidence is attached to
+[#50](https://github.com/git-stunts/git-cas/issues/50) and the
+[`v6.2.0` milestone](https://github.com/git-stunts/git-cas/milestone/3). No
+later design is selected here; GitHub owns that decision.
 
 The broader horizon remains:
 

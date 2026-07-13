@@ -38,17 +38,18 @@ GitHub wins and this file should be corrected.
 | [`v6.4.0`](https://github.com/git-stunts/git-cas/milestone/5) | Browser and edge read-path exploration                     | [#41](https://github.com/git-stunts/git-cas/issues/41)                                                         |
 | [`v7.0.0`](https://github.com/git-stunts/git-cas/milestone/6) | Protocol break only if audit requires it                   | [#42](https://github.com/git-stunts/git-cas/issues/42), only when justified                                    |
 
-## Next Release Design
+## Latest Landed Design
 
-The next selected design record is:
+The latest landed design record is:
 
 - [0047-application-storage-cache-boundary](./docs/design/0047-application-storage-cache-boundary/application-storage-cache-boundary.md)
 
 Its GitHub goalpost issue,
-[#50](https://github.com/git-stunts/git-cas/issues/50), is the canonical
-tracker. The design doc is the durable contract; the issue is the work item.
+[#50](https://github.com/git-stunts/git-cas/issues/50), owns the release
+evidence. The design doc is the durable contract; GitHub records completion.
+No later design is selected in this file.
 
-Initial `v6.2.0` slice issues:
+The `v6.2.0` slice record is:
 
 - [#54 Opaque asset handles and retention witnesses](https://github.com/git-stunts/git-cas/issues/54)
 - [#51 Structured bundle and Merkle page storage](https://github.com/git-stunts/git-cas/issues/51)

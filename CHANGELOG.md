@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **v6.2.0 publication evidence** — records the signed tag identity, successful
+  release workflow, npm integrity and SLSA provenance, final GitHub Release,
+  and the registry gate that unlocks downstream application adoption.
+
 ## [6.2.0] — 2026-07-13
 
 ### Added

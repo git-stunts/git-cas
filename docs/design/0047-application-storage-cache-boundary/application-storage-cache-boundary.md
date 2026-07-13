@@ -813,6 +813,10 @@ evidence is recorded in
 Version, package, documentation, and local release-gate evidence is recorded in
 [witness/release-candidate.md](./witness/release-candidate.md).
 
+Signed tag, release workflow, npm registry, provenance, and GitHub Release
+evidence is recorded in
+[witness/release-publication.md](./witness/release-publication.md).
+
 ## Risks
 
 - The facade could become a new monolith. Mitigation: capability groups delegate
