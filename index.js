@@ -16,12 +16,14 @@ import CacheSet from './src/domain/services/CacheSet.js';
 import CacheSetRegistry from './src/domain/services/CacheSetRegistry.js';
 import ExpiringSet from './src/domain/services/ExpiringSet.js';
 import ExpiringSetRegistry from './src/domain/services/ExpiringSetRegistry.js';
+import RepositoryDoctor from './src/domain/services/RepositoryDoctor.js';
 import PageService from './src/domain/services/PageService.js';
 import PublicationService from './src/domain/services/PublicationService.js';
 import RetentionService from './src/domain/services/RetentionService.js';
 import rotateVaultPassphrase from './src/domain/services/rotateVaultPassphrase.js';
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';
 import GitRefAdapter from './src/infrastructure/adapters/GitRefAdapter.js';
+import GitRepositoryInspectionAdapter from './src/infrastructure/adapters/GitRepositoryInspectionAdapter.js';
 import createCryptoAdapter from './src/infrastructure/adapters/createCryptoAdapter.js';
 import { createGitPlumbing } from './src/infrastructure/createGitPlumbing.js';
 import { storeFile, restoreFile } from './src/infrastructure/adapters/FileIOHelper.js';
@@ -67,8 +69,10 @@ export {
   RootSetRegistry,
   CacheSet,
   ExpiringSet,
+  RepositoryDoctor,
   GitPersistenceAdapter,
   GitRefAdapter,
+  GitRepositoryInspectionAdapter,
   JsonCodec,
   CborCodec,
   SilentObserver,
@@ -99,6 +103,7 @@ export { default as StatsCollector } from './src/infrastructure/adapters/StatsCo
 export { default as FixedChunker } from './src/infrastructure/chunkers/FixedChunker.js';
 export { default as CdcChunker } from './src/infrastructure/chunkers/CdcChunker.js';
 export { default as CompressionPort } from './src/ports/CompressionPort.js';
+export { default as RepositoryInspectionPort } from './src/ports/RepositoryInspectionPort.js';
 export { default as NodeCompressionAdapter } from './src/infrastructure/adapters/NodeCompressionAdapter.js';
 export { default as diffManifests } from './src/domain/services/ManifestDiff.js';
 export { SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT } from './src/domain/encryption/schemes.js';
@@ -186,6 +191,9 @@ export default class ContentAddressableStore {
     this.expiringSets = Object.freeze({
       open: async (options) => (await this.#getExpiringSetRegistry()).open(options),
     });
+    this.diagnostics = Object.freeze({
+      doctor: async (options) => (await this.#getRepositoryDoctor()).doctor(options),
+    });
     this.assets = Object.freeze({
       put: async (options) => (await this.#getAssetService()).put(options),
       adopt: async (options) => (await this.#getAssetService()).adopt(options),
@@ -231,6 +239,8 @@ export default class ContentAddressableStore {
   #cacheSetRegistry = null;
   /** @type {ExpiringSetRegistry|null} */
   #expiringSetRegistry = null;
+  /** @type {RepositoryDoctor|null} */
+  #repositoryDoctor = null;
   #servicePromise = null;
 
   /**
@@ -291,6 +301,21 @@ export default class ContentAddressableStore {
     this.#initCollectionServices({ persistence, ref, crypto, cfg });
 
     return this.service;
+  }
+
+  #initRepositoryDoctor() {
+    const cfg = this.#config;
+    this.#repositoryDoctor = new RepositoryDoctor({
+      repository: new GitRepositoryInspectionAdapter({
+        plumbing: cfg.plumbing,
+        policy: cfg.policy,
+      }),
+      rootSets: this.#rootSetRegistry,
+      caches: this.#cacheSetRegistry,
+      expiringSets: this.#expiringSetRegistry,
+      vault: this.#vault,
+      clock: cfg.clock,
+    });
   }
 
   #initCollectionServices({ persistence, ref, crypto, cfg }) {
@@ -374,6 +399,15 @@ export default class ContentAddressableStore {
   async #getExpiringSetRegistry() {
     await this.#getService();
     return this.#expiringSetRegistry;
+  }
+
+  /** @returns {Promise<RepositoryDoctor>} */
+  async #getRepositoryDoctor() {
+    await this.#getService();
+    if (this.#repositoryDoctor === null) {
+      this.#initRepositoryDoctor();
+    }
+    return this.#repositoryDoctor;
   }
 
   /** @returns {Promise<AssetService>} */

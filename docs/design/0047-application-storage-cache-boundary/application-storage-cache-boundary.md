@@ -800,6 +800,10 @@ recorded in [witness/asset-handles.md](./witness/asset-handles.md).
 Structured bundle and page implementation evidence is recorded in
 [witness/bundle-pages.md](./witness/bundle-pages.md).
 
+Repository-wide object, reachability, managed-storage, and non-mutation
+evidence is recorded in
+[witness/repository-diagnostics.md](./witness/repository-diagnostics.md).
+
 ## Risks
 
 - The facade could become a new monolith. Mitigation: capability groups delegate
