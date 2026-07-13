@@ -42,6 +42,8 @@ describe('Cache key and policy values', () => {
     expect(ExpiringSetKey.from('nonce:one').toString()).toBe('nonce:one');
     expect(() => new ExpiringSetKey('e\u0301'))
       .toThrow(expect.objectContaining({ code: 'EXPIRING_SET_KEY_INVALID' }));
+    expect(() => new ExpiringSetKey('\ud800'))
+      .toThrow(expect.objectContaining({ code: 'EXPIRING_SET_KEY_INVALID' }));
     expect(new CachePolicy({ maxEntries: 4, maxBytes: 1024 })).toMatchObject({
       maxEntries: 4,
       maxBytes: 1024,

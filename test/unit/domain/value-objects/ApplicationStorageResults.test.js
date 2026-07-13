@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import AssetHandle from '../../../../src/domain/value-objects/AssetHandle.js';
 import BundleHandle from '../../../../src/domain/value-objects/BundleHandle.js';
 import BundleLimits from '../../../../src/domain/value-objects/BundleLimits.js';
+import ExpiringMarker from '../../../../src/domain/value-objects/ExpiringMarker.js';
 import PageHandle from '../../../../src/domain/value-objects/PageHandle.js';
 import RetentionWitness from '../../../../src/domain/value-objects/RetentionWitness.js';
 import StagedAsset from '../../../../src/domain/value-objects/StagedAsset.js';
@@ -178,5 +179,17 @@ describe('RetentionWitness validation', () => {
     };
 
     expect(() => new RetentionWitness(options)).toThrow(expect.objectContaining({ code }));
+  });
+});
+
+describe('ExpiringMarker validation', () => {
+  it.each([null, undefined])('maps nullish evidence to its domain error', (evidence) => {
+    expect(() => new ExpiringMarker({
+      keyDigest: 'd'.repeat(64),
+      createdAt: observedAt,
+      expiresAt: '2026-07-13T10:01:00.000Z',
+      generation: 'a'.repeat(40),
+      evidence,
+    })).toThrow(expect.objectContaining({ code: 'EXPIRING_SET_MARKER_INVALID' }));
   });
 });

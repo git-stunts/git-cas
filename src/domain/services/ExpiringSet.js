@@ -156,7 +156,7 @@ export default class ExpiringSet {
       removed,
       generation: mutation.commitOid,
       witness: lifecycle
-        ? this.#indexWitness(lifecycle.handle, mutation.commitOid, observedAt)
+        ? this.#retentionWitness(lifecycle.handle, mutation.commitOid, observedAt)
         : null,
     });
   }
@@ -279,11 +279,7 @@ export default class ExpiringSet {
   }
 
   #marker(record, generation, observedAt) {
-    const evidence = this.#markerWitness({
-      handle: record.handle,
-      generation,
-      observedAt,
-    });
+    const evidence = this.#retentionWitness(record.handle, generation, observedAt);
     return new ExpiringMarker({
       ...record.metadata,
       generation,
@@ -297,31 +293,11 @@ export default class ExpiringSet {
       expiresAt: record.metadata.expiresAt,
       createdAt: record.metadata.createdAt,
       status: isExpired(record.metadata, observedAt) ? 'expired' : 'live',
-      evidence: this.#markerWitness({
-        handle: record.handle,
-        generation,
-        observedAt,
-      }),
+      evidence: this.#retentionWitness(record.handle, generation, observedAt),
     });
   }
 
-  #markerWitness({ handle, generation, observedAt }) {
-    return new RetentionWitness({
-      handle,
-      policy: 'pinned',
-      reachability: 'anchored',
-      root: {
-        kind: 'expiring-set',
-        namespace: this.#namespace,
-        ref: this.ref,
-        generation,
-        path: RootSetMetadataCodec.slotFor(0),
-      },
-      observedAt,
-    });
-  }
-
-  #indexWitness(handle, generation, observedAt) {
+  #retentionWitness(handle, generation, observedAt) {
     return new RetentionWitness({
       handle,
       policy: 'pinned',

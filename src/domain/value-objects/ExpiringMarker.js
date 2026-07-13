@@ -28,6 +28,9 @@ export default class ExpiringMarker {
       });
     }
     const normalizedGeneration = Oid.from(generation).toString();
+    if (evidence === null || evidence === undefined) {
+      throw invalid('Expiring marker evidence is required', { evidence });
+    }
     const normalizedEvidence = evidence instanceof RetentionWitness
       ? evidence
       : new RetentionWitness(evidence);
