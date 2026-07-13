@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Application storage ownership contract** — cycle API-0047 defines opaque
+  asset/bundle/page handles, generic application publication, generation-scoped
+  retention witnesses, RootSet-backed cache collections, expiry-safe replay
+  storage, and repository/cache diagnostics as the `v6.2.0` implementation
+  boundary. Invariant I-002 makes `git-cas` the owner of physical CAS and cache
+  lifecycle while applications retain domain and causal semantics.
+
 ## [6.1.0] — 2026-07-11
 
 ### Added

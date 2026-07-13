@@ -14,11 +14,12 @@ timeline
 
 ## Current State
 
-`v6.0.1` shipped on `2026-06-13`. The encryption surface is simplified, the
+`v6.1.0` shipped on `2026-07-11`. The encryption surface is simplified, the
 dedup-with-encryption gap is closed, and npm plus GitHub Releases are the active
 publication surfaces while JSR remains deferred behind the upstream toolchain
-blocker. The `v6.1.0` candidate adds mutable root-set retention for GC-safe
-caches and derived state.
+blocker. Mutable root sets now provide current-generation GC-safe retention.
+The emergency `v6.2.0` goalpost builds the application asset, bundle, page,
+cache, expiry, witness, and diagnostics APIs above that primitive.
 
 What exists now:
 
@@ -120,14 +121,14 @@ With v6.0.0 shipped, active work is tracked in GitHub Issues and Milestones.
 Repo docs hold design and evidence records, not the active queue.
 
 The next selected design record is
-[0045-v6-1-bounded-residency](./docs/design/0045-v6-1-bounded-residency/bounded-residency.md).
-It targets large-vault and large-blob residency hardening for
-[#38](https://github.com/git-stunts/git-cas/issues/38) in the
-[`v6.1.0` milestone](https://github.com/git-stunts/git-cas/milestone/2).
+[0047-application-storage-cache-boundary](./docs/design/0047-application-storage-cache-boundary/application-storage-cache-boundary.md).
+It targets the application storage and cache ownership boundary for
+[#50](https://github.com/git-stunts/git-cas/issues/50) in the
+[`v6.2.0` milestone](https://github.com/git-stunts/git-cas/milestone/3).
 
 The broader horizon remains:
 
-- **TUI modernization.** Track
+- **TUI modernization.** Carried forward to `v6.3.0`; track
   [#39](https://github.com/git-stunts/git-cas/issues/39). Keep dashboard and
   wizard actions sharing executable
   option-building truth while improving operator ergonomics around long-lived
