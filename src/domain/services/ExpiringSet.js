@@ -50,9 +50,9 @@ export default class ExpiringSet {
     const attempt = { observed: null, replacement: null, lifecycle: null };
     const context = { digests, expiresAt, attempt };
     const mutation = await this.#mutateRoot(
-      (entries, root) => this.#admitMarker(entries, root, context),
+      (entries) => this.#admitMarker(entries, context),
     );
-    const record = attempt.lifecycle ? attempt.replacement : attempt.observed?.marker;
+    const record = attempt.lifecycle ? attempt.replacement : attempt.observed;
     const observedAt = this.#now();
     const marker = record
       ? this.#marker(record, mutation.commitOid, observedAt)
@@ -66,7 +66,7 @@ export default class ExpiringSet {
     });
   }
 
-  async #admitMarker(entries, root, context) {
+  async #admitMarker(entries, context) {
     const { attempt, digests, expiresAt } = context;
     const now = this.#now();
     normalizeFutureExpiry(expiresAt, now);
@@ -76,10 +76,11 @@ export default class ExpiringSet {
     const current = this.#index.fromRootEntries(entries);
     const previous = await this.#index.getMarker(current, digests.keyDigest);
     assertVerification(previous, digests);
-    attempt.observed = { marker: previous, generation: root.headOid };
+    attempt.observed = previous;
     if (previous && !isExpired(previous.metadata, now)) {
       return entries;
     }
+    await this.#assertIndexState(current);
     attempt.replacement = await this.#index.stageMarker({
       version: 1,
       keyDigest: digests.keyDigest,
@@ -120,6 +121,7 @@ export default class ExpiringSet {
       if (current === null) {
         return entries;
       }
+      await this.#assertIndexState(current);
       const scan = await this.#index.scan(current, { now });
       this.#assertState(scan.state);
       if (scan.summary.expiredEntries === 0) {
@@ -327,6 +329,27 @@ export default class ExpiringSet {
         'ExpiringSet index namespace does not match its ref',
         ErrorCodes.EXPIRING_SET_STATE_INVALID,
         { expected: this.#namespace, actual: state.namespace },
+      );
+    }
+  }
+
+  async #assertIndexState(handle) {
+    if (handle === null) {
+      return;
+    }
+    const persisted = await this.#index.getState(handle);
+    this.#assertState(persisted);
+    const historical = await this.#index.scan(handle, { now: persisted.updatedAt });
+    const expected = createExpiringSetState({
+      namespace: this.#namespace,
+      summary: historical.summary,
+      previous: persisted,
+      now: persisted.updatedAt,
+    });
+    if (JSON.stringify(expected) !== JSON.stringify(persisted)) {
+      throw createCasError(
+        'ExpiringSet persisted state does not match its marker edges',
+        ErrorCodes.EXPIRING_SET_STATE_INVALID,
       );
     }
   }

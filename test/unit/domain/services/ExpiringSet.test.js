@@ -100,6 +100,20 @@ function future(clock, milliseconds = 60_000) {
   return new Date(clock.now().getTime() + milliseconds);
 }
 
+async function stageIndex(services, { summary, markers = [] }) {
+  const codec = new ExpiringSetMetadataCodec();
+  const state = createExpiringSetState({
+    namespace: DEFAULT_NAMESPACE,
+    summary,
+    previous: null,
+    now: services.clock.now().toISOString(),
+  });
+  const statePage = await services.pages.put({ source: codec.encodeState(state) });
+  return await services.bundles.putOrderedReferences({
+    members: [[EXPIRING_SET_STATE_PATH, statePage.handle], ...markers],
+  });
+}
+
 describe('ExpiringSet admission', () => {
   it('anchors a digest-only marker and keeps contains non-mutating', async () => {
     const { clock, open, pages, ref } = makeServices();
@@ -287,24 +301,15 @@ describe('ExpiringSet malformed-state doctor', () => {
       bundles: services.bundles,
       pages: services.pages,
     });
-    const codec = new ExpiringSetMetadataCodec();
-    const now = services.clock.now().toISOString();
-    const state = createExpiringSetState({
-      namespace: DEFAULT_NAMESPACE,
+    const malformed = await services.pages.put({ source: Buffer.from('{}') });
+    const bundle = await stageIndex(services, {
       summary: {
         entryCount: 1,
         liveEntries: 1,
         expiredEntries: 0,
         nextExpiry: added.marker.expiresAt,
       },
-      previous: null,
-      now,
-    });
-    const statePage = await services.pages.put({ source: codec.encodeState(state) });
-    const malformed = await services.pages.put({ source: Buffer.from('{}') });
-    const bundle = await services.bundles.putOrderedReferences({
-      members: [
-        [EXPIRING_SET_STATE_PATH, statePage.handle],
+      markers: [
         [markerPath(added.marker.keyDigest), malformed.handle],
       ],
     });
@@ -315,6 +320,41 @@ describe('ExpiringSet malformed-state doctor', () => {
     expect(report.issues).toContainEqual(expect.objectContaining({
       code: 'EXPIRING_SET_MARKER_INVALID',
     }));
+  });
+});
+
+describe('ExpiringSet mutation integrity gate', () => {
+  it('refuses to heal a state page whose live marker edge is absent', async () => {
+    const services = makeServices();
+    const set = services.open();
+    const expiresAt = future(services.clock).toISOString();
+    const bundle = await stageIndex(services, {
+      summary: {
+        entryCount: 1,
+        liveEntries: 1,
+        expiredEntries: 0,
+        nextExpiry: expiresAt,
+      },
+    });
+    const index = new ExpiringSetIndex({
+      bundles: services.bundles,
+      pages: services.pages,
+    });
+    await services.rootSet().replace({ entries: [index.toRootEntry(bundle.handle)] });
+    const head = await services.ref.resolveRef(set.ref);
+    const objectCounts = {
+      blobs: services.persistence.blobCount,
+      trees: services.persistence.treeCount,
+    };
+
+    await expect(set.addIfAbsent('missing-edge', { expiresAt }))
+      .rejects.toMatchObject({ code: 'EXPIRING_SET_STATE_INVALID' });
+    await expect(set.sweep())
+      .rejects.toMatchObject({ code: 'EXPIRING_SET_STATE_INVALID' });
+    await expect(services.ref.resolveRef(set.ref)).resolves.toBe(head);
+    expect(services.persistence.blobCount).toBe(objectCounts.blobs);
+    expect(services.persistence.treeCount).toBe(objectCounts.trees);
+    await expect(set.doctor()).resolves.toMatchObject({ healthy: false });
   });
 });
 
