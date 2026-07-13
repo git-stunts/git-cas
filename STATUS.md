@@ -68,6 +68,13 @@
   retention for caches and derived state. Present entries are Git-anchored;
   removed entries are not retained by root-set commit history. Root sets expose
   compare-and-swap mutation plus doctor/repair reports.
+- `ContentAddressableStore.caches.open()` owns TTL/capacity cache indexes and
+  their Git reachability, while streaming scans keep residency independent of
+  cache cardinality.
+- `ContentAddressableStore.expiringSets.open()` owns atomic replay-marker
+  retention under `refs/cas/expiring/*`. It persists only domain-separated key
+  digests, survives process restart, and can release a marker only after its
+  expiry through replacement of that same expired key or explicit `sweep()`.
 - Manifest parsing now rejects unsupported encryption schemes,
   `encrypted: false`, malformed AES-GCM nonce/tag values, and framed manifests
   that omit `frameBytes`, across both JSON and CBOR manifest codecs.
