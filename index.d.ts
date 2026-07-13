@@ -357,6 +357,33 @@ export declare class CacheHit {
   });
   toJSON(): CacheHitData;
 }
+
+export interface ExpiringMarkerData {
+  version: 1;
+  keyDigest: string;
+  expiresAt: string;
+  createdAt: string;
+  generation: string;
+  evidence: RetentionWitnessData;
+}
+
+/** Immutable evidence for one live replay marker. */
+export declare class ExpiringMarker {
+  readonly version: 1;
+  readonly keyDigest: string;
+  readonly expiresAt: string;
+  readonly createdAt: string;
+  readonly generation: string;
+  readonly evidence: RetentionWitness;
+  constructor(value: {
+    keyDigest: string;
+    expiresAt: string;
+    createdAt: string;
+    generation: string;
+    evidence: RetentionWitness | ConstructorParameters<typeof RetentionWitness>[0];
+  });
+  toJSON(): ExpiringMarkerData;
+}
 export type {
   CryptoPort,
   CodecPort,
@@ -821,6 +848,70 @@ export declare class CacheSet {
   }>>;
 }
 
+export interface ExpiringSetSummary {
+  readonly entryCount: number;
+  readonly liveEntries: number;
+  readonly expiredEntries: number;
+  readonly nextExpiry: string | null;
+}
+
+export interface ExpiringSetState extends ExpiringSetSummary {
+  readonly version: 1;
+  readonly namespace: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface ExpiringMarkerInspection {
+  readonly keyDigest: string;
+  readonly expiresAt: string;
+  readonly createdAt: string;
+  readonly status: 'live' | 'expired';
+  readonly evidence: RetentionWitness;
+}
+
+export interface ExpiringSetInspection {
+  readonly namespace: string;
+  readonly ref: string;
+  readonly generation: string | null;
+  readonly state: Readonly<ExpiringSetState> | null;
+  readonly observed: Readonly<ExpiringSetSummary>;
+  readonly markers: ReadonlyArray<Readonly<ExpiringMarkerInspection>>;
+  readonly nextCursor: string | null;
+}
+
+export interface ExpiringSetAddResult {
+  readonly changed: boolean;
+  readonly admitted: boolean;
+  readonly marker: ExpiringMarker | null;
+  readonly generation: string | null;
+  readonly witness: RetentionWitness | null;
+}
+
+export interface ExpiringSetSweepResult {
+  readonly changed: boolean;
+  readonly removed: number;
+  readonly generation: string | null;
+  readonly witness: RetentionWitness | null;
+}
+
+/** RootSet-backed replay marker set with expiry-only release semantics. */
+export declare class ExpiringSet {
+  private constructor();
+  readonly ref: string;
+  contains(key: string): Promise<boolean>;
+  addIfAbsent(key: string, options: { expiresAt: Date | string }): Promise<ExpiringSetAddResult>;
+  sweep(): Promise<ExpiringSetSweepResult>;
+  inspect(options?: { limit?: number; cursor?: string | null }): Promise<ExpiringSetInspection>;
+  doctor(): Promise<Readonly<{
+    healthy: boolean;
+    root: RootSetDoctorResult;
+    state?: Readonly<ExpiringSetState> | null;
+    observed?: Readonly<ExpiringSetSummary>;
+    issues: ReadonlyArray<Record<string, unknown>>;
+  }>>;
+}
+
 /** Encrypted vault key verifier stored in .vault.json. */
 export interface VaultEncryptionVerifier {
   version: 1;
@@ -1050,6 +1141,13 @@ export interface CacheCapability {
   }): Promise<CacheSet>;
 }
 
+export interface ExpiringSetCapability {
+  open(options: {
+    namespace: string;
+    retry?: { maxAttempts?: number; baseDelayMs?: number };
+  }): Promise<ExpiringSet>;
+}
+
 export interface RetentionResult {
   readonly changed: boolean;
   readonly witness: RetentionWitness;
@@ -1098,6 +1196,7 @@ export default class ContentAddressableStore {
   };
 
   readonly caches: CacheCapability;
+  readonly expiringSets: ExpiringSetCapability;
 
   readonly assets: AssetCapability;
   readonly pages: PageCapability;

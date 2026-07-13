@@ -3,6 +3,8 @@ import CacheKey from '../../../../src/domain/value-objects/CacheKey.js';
 import CachePolicy from '../../../../src/domain/value-objects/CachePolicy.js';
 import CacheSetRef from '../../../../src/domain/value-objects/CacheSetRef.js';
 import CollectionNamespace from '../../../../src/domain/value-objects/CollectionNamespace.js';
+import ExpiringSetKey from '../../../../src/domain/value-objects/ExpiringSetKey.js';
+import ExpiringSetRef from '../../../../src/domain/value-objects/ExpiringSetRef.js';
 
 describe('CollectionNamespace', () => {
   it.each([
@@ -12,6 +14,7 @@ describe('CollectionNamespace', () => {
   ])('accepts canonical namespace %s', (value) => {
     expect(CollectionNamespace.from(value).toString()).toBe(value);
     expect(CacheSetRef.forNamespace(value).toString()).toBe(`refs/cas/caches/${value}`);
+    expect(ExpiringSetRef.forNamespace(value).toString()).toBe(`refs/cas/expiring/${value}`);
   });
 
   it.each([
@@ -36,6 +39,9 @@ describe('Cache key and policy values', () => {
     expect(CacheKey.from('role:alice').toString()).toBe('role:alice');
     expect(() => new CacheKey('e\u0301')).toThrow(expect.objectContaining({ code: 'CACHE_KEY_INVALID' }));
     expect(() => new CacheKey('\ud800')).toThrow(expect.objectContaining({ code: 'CACHE_KEY_INVALID' }));
+    expect(ExpiringSetKey.from('nonce:one').toString()).toBe('nonce:one');
+    expect(() => new ExpiringSetKey('e\u0301'))
+      .toThrow(expect.objectContaining({ code: 'EXPIRING_SET_KEY_INVALID' }));
     expect(new CachePolicy({ maxEntries: 4, maxBytes: 1024 })).toMatchObject({
       maxEntries: 4,
       maxBytes: 1024,

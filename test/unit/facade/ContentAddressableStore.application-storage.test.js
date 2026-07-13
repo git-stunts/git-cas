@@ -5,6 +5,8 @@ import ContentAddressableStore, {
   CacheHit,
   CachePolicy,
   CacheSet,
+  ExpiringMarker,
+  ExpiringSet,
   PageHandle,
   RetentionWitness,
   StagedAsset,
@@ -36,12 +38,14 @@ describe('ContentAddressableStore application storage capabilities', () => {
       'openMember',
     ]);
     expect(Object.keys(cas.caches)).toEqual(['open']);
+    expect(Object.keys(cas.expiringSets)).toEqual(['open']);
     expect(Object.keys(cas.retention)).toEqual(['retain']);
     expect(Object.keys(cas.publications)).toEqual(['commit']);
     expect(Object.isFrozen(cas.assets)).toBe(true);
     expect(Object.isFrozen(cas.pages)).toBe(true);
     expect(Object.isFrozen(cas.bundles)).toBe(true);
     expect(Object.isFrozen(cas.caches)).toBe(true);
+    expect(Object.isFrozen(cas.expiringSets)).toBe(true);
     expect(Object.isFrozen(cas.retention)).toBe(true);
     expect(Object.isFrozen(cas.publications)).toBe(true);
   });
@@ -57,6 +61,8 @@ describe('ContentAddressableStore application storage capabilities', () => {
     expect(CacheHit).toBeTypeOf('function');
     expect(CachePolicy).toBeTypeOf('function');
     expect(CacheSet).toBeTypeOf('function');
+    expect(ExpiringMarker).toBeTypeOf('function');
+    expect(ExpiringSet).toBeTypeOf('function');
   });
 });
 
@@ -67,5 +73,15 @@ describe('ContentAddressableStore caches', () => {
 
     expect(cache).toBeInstanceOf(CacheSet);
     expect(cache.ref).toBe('refs/cas/caches/git-warp/materializations');
+  });
+});
+
+describe('ContentAddressableStore expiring sets', () => {
+  it('opens an expiry-only set through the facade namespace', async () => {
+    const cas = new ContentAddressableStore({ plumbing: mockPlumbing() });
+    const set = await cas.expiringSets.open({ namespace: 'git-warp/replay' });
+
+    expect(set).toBeInstanceOf(ExpiringSet);
+    expect(set.ref).toBe('refs/cas/expiring/git-warp/replay');
   });
 });

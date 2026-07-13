@@ -2,15 +2,15 @@ import createCasError from '../errors/createCasError.js';
 import { ErrorCodes } from '../errors/index.js';
 import isCanonicalCollectionKey from '../helpers/isCanonicalCollectionKey.js';
 
-/** Immutable canonical cache key. */
-export default class CacheKey {
+/** Immutable canonical input key for a replay-safe ExpiringSet. */
+export default class ExpiringSetKey {
   #value;
 
   constructor(value) {
-    if (!CacheKey.isValid(value)) {
+    if (!isCanonicalCollectionKey(value)) {
       throw createCasError(
-        'Cache key must be canonical Unicode without control characters',
-        ErrorCodes.CACHE_KEY_INVALID,
+        'ExpiringSet key must be canonical Unicode without control characters',
+        ErrorCodes.EXPIRING_SET_KEY_INVALID,
         { key: value },
       );
     }
@@ -19,11 +19,7 @@ export default class CacheKey {
   }
 
   static from(value) {
-    return value instanceof CacheKey ? value : new CacheKey(value);
-  }
-
-  static isValid(value) {
-    return isCanonicalCollectionKey(value);
+    return value instanceof ExpiringSetKey ? value : new ExpiringSetKey(value);
   }
 
   toString() {
