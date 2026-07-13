@@ -1,7 +1,7 @@
 import createCasError from '../errors/createCasError.js';
 import { ErrorCodes } from '../errors/index.js';
 import assertCanonicalTimestamp from '../helpers/assertCanonicalTimestamp.js';
-import AssetHandle from './AssetHandle.js';
+import parseApplicationHandle from './ApplicationHandle.js';
 import Oid from './Oid.js';
 
 const POLICIES = Object.freeze(['pinned', 'evictable']);
@@ -14,7 +14,7 @@ const ROOT_KINDS = Object.freeze(['root-set', 'publication', 'cache-set', 'expir
 export default class RetentionWitness {
   /**
    * @param {object} value
-   * @param {AssetHandle|string|object} value.handle
+   * @param {import('./AssetHandle.js').default|import('./BundleHandle.js').default|import('./PageHandle.js').default|string|object} value.handle
    * @param {'pinned'|'evictable'} value.policy
    * @param {'anchored'|'orphaned'|'volatile'} value.reachability
    * @param {object} value.root
@@ -38,7 +38,7 @@ export default class RetentionWitness {
     });
 
     this.version = 1;
-    this.handle = AssetHandle.from(handle);
+    this.handle = parseApplicationHandle(handle);
     this.policy = policy;
     this.reachability = reachability;
     this.root = Object.freeze(normalizedRoot);

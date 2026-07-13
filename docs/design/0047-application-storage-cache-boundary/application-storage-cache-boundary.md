@@ -797,6 +797,9 @@ Design review evidence is recorded in
 Opaque asset handle, retention, and publication implementation evidence is
 recorded in [witness/asset-handles.md](./witness/asset-handles.md).
 
+Structured bundle and page implementation evidence is recorded in
+[witness/bundle-pages.md](./witness/bundle-pages.md).
+
 ## Risks
 
 - The facade could become a new monolith. Mitigation: capability groups delegate

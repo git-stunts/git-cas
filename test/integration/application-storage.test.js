@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import ContentAddressableStore, { AssetHandle } from '../../index.js';
+import ContentAddressableStore, { AssetHandle, BundleHandle, PageHandle } from '../../index.js';
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 
 if (process.env.GIT_STUNTS_DOCKER !== '1') {
@@ -168,6 +168,130 @@ describe('application publication', () => {
       meta: { expected: initial.commitId, observed: next.commitId },
     });
     expect(git(['rev-parse', 'refs/warp/events'])).toBe(next.commitId);
+  });
+});
+
+describe('structured pages and bundles', () => {
+  it('deduplicates pages and constructs deterministic targeted bundles', async () => {
+    const alpha = Buffer.from('alpha-page'.repeat(256));
+    const beta = Buffer.from('beta-page'.repeat(256));
+    const firstAlpha = await cas.pages.put({ source: source(alpha) });
+    const secondAlpha = await cas.pages.put({ source: source(alpha) });
+    const betaPage = await cas.pages.put({ source: source(beta) });
+
+    expect(secondAlpha.handle).toEqual(firstAlpha.handle);
+    expect(await collect(cas.pages.open({ handle: firstAlpha.handle }))).toEqual(alpha);
+
+    const first = await cas.bundles.put({
+      members: {
+        'pages/alpha': firstAlpha.handle,
+        'pages/beta': betaPage.handle,
+        'state/frontier': Buffer.from('frontier'),
+      },
+      limits: { maxFanoutEntries: 4 },
+    });
+    const second = await cas.bundles.put({
+      members: new Map([
+        ['state/frontier', Buffer.from('frontier')],
+        ['pages/beta', betaPage.handle],
+        ['pages/alpha', firstAlpha.handle],
+      ]),
+      limits: { maxFanoutEntries: 4 },
+    });
+
+    expect(second.handle).toEqual(first.handle);
+    expect(await cas.bundles.getMember({ handle: first.handle, path: 'missing' })).toBeNull();
+    expect(
+      await cas.bundles.getMember({ handle: first.handle, path: 'pages/beta' })
+    ).toMatchObject({ path: 'pages/beta', handle: betaPage.handle, type: 'blob' });
+    expect(
+      await collect(cas.bundles.openMember({ handle: first.handle, path: 'pages/beta' }))
+    ).toEqual(beta);
+  });
+});
+
+describe('structured retention and publication', () => {
+  it('retains bundle graphs and publishes page and bundle roots', async () => {
+    const page = await cas.pages.put({ source: source(Buffer.from('retained-page')) });
+    const bundle = await cas.bundles.put({ members: { page: page.handle } });
+    expect(prunableOids()).toContain(bundle.handle.oid);
+
+    const retained = await cas.retention.retain({
+      handle: bundle.handle,
+      root: { ref: 'refs/cas/rootsets/integration/application-bundles', name: 'current' },
+      policy: 'evictable',
+    });
+    expect(retained.witness.handle).toBeInstanceOf(BundleHandle);
+    expect(prunableOids()).not.toContain(bundle.handle.oid);
+    expect(prunableOids()).not.toContain(page.handle.oid);
+
+    const bundlePublication = await cas.publications.commit({
+      root: bundle.handle,
+      commit: { message: 'bundle root', parents: [] },
+      ref: { name: 'refs/warp/bundles', expected: null },
+    });
+    expect(git(['rev-parse', `${bundlePublication.commitId}^{tree}`])).toBe(bundle.handle.oid);
+
+    const pagePublication = await cas.publications.commit({
+      root: page.handle,
+      commit: { message: 'page root', parents: [] },
+      ref: { name: 'refs/warp/pages', expected: null },
+    });
+    const publicationTree = git(['rev-parse', `${pagePublication.commitId}^{tree}`]);
+    expect(publicationTree).not.toBe(page.handle.oid);
+    expect(git(['ls-tree', publicationTree, 'page'])).toContain(page.handle.oid);
+    expect(pagePublication.root).toBeInstanceOf(PageHandle);
+  });
+});
+
+describe('structured validation work', () => {
+  it('validates a repeated member handle once per operation', async () => {
+    const page = await cas.pages.put({ source: source(Buffer.from('shared-page')) });
+    const readObjectSize = vi.spyOn(cas.service.persistence, 'readObjectSize');
+    const bundle = await cas.bundles.put({
+      members: { first: page.handle, second: page.handle, third: page.handle },
+    });
+    expect(readObjectSize).toHaveBeenCalledTimes(1);
+
+    readObjectSize.mockClear();
+    await cas.retention.retain({
+      handle: bundle.handle,
+      root: { ref: 'refs/cas/rootsets/integration/shared-page', name: 'current' },
+    });
+    expect(readObjectSize).toHaveBeenCalledTimes(1);
+    readObjectSize.mockRestore();
+  });
+});
+
+describe('structured handle transfer', () => {
+  it('transfers structured handles and reports an absent target graph', async () => {
+    const payload = Buffer.from('portable-page');
+    const page = await cas.pages.put({ source: source(payload) });
+    const bundle = await cas.bundles.put({ members: { payload: page.handle } });
+    await cas.publications.commit({
+      root: bundle.handle,
+      commit: { message: 'portable bundle', parents: [] },
+      ref: { name: 'refs/warp/portable-bundle', expected: null },
+    });
+
+    const mirrorDir = tempDir('cas-structured-mirror-');
+    gitAt(path.dirname(mirrorDir), ['clone', '--mirror', repoDir, mirrorDir]);
+    const mirror = new ContentAddressableStore({
+      plumbing: await createGitPlumbing({ cwd: mirrorDir }),
+    });
+    const transferred = BundleHandle.from(bundle.handle.toString());
+    expect(
+      await collect(mirror.bundles.openMember({ handle: transferred, path: 'payload' }))
+    ).toEqual(payload);
+
+    const emptyDir = tempDir('cas-structured-empty-');
+    gitAt(emptyDir, ['init', '--bare']);
+    const empty = new ContentAddressableStore({
+      plumbing: await createGitPlumbing({ cwd: emptyDir }),
+    });
+    await expect(
+      empty.bundles.getMember({ handle: transferred, path: 'payload' })
+    ).rejects.toMatchObject({ code: 'HANDLE_TARGET_MISSING' });
   });
 });
 

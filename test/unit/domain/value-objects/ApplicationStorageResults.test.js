@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import AssetHandle from '../../../../src/domain/value-objects/AssetHandle.js';
+import BundleHandle from '../../../../src/domain/value-objects/BundleHandle.js';
+import BundleLimits from '../../../../src/domain/value-objects/BundleLimits.js';
+import PageHandle from '../../../../src/domain/value-objects/PageHandle.js';
 import RetentionWitness from '../../../../src/domain/value-objects/RetentionWitness.js';
 import StagedAsset from '../../../../src/domain/value-objects/StagedAsset.js';
+import StagedBundle from '../../../../src/domain/value-objects/StagedBundle.js';
 
 const handle = new AssetHandle({
   codec: 'json',
@@ -58,6 +62,33 @@ describe('StagedAsset', () => {
   });
 });
 
+describe('StagedBundle', () => {
+  const bundleHandle = new BundleHandle({ codec: 'json', oid: 'b'.repeat(40) });
+  const options = {
+    handle: bundleHandle,
+    memberCount: 0,
+    indexDepth: 1,
+    descriptorBytes: 42,
+    limits: new BundleLimits(),
+    observedAt,
+  };
+
+  it('normalizes valid limits into immutable staged evidence', () => {
+    const staged = new StagedBundle(options);
+
+    expect(staged.limits).toEqual(new BundleLimits().toJSON());
+    expect(Object.isFrozen(staged.limits)).toBe(true);
+  });
+
+  it.each([
+    [{ indexDepth: 0 }, 'HANDLE_INVALID'],
+    [{ limits: { maxMembers: -1 } }, 'BUNDLE_LIMIT_INVALID'],
+  ])('rejects impossible staged metadata %#', (override, code) => {
+    expect(() => new StagedBundle({ ...options, ...override }))
+      .toThrow(expect.objectContaining({ code }));
+  });
+});
+
 describe('RetentionWitness', () => {
   it('captures immutable generation-scoped root evidence', () => {
     const witness = new RetentionWitness({
@@ -92,6 +123,31 @@ describe('RetentionWitness', () => {
     });
     expect(Object.isFrozen(witness)).toBe(true);
     expect(Object.isFrozen(witness.root)).toBe(true);
+  });
+});
+
+describe('RetentionWitness application handles', () => {
+  it.each([
+    ['asset', new AssetHandle({ codec: 'json', oid: 'a'.repeat(40) }), AssetHandle],
+    ['bundle', new BundleHandle({ codec: 'json', oid: 'b'.repeat(40) }), BundleHandle],
+    ['page', new PageHandle({ oid: 'c'.repeat(40) }), PageHandle],
+  ])('accepts a %s application handle', (_kind, applicationHandle, HandleType) => {
+    const witness = new RetentionWitness({
+      handle: applicationHandle,
+      policy: 'evictable',
+      reachability: 'anchored',
+      root: {
+        kind: 'publication',
+        namespace: 'refs/warp/',
+        ref: 'refs/warp/pages',
+        generation: 'c'.repeat(40),
+        path: '/',
+      },
+      observedAt,
+    });
+
+    expect(witness.handle).toBeInstanceOf(HandleType);
+    expect(witness.toJSON().handle).toBe(applicationHandle.toString());
   });
 });
 

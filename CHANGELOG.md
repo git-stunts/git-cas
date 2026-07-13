@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   values. Staged results explicitly report that the operation created no root,
   while `cas.retention.retain()` returns generation-scoped evidence for the
   exact RootSet tree edge that made the graph reachable.
+- **Structured bundle and page storage** — `cas.pages` stores bounded immutable
+  blobs with content-deduplicated `PageHandle` values. `cas.bundles.put()` and
+  `putOrdered()` build deterministic bounded fanout trees from named streams or
+  nested handles; `getMember()` and `openMember()` traverse only the selected
+  descriptor path and payload.
+- **Portable structured validation** — imported page handles are size-checked
+  without hydrating their blobs, while bundle validation re-enforces persisted
+  member, path, descriptor-byte, fanout, and nesting limits before retention or
+  publication.
 - **Generic application publication** — `cas.publications.commit()` validates
   handle graphs, bounded ordered commit parents, commit messages, explicit ref
   allowlists, reserved Git/CAS namespaces, and expected heads before
@@ -32,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Git object size port** — `GitPersistencePort.readObjectSize()` and the Git
+  adapter use object metadata to enforce page bounds without materializing
+  content.
 - **Ordered commit parents** — `GitRefPort.createCommit()` now accepts an
   additive `parentOids` array while retaining the existing single-`parentOid`
   compatibility input. Create-only ref updates derive the Git null OID width

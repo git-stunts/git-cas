@@ -187,10 +187,36 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
    * @returns {Promise<string>} Git object type.
    */
   async readObjectType(oid) {
+    return await this.#executeObjectQuery(oid, ['cat-file', '-t', oid]);
+  }
+
+  /**
+   * @override
+   * @param {string} oid - Git object ID.
+   * @returns {Promise<number>} Git object size in bytes.
+   */
+  async readObjectSize(oid) {
+    const output = await this.#executeObjectQuery(oid, ['cat-file', '-s', oid]);
+    const size = Number(output);
+    if (!Number.isSafeInteger(size) || size < 0) {
+      throw new CasError(`Git object has an invalid size: ${oid}`, ErrorCodes.GIT_ERROR, {
+        oid,
+        output,
+      });
+    }
+    return size;
+  }
+
+  /**
+   * Executes a bounded object metadata query and normalizes missing targets.
+   *
+   * @param {string} oid - Git object ID.
+   * @param {string[]} args - Plumbing arguments.
+   * @returns {Promise<string>} Plumbing stdout.
+   */
+  async #executeObjectQuery(oid, args) {
     try {
-      return await this.policy.execute(() =>
-        this.plumbing.execute({ args: ['cat-file', '-t', oid] }),
-      );
+      return await this.policy.execute(() => this.plumbing.execute({ args }));
     } catch (err) {
       if (isMissingGitObjectError(err)) {
         throw new CasError(`Git object not found: ${oid}`, ErrorCodes.GIT_OBJECT_NOT_FOUND, {

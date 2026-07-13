@@ -51,7 +51,7 @@ limits, and port contracts live in the advanced guide.
 | Feature Area                                                            | Covered Here                                                                                                                                 | Advanced Coverage                                                                                                                                                                                        |
 | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Facade lifecycle, JSON/CBOR factories, full constructor                 | [Library Quick Start](#library-quick-start), [Configuration Reference](#configuration-reference)                                             | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts)                                                                                           |
-| Opaque asset handles, retention evidence, application publication       | [Library Quick Start](#library-quick-start), [Application Storage Lifecycle](#application-storage-lifecycle)                                 | [Application Storage API](./docs/API.md#application-storage)                                                                                                                                              |
+| Opaque assets, pages, bundles, retention evidence, publication          | [Library Quick Start](#library-quick-start), [Application Storage Lifecycle](#application-storage-lifecycle), [Structured Materializations](#structured-materializations) | [Application Storage API](./docs/API.md#application-storage)                                                                                                                           |
 | Direct `CasService` construction                                        | [Configuration Reference](#configuration-reference) notes the facade/direct split                                                            | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts)                                                                                           |
 | File, stream, tree, vault-safe store workflows                          | [Store Operations](#store-operations), [Vault Management](#vault-management)                                                                 | [Store/Restore Pipeline](./docs/STORE_RESTORE_PIPELINE.md), [Manifest Integrity Hash](./ADVANCED_GUIDE.md#manifest-integrity-hash), [Merkle Manifests](./ADVANCED_GUIDE.md#merkle-manifests)             |
 | Restore modes and bounded memory behavior                               | [Restore Modes](#restore-modes)                                                                                                              | [Store/Restore Pipeline](./docs/STORE_RESTORE_PIPELINE.md), [Parallel Chunk Restore](./ADVANCED_GUIDE.md#parallel-chunk-restore), [Streaming Decompression](./ADVANCED_GUIDE.md#streaming-decompression) |
@@ -130,6 +130,38 @@ const sameHandle = AssetHandle.parse(token);
 The token is portable only with its referenced Git object graph. Opening it in
 a clone or mirror succeeds after the graph is transferred; opening it in a
 repository without that graph fails with `HANDLE_TARGET_MISSING`.
+
+### Structured Materializations
+
+Use pages for bounded immutable index/trie nodes and bundles for a named,
+independently addressable materialization. `putOrdered()` accepts an iterable
+that is already sorted by canonical member path, so construction does not need
+to collect the complete member set.
+
+```js
+const nodes = await cas.pages.put({ source: encodedNodePage });
+const edges = await cas.pages.put({ source: encodedEdgePage });
+const materialization = await cas.bundles.putOrdered({
+  members: (async function* members() {
+    yield ['edges/root', edges.handle];
+    yield ['nodes/root', nodes.handle];
+    yield ['state/frontier', encodedFrontier];
+  })(),
+});
+
+for await (const chunk of cas.bundles.openMember({
+  handle: materialization.handle,
+  path: 'nodes/root',
+})) {
+  consume(chunk);
+}
+```
+
+Bundle fanout trees contain direct Git edges to every member graph. Retaining
+the bundle handle therefore retains its transitive pages and assets. Targeted
+lookup reads only the descriptor path and selected payload; retention and
+publication perform full bounded graph validation. Identical page bytes and
+identically constructed bundles produce identical handles.
 
 ### Generic Application Publication
 

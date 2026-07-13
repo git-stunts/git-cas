@@ -121,6 +121,25 @@ describe('GitPersistenceAdapter.readObjectType()', () => {
   });
 });
 
+describe('GitPersistenceAdapter.readObjectSize()', () => {
+  it('reads a safe byte size without materializing the object', async () => {
+    const plumbing = mockPlumbing('42');
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    await expect(adapter.readObjectSize('a'.repeat(40))).resolves.toBe(42);
+    expect(plumbing.execute).toHaveBeenCalledWith({
+      args: ['cat-file', '-s', 'a'.repeat(40)],
+    });
+    expect(plumbing.executeStream).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed Git size output', async () => {
+    await expect(adapterFor('not-a-size').readObjectSize('a'.repeat(40))).rejects.toMatchObject({
+      code: 'GIT_ERROR',
+    });
+  });
+});
+
 describe('GitPersistenceAdapter.iterateTree() – streaming', () => {
   it('parses NUL-delimited tree entries across stream chunk boundaries', async () => {
     const adapter = streamAdapterFor([

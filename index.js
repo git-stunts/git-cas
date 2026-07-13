@@ -11,6 +11,8 @@ import VaultService from './src/domain/services/VaultService.js';
 import RootSet from './src/domain/services/RootSet.js';
 import RootSetRegistry from './src/domain/services/RootSetRegistry.js';
 import AssetService from './src/domain/services/AssetService.js';
+import BundleService from './src/domain/services/BundleService.js';
+import PageService from './src/domain/services/PageService.js';
 import PublicationService from './src/domain/services/PublicationService.js';
 import RetentionService from './src/domain/services/RetentionService.js';
 import rotateVaultPassphrase from './src/domain/services/rotateVaultPassphrase.js';
@@ -27,11 +29,13 @@ import { CasError, createCasError, ErrorCodes } from './src/domain/errors/index.
 import FixedChunker from './src/infrastructure/chunkers/FixedChunker.js';
 import NodeCompressionAdapter from './src/infrastructure/adapters/NodeCompressionAdapter.js';
 import { PACKAGE_VERSION } from './src/package-version.js';
+import parseApplicationHandle from './src/domain/value-objects/ApplicationHandle.js';
 
 /** @typedef {import('./src/domain/value-objects/Manifest.js').default} Manifest */
 
 const PKG_VERSION = PACKAGE_VERSION;
 const FIXED_CHUNKING_STRATEGY = 'fixed';
+const MAX_VALIDATION_CACHE_ENTRIES = 1024;
 const RESTORE_FILE_DOCS_URL = `https://github.com/git-stunts/git-cas/blob/v${PKG_VERSION}/docs/API.md#restorefile`;
 
 function withOperationChunker(options) {
@@ -75,7 +79,11 @@ export { default as ObservabilityPort } from './src/ports/ObservabilityPort.js';
 export { default as Manifest } from './src/domain/value-objects/Manifest.js';
 export { default as Chunk } from './src/domain/value-objects/Chunk.js';
 export { default as AssetHandle } from './src/domain/value-objects/AssetHandle.js';
+export { default as BundleHandle } from './src/domain/value-objects/BundleHandle.js';
+export { default as PageHandle } from './src/domain/value-objects/PageHandle.js';
 export { default as StagedAsset } from './src/domain/value-objects/StagedAsset.js';
+export { default as StagedBundle } from './src/domain/value-objects/StagedBundle.js';
+export { default as StagedPage } from './src/domain/value-objects/StagedPage.js';
 export { default as RetentionWitness } from './src/domain/value-objects/RetentionWitness.js';
 export { default as EventEmitterObserver } from './src/infrastructure/adapters/EventEmitterObserver.js';
 export { default as StatsCollector } from './src/infrastructure/adapters/StatsCollector.js';
@@ -107,6 +115,9 @@ export default class ContentAddressableStore {
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance (advanced).
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes for encrypted/compressed restores (default 512 MiB).
    * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes (default 10 MiB).
+   * @param {number} [options.maxPageSize=16777216] - Maximum immutable page size in bytes (default 16 MiB).
+   * @param {object} [options.bundleLimits] - Repository-wide maximum bundle admission limits.
+   * @param {number} [options.maxBundleNestingDepth=32] - Maximum nested bundle depth.
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter (default NodeCompressionAdapter).
    * @param {string[]} [options.applicationRefPrefixes] - Explicit application ref namespaces allowed for generic publication.
    * @param {{ now(): Date }} [options.clock] - Injectable clock for deterministic evidence.
@@ -124,6 +135,9 @@ export default class ContentAddressableStore {
     chunker,
     maxRestoreBufferSize,
     maxBlobSize,
+    maxPageSize,
+    bundleLimits,
+    maxBundleNestingDepth,
     compressionAdapter,
     applicationRefPrefixes,
     clock,
@@ -141,6 +155,9 @@ export default class ContentAddressableStore {
       chunker,
       maxRestoreBufferSize,
       maxBlobSize,
+      maxPageSize,
+      bundleLimits,
+      maxBundleNestingDepth,
       compressionAdapter,
       applicationRefPrefixes,
       clock,
@@ -159,6 +176,17 @@ export default class ContentAddressableStore {
       adopt: async (options) => (await this.#getAssetService()).adopt(options),
       open: (options) => this.#openAsset(options),
     });
+    this.pages = Object.freeze({
+      put: async (options) => (await this.#getPageService()).put(options),
+      get: async (options) => (await this.#getPageService()).get(options),
+      open: (options) => this.#openPage(options),
+    });
+    this.bundles = Object.freeze({
+      put: async (options) => (await this.#getBundleService()).put(options),
+      putOrdered: async (options) => (await this.#getBundleService()).putOrdered(options),
+      getMember: async (options) => (await this.#getBundleService()).getMember(options),
+      openMember: (options) => this.#openBundleMember(options),
+    });
     this.retention = Object.freeze({
       retain: async (options) => (await this.#getRetentionService()).retain(options),
     });
@@ -167,10 +195,14 @@ export default class ContentAddressableStore {
     });
   }
 
-  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, maxBlobSize?: number, compressionAdapter?: *, applicationRefPrefixes?: string[], clock?: { now(): Date } }} */
+  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, maxBlobSize?: number, maxPageSize?: number, bundleLimits?: object, maxBundleNestingDepth?: number, compressionAdapter?: *, applicationRefPrefixes?: string[], clock?: { now(): Date } }} */
   #config;
   /** @type {AssetService|null} */
   #assetService = null;
+  /** @type {BundleService|null} */
+  #bundleService = null;
+  /** @type {PageService|null} */
+  #pageService = null;
   /** @type {PublicationService|null} */
   #publicationService = null;
   /** @type {RetentionService|null} */
@@ -242,7 +274,22 @@ export default class ContentAddressableStore {
 
   #initApplicationServices({ ref, cfg }) {
     this.#assetService = new AssetService({ cas: this.service, clock: cfg.clock });
-    const resolveRoot = (handle) => this.#assetService.resolveRoot(handle);
+    this.#pageService = new PageService({
+      persistence: this.service.persistence,
+      maxPageSize: cfg.maxPageSize,
+      clock: cfg.clock,
+    });
+    this.#bundleService = new BundleService({
+      persistence: this.service.persistence,
+      codec: this.service.codec,
+      pages: this.#pageService,
+      resolveHandle: (handle, context) => this.#resolveApplicationRoot(handle, context),
+      openHandle: (handle) => this.#openApplicationHandle(handle),
+      limits: cfg.bundleLimits,
+      maxNestingDepth: cfg.maxBundleNestingDepth,
+      clock: cfg.clock,
+    });
+    const resolveRoot = (handle) => this.#resolveApplicationRoot(handle);
     this.#retentionService = new RetentionService({
       rootSets: this.#rootSetRegistry,
       resolveRoot,
@@ -250,7 +297,7 @@ export default class ContentAddressableStore {
     });
     this.#publicationService = new PublicationService({
       ref,
-      resolveRoot,
+      resolveRoot: (handle) => this.#resolvePublicationRoot(handle),
       applicationRefPrefixes: cfg.applicationRefPrefixes,
       clock: cfg.clock,
     });
@@ -282,6 +329,18 @@ export default class ContentAddressableStore {
     return this.#assetService;
   }
 
+  /** @returns {Promise<PageService>} */
+  async #getPageService() {
+    await this.#getService();
+    return this.#pageService;
+  }
+
+  /** @returns {Promise<BundleService>} */
+  async #getBundleService() {
+    await this.#getService();
+    return this.#bundleService;
+  }
+
   /** @returns {Promise<RetentionService>} */
   async #getRetentionService() {
     await this.#getService();
@@ -298,6 +357,92 @@ export default class ContentAddressableStore {
   async *#openAsset(options) {
     const assets = await this.#getAssetService();
     yield* assets.open(options);
+  }
+
+  /** @returns {AsyncIterable<Uint8Array>} */
+  async *#openPage(options) {
+    const pages = await this.#getPageService();
+    yield* pages.open(options);
+  }
+
+  /** @returns {AsyncIterable<Uint8Array>} */
+  async *#openBundleMember(options) {
+    const bundles = await this.#getBundleService();
+    yield* bundles.openMember(options);
+  }
+
+  async #resolveApplicationRoot(value, context = {}) {
+    const handle = parseApplicationHandle(value);
+    const validation = context.validation ?? { active: new Set(), cache: new Map() };
+    const nestingDepth = context.nestingDepth ?? 0;
+    const cacheKey = handle.kind === 'bundle'
+      ? `${nestingDepth}:${handle.toString()}`
+      : handle.toString();
+    if (validation.cache.has(cacheKey)) {
+      const cached = validation.cache.get(cacheKey);
+      validation.cache.delete(cacheKey);
+      validation.cache.set(cacheKey, cached);
+      return cached;
+    }
+    if (validation.active.has(cacheKey)) {
+      throw createCasError('Application handle graph contains a cycle', ErrorCodes.BUNDLE_CORRUPT, {
+        handle: handle.toString(),
+        nestingDepth,
+      });
+    }
+    validation.active.add(cacheKey);
+    try {
+      let target;
+      switch (handle.kind) {
+        case 'asset':
+          target = await this.#assetService.resolveRoot(handle);
+          break;
+        case 'page':
+          target = await this.#pageService.resolveRoot(handle);
+          break;
+        case 'bundle':
+          target = await this.#bundleService.resolveRoot(handle, { nestingDepth, validation });
+          break;
+        default:
+          throw createCasError(
+            'Unsupported application handle kind',
+            ErrorCodes.HANDLE_KIND_MISMATCH,
+            { kind: handle.kind }
+          );
+      }
+      cacheApplicationTarget(validation.cache, cacheKey, target);
+      return target;
+    } finally {
+      validation.active.delete(cacheKey);
+    }
+  }
+
+  async *#openApplicationHandle(value) {
+    const handle = parseApplicationHandle(value);
+    if (handle.kind === 'asset') {
+      yield* this.#assetService.open({ handle });
+      return;
+    }
+    if (handle.kind === 'page') {
+      yield* this.#pageService.open({ handle });
+      return;
+    }
+    throw createCasError(
+      'Structured bundle handles cannot be opened as byte streams',
+      ErrorCodes.BUNDLE_MEMBER_NOT_STREAMABLE,
+      { handle: handle.toString() }
+    );
+  }
+
+  async #resolvePublicationRoot(value) {
+    const target = await this.#resolveApplicationRoot(value);
+    if (target.type === 'tree') {
+      return target;
+    }
+    const oid = await this.service.persistence.writeTree([
+      `100644 blob ${target.oid}\tpage`,
+    ]);
+    return Object.freeze({ ...target, oid, type: 'tree', publicationTargetOid: target.oid });
   }
 
   /**
@@ -758,4 +903,16 @@ export default class ContentAddressableStore {
     const vault = await this.#getVault();
     return await rotateVaultPassphrase({ service, vault }, options);
   }
+}
+
+function cacheApplicationTarget(cache, key, target) {
+  if (cache.size >= MAX_VALIDATION_CACHE_ENTRIES) {
+    cache.delete(cache.keys().next().value);
+  }
+  cache.set(key, Object.freeze({
+    handle: target.handle,
+    oid: target.oid,
+    type: target.type,
+    size: target.size ?? null,
+  }));
 }
