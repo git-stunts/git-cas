@@ -1,6 +1,10 @@
 import CachePolicy from '../value-objects/CachePolicy.js';
 import createCasError from '../errors/createCasError.js';
 import { ErrorCodes } from '../errors/index.js';
+import {
+  CACHE_ACCOUNTING_VERSION,
+  CACHE_METADATA_VERSION,
+} from './CacheMetadataCodec.js';
 
 /** Applies expiry and bounded approximate-LRU policy without hydrating an index. */
 export default class CachePolicyEnforcer {
@@ -52,8 +56,8 @@ export default class CachePolicyEnforcer {
 export function createCacheState({ namespace, policy: value, summary, previous, now }) {
   const policy = CachePolicy.from(value);
   return Object.freeze({
-    version: 1,
-    accountingVersion: 1,
+    version: CACHE_METADATA_VERSION,
+    accountingVersion: CACHE_ACCOUNTING_VERSION,
     namespace,
     policy: Object.freeze(policy.toJSON()),
     entryCount: summary.entryCount,

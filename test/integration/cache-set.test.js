@@ -71,13 +71,16 @@ describe('CacheSet Git reachability', () => {
   });
 
   it('makes a removed target collectible while retaining the winning index', async () => {
-    const old = await cache.get('current');
-    const removed = await cache.remove('current');
+    const removalCache = await cas.caches.open({ namespace: 'git-warp/removal-proof' });
+    const target = await cas.pages.put({ source: Buffer.from('removed-target') });
+    await removalCache.put('current', target.handle);
+    const old = await removalCache.get('current');
+    const removed = await removalCache.remove('current');
 
     expect(removed.removed.handle).toEqual(old.handle);
     expect(prunableOids()).toContain(old.handle.oid);
     expect(prunableOids()).not.toContain(removed.witness.handle.oid);
-    await expect(cache.doctor()).resolves.toMatchObject({ healthy: true });
+    await expect(removalCache.doctor()).resolves.toMatchObject({ healthy: true });
   });
 });
 

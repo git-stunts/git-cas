@@ -339,7 +339,7 @@ export declare class CacheHit {
   readonly handle: ApplicationHandle;
   readonly policy: RetentionPolicy;
   readonly expiresAt: string | null;
-  readonly logicalBytes: number | null;
+  readonly logicalBytes: number;
   readonly createdAt: string;
   readonly accessedAt: string;
   readonly generation: string;
