@@ -7,6 +7,8 @@ Implementation slices:
 
 Implementation commit: `868cc7080513f8fed71f28dd93bb744ebdf0fc85`
 
+Review-hardening commit: `6ba961ab2aefb704c2e3d9c56a71d161d67b77be`
+
 ## Claim
 
 `git-cas` owns non-mutating repository-wide CAS diagnostics. The public facade
@@ -147,6 +149,26 @@ ordinary service registries exist.
 [cite: `index.js#184-196@868cc7080513f8fed71f28dd93bb744ebdf0fc85`]
 [cite: `index.js#404-410@868cc7080513f8fed71f28dd93bb744ebdf0fc85`]
 [cite: `test/unit/facade/ContentAddressableStore.diagnostics.test.js#21-68@868cc7080513f8fed71f28dd93bb744ebdf0fc85`]
+
+## Pull Request Review Follow-up
+
+CodeRabbit identified three valid hardening opportunities, all resolved before
+merge:
+
+- Failed CacheSet, RootSet, and ExpiringSet inspections now return distinct
+  error records that exactly match their public usage contracts while
+  preserving structured error evidence.
+  [cite: `src/domain/services/RepositoryDoctor.js#136-163@6ba961ab2aefb704c2e3d9c56a71d161d67b77be`]
+  [cite: `src/domain/services/RepositoryDoctor.js#514-550@6ba961ab2aefb704c2e3d9c56a71d161d67b77be`]
+  [cite: `test/unit/domain/services/RepositoryDoctor.test.js#217-259@6ba961ab2aefb704c2e3d9c56a71d161d67b77be`]
+- The buffered full reachable-byte inventory has a dedicated five-minute
+  default policy instead of inheriting the short stream-start timeout. An
+  explicitly injected caller policy remains authoritative.
+  [cite: `src/infrastructure/adapters/GitRepositoryInspectionAdapter.js#6-28@6ba961ab2aefb704c2e3d9c56a71d161d67b77be`]
+  [cite: `src/infrastructure/adapters/GitRepositoryInspectionAdapter.js#91-97@6ba961ab2aefb704c2e3d9c56a71d161d67b77be`]
+- Negative-path tests now prove that refs outside `refs/` and malformed
+  prunable-object records fail closed with `REPOSITORY_INSPECTION_INVALID`.
+  [cite: `test/unit/infrastructure/adapters/GitRepositoryInspectionAdapter.test.js#114-140@6ba961ab2aefb704c2e3d9c56a71d161d67b77be`]
 
 ## Verification
 
