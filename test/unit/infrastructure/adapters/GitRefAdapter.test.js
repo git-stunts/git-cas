@@ -92,6 +92,20 @@ describe('GitRefAdapter.updateRef()', () => {
     });
   });
 
+  it('uses the repository hash width for SHA-256 create-only updates', async () => {
+    const { adapter, plumbing } = createAdapter();
+
+    await adapter.updateRef({
+      ref: 'refs/cas/vault',
+      newOid: 'a'.repeat(64),
+      expectedOldOid: null,
+    });
+
+    expect(plumbing.execute).toHaveBeenCalledWith({
+      args: ['update-ref', 'refs/cas/vault', 'a'.repeat(64), '0'.repeat(64)],
+    });
+  });
+
   it('omits the expected old OID only when the caller explicitly leaves it undefined', async () => {
     const { adapter, plumbing } = createAdapter();
 

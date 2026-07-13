@@ -73,3 +73,18 @@ describe('Root-set declaration accuracy', () => {
     expect(declarations).toContain('resolveParents(commitOid: string): Promise<string[]>;');
   });
 });
+
+describe('Application-storage declaration accuracy', () => {
+  it('declares opaque handles, witnesses, and frozen facade capabilities', () => {
+    const declarations = read('index.d.ts');
+
+    expect(declarations).toContain('export declare class AssetHandle');
+    expect(declarations).toContain('export declare class StagedAsset');
+    expect(declarations).toContain('export declare class RetentionWitness');
+    expect(declarations).toContain('readonly assets: AssetCapability;');
+    expect(declarations).toContain('readonly retention: RetentionCapability;');
+    expect(declarations).toContain('readonly publications: PublicationCapability;');
+    expect(declarations).toContain('applicationRefPrefixes?: string[];');
+    expect(declarations).toContain('parentOids?: string[];');
+  });
+});

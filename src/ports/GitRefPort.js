@@ -36,6 +36,7 @@ export default class GitRefPort {
    * @param {Object} _options
    * @param {string} _options.treeOid - Tree OID for the commit.
    * @param {string|null} [_options.parentOid] - Parent commit OID (null for root commit).
+   * @param {string[]} [_options.parentOids] - Ordered parent commit OIDs.
    * @param {string} _options.message - Commit message.
    * @returns {Promise<string>} The new commit OID.
    */
