@@ -2,16 +2,16 @@ import { createHash } from 'node:crypto';
 import GitRefPort from '../../src/ports/GitRefPort.js';
 import { CasError, ErrorCodes } from '../../src/domain/errors/index.js';
 
-function commitOid({ treeOid, parentOid, message }) {
-  return createHash('sha1')
+function commitOid({ treeOid, parentOids, message }) {
+  const hash = createHash('sha1')
     .update('commit')
     .update('\0')
     .update(treeOid)
-    .update('\0')
-    .update(parentOid || '')
-    .update('\0')
-    .update(message)
-    .digest('hex');
+    .update('\0');
+  for (const parent of parentOids) {
+    hash.update(parent).update('\0');
+  }
+  return hash.update(message).digest('hex');
 }
 
 /**
@@ -50,12 +50,13 @@ export default class MemoryRefAdapter extends GitRefPort {
         { commitOid: commitOidToResolve },
       );
     }
-    return commit.parentOid ? [commit.parentOid] : [];
+    return [...commit.parentOids];
   }
 
-  async createCommit({ treeOid, parentOid, message }) {
-    const oid = commitOid({ treeOid, parentOid, message });
-    this.#commits.set(oid, { treeOid, parentOid, message });
+  async createCommit({ treeOid, parentOid, parentOids, message }) {
+    const parents = parentOids ?? (parentOid ? [parentOid] : []);
+    const oid = commitOid({ treeOid, parentOids: parents, message });
+    this.#commits.set(oid, { treeOid, parentOids: [...parents], message });
     return oid;
   }
 

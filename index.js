@@ -10,6 +10,9 @@ import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
 import RootSet from './src/domain/services/RootSet.js';
 import RootSetRegistry from './src/domain/services/RootSetRegistry.js';
+import AssetService from './src/domain/services/AssetService.js';
+import PublicationService from './src/domain/services/PublicationService.js';
+import RetentionService from './src/domain/services/RetentionService.js';
 import rotateVaultPassphrase from './src/domain/services/rotateVaultPassphrase.js';
 import GitPersistenceAdapter from './src/infrastructure/adapters/GitPersistenceAdapter.js';
 import GitRefAdapter from './src/infrastructure/adapters/GitRefAdapter.js';
@@ -71,6 +74,9 @@ export { default as ChunkingPort } from './src/ports/ChunkingPort.js';
 export { default as ObservabilityPort } from './src/ports/ObservabilityPort.js';
 export { default as Manifest } from './src/domain/value-objects/Manifest.js';
 export { default as Chunk } from './src/domain/value-objects/Chunk.js';
+export { default as AssetHandle } from './src/domain/value-objects/AssetHandle.js';
+export { default as StagedAsset } from './src/domain/value-objects/StagedAsset.js';
+export { default as RetentionWitness } from './src/domain/value-objects/RetentionWitness.js';
 export { default as EventEmitterObserver } from './src/infrastructure/adapters/EventEmitterObserver.js';
 export { default as StatsCollector } from './src/infrastructure/adapters/StatsCollector.js';
 export { default as FixedChunker } from './src/infrastructure/chunkers/FixedChunker.js';
@@ -102,6 +108,8 @@ export default class ContentAddressableStore {
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes for encrypted/compressed restores (default 512 MiB).
    * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes (default 10 MiB).
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter (default NodeCompressionAdapter).
+   * @param {string[]} [options.applicationRefPrefixes] - Explicit application ref namespaces allowed for generic publication.
+   * @param {{ now(): Date }} [options.clock] - Injectable clock for deterministic evidence.
    */
   constructor({
     plumbing,
@@ -117,6 +125,8 @@ export default class ContentAddressableStore {
     maxRestoreBufferSize,
     maxBlobSize,
     compressionAdapter,
+    applicationRefPrefixes,
+    clock,
   }) {
     this.#config = {
       plumbing,
@@ -132,16 +142,39 @@ export default class ContentAddressableStore {
       maxRestoreBufferSize,
       maxBlobSize,
       compressionAdapter,
+      applicationRefPrefixes,
+      clock,
     };
     this.service = null;
     this.#servicePromise = null;
+    this.#installCapabilities();
+  }
+
+  #installCapabilities() {
     this.rootSets = Object.freeze({
       open: async (options) => (await this.#getRootSetRegistry()).open(options),
     });
+    this.assets = Object.freeze({
+      put: async (options) => (await this.#getAssetService()).put(options),
+      adopt: async (options) => (await this.#getAssetService()).adopt(options),
+      open: (options) => this.#openAsset(options),
+    });
+    this.retention = Object.freeze({
+      retain: async (options) => (await this.#getRetentionService()).retain(options),
+    });
+    this.publications = Object.freeze({
+      commit: async (options) => (await this.#getPublicationService()).commit(options),
+    });
   }
 
-  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, maxBlobSize?: number, compressionAdapter?: * }} */
+  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, maxBlobSize?: number, compressionAdapter?: *, applicationRefPrefixes?: string[], clock?: { now(): Date } }} */
   #config;
+  /** @type {AssetService|null} */
+  #assetService = null;
+  /** @type {PublicationService|null} */
+  #publicationService = null;
+  /** @type {RetentionService|null} */
+  #retentionService = null;
   /** @type {VaultService|null} */
   #vault = null;
   /** @type {RootSetRegistry|null} */
@@ -202,8 +235,25 @@ export default class ContentAddressableStore {
       observability: this.service.observability,
     });
     this.#rootSetRegistry = new RootSetRegistry({ persistence, ref });
+    this.#initApplicationServices({ ref, cfg });
 
     return this.service;
+  }
+
+  #initApplicationServices({ ref, cfg }) {
+    this.#assetService = new AssetService({ cas: this.service, clock: cfg.clock });
+    const resolveRoot = (handle) => this.#assetService.resolveRoot(handle);
+    this.#retentionService = new RetentionService({
+      rootSets: this.#rootSetRegistry,
+      resolveRoot,
+      clock: cfg.clock,
+    });
+    this.#publicationService = new PublicationService({
+      ref,
+      resolveRoot,
+      applicationRefPrefixes: cfg.applicationRefPrefixes,
+      clock: cfg.clock,
+    });
   }
 
   /**
@@ -224,6 +274,30 @@ export default class ContentAddressableStore {
   async #getRootSetRegistry() {
     await this.#getService();
     return this.#rootSetRegistry;
+  }
+
+  /** @returns {Promise<AssetService>} */
+  async #getAssetService() {
+    await this.#getService();
+    return this.#assetService;
+  }
+
+  /** @returns {Promise<RetentionService>} */
+  async #getRetentionService() {
+    await this.#getService();
+    return this.#retentionService;
+  }
+
+  /** @returns {Promise<PublicationService>} */
+  async #getPublicationService() {
+    await this.#getService();
+    return this.#publicationService;
+  }
+
+  /** @returns {AsyncIterable<Uint8Array>} */
+  async *#openAsset(options) {
+    const assets = await this.#getAssetService();
+    yield* assets.open(options);
   }
 
   /**

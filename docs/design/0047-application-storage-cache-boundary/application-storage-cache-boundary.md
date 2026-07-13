@@ -178,7 +178,7 @@ const cas = new ContentAddressableStore(options);
 const avatar = await cas.assets.put({
   source: avatarByteStream,
   slug: 'alice-avatar',
-  mime: 'image/png',
+  filename: 'alice-avatar.png',
 });
 
 const materialization = await cas.bundles.put({
@@ -793,6 +793,9 @@ its own committed witness under its cycle directory.
 
 Design review evidence is recorded in
 [witness/design-review.md](./witness/design-review.md).
+
+Opaque asset handle, retention, and publication implementation evidence is
+recorded in [witness/asset-handles.md](./witness/asset-handles.md).
 
 ## Risks
 

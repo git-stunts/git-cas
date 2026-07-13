@@ -12,7 +12,6 @@ import { isGitMissingRefError } from '../../domain/helpers/gitRefErrors.js';
  * an unref'd timer that allows Node to exit before the next attempt starts.
  */
 const DEFAULT_POLICY = Policy.timeout(30_000);
-const GIT_NULL_OID = '0'.repeat(40);
 
 /**
  * {@link GitRefPort} implementation backed by `@git-stunts/plumbing`.
@@ -89,13 +88,15 @@ export default class GitRefAdapter extends GitRefPort {
    * @param {Object} options
    * @param {string} options.treeOid - Tree OID for the commit.
    * @param {string|null} [options.parentOid] - Parent commit OID.
+   * @param {string[]} [options.parentOids] - Ordered parent commit OIDs.
    * @param {string} options.message - Commit message.
    * @returns {Promise<string>} The new commit OID.
    */
-  async createCommit({ treeOid, parentOid, message }) {
+  async createCommit({ treeOid, parentOid, parentOids, message }) {
     const args = ['commit-tree', treeOid, '-m', message];
-    if (parentOid) {
-      args.push('-p', parentOid);
+    const parents = parentOids ?? (parentOid ? [parentOid] : []);
+    for (const parent of parents) {
+      args.push('-p', parent);
     }
     return this.policy.execute(() =>
       this.plumbing.execute({ args }),
@@ -113,7 +114,7 @@ export default class GitRefAdapter extends GitRefPort {
   async updateRef({ ref, newOid, expectedOldOid }) {
     const args = ['update-ref', ref, newOid];
     if (expectedOldOid !== undefined) {
-      args.push(expectedOldOid ?? GIT_NULL_OID);
+      args.push(expectedOldOid ?? '0'.repeat(newOid.length));
     }
     await this.policy.execute(() =>
       this.plumbing.execute({ args }),

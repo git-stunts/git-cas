@@ -41,6 +41,115 @@ export type {
   RecipientEntry,
   EncryptionScheme,
 };
+
+export interface AssetHandleData {
+  version: 1;
+  kind: 'asset';
+  format: 'manifest-tree';
+  codec: string;
+  hashAlgorithm: 'sha1' | 'sha256';
+  oid: string;
+}
+
+export interface AssetHandleInit {
+  version?: 1;
+  kind?: 'asset';
+  format?: 'manifest-tree';
+  codec: string;
+  hashAlgorithm?: 'sha1' | 'sha256';
+  oid: string;
+}
+
+export type AssetHandleInput = AssetHandle | AssetHandleData | AssetHandleInit | string;
+
+/** Repository-independent locator for one validated git-cas asset graph. */
+export declare class AssetHandle implements AssetHandleData {
+  readonly version: 1;
+  readonly kind: 'asset';
+  readonly format: 'manifest-tree';
+  readonly codec: string;
+  readonly hashAlgorithm: 'sha1' | 'sha256';
+  readonly oid: string;
+  constructor(value: AssetHandleInit);
+  static from(value: AssetHandleInput): AssetHandle;
+  static parse(token: string): AssetHandle;
+  toString(): string;
+  toJSON(): AssetHandleData;
+}
+
+export interface StagedAssetData {
+  version: 1;
+  state: 'staged';
+  handle: string;
+  asset: { slug: string; filename: string; size: number };
+  retention: {
+    policy: null;
+    reachability: 'unanchored';
+    protection: 'not-established';
+  };
+  observedAt: string;
+}
+
+/** Result for an asset graph written without a reachability root. */
+export declare class StagedAsset {
+  readonly version: 1;
+  readonly state: 'staged';
+  readonly handle: AssetHandle;
+  readonly asset: Readonly<{ slug: string; filename: string; size: number }>;
+  readonly retention: Readonly<{
+    policy: null;
+    reachability: 'unanchored';
+    protection: 'not-established';
+  }>;
+  readonly observedAt: string;
+  constructor(value: {
+    handle: AssetHandleInput;
+    slug: string;
+    filename: string;
+    size: number;
+    observedAt: string;
+  });
+  toJSON(): StagedAssetData;
+}
+
+export type RetentionPolicy = 'pinned' | 'evictable';
+export type RetentionReachability = 'anchored' | 'orphaned' | 'volatile';
+export type RetentionRootKind = 'root-set' | 'publication' | 'cache-set' | 'expiring-set';
+
+export interface RetentionRoot {
+  kind: RetentionRootKind;
+  namespace: string;
+  ref: string;
+  generation: string;
+  path: string;
+}
+
+export interface RetentionWitnessData {
+  version: 1;
+  handle: string;
+  policy: RetentionPolicy;
+  reachability: RetentionReachability;
+  root: RetentionRoot;
+  observedAt: string;
+}
+
+/** Immutable evidence for one observed retaining Git generation. */
+export declare class RetentionWitness {
+  readonly version: 1;
+  readonly handle: AssetHandle;
+  readonly policy: RetentionPolicy;
+  readonly reachability: RetentionReachability;
+  readonly root: Readonly<RetentionRoot>;
+  readonly observedAt: string;
+  constructor(value: {
+    handle: AssetHandleInput;
+    policy: RetentionPolicy;
+    reachability: RetentionReachability;
+    root: RetentionRoot;
+    observedAt: string;
+  });
+  toJSON(): RetentionWitnessData;
+}
 export type {
   CryptoPort,
   CodecPort,
@@ -162,6 +271,7 @@ export declare class GitRefPortBase {
   createCommit(options: {
     treeOid: string;
     parentOid?: string | null;
+    parentOids?: string[];
     message: string;
   }): Promise<string>;
   updateRef(options: {
@@ -264,6 +374,10 @@ export interface ContentAddressableStoreOptions {
   maxRestoreBufferSize?: number;
   /** Safety limit for readBlob metadata in bytes. @default 10485760 (10 MiB) */
   maxBlobSize?: number;
+  /** Application-owned ref prefixes permitted for generic publication. */
+  applicationRefPrefixes?: string[];
+  /** Injectable clock used for deterministic lifecycle evidence. */
+  clock?: { now(): Date };
 }
 
 /** Options for {@link ContentAddressableStore.open}. */
@@ -290,7 +404,7 @@ export interface VaultEntry {
 }
 
 export type RootSetEntryType = 'blob' | 'tree';
-export type RootSetRetention = 'pinned' | 'evictable';
+export type RootSetRetention = RetentionPolicy;
 
 /** One Git object retained by a root set while the entry is present. */
 export interface RootSetEntry {
@@ -525,6 +639,59 @@ export const SCHEME_FRAMED: 'framed';
 /** Encryption scheme constant for convergent (dedup-preserving) encryption. */
 export const SCHEME_CONVERGENT: 'convergent';
 
+export interface AssetPutOptions {
+  source: AsyncIterable<Uint8Array>;
+  slug: string;
+  filename?: string;
+  encryptionKey?: Uint8Array;
+  passphrase?: string;
+  encryption?: StoreEncryptionOptions;
+  kdfOptions?: Omit<DeriveKeyOptions, 'passphrase'>;
+  compression?: { algorithm: 'gzip' };
+  recipients?: Array<{ label: string; key: Uint8Array }>;
+  merkleThreshold?: number;
+  chunking?: ChunkingConfig;
+}
+
+export interface AssetCapability {
+  put(options: AssetPutOptions): Promise<StagedAsset>;
+  adopt(options: { treeOid: string }): Promise<StagedAsset>;
+  open(options: {
+    handle: AssetHandleInput;
+    encryptionKey?: Uint8Array;
+    passphrase?: string;
+  }): AsyncIterable<Uint8Array>;
+}
+
+export interface RetentionResult {
+  readonly changed: boolean;
+  readonly witness: RetentionWitness;
+}
+
+export interface RetentionCapability {
+  retain(options: {
+    handle: AssetHandleInput;
+    root: { ref: string; name: string };
+    policy?: RetentionPolicy;
+  }): Promise<RetentionResult>;
+}
+
+export interface PublicationResult {
+  readonly operation: 'publication';
+  readonly commitId: string;
+  readonly ref: string;
+  readonly root: AssetHandle;
+  readonly witness: RetentionWitness;
+}
+
+export interface PublicationCapability {
+  commit(options: {
+    root: AssetHandleInput;
+    commit: { message: string; parents?: string[] };
+    ref: { name: string; expected: string | null };
+  }): Promise<PublicationResult>;
+}
+
 /**
  * High-level facade for the Content Addressable Store library.
  *
@@ -542,6 +709,10 @@ export default class ContentAddressableStore {
       retry?: { maxAttempts?: number; baseDelayMs?: number };
     }): Promise<RootSet>;
   };
+
+  readonly assets: AssetCapability;
+  readonly retention: RetentionCapability;
+  readonly publications: PublicationCapability;
 
   getService(): Promise<CasService>;
   getVaultService(): Promise<VaultService>;
