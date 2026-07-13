@@ -22,9 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exact RootSet tree edge that made the graph reachable.
 - **Generic application publication** — `cas.publications.commit()` validates
   handle graphs, bounded ordered commit parents, commit messages, explicit ref
-  allowlists, and expected heads before compare-and-swap publication. Success
-  returns a `RetentionWitness`; stale heads report structured expected,
-  observed, and attempted-commit evidence.
+  allowlists, reserved Git/CAS namespaces, and expected heads before
+  compare-and-swap publication. Success returns a `RetentionWitness`; stale
+  heads report structured expected, observed, and attempted-commit evidence.
 - **Portable handle validation** — canonical SHA-1 and SHA-256 handle tokens
   contain no repository location, survive clone and mirror transfer, and fail
   explicitly when their referenced graph is absent or has the wrong codec or

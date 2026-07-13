@@ -76,7 +76,7 @@ new ContentAddressableStore(options);
 - `options.maxRestoreBufferSize` (optional): Max bytes for buffered encrypted/compressed restore (default: 536870912 / 512 MiB)
 - `options.maxBlobSize` (optional): Max bytes for metadata blob reads (default: 10485760 / 10 MiB)
 - `options.compressionAdapter` (optional): CompressionPort implementation (default: NodeCompressionAdapter)
-- `options.applicationRefPrefixes` (optional): Explicit application-owned ref prefixes allowed for generic publication; publication is disabled when omitted, and `refs/cas/*` is always reserved
+- `options.applicationRefPrefixes` (optional): Explicit application-owned ref prefixes allowed for generic publication; publication is disabled when omitted, and Git/CAS-managed namespaces are always reserved
 - `options.clock` (optional): `{ now(): Date }` clock used for deterministic staged results and retention witnesses
 
 **Example:**
@@ -1062,7 +1062,10 @@ const result = await cas.publications.commit({
 ```
 
 Generic publication is available only below a constructor-configured
-`applicationRefPrefixes` allowlist. It never permits `refs/cas/*`. The method:
+`applicationRefPrefixes` allowlist. Even a broad allowlist cannot publish below
+`refs/bisect/*`, `refs/cas/*`, `refs/heads/*`, `refs/notes/*`,
+`refs/remotes/*`, `refs/replace/*`, `refs/rewritten/*`, `refs/stash`,
+`refs/tags/*`, or `refs/worktree/*`. The method:
 
 1. validates the complete supported handle graph;
 2. validates at most 64 ordered parent commit IDs and a commit message of at

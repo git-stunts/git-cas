@@ -4,6 +4,8 @@ Implementation slice: [#54](https://github.com/git-stunts/git-cas/issues/54)
 
 Implementation commit: `a9e47ef`
 
+Review correction commit: `3d6eaa4`
+
 ## Claim
 
 Applications can stream asset bytes into and out of `git-cas`, exchange a
@@ -65,11 +67,14 @@ contracts.
 - New facade capabilities are additive and lazily share the existing adapters
   and service initialization.
 - Publication is disabled without an explicit application ref prefix and
-  always rejects `refs/cas/*`.
+  always rejects Git/CAS-managed ref namespaces, even under a broad `refs/`
+  allowlist.
 - `expected` is mandatory, including `null` for create-only publication.
 - Handles expose content identity but make no durability promise.
 - Publication commit IDs remain public application identities; payload object
   traversal remains owned by `git-cas`.
+- Complete handle-graph validation deduplicates chunk OIDs and bounds concurrent
+  object-type reads by the configured CAS concurrency.
 
 ## Code Lawyer Review
 
@@ -111,6 +116,34 @@ real-Git prune assertion is deliberately made against fresh unique test
 content.
 [cite: `src/domain/value-objects/StagedAsset.js#29-39@fd7e6e5`]
 
+### CL-006: Sequential validation made large handle graphs latency-bound
+
+Complete handle validation now deduplicates chunk OIDs in one pass and checks
+them through a fixed worker pool capped by the CAS concurrency. This avoids one
+serial Git round trip per unique chunk without creating one promise per chunk.
+The test instruments active object-type reads and proves the configured bound.
+[cite: `src/domain/services/AssetService.js#103-121@3d6eaa4`]
+[cite: `test/unit/domain/services/AssetService.test.js#93-122@3d6eaa4`]
+
+### CL-007: A broad allowlist could authorize Git-managed refs
+
+Publication now hard-blocks core Git and CAS namespaces independently of the
+application allowlist. Both reserved prefix configuration and publication below
+a reserved namespace fail before commit construction or ref mutation.
+[cite: `src/domain/services/PublicationService.js#11-22@3d6eaa4`]
+[cite: `src/domain/services/PublicationService.js#159-168@3d6eaa4`]
+[cite: `src/domain/services/PublicationService.js#200-242@3d6eaa4`]
+[cite: `test/unit/domain/services/PublicationService.test.js#145-184@3d6eaa4`]
+
+### CL-008: Retention validated RootSet refs after handle resolution
+
+Retention now validates the RootSet namespace before resolving the asset graph.
+The negative test proves that a malformed ref performs neither handle
+resolution nor ref mutation.
+[cite: `src/domain/services/RetentionService.js#37-40@3d6eaa4`]
+[cite: `src/domain/services/RetentionService.js#87-101@3d6eaa4`]
+[cite: `test/unit/domain/services/RetentionService.test.js#93-108@3d6eaa4`]
+
 ## Residual Constraints
 
 - Asset payload ingress and plaintext/framed/convergent egress use the existing
@@ -129,7 +162,7 @@ content.
 ## Validation
 
 - `pnpm lint`
-- `pnpm test`: 198 files passed; 1,720 tests passed; 2 skipped
+- `pnpm test`: 198 files passed; 1,733 tests passed; 2 skipped
 - `pnpm test:integration:node`: 7 files and 161 tests passed
 - Docker Bun application-storage integration: 3 tests passed
 - Docker Deno application-storage integration: 3 tests passed
