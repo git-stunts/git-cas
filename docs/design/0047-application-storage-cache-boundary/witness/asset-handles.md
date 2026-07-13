@@ -25,7 +25,7 @@ sequencing manifests, trees, payload OIDs, commits, and ref updates themselves.
   [cite: `src/domain/services/AssetService.js#26-101@a9e47ef`]
 - A staged result explicitly says the operation created no retention root. It
   does not mislabel globally deduplicated objects as proven unreachable.
-  [cite: `src/domain/value-objects/StagedAsset.js#17-53@a9e47ef`]
+  [cite: `src/domain/value-objects/StagedAsset.js#17-53@fd7e6e5`]
 - `retention.retain()` validates the handle, installs the tree through RootSet,
   and reports the exact committed generation and evidence path.
   [cite: `src/domain/services/RetentionService.js#37-61@a9e47ef`]
@@ -104,11 +104,12 @@ an unclassified observation error.
 
 ### CL-005: Staged reachability cannot be inferred globally under deduplication
 
-The result uses `unanchored` to state that this operation created no root. It
-does not call the graph `orphaned`, because identical objects may already be
-reachable through another ref. The real-Git prune assertion is deliberately
-made against fresh unique test content.
-[cite: `src/domain/value-objects/StagedAsset.js#29-39@a9e47ef`]
+The result uses `unanchored` and `not-established` to state that this operation
+created no root or protection claim. It does not call the graph `orphaned`,
+because identical objects may already be reachable through another ref. The
+real-Git prune assertion is deliberately made against fresh unique test
+content.
+[cite: `src/domain/value-objects/StagedAsset.js#29-39@fd7e6e5`]
 
 ## Residual Constraints
 

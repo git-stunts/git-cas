@@ -953,7 +953,7 @@ as `store()`.
   retention: {
     policy: null,
     reachability: 'unanchored',
-    protection: 'grace-period-only',
+    protection: 'not-established',
   },
   observedAt: '2026-07-13T10:00:00.000Z',
 }
@@ -961,8 +961,9 @@ as `store()`.
 
 `unanchored` means this operation created no reachability root. It is not a
 global assertion that a deduplicated object graph is unreachable through every
-other Git ref. Call `retention.retain()` or `publications.commit()` before
-relying on the handle beyond Git's unreachable-object grace period.
+other Git ref. `not-established` likewise means this operation made no
+protection claim. Call `retention.retain()` or `publications.commit()` before
+relying on a new handle beyond Git's unreachable-object grace period.
 
 ### `assets.open()`
 
