@@ -217,6 +217,11 @@ candidate test exercises digest ordering at an equal-time tie.
 [cite: `test/integration/cache-set.test.js#73-84@7167b5d90e77abfb886b92d9a4f9771558367fb7`]
 [cite: `test/unit/domain/services/CacheCandidateHeap.test.js#5-17@7167b5d90e77abfb886b92d9a4f9771558367fb7`]
 
+The final review also corrected release-history attribution: structured Git
+object metadata inspection is a pending 6.2.0 change under `Unreleased`, not
+part of the already-published 6.1.0 record.
+[cite: `CHANGELOG.md#63-66@bbd36b9fb27330b71e611479c41b6b93b9166d53`]
+
 ## Residual Constraints
 
 - CacheSet releases reachability; it does not run GC. Other refs, reflogs, or
