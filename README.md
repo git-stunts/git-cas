@@ -104,6 +104,7 @@ The README is the front door. Detailed mechanics live in the guide set:
 | GC retention for caches and derived state               | [Root Sets](./docs/API.md#root-sets)                         |
 | Managed TTL and capacity caches                         | [Cache Sets](./docs/API.md#cache-sets)                       |
 | Durable replay markers with expiry-only release         | [Expiring Sets](./docs/API.md#expiring-sets)                 |
+| Repository reachability and git-cas usage evidence      | [Repository Diagnostics](./docs/API.md#repository-diagnostics) |
 | v5 to v6 migration                                      | [Upgrading](./UPGRADING.md)                                  |
 
 Core capabilities:
@@ -134,8 +135,10 @@ Core capabilities:
   compare-and-swap refs, and immutable lifecycle evidence.
 - **Envelope recipients**: multi-recipient key wrapping and recipient rotation
   avoid re-encrypting data blobs.
-- **Operational diagnostics**: `git-cas doctor` validates vault health and
-  reports deduplication efficiency.
+- **Operational diagnostics**: `cas.diagnostics.doctor()` streams repository
+  object/ref evidence, classifies anchored, orphaned, and volatile objects,
+  and summarizes CacheSet, RootSet, ExpiringSet, and Vault usage without
+  mutating Git. The `git-cas doctor` CLI continues to validate vault health.
 
 ## Safety Snapshot
 

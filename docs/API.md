@@ -17,13 +17,16 @@ should treat restored data, chunker output, codec output, and keys as
 1. [ContentAddressableStore](#contentaddressablestore)
 2. [Application Storage](#application-storage)
 3. [Root Sets](#root-sets)
-4. [Vault](#vault)
-5. [CasService](#casservice)
-6. [Events](#events)
-7. [Value Objects](#value-objects)
-8. [Ports](#ports)
-9. [Codecs](#codecs)
-10. [Error Codes](#error-codes)
+4. [Cache Sets](#cache-sets)
+5. [Expiring Sets](#expiring-sets)
+6. [Repository Diagnostics](#repository-diagnostics)
+7. [Vault](#vault)
+8. [CasService](#casservice)
+9. [Events](#events)
+10. [Value Objects](#value-objects)
+11. [Ports](#ports)
+12. [Codecs](#codecs)
+13. [Error Codes](#error-codes)
 
 ## ContentAddressableStore
 
@@ -1369,8 +1372,9 @@ Returns a non-mutating report with:
 - stable issue codes for missing or mismatched targets
 
 Current members are `anchored`. `orphaned` and `volatile` describe objects
-outside the current root set and are reported as zero by a single-set doctor;
-repository-wide classification remains a Git maintenance concern.
+outside the current root set and are reported as zero by a single-set doctor.
+Use [`cas.diagnostics.doctor()`](#repository-diagnostics) for repository-wide
+classification across refs and reflogs.
 
 ### repair
 
@@ -1680,6 +1684,69 @@ remain live longer. A forward jump can shorten a window, so security callers
 must validate request timestamps and choose `expiresAt` from the same trusted
 clock. Marker state survives process restart because the Git ref, not process
 memory, is authoritative.
+
+## Repository Diagnostics
+
+`cas.diagnostics.doctor()` returns immutable, machine-readable evidence about
+the complete Git object store and the managed git-cas refs without running
+garbage collection or destructive prune.
+
+```javascript
+const report = await cas.diagnostics.doctor({
+  gracePeriodMs: 14 * 24 * 60 * 60 * 1000,
+  maxCollectionsPerKind: 100,
+});
+
+console.log(report.repository.objects);
+console.log(report.usage.caches);
+console.log(report.limitations);
+```
+
+Pass either `gracePeriodMs` or an exact canonical `expiresBefore` UTC timestamp,
+not both. The default grace period is 14 days. `maxCollectionsPerKind` bounds
+detailed CacheSet, RootSet, and ExpiringSet rows from 1 through 1000; its default
+is 100. Every managed collection is still inspected sequentially and included
+in `totals`. Coverage reports `observed`, `inspected`, `detailed`, and
+`complete`, so detail truncation is visible instead of silently dropping
+managed refs or undercounting repository usage.
+
+The reachability classes have precise operational meanings:
+
+- `anchored` is the object set reached by all refs and all reflog entries.
+- `volatile` is the loose unreachable set reported by
+  `git prune --dry-run --verbose --no-progress --expire=<cutoff>`.
+- `orphaned` is the remaining unreachable set not targeted by that exact dry
+  run.
+
+The volatile inventory always goes through
+`GitPlumbing.inspectPrunableObjects()` from `@git-stunts/plumbing`; git-cas does
+not construct or expose a mutating prune path. If independent writers change
+the object store while the streamed inventories run, arithmetic invariants
+fail closed: `healthy` becomes false, derived counts become `null`, and the
+report includes `REPOSITORY_CHANGED_DURING_INSPECTION`.
+
+Repository-wide physical bytes are reported where Git provides compatible
+evidence: total object bytes, anchored bytes, and their combined unreachable
+difference. Physical bytes for an individual cache, root set, vault, orphaned
+class, or volatile class are `null`; shared objects and pack deltas cannot be
+assigned honestly to one owner. A dry prune also cannot expose the age of
+packed unreachable objects. Git may include configured alternate object stores
+in its inventory, while object disk sizes exclude pack indexes, bitmaps, and
+other repository metadata. These facts appear in `limitations` rather than
+being estimated.
+
+Cache summaries report entry count, deterministic logical bytes, age, expiry,
+capacity policy, and pinned/evictable counts. RootSet policy counts and Vault
+entry counts are reported independently from reachability. A privacy-mode
+vault remains healthy but reports `entryCount: null` because repository doctor
+does not request or retain vault key material.
+
+Object and ref inventories are consumed as streams, and managed collections are
+inspected one at a time. Runtime memory is bounded by stream windows,
+`maxCollectionsPerKind`, and existing per-collection/blob safety limits;
+runtime is linear in repository object and managed-collection count. Doctor
+never updates a ref, writes an object, runs `git gc`, or runs a destructive
+`git prune`.
 
 ## Vault
 
@@ -2571,6 +2638,31 @@ class CustomGitAdapter {
 }
 ```
 
+### RepositoryInspectionPort
+
+The domain-facing, non-mutating port behind repository doctor. Its Git adapter
+streams all-object metadata, reachable OIDs, dry-run-prunable loose objects,
+and refs, and obtains the aggregate reachable object disk usage. Application
+code normally uses `cas.diagnostics.doctor()` instead of this low-level port.
+
+```javascript
+for await (const object of port.iterateObjects()) {
+  console.log(object.oid, object.type, object.logicalBytes, object.physicalBytes);
+}
+
+for await (const oid of port.iterateReachableObjectIds()) {
+  // refs and reflogs both contribute
+}
+
+for await (const object of port.iteratePrunableObjects({ expiresBefore })) {
+  // safe dry-run evidence only
+}
+```
+
+`GitRepositoryInspectionAdapter` requires `@git-stunts/plumbing` 3.1.0 or
+newer. Structured Git output is validated strictly; malformed records or a
+non-zero stream status fail with `REPOSITORY_INSPECTION_INVALID`.
+
 ### CodecPort
 
 Interface for encoding/decoding manifest data.
@@ -2987,6 +3079,7 @@ new CasError({ message, code, meta, documentationUrl });
 | `ROOT_SET_METADATA_INVALID`           | `.rootset.json` is malformed, non-canonical, or belongs to another ref                                             | `read()`, `list()`, `doctor()`                                                  |
 | `ROOT_SET_TREE_INVALID`               | Metadata and the Git tree's actual reachability edges disagree                                                     | `read()`, `list()`, `doctor()`                                                  |
 | `ROOT_SET_REF_UPDATE_FAILED`          | Root-set ref update failed for a non-conflict reason                                                               | Root-set mutations and repair                                                   |
+| `REPOSITORY_INSPECTION_INVALID`       | Repository doctor options, Git output, dependencies, or safe-integer totals are invalid                            | `cas.diagnostics.doctor()`, repository inspection adapter                       |
 | `VAULT_ENTRY_NOT_FOUND`               | Slug does not exist in vault                                                                                       | `removeFromVault()`, `resolveVaultEntry()`                                      |
 | `VAULT_ENTRY_EXISTS`                  | Slug already exists (use `force` to overwrite)                                                                     | `addToVault()`                                                                  |
 | `VAULT_CONFLICT`                      | Concurrent vault update detected (CAS failure after retries)                                                       | `addToVault()`, `removeFromVault()`, `initVault()`, `rotateVaultPassphrase()`   |

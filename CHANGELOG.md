@@ -53,8 +53,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bounded inspection, doctor evidence, and immutable retention witnesses.
   The capability intentionally exposes no live remove, repair, capacity, or
   recency eviction path.
+- **Repository-wide diagnostics** — `cas.diagnostics.doctor()` streams all Git
+  objects, refs, and reflog reachability; classifies anchored, orphaned, and
+  dry-run-prunable loose objects; reports repository physical bytes where Git
+  can prove them; and summarizes bounded CacheSet, RootSet, ExpiringSet, and
+  Vault usage. Per-owner physical bytes and packed-object age remain explicit
+  unknowns, and concurrent inventory changes fail closed.
 
 ### Changed
+
+- **Safe prune inspection dependency** — repository diagnostics require
+  `@git-stunts/plumbing` 3.1.0, whose public API fixes the exact non-mutating
+  `git prune --dry-run --verbose --no-progress --expire=<cutoff>` contract.
 
 - **Git object size port** — `GitPersistencePort.readObjectSize()` and the Git
   adapter use object metadata to enforce page bounds without materializing

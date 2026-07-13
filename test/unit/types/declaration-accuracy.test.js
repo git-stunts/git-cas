@@ -39,7 +39,8 @@ describe('Type declaration accuracy', () => {
   });
 
   it('keeps runtime JSDoc store encryption shapes aligned with declarations', () => {
-    const encryptionShape = /@param \{\{ scheme\?: 'whole'\|'framed'\|'convergent', frameBytes\?: number, convergent\?: boolean \}\} \[options\.encryption\]/;
+    const encryptionShape =
+      /@param \{\{ scheme\?: 'whole'\|'framed'\|'convergent', frameBytes\?: number, convergent\?: boolean \}\} \[options\.encryption\]/;
 
     for (const relPath of [
       'src/domain/services/CasService.js',
@@ -53,7 +54,7 @@ describe('Type declaration accuracy', () => {
     const source = read('src/domain/services/ManifestDiff.js');
 
     expect(source).toMatch(
-      /@typedef\s+\{import\(['"]\.\.\/value-objects\/Manifest\.js['"]\)\.default\}\s+Manifest/,
+      /@typedef\s+\{import\(['"]\.\.\/value-objects\/Manifest\.js['"]\)\.default\}\s+Manifest/
     );
     expect(source).toMatch(/@param\s+\{Manifest\}\s+oldManifest/);
     expect(source).toMatch(/@param\s+\{Manifest\}\s+newManifest/);
@@ -96,7 +97,15 @@ describe('Application-storage declaration accuracy', () => {
     expect(declarations).toContain('export declare class ExpiringSet');
     expect(declarations).toContain('export declare class ExpiringMarker');
     expect(declarations).toContain('readonly expiringSets: ExpiringSetCapability;');
-    expect(declarations).toContain('addIfAbsent(key: string, options: { expiresAt: Date | string })');
+    expect(declarations).toContain('readonly diagnostics: DiagnosticsCapability;');
+    expect(declarations).toContain('export declare class RepositoryDoctor');
+    expect(declarations).toContain('export declare class RepositoryInspectionPort');
+    expect(declarations).toContain('export declare class GitRepositoryInspectionAdapter');
+    expect(declarations).toContain("prunableInspection: 'dry-run';");
+    expect(declarations).toContain('mutatesRepository: false;');
+    expect(declarations).toContain(
+      'addIfAbsent(key: string, options: { expiresAt: Date | string })'
+    );
     expect(declarations).toContain('iterateMembers(options: { handle: BundleHandleInput })');
     expect(declarations).toContain('applicationRefPrefixes?: string[];');
     expect(declarations).toContain('parentOids?: string[];');

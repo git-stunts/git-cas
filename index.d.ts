@@ -528,6 +528,31 @@ export declare class GitRefAdapter extends GitRefPortBase {
   constructor(options: { plumbing: unknown; policy?: unknown });
 }
 
+export type RepositoryObjectType = 'blob' | 'tree' | 'commit' | 'tag';
+
+export interface RepositoryObjectRecord {
+  readonly oid: string;
+  readonly type: RepositoryObjectType;
+  readonly logicalBytes: number;
+  readonly physicalBytes: number;
+}
+
+/** Abstract non-mutating repository inspection port. */
+export declare class RepositoryInspectionPort {
+  iterateObjects(): AsyncIterable<RepositoryObjectRecord>;
+  iterateReachableObjectIds(): AsyncIterable<string>;
+  iteratePrunableObjects(options: {
+    expiresBefore: string;
+  }): AsyncIterable<Pick<RepositoryObjectRecord, 'oid' | 'type'>>;
+  iterateRefs(): AsyncIterable<{ readonly ref: string; readonly oid: string }>;
+  reachablePhysicalBytes(): Promise<number>;
+}
+
+/** Git-backed implementation of repository inspection. */
+export declare class GitRepositoryInspectionAdapter extends RepositoryInspectionPort {
+  constructor(options: { plumbing: unknown; policy?: unknown });
+}
+
 /** Node.js crypto implementation of CryptoPort. */
 export declare class NodeCryptoAdapter extends CryptoPortBase {
   constructor();
@@ -1037,6 +1062,191 @@ export declare class VaultService {
   getVaultMetadata(): Promise<VaultMetadata | null>;
 }
 
+export interface RepositoryDoctorOptions {
+  /** Canonical UTC cutoff passed to safe prune inspection. Mutually exclusive with gracePeriodMs. */
+  expiresBefore?: string;
+  /** Relative grace period. Defaults to 14 days. Mutually exclusive with expiresBefore. */
+  gracePeriodMs?: number;
+  /** Maximum detailed CacheSet, RootSet, and ExpiringSet reports per kind. @default 100 */
+  maxCollectionsPerKind?: number;
+}
+
+export interface RepositoryObjectMetric {
+  readonly objectCount: number | null;
+  readonly physicalBytes: number | null;
+}
+
+export interface RepositoryObjectInventory {
+  readonly total: RepositoryObjectMetric & { readonly logicalBytes: number };
+  readonly anchored: RepositoryObjectMetric;
+  readonly orphaned: RepositoryObjectMetric;
+  readonly volatile: RepositoryObjectMetric;
+  readonly unreachable: RepositoryObjectMetric;
+}
+
+export interface RepositoryCollectionCoverage {
+  readonly observed: number;
+  readonly inspected: number;
+  readonly detailed: number;
+  readonly complete: boolean;
+}
+
+export interface RepositoryDiagnosticLimitation {
+  readonly code: string;
+  readonly message: string;
+  readonly kind?: 'caches' | 'rootSets' | 'expiringSets';
+  readonly observed?: number;
+  readonly inspected?: number;
+}
+
+export interface RepositoryCacheUsage {
+  readonly namespace: string;
+  readonly ref: string;
+  readonly generation: string;
+  readonly healthy: boolean;
+  readonly entryCount: number | null;
+  readonly logicalBytes: number | null;
+  readonly physicalBytes: null;
+  readonly retention: {
+    readonly pinnedEntries: number | null;
+    readonly evictableEntries: number | null;
+  } | null;
+  readonly reachability: 'anchored';
+  readonly age: {
+    readonly createdAt: string | null;
+    readonly updatedAt: string | null;
+    readonly oldestAccessedAt: string | null;
+  } | null;
+  readonly expiry: {
+    readonly expiredEntries: number;
+    readonly nextExpiry: string | null;
+  } | null;
+  readonly policy: Readonly<CachePolicyData> | null;
+  readonly issues: ReadonlyArray<Record<string, unknown>>;
+}
+
+export interface RepositoryRootSetUsage {
+  readonly ref: string;
+  readonly generation: string;
+  readonly healthy: boolean;
+  readonly entryCount: number | null;
+  readonly physicalBytes: null;
+  readonly retention: {
+    readonly pinnedEntries: number | null;
+    readonly evictableEntries: number | null;
+  } | null;
+  readonly reachability: RootSetDoctorResult['reachabilityCounts'] | 'anchored' | null;
+  readonly issues: ReadonlyArray<Record<string, unknown>>;
+}
+
+export interface RepositoryExpiringSetUsage {
+  readonly namespace: string;
+  readonly ref: string;
+  readonly generation: string;
+  readonly healthy: boolean;
+  readonly entryCount: number | null;
+  readonly physicalBytes: null;
+  readonly reachability: 'anchored';
+  readonly age: {
+    readonly createdAt: string | null;
+    readonly updatedAt: string | null;
+  } | null;
+  readonly expiry: {
+    readonly liveEntries: number;
+    readonly expiredEntries: number;
+    readonly nextExpiry: string | null;
+  } | null;
+  readonly issues: ReadonlyArray<Record<string, unknown>>;
+}
+
+export interface RepositoryVaultUsage {
+  readonly ref: string;
+  readonly present: boolean;
+  readonly healthy: boolean;
+  readonly generation: string | null;
+  readonly entryCount: number | null;
+  readonly physicalBytes: null;
+  readonly privacy: boolean | null;
+  readonly reachability: 'anchored' | null;
+  readonly issues: ReadonlyArray<Record<string, unknown>>;
+}
+
+export interface RepositoryDoctorReport {
+  readonly version: 1;
+  readonly healthy: boolean;
+  readonly observedAt: string;
+  readonly completedAt: string;
+  readonly policy: {
+    readonly gracePeriodMs: number | null;
+    readonly expiresBefore: string;
+    readonly maxCollectionsPerKind: number;
+  };
+  readonly repository: {
+    readonly objects: RepositoryObjectInventory;
+    readonly roots: {
+      readonly refCount: number;
+      readonly reflogsIncluded: true;
+      readonly reflogCount: null;
+    };
+    readonly evidence: {
+      readonly anchoredInventory: 'refs-and-reflogs';
+      readonly prunableInspection: 'dry-run';
+      readonly mutatesRepository: false;
+    };
+  };
+  readonly usage: {
+    readonly caches: {
+      readonly healthy: boolean;
+      readonly coverage: RepositoryCollectionCoverage;
+      readonly totals: {
+        readonly entryCount: number | null;
+        readonly logicalBytes: number | null;
+        readonly pinnedEntries: number | null;
+        readonly evictableEntries: number | null;
+        readonly expiredEntries: number | null;
+      };
+      readonly entries: ReadonlyArray<RepositoryCacheUsage>;
+    };
+    readonly rootSets: {
+      readonly healthy: boolean;
+      readonly coverage: RepositoryCollectionCoverage;
+      readonly totals: {
+        readonly entryCount: number | null;
+        readonly pinnedEntries: number | null;
+        readonly evictableEntries: number | null;
+      };
+      readonly entries: ReadonlyArray<RepositoryRootSetUsage>;
+    };
+    readonly expiringSets: {
+      readonly healthy: boolean;
+      readonly coverage: RepositoryCollectionCoverage;
+      readonly totals: {
+        readonly entryCount: number | null;
+        readonly liveEntries: number | null;
+        readonly expiredEntries: number | null;
+      };
+      readonly entries: ReadonlyArray<RepositoryExpiringSetUsage>;
+    };
+    readonly vault: RepositoryVaultUsage;
+  };
+  readonly limitations: ReadonlyArray<RepositoryDiagnosticLimitation>;
+}
+
+/** Repository-wide, non-mutating diagnostics domain service. */
+export declare class RepositoryDoctor {
+  constructor(options: {
+    repository: RepositoryInspectionPort;
+    rootSets: { open(options: { ref: string }): RootSet | Promise<RootSet> };
+    caches: { open(options: { namespace: string }): CacheSet | Promise<CacheSet> };
+    expiringSets: {
+      open(options: { namespace: string }): ExpiringSet | Promise<ExpiringSet>;
+    };
+    vault: Pick<VaultService, 'getVaultMetadata' | 'readState'>;
+    clock?: { now(): Date };
+  });
+  doctor(options?: RepositoryDoctorOptions): Promise<RepositoryDoctorReport>;
+}
+
 /** Result of comparing two manifests by chunk digest. */
 export interface ManifestDiffResult {
   added: Chunk[];
@@ -1148,6 +1358,10 @@ export interface ExpiringSetCapability {
   }): Promise<ExpiringSet>;
 }
 
+export interface DiagnosticsCapability {
+  doctor(options?: RepositoryDoctorOptions): Promise<RepositoryDoctorReport>;
+}
+
 export interface RetentionResult {
   readonly changed: boolean;
   readonly witness: RetentionWitness;
@@ -1197,6 +1411,7 @@ export default class ContentAddressableStore {
 
   readonly caches: CacheCapability;
   readonly expiringSets: ExpiringSetCapability;
+  readonly diagnostics: DiagnosticsCapability;
 
   readonly assets: AssetCapability;
   readonly pages: PageCapability;
