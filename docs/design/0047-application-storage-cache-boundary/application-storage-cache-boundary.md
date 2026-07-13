@@ -7,7 +7,7 @@ release_home: 'v6.2.0'
 issue: 'https://github.com/git-stunts/git-cas/issues/58'
 goalpost_issue: 'https://github.com/git-stunts/git-cas/issues/50'
 tracker_source: 'github'
-status: 'active'
+status: 'landed'
 base_commit: '295f21fd5b4d73d353ee36647804b96686329157'
 owners:
   - '@git-stunts'
@@ -800,9 +800,18 @@ recorded in [witness/asset-handles.md](./witness/asset-handles.md).
 Structured bundle and page implementation evidence is recorded in
 [witness/bundle-pages.md](./witness/bundle-pages.md).
 
+Managed CacheSet lifecycle evidence is recorded in
+[witness/cache-set.md](./witness/cache-set.md).
+
+Expiry-safe replay-set evidence is recorded in
+[witness/expiring-set.md](./witness/expiring-set.md).
+
 Repository-wide object, reachability, managed-storage, and non-mutation
 evidence is recorded in
 [witness/repository-diagnostics.md](./witness/repository-diagnostics.md).
+
+Version, package, documentation, and local release-gate evidence is recorded in
+[witness/release-candidate.md](./witness/release-candidate.md).
 
 ## Risks
 
@@ -850,4 +859,34 @@ evidence is recorded in
 
 ## Retrospective
 
-Pending implementation and release playback.
+What changed from the design:
+
+- The shipped names stayed capability-oriented: `assets`, `pages`, `bundles`,
+  `retention`, `publications`, `caches`, `expiringSets`, and `diagnostics`.
+- Cache metadata uses immutable parentless generations and a bounded
+  approximate-LRU policy rather than a mutable side database.
+- Replay protection received a distinct ExpiringSet surface because capacity
+  or recency eviction would violate the minimum retention window.
+- Repository diagnostics report exact evidence only where Git can prove it;
+  shared-byte attribution and packed-object age remain explicit unknowns.
+
+What the tests proved:
+
+- Application payloads can be staged and streamed through opaque handles,
+  retained with generation-scoped witnesses, or atomically published under an
+  allowlisted application ref.
+- Bundles and pages support bounded targeted traversal without materializing a
+  complete structured value.
+- Cache replacement preserves the newly published generation under concurrent
+  updates, and replay markers cannot be released before expiry.
+- Repository diagnostics include refs and reflogs, use only dry-run prune
+  inspection, fail closed on inconsistent inventories, and do not mutate Git.
+
+What remains open:
+
+- Applications such as git-warp must migrate their own domain indexes and
+  causal publication rules onto these capabilities.
+- A future major release may reorganize legacy root-level plumbing without
+  removing the deliberate low-level escape hatch.
+- Very large repository diagnostics may later use commit-graph or bitmap
+  acceleration without changing the evidence contract.

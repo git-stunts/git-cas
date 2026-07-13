@@ -8,6 +8,9 @@ import { PACKAGE_VERSION } from '../../../src/package-version.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.resolve(__dirname, '../../../bin/git-cas.js');
 const { version } = JSON.parse(readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
+const { version: jsrVersion } = JSON.parse(
+  readFileSync(path.resolve(__dirname, '../../../jsr.json'), 'utf8')
+);
 
 const RUNTIME_CMD = globalThis.Bun
   ? ['bun', 'run', BIN]
@@ -18,6 +21,10 @@ const RUNTIME_CMD = globalThis.Bun
 describe('git-cas --version', () => {
   it('keeps the package-version export in sync with package metadata', () => {
     expect(PACKAGE_VERSION).toBe(version);
+  });
+
+  it('keeps npm and JSR package metadata on the same version', () => {
+    expect(jsrVersion).toBe(version);
   });
 
   it('matches package metadata', () => {

@@ -2,6 +2,49 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.1.0 To v6.2.0
+
+v6.2.0 is API-additive and does not require stored-data migration. It adds
+high-level application storage, managed cache and replay lifecycles, immutable
+retention evidence, and repository-wide diagnostics.
+
+Applications should stop treating a naked Git object ID stored in JSON as a
+durability guarantee. Stage content through `assets`, `pages`, or `bundles`,
+then retain or publish the returned opaque handle through the policy surface
+that matches its lifecycle:
+
+```javascript
+const staged = await cas.assets.put({
+  source,
+  slug: 'warp/materialization',
+  filename: 'materialization.bin',
+});
+
+const cache = await cas.caches.open({
+  namespace: 'git-warp/materializations',
+  policy: { maxEntries: 10_000, maxBytes: 2 * 1024 * 1024 * 1024 },
+});
+const stored = await cache.put(cacheKey, staged.handle, {
+  retention: 'evictable',
+  expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+});
+```
+
+Existing root sets and vault entries remain valid. Before running destructive
+Git cleanup, applications migrating an existing object-ID index must first
+enumerate every still-live object, validate that it still exists, and adopt it
+into a RootSet or rebuild it through the appropriate high-level API. Neither
+repair nor diagnostics can recover an object that Git already pruned.
+
+Use `cas.diagnostics.doctor()` before and after migration to inspect anchored,
+orphaned, and grace-expired object counts plus managed CacheSet, RootSet,
+ExpiringSet, and Vault usage. The doctor is read-only; it never runs Git GC or
+prune. Repository diagnostics require `@git-stunts/plumbing` 3.1.0 or newer.
+
+See [v6.2.0 Release Notes](./docs/releases/v6.2.0.md) and
+[Application Storage](./docs/API.md#application-storage) for the complete
+capability and policy map.
+
 ## v6.0.1 To v6.1.0
 
 v6.1.0 is API-additive and does not require stored-data migration. It adds root
