@@ -68,6 +68,41 @@ handle fails explicitly when its referenced object graph was not transferred.
 Cycle `0047` remains `active` and is listed with active METHOD cycles.
 Implementation and release playback are still pending.
 
+## External Review Corrections
+
+CodeRabbit requested five additional contract details. All were accepted as
+valid design defects and resolved in a follow-up commit.
+
+### CR-001: Bundle admission was not mechanically bounded
+
+The contract now defines configurable limits for member count, UTF-8 path
+bytes, canonical descriptor bytes, and per-tree fanout, with one stable error
+for each limit.
+
+### CR-002: Generic publication accepted only bundle roots
+
+Publication now explicitly accepts asset, bundle, and page handles. `git-cas`
+normalizes each supported kind to a deterministic root tree and must test every
+kind.
+
+### CR-003: Collection namespaces lacked a ref-safe grammar
+
+Cache and expiry collections now share a canonical lowercase ASCII component
+grammar with size/component bounds, reserved names, and rejection rather than
+normalization. Accepted names map uniquely under their intended ref prefixes.
+
+### CR-004: Cache hits had no stable result contract
+
+The design now fixes the `CacheHit` fields for key, handle, policy, expiry,
+logical bytes, generation, and retention evidence, with hit/miss/concurrency
+proof cases.
+
+### CR-005: Logical-byte accounting remained ambiguous
+
+The design now defines versioned accounting for asset, page, inline, and nested
+bundle content; within-root child deduplication; additive cross-entry charging;
+and explicit rejection/unknown behavior for legacy handles.
+
 ## Residual Constraints
 
 - Capability names are additive design targets; implementation may tighten

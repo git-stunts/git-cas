@@ -188,6 +188,13 @@ const materialization = await cas.bundles.put({
     'properties/root': propertyPageHandle,
     'frontier.cbor': frontierBytes,
   },
+  limits: {
+    maxMembers: 100_000,
+    maxMemberPathBytes: 512,
+    maxDescriptorBytes: 64 * 1024 * 1024,
+    maxFanoutEntries: 1024,
+    maxFanoutDepth: 8,
+  },
 });
 
 const publication = await cas.publications.commit({
@@ -264,16 +271,45 @@ objects with these properties:
 The canonical serialized form must not depend on a filesystem path or repository
 location. Clone and mirror workflows remain possible.
 
+### Bundle Admission Contract
+
+Bundle admission is bounded before a bundle handle is accepted or published.
+The facade supplies finite defaults and permits callers to lower them per
+operation. A caller cannot raise a per-operation value above the
+repository-configured maximum.
+
+| Limit                | Default   | Measurement                                                    | Error                     |
+| -------------------- | --------- | -------------------------------------------------------------- | ------------------------- |
+| `maxMembers`         | `100_000` | number of named inline/handle members consumed                 | `BUNDLE_MEMBER_LIMIT`     |
+| `maxMemberPathBytes` | `512`     | canonical UTF-8 bytes in one validated member path             | `BUNDLE_PATH_LIMIT`       |
+| `maxDescriptorBytes` | `64 MiB`  | canonical encoded descriptor bytes, counted while encoding     | `BUNDLE_DESCRIPTOR_LIMIT` |
+| `maxFanoutEntries`   | `1_024`   | maximum entries in any generated Git tree node                 | `BUNDLE_FANOUT_LIMIT`     |
+| `maxFanoutDepth`     | `8`       | maximum deterministic fanout levels required by the member set | `BUNDLE_FANOUT_LIMIT`     |
+
+The builder validates each path and counts members as it consumes a bounded
+iterable, computes descriptor bytes incrementally, and plans fanout before
+writing the final descriptor/root tree. Exceeding a limit returns the named
+stable error and no bundle handle or publication. Already-existing child
+handles remain unchanged; any newly staged inline payload objects remain
+unanchored and are reported in failure evidence rather than silently rooted.
+
 ### Publication Contract
 
 `publications.commit()` is generic Git-backed publication, not an application
 history model. The caller supplies validated commit message bytes, ordered
 parents, target ref, and expected head. `git-cas`:
 
-1. validates the root bundle handle and referenced object graph
+1. validates an `AssetHandle`, `BundleHandle`, or `PageHandle` and its
+   referenced object graph
 2. constructs the commit through the persistence port
 3. updates the ref with compare-and-swap semantics
 4. returns the application commit ID and a publication witness
+
+Every supported publication root is normalized to a Git tree internally. A
+bundle or tree-backed asset supplies its validated root tree directly. A
+blob-backed page is wrapped in a deterministic single-member publication tree.
+That normalization is a `git-cas` storage detail and does not change the
+caller's handle.
 
 The commit ID remains public because it is an application causal identity. Raw
 payload object IDs remain behind handles.
@@ -281,6 +317,9 @@ payload object IDs remain behind handles.
 Publication ref validation accepts explicitly configured application
 namespaces; it does not force causal application refs under `refs/cas/*` or
 permit arbitrary ref writes by default.
+
+Proof tests must publish each supported root-handle kind, verify the resulting
+tree shape and reachability, and reject unsupported or mismatched handle kinds.
 
 ### Retention Witness Contract
 
@@ -331,9 +370,32 @@ expiry authorizes release after that time even when capacity policy is
 is self-describing and creates actual Git tree edges to every retained handle;
 OID strings inside metadata never stand in for reachability.
 
+### Collection Namespace Contract
+
+CacheSet and ExpiringSet use one canonical, ref-safe namespace grammar. A
+namespace:
+
+- contains 1 to 16 slash-separated ASCII lowercase components
+- is at most 240 UTF-8 bytes in total
+- uses either one ASCII lowercase alphanumeric character or 2 to 64 characters
+  whose first and last characters are ASCII lowercase alphanumeric and whose
+  interior characters are ASCII lowercase alphanumeric, `.`, or `-`
+- rejects empty, `.` or `..` components, any `..` substring, `.lock` suffix,
+  control/space characters, backslashes, repeated or leading/trailing slashes,
+  and non-ASCII or uppercase input
+- reserves components beginning with `git-cas-` for implementation use
+
+Namespaces are rejected rather than case-folded, Unicode-normalized, trimmed,
+or separator-normalized. Consequently each accepted cache namespace maps
+uniquely to `refs/cas/caches/<namespace>`, and each accepted expiry namespace
+maps uniquely to `refs/cas/expiring/<namespace>`. Invalid or ambiguous input
+fails before any object or ref write.
+
+### Cache Operations
+
 Required operations:
 
-- `get(key)` returns a validated hit or `null`; expired entries are misses
+- `get(key)` returns a validated `CacheHit` or `null`; expired entries are misses
 - `put(key, handle, options)` stores or replaces one entry and returns a witness
 - `remove(key)` releases one entry and returns mutation evidence
 - `touch(key)` explicitly advances recency when the configured resolution allows
@@ -342,16 +404,60 @@ Required operations:
 - `doctor()` validates metadata, tree edges, target existence/type, and policy
 - `repair(authoritativeEntries)` rebuilds only from caller-authoritative state
 
+`CacheHit` has a stable immutable shape:
+
+```javascript
+{
+  key: coordinateKey,
+  handle: materializationHandle,
+  policy: { retention: 'evictable' },
+  expiresAt: '2026-07-27T00:00:00.000Z',
+  logicalBytes: 123456,
+  generation: '<cache-generation-commit-id>',
+  evidence: retentionWitness,
+}
+```
+
+`expiresAt` is either a canonical UTC timestamp or `null`, and `logicalBytes`
+is either a non-negative safe integer under the entry's accounting version or
+`null` under the legacy-size rule below. `generation` is the generation at
+which `get()` linearized, and `evidence.root.generation` must equal it. The
+result does not claim that the mutable collection ref remained unchanged after
+that observation. Required tests cover a valid hit, an expired non-mutating
+miss, and internally consistent observed-generation evidence during concurrent
+replacement.
+
 `get()` must not durably rewrite metadata on every hit. Recency is approximate:
 touches are explicit or coalesced into `accessResolutionMs` epochs. Capacity
 policy must state whether pinned entries count toward limits and must report an
 over-capacity state when pinned entries alone exceed a limit.
 
-`maxBytes` is defined over deterministic logical payload bytes recorded by
-validated manifests. Physical Git bytes are diagnostic evidence, not a cache
-capacity oracle, because deduplication and shared reachability prevent exact
-single-owner attribution. An expired `get()` is a non-mutating miss; the entry
-remains anchored until an explicit or mutation-triggered sweep releases it.
+`maxBytes` is defined over deterministic logical bytes captured in each cache
+entry at `put()` time under a versioned accounting rule:
+
+- asset handles contribute the validated manifest's plaintext `size`
+- page handles contribute the exact encoded page byte length
+- inline bundle members contribute their byte length
+- bundle handles contribute canonical descriptor bytes plus the transitive
+  logical bytes of child handles
+- repeated child handles inside one bundle root are counted once by canonical
+  serialized handle; the same child reached from two cache entries is charged
+  once to each entry so entry totals remain independently reproducible
+- nested descriptors use the same rule recursively and reject cycles or depth
+  beyond the configured bundle limit
+
+Cache metadata stores `accountingVersion` and `logicalBytes`. `inspect()` and
+`sweep()` use those same persisted validated values; doctor recomputes them and
+reports mismatches. An adopted or legacy handle without trustworthy size
+metadata must pass a bounded adoption/inspection step before use with
+`maxBytes`. If size cannot be established, a byte-limited cache rejects it with
+`CACHE_LOGICAL_SIZE_UNKNOWN`; a cache limited only by entries may retain it with
+`logicalBytes: null` and must report aggregate logical bytes as unknown.
+
+Physical Git bytes are diagnostic evidence, not a cache capacity oracle,
+because deduplication and shared reachability prevent exact single-owner
+attribution. An expired `get()` is a non-mutating miss; the entry remains
+anchored until an explicit or mutation-triggered sweep releases it.
 
 Cache replacement follows safe publication order. The new object graph is
 fully written and validated before a compare-and-swap generation update makes
@@ -475,6 +581,12 @@ iterable after a complete payload or collection was buffered.
 | Wrong target kind              | handle-kind mismatch                            | use correct handle/parser                   | unit and integration tests |
 | Publication conflict           | expected/observed ref evidence                  | retry application transition                | concurrent writer test     |
 | Invalid bundle path            | path validation error                           | normalize domain member path                | path corpus                |
+| Bundle member limit exceeded   | `BUNDLE_MEMBER_LIMIT`                           | split the bundle                            | bounded admission test     |
+| Bundle path limit exceeded     | `BUNDLE_PATH_LIMIT`                             | shorten the member path                     | UTF-8 path limit test      |
+| Bundle descriptor too large    | `BUNDLE_DESCRIPTOR_LIMIT`                       | split or page the descriptor                | encoded-size test          |
+| Bundle fanout limit exceeded   | `BUNDLE_FANOUT_LIMIT`                           | split bundle or raise repository limit      | fanout boundary test       |
+| Invalid collection namespace   | `COLLECTION_NAMESPACE_INVALID`                  | provide one canonical safe namespace        | namespace corpus           |
+| Cache logical size unavailable | `CACHE_LOGICAL_SIZE_UNKNOWN`                    | adopt/inspect or remove byte limit          | legacy handle test         |
 | Cache conflict exhausted       | cache conflict with attempts/head               | retry or surface obstruction                | deterministic retry test   |
 | Expired cache hit              | `null` plus optional inspection fact            | recompute/store                             | injected-clock test        |
 | Pinned entries exceed limit    | successful state plus unsatisfied-policy report | raise limit or unpin explicitly             | policy test                |
@@ -594,9 +706,12 @@ The goalpost is proven by executable package behavior, not documentation alone:
 - streaming asset put/open tests with bounded buffers
 - application publication and ref-conflict tests
 - bundle targeted-read and deterministic-fanout tests
+- bundle member/path/descriptor/fanout admission-limit tests
 - page deduplication and max-size tests
 - CacheSet replacement, concurrency, TTL, capacity, pinning, doctor, and repair
   tests
+- CacheSet hit-shape, namespace-corpus, accounting-version, shared-child, and
+  legacy-size tests
 - ExpiringSet restart, concurrency, expiry, and capacity-pressure tests
 - real Git repository `git prune -n --expire=now` reachability witnesses
 - repository-wide doctor fixtures from #49
