@@ -1097,6 +1097,7 @@ export interface RepositoryDiagnosticLimitation {
   readonly kind?: 'caches' | 'rootSets' | 'expiringSets';
   readonly observed?: number;
   readonly inspected?: number;
+  readonly detailed?: number;
 }
 
 export interface RepositoryCacheUsage {

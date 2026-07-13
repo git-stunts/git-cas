@@ -101,6 +101,7 @@ describe('Application-storage declaration accuracy', () => {
     expect(declarations).toContain('export declare class RepositoryDoctor');
     expect(declarations).toContain('export declare class RepositoryInspectionPort');
     expect(declarations).toContain('export declare class GitRepositoryInspectionAdapter');
+    expect(declarations).toContain('readonly detailed?: number;');
     expect(declarations).toContain("prunableInspection: 'dry-run';");
     expect(declarations).toContain('mutatesRepository: false;');
     expect(declarations).toContain(
