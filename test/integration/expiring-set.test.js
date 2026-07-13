@@ -69,9 +69,13 @@ describe('ExpiringSet Git retention', () => {
     });
     const head = git(['rev-parse', set.ref]);
     const marker = git(['cat-file', '-p', result.marker.evidence.handle.oid]);
+    const witnessEdge = git(['ls-tree', head, result.marker.evidence.root.path]);
+    const reachable = git(['rev-list', '--objects', head]);
 
     expect(result).toMatchObject({ admitted: true, changed: true, generation: head });
     expect(marker).not.toContain('nonce:restart-secret');
+    expect(witnessEdge).toContain('tree');
+    expect(reachable).toContain(result.marker.evidence.handle.oid);
     expect(prunableOids()).not.toContain(result.marker.evidence.handle.oid);
     expect(git(['cat-file', '-p', set.ref])).not.toMatch(/^parent /m);
     await expect(set.contains('nonce:restart-secret')).resolves.toBe(true);

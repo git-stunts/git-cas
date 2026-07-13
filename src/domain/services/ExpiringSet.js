@@ -4,7 +4,6 @@ import { ErrorCodes } from '../errors/index.js';
 import ExpiringMarker from '../value-objects/ExpiringMarker.js';
 import ExpiringSetKey from '../value-objects/ExpiringSetKey.js';
 import RetentionWitness from '../value-objects/RetentionWitness.js';
-import { markerPath } from './ExpiringSetIndex.js';
 import { createExpiringSetState } from './ExpiringSetMetadataCodec.js';
 import RootSetMetadataCodec from './RootSetMetadataCodec.js';
 
@@ -266,7 +265,6 @@ export default class ExpiringSet {
   #marker(record, generation, observedAt) {
     const evidence = this.#markerWitness({
       handle: record.handle,
-      digest: record.metadata.keyDigest,
       generation,
       observedAt,
     });
@@ -285,14 +283,13 @@ export default class ExpiringSet {
       status: isExpired(record.metadata, observedAt) ? 'expired' : 'live',
       evidence: this.#markerWitness({
         handle: record.handle,
-        digest: record.metadata.keyDigest,
         generation,
         observedAt,
       }),
     });
   }
 
-  #markerWitness({ handle, digest, generation, observedAt }) {
+  #markerWitness({ handle, generation, observedAt }) {
     return new RetentionWitness({
       handle,
       policy: 'pinned',
@@ -302,7 +299,7 @@ export default class ExpiringSet {
         namespace: this.#namespace,
         ref: this.ref,
         generation,
-        path: `${RootSetMetadataCodec.slotFor(0)}/${markerPath(digest)}`,
+        path: RootSetMetadataCodec.slotFor(0),
       },
       observedAt,
     });

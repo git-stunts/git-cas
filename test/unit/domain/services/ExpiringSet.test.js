@@ -187,6 +187,8 @@ describe('ExpiringSet expiry-only release', () => {
   it('never removes live markers under arbitrary collection pressure', async () => {
     const { clock, open } = makeServices();
     const set = open();
+    expect(set.remove).toBeUndefined();
+    expect(set.repair).toBeUndefined();
     for (const key of ['one', 'two', 'three', 'four']) {
       await set.addIfAbsent(key, { expiresAt: future(clock) });
     }

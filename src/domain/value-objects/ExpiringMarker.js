@@ -5,6 +5,7 @@ import Oid from './Oid.js';
 import RetentionWitness from './RetentionWitness.js';
 
 const DIGEST = /^[0-9a-f]{64}$/;
+const INDEX_ROOT_PATH = 'root-00000000';
 
 /** Immutable evidence for one live replay marker. */
 export default class ExpiringMarker {
@@ -34,7 +35,6 @@ export default class ExpiringMarker {
       evidence: normalizedEvidence,
       expiresAt,
       generation: normalizedGeneration,
-      keyDigest,
     });
 
     this.version = 1;
@@ -62,12 +62,12 @@ function invalid(message, meta) {
   return createCasError(message, ErrorCodes.EXPIRING_SET_MARKER_INVALID, meta);
 }
 
-function assertEvidence({ evidence, expiresAt, generation, keyDigest }) {
+function assertEvidence({ evidence, expiresAt, generation }) {
   if (evidence.policy !== 'pinned' ||
       evidence.reachability !== 'anchored' ||
       evidence.root.kind !== 'expiring-set' ||
       evidence.root.generation !== generation ||
-      !evidence.root.path.endsWith(`/markers/${keyDigest}`) ||
+      evidence.root.path !== INDEX_ROOT_PATH ||
       evidence.observedAt >= expiresAt ||
       evidence.handle.kind !== 'page') {
     throw invalid('Expiring marker evidence is inconsistent', {
