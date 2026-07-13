@@ -46,17 +46,17 @@ export default class ExpiringSet {
   async addIfAbsent(keyValue, options) {
     assertAddOptions(options);
     const key = ExpiringSetKey.from(keyValue).toString();
-    const now = this.#now();
-    const expiresAt = normalizeFutureExpiry(options.expiresAt, now);
+    const expiresAt = normalizeFutureExpiry(options.expiresAt, this.#now());
     const digests = await this.#digests(key);
     const attempt = { observed: null, replacement: null, lifecycle: null };
-    const context = { digests, now, expiresAt, attempt };
+    const context = { digests, expiresAt, attempt };
     const mutation = await this.#mutateRoot(
       (entries, root) => this.#admitMarker(entries, root, context),
     );
     const record = attempt.lifecycle ? attempt.replacement : attempt.observed?.marker;
+    const observedAt = this.#now();
     const marker = record
-      ? this.#marker(record, mutation.commitOid, now)
+      ? this.#marker(record, mutation.commitOid, observedAt)
       : null;
     return Object.freeze({
       changed: mutation.changed,
@@ -68,7 +68,9 @@ export default class ExpiringSet {
   }
 
   async #admitMarker(entries, root, context) {
-    const { attempt, digests, expiresAt, now } = context;
+    const { attempt, digests, expiresAt } = context;
+    const now = this.#now();
+    normalizeFutureExpiry(expiresAt, now);
     attempt.observed = null;
     attempt.replacement = null;
     attempt.lifecycle = null;
@@ -210,49 +212,55 @@ export default class ExpiringSet {
       return Object.freeze({
         healthy: false,
         root,
-        issues: root.issues ?? (root.error ? [root.error] : []),
+        issues: freezeIssues(root.issues ?? (root.error ? [root.error] : [])),
       });
     }
     try {
-      const current = await this.#rootSet.read();
-      const handle = this.#index.fromRootEntries(current.entries);
-      if (handle === null) {
-        return Object.freeze({
-          healthy: true,
-          root,
-          state: null,
-          observed: emptySummary(),
-          issues: [],
-        });
-      }
-      const persisted = await this.#index.getState(handle);
-      this.#assertState(persisted);
-      const historical = await this.#index.scan(handle, { now: persisted.updatedAt });
-      const expected = createExpiringSetState({
-        namespace: this.#namespace,
-        summary: historical.summary,
-        previous: persisted,
-        now: persisted.updatedAt,
-      });
-      const consistent = JSON.stringify(expected) === JSON.stringify(persisted);
-      const observed = (await this.#index.scan(handle, { now: this.#now() })).summary;
-      return Object.freeze({
-        healthy: consistent,
-        root,
-        state: Object.freeze({ ...persisted }),
-        observed,
-        issues: consistent ? [] : [{ code: ErrorCodes.EXPIRING_SET_STATE_INVALID }],
-      });
+      return await this.#doctorHealthyRoot(root);
     } catch (error) {
       return Object.freeze({
         healthy: false,
         root,
-        issues: [{
+        issues: freezeIssues([{
           code: error?.code ?? ErrorCodes.EXPIRING_SET_STATE_INVALID,
           message: error instanceof Error ? error.message : String(error),
-        }],
+        }]),
       });
     }
+  }
+
+  async #doctorHealthyRoot(root) {
+    const current = await this.#rootSet.read();
+    const handle = this.#index.fromRootEntries(current.entries);
+    if (handle === null) {
+      return Object.freeze({
+        healthy: true,
+        root,
+        state: null,
+        observed: emptySummary(),
+        issues: Object.freeze([]),
+      });
+    }
+    const persisted = await this.#index.getState(handle);
+    this.#assertState(persisted);
+    const historical = await this.#index.scan(handle, { now: persisted.updatedAt });
+    const expected = createExpiringSetState({
+      namespace: this.#namespace,
+      summary: historical.summary,
+      previous: persisted,
+      now: persisted.updatedAt,
+    });
+    const consistent = JSON.stringify(expected) === JSON.stringify(persisted);
+    const observed = (await this.#index.scan(handle, { now: this.#now() })).summary;
+    return Object.freeze({
+      healthy: consistent,
+      root,
+      state: Object.freeze({ ...persisted }),
+      observed,
+      issues: consistent
+        ? Object.freeze([])
+        : freezeIssues([{ code: ErrorCodes.EXPIRING_SET_STATE_INVALID }]),
+    });
   }
 
   #marker(record, generation, observedAt) {
@@ -339,6 +347,13 @@ export default class ExpiringSet {
           { [name]: value },
         );
       }
+    }
+    if (keyDigest === verificationDigest) {
+      throw createCasError(
+        'ExpiringSet digest domains must produce distinct values',
+        ErrorCodes.INVALID_OPTIONS,
+        { keyDigest },
+      );
     }
     return Object.freeze({ keyDigest, verificationDigest });
   }
@@ -464,4 +479,8 @@ function emptySummary() {
     expiredEntries: 0,
     nextExpiry: null,
   });
+}
+
+function freezeIssues(issues) {
+  return Object.freeze(issues.map((issue) => Object.freeze({ ...issue })));
 }

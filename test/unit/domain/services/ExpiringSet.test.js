@@ -259,6 +259,7 @@ describe('ExpiringSet inspection and doctor', () => {
       healthy: true,
       observed: { entryCount: 2, liveEntries: 1, expiredEntries: 1 },
     });
+    expect(Object.isFrozen((await set.doctor()).issues)).toBe(true);
   });
 
   it('reports a missing nested marker page without mutating the ref', async () => {
@@ -316,6 +317,14 @@ describe('ExpiringSet malformed-state doctor', () => {
 });
 
 describe('ExpiringSet collision verification', () => {
+  it('rejects a crypto adapter that collapses the digest domains', async () => {
+    const crypto = { sha256: () => '0'.repeat(64) };
+    const { clock, open } = makeServices({ crypto });
+
+    await expect(open().addIfAbsent('constant', { expiresAt: future(clock) }))
+      .rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+  });
+
   it('fails closed when two keys share an index digest but not a verifier', async () => {
     const base = new NodeCryptoAdapter();
     const crypto = {

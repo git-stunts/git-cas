@@ -22,6 +22,11 @@ export default class ExpiringSetMetadataCodec {
     assertVersion(value, 'marker');
     assertDigest(value.keyDigest, 'keyDigest');
     assertDigest(value.verificationDigest, 'verificationDigest');
+    if (value.keyDigest === value.verificationDigest) {
+      throw invalid('marker', 'Expiring marker digest domains must be distinct', {
+        keyDigest: value.keyDigest,
+      });
+    }
     assertTimestamp(value.createdAt, false, 'marker');
     assertTimestamp(value.expiresAt, false, 'marker');
     if (value.expiresAt <= value.createdAt) {

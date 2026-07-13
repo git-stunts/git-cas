@@ -30,15 +30,12 @@ export default class ExpiringMarker {
     const normalizedEvidence = evidence instanceof RetentionWitness
       ? evidence
       : new RetentionWitness(evidence);
-    if (normalizedEvidence.policy !== 'pinned' ||
-        normalizedEvidence.root.kind !== 'expiring-set' ||
-        normalizedEvidence.root.generation !== normalizedGeneration ||
-        normalizedEvidence.handle.kind !== 'page') {
-      throw invalid('Expiring marker evidence is inconsistent', {
-        generation: normalizedGeneration,
-        evidence: normalizedEvidence.toJSON(),
-      });
-    }
+    assertEvidence({
+      evidence: normalizedEvidence,
+      expiresAt,
+      generation: normalizedGeneration,
+      keyDigest,
+    });
 
     this.version = 1;
     this.keyDigest = keyDigest;
@@ -63,4 +60,19 @@ export default class ExpiringMarker {
 
 function invalid(message, meta) {
   return createCasError(message, ErrorCodes.EXPIRING_SET_MARKER_INVALID, meta);
+}
+
+function assertEvidence({ evidence, expiresAt, generation, keyDigest }) {
+  if (evidence.policy !== 'pinned' ||
+      evidence.reachability !== 'anchored' ||
+      evidence.root.kind !== 'expiring-set' ||
+      evidence.root.generation !== generation ||
+      !evidence.root.path.endsWith(`/markers/${keyDigest}`) ||
+      evidence.observedAt >= expiresAt ||
+      evidence.handle.kind !== 'page') {
+    throw invalid('Expiring marker evidence is inconsistent', {
+      generation,
+      evidence: evidence.toJSON(),
+    });
+  }
 }

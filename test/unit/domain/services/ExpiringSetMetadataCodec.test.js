@@ -30,7 +30,9 @@ describe('ExpiringSetMetadataCodec', () => {
     expect(codec.decodeMarker(encoded)).toEqual(JSON.parse(text));
     expect(text).not.toContain('key":');
   });
+});
 
+describe('ExpiringSet metadata rejection', () => {
   it('rejects non-canonical marker bytes and inconsistent state counts', () => {
     const codec = new ExpiringSetMetadataCodec();
     const marker = {
@@ -44,6 +46,10 @@ describe('ExpiringSetMetadataCodec', () => {
 
     expect(() => codec.decodeMarker(reordered))
       .toThrow(expect.objectContaining({ code: 'EXPIRING_SET_MARKER_INVALID' }));
+    expect(() => codec.encodeMarker({
+      ...marker,
+      verificationDigest: KEY_DIGEST,
+    })).toThrow(expect.objectContaining({ code: 'EXPIRING_SET_MARKER_INVALID' }));
     expect(() => codec.encodeState({
       version: 1,
       namespace: 'git-warp/replay',
