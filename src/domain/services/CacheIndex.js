@@ -70,7 +70,7 @@ export default class CacheIndex {
       return null;
     }
     const member = await this.#bundles.getMemberReference({ handle, path: entryPath(digest) });
-    return member ? await this.#readEntryBundle(member.handle, digest) : null;
+    return member ? await this.#readEntryBundle(entryBundleHandle(member), digest) : null;
   }
 
   async *entries(handle) {
@@ -82,8 +82,9 @@ export default class CacheIndex {
         continue;
       }
       const digest = digestFromPath(member.path);
-      const entry = await this.#readEntryBundle(member.handle, digest);
-      yield Object.freeze({ ...entry, entryHandle: member.handle });
+      const entryHandle = entryBundleHandle(member);
+      const entry = await this.#readEntryBundle(entryHandle, digest);
+      yield Object.freeze({ ...entry, entryHandle });
     }
   }
 
@@ -152,6 +153,29 @@ export default class CacheIndex {
     return staged.handle;
   }
 
+  async assertEntryShape(value) {
+    const handle = BundleHandle.from(value);
+    const expected = ['meta', 'target'];
+    let index = 0;
+    for await (const member of this.#bundles.iterateMemberReferences({ handle })) {
+      if (member.path !== expected[index]) {
+        throw invalid('Cache entry bundle has a non-canonical member set', {
+          handle: handle.toString(),
+          expected: expected[index] ?? null,
+          actual: member.path,
+        });
+      }
+      index += 1;
+    }
+    if (index !== expected.length) {
+      throw invalid('Cache entry bundle has a non-canonical member count', {
+        handle: handle.toString(),
+        expected: expected.length,
+        actual: index,
+      });
+    }
+  }
+
   async *#rewriteMembers({ handle, removeDigests, replacement, stateHandle }) {
     yield [CACHE_STATE_PATH, stateHandle];
     let inserted = replacement === null;
@@ -212,6 +236,16 @@ export default class CacheIndex {
 
 function entryPath(digest) {
   return `${CACHE_ENTRY_PREFIX}${digest}`;
+}
+
+function entryBundleHandle(member) {
+  if (member.handle.kind !== 'bundle') {
+    throw invalid('Cache index entry does not reference a bundle', {
+      path: member.path,
+      handle: member.handle.toString(),
+    });
+  }
+  return member.handle;
 }
 
 function targetReference(metadata) {

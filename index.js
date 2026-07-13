@@ -64,7 +64,6 @@ export {
   RootSet,
   RootSetRegistry,
   CacheSet,
-  CacheSetRegistry,
   GitPersistenceAdapter,
   GitRefAdapter,
   JsonCodec,

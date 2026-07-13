@@ -59,15 +59,21 @@ export default class CacheSetRegistry {
   static #assertDependencies(options) {
     const value = options ?? {};
     const dependencies = [
-      ['persistence', method(value.persistence, 'writeTree')],
-      ['ref', method(value.ref, 'updateRef')],
-      ['bundles', method(value.bundles, 'putOrdered')],
-      ['pages', method(value.pages, 'put')],
-      ['resolveHandle', value.resolveHandle],
-      ['crypto', method(value.crypto, 'sha256')],
+      ['persistence', hasMethods(value.persistence, [
+        'writeBlob', 'writeTree', 'readBlob', 'readTree', 'readObjectType',
+      ])],
+      ['ref', hasMethods(value.ref, [
+        'resolveRef', 'resolveTree', 'resolveParents', 'createCommit', 'updateRef',
+      ])],
+      ['bundles', hasMethods(value.bundles, [
+        'putOrderedReferences', 'getMemberReference', 'iterateMemberReferences',
+      ])],
+      ['pages', hasMethods(value.pages, ['put', 'get'])],
+      ['resolveHandle', typeof value.resolveHandle === 'function'],
+      ['crypto', hasMethods(value.crypto, ['sha256'])],
     ];
     const missing = dependencies
-      .filter(([, dependency]) => typeof dependency !== 'function')
+      .filter(([, available]) => !available)
       .map(([name]) => name);
     if (missing.length > 0) {
       throw createCasError('CacheSetRegistry requires complete dependencies', ErrorCodes.INVALID_OPTIONS, {
@@ -77,6 +83,6 @@ export default class CacheSetRegistry {
   }
 }
 
-function method(target, name) {
-  return target?.[name];
+function hasMethods(target, names) {
+  return names.every((name) => typeof target?.[name] === 'function');
 }

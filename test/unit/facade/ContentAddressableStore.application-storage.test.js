@@ -5,7 +5,6 @@ import ContentAddressableStore, {
   CacheHit,
   CachePolicy,
   CacheSet,
-  CacheSetRegistry,
   PageHandle,
   RetentionWitness,
   StagedAsset,
@@ -58,7 +57,6 @@ describe('ContentAddressableStore application storage capabilities', () => {
     expect(CacheHit).toBeTypeOf('function');
     expect(CachePolicy).toBeTypeOf('function');
     expect(CacheSet).toBeTypeOf('function');
-    expect(CacheSetRegistry).toBeTypeOf('function');
   });
 });
 

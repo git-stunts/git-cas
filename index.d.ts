@@ -779,6 +779,7 @@ export interface CacheInspection {
 
 /** RootSet-backed lifecycle manager for application cache handles. */
 export declare class CacheSet {
+  private constructor();
   readonly ref: string;
   get(key: string): Promise<CacheHit | null>;
   put(key: string, handle: ApplicationHandleInput, options?: CacheEntryOptions): Promise<CacheStoreResult>;
@@ -818,14 +819,6 @@ export declare class CacheSet {
     policy: CachePolicyReport;
     witness: RetentionWitness;
   }>>;
-}
-
-export declare class CacheSetRegistry {
-  open(options: {
-    namespace: string;
-    policy?: CachePolicyOptions;
-    retry?: { maxAttempts?: number; baseDelayMs?: number };
-  }): CacheSet;
 }
 
 /** Encrypted vault key verifier stored in .vault.json. */

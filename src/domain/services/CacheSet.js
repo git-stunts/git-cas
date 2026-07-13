@@ -357,6 +357,7 @@ export default class CacheSet {
 
   async #validateTargetAccounting(handle) {
     for await (const entry of this.#index.entries(handle)) {
+      await this.#index.assertEntryShape(entry.entryHandle);
       const target = await this.#resolveTarget(entry.targetHandle);
       assertLogicalBytes(entry.metadata, target.logicalBytes);
     }
