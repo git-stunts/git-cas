@@ -8,6 +8,8 @@ Review-hardening commits:
 
 - `188662645da60abb1e579e1762f3bae272c23c0c`
 - `a17836884e21428f88843a23de9535d66f4ddce0`
+- `fc29ff934722d61f841d5f7e1c7eaf74d8b57b60`
+- `7167b5d90e77abfb886b92d9a4f9771558367fb7`
 
 ## Claim
 
@@ -193,6 +195,27 @@ leave codecs or policy construction; CacheHit also validates and freezes its
 handle, generation, policy, timestamps, and retention evidence.
 [cite: `src/domain/services/CacheMetadataCodec.js#25-78@a17836884e21428f88843a23de9535d66f4ddce0`]
 [cite: `src/domain/value-objects/CacheHit.js#12-45@a17836884e21428f88843a23de9535d66f4ddce0`]
+
+## Pull Request Review Follow-up
+
+Bun exposed that its plumbing runner can return an empty stderr for a missing
+`git cat-file -t` target. Git object type and size inspection now use the
+structured `cat-file --batch-check` protocol: missing objects are explicit
+stdout records, malformed metadata fails closed, and genuine command failures
+remain errors. Unit tests pin the command shape, missing response, malformed
+response, and non-missing failure behavior.
+[cite: `src/infrastructure/adapters/GitPersistenceAdapter.js#190-238@fc29ff934722d61f841d5f7e1c7eaf74d8b57b60`]
+[cite: `test/unit/infrastructure/adapters/GitPersistenceAdapter.readTree.test.js#93-140@fc29ff934722d61f841d5f7e1c7eaf74d8b57b60`]
+
+CodeRabbit's four actionable findings were valid and resolved: `logicalBytes`
+has one non-null public type, cache-state version fields share codec constants,
+the removal reachability proof owns its fixture and namespace, and the bounded
+candidate test exercises digest ordering at an equal-time tie.
+[cite: `index.d.ts#336-352@7167b5d90e77abfb886b92d9a4f9771558367fb7`]
+[cite: `src/domain/services/CachePolicyEnforcer.js#4-7@7167b5d90e77abfb886b92d9a4f9771558367fb7`]
+[cite: `src/domain/services/CachePolicyEnforcer.js#56-72@7167b5d90e77abfb886b92d9a4f9771558367fb7`]
+[cite: `test/integration/cache-set.test.js#73-84@7167b5d90e77abfb886b92d9a4f9771558367fb7`]
+[cite: `test/unit/domain/services/CacheCandidateHeap.test.js#5-17@7167b5d90e77abfb886b92d9a4f9771558367fb7`]
 
 ## Residual Constraints
 
