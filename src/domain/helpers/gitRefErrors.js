@@ -22,12 +22,13 @@ export function isGitMissingRefError(err, ref) {
  * @returns {string}
  */
 export function errorDetailsText(err) {
-  if (!(err instanceof Error)) {
-    return String(err);
-  }
   const details = errorDetails(err);
+  const message = err !== null && typeof err === 'object' &&
+    typeof err.message === 'string'
+    ? err.message
+    : String(err);
   return [
-    err.message,
+    message,
     typeof details.stderr === 'string' ? details.stderr : '',
     typeof details.stdout === 'string' ? details.stdout : '',
   ].join('\n');
@@ -38,7 +39,8 @@ export function errorDetailsText(err) {
  * @returns {Record<string, unknown>}
  */
 function errorDetails(err) {
-  return err instanceof Error && typeof err.details === 'object' && err.details
+  return err !== null && typeof err === 'object' &&
+    typeof err.details === 'object' && err.details
     ? err.details
     : {};
 }

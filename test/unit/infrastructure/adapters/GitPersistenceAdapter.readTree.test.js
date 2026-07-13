@@ -112,6 +112,19 @@ describe('GitPersistenceAdapter.readObjectType()', () => {
       .rejects.toMatchObject({ code: 'GIT_OBJECT_NOT_FOUND' });
   });
 
+  it('normalizes missing-object errors across runtime realms', async () => {
+    const missing = {
+      name: 'GitPlumbingError',
+      message: 'Git command failed with code 128',
+      details: { stderr: 'fatal: git cat-file: could not get object info' },
+    };
+    const plumbing = { execute: vi.fn().mockRejectedValue(missing) };
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    await expect(adapter.readObjectType('f'.repeat(40)))
+      .rejects.toMatchObject({ code: 'GIT_OBJECT_NOT_FOUND' });
+  });
+
   it('preserves non-missing inspection failures', async () => {
     const denied = new Error('permission denied');
     const plumbing = { execute: vi.fn().mockRejectedValue(denied) };
