@@ -139,7 +139,7 @@ export default class RepositoryDoctor {
       const cache = await this.caches.open({ namespace });
       return cacheUsage(record, namespace, await cache.doctor());
     } catch (error) {
-      return unhealthyCollection({ record, namespace, error });
+      return unhealthyCacheUsage({ record, namespace, error });
     }
   }
 
@@ -148,7 +148,7 @@ export default class RepositoryDoctor {
       const rootSet = await this.rootSets.open({ ref: record.ref });
       return rootSetUsage(record, await rootSet.doctor());
     } catch (error) {
-      return unhealthyCollection({ record, error });
+      return unhealthyRootSetUsage({ record, error });
     }
   }
 
@@ -158,7 +158,7 @@ export default class RepositoryDoctor {
       const expiringSet = await this.expiringSets.open({ namespace });
       return expiringSetUsage(record, namespace, await expiringSet.doctor());
     } catch (error) {
-      return unhealthyCollection({ record, namespace, error });
+      return unhealthyExpiringSetUsage({ record, namespace, error });
     }
   }
 
@@ -511,22 +511,36 @@ function usageHealthy(usage) {
   );
 }
 
-function unhealthyCollection({ record, namespace, error }) {
+function unhealthyBase({ record, namespace, error }) {
   return {
     ...(namespace === undefined ? {} : { namespace }),
     ref: record.ref,
     generation: record.oid,
     healthy: false,
     entryCount: null,
-    logicalBytes: null,
     physicalBytes: null,
-    retention: null,
     reachability: 'anchored',
+    issues: [publicError(error)],
+  };
+}
+
+function unhealthyCacheUsage(options) {
+  return {
+    ...unhealthyBase(options),
+    logicalBytes: null,
+    retention: null,
     age: null,
     expiry: null,
     policy: null,
-    issues: [publicError(error)],
   };
+}
+
+function unhealthyRootSetUsage(options) {
+  return { ...unhealthyBase(options), retention: null };
+}
+
+function unhealthyExpiringSetUsage(options) {
+  return { ...unhealthyBase(options), age: null, expiry: null };
 }
 
 function publicError(error) {

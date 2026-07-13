@@ -111,6 +111,34 @@ describe('GitRepositoryInspectionAdapter', () => {
     });
   });
 
+  it('rejects ref records outside the refs namespace', async () => {
+    const plumbing = mockPlumbing({
+      executeStream: vi
+        .fn()
+        .mockResolvedValue(gitStream([`not-a-ref\t${'a'.repeat(40)}\n`])),
+    });
+    const adapter = new GitRepositoryInspectionAdapter({ plumbing });
+
+    await expect(collect(adapter.iterateRefs())).rejects.toMatchObject({
+      code: 'REPOSITORY_INSPECTION_INVALID',
+    });
+  });
+
+  it('rejects malformed prunable-object records', async () => {
+    const plumbing = mockPlumbing({
+      inspectPrunableObjects: vi.fn().mockResolvedValue(gitStream(['not-two-fields\n'])),
+    });
+    const adapter = new GitRepositoryInspectionAdapter({ plumbing });
+
+    await expect(
+      collect(
+        adapter.iteratePrunableObjects({
+          expiresBefore: '2026-07-01T00:00:00.000Z',
+        })
+      )
+    ).rejects.toMatchObject({ code: 'REPOSITORY_INSPECTION_INVALID' });
+  });
+
   it('rejects malformed Git output instead of guessing repository evidence', async () => {
     const plumbing = mockPlumbing({
       executeStream: vi.fn().mockResolvedValue(gitStream(['not-an-object\n'])),

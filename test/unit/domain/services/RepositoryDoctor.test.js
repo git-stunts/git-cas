@@ -214,6 +214,50 @@ describe('RepositoryDoctor', () => {
     );
   });
 
+  it('returns kind-specific public shapes when managed collection inspection fails', async () => {
+    const ports = dependencies();
+    ports.caches.open.mockRejectedValue(new Error('cache failed'));
+    ports.rootSets.open.mockRejectedValue(new Error('root set failed'));
+    ports.expiringSets.open.mockRejectedValue(new Error('expiring set failed'));
+    const doctor = new RepositoryDoctor(ports);
+
+    const report = await doctor.doctor();
+
+    expect(report.healthy).toBe(false);
+    expect(report.usage.caches.entries[0]).toMatchObject({
+      namespace: 'git-warp/materializations',
+      healthy: false,
+      logicalBytes: null,
+      retention: null,
+      age: null,
+      expiry: null,
+      policy: null,
+    });
+    expect(report.usage.rootSets.entries[0]).toMatchObject({
+      healthy: false,
+      retention: null,
+    });
+    expect(report.usage.rootSets.entries[0]).not.toHaveProperty('logicalBytes');
+    expect(report.usage.rootSets.entries[0]).not.toHaveProperty('age');
+    expect(report.usage.rootSets.entries[0]).not.toHaveProperty('expiry');
+    expect(report.usage.rootSets.entries[0]).not.toHaveProperty('policy');
+    expect(report.usage.expiringSets.entries[0]).toMatchObject({
+      namespace: 'git-warp/replay',
+      healthy: false,
+      age: null,
+      expiry: null,
+    });
+    expect(report.usage.expiringSets.entries[0]).not.toHaveProperty('logicalBytes');
+    expect(report.usage.expiringSets.entries[0]).not.toHaveProperty('retention');
+    expect(report.usage.expiringSets.entries[0]).not.toHaveProperty('policy');
+    expect(report.usage.caches.entries[0].issues[0]).toMatchObject({
+      code: 'REPOSITORY_INSPECTION_INVALID',
+      message: 'cache failed',
+    });
+    expect(report.usage.rootSets.entries[0].issues[0].message).toBe('root set failed');
+    expect(report.usage.expiringSets.entries[0].issues[0].message).toBe('expiring set failed');
+  });
+
   it('reports private-vault entry attribution as unknown without requesting a key', async () => {
     const ports = dependencies();
     ports.vault.getVaultMetadata.mockResolvedValue({

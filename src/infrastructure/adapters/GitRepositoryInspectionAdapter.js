@@ -4,6 +4,7 @@ import Oid from '../../domain/value-objects/Oid.js';
 import RepositoryInspectionPort from '../../ports/RepositoryInspectionPort.js';
 
 const DEFAULT_POLICY = Policy.timeout(30_000);
+const DEFAULT_FULL_SCAN_POLICY = Policy.timeout(5 * 60_000);
 const OBJECT_TYPES = new Set(['blob', 'tree', 'commit', 'tag']);
 const OBJECT_FORMAT = '--batch-check=%(objectname) %(objecttype) %(objectsize) %(objectsize:disk)';
 
@@ -23,6 +24,7 @@ export default class GitRepositoryInspectionAdapter extends RepositoryInspection
     }
     this.plumbing = plumbing;
     this.policy = policy ?? DEFAULT_POLICY;
+    this.fullScanPolicy = policy ?? DEFAULT_FULL_SCAN_POLICY;
     Object.freeze(this);
   }
 
@@ -87,7 +89,7 @@ export default class GitRepositoryInspectionAdapter extends RepositoryInspection
   }
 
   async reachablePhysicalBytes() {
-    const output = await this.policy.execute(() =>
+    const output = await this.fullScanPolicy.execute(() =>
       this.plumbing.execute({
         args: ['rev-list', '--all', '--reflog', '--objects', '--disk-usage'],
       })
