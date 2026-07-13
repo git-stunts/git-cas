@@ -9,15 +9,20 @@ const handle = new AssetHandle({
 });
 const observedAt = '2026-07-13T10:00:00.000Z';
 
+function makeStaged(overrides = {}) {
+  return new StagedAsset({
+    handle,
+    slug: 'alice-avatar',
+    filename: 'alice.png',
+    size: 42,
+    observedAt,
+    ...overrides,
+  });
+}
+
 describe('StagedAsset', () => {
   it('states that staging created no reachability root', () => {
-    const staged = new StagedAsset({
-      handle,
-      slug: 'alice-avatar',
-      filename: 'alice.png',
-      size: 42,
-      observedAt,
-    });
+    const staged = makeStaged();
 
     expect(staged).toMatchObject({
       version: 1,
@@ -39,6 +44,17 @@ describe('StagedAsset', () => {
     expect(Object.isFrozen(staged.asset)).toBe(true);
     expect(Object.isFrozen(staged.retention)).toBe(true);
     expect(staged.toJSON().handle).toBe(handle.toString());
+  });
+
+  it.each([
+    ['slug', { slug: '' }],
+    ['filename', { filename: '' }],
+    ['size', { size: -1 }],
+    ['observedAt', { observedAt: '2026-07-13T10:00:00Z' }],
+  ])('rejects an invalid %s', (_field, override) => {
+    expect(() => makeStaged(override)).toThrow(
+      expect.objectContaining({ code: 'HANDLE_INVALID' })
+    );
   });
 });
 
@@ -86,13 +102,14 @@ describe('RetentionWitness validation', () => {
     [{ root: { generation: 'bad' } }, 'RETENTION_WITNESS_INVALID'],
     [{ observedAt: 'tomorrow' }, 'RETENTION_WITNESS_INVALID'],
   ])('rejects invalid evidence %#', (override, code) => {
+    const { root: rootOverride, ...topLevelOverride } = override;
     const root = {
       kind: 'root-set',
       namespace: 'warp-assets',
       ref: 'refs/cas/rootsets/warp-assets',
       generation: 'a'.repeat(40),
       path: 'root-00000000',
-      ...override.root,
+      ...rootOverride,
     };
 
     const options = {
@@ -101,9 +118,8 @@ describe('RetentionWitness validation', () => {
       reachability: 'anchored',
       root,
       observedAt,
-      ...override,
+      ...topLevelOverride,
     };
-    options.root = root;
 
     expect(() => new RetentionWitness(options)).toThrow(expect.objectContaining({ code }));
   });

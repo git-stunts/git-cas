@@ -101,13 +101,24 @@ export default class AssetService {
   }
 
   async #assertChunkGraph(handle, manifest) {
-    const seen = new Set();
+    const blobs = new Set();
     for (const chunk of manifest.chunks) {
-      if (!seen.has(chunk.blob)) {
-        seen.add(chunk.blob);
-        await this.#assertObjectType(handle, chunk.blob, 'blob');
-      }
+      blobs.add(chunk.blob);
     }
+    const iterator = blobs.values();
+    const workerCount = Math.min(this.#cas.concurrency, blobs.size);
+
+    const validateNext = async () => {
+      while (true) {
+        const next = iterator.next();
+        if (next.done) {
+          return;
+        }
+        await this.#assertObjectType(handle, next.value, 'blob');
+      }
+    };
+
+    await Promise.all(Array.from({ length: workerCount }, () => validateNext()));
   }
 
   async #assertObjectType(handle, oid, expectedType) {

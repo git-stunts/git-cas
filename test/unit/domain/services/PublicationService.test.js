@@ -7,7 +7,7 @@ import MemoryRefAdapter from '../../../helpers/MemoryRefAdapter.js';
 
 const OBSERVED_AT = '2026-07-13T10:00:00.000Z';
 
-function makeService() {
+function makeService({ applicationRefPrefixes = ['refs/warp/'] } = {}) {
   const persistence = new MemoryPersistenceAdapter();
   const ref = new MemoryRefAdapter();
   const resolveRoot = async (value) => {
@@ -18,7 +18,7 @@ function makeService() {
   const publications = new PublicationService({
     ref,
     resolveRoot,
-    applicationRefPrefixes: ['refs/warp/'],
+    applicationRefPrefixes,
     clock: { now: () => new Date(OBSERVED_AT) },
   });
   return { persistence, publications, ref };
@@ -140,7 +140,50 @@ describe('PublicationService failures', () => {
       publish(publications, handle, { name: 'refs/cas/rootsets/internal' })
     ).rejects.toMatchObject({ code: 'PUBLICATION_REF_FORBIDDEN' });
   });
+});
 
+describe('PublicationService reserved ref boundaries', () => {
+  it.each([
+    'refs/bisect/session',
+    'refs/cas/rootsets/internal',
+    'refs/heads/main',
+    'refs/notes/commits',
+    'refs/remotes/origin/main',
+    `refs/replace/${'a'.repeat(40)}`,
+    'refs/rewritten/main',
+    'refs/stash',
+    'refs/tags/v1.0.0',
+    'refs/worktree/main',
+  ])('hard-blocks reserved Git ref %s under a broad allowlist', async (name) => {
+    const { persistence, publications } = makeService({
+      applicationRefPrefixes: ['refs/'],
+    });
+    const handle = await makeHandle(persistence, 'reserved');
+
+    await expect(publish(publications, handle, { name })).rejects.toMatchObject({
+      code: 'PUBLICATION_REF_FORBIDDEN',
+    });
+  });
+
+  it.each([
+    'refs/bisect/',
+    'refs/cas/',
+    'refs/heads/',
+    'refs/notes/',
+    'refs/remotes/',
+    'refs/replace/',
+    'refs/rewritten/',
+    'refs/stash/',
+    'refs/tags/',
+    'refs/worktree/',
+  ])('rejects reserved namespace configuration %s', (prefix) => {
+    expect(() => makeService({ applicationRefPrefixes: [prefix] })).toThrow(
+      expect.objectContaining({ code: 'PUBLICATION_INVALID' })
+    );
+  });
+});
+
+describe('PublicationService failures requiring explicit expectations', () => {
   it('requires an explicit expected head', async () => {
     const { persistence, publications } = makeService();
     const handle = await makeHandle(persistence, 'expected');

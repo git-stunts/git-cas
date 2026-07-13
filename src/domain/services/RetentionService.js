@@ -1,7 +1,7 @@
 import createCasError from '../errors/createCasError.js';
 import { ErrorCodes } from '../errors/index.js';
 import RootSetMetadataCodec from './RootSetMetadataCodec.js';
-import { ROOT_SET_REF_PREFIX } from '../value-objects/RootSetRef.js';
+import RootSetRef, { ROOT_SET_REF_PREFIX } from '../value-objects/RootSetRef.js';
 import RetentionWitness from '../value-objects/RetentionWitness.js';
 
 const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
@@ -97,6 +97,7 @@ export default class RetentionService {
         { root }
       );
     }
+    RootSetRef.from(root.ref);
   }
 
   static #assertDependencies(rootSets, resolveRoot, clock) {

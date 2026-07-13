@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import AssetService from '../../../../src/domain/services/AssetService.js';
 import CasService from '../../../../src/domain/services/CasService.js';
 import RetentionService from '../../../../src/domain/services/RetentionService.js';
@@ -31,12 +31,13 @@ function makeServices() {
   });
   const assets = new AssetService({ cas });
   const rootSets = new RootSetRegistry({ persistence, ref });
+  const resolveRoot = vi.fn((handle) => assets.resolveRoot(handle));
   const retention = new RetentionService({
     rootSets,
-    resolveRoot: (handle) => assets.resolveRoot(handle),
+    resolveRoot,
     clock: { now: () => new Date(OBSERVED_AT) },
   });
-  return { assets, persistence, retention, rootSets };
+  return { assets, persistence, ref, resolveRoot, retention, rootSets };
 }
 
 async function* source(value) {
@@ -86,6 +87,24 @@ describe('RetentionService', () => {
       oid: staged.handle.oid,
     });
     expect(Object.isFrozen(result)).toBe(true);
+  });
+});
+
+describe('RetentionService root validation', () => {
+  it('rejects a malformed root ref before resolving or mutating storage', async () => {
+    const { assets, ref, resolveRoot, retention } = makeServices();
+    const staged = await stage(assets, 'invalid-root');
+    const updateRef = vi.spyOn(ref, 'updateRef');
+
+    await expect(
+      retention.retain({
+        handle: staged.handle,
+        root: { ref: 'refs/heads/main', name: 'current-state' },
+      })
+    ).rejects.toMatchObject({ code: 'ROOT_SET_REF_INVALID' });
+
+    expect(resolveRoot).not.toHaveBeenCalled();
+    expect(updateRef).not.toHaveBeenCalled();
   });
 });
 

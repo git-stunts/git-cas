@@ -1,5 +1,6 @@
 import createCasError from '../errors/createCasError.js';
 import { ErrorCodes } from '../errors/index.js';
+import isCanonicalUtcTimestamp from '../helpers/isCanonicalUtcTimestamp.js';
 import AssetHandle from './AssetHandle.js';
 import Oid from './Oid.js';
 
@@ -92,11 +93,7 @@ export default class RetentionWitness {
   }
 
   static #assertTimestamp(value) {
-    if (
-      typeof value !== 'string' ||
-      Number.isNaN(Date.parse(value)) ||
-      new Date(value).toISOString() !== value
-    ) {
+    if (!isCanonicalUtcTimestamp(value)) {
       throw RetentionWitness.#invalid(
         'Retention witness observation time must be a canonical UTC timestamp',
         {

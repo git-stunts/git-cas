@@ -8,6 +8,18 @@ const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
 const FORBIDDEN_REF_CHARS = '~^:?*[\\';
 const MAX_COMMIT_MESSAGE_BYTES = 1024 * 1024;
 const MAX_PARENTS = 64;
+const RESERVED_REF_NAMESPACES = Object.freeze([
+  'refs/bisect',
+  'refs/cas',
+  'refs/heads',
+  'refs/notes',
+  'refs/remotes',
+  'refs/replace',
+  'refs/rewritten',
+  'refs/stash',
+  'refs/tags',
+  'refs/worktree',
+]);
 
 /**
  * Publishes validated content roots through application-owned Git refs.
@@ -145,7 +157,7 @@ export default class PublicationService {
   }
 
   #authorizeRef(value) {
-    if (!PublicationService.#isValidRef(value) || value.startsWith('refs/cas/')) {
+    if (!PublicationService.#isValidRef(value) || PublicationService.#isReservedRef(value)) {
       throw PublicationService.#forbidden(value);
     }
     const namespace = this.#applicationRefPrefixes.find((prefix) => value.startsWith(prefix));
@@ -194,7 +206,7 @@ export default class PublicationService {
       if (
         !PublicationService.#isValidRef(`${prefix}placeholder`) ||
         !prefix.endsWith('/') ||
-        prefix.startsWith('refs/cas/')
+        PublicationService.#isReservedRef(prefix.slice(0, -1))
       ) {
         throw PublicationService.#invalid('Application ref prefix is invalid or reserved', {
           prefix,
@@ -221,6 +233,12 @@ export default class PublicationService {
     return value
       .split('/')
       .every((part) => part.length > 0 && part !== '.' && part !== '..' && !part.endsWith('.lock'));
+  }
+
+  static #isReservedRef(value) {
+    return RESERVED_REF_NAMESPACES.some(
+      (namespace) => value === namespace || value.startsWith(`${namespace}/`)
+    );
   }
 
   static #hasInvalidRefShape(value) {

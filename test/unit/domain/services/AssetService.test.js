@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import AssetService from '../../../../src/domain/services/AssetService.js';
 import CasService from '../../../../src/domain/services/CasService.js';
 import AssetHandle from '../../../../src/domain/value-objects/AssetHandle.js';
@@ -13,7 +13,7 @@ import { getTestCryptoAdapter } from '../../../helpers/crypto-adapter.js';
 const OBSERVED_AT = '2026-07-13T10:00:00.000Z';
 const testCrypto = await getTestCryptoAdapter();
 
-function makeAssets() {
+function makeAssets({ concurrency = 1 } = {}) {
   const persistence = new MemoryPersistenceAdapter();
   const cas = new CasService({
     persistence,
@@ -22,6 +22,7 @@ function makeAssets() {
     observability: new SilentObserver(),
     chunkSize: 1024,
     merkleThreshold: 2,
+    concurrency,
     chunker: new FixedChunker({ chunkSize: 1024 }),
     compressionAdapter: new NodeCompressionAdapter(),
   });
@@ -86,6 +87,38 @@ describe('AssetService put/open', () => {
 
     expect(adopted.handle.toString()).toBe(staged.handle.toString());
     expect(adopted.asset).toEqual(staged.asset);
+  });
+});
+
+describe('AssetService chunk graph validation', () => {
+  it('validates unique chunk objects with bounded concurrency', async () => {
+    const { assets, persistence } = makeAssets({ concurrency: 3 });
+    const payload = Buffer.alloc(8 * 1024);
+    for (let index = 0; index < 8; index++) {
+      payload.fill(index, index * 1024, (index + 1) * 1024);
+    }
+    const staged = await assets.put({
+      source: source(payload),
+      slug: 'bounded-validation',
+      filename: 'bounded.bin',
+    });
+    const readObjectType = persistence.readObjectType.bind(persistence);
+    let active = 0;
+    let maximum = 0;
+    vi.spyOn(persistence, 'readObjectType').mockImplementation(async (oid) => {
+      active += 1;
+      maximum = Math.max(maximum, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      try {
+        return await readObjectType(oid);
+      } finally {
+        active -= 1;
+      }
+    });
+
+    await assets.resolveRoot(staged.handle);
+
+    expect(maximum).toBe(3);
   });
 });
 
