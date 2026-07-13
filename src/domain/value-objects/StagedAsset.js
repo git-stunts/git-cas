@@ -1,6 +1,6 @@
 import createCasError from '../errors/createCasError.js';
 import { ErrorCodes } from '../errors/index.js';
-import isCanonicalUtcTimestamp from '../helpers/isCanonicalUtcTimestamp.js';
+import assertCanonicalTimestamp from '../helpers/assertCanonicalTimestamp.js';
 import AssetHandle from './AssetHandle.js';
 
 /**
@@ -25,7 +25,10 @@ export default class StagedAsset {
     if (!Number.isSafeInteger(size) || size < 0) {
       throw StagedAsset.#invalid('Staged asset size must be a non-negative safe integer', { size });
     }
-    StagedAsset.#assertTimestamp(observedAt);
+    assertCanonicalTimestamp(observedAt, {
+      invalid: StagedAsset.#invalid,
+      message: 'Staged asset observation time must be a canonical UTC timestamp',
+    });
 
     this.version = 1;
     this.state = 'staged';
@@ -52,17 +55,6 @@ export default class StagedAsset {
       retention: { ...this.retention },
       observedAt: this.observedAt,
     };
-  }
-
-  static #assertTimestamp(value) {
-    if (!isCanonicalUtcTimestamp(value)) {
-      throw StagedAsset.#invalid(
-        'Staged asset observation time must be a canonical UTC timestamp',
-        {
-          observedAt: value,
-        }
-      );
-    }
   }
 
   static #invalid(message, meta) {

@@ -1,6 +1,6 @@
 import createCasError from '../errors/createCasError.js';
 import { ErrorCodes } from '../errors/index.js';
-import isCanonicalUtcTimestamp from '../helpers/isCanonicalUtcTimestamp.js';
+import assertCanonicalTimestamp from '../helpers/assertCanonicalTimestamp.js';
 import AssetHandle from './AssetHandle.js';
 import Oid from './Oid.js';
 
@@ -32,7 +32,10 @@ export default class RetentionWitness {
       });
     }
     const normalizedRoot = RetentionWitness.#normalizeRoot(root);
-    RetentionWitness.#assertTimestamp(observedAt);
+    assertCanonicalTimestamp(observedAt, {
+      invalid: RetentionWitness.#invalid,
+      message: 'Retention witness observation time must be a canonical UTC timestamp',
+    });
 
     this.version = 1;
     this.handle = AssetHandle.from(handle);
@@ -90,17 +93,6 @@ export default class RetentionWitness {
       generation,
       path: root.path,
     };
-  }
-
-  static #assertTimestamp(value) {
-    if (!isCanonicalUtcTimestamp(value)) {
-      throw RetentionWitness.#invalid(
-        'Retention witness observation time must be a canonical UTC timestamp',
-        {
-          observedAt: value,
-        }
-      );
-    }
   }
 
   static #invalid(message, meta) {
