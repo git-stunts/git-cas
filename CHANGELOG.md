@@ -47,6 +47,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   yields canonical descriptors without allocating a member array, while bundle
   validation reports deterministic transitive logical bytes with repeated
   child handles charged once per bundle root.
+- **Expiry-safe replay sets** — `expiringSets.open()` now provides atomic
+  add-if-absent replay markers under `refs/cas/expiring/*`, digest-only
+  canonical metadata, read-only membership checks, expiry-only sweeps,
+  bounded inspection, doctor evidence, and immutable retention witnesses.
+  The capability intentionally exposes no live remove, repair, capacity, or
+  recency eviction path.
 
 ### Changed
 

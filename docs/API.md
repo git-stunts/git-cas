@@ -1559,6 +1559,128 @@ target before publishing the replacement generation and returns a retention
 witness for the repaired index. Run `doctor()` again and require
 `healthy: true` before any destructive repository maintenance.
 
+## Expiring Sets
+
+Expiring sets are the durable replay-marker surface. They are stricter than
+cache sets: a live marker is pinned through its declared acceptance window and
+cannot be removed for capacity, recency, repair, or caller convenience.
+
+```javascript
+const replay = await cas.expiringSets.open({
+  namespace: 'git-warp/admission-replay',
+});
+
+const result = await replay.addIfAbsent(requestNonce, {
+  expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+});
+
+if (!result.admitted) {
+  throw new Error('Replay rejected');
+}
+```
+
+The namespace uses the same canonical grammar as CacheSet and maps to
+`refs/cas/expiring/git-warp/admission-replay`. Open options accept only
+`namespace` and an optional RootSet conflict `retry` policy. Capacity and
+eviction options fail with `INVALID_OPTIONS` rather than being ignored.
+
+### Key Privacy And Collision Detection
+
+Keys use the same non-empty, NFC, control-free, 1,024-byte input boundary as
+cache keys, but plaintext keys are never persisted. ExpiringSet computes two
+domain-separated SHA-256 values:
+
+- the primary digest is the deterministic marker path;
+- the verification digest detects a primary-digest collision when that key is
+  checked or admitted.
+
+Both digests are lowercase canonical hex. A crypto adapter that returns an
+invalid digest or collapses both domains is rejected. Deterministic digests can
+still reveal low-entropy input through offline guessing, so callers should use
+high-entropy nonces or hash a suitably secret protocol value before admission.
+
+### Storage And Reachability
+
+```text
+refs/cas/expiring/<namespace> -> parentless generation commit
+                                `-- root-00000000 -> structured bundle index
+                                    |-- .expiring/state -> immutable page
+                                    `-- markers/<sha256-key> -> immutable page
+```
+
+Marker pages contain only the metadata version, primary and verification
+digests, `createdAt`, and `expiresAt`. Every current marker is a real transitive
+Git tree edge below the one RootSet slot. The returned `RetentionWitness` names
+that physical slot and the immutable marker page it supports; it does not
+pretend that a structured bundle's logical member name is a physical path in
+the generation tree.
+
+Every generation commit is parentless. Replacing the same expired key or
+sweeping expired markers releases old support without preserving it through a
+commit-parent chain. ExpiringSet never deletes Git objects and never invokes
+garbage collection.
+
+### addIfAbsent And contains
+
+`addIfAbsent(key, { expiresAt })` requires a future canonical UTC timestamp or
+a valid `Date`. It performs a compare-and-swap RootSet mutation. Concurrent
+duplicate calls produce exactly one `admitted: true` winner; a loser returns
+the winning immutable `ExpiringMarker` and its generation-scoped witness.
+
+The operation rechecks the expiry on every conflict retry, clears all
+attempt-local result state, and validates the persisted state page against a
+streamed historical marker scan before staging a write. Missing, malformed, or
+inconsistent marker support fails closed instead of being silently healed.
+
+`contains(key)` is a targeted, non-mutating membership check. It returns `true`
+only while the matching marker is unexpired. Callers that need atomic replay
+admission must use `addIfAbsent()` rather than composing `contains()` with a
+later write.
+
+### sweep
+
+```javascript
+const swept = await replay.sweep();
+```
+
+`sweep()` validates current state and then releases only markers whose
+`expiresAt` is less than or equal to the injected clock. There is no public
+`remove()` or `repair()` method and no capacity or LRU policy. The implementation
+uses bounded streaming validation, classification, and rewrite passes without
+retaining an array proportional to set cardinality.
+
+An expired marker remains anchored until `sweep()` or admission of that same
+expired key publishes a replacement generation. `contains()` never performs
+that cleanup as a side effect.
+
+### inspect And doctor
+
+```javascript
+const page = await replay.inspect({ limit: 100 });
+const report = await replay.doctor();
+```
+
+`inspect()` returns digest-only marker records, live/expired classification,
+current aggregate counts, retention evidence, and a digest cursor. It returns
+at most 1,000 records per call. `doctor()` is non-mutating and validates the
+ref, parentless RootSet generation, structured index, canonical state and
+marker pages, nested object existence, and persisted count/expiry summary.
+Expired markers are reported as an operational classification, not corruption.
+
+Malformed or missing state has no automatic repair path because an
+authoritative-but-incomplete replacement could weaken replay protection.
+Reconstruction requires a trusted external ledger and a separately reviewed
+operator procedure.
+
+### Clock Trust
+
+The constructor-level `clock` option controls deterministic evaluation in
+tests and host integrations. Clock rollback extends protection because markers
+remain live longer. A forward jump can shorten a window, so security callers
+must validate request timestamps and choose `expiresAt` from the same trusted
+clock. Marker state survives process restart because the Git ref, not process
+memory, is authoritative.
+
 ## Vault
 
 The vault provides GC-safe storage by maintaining a single Git ref (`refs/cas/vault`) pointing to a commit chain. The commit's tree indexes all stored assets by slug. This prevents `git gc` from garbage-collecting stored data.

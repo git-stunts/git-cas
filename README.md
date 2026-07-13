@@ -27,6 +27,10 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
   `refs/cas/caches/*` with TTL, entry and logical-byte limits, approximate LRU
   eviction, immutable retention evidence, bounded inspection, and repair.
   Cache indexes and object reachability remain git-cas responsibilities.
+- **Expiry-Safe Replay Sets**: Security-sensitive markers can live under
+  `refs/cas/expiring/*` with atomic add-if-absent, digest-only metadata, and
+  expiry-only release. Live markers have no remove, repair, capacity, or LRU
+  path that could shorten their acceptance window.
 - **Opaque Application Handles**: Applications stage assets, immutable pages,
   and deterministic structured bundles through validated handles, then retain
   or publish them with generation-scoped evidence instead of managing Git
@@ -99,6 +103,7 @@ The README is the front door. Detailed mechanics live in the guide set:
 | Assets, pages, bundles, retention, and publication      | [Application storage](./docs/API.md#application-storage)     |
 | GC retention for caches and derived state               | [Root Sets](./docs/API.md#root-sets)                         |
 | Managed TTL and capacity caches                         | [Cache Sets](./docs/API.md#cache-sets)                       |
+| Durable replay markers with expiry-only release         | [Expiring Sets](./docs/API.md#expiring-sets)                 |
 | v5 to v6 migration                                      | [Upgrading](./UPGRADING.md)                                  |
 
 Core capabilities:
@@ -120,6 +125,9 @@ Core capabilities:
   compare-and-swap replacement, expiry, capacity eviction, retention
   witnesses, diagnostics, and repair. Reads do not write access metadata;
   callers opt into coalesced access updates with `touch()`.
+- **Expiry-safe replay lifecycle**: `expiringSets.open()` atomically retains
+  digest-only replay markers through their declared window. `contains()` is
+  read-only, and `sweep()` can release only markers whose expiry has passed.
 - **Application storage**: `assets`, `pages`, `bundles`, `retention`, and
   `publications` compose streaming CAS writes, bounded structured
   materializations, targeted member reads, reachability roots,

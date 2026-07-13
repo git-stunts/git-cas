@@ -14,6 +14,8 @@ import AssetService from './src/domain/services/AssetService.js';
 import BundleService from './src/domain/services/BundleService.js';
 import CacheSet from './src/domain/services/CacheSet.js';
 import CacheSetRegistry from './src/domain/services/CacheSetRegistry.js';
+import ExpiringSet from './src/domain/services/ExpiringSet.js';
+import ExpiringSetRegistry from './src/domain/services/ExpiringSetRegistry.js';
 import PageService from './src/domain/services/PageService.js';
 import PublicationService from './src/domain/services/PublicationService.js';
 import RetentionService from './src/domain/services/RetentionService.js';
@@ -64,6 +66,7 @@ export {
   RootSet,
   RootSetRegistry,
   CacheSet,
+  ExpiringSet,
   GitPersistenceAdapter,
   GitRefAdapter,
   JsonCodec,
@@ -90,6 +93,7 @@ export { default as StagedPage } from './src/domain/value-objects/StagedPage.js'
 export { default as RetentionWitness } from './src/domain/value-objects/RetentionWitness.js';
 export { default as CacheHit } from './src/domain/value-objects/CacheHit.js';
 export { default as CachePolicy } from './src/domain/value-objects/CachePolicy.js';
+export { default as ExpiringMarker } from './src/domain/value-objects/ExpiringMarker.js';
 export { default as EventEmitterObserver } from './src/infrastructure/adapters/EventEmitterObserver.js';
 export { default as StatsCollector } from './src/infrastructure/adapters/StatsCollector.js';
 export { default as FixedChunker } from './src/infrastructure/chunkers/FixedChunker.js';
@@ -179,6 +183,9 @@ export default class ContentAddressableStore {
     this.caches = Object.freeze({
       open: async (options) => (await this.#getCacheSetRegistry()).open(options),
     });
+    this.expiringSets = Object.freeze({
+      open: async (options) => (await this.#getExpiringSetRegistry()).open(options),
+    });
     this.assets = Object.freeze({
       put: async (options) => (await this.#getAssetService()).put(options),
       adopt: async (options) => (await this.#getAssetService()).adopt(options),
@@ -222,6 +229,8 @@ export default class ContentAddressableStore {
   #rootSetRegistry = null;
   /** @type {CacheSetRegistry|null} */
   #cacheSetRegistry = null;
+  /** @type {ExpiringSetRegistry|null} */
+  #expiringSetRegistry = null;
   #servicePromise = null;
 
   /**
@@ -279,6 +288,12 @@ export default class ContentAddressableStore {
     });
     this.#rootSetRegistry = new RootSetRegistry({ persistence, ref });
     this.#initApplicationServices({ ref, cfg });
+    this.#initCollectionServices({ persistence, ref, crypto, cfg });
+
+    return this.service;
+  }
+
+  #initCollectionServices({ persistence, ref, crypto, cfg }) {
     this.#cacheSetRegistry = new CacheSetRegistry({
       persistence,
       ref,
@@ -288,8 +303,14 @@ export default class ContentAddressableStore {
       crypto,
       clock: cfg.clock,
     });
-
-    return this.service;
+    this.#expiringSetRegistry = new ExpiringSetRegistry({
+      persistence,
+      ref,
+      bundles: this.#bundleService,
+      pages: this.#pageService,
+      crypto,
+      clock: cfg.clock,
+    });
   }
 
   #initApplicationServices({ ref, cfg }) {
@@ -347,6 +368,12 @@ export default class ContentAddressableStore {
   async #getCacheSetRegistry() {
     await this.#getService();
     return this.#cacheSetRegistry;
+  }
+
+  /** @returns {Promise<ExpiringSetRegistry>} */
+  async #getExpiringSetRegistry() {
+    await this.#getService();
+    return this.#expiringSetRegistry;
   }
 
   /** @returns {Promise<AssetService>} */

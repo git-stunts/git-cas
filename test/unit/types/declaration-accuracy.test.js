@@ -93,6 +93,10 @@ describe('Application-storage declaration accuracy', () => {
     expect(declarations).toContain('export declare class CacheSet');
     expect(declarations).toContain('export declare class CacheHit');
     expect(declarations).toContain('readonly caches: CacheCapability;');
+    expect(declarations).toContain('export declare class ExpiringSet');
+    expect(declarations).toContain('export declare class ExpiringMarker');
+    expect(declarations).toContain('readonly expiringSets: ExpiringSetCapability;');
+    expect(declarations).toContain('addIfAbsent(key: string, options: { expiresAt: Date | string })');
     expect(declarations).toContain('iterateMembers(options: { handle: BundleHandleInput })');
     expect(declarations).toContain('applicationRefPrefixes?: string[];');
     expect(declarations).toContain('parentOids?: string[];');
