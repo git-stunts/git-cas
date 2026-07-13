@@ -236,12 +236,14 @@ function assertCanonicalRange(value, maxBytes) {
 }
 
 function assertCanonicalPath(value, maxBytes) {
+  let normalizedPath;
   try {
-    if (normalizeBundlePath(value, maxBytes) !== value) {
-      throw new Error('Path is not canonical');
-    }
+    normalizedPath = normalizeBundlePath(value, maxBytes);
   } catch (error) {
     throw corrupt('Bundle descriptor path is invalid', { path: value, originalError: error });
+  }
+  if (normalizedPath !== value) {
+    throw corrupt('Bundle descriptor path is not canonical', { path: value, normalizedPath });
   }
 }
 

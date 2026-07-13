@@ -33,9 +33,10 @@ export function mapHandleTargetError(error, handle, targetOid = handle.oid) {
   if (error?.code === ErrorCodes.HANDLE_TARGET_MISSING) {
     return error;
   }
+  const message = typeof error?.message === 'string' ? error.message : String(error);
   const missing =
     error?.code === ErrorCodes.GIT_OBJECT_NOT_FOUND ||
-    /(?:object|blob|tree) not found/iu.test(error instanceof Error ? error.message : String(error));
+    /(?:object|blob|tree) not found/iu.test(message);
   if (!missing) {
     return error;
   }

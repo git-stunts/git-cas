@@ -24,6 +24,7 @@ describe('BundleService admission limits', () => {
     [{ 'e\u0301': Buffer.from('x') }, 'BUNDLE_PATH_INVALID'],
     [{ 'control\u0085path': Buffer.from('x') }, 'BUNDLE_PATH_INVALID'],
     [{ 'surrogate\ud800path': Buffer.from('x') }, 'BUNDLE_PATH_INVALID'],
+    [{ 'trailing\ud800': Buffer.from('x') }, 'BUNDLE_PATH_INVALID'],
   ])('rejects unsafe path corpus %#', async (members, code) => {
     await expect(makeBundle().put({ members })).rejects.toMatchObject({ code });
   });

@@ -127,10 +127,13 @@ describe('RetentionWitness', () => {
 });
 
 describe('RetentionWitness application handles', () => {
-  it('accepts every application handle kind', () => {
-    const page = new PageHandle({ oid: 'b'.repeat(40) });
+  it.each([
+    ['asset', new AssetHandle({ codec: 'json', oid: 'a'.repeat(40) }), AssetHandle],
+    ['bundle', new BundleHandle({ codec: 'json', oid: 'b'.repeat(40) }), BundleHandle],
+    ['page', new PageHandle({ oid: 'c'.repeat(40) }), PageHandle],
+  ])('accepts a %s application handle', (_kind, applicationHandle, HandleType) => {
     const witness = new RetentionWitness({
-      handle: page,
+      handle: applicationHandle,
       policy: 'evictable',
       reachability: 'anchored',
       root: {
@@ -143,8 +146,8 @@ describe('RetentionWitness application handles', () => {
       observedAt,
     });
 
-    expect(witness.handle).toBeInstanceOf(PageHandle);
-    expect(witness.toJSON().handle).toBe(page.toString());
+    expect(witness.handle).toBeInstanceOf(HandleType);
+    expect(witness.toJSON().handle).toBe(applicationHandle.toString());
   });
 });
 

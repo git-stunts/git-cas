@@ -264,9 +264,33 @@ describe('BundleService imported admission bounds', () => {
       descriptor.index.lastPath = 'e\u0301';
     });
 
-    await expect(bundles.resolveRoot(handle)).rejects.toMatchObject({
+    const error = await bundles.resolveRoot(handle).then(
+      () => null,
+      (caught) => caught
+    );
+
+    expect(error).toMatchObject({
       code: 'BUNDLE_CORRUPT',
+      meta: {
+        path: 'e\u0301',
+        originalError: { code: 'BUNDLE_PATH_INVALID' },
+      },
     });
+  });
+});
+
+describe('BundleService imported target validation', () => {
+  it('caps the root descriptor read with the configured descriptor limit', async () => {
+    const { bundles, persistence } = makeServices({
+      limits: { maxDescriptorBytes: 1024 },
+    });
+    const staged = await bundles.put({ members: { selected: Buffer.from('value') } });
+    const descriptor = await persistence.readTreeEntry(staged.handle.oid, 'bundle.json');
+    const readBlob = vi.spyOn(persistence, 'readBlob');
+
+    await bundles.resolveRoot(staged.handle);
+
+    expect(readBlob).toHaveBeenCalledWith(descriptor.oid, 1024);
   });
 
   it('rejects member sizes that disagree with resolved targets', async () => {
@@ -283,7 +307,6 @@ describe('BundleService imported admission bounds', () => {
       meta: { memberPath: 'selected', expectedSize: 5, actualSize: 6 },
     });
   });
-
 });
 
 describe('BundleService write preconditions', () => {

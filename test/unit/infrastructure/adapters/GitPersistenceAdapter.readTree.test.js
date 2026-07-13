@@ -130,6 +130,7 @@ describe('GitPersistenceAdapter.readObjectSize()', () => {
     expect(plumbing.execute).toHaveBeenCalledWith({
       args: ['cat-file', '-s', 'a'.repeat(40)],
     });
+    expect(plumbing.executeStream).not.toHaveBeenCalled();
   });
 
   it('rejects malformed Git size output', async () => {

@@ -69,6 +69,17 @@ describe('PageService', () => {
       code: 'INVALID_OPTIONS',
     });
   });
+});
+
+describe('PageService target and source validation', () => {
+  it('rejects a page source that is neither bytes nor iterable', async () => {
+    const { pages } = makePages();
+
+    await expect(pages.put({ source: { value: 'not-bytes' } })).rejects.toMatchObject({
+      code: 'INVALID_OPTIONS',
+      message: 'Page source must be bytes or an iterable of byte chunks',
+    });
+  });
 
   it('reports missing and wrong-kind targets through handle evidence', async () => {
     const { pages, persistence } = makePages();

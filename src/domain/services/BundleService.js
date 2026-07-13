@@ -259,10 +259,11 @@ export default class BundleService {
       expectedType: 'tree',
     });
     const descriptorEntry = await this.#requiredEdge(handle.oid, this.#codec.rootEntryName, 'blob');
-    const descriptorBytes = await this.#readDescriptorBlob(descriptorEntry.oid, {
-      handle: handle.toString(),
-      kind: 'root',
-    });
+    const descriptorBytes = await this.#readDescriptorBlob(
+      descriptorEntry.oid,
+      { handle: handle.toString(), kind: 'root' },
+      this.#limits.maxDescriptorBytes
+    );
     const descriptor = this.#codec.decodeRoot(descriptorBytes);
     this.#assertReadableLimits(descriptor.limits);
     if (descriptorBytes.length > descriptor.limits.maxDescriptorBytes) {
