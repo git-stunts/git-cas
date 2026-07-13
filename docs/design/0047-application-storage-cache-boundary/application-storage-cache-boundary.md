@@ -410,7 +410,7 @@ Required operations:
 {
   key: coordinateKey,
   handle: materializationHandle,
-  policy: { retention: 'evictable' },
+  policy: 'evictable',
   expiresAt: '2026-07-27T00:00:00.000Z',
   logicalBytes: 123456,
   generation: '<cache-generation-commit-id>',
@@ -422,10 +422,11 @@ Required operations:
 is either a non-negative safe integer under the entry's accounting version or
 `null` under the legacy-size rule below. `generation` is the generation at
 which `get()` linearized, and `evidence.root.generation` must equal it. The
-result does not claim that the mutable collection ref remained unchanged after
-that observation. Required tests cover a valid hit, an expired non-mutating
-miss, and internally consistent observed-generation evidence during concurrent
-replacement.
+flat `policy` value must equal `evidence.policy`, so callers see one policy
+vocabulary across cache hits and retention witnesses. The result does not claim
+that the mutable collection ref remained unchanged after that observation.
+Required tests cover a valid hit, an expired non-mutating miss, and internally
+consistent observed-generation evidence during concurrent replacement.
 
 `get()` must not durably rewrite metadata on every hit. Recency is approximate:
 touches are explicit or coalesced into `accessResolutionMs` epochs. Capacity

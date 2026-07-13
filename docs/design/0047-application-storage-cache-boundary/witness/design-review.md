@@ -103,6 +103,12 @@ The design now defines versioned accounting for asset, page, inline, and nested
 bundle content; within-root child deduplication; additive cross-entry charging;
 and explicit rejection/unknown behavior for legacy handles.
 
+### CR-006: Cache-hit and witness policy shapes diverged
+
+The stable `CacheHit` contract now uses the same flat `pinned` or `evictable`
+policy value as its embedded retention witness, and requires the values to
+match.
+
 ## Residual Constraints
 
 - Capability names are additive design targets; implementation may tighten
