@@ -60,6 +60,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Root-set mutation context** — `RootSet.mutate()` callbacks now receive the
   observed ref, head OID, and tree OID as an additive second argument, allowing
   generation-scoped evidence to remain correct across conflict retries.
+- **Git object metadata port** — `GitPersistencePort.readObjectType()` and
+  `readObjectSize()` now use structured `git cat-file --batch-check` output,
+  inspecting targets without materializing content or parsing missing-object
+  stderr.
 
 ## [6.1.0] — 2026-07-11
 
@@ -82,10 +86,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Git object metadata port** — `GitPersistencePort.readObjectType()` and
-  `readObjectSize()` now use structured `git cat-file --batch-check` output,
-  inspecting targets without materializing content or parsing missing-object
-  stderr.
 - **GitHub Issues as canonical tracker** — release milestones, goalposts, slices,
   and follow-on work now live in GitHub Issues and Milestones. Repo Markdown
   carries design docs, witnesses, release history, public docs, and archived
