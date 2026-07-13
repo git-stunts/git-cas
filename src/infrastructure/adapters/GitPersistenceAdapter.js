@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import { CasError, createCasError, ErrorCodes } from '../../domain/errors/index.js';
-import { errorDetailsText } from '../../domain/helpers/gitRefErrors.js';
 
 /**
  * Default resilience policy: 30 s timeout (no retry).
@@ -19,6 +18,8 @@ export const DEFAULT_MAX_BLOB_SIZE = 10 * 1024 * 1024;
 const MIN_READ_BLOB_LIMIT = 1;
 const MIN_MAX_BLOB_SIZE = 1024;
 const MAX_BLOB_SIZE_LIMIT = Number.MAX_SAFE_INTEGER;
+const OBJECT_INFO_ARGUMENT = '--batch-check=%(objectname) %(objecttype) %(objectsize)';
+const GIT_OBJECT_TYPES = new Set(['blob', 'tree', 'commit', 'tag']);
 
 /**
  * {@link GitPersistencePort} implementation backed by `@git-stunts/plumbing`.
@@ -187,7 +188,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
    * @returns {Promise<string>} Git object type.
    */
   async readObjectType(oid) {
-    return await this.#executeObjectQuery(oid, ['cat-file', '-t', oid]);
+    return (await this.#readObjectInfo(oid)).type;
   }
 
   /**
@@ -196,36 +197,44 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
    * @returns {Promise<number>} Git object size in bytes.
    */
   async readObjectSize(oid) {
-    const output = await this.#executeObjectQuery(oid, ['cat-file', '-s', oid]);
-    const size = Number(output);
-    if (!Number.isSafeInteger(size) || size < 0) {
-      throw new CasError(`Git object has an invalid size: ${oid}`, ErrorCodes.GIT_ERROR, {
-        oid,
-        output,
-      });
-    }
-    return size;
+    return (await this.#readObjectInfo(oid)).size;
   }
 
   /**
-   * Executes a bounded object metadata query and normalizes missing targets.
+   * Reads object metadata through Git's structured batch protocol. Missing
+   * objects are reported on stdout with exit zero, avoiding runtime-specific
+   * stderr capture while preserving genuine command failures.
    *
    * @param {string} oid - Git object ID.
-   * @param {string[]} args - Plumbing arguments.
-   * @returns {Promise<string>} Plumbing stdout.
+   * @returns {Promise<{ oid: string, type: string, size: number }>} Object metadata.
    */
-  async #executeObjectQuery(oid, args) {
-    try {
-      return await this.policy.execute(() => this.plumbing.execute({ args }));
-    } catch (err) {
-      if (isMissingGitObjectError(err)) {
-        throw new CasError(`Git object not found: ${oid}`, ErrorCodes.GIT_OBJECT_NOT_FOUND, {
-          oid,
-          originalError: err,
-        });
-      }
-      throw err;
+  async #readObjectInfo(oid) {
+    const rawOutput = await this.policy.execute(() => this.plumbing.execute({
+      args: ['cat-file', OBJECT_INFO_ARGUMENT],
+      input: `${oid}\n`,
+    }));
+    const output = typeof rawOutput === 'string' ? rawOutput.trim() : '';
+    if (output === `${oid} missing`) {
+      throw new CasError(`Git object not found: ${oid}`, ErrorCodes.GIT_OBJECT_NOT_FOUND, {
+        oid,
+      });
     }
+
+    const fields = output.split(' ');
+    const size = Number(fields[2]);
+    if (
+      fields.length !== 3 ||
+      fields[0] !== oid ||
+      !GIT_OBJECT_TYPES.has(fields[1]) ||
+      !Number.isSafeInteger(size) ||
+      size < 0
+    ) {
+      throw new CasError(`Git object has invalid metadata: ${oid}`, ErrorCodes.GIT_ERROR, {
+        oid,
+        output: rawOutput,
+      });
+    }
+    return Object.freeze({ oid: fields[0], type: fields[1], size });
   }
 
   /**
@@ -357,11 +366,4 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       name: entry.slice(tabIndex + 1),
     };
   }
-}
-
-function isMissingGitObjectError(err) {
-  const message = errorDetailsText(err).toLowerCase();
-  return message.includes('could not get object info') ||
-    message.includes('not a valid object name') ||
-    message.includes('bad object');
 }

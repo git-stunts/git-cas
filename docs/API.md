@@ -1396,9 +1396,10 @@ shared registry for advanced composition.
 
 Custom persistence implementations that support root sets must implement
 `readObjectType(oid)`, and custom ref adapters must implement
-`resolveParents(commitOid)`. The default Git adapters use `git cat-file -t`
-and `git rev-list --parents` so missing targets, repository read failures, and
-parentful heads remain distinct doctor findings. Existing store, restore, and
+`resolveParents(commitOid)`. The default Git adapters use structured
+`git cat-file --batch-check` output and `git rev-list --parents` so missing
+targets, repository read failures, and parentful heads remain distinct doctor
+findings without parsing runtime-specific stderr. Existing store, restore, and
 vault paths do not call these methods.
 
 ## Cache Sets

@@ -92,36 +92,22 @@ describe('GitPersistenceAdapter.readTreeEntry() – path lookup', () => {
 
 describe('GitPersistenceAdapter.readObjectType()', () => {
   it('reads type without materializing the object', async () => {
-    const plumbing = mockPlumbing('tree');
+    const oid = 'a'.repeat(40);
+    const plumbing = mockPlumbing(`${oid} tree 42`);
     const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
 
-    await expect(adapter.readObjectType('a'.repeat(40))).resolves.toBe('tree');
+    await expect(adapter.readObjectType(oid)).resolves.toBe('tree');
     expect(plumbing.execute).toHaveBeenCalledWith({
-      args: ['cat-file', '-t', 'a'.repeat(40)],
+      args: ['cat-file', '--batch-check=%(objectname) %(objecttype) %(objectsize)'],
+      input: `${oid}\n`,
     });
   });
 
-  it('normalizes only Git missing-object errors', async () => {
-    const missing = Object.assign(new Error('Git command failed'), {
-      details: { stderr: 'fatal: git cat-file: could not get object info' },
-    });
-    const plumbing = { execute: vi.fn().mockRejectedValue(missing) };
-    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+  it('normalizes Git batch missing-object responses', async () => {
+    const oid = 'f'.repeat(40);
+    const adapter = adapterFor(`${oid} missing`);
 
-    await expect(adapter.readObjectType('f'.repeat(40)))
-      .rejects.toMatchObject({ code: 'GIT_OBJECT_NOT_FOUND' });
-  });
-
-  it('normalizes missing-object errors across runtime realms', async () => {
-    const missing = {
-      name: 'GitPlumbingError',
-      message: 'Git command failed with code 128',
-      details: { stderr: 'fatal: git cat-file: could not get object info' },
-    };
-    const plumbing = { execute: vi.fn().mockRejectedValue(missing) };
-    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
-
-    await expect(adapter.readObjectType('f'.repeat(40)))
+    await expect(adapter.readObjectType(oid))
       .rejects.toMatchObject({ code: 'GIT_OBJECT_NOT_FOUND' });
   });
 
@@ -136,12 +122,14 @@ describe('GitPersistenceAdapter.readObjectType()', () => {
 
 describe('GitPersistenceAdapter.readObjectSize()', () => {
   it('reads a safe byte size without materializing the object', async () => {
-    const plumbing = mockPlumbing('42');
+    const oid = 'a'.repeat(40);
+    const plumbing = mockPlumbing(`${oid} blob 42`);
     const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
 
-    await expect(adapter.readObjectSize('a'.repeat(40))).resolves.toBe(42);
+    await expect(adapter.readObjectSize(oid)).resolves.toBe(42);
     expect(plumbing.execute).toHaveBeenCalledWith({
-      args: ['cat-file', '-s', 'a'.repeat(40)],
+      args: ['cat-file', '--batch-check=%(objectname) %(objecttype) %(objectsize)'],
+      input: `${oid}\n`,
     });
     expect(plumbing.executeStream).not.toHaveBeenCalled();
   });

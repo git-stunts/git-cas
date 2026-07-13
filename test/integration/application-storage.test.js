@@ -72,28 +72,6 @@ async function collect(iterable) {
   return Buffer.concat(chunks);
 }
 
-async function captureError(promise) {
-  try {
-    await promise;
-  } catch (error) {
-    return error;
-  }
-  throw new Error('Expected operation to fail');
-}
-
-function describeError(error) {
-  return JSON.stringify({
-    name: error?.name,
-    message: error?.message,
-    code: error?.code,
-    operation: error?.operation,
-    details: error?.details,
-    ownProperties: error !== null && typeof error === 'object'
-      ? Object.getOwnPropertyNames(error)
-      : [],
-  }, null, 2);
-}
-
 async function stage(value, slug) {
   const payload = Buffer.from(value.repeat(1024));
   const staged = await cas.assets.put({
@@ -339,8 +317,7 @@ describe('asset handle transfer', () => {
     const empty = new ContentAddressableStore({
       plumbing: await createGitPlumbing({ cwd: emptyDir }),
     });
-    const missingError = await captureError(collect(empty.assets.open({ handle: transferred })));
-    expect(missingError, describeError(missingError)).toMatchObject({
+    await expect(collect(empty.assets.open({ handle: transferred }))).rejects.toMatchObject({
       code: 'HANDLE_TARGET_MISSING',
     });
   });
