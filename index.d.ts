@@ -85,7 +85,7 @@ export interface StagedAssetData {
   retention: {
     policy: null;
     reachability: 'unanchored';
-    protection: 'grace-period-only';
+    protection: 'not-established';
   };
   observedAt: string;
 }
@@ -99,7 +99,7 @@ export declare class StagedAsset {
   readonly retention: Readonly<{
     policy: null;
     reachability: 'unanchored';
-    protection: 'grace-period-only';
+    protection: 'not-established';
   }>;
   readonly observedAt: string;
   constructor(value: {

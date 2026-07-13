@@ -33,7 +33,7 @@ export default class StagedAsset {
     this.retention = Object.freeze({
       policy: null,
       reachability: 'unanchored',
-      protection: 'grace-period-only',
+      protection: 'not-established',
     });
     this.observedAt = observedAt;
     Object.freeze(this);

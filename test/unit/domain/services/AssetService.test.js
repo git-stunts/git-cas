@@ -64,7 +64,7 @@ describe('AssetService put/open', () => {
     expect(staged.retention).toEqual({
       policy: null,
       reachability: 'unanchored',
-      protection: 'grace-period-only',
+      protection: 'not-established',
     });
     expect(staged.observedAt).toBe(OBSERVED_AT);
     expect(staged).not.toHaveProperty('manifest');

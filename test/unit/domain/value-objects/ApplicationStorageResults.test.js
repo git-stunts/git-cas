@@ -31,7 +31,7 @@ describe('StagedAsset', () => {
       retention: {
         policy: null,
         reachability: 'unanchored',
-        protection: 'grace-period-only',
+        protection: 'not-established',
       },
       observedAt,
     });
