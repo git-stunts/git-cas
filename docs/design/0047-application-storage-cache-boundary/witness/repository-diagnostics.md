@@ -152,7 +152,8 @@ ordinary service registries exist.
 
 - Node unit: 212 files, 1,866 passed, 2 skipped.
 - Bun unit: 211 files passed, 1 skipped; 1,865 passed, 3 skipped.
-- Deno unit: 212 files, 1,866 passed, 2 skipped.
-- Node real-Git integration: 10 files, 174 passed.
+- Deno unit: 1,856 passed under the runtime-filtered suite.
+- Real-Git integration: 174 passed on each of Node, Bun, and Deno.
 - ESLint and `git diff --check` passed.
-
+- `pnpm run release:verify`: 13/13 steps, 6,109 tests observed, npm and
+  JSR publish dry-runs passed.
