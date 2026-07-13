@@ -29,31 +29,34 @@ Repo docs are supporting records:
 The milestones below should exist in GitHub. If this table and GitHub disagree,
 GitHub wins and this file should be corrected.
 
-| Milestone | Theme | Tracker |
-| --- | --- | --- |
-| [`v6.0.1`](https://github.com/git-stunts/git-cas/milestone/1) | Patch closeout and planning truth | [#37](https://github.com/git-stunts/git-cas/issues/37) |
-| [`v6.1.0`](https://github.com/git-stunts/git-cas/milestone/2) | Bounded residency and scale hardening | [#38](https://github.com/git-stunts/git-cas/issues/38) |
-| [`v6.2.0`](https://github.com/git-stunts/git-cas/milestone/3) | Operator TUI consolidation | [#39](https://github.com/git-stunts/git-cas/issues/39) |
-| [`v6.3.0`](https://github.com/git-stunts/git-cas/milestone/4) | Agent automation parity | [#40](https://github.com/git-stunts/git-cas/issues/40) |
-| [`v6.4.0`](https://github.com/git-stunts/git-cas/milestone/5) | Browser and edge read-path exploration | [#41](https://github.com/git-stunts/git-cas/issues/41) |
-| [`v7.0.0`](https://github.com/git-stunts/git-cas/milestone/6) | Protocol break only if audit requires it | [#42](https://github.com/git-stunts/git-cas/issues/42), only when justified |
+| Milestone                                                     | Theme                                                      | Tracker                                                                                                        |
+| ------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [`v6.0.1`](https://github.com/git-stunts/git-cas/milestone/1) | Patch closeout and planning truth                          | [#37](https://github.com/git-stunts/git-cas/issues/37)                                                         |
+| [`v6.1.0`](https://github.com/git-stunts/git-cas/milestone/2) | Bounded residency and scale hardening                      | [#38](https://github.com/git-stunts/git-cas/issues/38)                                                         |
+| [`v6.2.0`](https://github.com/git-stunts/git-cas/milestone/3) | Emergency application storage and cache ownership boundary | [#50](https://github.com/git-stunts/git-cas/issues/50)                                                         |
+| [`v6.3.0`](https://github.com/git-stunts/git-cas/milestone/4) | Operator TUI and agent automation follow-through           | [#39](https://github.com/git-stunts/git-cas/issues/39), [#40](https://github.com/git-stunts/git-cas/issues/40) |
+| [`v6.4.0`](https://github.com/git-stunts/git-cas/milestone/5) | Browser and edge read-path exploration                     | [#41](https://github.com/git-stunts/git-cas/issues/41)                                                         |
+| [`v7.0.0`](https://github.com/git-stunts/git-cas/milestone/6) | Protocol break only if audit requires it                   | [#42](https://github.com/git-stunts/git-cas/issues/42), only when justified                                    |
 
 ## Next Release Design
 
 The next selected design record is:
 
-- [0045-v6-1-bounded-residency](./docs/design/0045-v6-1-bounded-residency/bounded-residency.md)
+- [0047-application-storage-cache-boundary](./docs/design/0047-application-storage-cache-boundary/application-storage-cache-boundary.md)
 
 Its GitHub goalpost issue,
-[#38](https://github.com/git-stunts/git-cas/issues/38), is the canonical
+[#50](https://github.com/git-stunts/git-cas/issues/50), is the canonical
 tracker. The design doc is the durable contract; the issue is the work item.
 
-Initial `v6.1.0` slice issues:
+Initial `v6.2.0` slice issues:
 
-- [#43 Targeted vault lookup](https://github.com/git-stunts/git-cas/issues/43)
-- [#44 Streaming vault list](https://github.com/git-stunts/git-cas/issues/44)
-- [#45 Blob read residency contract](https://github.com/git-stunts/git-cas/issues/45)
-- [#46 Docs and release evidence](https://github.com/git-stunts/git-cas/issues/46)
+- [#54 Opaque asset handles and retention witnesses](https://github.com/git-stunts/git-cas/issues/54)
+- [#51 Structured bundle and Merkle page storage](https://github.com/git-stunts/git-cas/issues/51)
+- [#59 RootSet-backed CacheSet lifecycle](https://github.com/git-stunts/git-cas/issues/59)
+- [#53 Expiry-safe replay set](https://github.com/git-stunts/git-cas/issues/53)
+- [#55 Repository and cache usage diagnostics](https://github.com/git-stunts/git-cas/issues/55)
+- [#49 Repository-wide reachability classification](https://github.com/git-stunts/git-cas/issues/49)
+- [#60 v6.2.0 release evidence](https://github.com/git-stunts/git-cas/issues/60)
 
 ## Rule
 

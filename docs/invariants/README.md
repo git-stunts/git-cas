@@ -10,3 +10,4 @@ Every important cycle doc should link the invariants it depends on.
 Current invariants:
 
 - [I-001 — Determinism, Trust, And Explicit Surfaces](./I-001-determinism-trust-and-explicit-surfaces.md)
+- [I-002 - Application Storage Ownership](./I-002-application-storage-ownership.md)
