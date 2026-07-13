@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { CasError, ErrorCodes } from '../../../../src/domain/errors/index.js';
 import BundleService from '../../../../src/domain/services/BundleService.js';
+import ExpiringSet from '../../../../src/domain/services/ExpiringSet.js';
 import ExpiringSetIndex, {
   EXPIRING_SET_STATE_PATH,
   markerPath,
@@ -225,6 +227,37 @@ describe('ExpiringSet expiry-only release', () => {
   });
 });
 
+describe('ExpiringSet sweep retries', () => {
+  it('rechecks a rolled-back clock after a conflict', async () => {
+    const services = makeServices();
+    const set = services.registry.open({
+      namespace: DEFAULT_NAMESPACE,
+      retry: { maxAttempts: 2, baseDelayMs: 0 },
+    });
+    await set.addIfAbsent('retry-rollback', {
+      expiresAt: future(services.clock, 1000),
+    });
+    services.advance(1001);
+    const updateRef = services.ref.updateRef.bind(services.ref);
+    let conflicted = false;
+    services.ref.updateRef = async (options) => {
+      if (!conflicted) {
+        conflicted = true;
+        services.rewind(1001);
+        throw new CasError('Injected ref conflict', ErrorCodes.GIT_ERROR, {
+          expectedOldOid: options.expectedOldOid,
+          actualOldOid: options.expectedOldOid,
+        });
+      }
+      return await updateRef(options);
+    };
+
+    await expect(set.sweep()).resolves.toMatchObject({ changed: false, removed: 0 });
+    expect(conflicted).toBe(true);
+    await expect(set.contains('retry-rollback')).resolves.toBe(true);
+  });
+});
+
 describe('ExpiringSet concurrent writers', () => {
   it('admits exactly one concurrent duplicate', async () => {
     const { clock, open } = makeServices();
@@ -289,6 +322,34 @@ describe('ExpiringSet inspection and doctor', () => {
     expect(report).toMatchObject({ healthy: false });
     expect(report.issues[0].code).toMatch(/NOT_FOUND|MISSING/);
     await expect(ref.resolveRef(set.ref)).resolves.toBe(head);
+  });
+});
+
+describe('ExpiringSet doctor snapshots', () => {
+  it('fails closed when the generation changes during inspection', async () => {
+    const inspected = 'a'.repeat(40);
+    const current = 'b'.repeat(40);
+    const set = new ExpiringSet({
+      namespace: DEFAULT_NAMESPACE,
+      rootSet: {
+        ref: ExpiringSetRef.forNamespace(DEFAULT_NAMESPACE).toString(),
+        mutate: async () => {},
+        doctor: async () => ({ healthy: true, headOid: inspected }),
+        read: async () => ({ headOid: current, entries: [] }),
+      },
+      index: { scan: async () => ({}) },
+      crypto: { sha256: async () => '0'.repeat(64) },
+      clock: { now: () => new Date('2026-07-13T12:00:00.000Z') },
+    });
+
+    await expect(set.doctor()).resolves.toMatchObject({
+      healthy: false,
+      issues: [{
+        code: 'EXPIRING_SET_CONFLICT',
+        expectedGeneration: inspected,
+        actualGeneration: current,
+      }],
+    });
   });
 });
 

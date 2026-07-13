@@ -111,10 +111,12 @@ export default class ExpiringSet {
   }
 
   async sweep() {
-    const now = this.#now();
+    let observedAt = null;
     let lifecycle = null;
     let removed = 0;
     const mutation = await this.#mutateRoot(async (entries) => {
+      const now = this.#now();
+      observedAt = now;
       lifecycle = null;
       removed = 0;
       const current = this.#index.fromRootEntries(entries);
@@ -154,7 +156,7 @@ export default class ExpiringSet {
       removed,
       generation: mutation.commitOid,
       witness: lifecycle
-        ? this.#indexWitness(lifecycle.handle, mutation.commitOid, now)
+        ? this.#indexWitness(lifecycle.handle, mutation.commitOid, observedAt)
         : null,
     });
   }
@@ -232,6 +234,18 @@ export default class ExpiringSet {
 
   async #doctorHealthyRoot(root) {
     const current = await this.#rootSet.read();
+    if (current.headOid !== root.headOid) {
+      return Object.freeze({
+        healthy: false,
+        root,
+        issues: freezeIssues([{
+          code: ErrorCodes.EXPIRING_SET_CONFLICT,
+          message: 'ExpiringSet changed while doctor was inspecting it',
+          expectedGeneration: root.headOid,
+          actualGeneration: current.headOid,
+        }]),
+      });
+    }
     const handle = this.#index.fromRootEntries(current.entries);
     if (handle === null) {
       return Object.freeze({
