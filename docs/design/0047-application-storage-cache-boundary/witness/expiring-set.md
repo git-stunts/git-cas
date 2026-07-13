@@ -12,6 +12,7 @@ Review-hardening commits:
 - `bf66f6e5247284975631ffdfaabdc15fdb0e25d4`
 - `b00d7abfa830a432e156d5aa037657a5dad98e82`
 - `a34feb40f82e7246eaf554a21246e18204611224`
+- `82f540a95a0dbb3b4f0791b63fe077d37a7122dc`
 
 ## Claim
 
@@ -201,6 +202,34 @@ state.
 [cite: `src/domain/services/ExpiringSet.js#235-248@b00d7abfa830a432e156d5aa037657a5dad98e82`]
 [cite: `test/unit/domain/services/ExpiringSet.test.js#328-354@b00d7abfa830a432e156d5aa037657a5dad98e82`]
 
+## Pull Request Review Follow-up
+
+CodeRabbit raised six inline threads. Three valid findings were resolved:
+
+- marker, inspection, and sweep evidence now share one retention-witness
+  constructor so their root metadata cannot drift;
+- nullish `ExpiringMarker` evidence maps to the marker-domain error contract
+  rather than a raw constructor failure; and
+- ExpiringSetKey now has direct lone-surrogate rejection coverage.
+
+[cite: `src/domain/services/ExpiringSet.js#281-314@82f540a95a0dbb3b4f0791b63fe077d37a7122dc`]
+[cite: `src/domain/value-objects/ExpiringMarker.js#30-41@82f540a95a0dbb3b4f0791b63fe077d37a7122dc`]
+[cite: `test/unit/domain/value-objects/ApplicationStorageResults.test.js#185-195@82f540a95a0dbb3b4f0791b63fe077d37a7122dc`]
+[cite: `test/unit/domain/value-objects/CacheCollectionValues.test.js#37-46@82f540a95a0dbb3b4f0791b63fe077d37a7122dc`]
+
+Three suggestions did not require code changes:
+
+- the explicit well-formed Unicode loop preserves the package's Node, Bun, and
+  Deno runtime boundary instead of introducing a newer host-string dependency;
+- `updatedAt >= createdAt` is not a valid persisted invariant because the
+  injected wall clock is explicitly non-monotonic and rollback extends
+  protection; and
+- equal digest-domain rejection already had a direct codec regression.
+
+[cite: `src/domain/helpers/isCanonicalCollectionKey.js#5-35@82f540a95a0dbb3b4f0791b63fe077d37a7122dc`]
+[cite: `docs/API.md#1675-1682@bf66f6e5247284975631ffdfaabdc15fdb0e25d4`]
+[cite: `test/unit/domain/services/ExpiringSetMetadataCodec.test.js#35-64@cdaf18c7814f2f3ad736d210c6832d7ec8d6d1c7`]
+
 ## Residual Constraints
 
 - Expiry and sweep release RootSet reachability; they do not run GC. Other refs,
@@ -221,7 +250,7 @@ state.
 
 The public documentation makes these boundaries and the physical storage shape
 explicit.
-[cite: `docs/API.md#1562-1682@bf66f6e5247284975631ffdfaabdc15fdb0e25d4`]
+[cite: `docs/API.md#1562-1683@bf66f6e5247284975631ffdfaabdc15fdb0e25d4`]
 
 ## Validation
 
