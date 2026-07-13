@@ -162,7 +162,7 @@ resolution nor ref mutation.
 ## Validation
 
 - `pnpm lint`
-- `pnpm test`: 198 files passed; 1,733 tests passed; 2 skipped
+- `pnpm test`: 198 files passed; 1,746 tests passed; 2 skipped
 - `pnpm test:integration:node`: 7 files and 161 tests passed
 - Docker Bun application-storage integration: 3 tests passed
 - Docker Deno application-storage integration: 3 tests passed
