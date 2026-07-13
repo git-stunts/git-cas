@@ -15,6 +15,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   storage, and repository/cache diagnostics as the `v6.2.0` implementation
   boundary. Invariant I-002 makes `git-cas` the owner of physical CAS and cache
   lifecycle while applications retain domain and causal semantics.
+- **Opaque asset lifecycle API** — `cas.assets.put()` and `assets.open()` stream
+  through the existing CAS pipeline using immutable, canonical `AssetHandle`
+  values. Staged results explicitly report that the operation created no root,
+  while `cas.retention.retain()` returns generation-scoped evidence for the
+  exact RootSet tree edge that made the graph reachable.
+- **Generic application publication** — `cas.publications.commit()` validates
+  handle graphs, bounded ordered commit parents, commit messages, explicit ref
+  allowlists, and expected heads before compare-and-swap publication. Success
+  returns a `RetentionWitness`; stale heads report structured expected,
+  observed, and attempted-commit evidence.
+- **Portable handle validation** — canonical SHA-1 and SHA-256 handle tokens
+  contain no repository location, survive clone and mirror transfer, and fail
+  explicitly when their referenced graph is absent or has the wrong codec or
+  Git object type.
+
+### Changed
+
+- **Ordered commit parents** — `GitRefPort.createCommit()` now accepts an
+  additive `parentOids` array while retaining the existing single-`parentOid`
+  compatibility input. Create-only ref updates derive the Git null OID width
+  from the repository's commit ID instead of assuming SHA-1.
 
 ## [6.1.0] — 2026-07-11
 

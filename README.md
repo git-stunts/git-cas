@@ -23,6 +23,9 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 - **Mutable Root Sets**: Cache and derived-state trees can be anchored under
   `refs/cas/rootsets/*` while live, then become collectible after eviction,
   without vault history retaining every prior generation.
+- **Opaque Application Handles**: Applications stage and stream assets through
+  immutable handles, then retain or publish them with generation-scoped
+  evidence instead of managing manifests, trees, or payload OIDs directly.
 - **Key Lifecycle**: Envelope encryption separates DEKs from KEKs. Rotate passphrases across an entire vault without re-encrypting data blobs. Privacy mode HMAC-hashes slug names to prevent metadata discovery.
 - **Runtime-Adaptive**: A single core supports Node.js 22+, Bun, and Deno through a strict hexagonal port architecture with runtime-specific crypto adapters.
 
@@ -57,10 +60,25 @@ git-cas vault dashboard
 Integrate managed blob storage directly into your TypeScript or JavaScript application.
 
 ```js
+import { createReadStream } from 'node:fs';
 import ContentAddressableStore from '@git-stunts/git-cas';
+
 const cas = await ContentAddressableStore.open({ cwd: '.' });
-const manifest = await cas.storeFile({ filePath: './asset.bin', slug: 'app/asset' });
+const staged = await cas.assets.put({
+  source: createReadStream('./asset.bin'),
+  slug: 'app/asset',
+  filename: 'asset.bin',
+});
+const retained = await cas.retention.retain({
+  handle: staged.handle,
+  root: { ref: 'refs/cas/rootsets/my-app', name: 'app/asset' },
+  policy: 'pinned',
+});
 ```
+
+`staged.handle` is a content locator, not a durability promise. The returned
+retention witness identifies the exact Git generation and tree edge that made
+the asset reachable.
 
 ## Capability Map
 
@@ -73,6 +91,7 @@ The README is the front door. Detailed mechanics live in the guide set:
 | Encryption scheme selection                             | [Encryption Modes](./docs/ENCRYPTION_MODES.md)               |
 | CDC internals, Merkle manifests, KDF policy, and tuning | [Advanced Guide](./ADVANCED_GUIDE.md)                        |
 | Ports, adapters, and collaborator boundaries            | [Architecture](./ARCHITECTURE.md)                            |
+| Opaque handles, retention, and application publication  | [Application storage](./docs/API.md#application-storage)     |
 | GC retention for caches and derived state               | [Root Sets](./docs/API.md#root-sets)                         |
 | v5 to v6 migration                                      | [Upgrading](./UPGRADING.md)                                  |
 
@@ -91,6 +110,9 @@ Core capabilities:
 - **Root-set retention**: current cache entries live under caller-owned
   `refs/cas/rootsets/*` refs. Entries are Git-reachable while present, and old
   set generations are not retained as commit history.
+- **Application storage**: `assets`, `retention`, and `publications` compose
+  streaming CAS writes, validated handles, reachability roots, compare-and-swap
+  refs, and immutable lifecycle evidence.
 - **Envelope recipients**: multi-recipient key wrapping and recipient rotation
   avoid re-encrypting data blobs.
 - **Operational diagnostics**: `git-cas doctor` validates vault health and

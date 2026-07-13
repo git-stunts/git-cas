@@ -62,6 +62,11 @@ What exists now:
   current cache and derived-state objects under `refs/cas/rootsets/*`. Updates
   use parentless commits and compare-and-swap ref writes so removed entries can
   become prunable instead of staying reachable through storage history.
+- **Opaque application assets.** `ContentAddressableStore.assets`, `retention`,
+  and `publications` now compose streaming asset storage, canonical handles,
+  current-generation retention, and allowlisted compare-and-swap application
+  refs. Staged results and immutable witnesses keep content identity separate
+  from retention claims.
 - **Migration script.** `scripts/migrate-encryption.js` upgrades legacy v1/v2
   manifests to the current scheme identifiers.
 

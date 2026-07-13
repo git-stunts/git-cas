@@ -15,14 +15,15 @@ should treat restored data, chunker output, codec output, and keys as
 ## Table of Contents
 
 1. [ContentAddressableStore](#contentaddressablestore)
-2. [Root Sets](#root-sets)
-3. [Vault](#vault)
-4. [CasService](#casservice)
-5. [Events](#events)
-6. [Value Objects](#value-objects)
-7. [Ports](#ports)
-8. [Codecs](#codecs)
-9. [Error Codes](#error-codes)
+2. [Application Storage](#application-storage)
+3. [Root Sets](#root-sets)
+4. [Vault](#vault)
+5. [CasService](#casservice)
+6. [Events](#events)
+7. [Value Objects](#value-objects)
+8. [Ports](#ports)
+9. [Codecs](#codecs)
+10. [Error Codes](#error-codes)
 
 ## ContentAddressableStore
 
@@ -75,6 +76,8 @@ new ContentAddressableStore(options);
 - `options.maxRestoreBufferSize` (optional): Max bytes for buffered encrypted/compressed restore (default: 536870912 / 512 MiB)
 - `options.maxBlobSize` (optional): Max bytes for metadata blob reads (default: 10485760 / 10 MiB)
 - `options.compressionAdapter` (optional): CompressionPort implementation (default: NodeCompressionAdapter)
+- `options.applicationRefPrefixes` (optional): Explicit application-owned ref prefixes allowed for generic publication; publication is disabled when omitted, and `refs/cas/*` is always reserved
+- `options.clock` (optional): `{ now(): Date }` clock used for deterministic staged results and retention witnesses
 
 **Example:**
 
@@ -904,6 +907,211 @@ Returns the configured chunk size in bytes.
 ```javascript
 console.log(cas.chunkSize); // 262144
 ```
+
+## Application Storage
+
+The high-level application boundary exposes immutable content handles and
+explicit lifecycle operations. It composes the lower-level store, manifest,
+tree, RootSet, commit, and ref operations without requiring callers to manage
+payload OIDs.
+
+### `assets.put()`
+
+```javascript
+const staged = await cas.assets.put({
+  source,
+  slug,
+  filename,
+  encryptionKey,
+  passphrase,
+  encryption,
+  kdfOptions,
+  compression,
+  recipients,
+  merkleThreshold,
+  chunking,
+});
+```
+
+Streams an `AsyncIterable<Uint8Array>` through the existing CAS pipeline,
+creates its manifest tree, and returns an immutable `StagedAsset`. Payload
+bytes are consumed through the configured chunker and are not returned in the
+result. Manifest metadata remains subject to the existing manifest and Merkle
+limits documented in the streaming matrix.
+
+`filename` defaults to `slug`. All other storage options have the same meaning
+as `store()`.
+
+**Returns:** `Promise<StagedAsset>`
+
+```javascript
+{
+  version: 1,
+  state: 'staged',
+  handle: AssetHandle,
+  asset: { slug, filename, size },
+  retention: {
+    policy: null,
+    reachability: 'unanchored',
+    protection: 'grace-period-only',
+  },
+  observedAt: '2026-07-13T10:00:00.000Z',
+}
+```
+
+`unanchored` means this operation created no reachability root. It is not a
+global assertion that a deduplicated object graph is unreachable through every
+other Git ref. Call `retention.retain()` or `publications.commit()` before
+relying on the handle beyond Git's unreachable-object grace period.
+
+### `assets.open()`
+
+```javascript
+for await (const chunk of cas.assets.open({
+  handle,
+  encryptionKey,
+  passphrase,
+})) {
+  consume(chunk);
+}
+```
+
+Validates the canonical handle, codec, root tree, manifest, and referenced
+chunk graph, then returns restored bytes as an `AsyncIterable<Uint8Array>`.
+Encrypted restore behavior follows the existing streaming matrix; explicit
+`whole` encryption may use its documented bounded compatibility buffer.
+
+Missing transferred objects fail with `HANDLE_TARGET_MISSING`. A handle created
+for a different manifest codec fails with `HANDLE_CODEC_MISMATCH`.
+
+### `assets.adopt()`
+
+```javascript
+const staged = await cas.assets.adopt({ treeOid });
+```
+
+Validates an existing git-cas manifest tree and wraps it in the same staged
+result returned by `assets.put()`. This is a migration bridge for callers that
+already persisted raw tree OIDs; new application code should exchange handles.
+
+### `AssetHandle`
+
+`AssetHandle` is an immutable, versioned content locator. Its canonical token
+has this shape:
+
+```text
+git-cas:1:asset:manifest-tree:<codec>:<sha1|sha256>:<oid>
+```
+
+```javascript
+import { AssetHandle } from '@git-stunts/git-cas';
+
+const token = staged.handle.toString();
+const parsed = AssetHandle.parse(token);
+const data = parsed.toJSON();
+```
+
+The token contains no filesystem or repository location. It works in another
+clone or mirror only after the referenced Git object graph has been transferred.
+"Opaque" is an ownership boundary, not encryption: callers may serialize and
+compare the token, while `git-cas` owns interpretation and object traversal.
+
+### `retention.retain()`
+
+```javascript
+const result = await cas.retention.retain({
+  handle,
+  root: {
+    ref: 'refs/cas/rootsets/my-app-cache',
+    name: 'coordinate-184',
+  },
+  policy: 'evictable',
+});
+```
+
+Validates the handle graph, installs its tree in the named current-generation
+RootSet, and returns:
+
+```javascript
+{
+  changed: true,
+  witness: RetentionWitness,
+}
+```
+
+The witness records `policy`, observed `reachability`, timestamp, RootSet ref,
+generation commit, and the exact tree path that retained the handle. The
+default policy is `pinned`; `evictable` allows higher-level cache policy to
+release the entry. Neither policy creates a Git pack `.keep` file.
+
+### `publications.commit()`
+
+```javascript
+const result = await cas.publications.commit({
+  root: handle,
+  commit: {
+    message: 'Publish application state',
+    parents: previous === null ? [] : [previous],
+  },
+  ref: {
+    name: 'refs/my-app/state',
+    expected: previous,
+  },
+});
+```
+
+Generic publication is available only below a constructor-configured
+`applicationRefPrefixes` allowlist. It never permits `refs/cas/*`. The method:
+
+1. validates the complete supported handle graph;
+2. validates at most 64 ordered parent commit IDs and a commit message of at
+   most 1 MiB;
+3. creates a commit whose tree is the validated handle root; and
+4. updates the application ref with compare-and-swap semantics.
+
+`ref.expected` is mandatory. Use `null` to require that the ref not exist.
+A stale expectation fails with `PUBLICATION_CONFLICT`; error metadata includes
+`expected`, `observed`, and `attemptedCommitId`. Because Git objects are
+immutable, a failed ref update can leave the attempted commit unreachable until
+normal Git pruning; it cannot publish a partial ref state.
+
+**Returns:**
+
+```javascript
+{
+  operation: 'publication',
+  commitId,
+  ref,
+  root: AssetHandle,
+  witness: RetentionWitness,
+}
+```
+
+### `RetentionWitness`
+
+A `RetentionWitness` is immutable evidence for one observed retaining
+generation. It does not promise that a mutable ref still points to that
+generation later.
+
+```javascript
+{
+  version: 1,
+  handle: AssetHandle,
+  policy: 'pinned' | 'evictable',
+  reachability: 'anchored' | 'orphaned' | 'volatile',
+  root: {
+    kind: 'root-set' | 'publication' | 'cache-set' | 'expiring-set',
+    namespace: string,
+    ref: string,
+    generation: string,
+    path: string,
+  },
+  observedAt: string,
+}
+```
+
+`toJSON()` serializes `handle` to its canonical token and copies the root
+evidence fields.
 
 ## Root Sets
 
@@ -2334,15 +2542,25 @@ new CasError({ message, code, meta, documentationUrl });
 | `GIT_ERROR`                           | Underlying Git plumbing command failed                                                                             | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`                 |
 | `GIT_REF_NOT_FOUND`                   | Git ref lookup found no ref; vault reads normalize this to empty state                                             | `GitRefAdapter`, `VaultPersistence`                                             |
 | `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value                                                    | `store()`, `restore()`                                                          |
+| `HANDLE_INVALID`                      | Handle object or canonical token is malformed or unsupported                                                       | `AssetHandle`, `StagedAsset`                                                    |
+| `HANDLE_KIND_MISMATCH`                | A handle has a valid envelope but the wrong content kind                                                           | Handle parsing and application storage                                          |
+| `HANDLE_CODEC_MISMATCH`               | Handle manifest codec differs from the active CAS codec                                                            | `assets.open()`, `assets.adopt()`, retention, publication                       |
+| `HANDLE_TARGET_MISSING`               | The repository does not contain the complete object graph referenced by a handle                                   | `assets.open()`, `assets.adopt()`, retention, publication                       |
+| `HANDLE_TARGET_TYPE_MISMATCH`         | A handle root or referenced object has the wrong Git object type                                                   | Application storage validation                                                  |
+| `RETENTION_WITNESS_INVALID`           | Witness policy, reachability, root evidence, generation, or timestamp is invalid                                   | `RetentionWitness`                                                              |
+| `PUBLICATION_INVALID`                 | Publication message, parent list, expected head, dependency, or clock input is invalid                             | `publications.commit()`                                                         |
+| `PUBLICATION_REF_FORBIDDEN`           | Target ref is invalid, reserved, or outside configured application namespaces                                      | `publications.commit()`                                                         |
+| `PUBLICATION_CONFLICT`                | Application ref head differs from the explicit expected head                                                       | `publications.commit()`                                                         |
+| `PUBLICATION_REF_UPDATE_FAILED`       | Application ref update or post-failure head observation failed for a non-conflict reason                           | `publications.commit()`                                                         |
 | `INVALID_SLUG`                        | Slug fails validation (empty, control chars, `..` segments, etc.)                                                  | `addToVault()`                                                                  |
 | `ROOT_SET_REF_INVALID`                | Ref is outside `refs/cas/rootsets/*` or is not a safe Git ref                                                      | `rootSets.open()`                                                               |
 | `ROOT_SET_ENTRY_INVALID`              | Entry name, OID, type, retention, or duplicate-name validation failed                                              | `put()`, `replace()`, `mutate()`, `repair()`                                    |
 | `ROOT_SET_TARGET_MISSING`             | A requested target OID does not exist                                                                              | `put()`, `replace()`, `mutate()`, `repair()`                                    |
-| `ROOT_SET_TARGET_UNREADABLE`          | Git could not inspect a target, but did not prove that it was missing                                               | Root-set mutation and doctor                                                    |
+| `ROOT_SET_TARGET_UNREADABLE`          | Git could not inspect a target, but did not prove that it was missing                                              | Root-set mutation and doctor                                                    |
 | `ROOT_SET_TARGET_TYPE_MISMATCH`       | Declared blob/tree type does not match the Git object                                                              | `put()`, `replace()`, `mutate()`, `repair()`                                    |
 | `ROOT_SET_CONFLICT`                   | Concurrent root-set update exhausted bounded compare-and-swap retries                                              | Root-set mutations and repair                                                   |
 | `ROOT_SET_HEAD_INVALID`               | Root-set ref cannot resolve to a readable commit tree                                                              | `read()`, `list()`, `doctor()`                                                  |
-| `ROOT_SET_METADATA_INVALID`           | `.rootset.json` is malformed, non-canonical, or belongs to another ref                                              | `read()`, `list()`, `doctor()`                                                  |
+| `ROOT_SET_METADATA_INVALID`           | `.rootset.json` is malformed, non-canonical, or belongs to another ref                                             | `read()`, `list()`, `doctor()`                                                  |
 | `ROOT_SET_TREE_INVALID`               | Metadata and the Git tree's actual reachability edges disagree                                                     | `read()`, `list()`, `doctor()`                                                  |
 | `ROOT_SET_REF_UPDATE_FAILED`          | Root-set ref update failed for a non-conflict reason                                                               | Root-set mutations and repair                                                   |
 | `VAULT_ENTRY_NOT_FOUND`               | Slug does not exist in vault                                                                                       | `removeFromVault()`, `resolveVaultEntry()`                                      |

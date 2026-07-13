@@ -51,6 +51,7 @@ limits, and port contracts live in the advanced guide.
 | Feature Area                                                            | Covered Here                                                                                                                                 | Advanced Coverage                                                                                                                                                                                        |
 | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Facade lifecycle, JSON/CBOR factories, full constructor                 | [Library Quick Start](#library-quick-start), [Configuration Reference](#configuration-reference)                                             | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts)                                                                                           |
+| Opaque asset handles, retention evidence, application publication       | [Library Quick Start](#library-quick-start), [Application Storage Lifecycle](#application-storage-lifecycle)                                 | [Application Storage API](./docs/API.md#application-storage)                                                                                                                                              |
 | Direct `CasService` construction                                        | [Configuration Reference](#configuration-reference) notes the facade/direct split                                                            | [Direct CasService and Custom Port Contracts](./ADVANCED_GUIDE.md#direct-casservice-and-custom-port-contracts)                                                                                           |
 | File, stream, tree, vault-safe store workflows                          | [Store Operations](#store-operations), [Vault Management](#vault-management)                                                                 | [Store/Restore Pipeline](./docs/STORE_RESTORE_PIPELINE.md), [Manifest Integrity Hash](./ADVANCED_GUIDE.md#manifest-integrity-hash), [Merkle Manifests](./ADVANCED_GUIDE.md#merkle-manifests)             |
 | Restore modes and bounded memory behavior                               | [Restore Modes](#restore-modes)                                                                                                              | [Store/Restore Pipeline](./docs/STORE_RESTORE_PIPELINE.md), [Parallel Chunk Restore](./ADVANCED_GUIDE.md#parallel-chunk-restore), [Streaming Decompression](./ADVANCED_GUIDE.md#streaming-decompression) |
@@ -70,30 +71,98 @@ limits, and port contracts live in the advanced guide.
 
 ## Library Quick Start
 
-A complete init-store-tree-restore cycle:
+A complete stage-retain-open cycle:
 
 ```js
-import ContentAddressableStore from '@git-stunts/git-cas';
+import { createReadStream } from 'node:fs';
+import ContentAddressableStore, { AssetHandle } from '@git-stunts/git-cas';
 
-// 1. Initialize
 const cas = await ContentAddressableStore.open({ cwd: '/path/to/repo' });
 
-// 2. Store a file
-const manifest = await cas.storeFile({
-  filePath: './photo.jpg',
+// Stage bytes and receive an immutable content handle. This creates no root.
+const staged = await cas.assets.put({
+  source: createReadStream('./photo.jpg'),
   slug: 'photos/vacation',
+  filename: 'photo.jpg',
 });
 
-// 3. Create a Git tree (persists the manifest + chunks as a tree object)
-const treeOid = await cas.createTree({ manifest });
+// Make the graph Git-reachable through a current-generation RootSet.
+const retained = await cas.retention.retain({
+  handle: staged.handle,
+  root: { ref: 'refs/cas/rootsets/photos', name: 'vacation' },
+  policy: 'pinned',
+});
 
-// 4. Add to the vault index (GC-safe ref)
-await cas.addToVault({ slug: 'photos/vacation', treeOid });
+// Stream the payload without exposing its manifest or chunk OIDs.
+for await (const chunk of cas.assets.open({ handle: staged.handle })) {
+  consume(chunk);
+}
 
-// 5. Restore later
-const readBack = await cas.readManifest({ treeOid });
-const { buffer } = await cas.restore({ manifest: readBack });
+console.log(retained.witness.root.generation);
 ```
+
+Node's file stream is an `AsyncIterable<Uint8Array>`; Bun and Deno callers can
+supply their native async byte streams through the same contract.
+
+## Application Storage Lifecycle
+
+The ordinary application boundary separates content identity from retention:
+
+1. `cas.assets.put()` streams bytes through the existing chunking, compression,
+   encryption, and deduplication pipeline. It returns a `StagedAsset` whose
+   immutable `AssetHandle` locates the resulting manifest tree.
+2. A staged result says this operation created no reachability root. It does
+   not claim that globally deduplicated objects are unreachable through every
+   other ref.
+3. `cas.retention.retain()` installs the handle under a RootSet and returns a
+   `RetentionWitness` naming the exact generation and tree path observed.
+4. `cas.publications.commit()` validates the handle graph, creates an
+   application commit with caller-controlled ordered parents, and updates an
+   explicitly allowed application ref by compare-and-swap.
+
+Handles have a canonical, repository-location-independent token form:
+
+```js
+const token = staged.handle.toString();
+const sameHandle = AssetHandle.parse(token);
+```
+
+The token is portable only with its referenced Git object graph. Opening it in
+a clone or mirror succeeds after the graph is transferred; opening it in a
+repository without that graph fails with `HANDLE_TARGET_MISSING`.
+
+### Generic Application Publication
+
+Publication is disabled until the facade receives an explicit application-ref
+allowlist. The `refs/cas/*` namespace is always reserved.
+
+```js
+const cas = await ContentAddressableStore.open({
+  cwd: '/path/to/repo',
+  applicationRefPrefixes: ['refs/my-app/'],
+});
+
+const publication = await cas.publications.commit({
+  root: staged.handle,
+  commit: {
+    message: 'Publish vacation photo',
+    parents: previousCommitId === null ? [] : [previousCommitId],
+  },
+  ref: {
+    name: 'refs/my-app/assets',
+    expected: previousCommitId,
+  },
+});
+```
+
+`expected` is mandatory, including `null` for create-only publication. A stale
+head fails with `PUBLICATION_CONFLICT` and includes `expected`, `observed`, and
+the attempted commit ID. The returned witness is generation-scoped: it proves
+what the ref reached when publication succeeded, not that a mutable ref still
+points there later.
+
+`pinned` is a retention-policy term. It means ordinary cache eviction must not
+release the entry; it does not create or imply a Git pack `.keep` file.
 
 ### Factory Methods
 
