@@ -129,7 +129,7 @@ export default class CacheAcquisitionRegistry {
         throw error;
       }
       throw createCasError(
-        'Cache acquisition release rejected an unexpected generation',
+        'Cache acquisition release could not prove the expected direct generation',
         ErrorCodes.CACHE_ACQUISITION_RELEASE_CONFLICT,
         { id: acquisitionRef.id, generation, originalError: error },
       );

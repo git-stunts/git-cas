@@ -246,7 +246,7 @@ describe('GitRefAdapter scoped-anchor conflicts', () => {
 
 // eslint-disable-next-line max-lines-per-function
 describe('GitRefAdapter checked-delete conflicts', () => {
-  it('normalizes a concurrent checked-delete disappearance as an idempotent miss', async () => {
+  it('fails closed when a checked-delete conflict leaves no inspectable direct ref', async () => {
     const { adapter, plumbing } = createAdapter();
     const ref = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
     const generation = 'a'.repeat(40);
@@ -259,7 +259,16 @@ describe('GitRefAdapter checked-delete conflicts', () => {
       .mockResolvedValueOnce('')
       .mockResolvedValueOnce('');
 
-    await expect(adapter.deleteRef({ ref, expectedOldOid: generation })).resolves.toBe(false);
+    await expect(adapter.deleteRef({ ref, expectedOldOid: generation })).rejects.toMatchObject({
+      code: ErrorCodes.GIT_REF_CONFLICT,
+      meta: {
+        ref,
+        expectedOldOid: generation,
+        actualOldOid: null,
+        actualSymref: null,
+        originalError: rootCause,
+      },
+    });
     expect(plumbing.execute).toHaveBeenNthCalledWith(3, {
       args: ['symbolic-ref', '--quiet', ref],
     });

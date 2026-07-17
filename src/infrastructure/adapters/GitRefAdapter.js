@@ -204,14 +204,11 @@ export default class GitRefAdapter extends GitRefPort {
         });
       }
       const actual = await this.#inspectDirectRef(ref);
-      if (actual === null) {
-        return false;
-      }
       throw refConflict({
         ref,
         expectedOldOid: expectedGeneration,
-        actualOldOid: actual.oid,
-        actualSymref: actual.symref,
+        actualOldOid: actual?.oid ?? null,
+        actualSymref: actual?.symref ?? null,
         originalError: error,
       });
     }

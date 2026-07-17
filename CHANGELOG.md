@@ -21,9 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   post-conflict ref-type checks, and hard Git inventory limits preserve
   ownership boundaries under hostile or malformed refs. Unknown ref-type
   evidence fails doctor health closed. Acquisition capabilities remain optional
-  on the base Git ref port, the existing retention-kind union remains unchanged,
-  and the new doctor group is type-optional for compatibility with existing
-  consumers.
+  on the base Git ref port, the existing retention-kind and diagnostic-kind
+  unions remain unchanged, and the new doctor group is type-optional for
+  compatibility with existing consumers. Production Git checked-delete
+  conflicts fail closed because Git 2.43 cannot atomically prove that a missing
+  direct ref is not an enumerator-invisible dangling symbolic ref.
 
 ### Documentation
 

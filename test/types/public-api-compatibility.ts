@@ -1,5 +1,6 @@
 import type {
   GitRefPortBase,
+  RepositoryDiagnosticLimitation,
   RepositoryDoctorReport,
   RepositoryInspectionPort,
   RetentionRootKind,
@@ -82,6 +83,23 @@ function describeLegacyRootKind(kind: RetentionRootKind): string {
 }
 
 void describeLegacyRootKind;
+
+function describeLegacyDiagnosticKind(
+  kind: NonNullable<RepositoryDiagnosticLimitation['kind']>,
+): string {
+  switch (kind) {
+    case 'caches':
+    case 'rootSets':
+    case 'expiringSets':
+      return kind;
+    default: {
+      const exhaustive: never = kind;
+      return exhaustive;
+    }
+  }
+}
+
+void describeLegacyDiagnosticKind;
 
 type AcquisitionsRemainAdditive = {} extends Pick<
   RepositoryDoctorReport['usage'],

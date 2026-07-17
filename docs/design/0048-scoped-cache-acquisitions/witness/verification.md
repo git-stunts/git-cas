@@ -43,6 +43,14 @@ mutation, uses no-dereference updates throughout, and re-probes symbolic-ref typ
 after checked-delete conflicts. Deterministic real-Git tests exercise both
 pre-existing and post-probe ordinary-update races plus the dangling-release race.
 
+The final independent gate then identified the remaining interval between the
+post-conflict symbolic probe and direct-ref inventory, a second widened closed
+union in diagnostic limitation kinds, and imprecise `changed: true` wording.
+Checked-delete conflicts now fail closed rather than infer absence from raced
+probes, acquisition truncation uses a dedicated open error code without a new
+`kind`, and the docs distinguish deletion from a cached idempotent release
+receipt.
+
 ## Focused Contract Proof
 
 Command:
@@ -67,7 +75,7 @@ Observed result:
 
 ```text
 Test Files  9 passed (9)
-Tests       122 passed (122)
+Tests       123 passed (123)
 Type check  PASS
 ```
 
@@ -147,8 +155,8 @@ The final npm dry-run receipt contains `docs/releases/v6.3.0.md` and reports:
 
 ```text
 files:         242
-packed size:   746,100 bytes
-unpacked size: 2,051,091 bytes
+packed size:   746,423 bytes
+unpacked size: 2,052,195 bytes
 ```
 
 The first package-doc run correctly failed because the public release note
@@ -169,12 +177,12 @@ Post-remediation result:
 ```text
 Version: 6.2.0
 Steps passed: 13/13
-Total tests observed: 6310
+Total tests observed: 6313
 Skipped steps: JSR publish dry-run
 
-Unit Tests (Node)        PASS  1923
-Unit Tests (Bun)         PASS  1922
-Unit Tests (Deno)        PASS  1913
+Unit Tests (Node)        PASS  1924
+Unit Tests (Bun)         PASS  1923
+Unit Tests (Deno)        PASS  1914
 Public type compatibility PASS    -
 Integration Tests (Node) PASS   184
 Integration Tests (Bun)  PASS   184
@@ -198,7 +206,7 @@ refusal is an environment guard, not a hidden test failure.
 | A hit does not recursively resolve its target | PASS | Resolver spy remains untouched; 1-page and nested 64-page traces have equal command counts |
 | A returned hit has a scoped lifetime claim | PASS | Atomic generation verification and acquisition-ref creation precede return |
 | Cache mutation cannot collect an active target | PASS | Removal plus immediate reflog expiry and destructive prune preserves it |
-| Managed ref mutation remains inside authority | PASS | Ordinary updates and acquisition release use preflight rejection, `--no-deref`, post-conflict ref-type checks, and deterministic post-probe races |
+| Managed ref mutation remains inside authority | PASS | Ordinary updates use preflight plus `--no-deref`; checked-delete conflicts never infer absence from raced probes |
 | Released history becomes collectible | PASS | Second destructive prune removes the target after release |
 | Abandoned anchors are observable | PASS | Work-bounded exact-namespace inspection and doctor count/age/health fields |
 | Public artifact documents the contract | PASS | v6.3.0 package docs and 242-file npm pack receipt pass |
@@ -206,7 +214,7 @@ refusal is an environment guard, not a hidden test failure.
 ## Pending Repository Gates
 
 - [ ] Implementation commit and non-draft pull request linked to issue #69.
-- [x] Self-review has no unresolved findings after final authority remediation.
+- [x] Self-review has no unresolved findings after final fail-closed remediation.
 - [ ] Independent Code Lawyer review has no unresolved findings.
 - [ ] GitHub Actions CI is green.
 - [ ] Code Rabbit is clean, rate limited, or out of credits.

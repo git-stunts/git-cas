@@ -1164,7 +1164,7 @@ export interface RepositoryCollectionCoverage {
 export interface RepositoryDiagnosticLimitation {
   readonly code: string;
   readonly message: string;
-  readonly kind?: 'acquisitions' | 'caches' | 'rootSets' | 'expiringSets';
+  readonly kind?: 'caches' | 'rootSets' | 'expiringSets';
   readonly observed?: number;
   readonly inspected?: number;
   readonly detailed?: number;

@@ -237,6 +237,36 @@ describe('RepositoryDoctor', () => {
     );
   });
 
+  it('reports bounded acquisition detail without widening the legacy kind union', async () => {
+    const acquisitionRefs = ['1', '2', '3'].map((nonce, index) => ({
+      ref: 'refs/cas/cache-acquisitions/git-warp%2Fmaterializations/' +
+        `v1-1783940400000-${'9'.repeat(64)}-${nonce.repeat(32)}`,
+      oid: String(index + 1).repeat(40),
+      symref: null,
+    }));
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values(acquisitionRefs)),
+    }));
+
+    const report = await new RepositoryDoctor(ports).doctor({ maxCollectionsPerKind: 2 });
+
+    expect(report.usage.acquisitions.coverage).toEqual({
+      observed: 3,
+      inspected: 3,
+      detailed: 2,
+      complete: true,
+    });
+    expect(report.limitations).toContainEqual(expect.objectContaining({
+      code: 'CACHE_ACQUISITION_DETAILS_TRUNCATED',
+      observed: 3,
+      inspected: 3,
+      detailed: 2,
+    }));
+    expect(report.limitations.find(
+      ({ code }) => code === 'CACHE_ACQUISITION_DETAILS_TRUNCATED'
+    )).not.toHaveProperty('kind');
+  });
+
   it('marks symbolic acquisition refs unhealthy instead of offering a cleanup candidate', async () => {
     const acquisitionRef =
       `refs/cas/cache-acquisitions/git-warp%2Fmaterializations/${ACQUISITION_ID}`;

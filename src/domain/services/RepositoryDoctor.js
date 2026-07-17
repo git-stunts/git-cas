@@ -591,8 +591,19 @@ function baseLimitations() {
 }
 
 function addTruncationLimitations(refs, limitations) {
+  const acquisitions = refs.acquisitions;
+  if (acquisitions.observed > acquisitions.entries.length) {
+    limitations.push({
+      ...limitation(
+        'CACHE_ACQUISITION_DETAILS_TRUNCATED',
+        'Cache acquisition detail exceeded maxCollectionsPerKind.'
+      ),
+      observed: acquisitions.observed,
+      inspected: acquisitions.inspected,
+      detailed: acquisitions.entries.length,
+    });
+  }
   for (const [kind, inventory] of [
-    ['acquisitions', refs.acquisitions],
     ['caches', refs.caches],
     ['rootSets', refs.rootSets],
     ['expiringSets', refs.expiringSets],

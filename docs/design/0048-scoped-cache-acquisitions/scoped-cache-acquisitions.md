@@ -174,9 +174,13 @@ retention mechanism. Reusing the existing root kind preserves the public closed
 observation evidence. These are two different facts: cache policy and scoped
 retention.
 
-`release()` is idempotent. It deletes only the acquisition ref whose current
-OID still equals the acquired generation. Its result includes `changed`,
-`id`, `generation`, and `releasedAt`. Missing refs return `changed: false`.
+`release()` on one acquisition object is idempotent. It deletes only the
+acquisition ref whose current OID still equals the acquired generation. Its
+result includes `changed`, `id`, `generation`, and `releasedAt`; calls after a
+successful deletion reuse the receipt with `changed: false`. The production Git
+adapter fails closed on a standalone checked-delete conflict, including an
+apparently missing ref, because Git 2.43 cannot atomically distinguish absence
+from an enumerator-invisible dangling symbolic ref.
 A generation mismatch fails closed and does not delete the ref.
 
 Namespace-scoped operator methods are bounded:
@@ -276,7 +280,8 @@ linearization when neither ref reaches the selected generation.
 | source generation changed | bounded retry | transparent until exhausted | injected race |
 | retry exhausted | `CACHE_ACQUISITION_CONFLICT` | retry operation | unit |
 | malformed managed ref | `CACHE_ACQUISITION_INVALID`/doctor issue | inspect and repair | unit |
-| release ref missing | `{ changed: false }` | none | idempotence test |
+| repeated release on one acquisition object | cached receipt with `{ changed: false }` | none | idempotence test |
+| standalone release cannot prove direct ref | typed release conflict | none | missing/dangling conflict tests |
 | release generation mismatch | `CACHE_ACQUISITION_RELEASE_CONFLICT` | re-inspect; do not delete | unit |
 | direct target corruption after acquire | existing read/resolve error | doctor/repair cache | integration |
 

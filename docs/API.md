@@ -1553,9 +1553,11 @@ atomically assert both ref type and OID. If another process installs a same-OID
 symbolic ref after preflight, Git may delete that managed ref name; `--no-deref`
 ensures it never deletes or updates the symbolic referent. This API claims
 authority containment under that race, not race-free ref-type rejection.
-Release is idempotent: the first successful call reports `changed: true`; later
-calls report `changed: false`. Concurrent release calls share one operation. A
-mismatched generation fails closed with `CACHE_ACQUISITION_RELEASE_CONFLICT`.
+Release through one `CacheAcquisition` object is idempotent: the call that
+deletes the ref reports `changed: true`; later calls reuse its receipt and report
+`changed: false`. Concurrent calls on that object share one operation. A
+mismatched or otherwise unprovable direct generation fails closed with
+`CACHE_ACQUISITION_RELEASE_CONFLICT`.
 There is no implicit TTL because elapsed time alone cannot prove that a live
 caller has finished using the handle.
 
@@ -1837,8 +1839,11 @@ overall doctor report unhealthy rather than treating unknown ref type as a
 regular ref. Direct acquire, release, and cleanup operations independently
 preflight with `symbolic-ref`; no-dereference mutations contain post-probe races
 to the managed ref name. After a checked-delete conflict, release probes ref
-type again before treating an absent direct ref as an idempotent miss, so a
-dangling symbolic ref observed at that boundary fails closed.
+type and direct-ref inventory for diagnostic evidence, then fails closed. Git
+2.43 cannot atomically prove that an absent direct ref is not an
+enumerator-invisible dangling symbolic ref, so the production adapter does not
+infer an idempotent miss from that conflict. Recovery code can re-inspect the
+bounded acquisition namespace before deciding that cleanup is complete.
 
 Object and ref inventories are consumed as streams, and managed collections are
 inspected one at a time. Runtime memory is bounded by stream windows,
