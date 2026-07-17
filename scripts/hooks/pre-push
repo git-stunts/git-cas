@@ -5,6 +5,19 @@
 
 set -e
 
+# Git exports repository-local environment variables to hooks. Clear them so
+# child processes can discover or create repositories outside this worktree.
+if ! git_local_env_vars="$(git rev-parse --local-env-vars)"; then
+  echo "Failed to discover repository-local Git environment variables." >&2
+  exit 1
+fi
+
+while IFS= read -r git_var; do
+  if [[ -n "$git_var" ]]; then
+    unset "$git_var"
+  fi
+done <<< "$git_local_env_vars"
+
 echo "Running pre-push quality gates..."
 
 echo "→ Linting..."
