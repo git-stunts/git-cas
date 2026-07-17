@@ -114,7 +114,8 @@ The npm dry-run receipt contains `docs/releases/v6.2.1.md` and reports:
 
 ```text
 files:         242
-unpacked size: 2,040,013 bytes
+packed size:   743,271 bytes
+unpacked size: 2,040,262 bytes
 ```
 
 The first package-doc run correctly failed because the public release note
@@ -135,12 +136,12 @@ Observed result:
 ```text
 Version: 6.2.0
 Steps passed: 12/12
-Total tests observed: 6211
+Total tests observed: 6214
 Skipped steps: JSR publish dry-run
 
-Unit Tests (Node)        PASS  1898
-Unit Tests (Bun)         PASS  1897
-Unit Tests (Deno)        PASS  1888
+Unit Tests (Node)        PASS  1899
+Unit Tests (Bun)         PASS  1898
+Unit Tests (Deno)        PASS  1889
 Integration Tests (Node) PASS   176
 Integration Tests (Bun)  PASS   176
 Integration Tests (Deno) PASS   176
