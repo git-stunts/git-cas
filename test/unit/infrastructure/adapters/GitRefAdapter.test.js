@@ -129,8 +129,14 @@ describe('GitRefAdapter scoped anchors', () => {
 
     await adapter.anchorRef({ sourceRef, expectedSourceOid: generation, targetRef });
 
+    expect(plumbing.execute).toHaveBeenNthCalledWith(1, {
+      args: ['symbolic-ref', '--quiet', sourceRef],
+    });
+    expect(plumbing.execute).toHaveBeenNthCalledWith(2, {
+      args: ['symbolic-ref', '--quiet', targetRef],
+    });
     expect(plumbing.execute).toHaveBeenCalledWith({
-      args: ['update-ref', '--stdin'],
+      args: ['update-ref', '--no-deref', '--stdin'],
       input: [
         'start',
         `verify ${sourceRef} ${generation}`,
@@ -146,13 +152,14 @@ describe('GitRefAdapter scoped anchors', () => {
     const { adapter, plumbing } = createAdapter();
     const generation = 'b'.repeat(40);
     const ref = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
-    plumbing.execute.mockResolvedValueOnce(generation).mockResolvedValueOnce('');
+    plumbing.execute.mockResolvedValueOnce('').mockResolvedValueOnce('');
 
     await adapter.deleteRef({ ref, expectedOldOid: generation });
 
-    expect(plumbing.execute).toHaveBeenCalledWith({
-      args: ['update-ref', '-d', ref, generation],
+    expect(plumbing.execute).toHaveBeenNthCalledWith(2, {
+      args: ['update-ref', '--no-deref', '-d', ref, generation],
     });
+    expect(plumbing.execute).toHaveBeenCalledTimes(2);
   });
 
 });
@@ -177,36 +184,84 @@ describe('GitRefAdapter scoped-anchor validation', () => {
 });
 
 describe('GitRefAdapter scoped-anchor conflicts', () => {
+  it('refuses to anchor through a symbolic source ref', async () => {
+    const { adapter, plumbing } = createAdapter();
+    const sourceRef = 'refs/cas/caches/git-warp/materializations';
+    const targetRef = 'refs/cas/cache-acquisitions/git-warp%2Fmaterializations/acquisition';
+    plumbing.execute.mockResolvedValueOnce('refs/heads/main');
+
+    await expect(adapter.anchorRef({
+      sourceRef,
+      expectedSourceOid: 'a'.repeat(40),
+      targetRef,
+    })).resolves.toBe(false);
+    expect(plumbing.execute).toHaveBeenCalledTimes(1);
+  });
+
   it('reports a generation race without hiding unrelated Git failures', async () => {
     const { adapter, plumbing } = createAdapter();
     const sourceRef = 'refs/cas/caches/git-warp/materializations';
     const targetRef = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
     const generation = 'a'.repeat(40);
-    plumbing.execute.mockRejectedValueOnce(Object.assign(new Error('transaction failed'), {
-      details: { stderr: `fatal: prepare: cannot lock ref '${sourceRef}': is at b but expected a` },
-    }));
+    plumbing.execute
+      .mockResolvedValueOnce('')
+      .mockResolvedValueOnce('')
+      .mockRejectedValueOnce(Object.assign(new Error('transaction failed'), {
+        details: { stderr: `fatal: prepare: cannot lock ref '${sourceRef}': is at b but expected a` },
+      }));
 
     await expect(adapter.anchorRef({ sourceRef, expectedSourceOid: generation, targetRef }))
       .resolves.toBe(false);
 
     const failure = new Error('permission denied');
-    plumbing.execute.mockRejectedValueOnce(failure);
+    plumbing.execute
+      .mockResolvedValueOnce('')
+      .mockResolvedValueOnce('')
+      .mockRejectedValueOnce(failure);
     await expect(adapter.anchorRef({ sourceRef, expectedSourceOid: generation, targetRef }))
       .rejects.toBe(failure);
   });
+});
 
-  it('normalizes a concurrent checked-delete disappearance as a ref conflict', async () => {
+describe('GitRefAdapter checked-delete conflicts', () => {
+  it('normalizes a concurrent checked-delete disappearance as an idempotent miss', async () => {
     const { adapter, plumbing } = createAdapter();
     const ref = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
     const generation = 'a'.repeat(40);
     const rootCause = Object.assign(new Error('delete failed'), {
       details: { stderr: `error: cannot lock ref '${ref}': unable to resolve reference '${ref}'` },
     });
-    plumbing.execute.mockResolvedValueOnce(generation).mockRejectedValueOnce(rootCause);
+    plumbing.execute
+      .mockResolvedValueOnce('')
+      .mockRejectedValueOnce(rootCause)
+      .mockResolvedValueOnce('');
+
+    await expect(adapter.deleteRef({ ref, expectedOldOid: generation })).resolves.toBe(false);
+    expect(plumbing.execute).toHaveBeenNthCalledWith(3, {
+      args: [
+        'for-each-ref',
+        '--format=%(refname)%09%(objectname)%09%(symref)',
+        '--count=1',
+        ref,
+      ],
+    });
+  });
+
+  it('fails closed when the checked ref becomes a symbolic ref', async () => {
+    const { adapter, plumbing } = createAdapter();
+    const ref = 'refs/cas/cache-acquisitions/git-warp%2Fmaterializations/acquisition';
+    const generation = 'a'.repeat(40);
+    plumbing.execute.mockResolvedValueOnce('refs/heads/main');
 
     await expect(adapter.deleteRef({ ref, expectedOldOid: generation })).rejects.toMatchObject({
       code: ErrorCodes.GIT_REF_CONFLICT,
-      meta: { ref, expectedOldOid: generation, actualOldOid: null, originalError: rootCause },
+      meta: {
+        ref,
+        expectedOldOid: generation,
+        actualOldOid: null,
+        actualSymref: 'refs/heads/main',
+      },
     });
+    expect(plumbing.execute).toHaveBeenCalledTimes(1);
   });
 });

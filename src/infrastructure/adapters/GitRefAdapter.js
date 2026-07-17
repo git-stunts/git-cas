@@ -14,6 +14,7 @@ import Oid from '../../domain/value-objects/Oid.js';
  */
 const DEFAULT_POLICY = Policy.timeout(30_000);
 const FORBIDDEN_REF_CHARACTERS = new Set(['~', '^', ':', '?', '*', '[', '\\']);
+const MAX_REF_ITERATION_LIMIT = 1001;
 
 /**
  * {@link GitRefPort} implementation backed by `@git-stunts/plumbing`.
@@ -128,6 +129,12 @@ export default class GitRefAdapter extends GitRefPort {
     assertRefName(sourceRef);
     assertRefName(targetRef);
     const generation = Oid.from(expectedSourceOid).toString();
+    if (
+      await this.#resolveSymbolicRef(sourceRef) !== null ||
+      await this.#resolveSymbolicRef(targetRef) !== null
+    ) {
+      return false;
+    }
     const input = [
       'start',
       `verify ${sourceRef} ${generation}`,
@@ -138,7 +145,7 @@ export default class GitRefAdapter extends GitRefPort {
     ].join('\n');
     try {
       await this.policy.execute(() =>
-        this.plumbing.execute({ args: ['update-ref', '--stdin'], input }),
+        this.plumbing.execute({ args: ['update-ref', '--no-deref', '--stdin'], input }),
       );
       return true;
     } catch (error) {
@@ -153,39 +160,44 @@ export default class GitRefAdapter extends GitRefPort {
   async deleteRef({ ref, expectedOldOid }) {
     assertRefName(ref);
     const expectedGeneration = Oid.from(expectedOldOid).toString();
-    let actualOldOid;
-    try {
-      actualOldOid = await this.resolveRef(ref);
-    } catch (error) {
-      if (error?.code === ErrorCodes.GIT_REF_NOT_FOUND) {
-        return false;
-      }
-      throw error;
-    }
-    if (actualOldOid !== expectedGeneration) {
-      throw refConflict({ ref, expectedOldOid: expectedGeneration, actualOldOid });
+    const symbolicTarget = await this.#resolveSymbolicRef(ref);
+    if (symbolicTarget !== null) {
+      throw refConflict({
+        ref,
+        expectedOldOid: expectedGeneration,
+        actualOldOid: null,
+        actualSymref: symbolicTarget,
+      });
     }
     try {
       await this.policy.execute(() =>
-        this.plumbing.execute({ args: ['update-ref', '-d', ref, expectedGeneration] }),
+        this.plumbing.execute({
+          args: ['update-ref', '--no-deref', '-d', ref, expectedGeneration],
+        }),
       );
     } catch (error) {
-      if (isUpdateRefConflict(error, [ref])) {
-        throw refConflict({
-          ref,
-          expectedOldOid: expectedGeneration,
-          actualOldOid: null,
-          originalError: error,
-        });
+      if (!isUpdateRefConflict(error, [ref])) {
+        throw error;
       }
-      throw error;
+      const actual = await this.#inspectDirectRef(ref);
+      if (actual === null) {
+        return false;
+      }
+      throw refConflict({
+        ref,
+        expectedOldOid: expectedGeneration,
+        actualOldOid: actual.oid,
+        actualSymref: actual.symref,
+        originalError: error,
+      });
     }
     return true;
   }
 
   /** @override */
-  async *iterateRefs({ prefix = 'refs/' } = {}) {
+  async *iterateRefs({ prefix = 'refs/', limit } = {}) {
     assertRefPrefix(prefix);
+    assertRefIterationLimit(limit);
     if (typeof this.plumbing?.executeStream !== 'function') {
       throw new CasError(
         'Git ref inventory requires streaming plumbing',
@@ -195,22 +207,62 @@ export default class GitRefAdapter extends GitRefPort {
     }
     const stream = await this.policy.execute(() =>
       this.plumbing.executeStream({
-        args: ['for-each-ref', '--format=%(refname)%09%(objectname)', prefix],
+        args: [
+          'for-each-ref',
+          '--format=%(refname)%09%(objectname)%09%(symref)',
+          `--count=${limit}`,
+          prefix,
+        ],
       }),
     );
     for await (const line of consumeRefLines(stream)) {
-      const fields = line.split('\t');
-      if (
-        fields.length !== 2 ||
-        !fields[0].startsWith(prefix) ||
-        !Oid.isValid(fields[1])
-      ) {
-        throw invalidRefInventory(prefix, line);
+      yield parseIteratedRef(prefix, line);
+    }
+  }
+
+  async #inspectDirectRef(ref) {
+    const output = await this.policy.execute(() =>
+      this.plumbing.execute({
+        args: [
+          'for-each-ref',
+          '--format=%(refname)%09%(objectname)%09%(symref)',
+          '--count=1',
+          ref,
+        ],
+      }),
+    );
+    const line = String(output).replace(/\r?\n$/u, '');
+    if (line.length === 0) {
+      return null;
+    }
+    const fields = line.split('\t');
+    if (
+      (fields.length !== 2 && fields.length !== 3) ||
+      fields[0] !== ref ||
+      !Oid.isValid(fields[1]) ||
+      (fields[2] !== undefined && fields[2] !== '' && !isValidRefSyntax(fields[2], false))
+    ) {
+      throw invalidRefInventory(ref, line);
+    }
+    return Object.freeze({
+      ref,
+      oid: Oid.from(fields[1]).toString(),
+      symref: fields[2] || null,
+    });
+  }
+
+  async #resolveSymbolicRef(ref) {
+    try {
+      const output = await this.policy.execute(() =>
+        this.plumbing.execute({ args: ['symbolic-ref', '--quiet', ref] }),
+      );
+      const target = String(output).trim();
+      return target.length > 0 ? target : null;
+    } catch (error) {
+      if (isQuietSymbolicRefMiss(error, ref)) {
+        return null;
       }
-      yield Object.freeze({
-        ref: fields[0],
-        oid: Oid.from(fields[1]).toString(),
-      });
+      throw error;
     }
   }
 }
@@ -221,6 +273,16 @@ function assertRefPrefix(prefix) {
 
 function assertRefName(ref) {
   assertRefSyntax(ref, { allowTrailingSlash: false });
+}
+
+function assertRefIterationLimit(limit) {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_REF_ITERATION_LIMIT) {
+    throw new CasError(
+      `Git ref inventory limit must be between 1 and ${MAX_REF_ITERATION_LIMIT}`,
+      ErrorCodes.GIT_ERROR,
+      { limit },
+    );
+  }
 }
 
 function assertRefSyntax(value, { allowTrailingSlash }) {
@@ -289,6 +351,25 @@ function invalidRefInventory(prefix, output) {
   );
 }
 
+function parseIteratedRef(prefix, line) {
+  const fields = line.split('\t');
+  if (!isValidIteratedRef(fields, prefix)) {
+    throw invalidRefInventory(prefix, line);
+  }
+  return Object.freeze({
+    ref: fields[0],
+    oid: Oid.from(fields[1]).toString(),
+    symref: fields[2] || null,
+  });
+}
+
+function isValidIteratedRef(fields, prefix) {
+  return fields.length === 3
+    && fields[0].startsWith(prefix)
+    && Oid.isValid(fields[1])
+    && (fields[2] === '' || isValidRefSyntax(fields[2], false));
+}
+
 function invalidRefName(ref) {
   return new CasError('Git ref name or prefix is invalid', ErrorCodes.GIT_ERROR, { ref });
 }
@@ -296,18 +377,36 @@ function invalidRefName(ref) {
 function isUpdateRefConflict(error, refs) {
   const text = errorDetailsText(error).toLowerCase();
   return refs.some((ref) => text.includes(ref.toLowerCase()))
-    && text.includes('cannot lock ref')
     && (
+      text.includes('cannot lock ref') ||
       text.includes('but expected') ||
       text.includes('reference already exists') ||
-      text.includes('unable to resolve reference')
+      text.includes('unable to resolve reference') ||
+      text.includes('zero <oldvalue>') ||
+      text.includes('is a symref')
     );
 }
 
-function refConflict({ ref, expectedOldOid, actualOldOid, originalError }) {
+function isQuietSymbolicRefMiss(error, ref) {
+  const details = error instanceof Error && error.details && typeof error.details === 'object'
+    ? error.details
+    : {};
+  return details.code === 1
+    && Array.isArray(details.args)
+    && details.args[0] === 'symbolic-ref'
+    && details.args.at(-1) === ref;
+}
+
+function refConflict({
+  ref,
+  expectedOldOid,
+  actualOldOid,
+  actualSymref = null,
+  originalError,
+}) {
   return new CasError(
     `Git ref changed before checked deletion: ${ref}`,
     ErrorCodes.GIT_REF_CONFLICT,
-    { ref, expectedOldOid, actualOldOid, originalError },
+    { ref, expectedOldOid, actualOldOid, actualSymref, originalError },
   );
 }

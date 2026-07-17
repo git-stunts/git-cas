@@ -84,11 +84,12 @@ export default class GitRefPort {
 
   /**
    * Streams refs below a canonical Git ref prefix.
-   * @param {Object} [_options]
+   * @param {Object} _options
    * @param {string} [_options.prefix]
-   * @returns {AsyncIterable<{ref: string, oid: string}>}
+   * @param {number} _options.limit Maximum records to request from Git.
+   * @returns {AsyncIterable<{ref: string, oid: string, symref: string|null}>}
    */
-  iterateRefs(_options = {}) {
+  iterateRefs(_options) {
     throw unsupportedAcquisitionCapability('iterateRefs');
   }
 }

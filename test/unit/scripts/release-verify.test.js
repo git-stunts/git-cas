@@ -181,7 +181,7 @@ describe('release verify summary rendering', () => {
   });
 });
 
-describe('release verify execution', () => {
+describe('release verify step definitions', () => {
   it('executes maintained examples as release-gate steps', () => {
     const expectedExamplePaths = readdirSync(EXAMPLES_DIR)
       .filter((file) => file.endsWith('.js'))
@@ -200,6 +200,22 @@ describe('release verify execution', () => {
     expect(bunStep?.args).toContain('--no-file-parallelism');
   });
 
+  it('checks legacy public ref-port compatibility in the Deno release image', () => {
+    const typeStep = RELEASE_STEPS.find((step) => step.id === 'types-public');
+
+    expect(typeStep).toMatchObject({
+      command: 'docker',
+      args: expect.arrayContaining([
+        'test-deno',
+        'deno',
+        'check',
+        'test/types/public-api-compatibility.ts',
+      ]),
+    });
+  });
+});
+
+describe('release verify execution', () => {
   it('runs the release steps in order and aggregates test counts', async () => {
     const runner = makeSuccessRunner();
 

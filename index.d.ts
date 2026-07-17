@@ -371,8 +371,7 @@ export interface CacheAcquisitionRelease {
 }
 
 /** Active, explicitly releasable retention scope for one cache hit. */
-export declare class CacheAcquisition {
-  private constructor();
+export interface CacheAcquisition {
   readonly id: string;
   readonly hit: CacheHit;
   readonly evidence: RetentionWitness;
@@ -390,7 +389,7 @@ export interface CacheAcquisitionInspectionEntry {
 export interface CacheAcquisitionInspection {
   readonly namespace: string;
   readonly entries: ReadonlyArray<CacheAcquisitionInspectionEntry>;
-  readonly nextCursor: string | null;
+  readonly truncated: boolean;
 }
 
 export interface ExpiringMarkerData {
@@ -550,15 +549,16 @@ export declare class GitRefPortBase {
     /** Expected current OID for CAS; null means the ref must not exist. */
     expectedOldOid?: string | null;
   }): Promise<void>;
-  anchorRef(options: {
+  anchorRef?(options: {
     sourceRef: string;
     expectedSourceOid: string;
     targetRef: string;
   }): Promise<boolean>;
-  deleteRef(options: { ref: string; expectedOldOid: string }): Promise<boolean>;
-  iterateRefs(options?: {
+  deleteRef?(options: { ref: string; expectedOldOid: string }): Promise<boolean>;
+  iterateRefs?(options: {
     prefix?: string;
-  }): AsyncIterable<{ ref: string; oid: string }>;
+    limit: number;
+  }): AsyncIterable<{ ref: string; oid: string; symref: string | null }>;
 }
 
 /** Git-backed implementation of the persistence port. */
@@ -570,6 +570,16 @@ export declare class GitPersistenceAdapter extends GitPersistencePortBase {
 /** Git-backed implementation of the ref port. */
 export declare class GitRefAdapter extends GitRefPortBase {
   constructor(options: { plumbing: unknown; policy?: unknown });
+  anchorRef(options: {
+    sourceRef: string;
+    expectedSourceOid: string;
+    targetRef: string;
+  }): Promise<boolean>;
+  deleteRef(options: { ref: string; expectedOldOid: string }): Promise<boolean>;
+  iterateRefs(options: {
+    prefix?: string;
+    limit: number;
+  }): AsyncIterable<{ ref: string; oid: string; symref: string | null }>;
 }
 
 export type RepositoryObjectType = 'blob' | 'tree' | 'commit' | 'tag';
@@ -581,6 +591,13 @@ export interface RepositoryObjectRecord {
   readonly physicalBytes: number;
 }
 
+export interface RepositoryRefRecord {
+  readonly ref: string;
+  readonly oid: string;
+  /** Present when the inspection adapter can distinguish symbolic refs. */
+  readonly symref?: string | null;
+}
+
 /** Abstract non-mutating repository inspection port. */
 export declare class RepositoryInspectionPort {
   iterateObjects(): AsyncIterable<RepositoryObjectRecord>;
@@ -590,7 +607,7 @@ export declare class RepositoryInspectionPort {
   }): AsyncIterable<Pick<RepositoryObjectRecord, 'oid' | 'type'>>;
   iterateRefs(options?: {
     prefix?: string;
-  }): AsyncIterable<{ readonly ref: string; readonly oid: string }>;
+  }): AsyncIterable<RepositoryRefRecord>;
   reachablePhysicalBytes(): Promise<number>;
 }
 
@@ -883,7 +900,6 @@ export declare class CacheSet {
   acquire(key: string): Promise<CacheAcquisition | null>;
   inspectAcquisitions(options?: {
     limit?: number;
-    cursor?: string | null;
   }): Promise<CacheAcquisitionInspection>;
   releaseAcquisition(options: {
     id: string;

@@ -92,19 +92,22 @@ describe('GitRepositoryInspectionAdapter', () => {
       executeStream: vi
         .fn()
         .mockResolvedValue(
-          gitStream([`refs/cas/vault\t${'d'.repeat(40)}\nrefs/heads/main\t${'e'.repeat(40)}\n`])
+          gitStream([
+            `refs/cas/vault\t${'d'.repeat(40)}\t\n`
+            + `refs/heads/main\t${'e'.repeat(40)}\trefs/heads/target\n`,
+          ])
         ),
       execute: vi.fn().mockResolvedValue('1234\n'),
     });
     const adapter = new GitRepositoryInspectionAdapter({ plumbing });
 
     await expect(collect(adapter.iterateRefs())).resolves.toEqual([
-      { ref: 'refs/cas/vault', oid: 'd'.repeat(40) },
-      { ref: 'refs/heads/main', oid: 'e'.repeat(40) },
+      { ref: 'refs/cas/vault', oid: 'd'.repeat(40), symref: null },
+      { ref: 'refs/heads/main', oid: 'e'.repeat(40), symref: 'refs/heads/target' },
     ]);
     await expect(adapter.reachablePhysicalBytes()).resolves.toBe(1234);
     expect(plumbing.executeStream).toHaveBeenCalledWith({
-      args: ['for-each-ref', '--format=%(refname)%09%(objectname)', 'refs/'],
+      args: ['for-each-ref', '--format=%(refname)%09%(objectname)%09%(symref)', 'refs/'],
     });
     expect(plumbing.execute).toHaveBeenCalledWith({
       args: ['rev-list', '--all', '--reflog', '--objects', '--disk-usage'],
@@ -115,7 +118,7 @@ describe('GitRepositoryInspectionAdapter', () => {
     const plumbing = mockPlumbing({
       executeStream: vi
         .fn()
-        .mockResolvedValue(gitStream([`not-a-ref\t${'a'.repeat(40)}\n`])),
+        .mockResolvedValue(gitStream([`not-a-ref\t${'a'.repeat(40)}\t\n`])),
     });
     const adapter = new GitRepositoryInspectionAdapter({ plumbing });
 

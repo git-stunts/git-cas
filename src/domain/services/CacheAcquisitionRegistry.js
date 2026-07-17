@@ -1,9 +1,7 @@
 import createCasError from '../errors/createCasError.js';
 import { ErrorCodes } from '../errors/index.js';
 import CacheAcquisition from '../value-objects/CacheAcquisition.js';
-import CacheAcquisitionRef, {
-  CACHE_ACQUISITION_REF_PREFIX,
-} from '../value-objects/CacheAcquisitionRef.js';
+import CacheAcquisitionRef from '../value-objects/CacheAcquisitionRef.js';
 import CollectionNamespace from '../value-objects/CollectionNamespace.js';
 import Oid from '../value-objects/Oid.js';
 import RetentionWitness from '../value-objects/RetentionWitness.js';
@@ -67,20 +65,29 @@ export default class CacheAcquisitionRegistry {
     });
   }
 
-  async inspect({ namespace: value, limit = 100, cursor = null }) {
+  async inspect({ namespace: value, limit = 100 }) {
     assertMethod(
       this.ref,
       'iterateRefs',
       'Cache acquisition inspection requires ref iteration',
     );
     const namespace = CollectionNamespace.from(value).toString();
-    assertInspectionOptions(limit, cursor, namespace);
-    const prefix = `${CACHE_ACQUISITION_REF_PREFIX}${namespace}/`;
+    assertInspectionLimit(limit);
+    const prefix = CacheAcquisitionRef.prefixForNamespace(namespace);
     const entries = [];
-    for await (const record of this.ref.iterateRefs({ prefix })) {
+    for await (const record of this.ref.iterateRefs({ prefix, limit: limit + 1 })) {
+      if (record.symref !== null) {
+        throw invalid('Symbolic cache acquisition refs are unsafe', {
+          ref: record.ref,
+          symref: record.symref,
+        });
+      }
       const acquisitionRef = CacheAcquisitionRef.from(record.ref);
-      if (acquisitionRef.namespace !== namespace || (cursor !== null && acquisitionRef.id <= cursor)) {
-        continue;
+      if (acquisitionRef.namespace !== namespace) {
+        throw invalid('Cache acquisition iterator escaped its requested namespace', {
+          namespace,
+          ref: record.ref,
+        });
       }
       entries.push(Object.freeze({
         id: acquisitionRef.id,
@@ -92,14 +99,14 @@ export default class CacheAcquisitionRegistry {
         break;
       }
     }
-    const hasMore = entries.length > limit;
-    if (hasMore) {
+    const truncated = entries.length > limit;
+    if (truncated) {
       entries.pop();
     }
     return Object.freeze({
       namespace,
       entries: Object.freeze(entries),
-      nextCursor: hasMore ? entries.at(-1).id : null,
+      truncated,
     });
   }
 
@@ -157,12 +164,9 @@ export default class CacheAcquisitionRegistry {
   }
 }
 
-function assertInspectionOptions(limit, cursor, namespace) {
+function assertInspectionLimit(limit) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) {
     throw invalid('Cache acquisition inspection limit must be between 1 and 1000', { limit });
-  }
-  if (cursor !== null) {
-    CacheAcquisitionRef.forId({ namespace, id: cursor });
   }
 }
 

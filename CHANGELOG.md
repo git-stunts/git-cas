@@ -16,7 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bounded inspection and operational cleanup, and appear in repository doctor
   with count and age evidence. Real-Git coverage proves active acquisitions
   survive aggressive prune without making lookup reads scale with target graph
-  size.
+  size. Canonical one-segment namespace refs, symbolic-ref rejection,
+  no-dereference mutations, and hard Git inventory limits preserve ownership
+  boundaries under hostile or malformed refs. Acquisition capabilities remain
+  optional on the base Git ref port for compatibility with existing adapters.
 
 ### Documentation
 

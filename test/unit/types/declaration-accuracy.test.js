@@ -93,7 +93,7 @@ describe('Application-storage declaration accuracy', () => {
     expect(declarations).toContain('readonly publications: PublicationCapability;');
     expect(declarations).toContain('export declare class CacheSet');
     expect(declarations).toContain('export declare class CacheHit');
-    expect(declarations).toContain('export declare class CacheAcquisition');
+    expect(declarations).toContain('export interface CacheAcquisition {');
     expect(declarations).toContain('acquire(key: string): Promise<CacheAcquisition | null>;');
     expect(declarations).toContain('inspectAcquisitions(options?: {');
     expect(declarations).toContain('releaseAcquisition(options: {');
@@ -114,5 +114,10 @@ describe('Application-storage declaration accuracy', () => {
     expect(declarations).toContain('iterateMembers(options: { handle: BundleHandleInput })');
     expect(declarations).toContain('applicationRefPrefixes?: string[];');
     expect(declarations).toContain('parentOids?: string[];');
+    expect(declarations).toContain('anchorRef?(options: {');
+    expect(declarations).toContain('deleteRef?(options: {');
+    expect(declarations).toContain('iterateRefs?(options: {');
+    expect(declarations).toContain('readonly symref?: string | null;');
+    expect(read('index.js')).not.toMatch(/export \{ default as CacheAcquisition \}/u);
   });
 });

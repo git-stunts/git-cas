@@ -23,7 +23,7 @@ export default class RepositoryInspectionPort {
 
   /**
    * @param {{ prefix?: string }} [_options]
-   * @returns {AsyncIterable<{ ref: string, oid: string }>}
+   * @returns {AsyncIterable<{ ref: string, oid: string, symref: string|null }>}
    */
   iterateRefs(_options) {
     throw new Error('Not implemented');

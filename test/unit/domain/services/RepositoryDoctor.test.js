@@ -29,8 +29,9 @@ function repository(overrides = {}) {
       values([
         { ref: 'refs/cas/caches/git-warp/materializations', oid: 'a'.repeat(40) },
         {
-          ref: `refs/cas/cache-acquisitions/git-warp/materializations/${ACQUISITION_ID}`,
+          ref: `refs/cas/cache-acquisitions/git-warp%2Fmaterializations/${ACQUISITION_ID}`,
           oid: 'a'.repeat(40),
+          symref: null,
         },
         { ref: 'refs/cas/expiring/git-warp/replay', oid: 'b'.repeat(40) },
         { ref: 'refs/cas/rootsets/git-warp/live', oid: 'c'.repeat(40) },
@@ -234,6 +235,31 @@ describe('RepositoryDoctor', () => {
         detailed: 2,
       })
     );
+  });
+
+  it('marks symbolic acquisition refs unhealthy instead of offering a cleanup candidate', async () => {
+    const acquisitionRef =
+      `refs/cas/cache-acquisitions/git-warp%2Fmaterializations/${ACQUISITION_ID}`;
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values([{
+        ref: acquisitionRef,
+        oid: 'a'.repeat(40),
+        symref: 'refs/heads/main',
+      }])),
+    }));
+
+    const report = await new RepositoryDoctor(ports).doctor();
+
+    expect(report.healthy).toBe(false);
+    expect(report.usage.acquisitions).toMatchObject({
+      healthy: false,
+      entries: [{
+        ref: acquisitionRef,
+        healthy: false,
+        issues: [{ code: 'CACHE_ACQUISITION_INVALID' }],
+      }],
+    });
+    expect(report.usage.acquisitions.entries[0]).not.toHaveProperty('id');
   });
 
   it('returns kind-specific public shapes when managed collection inspection fails', async () => {

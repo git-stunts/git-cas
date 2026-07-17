@@ -1,6 +1,7 @@
 import createCasError from '../errors/createCasError.js';
 import { ErrorCodes } from '../errors/index.js';
 import assertCanonicalTimestamp from '../helpers/assertCanonicalTimestamp.js';
+import CacheAcquisitionRef from './CacheAcquisitionRef.js';
 import CacheHit from './CacheHit.js';
 import RetentionWitness from './RetentionWitness.js';
 
@@ -24,6 +25,7 @@ export default class CacheAcquisition {
       invalid,
       message: 'Cache acquisition time must be a canonical UTC timestamp',
     });
+    assertEvidence({ id, hit, evidence, acquiredAt });
     if (typeof release !== 'function') {
       throw invalid('Cache acquisition requires a release function', { release });
     }
@@ -59,4 +61,28 @@ export default class CacheAcquisition {
 
 function invalid(message, meta) {
   return createCasError(message, ErrorCodes.CACHE_ACQUISITION_INVALID, meta);
+}
+
+function assertEvidence({ id, hit, evidence, acquiredAt }) {
+  const acquisitionRef = CacheAcquisitionRef.forId({
+    namespace: evidence.root.namespace,
+    id,
+  });
+  const valid = evidence.policy === 'pinned'
+    && evidence.reachability === 'anchored'
+    && evidence.root.kind === 'cache-acquisition'
+    && evidence.root.ref === acquisitionRef.toString()
+    && evidence.root.namespace === hit.evidence.root.namespace
+    && evidence.root.generation === hit.generation
+    && evidence.handle.toString() === hit.handle.toString()
+    && evidence.observedAt === acquiredAt
+    && acquisitionRef.acquiredAt === acquiredAt;
+  if (!valid) {
+    throw invalid('Cache acquisition retention evidence does not match its acquired hit', {
+      id,
+      acquiredAt,
+      generation: hit.generation,
+      evidence: evidence.toJSON(),
+    });
+  }
 }

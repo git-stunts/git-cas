@@ -99,12 +99,13 @@ export default class MemoryRefAdapter extends GitRefPort {
     return true;
   }
 
-  async *iterateRefs({ prefix = 'refs/' } = {}) {
+  async *iterateRefs({ prefix = 'refs/', limit } = {}) {
     const entries = [...this.#refs.entries()]
       .filter(([ref]) => ref.startsWith(prefix))
-      .sort(([left], [right]) => left.localeCompare(right));
+      .sort(([left], [right]) => left.localeCompare(right))
+      .slice(0, limit);
     for (const [ref, oid] of entries) {
-      yield Object.freeze({ ref, oid });
+      yield Object.freeze({ ref, oid, symref: null });
     }
   }
 

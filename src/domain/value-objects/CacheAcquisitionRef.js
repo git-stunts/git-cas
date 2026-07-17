@@ -20,20 +20,20 @@ export default class CacheAcquisitionRef {
       throw invalid('Cache acquisition ref is outside its managed namespace', { ref: value });
     }
     const parts = value.slice(CACHE_ACQUISITION_REF_PREFIX.length).split('/');
-    const id = parts.pop();
-    if (!id || parts.length === 0) {
+    if (parts.length !== 2) {
       throw invalid('Cache acquisition ref must include a cache namespace and ID', { ref: value });
     }
+    const [encodedNamespace, id] = parts;
     const match = ID_PATTERN.exec(id);
     if (!match) {
       throw invalid('Cache acquisition ID is invalid', { ref: value, id });
     }
     const acquiredAt = new Date(Number(match[1])).toISOString();
-    this.#namespace = acquisitionNamespace(parts.join('/'), { ref: value, id });
+    this.#namespace = decodeNamespaceSegment(encodedNamespace, { ref: value, id });
     this.#id = id;
     this.#acquiredAt = acquiredAt;
     this.#keyDigest = match[2];
-    this.#value = `${CACHE_ACQUISITION_REF_PREFIX}${this.#namespace}/${id}`;
+    this.#value = `${CacheAcquisitionRef.prefixForNamespace(this.#namespace)}${id}`;
     Object.freeze(this);
   }
 
@@ -50,8 +50,7 @@ export default class CacheAcquisitionRef {
     }
     const epoch = String(Date.parse(acquiredAt)).padStart(13, '0');
     return new CacheAcquisitionRef(
-      `${CACHE_ACQUISITION_REF_PREFIX}${acquisitionNamespace(namespace, { namespace })}`
-      + `/v1-${epoch}-${keyDigest}-${nonce}`,
+      `${CacheAcquisitionRef.prefixForNamespace(namespace)}v1-${epoch}-${keyDigest}-${nonce}`,
     );
   }
 
@@ -63,9 +62,12 @@ export default class CacheAcquisitionRef {
     if (typeof id !== 'string' || !ID_PATTERN.test(id)) {
       throw invalid('Cache acquisition ID is invalid', { namespace, id });
     }
-    return new CacheAcquisitionRef(
-      `${CACHE_ACQUISITION_REF_PREFIX}${acquisitionNamespace(namespace, { namespace, id })}/${id}`,
-    );
+    return new CacheAcquisitionRef(`${CacheAcquisitionRef.prefixForNamespace(namespace)}${id}`);
+  }
+
+  static prefixForNamespace(namespace) {
+    const canonical = acquisitionNamespace(namespace, { namespace }).toString();
+    return `${CACHE_ACQUISITION_REF_PREFIX}${encodeURIComponent(canonical)}/`;
   }
 
   get acquiredAt() {
@@ -103,4 +105,25 @@ function acquisitionNamespace(value, meta) {
       originalError: error,
     });
   }
+}
+
+function decodeNamespaceSegment(value, meta) {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch (error) {
+    throw invalid('Cache acquisition namespace encoding is invalid', {
+      ...meta,
+      namespace: value,
+      originalError: error,
+    });
+  }
+  const namespace = acquisitionNamespace(decoded, meta);
+  if (encodeURIComponent(namespace.toString()) !== value) {
+    throw invalid('Cache acquisition namespace encoding is not canonical', {
+      ...meta,
+      namespace: value,
+    });
+  }
+  return namespace;
 }

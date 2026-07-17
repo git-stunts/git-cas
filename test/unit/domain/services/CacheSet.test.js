@@ -21,14 +21,11 @@ function makeServices(policy, acquisitionCapabilities = {}) {
   const pages = new PageService({ persistence, clock });
   const services = {};
   const crypto = acquisitionCrypto(ref, acquisitionCapabilities);
-  const resolveHandle = async (value, context) => {
-    resolutionCount += 1;
-    const handle = parseApplicationHandle(value);
-    if (handle.kind === 'page') {
-      return await pages.resolveRoot(handle);
-    }
-    return await services.bundles.resolveRoot(handle, context);
-  };
+  const resolveHandle = createHandleResolver({
+    services,
+    pages,
+    onResolve: () => { resolutionCount += 1; },
+  });
   services.bundles = new BundleService({
     persistence,
     codec: new JsonCodec(),
@@ -53,6 +50,7 @@ function makeServices(policy, acquisitionCapabilities = {}) {
   return {
     clock,
     open,
+    openAt: (namespace, override = policy) => registry.open({ namespace, policy: override }),
     pages,
     persistence,
     ref,
@@ -60,6 +58,17 @@ function makeServices(policy, acquisitionCapabilities = {}) {
     crypto,
     get resolutionCount() { return resolutionCount; },
     advance: (milliseconds) => { time += milliseconds; },
+  };
+}
+
+function createHandleResolver({ services, pages, onResolve }) {
+  return async (value, context) => {
+    onResolve();
+    const handle = parseApplicationHandle(value);
+    if (handle.kind === 'page') {
+      return await pages.resolveRoot(handle);
+    }
+    return await services.bundles.resolveRoot(handle, context);
   };
 }
 
@@ -162,6 +171,15 @@ describe('CacheSet bounded acquisition', () => {
 });
 
 describe('CacheSet acquisition admission', () => {
+  it('does not create an acquisition ref for a missing key', async () => {
+    const services = makeServices();
+    const cache = services.open();
+    const anchor = vi.spyOn(services.ref, 'anchorRef');
+
+    await expect(cache.acquire('missing')).resolves.toBeNull();
+    expect(anchor).not.toHaveBeenCalled();
+  });
+
   it('does not create an acquisition for an expired entry', async () => {
     const services = makeServices();
     const cache = services.open();
@@ -174,7 +192,9 @@ describe('CacheSet acquisition admission', () => {
     await expect(cache.acquire('expired')).resolves.toBeNull();
     expect(anchor).not.toHaveBeenCalled();
   });
+});
 
+describe('CacheSet acquisition admission races', () => {
   it('retries from a fresh cache generation when acquisition races replacement', async () => {
     const services = makeServices();
     const cache = services.open();
@@ -197,6 +217,27 @@ describe('CacheSet acquisition admission', () => {
     expect(acquisition.hit.handle).toEqual(second);
     await acquisition.release();
   });
+
+  it('fails after five generation races without publishing an acquisition ref', async () => {
+    const services = makeServices();
+    const cache = services.open();
+    await cache.put('shared', await page(services.pages, 'first'));
+    const anchor = vi.spyOn(services.ref, 'anchorRef').mockResolvedValue(false);
+
+    await expect(cache.acquire('shared')).rejects.toMatchObject({
+      code: 'CACHE_ACQUISITION_CONFLICT',
+      meta: { attempts: 5 },
+    });
+    expect(anchor).toHaveBeenCalledTimes(5);
+    const acquisitionRefs = [];
+    for await (const record of services.ref.iterateRefs({
+      prefix: 'refs/cas/cache-acquisitions/',
+      limit: 10,
+    })) {
+      acquisitionRefs.push(record);
+    }
+    expect(acquisitionRefs).toEqual([]);
+  });
 });
 
 describe('CacheSet acquisition release safety', () => {
@@ -218,6 +259,27 @@ describe('CacheSet acquisition release safety', () => {
     await expect(services.ref.resolveRef(acquisition.evidence.root.ref))
       .resolves.toBe(replacement.generation);
   });
+
+  it('treats independent concurrent cleanup of one generation as idempotent', async () => {
+    const services = makeServices();
+    const cache = services.open();
+    await cache.put('shared', await page(services.pages, 'first'));
+    const acquisition = await cache.acquire('shared');
+
+    const results = await Promise.all([
+      cache.releaseAcquisition({
+        id: acquisition.id,
+        expectedGeneration: acquisition.hit.generation,
+      }),
+      cache.releaseAcquisition({
+        id: acquisition.id,
+        expectedGeneration: acquisition.hit.generation,
+      }),
+    ]);
+
+    expect(results.map(({ changed }) => changed).sort()).toEqual([false, true]);
+    await expect(acquisition.release()).resolves.toMatchObject({ changed: false });
+  });
 });
 
 describe('CacheSet acquisition inspection', () => {
@@ -231,7 +293,7 @@ describe('CacheSet acquisition inspection', () => {
 
     expect(inspection).toMatchObject({
       namespace: 'git-warp/materializations',
-      nextCursor: null,
+      truncated: false,
       entries: [{
         id: acquisition.id,
         generation: acquisition.hit.generation,
@@ -245,8 +307,10 @@ describe('CacheSet acquisition inspection', () => {
     })).resolves.toMatchObject({ changed: true });
     await expect(acquisition.release()).resolves.toMatchObject({ changed: false });
   });
+});
 
-  it('paginates active acquisitions with an opaque stable cursor', async () => {
+describe('CacheSet bounded acquisition inspection', () => {
+  it('bounds one inspection page and supports repeat-after-cleanup', async () => {
     const services = makeServices();
     const cache = services.open();
     await cache.put('private:coordinate', await page(services.pages, 'value'));
@@ -256,16 +320,75 @@ describe('CacheSet acquisition inspection', () => {
       services.advance(1);
     }
 
+    const iterateRefs = services.ref.iterateRefs.bind(services.ref);
+    let yielded = 0;
+    services.ref.iterateRefs = async function* (options) {
+      for await (const record of iterateRefs({ ...options, limit: 1000 })) {
+        yielded += 1;
+        yield record;
+      }
+    };
+
     const first = await cache.inspectAcquisitions({ limit: 2 });
-    const second = await cache.inspectAcquisitions({ limit: 2, cursor: first.nextCursor });
 
     expect(first.entries.map(({ id }) => id)).toEqual(acquisitions.slice(0, 2).map(({ id }) => id));
-    expect(first.nextCursor).toBe(acquisitions[1].id);
+    expect(first.truncated).toBe(true);
+    expect(yielded).toBe(3);
+
+    await Promise.all(acquisitions.slice(0, 2).map((acquisition) => acquisition.release()));
+    yielded = 0;
+    const second = await cache.inspectAcquisitions({ limit: 2 });
     expect(second.entries.map(({ id }) => id)).toEqual([acquisitions[2].id]);
-    expect(second.nextCursor).toBeNull();
+    expect(second.truncated).toBe(false);
+    expect(yielded).toBe(1);
     expect([...first.entries, ...second.entries].every((entry) => !('key' in entry))).toBe(true);
 
     await Promise.all(acquisitions.map((acquisition) => acquisition.release()));
+  });
+});
+
+describe('CacheSet acquisition namespace isolation', () => {
+  it('isolates nested collection namespaces in one bounded ref prefix', async () => {
+    const services = makeServices();
+    const parent = services.openAt('git-warp/materializations');
+    const child = services.openAt('git-warp/materializations/child');
+    const handle = await page(services.pages, 'value');
+    await parent.put('shared', handle);
+    await child.put('shared', handle);
+    const parentAcquisition = await parent.acquire('shared');
+    const childAcquisition = await child.acquire('shared');
+
+    await expect(parent.inspectAcquisitions({ limit: 10 })).resolves.toMatchObject({
+      entries: [{ id: parentAcquisition.id }],
+      truncated: false,
+    });
+    await expect(child.inspectAcquisitions({ limit: 10 })).resolves.toMatchObject({
+      entries: [{ id: childAcquisition.id }],
+      truncated: false,
+    });
+
+    await parentAcquisition.release();
+    await childAcquisition.release();
+  });
+});
+
+describe('CacheSet acquisition inspection adapter contract', () => {
+  it('fails closed when an acquisition iterator cannot distinguish symbolic refs', async () => {
+    const services = makeServices();
+    const cache = services.open();
+    await cache.put('shared', await page(services.pages, 'value'));
+    const acquisition = await cache.acquire('shared');
+    const iterateRefs = services.ref.iterateRefs.bind(services.ref);
+    services.ref.iterateRefs = async function* () {
+      yield { ref: acquisition.evidence.root.ref, oid: acquisition.hit.generation };
+    };
+
+    await expect(cache.inspectAcquisitions()).rejects.toMatchObject({
+      code: 'CACHE_ACQUISITION_INVALID',
+    });
+
+    services.ref.iterateRefs = iterateRefs;
+    await acquisition.release();
   });
 });
 

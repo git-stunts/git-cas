@@ -81,17 +81,10 @@ export default class GitRepositoryInspectionAdapter extends RepositoryInspection
       );
     }
     const stream = await this.#stream({
-      args: ['for-each-ref', '--format=%(refname)%09%(objectname)', prefix],
+      args: ['for-each-ref', '--format=%(refname)%09%(objectname)%09%(symref)', prefix],
     });
     for await (const line of consumeLines(stream, 'ref inventory')) {
-      const fields = line.split('\t');
-      if (fields.length !== 2 || !fields[0].startsWith('refs/')) {
-        throw invalidOutput('ref inventory', line);
-      }
-      yield Object.freeze({
-        ref: fields[0],
-        oid: parseOid(fields[1], 'ref inventory', line),
-      });
+      yield parseRefRecord(line);
     }
   }
 
@@ -142,6 +135,24 @@ function parseOid(value, operation, output) {
     throw invalidOutput(operation, output);
   }
   return Oid.from(value).toString();
+}
+
+function parseRefRecord(line) {
+  const fields = line.split('\t');
+  if (!isValidRefRecord(fields)) {
+    throw invalidOutput('ref inventory', line);
+  }
+  return Object.freeze({
+    ref: fields[0],
+    oid: parseOid(fields[1], 'ref inventory', line),
+    symref: fields[2] || null,
+  });
+}
+
+function isValidRefRecord(fields) {
+  return fields.length === 3
+    && fields[0].startsWith('refs/')
+    && (fields[2] === '' || fields[2].startsWith('refs/'));
 }
 
 function parseType(value, operation, output) {

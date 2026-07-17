@@ -3,7 +3,7 @@ title: "PERF-0048 - Scoped Cache Acquisitions"
 cycle: "0048"
 task_id: "scoped-cache-acquisitions"
 legend: "PERF"
-release_home: "v6.2.1"
+release_home: "v6.3.0"
 issue: "https://github.com/git-stunts/git-cas/issues/69"
 goalpost_issue: "https://github.com/git-stunts/git-cas/issues/69"
 tracker_source: "github"
@@ -18,7 +18,7 @@ blocking_issues: []
 supersedes: []
 superseded_by: null
 created: "2026-07-16"
-updated: "2026-07-16"
+updated: "2026-07-17"
 ---
 
 # PERF-0048 - Scoped Cache Acquisitions
@@ -29,7 +29,7 @@ updated: "2026-07-16"
 
 ## Linked Tracker
 
-- Milestone: `v6.2.1`
+- Milestone: `v6.3.0`
 - Goalpost issue: https://github.com/git-stunts/git-cas/issues/69
 - Slice issues: none currently
 
@@ -179,14 +179,16 @@ A generation mismatch fails closed and does not delete the ref.
 Namespace-scoped operator methods are bounded:
 
 ```javascript
-await cache.inspectAcquisitions({ limit, cursor });
+const inspection = await cache.inspectAcquisitions({ limit });
 await cache.releaseAcquisition({ id, expectedGeneration });
 ```
 
-Inspection returns acquisition IDs, generations, and canonical acquisition
-times. Forced release requires the expected generation from inspection.
-There is no automatic age threshold because age alone cannot prove that a
-caller is dead.
+Inspection consumes no more than `limit + 1` records and returns acquisition
+IDs, generations, canonical acquisition times, and a `truncated` flag. Cleanup
+releases the returned page and repeats inspection while `truncated` is true;
+there is no cursor that can force a hidden scan through skipped refs. Forced
+release requires the expected generation from inspection. There is no automatic
+age threshold because age alone cannot prove that a caller is dead.
 
 ## User Experience / Product Shape
 
@@ -203,18 +205,20 @@ No Git ref or OID is required by ordinary application code.
 | Released acquisition | Absence of acquisition ref | release result | ref points to unexpected generation | fail closed | none | repeated release is a no-op |
 
 The internal ref namespace is
-`refs/cas/cache-acquisitions/<cache-namespace>/<acquisition-id>`. The opaque ID
+`refs/cas/cache-acquisitions/<encoded-cache-namespace>/<acquisition-id>`. The
+canonical cache namespace is percent-encoded into exactly one Git ref segment,
+so parent and child collection namespaces cannot overlap during inventory. The opaque ID
 encodes a version, canonical acquisition epoch, key digest, and random nonce so
 inspection does not read target objects. Ref-name parsing is strict and
-malformed managed refs are reported by doctor.
+malformed or symbolic managed refs are reported by doctor.
 
 ## Architecture / Anti-SLUDGE Posture
 
 | Concern | Decision |
 | --- | --- |
 | Domain changes | Add `CacheAcquisition`, acquisition ref/value parsing, and lifecycle service |
-| Port changes | Add semantic atomic anchor, checked delete, and bounded ref iteration operations |
-| Adapter changes | Implement atomic `git update-ref --stdin` transaction and streamed ref inventory |
+| Port changes | Add optional semantic anchor, checked delete, and bounded ref iteration capabilities without breaking legacy structural adapters |
+| Adapter changes | Reject symbolic refs, use `git update-ref --no-deref`, and pass a hard `for-each-ref --count` bound |
 | Boundary validation | Validate namespace, key digest, OIDs, timestamps, nonce, and expected generation |
 | Runtime-backed nouns introduced | Acquisition is backed by an actual Git ref, not metadata alone |
 | Expected failure representation | Typed miss, conflict, invalid-ref, and release-conflict outcomes |
@@ -226,7 +230,7 @@ malformed managed refs are reported by doctor.
 | --- | --- | --- | --- | --- |
 | `get(key)` | complete target validation | unchanged compatibility | bundle limits | existing typed errors |
 | `acquire(key)` | absent | cache root plus targeted index path and one ref transaction | retry bound | miss or typed conflict |
-| acquisition inspection | absent | streamed refs, bounded result page | required `limit` ceiling | cursor/managed-ref error |
+| acquisition inspection | absent | exact encoded namespace prefix and bounded first page | required `limit + 1` ceiling | invalid/symbolic managed-ref error |
 | release | absent | one checked ref deletion | one ref | mismatch fails closed |
 
 `acquire()` cost may scale with cache-index depth, but not with target member
@@ -241,7 +245,7 @@ payloads and does not recompute logical-byte accounting.
 | commits | Acquisition refs point directly to existing parentless cache-generation commits |
 | trees/blobs | No new tree or blob format |
 | object ids | Remain adapter/domain evidence; ordinary consumers use handles and IDs |
-| tag/release behavior | v6.2.1 package and tag after merge |
+| tag/release behavior | v6.3.0 package and tag after merge |
 | migration compatibility | No migration; old caches are immediately acquirable |
 
 The anchor transaction verifies the source cache ref and creates the target
@@ -441,7 +445,7 @@ The work is done when:
 - [x] README, changelog, release notes, and witness are updated.
 - [ ] Issue and PR are linked correctly.
 - [ ] CI, Code Rabbit, self-review, and independent Code Lawyer review are clean.
-- [ ] v6.2.1 is published before git-warp consumes the API.
+- [ ] v6.3.0 is published before git-warp consumes the API.
 
 ## Validation Plan
 
@@ -499,7 +503,7 @@ without a renewal and clock-authority design.
 
 | Issue | Role | Expected disposition |
 | --- | --- | --- |
-| https://github.com/git-stunts/git-cas/issues/69 | primary goalpost | close after v6.2.1 release evidence |
+| https://github.com/git-stunts/git-cas/issues/69 | primary goalpost | close after v6.3.0 release evidence |
 | https://github.com/git-stunts/git-warp/issues/738 | downstream blocked-by | leave open; update after package publication |
 
 ## Done Does Not Mean

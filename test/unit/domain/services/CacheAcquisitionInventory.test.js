@@ -42,14 +42,26 @@ describe('CacheAcquisitionInventory', () => {
     });
     expect(JSON.stringify(inventory)).not.toContain('private-cache-key');
   });
+});
 
+describe('CacheAcquisitionInventory failures', () => {
   it.each([
-    ['malformed ref', 'refs/cas/cache-acquisitions/broken', 'c'.repeat(40)],
-    ['malformed generation', acquisitionRef(), 'not-an-oid'],
-    ['future acquisition', acquisitionRef('2026-07-16T14:00:00.000Z'), 'c'.repeat(40)],
-  ])('marks %s unhealthy without aborting inventory', (_name, ref, oid) => {
+    { name: 'malformed ref', ref: 'refs/cas/cache-acquisitions/broken', oid: 'c'.repeat(40) },
+    { name: 'malformed generation', ref: acquisitionRef(), oid: 'not-an-oid' },
+    {
+      name: 'future acquisition',
+      ref: acquisitionRef('2026-07-16T14:00:00.000Z'),
+      oid: 'c'.repeat(40),
+    },
+    {
+      name: 'symbolic ref',
+      ref: acquisitionRef(),
+      oid: 'c'.repeat(40),
+      symref: 'refs/heads/main',
+    },
+  ])('marks $name unhealthy without aborting inventory', ({ ref, oid, symref = null }) => {
     const inventory = createCacheAcquisitionInventory(1);
-    recordCacheAcquisition(inventory, { ref, oid }, OBSERVED_AT);
+    recordCacheAcquisition(inventory, { ref, oid, symref }, OBSERVED_AT);
 
     expect(cacheAcquisitionGroup(inventory)).toMatchObject({
       healthy: false,

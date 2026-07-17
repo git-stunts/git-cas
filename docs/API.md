@@ -1531,7 +1531,9 @@ if (acquisition) {
 reference-only cache lookup: the operation reads the bounded index path and
 does not recursively materialize or validate the target handle graph. It then
 atomically verifies the observed cache ref generation and creates a unique ref
-under `refs/cas/cache-acquisitions/<namespace>/*` that names that generation.
+under `refs/cas/cache-acquisitions/<encoded-namespace>/*` that names that
+generation. The namespace occupies exactly one encoded ref segment, preventing
+parent and child cache namespaces from overlapping during inspection.
 If a writer changes the cache generation during this transaction, acquisition
 retries against a fresh bounded lookup up to five times and then fails with
 `CACHE_ACQUISITION_CONFLICT`.
@@ -1542,8 +1544,10 @@ the complete selected cache generation reachable, including the requested
 target. This is intentionally stronger than a bare cache observation and must
 not be left open after consumption.
 
-`release()` deletes only the acquisition ref that still names the witnessed
-generation. It is idempotent: the first successful call reports
+`release()` deletes only a regular acquisition ref that still names the
+witnessed generation. Symbolic refs are rejected and all updates use Git's
+no-dereference mode, so acquisition cleanup cannot follow a ref into another
+authority. Release is idempotent: the first successful call reports
 `changed: true`; later calls report `changed: false`. Concurrent release calls
 share one operation. A mismatched generation fails closed with
 `CACHE_ACQUISITION_RELEASE_CONFLICT`. There is no implicit TTL because elapsed
@@ -1554,7 +1558,9 @@ Existing custom ref and crypto adapters remain valid for `get()`, `put()`,
 capability requirements only when invoked: atomic `anchorRef`, checked
 `deleteRef`, streaming `iterateRefs`, and 16-byte `randomBytes`. A missing
 capability fails the acquisition operation with `CACHE_ACQUISITION_INVALID`;
-it does not prevent the cache from opening or change existing operations.
+it does not prevent the cache from opening or change existing operations. The
+three ref capabilities remain optional on the public base port so existing
+structural adapters continue to type-check.
 
 ### remove And sweep
 
@@ -1596,9 +1602,12 @@ summary, and capacity posture.
 
 `inspectAcquisitions()` streams only this cache namespace's acquisition refs.
 It returns opaque IDs, generation OIDs, acquisition timestamps, and key digests
-in pages of at most 1,000 entries; it does not disclose original cache keys.
-Operational repair can release an abandoned acquisition with an explicit
-generation check:
+from a work-bounded first page of at most 1,000 entries; it does not disclose
+original cache keys. The result's `truncated` flag means at least one more entry
+exists. Cleanup releases the returned entries and repeats inspection while
+`truncated` is true. There is intentionally no cursor that can scan through an
+unbounded skipped prefix. Operational repair releases an abandoned acquisition
+with an explicit generation check:
 
 ```javascript
 await cache.releaseAcquisition({
@@ -1807,6 +1816,12 @@ expiry, capacity policy, and pinned/evictable counts. RootSet policy counts and
 Vault entry counts are reported independently from reachability. A privacy-mode
 vault remains healthy but reports `entryCount: null` because repository doctor
 does not request or retain vault key material.
+
+Git's `for-each-ref` does not enumerate dangling symbolic refs. Repository
+doctor therefore reports symbolic acquisition refs that Git returns, but does
+not claim exhaustive inventory of dangling symbolic acquisition refs. Direct
+acquire, release, and cleanup operations independently call `symbolic-ref` and
+reject both live and dangling symbolic refs before mutation.
 
 Object and ref inventories are consumed as streams, and managed collections are
 inspected one at a time. Runtime memory is bounded by stream windows,
@@ -2726,7 +2741,7 @@ for await (const object of port.iteratePrunableObjects({ expiresBefore })) {
 }
 
 for await (const ref of port.iterateRefs({ prefix: 'refs/cas/cache-acquisitions/' })) {
-  // bounded namespace inspection without loading unrelated refs
+  // streamed repository diagnostics; ref.symref exposes symbolic targets
 }
 ```
 

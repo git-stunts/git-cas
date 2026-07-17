@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import ContentAddressableStore from '../../index.js';
+import GitRefAdapter from '../../src/infrastructure/adapters/GitRefAdapter.js';
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 
 if (process.env.GIT_STUNTS_DOCKER !== '1') {
@@ -20,6 +21,7 @@ vi.setConfig({ testTimeout: 20_000, hookTimeout: 30_000 });
 let cache;
 let cas;
 let commandTrace;
+let gitRefs;
 let repoDir;
 let time = Date.parse('2026-07-13T12:00:00.000Z');
 
@@ -50,6 +52,13 @@ function objectExists(oid) {
   }).status === 0;
 }
 
+function refExists(ref) {
+  return spawnSync('git', ['show-ref', '--verify', '--quiet', ref], {
+    cwd: repoDir,
+    encoding: 'utf8',
+  }).status === 0;
+}
+
 function tracedPlumbing(plumbing) {
   return new Proxy(plumbing, {
     get(target, property) {
@@ -73,6 +82,7 @@ beforeAll(async () => {
   git(['init', '--bare']);
   commandTrace = [];
   const plumbing = await createGitPlumbing({ cwd: repoDir });
+  gitRefs = new GitRefAdapter({ plumbing });
   cas = new ContentAddressableStore({
     plumbing: tracedPlumbing(plumbing),
     clock: { now: () => new Date(time) },
@@ -113,12 +123,13 @@ describe('CacheSet Git reachability', () => {
 });
 
 describe('CacheSet scoped acquisition prune safety', () => {
-  it('keeps an acquired target reachable through removal and aggressive prune', async () => {
+  it('keeps an acquired target reachable through replacement and aggressive prune', async () => {
     const scoped = await cas.caches.open({ namespace: 'git-warp/acquisition-prune-proof' });
     const target = await cas.pages.put({ source: Buffer.from('acquired-target') });
+    const replacement = await cas.pages.put({ source: Buffer.from('replacement-target') });
     await scoped.put('current', target.handle);
     const acquisition = await scoped.acquire('current');
-    await scoped.remove('current');
+    await scoped.replace('current', replacement.handle, { expectedHandle: target.handle });
 
     git(['reflog', 'expire', '--expire=now', '--all']);
     git(['prune', '--expire=now']);
@@ -130,6 +141,7 @@ describe('CacheSet scoped acquisition prune safety', () => {
     git(['reflog', 'expire', '--expire=now', '--all']);
     git(['prune', '--expire=now']);
     expect(objectExists(target.handle.oid)).toBe(false);
+    expect(objectExists(replacement.handle.oid)).toBe(true);
   });
 });
 
@@ -138,12 +150,17 @@ describe('CacheSet scoped acquisition cost', () => {
     const smallCache = await cas.caches.open({ namespace: 'git-warp/acquisition-cost-small' });
     const largeCache = await cas.caches.open({ namespace: 'git-warp/acquisition-cost-large' });
     const small = await cas.pages.put({ source: Buffer.from('small') });
-    const members = {};
-    for (let index = 0; index < 64; index += 1) {
-      const member = await cas.pages.put({ source: Buffer.from(`member-${index}`) });
-      members[`member-${String(index).padStart(3, '0')}`] = member.handle;
+    const outerMembers = {};
+    for (let branch = 0; branch < 8; branch += 1) {
+      const innerMembers = {};
+      for (let leaf = 0; leaf < 8; leaf += 1) {
+        const member = await cas.pages.put({ source: Buffer.from(`member-${branch}-${leaf}`) });
+        innerMembers[`member-${String(leaf).padStart(3, '0')}`] = member.handle;
+      }
+      const inner = await cas.bundles.put({ members: innerMembers });
+      outerMembers[`branch-${String(branch).padStart(3, '0')}`] = inner.handle;
     }
-    const large = await cas.bundles.put({ members });
+    const large = await cas.bundles.put({ members: outerMembers });
     await smallCache.put('current', small.handle);
     await largeCache.put('current', large.handle);
 
@@ -225,5 +242,62 @@ describe('CacheSet expiry and capacity policy', () => {
     expect(prunableOids()).toContain(expiring.handle.oid);
     expect(prunableOids()).not.toContain(pinned.handle.oid);
     expect(prunableOids()).toContain(evictable.handle.oid);
+  });
+});
+
+describe('CacheSet acquisition source ref authority', () => {
+  it('does not anchor through a symbolic cache source ref', async () => {
+    const scoped = await cas.caches.open({ namespace: 'git-warp/acquisition-source-symref' });
+    const target = await cas.pages.put({ source: Buffer.from('source-symref-target') });
+    const stored = await scoped.put('current', target.handle);
+    const sentinelRef = 'refs/heads/acquisition-source-sentinel';
+    const acquisitionRef = 'refs/cas/cache-acquisitions/authority/source-known-id';
+    git(['update-ref', sentinelRef, stored.generation]);
+    git(['symbolic-ref', scoped.ref, sentinelRef]);
+
+    await expect(gitRefs.anchorRef({
+      sourceRef: scoped.ref,
+      expectedSourceOid: stored.generation,
+      targetRef: acquisitionRef,
+    })).resolves.toBe(false);
+    expect(refExists(acquisitionRef)).toBe(false);
+    expect(git(['symbolic-ref', scoped.ref])).toBe(sentinelRef);
+    expect(git(['rev-parse', sentinelRef])).toBe(stored.generation);
+  });
+});
+
+describe('CacheSet acquisition target ref authority', () => {
+  it('does not follow a pre-existing target symbolic ref during atomic anchoring', async () => {
+    const scoped = await cas.caches.open({ namespace: 'git-warp/acquisition-anchor-symref' });
+    const target = await cas.pages.put({ source: Buffer.from('anchor-symref-target') });
+    const stored = await scoped.put('current', target.handle);
+    const sentinelRef = 'refs/heads/acquisition-anchor-sentinel';
+    const acquisitionRef = 'refs/cas/cache-acquisitions/authority/known-id';
+    git(['symbolic-ref', acquisitionRef, sentinelRef]);
+
+    await expect(gitRefs.anchorRef({
+      sourceRef: scoped.ref,
+      expectedSourceOid: stored.generation,
+      targetRef: acquisitionRef,
+    })).resolves.toBe(false);
+    expect(refExists(sentinelRef)).toBe(false);
+    expect(git(['symbolic-ref', acquisitionRef])).toBe(sentinelRef);
+  });
+
+  it('refuses to release through a symbolic acquisition ref', async () => {
+    const scoped = await cas.caches.open({ namespace: 'git-warp/acquisition-release-symref' });
+    const target = await cas.pages.put({ source: Buffer.from('release-symref-target') });
+    await scoped.put('current', target.handle);
+    const acquisition = await scoped.acquire('current');
+    const sentinelRef = 'refs/heads/acquisition-release-sentinel';
+    git(['update-ref', '-d', acquisition.evidence.root.ref]);
+    git(['update-ref', sentinelRef, acquisition.hit.generation]);
+    git(['symbolic-ref', acquisition.evidence.root.ref, sentinelRef]);
+
+    await expect(acquisition.release()).rejects.toMatchObject({
+      code: 'CACHE_ACQUISITION_RELEASE_CONFLICT',
+    });
+    expect(git(['rev-parse', sentinelRef])).toBe(acquisition.hit.generation);
+    expect(git(['symbolic-ref', acquisition.evidence.root.ref])).toBe(sentinelRef);
   });
 });

@@ -25,6 +25,13 @@ export function recordCacheAcquisition(inventory, record, observedAt) {
   inventory.totals.activeCount += 1;
   let entry;
   try {
+    if (record.symref !== null && record.symref !== undefined) {
+      throw createCasError(
+        'Symbolic cache acquisition refs are unsafe',
+        ErrorCodes.CACHE_ACQUISITION_INVALID,
+        { ref: record.ref, symref: record.symref },
+      );
+    }
     const acquisitionRef = CacheAcquisitionRef.from(record.ref);
     const ageMs = Date.parse(observedAt) - Date.parse(acquisitionRef.acquiredAt);
     if (!Number.isSafeInteger(ageMs) || ageMs < 0) {
