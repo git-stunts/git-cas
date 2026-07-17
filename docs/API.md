@@ -1828,8 +1828,8 @@ and maximum age; detailed entries expose opaque IDs and never original cache
 keys. If an acquisition timestamp is later than the doctor clock, the direct
 retention ref remains healthy, `ageMs` is `null`, and the entry reports
 `CACHE_ACQUISITION_CLOCK_SKEW`; elapsed time is evidence, not ref validity.
-`maxAgeMs` is `null` when no comparable acquisition age exists. Cache summaries
-report entry count, deterministic logical bytes, age,
+`maxAgeMs` is `null` when any active acquisition age is incomparable. Cache
+summaries report entry count, deterministic logical bytes, age,
 expiry, capacity policy, and pinned/evictable counts. RootSet policy counts and
 Vault entry counts are reported independently from reachability. A privacy-mode
 vault remains healthy but reports `entryCount: null` because repository doctor

@@ -10,6 +10,7 @@ export function createCacheAcquisitionInventory(detailLimit) {
     healthy: true,
     detailLimit,
     entries: [],
+    hasUnknownAge: false,
     totals: {
       activeCount: 0,
       oldestAcquiredAt: null,
@@ -50,7 +51,7 @@ export function recordCacheAcquisition(inventory, record, observedAt) {
         observedAt,
       }] : [],
     };
-    updateTotals(inventory.totals, entry);
+    updateTotals(inventory, entry);
   } catch (error) {
     inventory.healthy = false;
     entry = {
@@ -99,10 +100,14 @@ export function cacheAcquisitionGroup(inventory) {
   };
 }
 
-function updateTotals(totals, entry) {
+function updateTotals(inventory, entry) {
+  const { totals } = inventory;
   totals.oldestAcquiredAt = earlier(totals.oldestAcquiredAt, entry.acquiredAt);
   totals.newestAcquiredAt = later(totals.newestAcquiredAt, entry.acquiredAt);
-  if (entry.ageMs !== null) {
+  if (entry.ageMs === null) {
+    inventory.hasUnknownAge = true;
+    totals.maxAgeMs = null;
+  } else if (!inventory.hasUnknownAge) {
     totals.maxAgeMs = totals.maxAgeMs === null
       ? entry.ageMs
       : Math.max(totals.maxAgeMs, entry.ageMs);

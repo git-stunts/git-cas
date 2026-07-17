@@ -77,6 +77,31 @@ describe('CacheAcquisitionInventory clock evidence', () => {
   });
 });
 
+describe('CacheAcquisitionInventory aggregate age evidence', () => {
+  it('keeps maximum age unknown for mixed acquisitions in either order', () => {
+    const normal = {
+      ref: acquisitionRef(),
+      oid: 'c'.repeat(40),
+      symref: null,
+    };
+    const skewed = {
+      ref: acquisitionRef('2026-07-16T14:00:00.000Z'),
+      oid: 'd'.repeat(40),
+      symref: null,
+    };
+
+    for (const records of [[normal, skewed], [skewed, normal]]) {
+      const inventory = createCacheAcquisitionInventory(2);
+      records.forEach((record) => recordCacheAcquisition(inventory, record, OBSERVED_AT));
+
+      expect(cacheAcquisitionGroup(inventory)).toMatchObject({
+        healthy: true,
+        totals: { activeCount: 2, maxAgeMs: null },
+      });
+    }
+  });
+});
+
 describe('CacheAcquisitionInventory failures', () => {
   it.each([
     { name: 'malformed ref', ref: 'refs/cas/cache-acquisitions/broken', oid: 'c'.repeat(40) },

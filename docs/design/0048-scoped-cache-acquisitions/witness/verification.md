@@ -54,9 +54,14 @@ receipt.
 A fresh pre-PR Code Lawyer pass then found that a valid acquisition timestamp
 later than the doctor host clock was incorrectly treated as ref corruption.
 Clock skew now preserves structural retention health, reports `ageMs: null`,
-adds a non-fatal `CACHE_ACQUISITION_CLOCK_SKEW` issue, and leaves maximum age
-unknown when no comparable age exists. Unit coverage proves both the inventory
-and top-level repository doctor remain healthy in that posture.
+adds a non-fatal `CACHE_ACQUISITION_CLOCK_SKEW` issue, and leaves the affected
+entry's age unknown. Unit coverage proves both the inventory and top-level
+repository doctor remain healthy in that posture.
+
+The follow-up review identified that a mixed inventory could still overstate
+`maxAgeMs` by reporting only the comparable subset. The aggregate now remains
+`null` when any active acquisition has unknown age, and a two-order regression
+test proves enumeration order cannot restore a misleading numeric maximum.
 
 ## Focused Contract Proof
 
@@ -82,7 +87,7 @@ Observed result:
 
 ```text
 Test Files  9 passed (9)
-Tests       124 passed (124)
+Tests       125 passed (125)
 Type check  PASS
 ```
 
@@ -159,12 +164,13 @@ Test Files  3 passed (3)
 Tests       24 passed (24)
 ```
 
-The final npm dry-run receipt contains `docs/releases/v6.3.0.md` and reports:
+The final standalone npm dry-run receipt after release-note reconciliation
+contains `docs/releases/v6.3.0.md` and reports:
 
 ```text
 files:         242
-packed size:   746,730 bytes
-unpacked size: 2,053,146 bytes
+packed size:   746,789 bytes
+unpacked size: 2,053,392 bytes
 ```
 
 The first package-doc run correctly failed because the public release note
@@ -185,12 +191,12 @@ Post-remediation result:
 ```text
 Version: 6.2.0
 Steps passed: 13/13
-Total tests observed: 6316
+Total tests observed: 6319
 Skipped steps: JSR publish dry-run
 
-Unit Tests (Node)        PASS  1925
-Unit Tests (Bun)         PASS  1924
-Unit Tests (Deno)        PASS  1915
+Unit Tests (Node)        PASS  1926
+Unit Tests (Bun)         PASS  1925
+Unit Tests (Deno)        PASS  1916
 Public type compatibility PASS    -
 Integration Tests (Node) PASS   184
 Integration Tests (Bun)  PASS   184
