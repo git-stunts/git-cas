@@ -77,6 +77,16 @@ export const RELEASE_STEPS = [
     testCount: true,
   },
   {
+    id: 'types-public',
+    label: 'Public type compatibility',
+    command: 'docker',
+    args: [
+      'compose', 'run', '--rm', 'test-deno',
+      'deno', 'check', '--config', 'test/types/deno.json',
+      'test/types/public-api-compatibility.ts',
+    ],
+  },
+  {
     id: 'integration-node',
     label: 'Integration Tests (Node)',
     command: 'pnpm',

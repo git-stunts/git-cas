@@ -6,7 +6,12 @@ import Oid from './Oid.js';
 
 const POLICIES = Object.freeze(['pinned', 'evictable']);
 const REACHABILITY = Object.freeze(['anchored', 'orphaned', 'volatile']);
-const ROOT_KINDS = Object.freeze(['root-set', 'publication', 'cache-set', 'expiring-set']);
+const ROOT_KINDS = Object.freeze([
+  'root-set',
+  'publication',
+  'cache-set',
+  'expiring-set',
+]);
 
 /**
  * Immutable evidence that one observed Git generation retained a handle.

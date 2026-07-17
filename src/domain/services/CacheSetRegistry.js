@@ -4,6 +4,7 @@ import CollectionNamespace from '../value-objects/CollectionNamespace.js';
 import createCasError from '../errors/createCasError.js';
 import { ErrorCodes } from '../errors/index.js';
 import CacheIndex from './CacheIndex.js';
+import CacheAcquisitionRegistry from './CacheAcquisitionRegistry.js';
 import CacheSet from './CacheSet.js';
 import RootSet from './RootSet.js';
 import RootSetMetadataCodec from './RootSetMetadataCodec.js';
@@ -20,6 +21,11 @@ export default class CacheSetRegistry {
     this.resolveHandle = options.resolveHandle;
     this.crypto = options.crypto;
     this.clock = options.clock;
+    this.acquisitions = new CacheAcquisitionRegistry({
+      ref: this.ref,
+      crypto: this.crypto,
+      clock: this.clock,
+    });
     Object.freeze(this);
   }
 
@@ -51,6 +57,7 @@ export default class CacheSetRegistry {
         crypto: this.crypto,
       }),
       resolveHandle: this.resolveHandle,
+      acquisitions: this.acquisitions,
       crypto: this.crypto,
       clock: this.clock,
     });

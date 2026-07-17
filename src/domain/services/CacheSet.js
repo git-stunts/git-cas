@@ -14,9 +14,11 @@ import RootSetMetadataCodec from './RootSetMetadataCodec.js';
 
 const RETENTION = Object.freeze(['pinned', 'evictable']);
 const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
+const MAX_ACQUISITION_ATTEMPTS = 5;
 
 /** RootSet-backed lifecycle manager for application cache handles. */
 export default class CacheSet {
+  #acquisitions;
   #clock;
   #configuredPolicy;
   #crypto;
@@ -29,6 +31,7 @@ export default class CacheSet {
   constructor(options) {
     CacheSet.#assertDependencies(options);
     this.#namespace = options.namespace;
+    this.#acquisitions = options.acquisitions;
     this.#rootSet = options.rootSet;
     this.#index = options.index;
     this.#resolveHandle = options.resolveHandle;
@@ -38,6 +41,48 @@ export default class CacheSet {
     this.#enforcer = new CachePolicyEnforcer({ index: this.#index, namespace: this.#namespace });
     this.ref = this.#rootSet.ref;
     Object.freeze(this);
+  }
+
+  async acquire(keyValue) {
+    const key = CacheKey.from(keyValue).toString();
+    const digest = await this.#digest(key);
+    for (let attempt = 1; attempt <= MAX_ACQUISITION_ATTEMPTS; attempt += 1) {
+      const state = await this.#rootSet.read();
+      const handle = this.#index.fromRootEntries(state.entries);
+      const entry = await this.#index.getEntry(handle, digest);
+      const now = this.#now();
+      assertNoKeyCollision(entry, key);
+      if (!entry || isExpired(entry.metadata, now)) {
+        return null;
+      }
+      const hit = this.#hit(entry, state.headOid, now);
+      try {
+        return await this.#acquisitions.acquire({
+          namespace: this.#namespace,
+          cacheRef: this.ref,
+          keyDigest: digest,
+          generation: state.headOid,
+          hit,
+        });
+      } catch (error) {
+        if (error?.code !== ErrorCodes.CACHE_ACQUISITION_CONFLICT) {
+          throw error;
+        }
+      }
+    }
+    throw createCasError(
+      'Cache generation changed throughout every acquisition attempt',
+      ErrorCodes.CACHE_ACQUISITION_CONFLICT,
+      { ref: this.ref, key, attempts: MAX_ACQUISITION_ATTEMPTS },
+    );
+  }
+
+  async inspectAcquisitions(options = {}) {
+    return await this.#acquisitions.inspect({ ...options, namespace: this.#namespace });
+  }
+
+  async releaseAcquisition(options) {
+    return await this.#acquisitions.release({ ...options, namespace: this.#namespace });
   }
 
   async get(keyValue) {
@@ -533,14 +578,16 @@ export default class CacheSet {
   }
 
   static #assertDependencies(options) {
+    const value = options ?? {};
     const dependencies = [
-      ['rootSet', options?.rootSet?.mutate],
-      ['index', options?.index?.scan],
-      ['resolveHandle', options?.resolveHandle],
-      ['crypto', options?.crypto?.sha256],
+      ['rootSet', hasMethod(value.rootSet, 'mutate')],
+      ['acquisitions', hasMethod(value.acquisitions, 'acquire')],
+      ['index', hasMethod(value.index, 'scan')],
+      ['resolveHandle', typeof value.resolveHandle === 'function'],
+      ['crypto', hasMethod(value.crypto, 'sha256')],
     ];
     const missing = dependencies
-      .filter(([, value]) => typeof value !== 'function')
+      .filter(([, available]) => !available)
       .map(([name]) => name);
     if (missing.length > 0) {
       throw createCasError('CacheSet requires complete lifecycle dependencies', ErrorCodes.INVALID_OPTIONS, {
@@ -548,6 +595,10 @@ export default class CacheSet {
       });
     }
   }
+}
+
+function hasMethod(target, name) {
+  return typeof target?.[name] === 'function';
 }
 
 function canReplace({ previous, key, expectedHandle, requireExisting }) {

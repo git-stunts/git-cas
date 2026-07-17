@@ -1511,6 +1511,71 @@ generation, and immutable retention evidence.
 `accessedAt` is at least `accessResolutionMs` old, coalescing approximate-LRU
 updates without turning every read into a Git ref mutation.
 
+### acquire And release
+
+Use `acquire(key)` when the caller will consume a cached handle while another
+writer may replace, remove, expire, or sweep that cache entry:
+
+```javascript
+const acquisition = await cache.acquire('optic:user:alice');
+if (acquisition) {
+  try {
+    await consume(acquisition.hit.handle);
+  } finally {
+    await acquisition.release();
+  }
+}
+```
+
+`acquire()` returns an immutable `CacheAcquisition` or `null`. It performs a
+reference-only cache lookup: the operation reads the bounded index path and
+does not recursively materialize or validate the target handle graph. It then
+atomically verifies the observed cache ref generation and creates a unique ref
+under `refs/cas/cache-acquisitions/<encoded-namespace>/*` that names that
+generation. The namespace occupies exactly one encoded ref segment, preventing
+parent and child cache namespaces from overlapping during inspection.
+If a writer changes the cache generation during this transaction, acquisition
+retries against a fresh bounded lookup up to five times and then fails with
+`CACHE_ACQUISITION_CONFLICT`.
+
+The acquisition carries the original `hit`, a separate pinned retention
+`evidence` witness, its opaque `id`, and `acquiredAt`. The witness keeps the
+existing `cache-set` root kind because the retained object is a cache-set
+generation; its acquisition ref identifies the scoped retention mechanism.
+This preserves the public closed `RetentionRootKind` union. The ref temporarily
+keeps the complete selected cache generation reachable, including the requested
+target. This is intentionally stronger than a bare cache observation and must
+not be left open after consumption.
+
+`release()` preflights and rejects a symbolic acquisition ref that is already
+observable, then generation-checks a no-dereference deletion. Git 2.43 cannot
+atomically assert both ref type and OID. If another process installs a same-OID
+symbolic ref after preflight, Git may delete that managed ref name; `--no-deref`
+ensures it never deletes or updates the symbolic referent. This API claims
+authority containment under that race, not race-free ref-type rejection.
+Release through one `CacheAcquisition` object is idempotent: the call that
+deletes the ref reports `changed: true`; later calls reuse its receipt and report
+`changed: false`. Concurrent calls on that object share one operation. A
+mismatched or otherwise unprovable direct generation fails closed with
+`CACHE_ACQUISITION_RELEASE_CONFLICT`.
+There is no implicit TTL because elapsed time alone cannot prove that a live
+caller has finished using the handle.
+
+The production Git adapter applies the same authority boundary to ordinary
+managed RootSet, publication, and vault ref movement: it rejects a symbolic ref
+observed before mutation and always invokes `git update-ref --no-deref`. A
+post-probe ref-type race may replace the managed name itself, but cannot redirect
+the update into a symbolic referent.
+
+Existing custom ref and crypto adapters remain valid for `get()`, `put()`,
+`replace()`, `remove()`, `sweep()`, and `touch()`. Acquisition operations add
+capability requirements only when invoked: atomic `anchorRef`, checked
+`deleteRef`, streaming `iterateRefs`, and 16-byte `randomBytes`. A missing
+capability fails the acquisition operation with `CACHE_ACQUISITION_INVALID`;
+it does not prevent the cache from opening or change existing operations. The
+three ref capabilities remain optional on the public base port so existing
+structural adapters continue to type-check.
+
 ### remove And sweep
 
 ```javascript
@@ -1538,6 +1603,7 @@ Logical-byte accounting is versioned and deterministic:
 ```javascript
 const first = await cache.inspect({ limit: 100 });
 const next = await cache.inspect({ limit: 100, cursor: first.nextCursor });
+const active = await cache.inspectAcquisitions({ limit: 100 });
 const report = await cache.doctor();
 ```
 
@@ -1547,6 +1613,26 @@ digest. `doctor()` does not mutate the repository. It validates the cache ref,
 parentless generation, RootSet edge, structured bundle support graph, key
 digests, target handles, canonical metadata, accounting version, persisted
 summary, and capacity posture.
+
+`inspectAcquisitions()` streams only this cache namespace's acquisition refs.
+It returns opaque IDs, generation OIDs, acquisition timestamps, and key digests
+from a work-bounded first page of at most 1,000 entries; it does not disclose
+original cache keys. The result's `truncated` flag means at least one more entry
+exists. Cleanup releases the returned entries and repeats inspection while
+`truncated` is true. There is intentionally no cursor that can scan through an
+unbounded skipped prefix. Operational repair releases an abandoned acquisition
+with an explicit generation check:
+
+```javascript
+await cache.releaseAcquisition({
+  id: active.entries[0].id,
+  expectedGeneration: active.entries[0].generation,
+});
+```
+
+Normal callers should retain the `CacheAcquisition` object and call its
+`release()` method. The lower-level cleanup method exists for doctor/repair
+workflows and refuses to delete a ref whose generation no longer matches.
 
 ### repair
 
@@ -1698,17 +1784,19 @@ const report = await cas.diagnostics.doctor({
 });
 
 console.log(report.repository.objects);
+console.log(report.usage.acquisitions);
 console.log(report.usage.caches);
 console.log(report.limitations);
 ```
 
 Pass either `gracePeriodMs` or an exact canonical `expiresBefore` UTC timestamp,
 not both. The default grace period is 14 days. `maxCollectionsPerKind` bounds
-detailed CacheSet, RootSet, and ExpiringSet rows from 1 through 1000; its default
-is 100. Every managed collection is still inspected sequentially and included
-in `totals`. Coverage reports `observed`, `inspected`, `detailed`, and
-`complete`, so detail truncation is visible instead of silently dropping
-managed refs or undercounting repository usage.
+detailed cache-acquisition, CacheSet, RootSet, and ExpiringSet rows from 1
+through 1000; its default is 100. Every managed collection or acquisition is
+still inspected sequentially and included in `totals`. Coverage reports
+`observed`, `inspected`, `detailed`, and `complete`, so detail truncation is
+visible instead of silently dropping managed refs or undercounting repository
+usage.
 
 The reachability classes have precise operational meanings:
 
@@ -1735,11 +1823,31 @@ in its inventory, while object disk sizes exclude pack indexes, bitmaps, and
 other repository metadata. These facts appear in `limitations` rather than
 being estimated.
 
-Cache summaries report entry count, deterministic logical bytes, age, expiry,
-capacity policy, and pinned/evictable counts. RootSet policy counts and Vault
-entry counts are reported independently from reachability. A privacy-mode
+Acquisition summaries report active count, oldest and newest acquisition time,
+and maximum age; detailed entries expose opaque IDs and never original cache
+keys. If an acquisition timestamp is later than the doctor clock, the direct
+retention ref remains healthy, `ageMs` is `null`, and the entry reports
+`CACHE_ACQUISITION_CLOCK_SKEW`; elapsed time is evidence, not ref validity.
+`maxAgeMs` is `null` when any active acquisition age is incomparable. Cache
+summaries report entry count, deterministic logical bytes, age,
+expiry, capacity policy, and pinned/evictable counts. RootSet policy counts and
+Vault entry counts are reported independently from reachability. A privacy-mode
 vault remains healthy but reports `entryCount: null` because repository doctor
 does not request or retain vault key material.
+
+Git's `for-each-ref` does not enumerate dangling symbolic refs. Repository
+doctor therefore reports symbolic acquisition refs that Git returns, but does
+not claim exhaustive inventory of dangling symbolic acquisition refs. An
+inspection adapter that omits `symref` evidence makes the acquisition group and
+overall doctor report unhealthy rather than treating unknown ref type as a
+regular ref. Direct acquire, release, and cleanup operations independently
+preflight with `symbolic-ref`; no-dereference mutations contain post-probe races
+to the managed ref name. After a checked-delete conflict, release probes ref
+type and direct-ref inventory for diagnostic evidence, then fails closed. Git
+2.43 cannot atomically prove that an absent direct ref is not an
+enumerator-invisible dangling symbolic ref, so the production adapter does not
+infer an idempotent miss from that conflict. Recovery code can re-inspect the
+bounded acquisition namespace before deciding that cleanup is complete.
 
 Object and ref inventories are consumed as streams, and managed collections are
 inspected one at a time. Runtime memory is bounded by stream windows,
@@ -2657,6 +2765,10 @@ for await (const oid of port.iterateReachableObjectIds()) {
 for await (const object of port.iteratePrunableObjects({ expiresBefore })) {
   // safe dry-run evidence only
 }
+
+for await (const ref of port.iterateRefs({ prefix: 'refs/cas/cache-acquisitions/' })) {
+  // streamed repository diagnostics; ref.symref exposes symbolic targets
+}
 ```
 
 `GitRepositoryInspectionAdapter` requires `@git-stunts/plumbing` 3.1.0 or
@@ -3061,8 +3173,12 @@ new CasError({ message, code, meta, documentationUrl });
 | `CACHE_ENTRY_INVALID`                 | Entry metadata, retention, expiry, handle identity, or key digest is invalid                                       | CacheSet writes and reads                                                        |
 | `CACHE_STATE_INVALID`                 | Cache state, structured index, counts, or namespace is inconsistent                                                | CacheSet reads, `doctor()`, and `repair()`                                       |
 | `CACHE_POLICY_INVALID`                | Cache entry, byte, access-resolution, or repair bound is invalid                                                    | `caches.open()`, CacheSet policy operations                                      |
+| `CACHE_ACQUISITION_INVALID`           | Acquisition identity, timestamp, dependency, or inspection option is invalid                                       | `acquire()`, acquisition inspection, and release                                 |
+| `CACHE_ACQUISITION_CONFLICT`          | Cache generation changed throughout bounded acquisition retries                                                     | `acquire()`                                                                      |
+| `CACHE_ACQUISITION_RELEASE_CONFLICT`  | Acquisition ref no longer names the generation supplied for checked cleanup                                         | `release()` and `releaseAcquisition()`                                           |
 | `CACHE_LOGICAL_SIZE_UNKNOWN`          | A target has no deterministic safe-integer logical size                                                            | `put()`, `replace()`, accounting, and repair                                     |
 | `CACHE_CONFLICT`                      | Concurrent cache update exhausted bounded compare-and-swap retries                                                 | CacheSet mutations and repair                                                    |
+| `GIT_REF_CONFLICT`                    | A checked Git ref deletion observed an unexpected target                                                           | Semantic ref adapters and checked acquisition cleanup                            |
 | `RETENTION_WITNESS_INVALID`           | Witness policy, reachability, root evidence, generation, or timestamp is invalid                                   | `RetentionWitness`                                                              |
 | `PUBLICATION_INVALID`                 | Publication message, parent list, expected head, dependency, or clock input is invalid                             | `publications.commit()`                                                         |
 | `PUBLICATION_REF_FORBIDDEN`           | Target ref is invalid, reserved, or outside configured application namespaces                                      | `publications.commit()`                                                         |

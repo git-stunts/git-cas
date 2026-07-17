@@ -187,7 +187,10 @@ The facade is orchestration glue. It is not the storage engine itself.
 - **`CacheSetRegistry` and `CacheSet`** — own cache index generations,
   compare-and-swap replacement, TTL, entry and logical-byte limits,
   approximate-LRU sweeps, coalesced touches, doctor, and authoritative repair
-  under `refs/cas/caches/*`.
+  under `refs/cas/caches/*`. `CacheAcquisitionRegistry` atomically verifies a
+  selected cache generation and creates a scoped anchor under
+  `refs/cas/cache-acquisitions/*`; acquisition release is explicit,
+  idempotent, and generation-checked.
 
 - **`ExpiringSetRegistry` and `ExpiringSet`** — own digest-only replay markers
   under `refs/cas/expiring/*`. Admission is atomic, membership reads are
@@ -447,21 +450,26 @@ make objects Git-reachable, but they encode different lifecycle contracts:
 | --- | --- | --- |
 | RootSet | `refs/cas/rootsets/*` | Caller-managed current generation |
 | CacheSet | `refs/cas/caches/*` | TTL/capacity/approximate-LRU managed cache |
+| Cache acquisition | `refs/cas/cache-acquisitions/*` | Explicit caller scope over one cache generation |
 | ExpiringSet | `refs/cas/expiring/*` | Expiry-only replay protection |
 | Publication | Caller-allowlisted ref | Application-controlled causal history |
 | Vault | `refs/cas/vault` | History-preserving named assets |
 
-High-level retention, CacheSet, ExpiringSet, and application publication
-operations return generation-scoped retention evidence. Replacing a parentless
-current-generation head releases old edges when no other ref or reflog reaches
-them; Git's normal grace and pruning policy still controls physical deletion.
+High-level retention, CacheSet, cache acquisition, ExpiringSet, and application
+publication operations return generation-scoped retention evidence. Replacing
+a parentless current-generation head releases old edges when no other ref or
+reflog reaches them; Git's normal grace and pruning policy still controls
+physical deletion. A cache acquisition temporarily retains the complete
+selected generation, not only the requested target, and must be released when
+consumption ends.
 
 ### Repository Diagnostics
 
 `cas.diagnostics.doctor()` reports total, anchored, orphaned, volatile, and
-unreachable object evidence plus managed-storage summaries. Ref and reflog
-reachability defines anchored objects; volatile objects come only from safe
-prune dry-run output for the selected expiry cutoff.
+unreachable object evidence plus managed-storage summaries, including active
+cache-acquisition count and age. Ref and reflog reachability defines anchored
+objects; volatile objects come only from safe prune dry-run output for the
+selected expiry cutoff.
 
 The report names limits Git cannot prove exactly, including per-owner
 deduplicated physical bytes and packed-object age. The inspection surface has

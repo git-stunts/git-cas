@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Scoped cache acquisitions** — `CacheSet.acquire()` now performs a bounded,
+  reference-only lookup and atomically anchors the selected cache generation
+  for an explicit caller lifetime. Acquisitions carry separate pinned
+  retention evidence, release idempotently with a generation check, expose
+  bounded inspection and operational cleanup, and appear in repository doctor
+  with count and age evidence. Clock skew leaves structurally valid retention
+  healthy while reporting an unknown age and explicit diagnostic issue.
+  Real-Git coverage proves active acquisitions
+  survive aggressive prune without making lookup reads scale with target graph
+  size. Canonical one-segment namespace refs, symbolic-ref preflight,
+  no-dereference mutations across ordinary managed refs and acquisition refs,
+  post-conflict ref-type checks, and hard Git inventory limits preserve
+  ownership boundaries under hostile or malformed refs. Unknown ref-type
+  evidence fails doctor health closed. Acquisition capabilities remain optional
+  on the base Git ref port, the existing retention-kind and diagnostic-kind
+  unions remain unchanged, and the new doctor group is type-optional for
+  compatibility with existing consumers. Production Git checked-delete
+  conflicts fail closed because Git 2.43 cannot atomically prove that a missing
+  direct ref is not an enumerator-invisible dangling symbolic ref.
+
 ### Documentation
 
 - **v6.2.0 publication evidence** — records the signed tag identity, successful

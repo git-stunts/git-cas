@@ -266,7 +266,11 @@ export declare class StagedBundle {
 
 export type RetentionPolicy = 'pinned' | 'evictable';
 export type RetentionReachability = 'anchored' | 'orphaned' | 'volatile';
-export type RetentionRootKind = 'root-set' | 'publication' | 'cache-set' | 'expiring-set';
+export type RetentionRootKind =
+  | 'root-set'
+  | 'publication'
+  | 'cache-set'
+  | 'expiring-set';
 
 export interface RetentionRoot {
   kind: RetentionRootKind;
@@ -356,6 +360,35 @@ export declare class CacheHit {
     evidence: RetentionWitness | ConstructorParameters<typeof RetentionWitness>[0];
   });
   toJSON(): CacheHitData;
+}
+
+export interface CacheAcquisitionRelease {
+  readonly id: string;
+  readonly generation: string;
+  readonly changed: boolean;
+  readonly releasedAt: string;
+}
+
+/** Active, explicitly releasable retention scope for one cache hit. */
+export interface CacheAcquisition {
+  readonly id: string;
+  readonly hit: CacheHit;
+  readonly evidence: RetentionWitness;
+  readonly acquiredAt: string;
+  release(): Promise<CacheAcquisitionRelease>;
+}
+
+export interface CacheAcquisitionInspectionEntry {
+  readonly id: string;
+  readonly generation: string;
+  readonly acquiredAt: string;
+  readonly keyDigest: string;
+}
+
+export interface CacheAcquisitionInspection {
+  readonly namespace: string;
+  readonly entries: ReadonlyArray<CacheAcquisitionInspectionEntry>;
+  readonly truncated: boolean;
 }
 
 export interface ExpiringMarkerData {
@@ -515,6 +548,16 @@ export declare class GitRefPortBase {
     /** Expected current OID for CAS; null means the ref must not exist. */
     expectedOldOid?: string | null;
   }): Promise<void>;
+  anchorRef?(options: {
+    sourceRef: string;
+    expectedSourceOid: string;
+    targetRef: string;
+  }): Promise<boolean>;
+  deleteRef?(options: { ref: string; expectedOldOid: string }): Promise<boolean>;
+  iterateRefs?(options: {
+    prefix?: string;
+    limit: number;
+  }): AsyncIterable<{ ref: string; oid: string; symref: string | null }>;
 }
 
 /** Git-backed implementation of the persistence port. */
@@ -526,6 +569,16 @@ export declare class GitPersistenceAdapter extends GitPersistencePortBase {
 /** Git-backed implementation of the ref port. */
 export declare class GitRefAdapter extends GitRefPortBase {
   constructor(options: { plumbing: unknown; policy?: unknown });
+  anchorRef(options: {
+    sourceRef: string;
+    expectedSourceOid: string;
+    targetRef: string;
+  }): Promise<boolean>;
+  deleteRef(options: { ref: string; expectedOldOid: string }): Promise<boolean>;
+  iterateRefs(options: {
+    prefix?: string;
+    limit: number;
+  }): AsyncIterable<{ ref: string; oid: string; symref: string | null }>;
 }
 
 export type RepositoryObjectType = 'blob' | 'tree' | 'commit' | 'tag';
@@ -537,6 +590,13 @@ export interface RepositoryObjectRecord {
   readonly physicalBytes: number;
 }
 
+export interface RepositoryRefRecord {
+  readonly ref: string;
+  readonly oid: string;
+  /** Present when the inspection adapter can distinguish symbolic refs. */
+  readonly symref?: string | null;
+}
+
 /** Abstract non-mutating repository inspection port. */
 export declare class RepositoryInspectionPort {
   iterateObjects(): AsyncIterable<RepositoryObjectRecord>;
@@ -544,7 +604,9 @@ export declare class RepositoryInspectionPort {
   iteratePrunableObjects(options: {
     expiresBefore: string;
   }): AsyncIterable<Pick<RepositoryObjectRecord, 'oid' | 'type'>>;
-  iterateRefs(): AsyncIterable<{ readonly ref: string; readonly oid: string }>;
+  iterateRefs(options?: {
+    prefix?: string;
+  }): AsyncIterable<RepositoryRefRecord>;
   reachablePhysicalBytes(): Promise<number>;
 }
 
@@ -834,6 +896,14 @@ export declare class CacheSet {
   private constructor();
   readonly ref: string;
   get(key: string): Promise<CacheHit | null>;
+  acquire(key: string): Promise<CacheAcquisition | null>;
+  inspectAcquisitions(options?: {
+    limit?: number;
+  }): Promise<CacheAcquisitionInspection>;
+  releaseAcquisition(options: {
+    id: string;
+    expectedGeneration: string;
+  }): Promise<CacheAcquisitionRelease>;
   put(key: string, handle: ApplicationHandleInput, options?: CacheEntryOptions): Promise<CacheStoreResult>;
   replace(key: string, handle: ApplicationHandleInput, options?: CacheEntryOptions): Promise<CacheStoreResult>;
   remove(key: string): Promise<CacheMutationResult & { readonly removed: CacheHit | null }>;
@@ -1126,6 +1196,17 @@ export interface RepositoryCacheUsage {
   readonly issues: ReadonlyArray<Record<string, unknown>>;
 }
 
+export interface RepositoryCacheAcquisitionUsage {
+  readonly id?: string;
+  readonly namespace?: string;
+  readonly ref?: string;
+  readonly generation: string;
+  readonly acquiredAt?: string;
+  readonly ageMs?: number | null;
+  readonly healthy: boolean;
+  readonly issues: ReadonlyArray<Record<string, unknown>>;
+}
+
 export interface RepositoryRootSetUsage {
   readonly ref: string;
   readonly generation: string;
@@ -1196,6 +1277,18 @@ export interface RepositoryDoctorReport {
     };
   };
   readonly usage: {
+    /** Present in reports produced by git-cas v6.3.0 and later. */
+    readonly acquisitions?: {
+      readonly healthy: boolean;
+      readonly coverage: RepositoryCollectionCoverage;
+      readonly totals: {
+        readonly activeCount: number;
+        readonly oldestAcquiredAt: string | null;
+        readonly newestAcquiredAt: string | null;
+        readonly maxAgeMs: number | null;
+      };
+      readonly entries: ReadonlyArray<RepositoryCacheAcquisitionUsage>;
+    };
     readonly caches: {
       readonly healthy: boolean;
       readonly coverage: RepositoryCollectionCoverage;

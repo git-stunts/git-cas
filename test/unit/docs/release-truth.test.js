@@ -187,6 +187,19 @@ describe('application storage release documentation', () => {
   });
 });
 
+describe('scoped cache acquisition release documentation', () => {
+  it('ships and links the v6.3.0 lifetime and pruning contract', () => {
+    const readme = read('README.md');
+    const releaseNotes = read('docs/releases/v6.3.0.md');
+
+    expect(readme).toContain('[v6.3.0 Release Notes](./docs/releases/v6.3.0.md)');
+    expect(releaseNotes).toContain('# git-cas v6.3.0 Release Notes');
+    expect(releaseNotes).toContain('cache.acquire');
+    expect(releaseNotes).toContain('git prune --expire=now');
+    expect(releaseNotes).toContain('Callers must release it in `finally`');
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');

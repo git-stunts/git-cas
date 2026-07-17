@@ -55,5 +55,11 @@ jobs:
         run: docker compose build test-${{ matrix.runtime }}
       - name: Unit tests (${{ matrix.runtime }})
         run: docker compose run --rm test-${{ matrix.runtime }}
+      - name: Public type compatibility (Deno)
+        if: matrix.runtime == 'deno'
+        run: >-
+          docker compose run --rm test-deno
+          deno check --config test/types/deno.json
+          test/types/public-api-compatibility.ts
       - name: Integration tests (${{ matrix.runtime }})
         run: docker compose run --rm test-${{ matrix.runtime }} ${{ matrix.integration_cmd }}

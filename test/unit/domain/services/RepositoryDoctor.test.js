@@ -4,6 +4,7 @@ import RepositoryDoctor, {
 } from '../../../../src/domain/services/RepositoryDoctor.js';
 
 const NOW = '2026-07-13T12:00:00.000Z';
+const ACQUISITION_ID = `v1-1783940400000-${'9'.repeat(64)}-${'8'.repeat(32)}`;
 
 async function* values(items) {
   yield* items;
@@ -27,6 +28,11 @@ function repository(overrides = {}) {
     iterateRefs: vi.fn(() =>
       values([
         { ref: 'refs/cas/caches/git-warp/materializations', oid: 'a'.repeat(40) },
+        {
+          ref: `refs/cas/cache-acquisitions/git-warp%2Fmaterializations/${ACQUISITION_ID}`,
+          oid: 'a'.repeat(40),
+          symref: null,
+        },
         { ref: 'refs/cas/expiring/git-warp/replay', oid: 'b'.repeat(40) },
         { ref: 'refs/cas/rootsets/git-warp/live', oid: 'c'.repeat(40) },
         { ref: 'refs/cas/vault', oid: 'd'.repeat(40) },
@@ -135,10 +141,27 @@ describe('RepositoryDoctor', () => {
           volatile: { objectCount: 1, physicalBytes: null },
           unreachable: { objectCount: 2, physicalBytes: 44 },
         },
-        roots: { refCount: 6, reflogsIncluded: true },
+        roots: { refCount: 7, reflogsIncluded: true },
         evidence: { prunableInspection: 'dry-run', mutatesRepository: false },
       },
       usage: {
+        acquisitions: {
+          healthy: true,
+          coverage: { observed: 1, inspected: 1, complete: true },
+          totals: {
+            activeCount: 1,
+            oldestAcquiredAt: '2026-07-13T11:00:00.000Z',
+            newestAcquiredAt: '2026-07-13T11:00:00.000Z',
+            maxAgeMs: 3_600_000,
+          },
+          entries: [{
+            id: ACQUISITION_ID,
+            namespace: 'git-warp/materializations',
+            generation: 'a'.repeat(40),
+            acquiredAt: '2026-07-13T11:00:00.000Z',
+            ageMs: 3_600_000,
+          }],
+        },
         caches: {
           coverage: { observed: 1, inspected: 1, complete: true },
           totals: {
@@ -212,6 +235,122 @@ describe('RepositoryDoctor', () => {
         detailed: 2,
       })
     );
+  });
+
+  it('reports bounded acquisition detail without widening the legacy kind union', async () => {
+    const acquisitionRefs = ['1', '2', '3'].map((nonce, index) => ({
+      ref: 'refs/cas/cache-acquisitions/git-warp%2Fmaterializations/' +
+        `v1-1783940400000-${'9'.repeat(64)}-${nonce.repeat(32)}`,
+      oid: String(index + 1).repeat(40),
+      symref: null,
+    }));
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values(acquisitionRefs)),
+    }));
+
+    const report = await new RepositoryDoctor(ports).doctor({ maxCollectionsPerKind: 2 });
+
+    expect(report.usage.acquisitions.coverage).toEqual({
+      observed: 3,
+      inspected: 3,
+      detailed: 2,
+      complete: true,
+    });
+    expect(report.limitations).toContainEqual(expect.objectContaining({
+      code: 'CACHE_ACQUISITION_DETAILS_TRUNCATED',
+      observed: 3,
+      inspected: 3,
+      detailed: 2,
+    }));
+    expect(report.limitations.find(
+      ({ code }) => code === 'CACHE_ACQUISITION_DETAILS_TRUNCATED'
+    )).not.toHaveProperty('kind');
+  });
+
+  it('keeps repository health under acquisition clock skew and reports unknown age', async () => {
+    const acquiredAt = '2026-07-13T13:00:00.000Z';
+    const futureId = `v1-${Date.parse(acquiredAt)}-${'9'.repeat(64)}-${'8'.repeat(32)}`;
+    const acquisitionRef =
+      `refs/cas/cache-acquisitions/git-warp%2Fmaterializations/${futureId}`;
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values([{
+        ref: acquisitionRef,
+        oid: 'a'.repeat(40),
+        symref: null,
+      }])),
+    }));
+
+    const report = await new RepositoryDoctor(ports).doctor();
+
+    expect(report.healthy).toBe(true);
+    expect(report.usage.acquisitions).toMatchObject({
+      healthy: true,
+      totals: {
+        activeCount: 1,
+        oldestAcquiredAt: acquiredAt,
+        newestAcquiredAt: acquiredAt,
+        maxAgeMs: null,
+      },
+      entries: [{
+        id: futureId,
+        acquiredAt,
+        ageMs: null,
+        healthy: true,
+        issues: [{ code: 'CACHE_ACQUISITION_CLOCK_SKEW' }],
+      }],
+    });
+  });
+
+  it('marks symbolic acquisition refs unhealthy instead of offering a cleanup candidate', async () => {
+    const acquisitionRef =
+      `refs/cas/cache-acquisitions/git-warp%2Fmaterializations/${ACQUISITION_ID}`;
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values([{
+        ref: acquisitionRef,
+        oid: 'a'.repeat(40),
+        symref: 'refs/heads/main',
+      }])),
+    }));
+
+    const report = await new RepositoryDoctor(ports).doctor();
+
+    expect(report.healthy).toBe(false);
+    expect(report.usage.acquisitions).toMatchObject({
+      healthy: false,
+      entries: [{
+        ref: acquisitionRef,
+        healthy: false,
+        issues: [{ code: 'CACHE_ACQUISITION_INVALID' }],
+      }],
+    });
+    expect(report.usage.acquisitions.entries[0]).not.toHaveProperty('id');
+  });
+
+  it('marks acquisition refs unhealthy when direct-ref evidence is unavailable', async () => {
+    const acquisitionRef =
+      `refs/cas/cache-acquisitions/git-warp%2Fmaterializations/${ACQUISITION_ID}`;
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values([{
+        ref: acquisitionRef,
+        oid: 'a'.repeat(40),
+      }])),
+    }));
+
+    const report = await new RepositoryDoctor(ports).doctor();
+
+    expect(report.healthy).toBe(false);
+    expect(report.usage.acquisitions).toMatchObject({
+      healthy: false,
+      entries: [{
+        ref: acquisitionRef,
+        healthy: false,
+        issues: [{
+          code: 'CACHE_ACQUISITION_INVALID',
+          message: 'Cache acquisition direct-ref evidence is unavailable',
+        }],
+      }],
+    });
+    expect(report.usage.acquisitions.entries[0]).not.toHaveProperty('id');
   });
 
   it('returns kind-specific public shapes when managed collection inspection fails', async () => {

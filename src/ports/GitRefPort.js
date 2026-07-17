@@ -1,3 +1,6 @@
+import createCasError from '../domain/errors/createCasError.js';
+import { ErrorCodes } from '../domain/errors/index.js';
+
 /**
  * Abstract port for Git ref and commit operations.
  * @abstract
@@ -55,4 +58,46 @@ export default class GitRefPort {
   async updateRef(_options) {
     throw new Error('Not implemented');
   }
+
+  /**
+   * Atomically verifies one source ref and creates a new ref to its generation.
+   * @param {Object} _options
+   * @param {string} _options.sourceRef
+   * @param {string} _options.expectedSourceOid
+   * @param {string} _options.targetRef
+   * @returns {Promise<boolean>} Whether the source generation was anchored.
+   */
+  async anchorRef(_options) {
+    throw unsupportedAcquisitionCapability('anchorRef');
+  }
+
+  /**
+   * Deletes a ref only when it still names the expected object.
+   * @param {Object} _options
+   * @param {string} _options.ref
+   * @param {string} _options.expectedOldOid
+   * @returns {Promise<boolean>} Whether the ref existed and was deleted.
+   */
+  async deleteRef(_options) {
+    throw unsupportedAcquisitionCapability('deleteRef');
+  }
+
+  /**
+   * Streams refs below a canonical Git ref prefix.
+   * @param {Object} _options
+   * @param {string} [_options.prefix]
+   * @param {number} _options.limit Maximum records to request from Git.
+   * @returns {AsyncIterable<{ref: string, oid: string, symref: string|null}>}
+   */
+  iterateRefs(_options) {
+    throw unsupportedAcquisitionCapability('iterateRefs');
+  }
+}
+
+function unsupportedAcquisitionCapability(capability) {
+  return createCasError(
+    `Git ref adapter does not implement cache acquisition capability: ${capability}`,
+    ErrorCodes.CACHE_ACQUISITION_INVALID,
+    { capability },
+  );
 }
