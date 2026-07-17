@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.2.0` (`2026-07-13`)
-**Current release state:** `v6.3.0` release candidate; npm and GitHub Release publication remain pending the reviewed tag workflow.
-**Latest verification:** `pnpm run release:verify` passed 14/14 steps with 6,325 observed tests against version `6.3.0`, including Node/Bun/Deno unit and integration suites, public type compatibility, npm package inspection, and JSR dry-run; no publication claim exists yet.
+**Last tagged release:** `v6.3.0` (`2026-07-17`)
+**Current release state:** `v6.3.0` is published to npm with provenance and to GitHub Releases; JSR publication is not claimed.
+**Latest verification:** `pnpm run release:verify` passed 14/14 steps with 6,325 observed tests before tagging; release run `29566015478` then passed tag validation, lint, unit tests, Node/Bun/Deno integration, npm trusted publication, and final GitHub Release creation.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,11 +18,10 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.3.0 artifact posture** — the reviewed scoped-acquisition implementation
-  is merged and the versioned release candidate is verified locally.
-  npm trusted publication and GitHub Release creation remain pending the
-  `v6.3.0` tag workflow. JSR dry-run validation remains a pre-publication gate,
-  but JSR publication is not part of the release workflow.
+- **v6.3.0 artifact posture** — signed tag `v6.3.0` resolves to reviewed merge
+  `33f4171`; npm reports `@git-stunts/git-cas@6.3.0` as `latest` with SLSA
+  provenance, and the final GitHub Release is published. JSR dry-run validation
+  is healthy, but JSR publication is not part of the release workflow.
 - **v6.0.0 encryption scheme simplification** — `whole-v1`/`whole-v2` collapsed
   to `whole`, `framed-v1`/`framed-v2` collapsed to `framed`, `convergent-v1`
   collapsed to `convergent`. AAD is now always on. Legacy scheme strings in
