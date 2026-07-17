@@ -2,6 +2,38 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.2.0 To v6.3.0
+
+v6.3.0 is API-additive and does not require stored-data migration. It adds
+scoped cache acquisitions for consumers that must keep a cache hit reachable
+between lookup and use.
+
+`CacheSet.get()` retains its existing complete-validation semantics, but a
+returned hit is only an observation. Use `acquire()` when consumption may
+overlap replacement, expiry, eviction, removal, or destructive Git cleanup:
+
+```javascript
+const acquisition = await cache.acquire(materializationKey);
+if (acquisition) {
+  try {
+    await consume(acquisition.hit.handle);
+  } finally {
+    await acquisition.release();
+  }
+}
+```
+
+An acquisition anchors the exact observed cache generation until explicit,
+idempotent release. It intentionally has no automatic TTL: age is diagnostic
+evidence, not proof that a consumer is dead. Recovery tooling can use
+`cache.inspectAcquisitions({ limit })` and generation-checked
+`cache.releaseAcquisition(...)`; `cas.diagnostics.doctor()` reports bounded
+count, age, truncation, malformed-ref, and clock-skew evidence.
+
+See [v6.3.0 Release Notes](./docs/releases/v6.3.0.md) and
+[Acquire And Release](./docs/API.md#acquire-and-release) for the complete
+lifetime and recovery contract.
+
 ## v6.1.0 To v6.2.0
 
 v6.2.0 is API-additive and does not require stored-data migration. It adds
