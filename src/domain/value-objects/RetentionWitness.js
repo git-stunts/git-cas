@@ -10,7 +10,6 @@ const ROOT_KINDS = Object.freeze([
   'root-set',
   'publication',
   'cache-set',
-  'cache-acquisition',
   'expiring-set',
 ]);
 

@@ -51,7 +51,7 @@ function acquisitionValues() {
     policy: 'pinned',
     reachability: 'anchored',
     root: {
-      kind: 'cache-acquisition',
+      kind: 'cache-set',
       namespace,
       ref: ref.toString(),
       generation,
@@ -200,7 +200,7 @@ describe('CacheAcquisition invariant failures', () => {
       policy: mutation.policy ?? 'pinned',
       reachability: 'anchored',
       root: {
-        kind: 'cache-acquisition',
+        kind: 'cache-set',
         namespace: mutation.namespace ?? values.namespace,
         ref: mutation.evidenceRef,
         generation: mutation.generation ?? values.generation,

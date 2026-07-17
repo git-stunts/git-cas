@@ -270,7 +270,6 @@ export type RetentionRootKind =
   | 'root-set'
   | 'publication'
   | 'cache-set'
-  | 'cache-acquisition'
   | 'expiring-set';
 
 export interface RetentionRoot {
@@ -1278,7 +1277,8 @@ export interface RepositoryDoctorReport {
     };
   };
   readonly usage: {
-    readonly acquisitions: {
+    /** Present in reports produced by git-cas v6.3.0 and later. */
+    readonly acquisitions?: {
       readonly healthy: boolean;
       readonly coverage: RepositoryCollectionCoverage;
       readonly totals: {

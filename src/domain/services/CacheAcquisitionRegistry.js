@@ -44,7 +44,7 @@ export default class CacheAcquisitionRegistry {
       policy: 'pinned',
       reachability: 'anchored',
       root: {
-        kind: 'cache-acquisition',
+        kind: 'cache-set',
         namespace,
         ref: acquisitionRef.toString(),
         generation,

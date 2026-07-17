@@ -59,6 +59,41 @@ function refExists(ref) {
   }).status === 0;
 }
 
+function symbolicTarget(ref) {
+  const result = spawnSync('git', ['symbolic-ref', '--quiet', ref], {
+    cwd: repoDir,
+    encoding: 'utf8',
+  });
+  if (result.status === 1) {
+    return null;
+  }
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`${result.stderr || result.stdout || 'git symbolic-ref failed'}`.trim());
+  }
+  return result.stdout.trim();
+}
+
+function hookPlumbing(plumbing, hook) {
+  return new Proxy(plumbing, {
+    get(target, property) {
+      const value = Reflect.get(target, property, target);
+      if (typeof value !== 'function') {
+        return value;
+      }
+      if (property === 'execute') {
+        return (options) => {
+          hook(options);
+          return value.call(target, options);
+        };
+      }
+      return value.bind(target);
+    },
+  });
+}
+
 function tracedPlumbing(plumbing) {
   return new Proxy(plumbing, {
     get(target, property) {
@@ -245,6 +280,7 @@ describe('CacheSet expiry and capacity policy', () => {
   });
 });
 
+// eslint-disable-next-line max-lines-per-function
 describe('CacheSet acquisition source ref authority', () => {
   it('does not anchor through a symbolic cache source ref', async () => {
     const scoped = await cas.caches.open({ namespace: 'git-warp/acquisition-source-symref' });
@@ -264,8 +300,40 @@ describe('CacheSet acquisition source ref authority', () => {
     expect(git(['symbolic-ref', scoped.ref])).toBe(sentinelRef);
     expect(git(['rev-parse', sentinelRef])).toBe(stored.generation);
   });
+
+  it('contains a post-probe source symref race without mutating its referent', async () => {
+    const scoped = await cas.caches.open({ namespace: 'git-warp/acquisition-source-race' });
+    const target = await cas.pages.put({ source: Buffer.from('source-race-target') });
+    const stored = await scoped.put('current', target.handle);
+    const sentinelRef = 'refs/heads/acquisition-source-race-sentinel';
+    const acquisitionRef = 'refs/cas/cache-acquisitions/authority/source-race-id';
+    git(['update-ref', sentinelRef, stored.generation]);
+    const plumbing = await createGitPlumbing({ cwd: repoDir });
+    let raced = false;
+    const racingRefs = new GitRefAdapter({
+      plumbing: hookPlumbing(plumbing, ({ args }) => {
+        if (!raced && args[0] === 'update-ref' && args.includes('--stdin')) {
+          raced = true;
+          git(['symbolic-ref', scoped.ref, sentinelRef]);
+        }
+      }),
+    });
+
+    await expect(racingRefs.anchorRef({
+      sourceRef: scoped.ref,
+      expectedSourceOid: stored.generation,
+      targetRef: acquisitionRef,
+    })).resolves.toBe(true);
+
+    expect(raced).toBe(true);
+    expect(symbolicTarget(scoped.ref)).toBe(sentinelRef);
+    expect(symbolicTarget(acquisitionRef)).toBeNull();
+    expect(git(['rev-parse', acquisitionRef])).toBe(stored.generation);
+    expect(git(['rev-parse', sentinelRef])).toBe(stored.generation);
+  });
 });
 
+// eslint-disable-next-line max-lines-per-function
 describe('CacheSet acquisition target ref authority', () => {
   it('does not follow a pre-existing target symbolic ref during atomic anchoring', async () => {
     const scoped = await cas.caches.open({ namespace: 'git-warp/acquisition-anchor-symref' });
@@ -299,5 +367,35 @@ describe('CacheSet acquisition target ref authority', () => {
     });
     expect(git(['rev-parse', sentinelRef])).toBe(acquisition.hit.generation);
     expect(git(['symbolic-ref', acquisition.evidence.root.ref])).toBe(sentinelRef);
+  });
+
+  it('contains a post-probe release symref race to the managed ref name', async () => {
+    const scoped = await cas.caches.open({ namespace: 'git-warp/acquisition-release-race' });
+    const target = await cas.pages.put({ source: Buffer.from('release-race-target') });
+    const stored = await scoped.put('current', target.handle);
+    const acquisitionRef = 'refs/cas/cache-acquisitions/authority/release-race-id';
+    git(['update-ref', acquisitionRef, stored.generation]);
+    const sentinelRef = 'refs/heads/acquisition-release-race-sentinel';
+    git(['update-ref', sentinelRef, stored.generation]);
+    const plumbing = await createGitPlumbing({ cwd: repoDir });
+    let raced = false;
+    const racingRefs = new GitRefAdapter({
+      plumbing: hookPlumbing(plumbing, ({ args }) => {
+        if (!raced && args[0] === 'update-ref' && args.includes('-d')) {
+          raced = true;
+          git(['update-ref', '-d', acquisitionRef]);
+          git(['symbolic-ref', acquisitionRef, sentinelRef]);
+        }
+      }),
+    });
+
+    await expect(racingRefs.deleteRef({
+      ref: acquisitionRef,
+      expectedOldOid: stored.generation,
+    })).resolves.toBe(true);
+
+    expect(raced).toBe(true);
+    expect(symbolicTarget(acquisitionRef)).toBeNull();
+    expect(git(['rev-parse', sentinelRef])).toBe(stored.generation);
   });
 });

@@ -70,7 +70,7 @@ function assertEvidence({ id, hit, evidence, acquiredAt }) {
   });
   const valid = evidence.policy === 'pinned'
     && evidence.reachability === 'anchored'
-    && evidence.root.kind === 'cache-acquisition'
+    && evidence.root.kind === 'cache-set'
     && evidence.root.ref === acquisitionRef.toString()
     && evidence.root.namespace === hit.evidence.root.namespace
     && evidence.root.generation === hit.generation

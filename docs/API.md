@@ -1539,19 +1539,25 @@ retries against a fresh bounded lookup up to five times and then fails with
 `CACHE_ACQUISITION_CONFLICT`.
 
 The acquisition carries the original `hit`, a separate pinned retention
-`evidence` witness, its opaque `id`, and `acquiredAt`. Its ref temporarily keeps
-the complete selected cache generation reachable, including the requested
+`evidence` witness, its opaque `id`, and `acquiredAt`. The witness keeps the
+existing `cache-set` root kind because the retained object is a cache-set
+generation; its acquisition ref identifies the scoped retention mechanism.
+This preserves the public closed `RetentionRootKind` union. The ref temporarily
+keeps the complete selected cache generation reachable, including the requested
 target. This is intentionally stronger than a bare cache observation and must
 not be left open after consumption.
 
-`release()` deletes only a regular acquisition ref that still names the
-witnessed generation. Symbolic refs are rejected and all updates use Git's
-no-dereference mode, so acquisition cleanup cannot follow a ref into another
-authority. Release is idempotent: the first successful call reports
-`changed: true`; later calls report `changed: false`. Concurrent release calls
-share one operation. A mismatched generation fails closed with
-`CACHE_ACQUISITION_RELEASE_CONFLICT`. There is no implicit TTL because elapsed
-time alone cannot prove that a live caller has finished using the handle.
+`release()` preflights and rejects a symbolic acquisition ref that is already
+observable, then generation-checks a no-dereference deletion. Git 2.43 cannot
+atomically assert both ref type and OID. If another process installs a same-OID
+symbolic ref after preflight, Git may delete that managed ref name; `--no-deref`
+ensures it never deletes or updates the symbolic referent. This API claims
+authority containment under that race, not race-free ref-type rejection.
+Release is idempotent: the first successful call reports `changed: true`; later
+calls report `changed: false`. Concurrent release calls share one operation. A
+mismatched generation fails closed with `CACHE_ACQUISITION_RELEASE_CONFLICT`.
+There is no implicit TTL because elapsed time alone cannot prove that a live
+caller has finished using the handle.
 
 Existing custom ref and crypto adapters remain valid for `get()`, `put()`,
 `replace()`, `remove()`, `sweep()`, and `touch()`. Acquisition operations add
@@ -1819,9 +1825,12 @@ does not request or retain vault key material.
 
 Git's `for-each-ref` does not enumerate dangling symbolic refs. Repository
 doctor therefore reports symbolic acquisition refs that Git returns, but does
-not claim exhaustive inventory of dangling symbolic acquisition refs. Direct
-acquire, release, and cleanup operations independently call `symbolic-ref` and
-reject both live and dangling symbolic refs before mutation.
+not claim exhaustive inventory of dangling symbolic acquisition refs. An
+inspection adapter that omits `symref` evidence makes the acquisition group and
+overall doctor report unhealthy rather than treating unknown ref type as a
+regular ref. Direct acquire, release, and cleanup operations independently
+preflight with `symbolic-ref`; no-dereference mutations contain post-probe races
+to the managed ref name.
 
 Object and ref inventories are consumed as streams, and managed collections are
 inspected one at a time. Runtime memory is bounded by stream windows,

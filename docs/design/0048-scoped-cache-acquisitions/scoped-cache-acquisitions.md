@@ -167,9 +167,12 @@ try {
 ```
 
 The acquisition evidence has policy `pinned`, reachability `anchored`, root
-kind `cache-acquisition`, and the same handle and generation as the hit. The
-hit retains its original cache policy and observation evidence. These are two
-different facts: cache policy and scoped retention.
+kind `cache-set`, and the same handle and generation as the hit. The retained
+object is a cache-set generation; the acquisition ref identifies the scoped
+retention mechanism. Reusing the existing root kind preserves the public closed
+`RetentionRootKind` union. The hit retains its original cache policy and
+observation evidence. These are two different facts: cache policy and scoped
+retention.
 
 `release()` is idempotent. It deletes only the acquisition ref whose current
 OID still equals the acquired generation. Its result includes `changed`,
@@ -210,7 +213,8 @@ canonical cache namespace is percent-encoded into exactly one Git ref segment,
 so parent and child collection namespaces cannot overlap during inventory. The opaque ID
 encodes a version, canonical acquisition epoch, key digest, and random nonce so
 inspection does not read target objects. Ref-name parsing is strict and
-malformed or symbolic managed refs are reported by doctor.
+malformed or enumerated symbolic managed refs are reported by doctor. Missing
+ref-type evidence is unhealthy rather than assumed direct.
 
 ## Architecture / Anti-SLUDGE Posture
 
@@ -218,7 +222,7 @@ malformed or symbolic managed refs are reported by doctor.
 | --- | --- |
 | Domain changes | Add `CacheAcquisition`, acquisition ref/value parsing, and lifecycle service |
 | Port changes | Add optional semantic anchor, checked delete, and bounded ref iteration capabilities without breaking legacy structural adapters |
-| Adapter changes | Reject symbolic refs, use `git update-ref --no-deref`, and pass a hard `for-each-ref --count` bound |
+| Adapter changes | Preflight symbolic refs, use `git update-ref --no-deref` to contain type races, and pass a hard `for-each-ref --count` bound |
 | Boundary validation | Validate namespace, key digest, OIDs, timestamps, nonce, and expected generation |
 | Runtime-backed nouns introduced | Acquisition is backed by an actual Git ref, not metadata alone |
 | Expected failure representation | Typed miss, conflict, invalid-ref, and release-conflict outcomes |

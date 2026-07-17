@@ -27,6 +27,14 @@ whose nominally private TypeScript constructor was forgeable in JavaScript.
 Adversarial tests produced 19 focused failures plus the expected `TS2739`
 compatibility failure before remediation.
 
+A second independent Code Lawyer pass then found three narrower contract gaps:
+Git 2.43 cannot atomically assert direct-ref type together with an OID mutation,
+doctor treated missing ref-type evidence as healthy, and adding a member to the
+closed public `RetentionRootKind` union broke exhaustive TypeScript consumers.
+The final remediation states the achievable authority invariant precisely,
+marks unknown ref type unhealthy, keeps the original root-kind union unchanged,
+and makes the new doctor report group declaration-optional.
+
 ## Focused Contract Proof
 
 Command:
@@ -51,7 +59,7 @@ Observed result:
 
 ```text
 Test Files  9 passed (9)
-Tests       118 passed (118)
+Tests       120 passed (120)
 Type check  PASS
 ```
 
@@ -61,12 +69,13 @@ and future-dated refs, doctor aggregation, Git transaction failure boundaries,
 stream fragmentation, legacy-adapter compatibility, declaration accuracy, and
 the release gate. The real TypeScript consumer fixture proves that a legacy ref
 adapter remains assignable to `GitRefPortBase` without implementing
-acquisition-only methods.
+acquisition-only methods, the original retention-kind switch remains exhaustive,
+and the new doctor acquisition group remains structurally additive.
 
 ## Real Git Lifetime Proof
 
-The targeted Docker-backed Node run observes ten passing CacheSet integration
-tests. The full Node, Bun, and Deno integration suites each observe 179 passing
+The targeted Docker-backed Node run observes twelve passing CacheSet integration
+tests. The full Node, Bun, and Deno integration suites each observe 181 passing
 tests in the post-remediation release verifier.
 
 The aggressive-prune proof performed this state transition in a synthetic bare
@@ -130,8 +139,8 @@ The final npm dry-run receipt contains `docs/releases/v6.3.0.md` and reports:
 
 ```text
 files:         242
-packed size:   744,792 bytes
-unpacked size: 2,047,004 bytes
+packed size:   745,751 bytes
+unpacked size: 2,049,456 bytes
 ```
 
 The first package-doc run correctly failed because the public release note
@@ -152,16 +161,16 @@ Post-remediation result:
 ```text
 Version: 6.2.0
 Steps passed: 13/13
-Total tests observed: 6283
+Total tests observed: 6295
 Skipped steps: JSR publish dry-run
 
-Unit Tests (Node)        PASS  1919
-Unit Tests (Bun)         PASS  1918
-Unit Tests (Deno)        PASS  1909
+Unit Tests (Node)        PASS  1921
+Unit Tests (Bun)         PASS  1920
+Unit Tests (Deno)        PASS  1911
 Public type compatibility PASS    -
-Integration Tests (Node) PASS   179
-Integration Tests (Bun)  PASS   179
-Integration Tests (Deno) PASS   179
+Integration Tests (Node) PASS   181
+Integration Tests (Bun)  PASS   181
+Integration Tests (Deno) PASS   181
 ```
 
 These are the final local pre-review totals. The package remains `6.2.0` in the
@@ -181,7 +190,7 @@ refusal is an environment guard, not a hidden test failure.
 | A hit does not recursively resolve its target | PASS | Resolver spy remains untouched; 1-page and nested 64-page traces have equal command counts |
 | A returned hit has a scoped lifetime claim | PASS | Atomic generation verification and acquisition-ref creation precede return |
 | Cache mutation cannot collect an active target | PASS | Removal plus immediate reflog expiry and destructive prune preserves it |
-| Release removes only inspected authority | PASS | Idempotent release, expected-generation mismatch, and real symbolic-ref rejection tests |
+| Release remains inside managed authority | PASS | Preflight rejection plus deterministic post-probe races prove `--no-deref` never mutates symbolic referents |
 | Released history becomes collectible | PASS | Second destructive prune removes the target after release |
 | Abandoned anchors are observable | PASS | Work-bounded exact-namespace inspection and doctor count/age/health fields |
 | Public artifact documents the contract | PASS | v6.3.0 package docs and 242-file npm pack receipt pass |
@@ -189,7 +198,7 @@ refusal is an environment guard, not a hidden test failure.
 ## Pending Repository Gates
 
 - [ ] Implementation commit and non-draft pull request linked to issue #69.
-- [x] Self-review has no unresolved findings after remediation.
+- [x] Self-review has no unresolved findings after final remediation.
 - [ ] Independent Code Lawyer review has no unresolved findings.
 - [ ] GitHub Actions CI is green.
 - [ ] Code Rabbit is clean, rate limited, or out of credits.
@@ -209,10 +218,14 @@ refusal is an environment guard, not a hidden test failure.
 - The current command count is bounded by cache-index shape, but is not claimed
   as optimal. Further index-path optimization remains possible.
 - Git's `for-each-ref` omits dangling symbolic refs. Bounded inventory and doctor
-  therefore report symbolic acquisition refs that Git enumerates, while direct
-  acquire, release, and cleanup paths independently probe and reject both live
-  and dangling symbolic refs before mutation. This API does not claim exhaustive
-  inventory of dangling symbolic refs.
+  therefore report symbolic acquisition refs that Git enumerates, while missing
+  ref-type evidence is unhealthy. This API does not claim exhaustive inventory
+  of dangling symbolic refs.
+- Supported Git 2.43 cannot atomically assert direct-ref type and OID in one
+  update. Direct operations reject symbolic refs observed at preflight and use
+  `--no-deref`; a same-OID symbolic ref installed after the probe may cause the
+  managed ref name itself to be created or deleted, but its referent cannot be
+  mutated through this API.
 - Git refs provide reachability while present. This API does not create pack
   `.keep` files and does not claim immunity independent of references.
 - git-warp adoption is downstream evidence and is not supplied by this cycle.

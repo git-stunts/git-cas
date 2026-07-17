@@ -1,4 +1,9 @@
-import type { GitRefPortBase, RepositoryInspectionPort } from '../../index.d.ts';
+import type {
+  GitRefPortBase,
+  RepositoryDoctorReport,
+  RepositoryInspectionPort,
+  RetentionRootKind,
+} from '../../index.d.ts';
 
 class LegacyGitRefAdapter {
   async resolveRef(_ref: string): Promise<string> {
@@ -61,3 +66,27 @@ class LegacyRepositoryInspectionAdapter {
 
 const legacyInspection: RepositoryInspectionPort = new LegacyRepositoryInspectionAdapter();
 void legacyInspection;
+
+function describeLegacyRootKind(kind: RetentionRootKind): string {
+  switch (kind) {
+    case 'root-set':
+    case 'publication':
+    case 'cache-set':
+    case 'expiring-set':
+      return kind;
+    default: {
+      const exhaustive: never = kind;
+      return exhaustive;
+    }
+  }
+}
+
+void describeLegacyRootKind;
+
+type AcquisitionsRemainAdditive = {} extends Pick<
+  RepositoryDoctorReport['usage'],
+  'acquisitions'
+> ? true : false;
+
+const acquisitionsRemainAdditive: AcquisitionsRemainAdditive = true;
+void acquisitionsRemainAdditive;

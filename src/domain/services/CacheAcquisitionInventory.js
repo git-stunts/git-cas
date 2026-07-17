@@ -25,13 +25,7 @@ export function recordCacheAcquisition(inventory, record, observedAt) {
   inventory.totals.activeCount += 1;
   let entry;
   try {
-    if (record.symref !== null && record.symref !== undefined) {
-      throw createCasError(
-        'Symbolic cache acquisition refs are unsafe',
-        ErrorCodes.CACHE_ACQUISITION_INVALID,
-        { ref: record.ref, symref: record.symref },
-      );
-    }
+    assertDirectRefEvidence(record);
     const acquisitionRef = CacheAcquisitionRef.from(record.ref);
     const ageMs = Date.parse(observedAt) - Date.parse(acquisitionRef.acquiredAt);
     if (!Number.isSafeInteger(ageMs) || ageMs < 0) {
@@ -65,6 +59,23 @@ export function recordCacheAcquisition(inventory, record, observedAt) {
   }
   if (inventory.entries.length < inventory.detailLimit) {
     inventory.entries.push(entry);
+  }
+}
+
+function assertDirectRefEvidence(record) {
+  if (record.symref === undefined) {
+    throw createCasError(
+      'Cache acquisition direct-ref evidence is unavailable',
+      ErrorCodes.CACHE_ACQUISITION_INVALID,
+      { ref: record.ref },
+    );
+  }
+  if (record.symref !== null) {
+    throw createCasError(
+      'Symbolic cache acquisition refs are unsafe',
+      ErrorCodes.CACHE_ACQUISITION_INVALID,
+      { ref: record.ref, symref: record.symref },
+    );
   }
 }
 

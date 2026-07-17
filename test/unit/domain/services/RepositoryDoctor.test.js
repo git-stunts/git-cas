@@ -262,6 +262,33 @@ describe('RepositoryDoctor', () => {
     expect(report.usage.acquisitions.entries[0]).not.toHaveProperty('id');
   });
 
+  it('marks acquisition refs unhealthy when direct-ref evidence is unavailable', async () => {
+    const acquisitionRef =
+      `refs/cas/cache-acquisitions/git-warp%2Fmaterializations/${ACQUISITION_ID}`;
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values([{
+        ref: acquisitionRef,
+        oid: 'a'.repeat(40),
+      }])),
+    }));
+
+    const report = await new RepositoryDoctor(ports).doctor();
+
+    expect(report.healthy).toBe(false);
+    expect(report.usage.acquisitions).toMatchObject({
+      healthy: false,
+      entries: [{
+        ref: acquisitionRef,
+        healthy: false,
+        issues: [{
+          code: 'CACHE_ACQUISITION_INVALID',
+          message: 'Cache acquisition direct-ref evidence is unavailable',
+        }],
+      }],
+    });
+    expect(report.usage.acquisitions.entries[0]).not.toHaveProperty('id');
+  });
+
   it('returns kind-specific public shapes when managed collection inspection fails', async () => {
     const ports = dependencies();
     ports.caches.open.mockRejectedValue(new Error('cache failed'));

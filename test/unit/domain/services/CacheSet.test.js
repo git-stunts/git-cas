@@ -152,7 +152,7 @@ describe('CacheSet bounded acquisition', () => {
         policy: 'pinned',
         reachability: 'anchored',
         root: {
-          kind: 'cache-acquisition',
+          kind: 'cache-set',
           namespace: 'git-warp/materializations',
         },
       },

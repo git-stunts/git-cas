@@ -129,6 +129,8 @@ export default class GitRefAdapter extends GitRefPort {
     assertRefName(sourceRef);
     assertRefName(targetRef);
     const generation = Oid.from(expectedSourceOid).toString();
+    // Git 2.43 cannot atomically assert ref type. Preflight rejects observed
+    // symrefs; --no-deref contains any subsequent race to the managed names.
     if (
       await this.#resolveSymbolicRef(sourceRef) !== null ||
       await this.#resolveSymbolicRef(targetRef) !== null
@@ -160,6 +162,8 @@ export default class GitRefAdapter extends GitRefPort {
   async deleteRef({ ref, expectedOldOid }) {
     assertRefName(ref);
     const expectedGeneration = Oid.from(expectedOldOid).toString();
+    // A post-probe type race may delete this managed symref name, never its
+    // referent. The expected OID still gates the no-dereference mutation.
     const symbolicTarget = await this.#resolveSymbolicRef(ref);
     if (symbolicTarget !== null) {
       throw refConflict({
