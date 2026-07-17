@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import BundleService from '../../../../src/domain/services/BundleService.js';
 import CacheIndex from '../../../../src/domain/services/CacheIndex.js';
 import CacheSetRegistry from '../../../../src/domain/services/CacheSetRegistry.js';
@@ -8,10 +8,11 @@ import CacheHit from '../../../../src/domain/value-objects/CacheHit.js';
 import RetentionWitness from '../../../../src/domain/value-objects/RetentionWitness.js';
 import NodeCryptoAdapter from '../../../../src/infrastructure/adapters/NodeCryptoAdapter.js';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
+import GitRefPort from '../../../../src/ports/GitRefPort.js';
 import MemoryPersistenceAdapter from '../../../helpers/MemoryPersistenceAdapter.js';
 import MemoryRefAdapter from '../../../helpers/MemoryRefAdapter.js';
 
-function makeServices(policy) {
+function makeServices(policy, acquisitionCapabilities = {}) {
   let time = Date.parse('2026-07-13T12:00:00.000Z');
   let resolutionCount = 0;
   const clock = { now: () => new Date(time) };
@@ -19,7 +20,7 @@ function makeServices(policy) {
   const ref = new MemoryRefAdapter();
   const pages = new PageService({ persistence, clock });
   const services = {};
-  const crypto = new NodeCryptoAdapter();
+  const crypto = acquisitionCrypto(ref, acquisitionCapabilities);
   const resolveHandle = async (value, context) => {
     resolutionCount += 1;
     const handle = parseApplicationHandle(value);
@@ -62,6 +63,19 @@ function makeServices(policy) {
   };
 }
 
+function acquisitionCrypto(ref, {
+  legacyRefCapabilities = false,
+  legacyCryptoCapabilities = false,
+}) {
+  const crypto = new NodeCryptoAdapter();
+  if (legacyRefCapabilities) {
+    for (const method of ['anchorRef', 'deleteRef', 'iterateRefs']) {
+      Object.defineProperty(ref, method, { value: GitRefPort.prototype[method] });
+    }
+  }
+  return legacyCryptoCapabilities ? { sha256: crypto.sha256.bind(crypto) } : crypto;
+}
+
 async function page(pages, value) {
   return (await pages.put({ source: Buffer.from(value) })).handle;
 }
@@ -83,6 +97,175 @@ describe('CacheSet retention lifecycle', () => {
       generation: head,
     });
     await expect(ref.resolveRef(cache.ref)).resolves.toBe(head);
+  });
+
+  it.each([
+    [{ legacyRefCapabilities: true }, 'anchorRef'],
+    [{ legacyCryptoCapabilities: true }, 'randomBytes'],
+  ])('keeps existing cache operations available without acquisition capability %s', async (
+    capabilities,
+    missingCapability,
+  ) => {
+    const services = makeServices(undefined, capabilities);
+    const cache = services.open();
+    await cache.put('role:alice', await page(services.pages, 'admin'));
+
+    await expect(cache.get('role:alice')).resolves.toMatchObject({
+      key: 'role:alice',
+      logicalBytes: 5,
+    });
+    await expect(cache.acquire('role:alice')).rejects.toMatchObject({
+      code: 'CACHE_ACQUISITION_INVALID',
+      meta: { capability: missingCapability },
+    });
+  });
+});
+
+describe('CacheSet bounded acquisition', () => {
+  it('acquires a scoped generation anchor without resolving the target again', async () => {
+    const services = makeServices();
+    const cache = services.open();
+    const handle = await page(services.pages, 'materialized');
+    await cache.put('coordinate:42', handle);
+    const resolutionsBeforeAcquire = services.resolutionCount;
+
+    const acquisition = await cache.acquire('coordinate:42');
+
+    expect(services.resolutionCount).toBe(resolutionsBeforeAcquire);
+    expect(acquisition).toMatchObject({
+      hit: {
+        key: 'coordinate:42',
+        handle,
+        policy: 'evictable',
+      },
+      evidence: {
+        handle,
+        policy: 'pinned',
+        reachability: 'anchored',
+        root: {
+          kind: 'cache-acquisition',
+          namespace: 'git-warp/materializations',
+        },
+      },
+    });
+    await expect(services.ref.resolveRef(acquisition.evidence.root.ref))
+      .resolves.toBe(acquisition.hit.generation);
+
+    await cache.remove('coordinate:42');
+    await expect(services.ref.resolveRef(acquisition.evidence.root.ref))
+      .resolves.toBe(acquisition.hit.generation);
+    await expect(acquisition.release()).resolves.toMatchObject({ changed: true });
+    await expect(acquisition.release()).resolves.toMatchObject({ changed: false });
+    await expect(services.ref.resolveRef(acquisition.evidence.root.ref))
+      .rejects.toMatchObject({ code: 'GIT_REF_NOT_FOUND' });
+  });
+});
+
+describe('CacheSet acquisition admission', () => {
+  it('does not create an acquisition for an expired entry', async () => {
+    const services = makeServices();
+    const cache = services.open();
+    const anchor = vi.spyOn(services.ref, 'anchorRef');
+    await cache.put('expired', await page(services.pages, 'expired'), {
+      expiresAt: new Date(services.clock.now().getTime() + 1000),
+    });
+    services.advance(1001);
+
+    await expect(cache.acquire('expired')).resolves.toBeNull();
+    expect(anchor).not.toHaveBeenCalled();
+  });
+
+  it('retries from a fresh cache generation when acquisition races replacement', async () => {
+    const services = makeServices();
+    const cache = services.open();
+    const first = await page(services.pages, 'first');
+    const second = await page(services.pages, 'second');
+    await cache.put('shared', first);
+    const anchor = services.ref.anchorRef.bind(services.ref);
+    let raced = false;
+    services.ref.anchorRef = async (options) => {
+      if (!raced) {
+        raced = true;
+        await cache.replace('shared', second, { expectedHandle: first });
+      }
+      return await anchor(options);
+    };
+
+    const acquisition = await cache.acquire('shared');
+
+    expect(raced).toBe(true);
+    expect(acquisition.hit.handle).toEqual(second);
+    await acquisition.release();
+  });
+});
+
+describe('CacheSet acquisition release safety', () => {
+  it('fails closed when checked release observes another generation', async () => {
+    const services = makeServices();
+    const cache = services.open();
+    await cache.put('shared', await page(services.pages, 'first'));
+    const acquisition = await cache.acquire('shared');
+    const replacement = await cache.put('other', await page(services.pages, 'second'));
+    await services.ref.updateRef({
+      ref: acquisition.evidence.root.ref,
+      newOid: replacement.generation,
+      expectedOldOid: acquisition.hit.generation,
+    });
+
+    await expect(acquisition.release()).rejects.toMatchObject({
+      code: 'CACHE_ACQUISITION_RELEASE_CONFLICT',
+    });
+    await expect(services.ref.resolveRef(acquisition.evidence.root.ref))
+      .resolves.toBe(replacement.generation);
+  });
+});
+
+describe('CacheSet acquisition inspection', () => {
+  it('inspects and generation-check releases active acquisitions without exposing keys', async () => {
+    const services = makeServices();
+    const cache = services.open();
+    await cache.put('private:coordinate', await page(services.pages, 'value'));
+    const acquisition = await cache.acquire('private:coordinate');
+
+    const inspection = await cache.inspectAcquisitions({ limit: 10 });
+
+    expect(inspection).toMatchObject({
+      namespace: 'git-warp/materializations',
+      nextCursor: null,
+      entries: [{
+        id: acquisition.id,
+        generation: acquisition.hit.generation,
+        acquiredAt: acquisition.acquiredAt,
+      }],
+    });
+    expect(inspection.entries[0]).not.toHaveProperty('key');
+    await expect(cache.releaseAcquisition({
+      id: acquisition.id,
+      expectedGeneration: acquisition.hit.generation,
+    })).resolves.toMatchObject({ changed: true });
+    await expect(acquisition.release()).resolves.toMatchObject({ changed: false });
+  });
+
+  it('paginates active acquisitions with an opaque stable cursor', async () => {
+    const services = makeServices();
+    const cache = services.open();
+    await cache.put('private:coordinate', await page(services.pages, 'value'));
+    const acquisitions = [];
+    for (let index = 0; index < 3; index += 1) {
+      acquisitions.push(await cache.acquire('private:coordinate'));
+      services.advance(1);
+    }
+
+    const first = await cache.inspectAcquisitions({ limit: 2 });
+    const second = await cache.inspectAcquisitions({ limit: 2, cursor: first.nextCursor });
+
+    expect(first.entries.map(({ id }) => id)).toEqual(acquisitions.slice(0, 2).map(({ id }) => id));
+    expect(first.nextCursor).toBe(acquisitions[1].id);
+    expect(second.entries.map(({ id }) => id)).toEqual([acquisitions[2].id]);
+    expect(second.nextCursor).toBeNull();
+    expect([...first.entries, ...second.entries].every((entry) => !('key' in entry))).toBe(true);
+
+    await Promise.all(acquisitions.map((acquisition) => acquisition.release()));
   });
 });
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Scoped cache acquisitions** — `CacheSet.acquire()` now performs a bounded,
+  reference-only lookup and atomically anchors the selected cache generation
+  for an explicit caller lifetime. Acquisitions carry separate pinned
+  retention evidence, release idempotently with a generation check, expose
+  bounded inspection and operational cleanup, and appear in repository doctor
+  with count and age evidence. Real-Git coverage proves active acquisitions
+  survive aggressive prune without making lookup reads scale with target graph
+  size.
+
 ## [6.2.0] — 2026-07-13
 
 ### Added

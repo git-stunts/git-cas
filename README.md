@@ -43,7 +43,7 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
 `npm run upgrade` in dry-run mode before restoring old encrypted vault entries.
 For the release overview, see the
-[v6.2.0 Release Notes](./docs/releases/v6.2.0.md).
+[v6.2.1 Release Notes](./docs/releases/v6.2.1.md).
 
 ### 1. CLI Usage
 
@@ -103,6 +103,7 @@ The README is the front door. Detailed mechanics live in the guide set:
 | Assets, pages, bundles, retention, and publication      | [Application storage](./docs/API.md#application-storage)     |
 | GC retention for caches and derived state               | [Root Sets](./docs/API.md#root-sets)                         |
 | Managed TTL and capacity caches                         | [Cache Sets](./docs/API.md#cache-sets)                       |
+| Scoped protection while consuming a cache hit           | [Cache acquisitions](./docs/API.md#acquire-and-release)      |
 | Durable replay markers with expiry-only release         | [Expiring Sets](./docs/API.md#expiring-sets)                 |
 | Repository reachability and git-cas usage evidence      | [Repository Diagnostics](./docs/API.md#repository-diagnostics) |
 | v5 to v6 migration                                      | [Upgrading](./UPGRADING.md)                                  |
@@ -126,6 +127,10 @@ Core capabilities:
   compare-and-swap replacement, expiry, capacity eviction, retention
   witnesses, diagnostics, and repair. Reads do not write access metadata;
   callers opt into coalesced access updates with `touch()`.
+- **Scoped cache acquisitions**: `cache.acquire()` performs a reference-only
+  lookup and atomically anchors the selected cache generation for the caller's
+  explicit lifetime. `release()` is idempotent, while inspection and checked
+  cleanup make abandoned acquisition refs observable and recoverable.
 - **Expiry-safe replay lifecycle**: `expiringSets.open()` atomically retains
   digest-only replay markers through their declared window. `contains()` is
   read-only, and `sweep()` can release only markers whose expiry has passed.
@@ -137,8 +142,9 @@ Core capabilities:
   avoid re-encrypting data blobs.
 - **Operational diagnostics**: `cas.diagnostics.doctor()` streams repository
   object/ref evidence, classifies anchored, orphaned, and volatile objects,
-  and summarizes CacheSet, RootSet, ExpiringSet, and Vault usage without
-  mutating Git. The `git-cas doctor` CLI continues to validate vault health.
+  and summarizes cache acquisitions, CacheSet, RootSet, ExpiringSet, and Vault
+  usage without mutating Git. The `git-cas doctor` CLI continues to validate
+  vault health.
 
 ## Safety Snapshot
 
@@ -186,6 +192,8 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
 - **[v6.2.0 Release Notes](./docs/releases/v6.2.0.md)**: Opaque application
   storage, managed cache and replay lifecycles, retention evidence, and
   repository diagnostics.
+- **[v6.2.1 Release Notes](./docs/releases/v6.2.1.md)**: Lifetime-safe,
+  reference-only cache acquisitions with explicit release and doctor evidence.
 - **[Upgrading](./UPGRADING.md)**: Migration guide for v5 → v6.
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.
 

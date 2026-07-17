@@ -19,6 +19,7 @@ vi.setConfig({ testTimeout: 20_000, hookTimeout: 30_000 });
 
 let cache;
 let cas;
+let commandTrace;
 let repoDir;
 let time = Date.parse('2026-07-13T12:00:00.000Z');
 
@@ -42,11 +43,38 @@ function prunableOids() {
   );
 }
 
+function objectExists(oid) {
+  return spawnSync('git', ['cat-file', '-e', oid], {
+    cwd: repoDir,
+    encoding: 'utf8',
+  }).status === 0;
+}
+
+function tracedPlumbing(plumbing) {
+  return new Proxy(plumbing, {
+    get(target, property) {
+      const value = Reflect.get(target, property, target);
+      if (typeof value !== 'function') {
+        return value;
+      }
+      if (property === 'execute' || property === 'executeStream') {
+        return (options) => {
+          commandTrace.push({ operation: property, options });
+          return value.call(target, options);
+        };
+      }
+      return value.bind(target);
+    },
+  });
+}
+
 beforeAll(async () => {
   repoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-cache-set-integ-'));
   git(['init', '--bare']);
+  commandTrace = [];
+  const plumbing = await createGitPlumbing({ cwd: repoDir });
   cas = new ContentAddressableStore({
-    plumbing: await createGitPlumbing({ cwd: repoDir }),
+    plumbing: tracedPlumbing(plumbing),
     clock: { now: () => new Date(time) },
   });
   cache = await cas.caches.open({ namespace: 'git-warp/materializations' });
@@ -81,6 +109,55 @@ describe('CacheSet Git reachability', () => {
     expect(prunableOids()).toContain(old.handle.oid);
     expect(prunableOids()).not.toContain(removed.witness.handle.oid);
     await expect(removalCache.doctor()).resolves.toMatchObject({ healthy: true });
+  });
+});
+
+describe('CacheSet scoped acquisition prune safety', () => {
+  it('keeps an acquired target reachable through removal and aggressive prune', async () => {
+    const scoped = await cas.caches.open({ namespace: 'git-warp/acquisition-prune-proof' });
+    const target = await cas.pages.put({ source: Buffer.from('acquired-target') });
+    await scoped.put('current', target.handle);
+    const acquisition = await scoped.acquire('current');
+    await scoped.remove('current');
+
+    git(['reflog', 'expire', '--expire=now', '--all']);
+    git(['prune', '--expire=now']);
+    expect(objectExists(target.handle.oid)).toBe(true);
+    expect(git(['rev-parse', acquisition.evidence.root.ref]))
+      .toBe(acquisition.hit.generation);
+
+    await acquisition.release();
+    git(['reflog', 'expire', '--expire=now', '--all']);
+    git(['prune', '--expire=now']);
+    expect(objectExists(target.handle.oid)).toBe(false);
+  });
+});
+
+describe('CacheSet scoped acquisition cost', () => {
+  it('does not scale acquisition Git reads with the target support graph', async () => {
+    const smallCache = await cas.caches.open({ namespace: 'git-warp/acquisition-cost-small' });
+    const largeCache = await cas.caches.open({ namespace: 'git-warp/acquisition-cost-large' });
+    const small = await cas.pages.put({ source: Buffer.from('small') });
+    const members = {};
+    for (let index = 0; index < 64; index += 1) {
+      const member = await cas.pages.put({ source: Buffer.from(`member-${index}`) });
+      members[`member-${String(index).padStart(3, '0')}`] = member.handle;
+    }
+    const large = await cas.bundles.put({ members });
+    await smallCache.put('current', small.handle);
+    await largeCache.put('current', large.handle);
+
+    commandTrace.length = 0;
+    const smallAcquisition = await smallCache.acquire('current');
+    const smallReads = commandTrace.length;
+    commandTrace.length = 0;
+    const largeAcquisition = await largeCache.acquire('current');
+    const largeReads = commandTrace.length;
+
+    expect(largeReads).toBe(smallReads);
+    expect(largeReads).toBeGreaterThan(0);
+    await smallAcquisition.release();
+    await largeAcquisition.release();
   });
 });
 

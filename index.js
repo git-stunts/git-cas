@@ -12,6 +12,7 @@ import RootSet from './src/domain/services/RootSet.js';
 import RootSetRegistry from './src/domain/services/RootSetRegistry.js';
 import AssetService from './src/domain/services/AssetService.js';
 import BundleService from './src/domain/services/BundleService.js';
+import CacheAcquisition from './src/domain/value-objects/CacheAcquisition.js';
 import CacheSet from './src/domain/services/CacheSet.js';
 import CacheSetRegistry from './src/domain/services/CacheSetRegistry.js';
 import ExpiringSet from './src/domain/services/ExpiringSet.js';
@@ -67,6 +68,7 @@ export {
   VaultService,
   RootSet,
   RootSetRegistry,
+  CacheAcquisition,
   CacheSet,
   ExpiringSet,
   RepositoryDoctor,

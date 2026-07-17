@@ -119,3 +119,94 @@ describe('GitRefAdapter.updateRef()', () => {
     });
   });
 });
+
+describe('GitRefAdapter scoped anchors', () => {
+  it('atomically verifies the source generation while creating an anchor', async () => {
+    const { adapter, plumbing } = createAdapter();
+    const generation = 'a'.repeat(40);
+    const sourceRef = 'refs/cas/caches/git-warp/materializations';
+    const targetRef = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
+
+    await adapter.anchorRef({ sourceRef, expectedSourceOid: generation, targetRef });
+
+    expect(plumbing.execute).toHaveBeenCalledWith({
+      args: ['update-ref', '--stdin'],
+      input: [
+        'start',
+        `verify ${sourceRef} ${generation}`,
+        `create ${targetRef} ${generation}`,
+        'prepare',
+        'commit',
+        '',
+      ].join('\n'),
+    });
+  });
+
+  it('deletes only the expected anchored generation', async () => {
+    const { adapter, plumbing } = createAdapter();
+    const generation = 'b'.repeat(40);
+    const ref = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
+    plumbing.execute.mockResolvedValueOnce(generation).mockResolvedValueOnce('');
+
+    await adapter.deleteRef({ ref, expectedOldOid: generation });
+
+    expect(plumbing.execute).toHaveBeenCalledWith({
+      args: ['update-ref', '-d', ref, generation],
+    });
+  });
+
+});
+
+describe('GitRefAdapter scoped-anchor validation', () => {
+  it('rejects malformed transaction refs and generations before invoking Git', async () => {
+    const { adapter, plumbing } = createAdapter();
+    const sourceRef = 'refs/cas/caches/git-warp/materializations';
+
+    await expect(adapter.anchorRef({
+      sourceRef,
+      expectedSourceOid: 'a'.repeat(40),
+      targetRef: 'refs/cas/cache-acquisitions/safe\ncreate refs/heads/injected',
+    })).rejects.toMatchObject({ code: ErrorCodes.GIT_ERROR });
+    await expect(adapter.anchorRef({
+      sourceRef,
+      expectedSourceOid: 'not-an-oid',
+      targetRef: 'refs/cas/cache-acquisitions/safe/acquisition',
+    })).rejects.toMatchObject({ code: ErrorCodes.INVALID_OID });
+    expect(plumbing.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe('GitRefAdapter scoped-anchor conflicts', () => {
+  it('reports a generation race without hiding unrelated Git failures', async () => {
+    const { adapter, plumbing } = createAdapter();
+    const sourceRef = 'refs/cas/caches/git-warp/materializations';
+    const targetRef = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
+    const generation = 'a'.repeat(40);
+    plumbing.execute.mockRejectedValueOnce(Object.assign(new Error('transaction failed'), {
+      details: { stderr: `fatal: prepare: cannot lock ref '${sourceRef}': is at b but expected a` },
+    }));
+
+    await expect(adapter.anchorRef({ sourceRef, expectedSourceOid: generation, targetRef }))
+      .resolves.toBe(false);
+
+    const failure = new Error('permission denied');
+    plumbing.execute.mockRejectedValueOnce(failure);
+    await expect(adapter.anchorRef({ sourceRef, expectedSourceOid: generation, targetRef }))
+      .rejects.toBe(failure);
+  });
+
+  it('normalizes a concurrent checked-delete disappearance as a ref conflict', async () => {
+    const { adapter, plumbing } = createAdapter();
+    const ref = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
+    const generation = 'a'.repeat(40);
+    const rootCause = Object.assign(new Error('delete failed'), {
+      details: { stderr: `error: cannot lock ref '${ref}': unable to resolve reference '${ref}'` },
+    });
+    plumbing.execute.mockResolvedValueOnce(generation).mockRejectedValueOnce(rootCause);
+
+    await expect(adapter.deleteRef({ ref, expectedOldOid: generation })).rejects.toMatchObject({
+      code: ErrorCodes.GIT_REF_CONFLICT,
+      meta: { ref, expectedOldOid: generation, actualOldOid: null, originalError: rootCause },
+    });
+  });
+});

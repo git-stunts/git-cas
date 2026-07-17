@@ -93,6 +93,10 @@ describe('Application-storage declaration accuracy', () => {
     expect(declarations).toContain('readonly publications: PublicationCapability;');
     expect(declarations).toContain('export declare class CacheSet');
     expect(declarations).toContain('export declare class CacheHit');
+    expect(declarations).toContain('export declare class CacheAcquisition');
+    expect(declarations).toContain('acquire(key: string): Promise<CacheAcquisition | null>;');
+    expect(declarations).toContain('inspectAcquisitions(options?: {');
+    expect(declarations).toContain('releaseAcquisition(options: {');
     expect(declarations).toContain('readonly caches: CacheCapability;');
     expect(declarations).toContain('export declare class ExpiringSet');
     expect(declarations).toContain('export declare class ExpiringMarker');

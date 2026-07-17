@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import CacheAcquisitionRef from '../../../../src/domain/value-objects/CacheAcquisitionRef.js';
 import CacheKey from '../../../../src/domain/value-objects/CacheKey.js';
 import CachePolicy from '../../../../src/domain/value-objects/CachePolicy.js';
 import CacheSetRef from '../../../../src/domain/value-objects/CacheSetRef.js';
@@ -50,5 +51,46 @@ describe('Cache key and policy values', () => {
     });
     expect(() => new CachePolicy({ maxEntries: 100_000 }))
       .toThrow(expect.objectContaining({ code: 'CACHE_POLICY_INVALID' }));
+  });
+});
+
+describe('CacheAcquisitionRef', () => {
+  it('round-trips canonical namespace, time, key digest, and nonce fields', () => {
+    const acquiredAt = '2026-07-16T12:34:56.789Z';
+    const keyDigest = 'a'.repeat(64);
+    const ref = CacheAcquisitionRef.create({
+      namespace: 'git-warp/materializations',
+      keyDigest,
+      acquiredAt,
+      nonce: 'b'.repeat(32),
+    });
+
+    expect(CacheAcquisitionRef.from(ref.toString())).toMatchObject({
+      namespace: 'git-warp/materializations',
+      acquiredAt,
+      keyDigest,
+      id: ref.id,
+    });
+  });
+
+  it.each([
+    'refs/heads/main',
+    'refs/cas/cache-acquisitions/git-warp/materializations',
+    `refs/cas/cache-acquisitions/git-warp/materializations/v1-0000000000000-${'a'.repeat(63)}-${'b'.repeat(32)}`,
+    `refs/cas/cache-acquisitions/git-warp/materializations/v1-0000000000000-${'a'.repeat(64)}-${'b'.repeat(31)}`,
+    `refs/cas/cache-acquisitions/UPPER/v1-0000000000000-${'a'.repeat(64)}-${'b'.repeat(32)}`,
+  ])('rejects malformed acquisition ref %s', (value) => {
+    expect(() => CacheAcquisitionRef.from(value)).toThrow(expect.objectContaining({
+      code: 'CACHE_ACQUISITION_INVALID',
+    }));
+  });
+
+  it('does not allow an acquisition ID to extend the caller namespace', () => {
+    const id = `v1-0000000000000-${'a'.repeat(64)}-${'b'.repeat(32)}`;
+
+    expect(() => CacheAcquisitionRef.forId({
+      namespace: 'git-warp/materializations',
+      id: `nested/${id}`,
+    })).toThrow(expect.objectContaining({ code: 'CACHE_ACQUISITION_INVALID' }));
   });
 });

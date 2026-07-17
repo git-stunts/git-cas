@@ -72,9 +72,16 @@ export default class GitRepositoryInspectionAdapter extends RepositoryInspection
     }
   }
 
-  async *iterateRefs() {
+  async *iterateRefs({ prefix = 'refs/' } = {}) {
+    if (typeof prefix !== 'string' || !prefix.startsWith('refs/') || prefix.includes('..')) {
+      throw new CasError(
+        'Git ref inventory prefix is invalid',
+        ErrorCodes.REPOSITORY_INSPECTION_INVALID,
+        { prefix },
+      );
+    }
     const stream = await this.#stream({
-      args: ['for-each-ref', '--format=%(refname)%09%(objectname)', 'refs/'],
+      args: ['for-each-ref', '--format=%(refname)%09%(objectname)', prefix],
     });
     for await (const line of consumeLines(stream, 'ref inventory')) {
       const fields = line.split('\t');

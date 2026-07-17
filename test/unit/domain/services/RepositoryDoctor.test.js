@@ -4,6 +4,7 @@ import RepositoryDoctor, {
 } from '../../../../src/domain/services/RepositoryDoctor.js';
 
 const NOW = '2026-07-13T12:00:00.000Z';
+const ACQUISITION_ID = `v1-1783940400000-${'9'.repeat(64)}-${'8'.repeat(32)}`;
 
 async function* values(items) {
   yield* items;
@@ -27,6 +28,10 @@ function repository(overrides = {}) {
     iterateRefs: vi.fn(() =>
       values([
         { ref: 'refs/cas/caches/git-warp/materializations', oid: 'a'.repeat(40) },
+        {
+          ref: `refs/cas/cache-acquisitions/git-warp/materializations/${ACQUISITION_ID}`,
+          oid: 'a'.repeat(40),
+        },
         { ref: 'refs/cas/expiring/git-warp/replay', oid: 'b'.repeat(40) },
         { ref: 'refs/cas/rootsets/git-warp/live', oid: 'c'.repeat(40) },
         { ref: 'refs/cas/vault', oid: 'd'.repeat(40) },
@@ -135,10 +140,27 @@ describe('RepositoryDoctor', () => {
           volatile: { objectCount: 1, physicalBytes: null },
           unreachable: { objectCount: 2, physicalBytes: 44 },
         },
-        roots: { refCount: 6, reflogsIncluded: true },
+        roots: { refCount: 7, reflogsIncluded: true },
         evidence: { prunableInspection: 'dry-run', mutatesRepository: false },
       },
       usage: {
+        acquisitions: {
+          healthy: true,
+          coverage: { observed: 1, inspected: 1, complete: true },
+          totals: {
+            activeCount: 1,
+            oldestAcquiredAt: '2026-07-13T11:00:00.000Z',
+            newestAcquiredAt: '2026-07-13T11:00:00.000Z',
+            maxAgeMs: 3_600_000,
+          },
+          entries: [{
+            id: ACQUISITION_ID,
+            namespace: 'git-warp/materializations',
+            generation: 'a'.repeat(40),
+            acquiredAt: '2026-07-13T11:00:00.000Z',
+            ageMs: 3_600_000,
+          }],
+        },
         caches: {
           coverage: { observed: 1, inspected: 1, complete: true },
           totals: {

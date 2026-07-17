@@ -1,9 +1,15 @@
 import { ErrorCodes } from '../errors/index.js';
 import createCasError from '../errors/createCasError.js';
+import { CACHE_ACQUISITION_REF_PREFIX } from '../value-objects/CacheAcquisitionRef.js';
 import { CACHE_SET_REF_PREFIX } from '../value-objects/CacheSetRef.js';
 import { EXPIRING_SET_REF_PREFIX } from '../value-objects/ExpiringSetRef.js';
 import { ROOT_SET_REF_PREFIX } from '../value-objects/RootSetRef.js';
 import { VAULT_REF } from './VaultPersistence.js';
+import {
+  cacheAcquisitionGroup,
+  createCacheAcquisitionInventory,
+  recordCacheAcquisition,
+} from './CacheAcquisitionInventory.js';
 
 export const DEFAULT_REPOSITORY_GRACE_PERIOD_MS = 14 * 24 * 60 * 60 * 1_000;
 const DEFAULT_MAX_COLLECTIONS_PER_KIND = 100;
@@ -26,7 +32,11 @@ export default class RepositoryDoctor {
     const observedAt = this.#now();
     const policy = inspectionPolicy(options, observedAt);
     const limitations = baseLimitations();
-    const { refs, usage } = await this.#inventoryUsage(policy.maxCollectionsPerKind, limitations);
+    const { refs, usage } = await this.#inventoryUsage(
+      policy.maxCollectionsPerKind,
+      limitations,
+      observedAt,
+    );
     const objects = await this.#inventoryObjects(policy.expiresBefore);
 
     if (!objects.consistent) {
@@ -105,11 +115,13 @@ export default class RepositoryDoctor {
     };
   }
 
-  async #inventoryUsage(limit, limitations) {
+  async #inventoryUsage(limit, limitations, observedAt) {
     const result = usageInventory(limit);
     for await (const record of this.repository.iterateRefs()) {
       result.refCount += 1;
-      if (record.ref.startsWith(CACHE_SET_REF_PREFIX)) {
+      if (record.ref.startsWith(CACHE_ACQUISITION_REF_PREFIX)) {
+        recordCacheAcquisition(result.acquisitions, record, observedAt);
+      } else if (record.ref.startsWith(CACHE_SET_REF_PREFIX)) {
         result.caches.observed += 1;
         recordCache(result.caches, await this.#inspectCache(record));
       } else if (record.ref.startsWith(ROOT_SET_REF_PREFIX)) {
@@ -125,6 +137,7 @@ export default class RepositoryDoctor {
     return {
       refs: result,
       usage: {
+        acquisitions: cacheAcquisitionGroup(result.acquisitions),
         caches: collectionGroup(result.caches),
         rootSets: collectionGroup(result.rootSets),
         expiringSets: collectionGroup(result.expiringSets),
@@ -403,6 +416,7 @@ function collectionInventory(totals, detailLimit) {
 function usageInventory(detailLimit) {
   return {
     refCount: 0,
+    acquisitions: createCacheAcquisitionInventory(detailLimit),
     caches: collectionInventory(
       {
         entryCount: 0,
@@ -505,6 +519,7 @@ function healthyVault(record, { entryCount, privacy }) {
 function usageHealthy(usage) {
   return (
     usage.caches.healthy &&
+    usage.acquisitions.healthy &&
     usage.rootSets.healthy &&
     usage.expiringSets.healthy &&
     usage.vault.healthy
@@ -577,6 +592,7 @@ function baseLimitations() {
 
 function addTruncationLimitations(refs, limitations) {
   for (const [kind, inventory] of [
+    ['acquisitions', refs.acquisitions],
     ['caches', refs.caches],
     ['rootSets', refs.rootSets],
     ['expiringSets', refs.expiringSets],

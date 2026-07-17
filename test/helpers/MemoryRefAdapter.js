@@ -73,6 +73,41 @@ export default class MemoryRefAdapter extends GitRefPort {
     this.#refs.set(ref, newOid);
   }
 
+  async anchorRef({ sourceRef, expectedSourceOid, targetRef }) {
+    this.#assertCommitExists(expectedSourceOid);
+    const source = this.#refs.get(sourceRef) || null;
+    if (source !== expectedSourceOid || this.#refs.has(targetRef)) {
+      return false;
+    }
+    this.#refs.set(targetRef, expectedSourceOid);
+    return true;
+  }
+
+  async deleteRef({ ref, expectedOldOid }) {
+    const current = this.#refs.get(ref) || null;
+    if (current === null) {
+      return false;
+    }
+    if (current !== expectedOldOid) {
+      throw new CasError(
+        `Ref deletion rejected for ${ref}`,
+        ErrorCodes.GIT_REF_CONFLICT,
+        { ref, expectedOldOid, actualOldOid: current },
+      );
+    }
+    this.#refs.delete(ref);
+    return true;
+  }
+
+  async *iterateRefs({ prefix = 'refs/' } = {}) {
+    const entries = [...this.#refs.entries()]
+      .filter(([ref]) => ref.startsWith(prefix))
+      .sort(([left], [right]) => left.localeCompare(right));
+    for (const [ref, oid] of entries) {
+      yield Object.freeze({ ref, oid });
+    }
+  }
+
   #assertCommitExists(commitOidToCheck) {
     if (!this.#commits.has(commitOidToCheck)) {
       throw new CasError(
