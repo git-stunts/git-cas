@@ -229,7 +229,7 @@ refusal is an environment guard, not a hidden test failure.
 
 - [ ] Implementation commit and non-draft pull request linked to issue #69.
 - [x] Self-review has no unresolved findings after final remediation.
-- [ ] Independent Code Lawyer review has no unresolved findings.
+- [x] Independent Code Lawyer review has no unresolved findings.
 - [ ] GitHub Actions CI is green.
 - [ ] Code Rabbit is clean, rate limited, or out of credits.
 - [ ] Pull request is merged normally without amend, rebase, or force.
