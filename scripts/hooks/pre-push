@@ -5,6 +5,12 @@
 
 set -e
 
+# Git exports repository-local environment variables to hooks. Clear them so
+# child processes can discover or create repositories outside this worktree.
+while IFS= read -r git_var; do
+  unset "$git_var"
+done < <(git rev-parse --local-env-vars)
+
 echo "Running pre-push quality gates..."
 
 echo "→ Linting..."
