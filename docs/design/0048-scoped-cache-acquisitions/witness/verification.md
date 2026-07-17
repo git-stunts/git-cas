@@ -224,7 +224,7 @@ refusal is an environment guard, not a hidden test failure.
 | Abandoned anchors are observable | PASS | Work-bounded exact-namespace inspection and doctor count/age/health fields |
 | Public artifact documents the contract | PASS | v6.3.0 package docs and 242-file npm pack receipt pass |
 
-## Pending Repository Gates
+## Repository Gates
 
 - [x] Implementation commit and non-draft pull request linked to issue #69.
 - [x] Self-review has no unresolved findings after final remediation.
@@ -232,7 +232,8 @@ refusal is an environment guard, not a hidden test failure.
 - [x] GitHub Actions CI is green.
 - [x] Code Rabbit is clean, rate limited, or out of credits.
 - [x] Pull request is merged normally without amend, rebase, or force.
-- [ ] v6.3.0 is published and verified from the npm registry.
+- [x] v6.3.0 is published and verified from the npm registry; see the
+  [publication witness](./release-publication.md).
 
 ## Bounded Claims
 
