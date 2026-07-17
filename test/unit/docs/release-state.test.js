@@ -13,23 +13,32 @@ function v6Heading(changelog) {
 }
 
 describe('release state docs', () => {
-  it('records the published v6.2.0 artifact and provenance state', () => {
+  it('separates the published v6.2.0 artifact from the v6.3.0 candidate', () => {
     const status = read('STATUS.md');
+    const candidate = read(
+      'docs/design/0048-scoped-cache-acquisitions/witness/release-candidate.md'
+    );
     const witness = read(
       'docs/design/0047-application-storage-cache-boundary/witness/release-publication.md'
     );
 
     expect(status).toContain('**Last tagged release:** `v6.2.0` (`2026-07-13`)');
-    expect(status).toContain('`v6.2.0` is published to npm with provenance');
-    expect(status).toContain('release run `29280878104`');
-    expect(status).toContain('Latest completed release goalpost:');
-    expect(status).not.toContain('Current selected release goalpost:');
+    expect(status).toContain('**Current release state:** `v6.3.0` release candidate');
+    expect(status).toContain('publication remain pending the reviewed tag workflow');
+    expect(status).toContain('Current release goalpost:');
+    expect(status).toContain('#69 v6.3.0: Bounded scoped cache acquisitions');
+    expect(candidate).toContain('It passed 14/14 steps and observed 6,325 tests');
+    expect(candidate).toContain('242 files, 747,220 packed bytes, and 2,054,933');
+    expect(candidate).toContain('7b15ec1819a1c2500c459818785fcd7ec6cf7676');
+    expect(candidate).toContain('explicitly unpublished candidate');
     expect(witness).toContain('432c5d9effb12c9f66536f1386791bb4421f3cea');
     expect(witness).toContain('sha512-m8+ZzgNhKU6pVS9pjqJlwAnwYI/s+NMEnINC+Q0g3h6T6mNPdH8U0jb4nEoxU9N1TF+Ut5bjtRMRRaYT75dlew==');
     expect(witness).toContain('https://slsa.dev/provenance/v1');
     expect(witness).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.2.0');
   });
+});
 
+describe('historical v6 release evidence', () => {
   it('keeps v6.0.0 marked released once the tag workflow has published', () => {
     const changelogHeading = v6Heading(read('CHANGELOG.md'));
     const status = read('STATUS.md');

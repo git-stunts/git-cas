@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.0] — 2026-07-17
+
 ### Added
 
 - **Scoped cache acquisitions** — `CacheSet.acquire()` now performs a bounded,
@@ -28,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compatibility with existing consumers. Production Git checked-delete
   conflicts fail closed because Git 2.43 cannot atomically prove that a missing
   direct ref is not an enumerator-invisible dangling symbolic ref.
+
+### Fixed
+
+- **Pre-push Git environment isolation** — repository-local `GIT_*` variables
+  exported by Git hooks are cleared before lint and tests run, so child
+  processes can create and inspect independent temporary repositories. The
+  hook fails closed if Git cannot enumerate the local variables.
 
 ### Documentation
 

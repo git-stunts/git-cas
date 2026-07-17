@@ -169,8 +169,8 @@ contains `docs/releases/v6.3.0.md` and reports:
 
 ```text
 files:         242
-packed size:   746,789 bytes
-unpacked size: 2,053,392 bytes
+packed size:   747,220 bytes
+unpacked size: 2,054,933 bytes
 ```
 
 The first package-doc run correctly failed because the public release note
@@ -183,30 +183,29 @@ published artifact.
 Command:
 
 ```bash
-pnpm run release:verify -- --skip-jsr
+pnpm run release:verify
 ```
 
-Post-remediation result:
+Pre-publication release-candidate result:
 
 ```text
-Version: 6.2.0
-Steps passed: 13/13
-Total tests observed: 6319
-Skipped steps: JSR publish dry-run
+Version: 6.3.0
+Steps passed: 14/14
+Total tests observed: 6325
 
-Unit Tests (Node)        PASS  1926
-Unit Tests (Bun)         PASS  1925
-Unit Tests (Deno)        PASS  1916
+Unit Tests (Node)        PASS  1928
+Unit Tests (Bun)         PASS  1927
+Unit Tests (Deno)        PASS  1918
 Public type compatibility PASS    -
 Integration Tests (Node) PASS   184
 Integration Tests (Bun)  PASS   184
 Integration Tests (Deno) PASS   184
+JSR publish dry-run      PASS     -
 ```
 
-These are the final local pre-review totals. The package remains `6.2.0` in the
-implementation PR; the release workflow creates v6.3.0 after merge. JSR remains
-the only deliberately skipped step locally because registry publication is a
-post-merge release action.
+These are the final local pre-publication totals after the implementation PR
+merged and all npm, JSR, runtime, type, example, and integration version paths
+were promoted to `6.3.0`. Registry publication remains a post-tag action.
 
 A direct host integration invocation was also attempted and correctly refused
 because this repository requires `GIT_STUNTS_DOCKER=1` for integration tests.
@@ -227,12 +226,12 @@ refusal is an environment guard, not a hidden test failure.
 
 ## Pending Repository Gates
 
-- [ ] Implementation commit and non-draft pull request linked to issue #69.
+- [x] Implementation commit and non-draft pull request linked to issue #69.
 - [x] Self-review has no unresolved findings after final remediation.
 - [x] Independent Code Lawyer review has no unresolved findings.
-- [ ] GitHub Actions CI is green.
-- [ ] Code Rabbit is clean, rate limited, or out of credits.
-- [ ] Pull request is merged normally without amend, rebase, or force.
+- [x] GitHub Actions CI is green.
+- [x] Code Rabbit is clean, rate limited, or out of credits.
+- [x] Pull request is merged normally without amend, rebase, or force.
 - [ ] v6.3.0 is published and verified from the npm registry.
 
 ## Bounded Claims
