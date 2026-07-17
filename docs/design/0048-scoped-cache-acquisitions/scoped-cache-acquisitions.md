@@ -222,7 +222,7 @@ ref-type evidence is unhealthy rather than assumed direct.
 | --- | --- |
 | Domain changes | Add `CacheAcquisition`, acquisition ref/value parsing, and lifecycle service |
 | Port changes | Add optional semantic anchor, checked delete, and bounded ref iteration capabilities without breaking legacy structural adapters |
-| Adapter changes | Preflight symbolic refs, use `git update-ref --no-deref` to contain type races, and pass a hard `for-each-ref --count` bound |
+| Adapter changes | Preflight symbolic refs for ordinary and acquisition mutations, use `git update-ref --no-deref` to contain type races, re-probe after checked-delete conflicts, and pass a hard `for-each-ref --count` bound |
 | Boundary validation | Validate namespace, key digest, OIDs, timestamps, nonce, and expected generation |
 | Runtime-backed nouns introduced | Acquisition is backed by an actual Git ref, not metadata alone |
 | Expected failure representation | Typed miss, conflict, invalid-ref, and release-conflict outcomes |

@@ -115,7 +115,17 @@ export default class GitRefAdapter extends GitRefPort {
    * @returns {Promise<void>}
    */
   async updateRef({ ref, newOid, expectedOldOid }) {
-    const args = ['update-ref', ref, newOid];
+    assertRefName(ref);
+    const symbolicTarget = await this.#resolveSymbolicRef(ref);
+    if (symbolicTarget !== null) {
+      throw refConflict({
+        ref,
+        expectedOldOid: expectedOldOid ?? null,
+        actualOldOid: null,
+        actualSymref: symbolicTarget,
+      });
+    }
+    const args = ['update-ref', '--no-deref', ref, newOid];
     if (expectedOldOid !== undefined) {
       args.push(expectedOldOid ?? '0'.repeat(newOid.length));
     }
@@ -182,6 +192,16 @@ export default class GitRefAdapter extends GitRefPort {
     } catch (error) {
       if (!isUpdateRefConflict(error, [ref])) {
         throw error;
+      }
+      const racedSymbolicTarget = await this.#resolveSymbolicRef(ref);
+      if (racedSymbolicTarget !== null) {
+        throw refConflict({
+          ref,
+          expectedOldOid: expectedGeneration,
+          actualOldOid: null,
+          actualSymref: racedSymbolicTarget,
+          originalError: error,
+        });
       }
       const actual = await this.#inspectDirectRef(ref);
       if (actual === null) {
@@ -409,7 +429,7 @@ function refConflict({
   originalError,
 }) {
   return new CasError(
-    `Git ref changed before checked deletion: ${ref}`,
+    `Git ref changed before checked mutation: ${ref}`,
     ErrorCodes.GIT_REF_CONFLICT,
     { ref, expectedOldOid, actualOldOid, actualSymref, originalError },
   );

@@ -77,6 +77,7 @@ describe('GitRefAdapter.resolveParents()', () => {
   });
 });
 
+// eslint-disable-next-line max-lines-per-function
 describe('GitRefAdapter.updateRef()', () => {
   it('uses Git create-only CAS semantics when expectedOldOid is null', async () => {
     const { adapter, plumbing } = createAdapter();
@@ -88,7 +89,7 @@ describe('GitRefAdapter.updateRef()', () => {
     });
 
     expect(plumbing.execute).toHaveBeenCalledWith({
-      args: ['update-ref', 'refs/cas/vault', 'a'.repeat(40), ZERO_OID],
+      args: ['update-ref', '--no-deref', 'refs/cas/vault', 'a'.repeat(40), ZERO_OID],
     });
   });
 
@@ -102,7 +103,7 @@ describe('GitRefAdapter.updateRef()', () => {
     });
 
     expect(plumbing.execute).toHaveBeenCalledWith({
-      args: ['update-ref', 'refs/cas/vault', 'a'.repeat(64), '0'.repeat(64)],
+      args: ['update-ref', '--no-deref', 'refs/cas/vault', 'a'.repeat(64), '0'.repeat(64)],
     });
   });
 
@@ -115,8 +116,28 @@ describe('GitRefAdapter.updateRef()', () => {
     });
 
     expect(plumbing.execute).toHaveBeenCalledWith({
-      args: ['update-ref', 'refs/cas/vault', 'b'.repeat(40)],
+      args: ['update-ref', '--no-deref', 'refs/cas/vault', 'b'.repeat(40)],
     });
+  });
+
+  it('fails closed instead of following an observed symbolic ref', async () => {
+    const { adapter, plumbing } = createAdapter();
+    plumbing.execute.mockResolvedValueOnce('refs/heads/main');
+
+    await expect(adapter.updateRef({
+      ref: 'refs/cas/vault',
+      newOid: 'b'.repeat(40),
+      expectedOldOid: 'a'.repeat(40),
+    })).rejects.toMatchObject({
+      code: ErrorCodes.GIT_REF_CONFLICT,
+      meta: {
+        ref: 'refs/cas/vault',
+        expectedOldOid: 'a'.repeat(40),
+        actualOldOid: null,
+        actualSymref: 'refs/heads/main',
+      },
+    });
+    expect(plumbing.execute).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -223,6 +244,7 @@ describe('GitRefAdapter scoped-anchor conflicts', () => {
   });
 });
 
+// eslint-disable-next-line max-lines-per-function
 describe('GitRefAdapter checked-delete conflicts', () => {
   it('normalizes a concurrent checked-delete disappearance as an idempotent miss', async () => {
     const { adapter, plumbing } = createAdapter();
@@ -234,10 +256,14 @@ describe('GitRefAdapter checked-delete conflicts', () => {
     plumbing.execute
       .mockResolvedValueOnce('')
       .mockRejectedValueOnce(rootCause)
+      .mockResolvedValueOnce('')
       .mockResolvedValueOnce('');
 
     await expect(adapter.deleteRef({ ref, expectedOldOid: generation })).resolves.toBe(false);
     expect(plumbing.execute).toHaveBeenNthCalledWith(3, {
+      args: ['symbolic-ref', '--quiet', ref],
+    });
+    expect(plumbing.execute).toHaveBeenNthCalledWith(4, {
       args: [
         'for-each-ref',
         '--format=%(refname)%09%(objectname)%09%(symref)',
@@ -245,6 +271,32 @@ describe('GitRefAdapter checked-delete conflicts', () => {
         ref,
       ],
     });
+  });
+
+  it('fails closed when a checked-delete conflict leaves a dangling symbolic ref', async () => {
+    const { adapter, plumbing } = createAdapter();
+    const ref = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
+    const danglingTarget = 'refs/heads/not-created';
+    const generation = 'a'.repeat(40);
+    const rootCause = Object.assign(new Error('delete failed'), {
+      details: { stderr: `error: cannot lock ref '${ref}': unable to resolve reference '${ref}'` },
+    });
+    plumbing.execute
+      .mockResolvedValueOnce('')
+      .mockRejectedValueOnce(rootCause)
+      .mockResolvedValueOnce(danglingTarget);
+
+    await expect(adapter.deleteRef({ ref, expectedOldOid: generation })).rejects.toMatchObject({
+      code: ErrorCodes.GIT_REF_CONFLICT,
+      meta: {
+        ref,
+        expectedOldOid: generation,
+        actualOldOid: null,
+        actualSymref: danglingTarget,
+        originalError: rootCause,
+      },
+    });
+    expect(plumbing.execute).toHaveBeenCalledTimes(3);
   });
 
   it('fails closed when the checked ref becomes a symbolic ref', async () => {

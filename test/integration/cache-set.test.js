@@ -334,6 +334,60 @@ describe('CacheSet acquisition source ref authority', () => {
 });
 
 // eslint-disable-next-line max-lines-per-function
+describe('managed ref update authority', () => {
+  it('does not follow an observed managed symbolic ref', async () => {
+    const scoped = await cas.caches.open({ namespace: 'git-warp/update-ref-symref' });
+    const firstTarget = await cas.pages.put({ source: Buffer.from('update-first') });
+    const first = await scoped.put('first', firstTarget.handle);
+    const secondTarget = await cas.pages.put({ source: Buffer.from('update-second') });
+    const second = await scoped.put('second', secondTarget.handle);
+    const sentinelRef = 'refs/heads/update-ref-sentinel';
+    git(['update-ref', sentinelRef, second.generation]);
+    git(['symbolic-ref', scoped.ref, sentinelRef]);
+
+    await expect(gitRefs.updateRef({
+      ref: scoped.ref,
+      newOid: first.generation,
+      expectedOldOid: second.generation,
+    })).rejects.toMatchObject({ code: 'GIT_REF_CONFLICT' });
+
+    expect(symbolicTarget(scoped.ref)).toBe(sentinelRef);
+    expect(git(['rev-parse', sentinelRef])).toBe(second.generation);
+  });
+
+  it('contains a post-probe managed symref race to the managed name', async () => {
+    const scoped = await cas.caches.open({ namespace: 'git-warp/update-ref-race' });
+    const firstTarget = await cas.pages.put({ source: Buffer.from('update-race-first') });
+    const first = await scoped.put('first', firstTarget.handle);
+    const secondTarget = await cas.pages.put({ source: Buffer.from('update-race-second') });
+    const second = await scoped.put('second', secondTarget.handle);
+    const sentinelRef = 'refs/heads/update-ref-race-sentinel';
+    git(['update-ref', sentinelRef, second.generation]);
+    const plumbing = await createGitPlumbing({ cwd: repoDir });
+    let raced = false;
+    const racingRefs = new GitRefAdapter({
+      plumbing: hookPlumbing(plumbing, ({ args }) => {
+        if (!raced && args[0] === 'update-ref' && args.includes('--no-deref')) {
+          raced = true;
+          git(['symbolic-ref', scoped.ref, sentinelRef]);
+        }
+      }),
+    });
+
+    await expect(racingRefs.updateRef({
+      ref: scoped.ref,
+      newOid: first.generation,
+      expectedOldOid: second.generation,
+    })).resolves.toBeUndefined();
+
+    expect(raced).toBe(true);
+    expect(symbolicTarget(scoped.ref)).toBeNull();
+    expect(git(['rev-parse', scoped.ref])).toBe(first.generation);
+    expect(git(['rev-parse', sentinelRef])).toBe(second.generation);
+  });
+});
+
+// eslint-disable-next-line max-lines-per-function
 describe('CacheSet acquisition target ref authority', () => {
   it('does not follow a pre-existing target symbolic ref during atomic anchoring', async () => {
     const scoped = await cas.caches.open({ namespace: 'git-warp/acquisition-anchor-symref' });
@@ -397,5 +451,37 @@ describe('CacheSet acquisition target ref authority', () => {
     expect(raced).toBe(true);
     expect(symbolicTarget(acquisitionRef)).toBeNull();
     expect(git(['rev-parse', sentinelRef])).toBe(stored.generation);
+  });
+
+  it('fails closed when a release race leaves a dangling symbolic ref', async () => {
+    const scoped = await cas.caches.open({ namespace: 'git-warp/acquisition-release-dangling' });
+    const target = await cas.pages.put({ source: Buffer.from('release-dangling-target') });
+    const stored = await scoped.put('current', target.handle);
+    const acquisitionRef = 'refs/cas/cache-acquisitions/authority/release-dangling-id';
+    const danglingTarget = 'refs/heads/acquisition-release-not-created';
+    git(['update-ref', acquisitionRef, stored.generation]);
+    const plumbing = await createGitPlumbing({ cwd: repoDir });
+    let raced = false;
+    const racingRefs = new GitRefAdapter({
+      plumbing: hookPlumbing(plumbing, ({ args }) => {
+        if (!raced && args[0] === 'update-ref' && args.includes('-d')) {
+          raced = true;
+          git(['update-ref', '-d', acquisitionRef]);
+          git(['symbolic-ref', acquisitionRef, danglingTarget]);
+        }
+      }),
+    });
+
+    await expect(racingRefs.deleteRef({
+      ref: acquisitionRef,
+      expectedOldOid: stored.generation,
+    })).rejects.toMatchObject({
+      code: 'GIT_REF_CONFLICT',
+      meta: { actualSymref: danglingTarget },
+    });
+
+    expect(raced).toBe(true);
+    expect(symbolicTarget(acquisitionRef)).toBe(danglingTarget);
+    expect(refExists(danglingTarget)).toBe(false);
   });
 });

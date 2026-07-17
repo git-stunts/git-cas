@@ -35,6 +35,14 @@ The final remediation states the achievable authority invariant precisely,
 marks unknown ref type unhealthy, keeps the original root-kind union unchanged,
 and makes the new doctor report group declaration-optional.
 
+A final independent Code Lawyer pass found two additional authority gaps. The
+ordinary managed-ref update path still followed symbolic refs, and a checked
+deletion conflict could classify an enumerator-invisible dangling symbolic ref
+as an idempotent miss. The production adapter now preflights every managed ref
+mutation, uses no-dereference updates throughout, and re-probes symbolic-ref type
+after checked-delete conflicts. Deterministic real-Git tests exercise both
+pre-existing and post-probe ordinary-update races plus the dangling-release race.
+
 ## Focused Contract Proof
 
 Command:
@@ -59,7 +67,7 @@ Observed result:
 
 ```text
 Test Files  9 passed (9)
-Tests       120 passed (120)
+Tests       122 passed (122)
 Type check  PASS
 ```
 
@@ -74,8 +82,8 @@ and the new doctor acquisition group remains structurally additive.
 
 ## Real Git Lifetime Proof
 
-The targeted Docker-backed Node run observes twelve passing CacheSet integration
-tests. The full Node, Bun, and Deno integration suites each observe 181 passing
+The targeted Docker-backed Node run observes fifteen passing CacheSet integration
+tests. The full Node, Bun, and Deno integration suites each observe 184 passing
 tests in the post-remediation release verifier.
 
 The aggressive-prune proof performed this state transition in a synthetic bare
@@ -139,8 +147,8 @@ The final npm dry-run receipt contains `docs/releases/v6.3.0.md` and reports:
 
 ```text
 files:         242
-packed size:   745,751 bytes
-unpacked size: 2,049,456 bytes
+packed size:   746,100 bytes
+unpacked size: 2,051,091 bytes
 ```
 
 The first package-doc run correctly failed because the public release note
@@ -161,16 +169,16 @@ Post-remediation result:
 ```text
 Version: 6.2.0
 Steps passed: 13/13
-Total tests observed: 6295
+Total tests observed: 6310
 Skipped steps: JSR publish dry-run
 
-Unit Tests (Node)        PASS  1921
-Unit Tests (Bun)         PASS  1920
-Unit Tests (Deno)        PASS  1911
+Unit Tests (Node)        PASS  1923
+Unit Tests (Bun)         PASS  1922
+Unit Tests (Deno)        PASS  1913
 Public type compatibility PASS    -
-Integration Tests (Node) PASS   181
-Integration Tests (Bun)  PASS   181
-Integration Tests (Deno) PASS   181
+Integration Tests (Node) PASS   184
+Integration Tests (Bun)  PASS   184
+Integration Tests (Deno) PASS   184
 ```
 
 These are the final local pre-review totals. The package remains `6.2.0` in the
@@ -190,7 +198,7 @@ refusal is an environment guard, not a hidden test failure.
 | A hit does not recursively resolve its target | PASS | Resolver spy remains untouched; 1-page and nested 64-page traces have equal command counts |
 | A returned hit has a scoped lifetime claim | PASS | Atomic generation verification and acquisition-ref creation precede return |
 | Cache mutation cannot collect an active target | PASS | Removal plus immediate reflog expiry and destructive prune preserves it |
-| Release remains inside managed authority | PASS | Preflight rejection plus deterministic post-probe races prove `--no-deref` never mutates symbolic referents |
+| Managed ref mutation remains inside authority | PASS | Ordinary updates and acquisition release use preflight rejection, `--no-deref`, post-conflict ref-type checks, and deterministic post-probe races |
 | Released history becomes collectible | PASS | Second destructive prune removes the target after release |
 | Abandoned anchors are observable | PASS | Work-bounded exact-namespace inspection and doctor count/age/health fields |
 | Public artifact documents the contract | PASS | v6.3.0 package docs and 242-file npm pack receipt pass |
@@ -198,7 +206,7 @@ refusal is an environment guard, not a hidden test failure.
 ## Pending Repository Gates
 
 - [ ] Implementation commit and non-draft pull request linked to issue #69.
-- [x] Self-review has no unresolved findings after final remediation.
+- [x] Self-review has no unresolved findings after final authority remediation.
 - [ ] Independent Code Lawyer review has no unresolved findings.
 - [ ] GitHub Actions CI is green.
 - [ ] Code Rabbit is clean, rate limited, or out of credits.

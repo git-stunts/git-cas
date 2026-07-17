@@ -1559,6 +1559,12 @@ mismatched generation fails closed with `CACHE_ACQUISITION_RELEASE_CONFLICT`.
 There is no implicit TTL because elapsed time alone cannot prove that a live
 caller has finished using the handle.
 
+The production Git adapter applies the same authority boundary to ordinary
+managed RootSet, publication, and vault ref movement: it rejects a symbolic ref
+observed before mutation and always invokes `git update-ref --no-deref`. A
+post-probe ref-type race may replace the managed name itself, but cannot redirect
+the update into a symbolic referent.
+
 Existing custom ref and crypto adapters remain valid for `get()`, `put()`,
 `replace()`, `remove()`, `sweep()`, and `touch()`. Acquisition operations add
 capability requirements only when invoked: atomic `anchorRef`, checked
@@ -1830,7 +1836,9 @@ inspection adapter that omits `symref` evidence makes the acquisition group and
 overall doctor report unhealthy rather than treating unknown ref type as a
 regular ref. Direct acquire, release, and cleanup operations independently
 preflight with `symbolic-ref`; no-dereference mutations contain post-probe races
-to the managed ref name.
+to the managed ref name. After a checked-delete conflict, release probes ref
+type again before treating an absent direct ref as an idempotent miss, so a
+dangling symbolic ref observed at that boundary fails closed.
 
 Object and ref inventories are consumed as streams, and managed collections are
 inspected one at a time. Runtime memory is bounded by stream windows,
