@@ -208,7 +208,7 @@ No Git ref or OID is required by ordinary application code.
 | State | Source of truth | Derived state | Invalid states | Reset behavior | Serialization | Determinism assumptions |
 | --- | --- | --- | --- | --- | --- | --- |
 | Cache entry | Cache generation ref | `CacheHit` | corrupt index/direct edge | cache repair | existing cache bundles | key digest is deterministic |
-| Active acquisition | Unique acquisition ref | evidence and age | malformed ref or wrong target generation | explicit release | ref name plus target OID | ID nonce is unique, time is canonical |
+| Active acquisition | Unique acquisition ref | evidence and age | malformed ref or wrong target generation | explicit release | ref name plus target OID | ID nonce is unique; cross-host clock order is not assumed |
 | Released acquisition | Absence of acquisition ref | release result | ref points to unexpected generation | fail closed | none | repeated release is a no-op |
 
 The internal ref namespace is
@@ -295,6 +295,8 @@ linearization when neither ref reaches the selected generation.
   digest; random nonces are not credentials.
 - redaction behavior: doctor does not emit original cache keys.
 - log/report behavior: reports IDs, age, namespace, and generation, not payloads.
+- clock posture: future-dated valid refs remain healthy with unknown age and an
+  explicit clock-skew issue; elapsed time does not determine ref validity.
 - abuse or replay concern: acquisition-ref accumulation can retain storage;
   bounded inspection and explicit cleanup make that debt visible and removable.
 

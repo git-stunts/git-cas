@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for an explicit caller lifetime. Acquisitions carry separate pinned
   retention evidence, release idempotently with a generation check, expose
   bounded inspection and operational cleanup, and appear in repository doctor
-  with count and age evidence. Real-Git coverage proves active acquisitions
+  with count and age evidence. Clock skew leaves structurally valid retention
+  healthy while reporting an unknown age and explicit diagnostic issue.
+  Real-Git coverage proves active acquisitions
   survive aggressive prune without making lookup reads scale with target graph
   size. Canonical one-segment namespace refs, symbolic-ref preflight,
   no-dereference mutations across ordinary managed refs and acquisition refs,

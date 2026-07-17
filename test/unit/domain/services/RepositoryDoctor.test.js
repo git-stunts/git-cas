@@ -267,6 +267,40 @@ describe('RepositoryDoctor', () => {
     )).not.toHaveProperty('kind');
   });
 
+  it('keeps repository health under acquisition clock skew and reports unknown age', async () => {
+    const acquiredAt = '2026-07-13T13:00:00.000Z';
+    const futureId = `v1-${Date.parse(acquiredAt)}-${'9'.repeat(64)}-${'8'.repeat(32)}`;
+    const acquisitionRef =
+      `refs/cas/cache-acquisitions/git-warp%2Fmaterializations/${futureId}`;
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values([{
+        ref: acquisitionRef,
+        oid: 'a'.repeat(40),
+        symref: null,
+      }])),
+    }));
+
+    const report = await new RepositoryDoctor(ports).doctor();
+
+    expect(report.healthy).toBe(true);
+    expect(report.usage.acquisitions).toMatchObject({
+      healthy: true,
+      totals: {
+        activeCount: 1,
+        oldestAcquiredAt: acquiredAt,
+        newestAcquiredAt: acquiredAt,
+        maxAgeMs: null,
+      },
+      entries: [{
+        id: futureId,
+        acquiredAt,
+        ageMs: null,
+        healthy: true,
+        issues: [{ code: 'CACHE_ACQUISITION_CLOCK_SKEW' }],
+      }],
+    });
+  });
+
   it('marks symbolic acquisition refs unhealthy instead of offering a cleanup candidate', async () => {
     const acquisitionRef =
       `refs/cas/cache-acquisitions/git-warp%2Fmaterializations/${ACQUISITION_ID}`;

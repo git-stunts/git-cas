@@ -1202,7 +1202,7 @@ export interface RepositoryCacheAcquisitionUsage {
   readonly ref?: string;
   readonly generation: string;
   readonly acquiredAt?: string;
-  readonly ageMs?: number;
+  readonly ageMs?: number | null;
   readonly healthy: boolean;
   readonly issues: ReadonlyArray<Record<string, unknown>>;
 }
@@ -1285,7 +1285,7 @@ export interface RepositoryDoctorReport {
         readonly activeCount: number;
         readonly oldestAcquiredAt: string | null;
         readonly newestAcquiredAt: string | null;
-        readonly maxAgeMs: number;
+        readonly maxAgeMs: number | null;
       };
       readonly entries: ReadonlyArray<RepositoryCacheAcquisitionUsage>;
     };

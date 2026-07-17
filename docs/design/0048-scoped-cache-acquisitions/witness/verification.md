@@ -51,6 +51,13 @@ probes, acquisition truncation uses a dedicated open error code without a new
 `kind`, and the docs distinguish deletion from a cached idempotent release
 receipt.
 
+A fresh pre-PR Code Lawyer pass then found that a valid acquisition timestamp
+later than the doctor host clock was incorrectly treated as ref corruption.
+Clock skew now preserves structural retention health, reports `ageMs: null`,
+adds a non-fatal `CACHE_ACQUISITION_CLOCK_SKEW` issue, and leaves maximum age
+unknown when no comparable age exists. Unit coverage proves both the inventory
+and top-level repository doctor remain healthy in that posture.
+
 ## Focused Contract Proof
 
 Command:
@@ -75,18 +82,19 @@ Observed result:
 
 ```text
 Test Files  9 passed (9)
-Tests       123 passed (123)
+Tests       124 passed (124)
 Type check  PASS
 ```
 
 This covers reference-only acquisition, miss and expiry behavior, generation
 race retry, idempotent release, checked cleanup, opaque inspection, malformed
-and future-dated refs, doctor aggregation, Git transaction failure boundaries,
-stream fragmentation, legacy-adapter compatibility, declaration accuracy, and
-the release gate. The real TypeScript consumer fixture proves that a legacy ref
-adapter remains assignable to `GitRefPortBase` without implementing
-acquisition-only methods, the original retention-kind switch remains exhaustive,
-and the new doctor acquisition group remains structurally additive.
+refs, healthy clock-skew reporting, doctor aggregation, Git transaction failure
+boundaries, stream fragmentation, legacy-adapter compatibility, declaration
+accuracy, and the release gate. The real TypeScript consumer fixture proves
+that a legacy ref adapter remains assignable to `GitRefPortBase` without
+implementing acquisition-only methods, the original retention-kind switch
+remains exhaustive, and the new doctor acquisition group remains structurally
+additive.
 
 ## Real Git Lifetime Proof
 
@@ -155,8 +163,8 @@ The final npm dry-run receipt contains `docs/releases/v6.3.0.md` and reports:
 
 ```text
 files:         242
-packed size:   746,423 bytes
-unpacked size: 2,052,195 bytes
+packed size:   746,730 bytes
+unpacked size: 2,053,146 bytes
 ```
 
 The first package-doc run correctly failed because the public release note
@@ -177,12 +185,12 @@ Post-remediation result:
 ```text
 Version: 6.2.0
 Steps passed: 13/13
-Total tests observed: 6313
+Total tests observed: 6316
 Skipped steps: JSR publish dry-run
 
-Unit Tests (Node)        PASS  1924
-Unit Tests (Bun)         PASS  1923
-Unit Tests (Deno)        PASS  1914
+Unit Tests (Node)        PASS  1925
+Unit Tests (Bun)         PASS  1924
+Unit Tests (Deno)        PASS  1915
 Public type compatibility PASS    -
 Integration Tests (Node) PASS   184
 Integration Tests (Bun)  PASS   184
@@ -214,7 +222,7 @@ refusal is an environment guard, not a hidden test failure.
 ## Pending Repository Gates
 
 - [ ] Implementation commit and non-draft pull request linked to issue #69.
-- [x] Self-review has no unresolved findings after final fail-closed remediation.
+- [x] Self-review has no unresolved findings after final remediation.
 - [ ] Independent Code Lawyer review has no unresolved findings.
 - [ ] GitHub Actions CI is green.
 - [ ] Code Rabbit is clean, rate limited, or out of credits.

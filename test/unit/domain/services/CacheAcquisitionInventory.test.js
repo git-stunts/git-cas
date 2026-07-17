@@ -45,15 +45,42 @@ describe('CacheAcquisitionInventory', () => {
   });
 });
 
+describe('CacheAcquisitionInventory clock evidence', () => {
+  it('keeps a future-dated direct acquisition healthy while reporting clock skew', () => {
+    const acquiredAt = '2026-07-16T14:00:00.000Z';
+    const inventory = createCacheAcquisitionInventory(1);
+    recordCacheAcquisition(inventory, {
+      ref: acquisitionRef(acquiredAt),
+      oid: 'c'.repeat(40),
+      symref: null,
+    }, OBSERVED_AT);
+
+    expect(cacheAcquisitionGroup(inventory)).toMatchObject({
+      healthy: true,
+      totals: {
+        activeCount: 1,
+        oldestAcquiredAt: acquiredAt,
+        newestAcquiredAt: acquiredAt,
+        maxAgeMs: null,
+      },
+      entries: [{
+        acquiredAt,
+        ageMs: null,
+        healthy: true,
+        issues: [{
+          code: 'CACHE_ACQUISITION_CLOCK_SKEW',
+          acquiredAt,
+          observedAt: OBSERVED_AT,
+        }],
+      }],
+    });
+  });
+});
+
 describe('CacheAcquisitionInventory failures', () => {
   it.each([
     { name: 'malformed ref', ref: 'refs/cas/cache-acquisitions/broken', oid: 'c'.repeat(40) },
     { name: 'malformed generation', ref: acquisitionRef(), oid: 'not-an-oid' },
-    {
-      name: 'future acquisition',
-      ref: acquisitionRef('2026-07-16T14:00:00.000Z'),
-      oid: 'c'.repeat(40),
-    },
     {
       name: 'symbolic ref',
       ref: acquisitionRef(),
