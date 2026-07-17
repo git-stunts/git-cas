@@ -12,6 +12,25 @@ function v6Heading(changelog) {
   return changelog.match(/^## \[6\.0\.0\] — (.+)$/m)?.[1];
 }
 
+function expectNoV630PublicationEvidence(...documents) {
+  const forbiddenMarkers = [
+    '**Last tagged release:** `v6.3.0`',
+    '**Current release state:** `v6.3.0` is published',
+    '- Signed annotated tag: `v6.3.0`',
+    'https://github.com/git-stunts/git-cas/releases/tag/v6.3.0',
+    '## npm Registry Evidence',
+    '| Package | `@git-stunts/git-cas@6.3.0` |',
+    '| Dist-tag | `latest` -> `6.3.0` |',
+    'attestations/@git-stunts%2fgit-cas@6.3.0'
+  ];
+
+  for (const document of documents) {
+    for (const marker of forbiddenMarkers) {
+      expect(document).not.toContain(marker);
+    }
+  }
+}
+
 describe('release state docs', () => {
   it('separates the published v6.2.0 artifact from the v6.3.0 candidate', () => {
     const status = read('STATUS.md');
@@ -31,6 +50,7 @@ describe('release state docs', () => {
     expect(candidate).toContain('242 files, 747,220 packed bytes, and 2,054,933');
     expect(candidate).toContain('7b15ec1819a1c2500c459818785fcd7ec6cf7676');
     expect(candidate).toContain('explicitly unpublished candidate');
+    expectNoV630PublicationEvidence(status, candidate);
     expect(witness).toContain('432c5d9effb12c9f66536f1386791bb4421f3cea');
     expect(witness).toContain('sha512-m8+ZzgNhKU6pVS9pjqJlwAnwYI/s+NMEnINC+Q0g3h6T6mNPdH8U0jb4nEoxU9N1TF+Ut5bjtRMRRaYT75dlew==');
     expect(witness).toContain('https://slsa.dev/provenance/v1');
