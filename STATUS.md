@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.4.0` (`2026-07-18`)
-**Current release state:** `v6.5.0` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** the final v6.5.0 candidate passed 14/14 release-verifier steps with 6,625 observed tests across Node.js, Bun, and Deno; that verifier run's npm dry-run contained 249 files totaling 769,785 packed bytes and 2,149,364 unpacked bytes.
+**Last tagged release:** `v6.5.0` (`2026-07-18`)
+**Current release state:** `v6.5.0` is published to npm with provenance and to GitHub Releases.
+**Latest verification:** the exact reviewed merge `f464b929` passed 14/14 release-verifier steps with 6,625 observed tests across Node.js, Bun, and Deno; release workflow `29655337483` then passed validation, tests, trusted npm publication, and final GitHub Release creation.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,19 +18,20 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.5.0 candidate posture** — bounded direct bundle references, immutable
-  metadata reuse, and the RootSet/cache concurrency repairs are merged through
-  reviewed commit `d5f770fb`; npm, JSR, and runtime version metadata identify
-  `6.5.0`, while the tag and registry artifacts remain deliberately absent
-  until release-candidate review completes.
+- **v6.5.0 artifact posture** — signed tag `v6.5.0` resolves to reviewed merge
+  `f464b929`; npm reports `@git-stunts/git-cas@6.5.0` as `latest` with SLSA
+  provenance, and the final GitHub Release is published. Bounded direct bundle
+  references, immutable metadata reuse, and the RootSet/cache concurrency
+  repairs are shipped. JSR dry-run validation is healthy, but JSR publication
+  is not part of the release workflow.
 - **v6.4.0 artifact posture** — signed tag `v6.4.0` resolves to reviewed merge
-  `d47af74a`; npm reports `@git-stunts/git-cas@6.4.0` as `latest` with SLSA
+  `d47af74a`; npm retains `@git-stunts/git-cas@6.4.0` with SLSA
   provenance, and the final GitHub Release is published. Scoped staging
   workspaces and the corrected structured RootSet lock retry are shipped. JSR
   dry-run validation is healthy, but JSR publication is not part of the release
   workflow.
 - **v6.3.0 artifact posture** — signed tag `v6.3.0` resolves to reviewed merge
-  `33f4171`; npm reports `@git-stunts/git-cas@6.3.0` as `latest` with SLSA
+  `33f4171`; npm retains `@git-stunts/git-cas@6.3.0` with SLSA
   provenance, and the final GitHub Release is published. JSR dry-run validation
   is healthy, but JSR publication is not part of the release workflow.
 - **v6.0.0 encryption scheme simplification** — `whole-v1`/`whole-v2` collapsed
@@ -110,9 +111,11 @@
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
 - Current release goalpost:
-  [#81 Bounded lazy bundle references and immutable metadata reads](https://github.com/git-stunts/git-cas/issues/81)
+  [#39 v6.6.0: Operator TUI](https://github.com/git-stunts/git-cas/issues/39)
+  and
+  [#40 v6.6.0: Agent automation follow-through](https://github.com/git-stunts/git-cas/issues/40)
   under the
-  [`v6.5.0` milestone](https://github.com/git-stunts/git-cas/milestone/5).
+  [`v6.6.0` milestone](https://github.com/git-stunts/git-cas/milestone/9).
 - The latest landed design record is
   [0050-lazy-bundle-reference-reads](./docs/design/0050-lazy-bundle-reference-reads/lazy-bundle-reference-reads.md).
 
