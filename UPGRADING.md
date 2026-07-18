@@ -429,7 +429,7 @@ import { SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT } from '@git-stunts/git-
 
 | Change                                   | Impact                                                                                |
 | ---------------------------------------- | ------------------------------------------------------------------------------------- |
-| Plaintext + gzip restore now streams     | Lower memory usage. Should be transparent.                                            |
+| Plaintext + gzip restore now streams     | This lowers memory usage and should be transparent.                                   |
 | AAD always on for `whole` and `framed`   | Cannot opt out. v1-style no-AAD is gone.                                              |
 | Manifest integrity hash verified on read | Corrupted manifests that previously loaded will now throw `MANIFEST_INTEGRITY_ERROR`. |
 | KDF policy enforced in `deriveKey()`     | Dangerously weak params (e.g., 1 PBKDF2 iteration) now throw `KDF_POLICY_VIOLATION`.  |
