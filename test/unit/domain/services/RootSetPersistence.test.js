@@ -42,6 +42,22 @@ function mockRef(overrides = {}) {
   };
 }
 
+function structuredUpdateRefLock(ref = REF) {
+  return Object.assign(new Error('Git command failed: repository is locked'), {
+    details: {
+      code: 'GIT_REPOSITORY_LOCKED',
+      args: [
+        'update-ref',
+        '--no-deref',
+        ref,
+        'c'.repeat(40),
+        'd'.repeat(40),
+      ],
+      stderr: `fatal: cannot lock ref '${ref}': lock file exists`,
+    },
+  });
+}
+
 describe('RootSetPersistence snapshot writes', () => {
   it('writes real tree edges and a parentless current-generation commit', async () => {
     const persistence = mockPersistence({
@@ -103,6 +119,38 @@ describe('RootSetPersistence write conflicts', () => {
           newCommit: 'c'.repeat(40),
         },
       });
+  });
+});
+
+describe('RootSetPersistence structured lock conflicts', () => {
+  it('normalizes a structured lock for the exact managed update-ref command', async () => {
+    const persistence = mockPersistence({
+      writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
+      writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
+    });
+    const ref = mockRef({
+      createCommit: vi.fn().mockResolvedValue('c'.repeat(40)),
+      updateRef: vi.fn().mockRejectedValue(structuredUpdateRefLock()),
+    });
+    const rootSet = new RootSetPersistence({ rootSetRef: REF, persistence, ref });
+
+    await expect(rootSet.write({ entries: [], expectedHeadOid: 'd'.repeat(40) }))
+      .rejects.toMatchObject({ code: 'ROOT_SET_CONFLICT' });
+  });
+
+  it('keeps a structured lock for another ref as a non-conflict failure', async () => {
+    const persistence = mockPersistence({
+      writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
+      writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
+    });
+    const ref = mockRef({
+      createCommit: vi.fn().mockResolvedValue('c'.repeat(40)),
+      updateRef: vi.fn().mockRejectedValue(structuredUpdateRefLock('refs/heads/other')),
+    });
+    const rootSet = new RootSetPersistence({ rootSetRef: REF, persistence, ref });
+
+    await expect(rootSet.write({ entries: [], expectedHeadOid: 'd'.repeat(40) }))
+      .rejects.toMatchObject({ code: 'ROOT_SET_REF_UPDATE_FAILED' });
   });
 });
 

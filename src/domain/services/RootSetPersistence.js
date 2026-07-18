@@ -10,6 +10,16 @@ const UPDATE_REF_CONFLICT_MARKERS = Object.freeze({
   cannotLockRef: 'cannot lock ref',
   referenceAlreadyExists: 'reference already exists',
 });
+const GIT_REPOSITORY_LOCKED = 'GIT_REPOSITORY_LOCKED';
+
+function isStructuredUpdateRefConflict(err, rootSetRef) {
+  const details = err?.details && typeof err.details === 'object' ? err.details : {};
+  if (details.code !== GIT_REPOSITORY_LOCKED || !Array.isArray(details.args)) {
+    return false;
+  }
+  const [command, option, ref] = details.args;
+  return command === 'update-ref' && option === '--no-deref' && ref === rootSetRef;
+}
 
 /**
  * Stateless persistence boundary for one root-set ref and snapshot format.
@@ -251,6 +261,9 @@ export default class RootSetPersistence {
   #isConflict(err) {
     const meta = err?.meta && typeof err.meta === 'object' ? err.meta : {};
     if (Object.hasOwn(meta, 'expectedOldOid') && Object.hasOwn(meta, 'actualOldOid')) {
+      return true;
+    }
+    if (isStructuredUpdateRefConflict(err, this.rootSetRef)) {
       return true;
     }
     const normalized = errorDetailsText(err).toLowerCase();
