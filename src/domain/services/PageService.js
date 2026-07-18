@@ -4,8 +4,11 @@ import { ErrorCodes } from '../errors/index.js';
 import { assertHandleObjectType, mapHandleTargetError } from '../helpers/handleTarget.js';
 import PageHandle from '../value-objects/PageHandle.js';
 import StagedPage from '../value-objects/StagedPage.js';
+import BoundedPromiseCache from '../../helpers/boundedPromiseCache.js';
 
 export const DEFAULT_MAX_PAGE_SIZE = 16 * 1024 * 1024;
+export const DEFAULT_PAGE_CACHE_ENTRIES = 128;
+export const DEFAULT_PAGE_CACHE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
 
 /**
@@ -14,19 +17,34 @@ const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
 export default class PageService {
   #clock;
   #maxPageSize;
+  #payloads;
   #persistence;
 
   /**
    * @param {object} options
    * @param {import('../../ports/GitPersistencePort.js').default} options.persistence
    * @param {number} [options.maxPageSize]
+   * @param {number} [options.pageCacheEntries]
+   * @param {number} [options.pageCacheBytes]
    * @param {{ now(): Date }} [options.clock]
    */
-  constructor({ persistence, maxPageSize = DEFAULT_MAX_PAGE_SIZE, clock = DEFAULT_CLOCK }) {
+  constructor({
+    persistence,
+    maxPageSize = DEFAULT_MAX_PAGE_SIZE,
+    pageCacheEntries = DEFAULT_PAGE_CACHE_ENTRIES,
+    pageCacheBytes = DEFAULT_PAGE_CACHE_BYTES,
+    clock = DEFAULT_CLOCK,
+  }) {
     PageService.#assertDependencies(persistence, clock);
     PageService.#assertLimit(maxPageSize, 'Configured max page size');
+    PageService.#assertPositiveLimit(pageCacheEntries, 'Page cache entries');
+    PageService.#assertLimit(pageCacheBytes, 'Page cache bytes');
     this.#persistence = persistence;
     this.#maxPageSize = maxPageSize;
+    this.#payloads = new BoundedPromiseCache(pageCacheEntries, {
+      maxWeight: pageCacheBytes,
+      weightOf: (value) => value.byteLength,
+    });
     this.#clock = clock;
   }
 
@@ -64,7 +82,16 @@ export default class PageService {
    * @returns {Promise<Uint8Array>}
    */
   async get({ handle, maxBytes }) {
-    return await PageService.#collect(this.open({ handle }), this.#effectiveLimit(maxBytes));
+    const limit = this.#effectiveLimit(maxBytes);
+    const root = await this.resolveRoot(handle);
+    if (root.size > limit) {
+      throw PageService.#tooLarge(root.size, limit);
+    }
+    const bytes = await this.#payloads.getOrCreate(
+      root.oid,
+      async () => await this.#readRoot(root),
+    );
+    return new Uint8Array(bytes);
   }
 
   /**
@@ -104,6 +131,17 @@ export default class PageService {
       );
     }
     return value;
+  }
+
+  async #readRoot(root) {
+    try {
+      return await PageService.#collect(
+        await this.#persistence.readBlobStream(root.oid),
+        this.#maxPageSize,
+      );
+    } catch (error) {
+      throw mapHandleTargetError(error, root.handle);
+    }
   }
 
   #observedAt() {
@@ -158,6 +196,14 @@ export default class PageService {
   static #assertLimit(value, label) {
     if (!Number.isSafeInteger(value) || value < 0) {
       throw createCasError(`${label} must be a non-negative safe integer`, ErrorCodes.INVALID_OPTIONS, {
+        value,
+      });
+    }
+  }
+
+  static #assertPositiveLimit(value, label) {
+    if (!Number.isSafeInteger(value) || value < 1) {
+      throw createCasError(`${label} must be a positive safe integer`, ErrorCodes.INVALID_OPTIONS, {
         value,
       });
     }

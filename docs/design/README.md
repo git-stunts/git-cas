@@ -11,6 +11,7 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Active METHOD Cycles
 
+- [0051-bounded-page-payload-reuse - bounded-page-payload-reuse](./0051-bounded-page-payload-reuse/bounded-page-payload-reuse.md)
 - [0050-lazy-bundle-reference-reads - lazy-bundle-reference-reads](./0050-lazy-bundle-reference-reads/lazy-bundle-reference-reads.md)
 - [0049-scoped-staging-workspaces — scoped-staging-workspaces](./0049-scoped-staging-workspaces/scoped-staging-workspaces.md)
 - [0048-scoped-cache-acquisitions — scoped-cache-acquisitions](./0048-scoped-cache-acquisitions/scoped-cache-acquisitions.md)

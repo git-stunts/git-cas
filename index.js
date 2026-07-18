@@ -133,6 +133,8 @@ export default class ContentAddressableStore {
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes for encrypted/compressed restores (default 512 MiB).
    * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes (default 10 MiB).
    * @param {number} [options.maxPageSize=16777216] - Maximum immutable page size in bytes (default 16 MiB).
+   * @param {number} [options.pageCacheEntries=128] - Maximum immutable page payloads retained in memory.
+   * @param {number} [options.pageCacheBytes=8388608] - Maximum immutable page payload bytes retained in memory.
    * @param {object} [options.bundleLimits] - Repository-wide maximum bundle admission limits.
    * @param {number} [options.maxBundleNestingDepth=32] - Maximum nested bundle depth.
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter (default NodeCompressionAdapter).
@@ -153,6 +155,8 @@ export default class ContentAddressableStore {
     maxRestoreBufferSize,
     maxBlobSize,
     maxPageSize,
+    pageCacheEntries,
+    pageCacheBytes,
     bundleLimits,
     maxBundleNestingDepth,
     compressionAdapter,
@@ -173,6 +177,8 @@ export default class ContentAddressableStore {
       maxRestoreBufferSize,
       maxBlobSize,
       maxPageSize,
+      pageCacheEntries,
+      pageCacheBytes,
       bundleLimits,
       maxBundleNestingDepth,
       compressionAdapter,
@@ -231,7 +237,7 @@ export default class ContentAddressableStore {
     });
   }
 
-  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, maxBlobSize?: number, maxPageSize?: number, bundleLimits?: object, maxBundleNestingDepth?: number, compressionAdapter?: *, applicationRefPrefixes?: string[], clock?: { now(): Date } }} */
+  /** @type {{ plumbing: *, chunkSize?: number, codec?: *, policy?: *, crypto?: *, observability?: *, merkleThreshold?: number, concurrency?: number, chunking?: *, chunker?: *, maxRestoreBufferSize?: number, maxBlobSize?: number, maxPageSize?: number, pageCacheEntries?: number, pageCacheBytes?: number, bundleLimits?: object, maxBundleNestingDepth?: number, compressionAdapter?: *, applicationRefPrefixes?: string[], clock?: { now(): Date } }} */
   #config;
   /** @type {AssetService|null} */
   #assetService = null;
@@ -369,6 +375,8 @@ export default class ContentAddressableStore {
     this.#pageService = new PageService({
       persistence: this.service.persistence,
       maxPageSize: cfg.maxPageSize,
+      pageCacheEntries: cfg.pageCacheEntries,
+      pageCacheBytes: cfg.pageCacheBytes,
       clock: cfg.clock,
     });
     this.#bundleService = new BundleService({
@@ -620,6 +628,9 @@ export default class ContentAddressableStore {
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
    * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes.
+   * @param {number} [options.maxPageSize=16777216] - Maximum immutable page size in bytes.
+   * @param {number} [options.pageCacheEntries=128] - Maximum immutable page payloads retained in memory.
+   * @param {number} [options.pageCacheBytes=8388608] - Maximum immutable page payload bytes retained in memory.
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
    * @returns {Promise<ContentAddressableStore>}
    */
@@ -644,6 +655,9 @@ export default class ContentAddressableStore {
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
    * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes.
+   * @param {number} [options.maxPageSize=16777216] - Maximum immutable page size in bytes.
+   * @param {number} [options.pageCacheEntries=128] - Maximum immutable page payloads retained in memory.
+   * @param {number} [options.pageCacheBytes=8388608] - Maximum immutable page payload bytes retained in memory.
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
    * @returns {ContentAddressableStore}
    */
@@ -665,6 +679,9 @@ export default class ContentAddressableStore {
    * @param {import('./src/ports/ChunkingPort.js').default} [options.chunker] - Pre-built ChunkingPort instance.
    * @param {number} [options.maxRestoreBufferSize=536870912] - Max buffered restore size in bytes.
    * @param {number} [options.maxBlobSize=10485760] - Safety limit for readBlob metadata in bytes.
+   * @param {number} [options.maxPageSize=16777216] - Maximum immutable page size in bytes.
+   * @param {number} [options.pageCacheEntries=128] - Maximum immutable page payloads retained in memory.
+   * @param {number} [options.pageCacheBytes=8388608] - Maximum immutable page payload bytes retained in memory.
    * @param {import('./src/ports/CompressionPort.js').default} [options.compressionAdapter] - Compression adapter.
    * @returns {ContentAddressableStore}
    */

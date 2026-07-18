@@ -72,6 +72,19 @@ describe('ContentAddressableStore application storage capabilities', () => {
   });
 });
 
+describe('ContentAddressableStore page cache configuration', () => {
+  it.each([
+    ['pageCacheEntries', { pageCacheEntries: 0 }],
+    ['pageCacheBytes', { pageCacheBytes: -1 }],
+  ])('threads invalid %s bounds to the page service', async (_name, cache) => {
+    const cas = new ContentAddressableStore({ plumbing: mockPlumbing(), ...cache });
+
+    await expect(cas.pages.put({ source: Buffer.from('unused') })).rejects.toMatchObject({
+      code: 'INVALID_OPTIONS',
+    });
+  });
+});
+
 describe('ContentAddressableStore caches', () => {
   it('opens a cache set through the facade namespace', async () => {
     const cas = new ContentAddressableStore({ plumbing: mockPlumbing() });

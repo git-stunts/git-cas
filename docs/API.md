@@ -80,6 +80,8 @@ new ContentAddressableStore(options);
 - `options.maxRestoreBufferSize` (optional): Max bytes for buffered encrypted/compressed restore (default: 536870912 / 512 MiB)
 - `options.maxBlobSize` (optional): Max bytes for metadata blob reads (default: 10485760 / 10 MiB)
 - `options.maxPageSize` (optional): Maximum immutable page bytes (default: 16777216 / 16 MiB)
+- `options.pageCacheEntries` (optional): Maximum immutable page payloads retained in memory (default: 128)
+- `options.pageCacheBytes` (optional): Maximum immutable page payload bytes retained in memory (default: 8388608 / 8 MiB)
 - `options.bundleLimits` (optional): Repository maximums for bundle members, path bytes, descriptor bytes, fanout entries, and fanout depth
 - `options.maxBundleNestingDepth` (optional): Maximum nested bundle depth (default: 32)
 - `options.compressionAdapter` (optional): CompressionPort implementation (default: NodeCompressionAdapter)
@@ -1024,6 +1026,15 @@ same `PageHandle`. `open()` validates the blob type and size through Git object
 metadata before streaming it. `get()` additionally collects the page under its
 effective byte bound. An imported handle above the configured maximum fails
 with `PAGE_TOO_LARGE` without materializing the blob.
+
+Successful `get()` payloads share in-flight and completed immutable reads inside
+one store instance. The default LRU retains at most 128 payloads and 8 MiB of
+payload bytes; `pageCacheEntries` and `pageCacheBytes` may lower or raise those
+bounds. Every result is copied for its caller, failed reads remain retryable,
+and a payload larger than the byte budget is returned without remaining
+resident. `open()` remains streaming and does not enter the payload cache. This
+reuse is not retention evidence; callers must keep the page reachable for the
+duration of use.
 
 The canonical page token is:
 

@@ -163,6 +163,12 @@ lookup reads only the descriptor path and selected payload; retention and
 publication perform full bounded graph validation. Identical page bytes and
 identically constructed bundles produce identical handles.
 
+Repeated `pages.get()` calls reuse immutable payload reads within the store's
+bounded page cache. The defaults retain at most 128 payloads and 8 MiB; use
+`pageCacheEntries` and `pageCacheBytes` to tune that ceiling. Every result is a
+caller-owned copy. `pages.open()` remains uncached and streaming, and neither
+form of access establishes retention.
+
 ### Generic Application Publication
 
 Publication is disabled until the facade receives an explicit application-ref

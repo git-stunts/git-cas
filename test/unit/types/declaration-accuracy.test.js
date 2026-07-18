@@ -113,6 +113,8 @@ describe('Application-storage declaration accuracy', () => {
     );
     expect(declarations).toContain('iterateMembers(options: { handle: BundleHandleInput })');
     expect(declarations).toContain('applicationRefPrefixes?: string[];');
+    expect(declarations).toContain('pageCacheEntries?: number;');
+    expect(declarations).toContain('pageCacheBytes?: number;');
     expect(declarations).toContain('parentOids?: string[];');
     expect(declarations).toContain('anchorRef?(options: {');
     expect(declarations).toContain('deleteRef?(options: {');

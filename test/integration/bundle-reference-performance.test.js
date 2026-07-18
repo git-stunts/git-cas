@@ -108,6 +108,23 @@ afterAll(() => {
   rmSync(repoDir, { recursive: true, force: true });
 });
 
+describe('real-Git immutable page payload reads', () => {
+  it('performs zero additional Git commands for an identical warm page read', async () => {
+    const reader = await countingReader();
+    const page = await writer.pages.put({ source: Buffer.from('warm page payload') });
+
+    await expect(reader.cas.pages.get({ handle: page.handle })).resolves.toEqual(
+      new Uint8Array(Buffer.from('warm page payload')),
+    );
+    const cold = reader.snapshot();
+    await reader.cas.pages.get({ handle: page.handle });
+    const warm = delta(reader.snapshot(), cold);
+
+    expect(count(cold, 'cat-file')).toBeGreaterThan(0);
+    expect(total(warm)).toBe(0);
+  });
+});
+
 describe('real-Git direct bundle reference reads', () => {
   it('coalesces immutable Git metadata across repeated targeted reads', async () => {
     const reader = await countingReader();

@@ -706,6 +706,10 @@ export interface ContentAddressableStoreOptions {
   maxBlobSize?: number;
   /** Maximum immutable page size in bytes. @default 16777216 (16 MiB) */
   maxPageSize?: number;
+  /** Maximum immutable page payloads retained in memory. @default 128 */
+  pageCacheEntries?: number;
+  /** Maximum immutable page payload bytes retained in memory. @default 8388608 (8 MiB) */
+  pageCacheBytes?: number;
   /** Repository-wide maximum bundle admission limits. */
   bundleLimits?: Partial<BundleLimits>;
   /** Maximum nested bundle depth. @default 32 */
