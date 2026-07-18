@@ -1,6 +1,7 @@
 import CasError from '../errors/CasError.js';
 import { ErrorCodes } from '../errors/index.js';
 import { errorDetailsText, isGitMissingRefError } from '../helpers/gitRefErrors.js';
+import Oid from '../value-objects/Oid.js';
 import RootSetRef from '../value-objects/RootSetRef.js';
 import RootSetMetadataCodec, { ROOT_SET_METADATA_ENTRY } from './RootSetMetadataCodec.js';
 import RootSetTreeCodec from './RootSetTreeCodec.js';
@@ -11,16 +12,14 @@ const UPDATE_REF_CONFLICT_MARKERS = Object.freeze({
   referenceAlreadyExists: 'reference already exists',
 });
 const GIT_REPOSITORY_LOCKED = 'GIT_REPOSITORY_LOCKED';
+const GIT_FATAL_EXIT_CODE = 128;
 
-function classifyStructuredUpdateRefConflict(err, {
+function hasExactUpdateRefArgs(err, {
   rootSetRef,
   newCommit,
   expectedHeadOid,
 }) {
   const details = err?.details && typeof err.details === 'object' ? err.details : {};
-  if (details.code !== GIT_REPOSITORY_LOCKED) {
-    return null;
-  }
   if (!Array.isArray(details.args)) {
     return false;
   }
@@ -33,6 +32,42 @@ function classifyStructuredUpdateRefConflict(err, {
   ];
   return details.args.length === expectedArgs.length &&
     expectedArgs.every((arg, index) => details.args[index] === arg);
+}
+
+function classifyStructuredUpdateRefConflict(err, {
+  rootSetRef,
+  newCommit,
+  expectedHeadOid,
+}) {
+  const details = err?.details && typeof err.details === 'object' ? err.details : {};
+  if (details.code !== GIT_REPOSITORY_LOCKED) {
+    return null;
+  }
+  return hasExactUpdateRefArgs(err, { rootSetRef, newCommit, expectedHeadOid });
+}
+
+function isObservedUpdateRefConflict(err, {
+  rootSetRef,
+  newCommit,
+  expectedHeadOid,
+  actualHeadOid,
+}) {
+  const details = err?.details && typeof err.details === 'object' ? err.details : {};
+  return details.code === GIT_FATAL_EXIT_CODE &&
+    Oid.isValid(actualHeadOid) &&
+    actualHeadOid !== expectedHeadOid &&
+    hasExactUpdateRefArgs(err, { rootSetRef, newCommit, expectedHeadOid });
+}
+
+function hasTextualUpdateRefConflict(err, rootSetRef) {
+  const normalized = errorDetailsText(err).toLowerCase();
+  if (!normalized.includes(rootSetRef.toLowerCase())) {
+    return false;
+  }
+  return normalized.includes(UPDATE_REF_CONFLICT_MARKERS.cannotLockRef) && (
+    normalized.includes(UPDATE_REF_CONFLICT_MARKERS.butExpected) ||
+    normalized.includes(UPDATE_REF_CONFLICT_MARKERS.referenceAlreadyExists)
+  );
 }
 
 /**
@@ -238,7 +273,11 @@ export default class RootSetPersistence {
       });
     } catch (err) {
       const meta = await this.#updateFailureMeta(err, commitOid, expectedHeadOid);
-      if (this.#isConflict(err, commitOid, expectedHeadOid)) {
+      if (this.#isConflict(err, {
+        newCommit: commitOid,
+        expectedHeadOid,
+        actualHeadOid: meta.actualHeadOid,
+      })) {
         throw new CasError(
           'Concurrent root-set update detected',
           ErrorCodes.ROOT_SET_CONFLICT,
@@ -272,7 +311,7 @@ export default class RootSetPersistence {
     };
   }
 
-  #isConflict(err, newCommit, expectedHeadOid) {
+  #isConflict(err, { newCommit, expectedHeadOid, actualHeadOid }) {
     const meta = err?.meta && typeof err.meta === 'object' ? err.meta : {};
     if (Object.hasOwn(meta, 'expectedOldOid') && Object.hasOwn(meta, 'actualOldOid')) {
       return true;
@@ -285,14 +324,17 @@ export default class RootSetPersistence {
     if (structuredConflict !== null) {
       return structuredConflict;
     }
-    const normalized = errorDetailsText(err).toLowerCase();
-    if (!normalized.includes(this.rootSetRef.toLowerCase())) {
-      return false;
+    // A failed exact CAS command plus an independently observed head advance
+    // remains sufficient conflict evidence when Git emits no diagnostic text.
+    if (isObservedUpdateRefConflict(err, {
+      rootSetRef: this.rootSetRef,
+      newCommit,
+      expectedHeadOid,
+      actualHeadOid,
+    })) {
+      return true;
     }
-    return normalized.includes(UPDATE_REF_CONFLICT_MARKERS.cannotLockRef) && (
-      normalized.includes(UPDATE_REF_CONFLICT_MARKERS.butExpected) ||
-      normalized.includes(UPDATE_REF_CONFLICT_MARKERS.referenceAlreadyExists)
-    );
+    return hasTextualUpdateRefConflict(err, this.rootSetRef);
   }
 
   #isMissingRefError(err) {

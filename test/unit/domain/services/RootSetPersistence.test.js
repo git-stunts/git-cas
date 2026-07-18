@@ -68,6 +68,20 @@ function structuredUpdateRefLock({
   });
 }
 
+function emptyUpdateRefFailure({
+  args = exactUpdateRefArgs(),
+  code = 128,
+} = {}) {
+  return Object.assign(new Error(`Git command failed with code ${code}`), {
+    details: {
+      code,
+      args,
+      stderr: '',
+      stdout: '',
+    },
+  });
+}
+
 async function expectStructuredLockCode(error, expectedHeadOid, code) {
   const persistence = mockPersistence({
     writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
@@ -81,6 +95,33 @@ async function expectStructuredLockCode(error, expectedHeadOid, code) {
 
   await expect(rootSet.write({ entries: [], expectedHeadOid }))
     .rejects.toMatchObject({ code });
+}
+
+async function expectEmptyUpdateRefFailureCode({
+  actualHeadOid,
+  args = exactUpdateRefArgs(),
+  gitExitCode = 128,
+  expectedCode,
+}) {
+  const persistence = mockPersistence({
+    writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
+    writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
+  });
+  const ref = mockRef({
+    resolveRef: vi.fn().mockResolvedValue(actualHeadOid),
+    createCommit: vi.fn().mockResolvedValue(NEW_COMMIT_OID),
+    updateRef: vi.fn().mockRejectedValue(emptyUpdateRefFailure({
+      args,
+      code: gitExitCode,
+    })),
+  });
+  const rootSet = new RootSetPersistence({ rootSetRef: REF, persistence, ref });
+
+  await expect(rootSet.write({ entries: [], expectedHeadOid: EXPECTED_HEAD_OID }))
+    .rejects.toMatchObject({
+      code: expectedCode,
+      meta: { expectedHeadOid: EXPECTED_HEAD_OID, actualHeadOid },
+    });
 }
 
 describe('RootSetPersistence snapshot writes', () => {
@@ -170,6 +211,36 @@ describe('RootSetPersistence structured lock conflicts', () => {
       EXPECTED_HEAD_OID,
       'ROOT_SET_REF_UPDATE_FAILED',
     );
+  });
+});
+
+describe('RootSetPersistence observed compare-and-swap conflicts', () => {
+  it('normalizes an empty fatal response when the exact managed ref advanced', async () => {
+    await expectEmptyUpdateRefFailureCode({
+      actualHeadOid: 'e'.repeat(40),
+      expectedCode: 'ROOT_SET_CONFLICT',
+    });
+  });
+
+  it.each([
+    ['the managed ref did not advance', {
+      args: exactUpdateRefArgs(),
+      actualHeadOid: EXPECTED_HEAD_OID,
+    }],
+    ['the failed command targeted another ref', {
+      args: exactUpdateRefArgs('refs/heads/other'),
+      actualHeadOid: 'e'.repeat(40),
+    }],
+    ['the failure was not a fatal Git exit', {
+      args: exactUpdateRefArgs(),
+      actualHeadOid: 'e'.repeat(40),
+      gitExitCode: 1,
+    }],
+  ])('keeps the failure terminal when %s', async (_label, options) => {
+    await expectEmptyUpdateRefFailureCode({
+      ...options,
+      expectedCode: 'ROOT_SET_REF_UPDATE_FAILED',
+    });
   });
 });
 
