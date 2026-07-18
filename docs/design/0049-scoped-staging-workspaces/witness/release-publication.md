@@ -61,10 +61,11 @@ workflow run `29627828620`.
 
 The registry artifact now satisfies the dependency gate for git-warp. The
 git-cas release goalpost can close on this publication evidence, while
-git-stunts/git-warp#738 remains open until git-warp consumes published version
-`6.4.0` through its normal package manager and records executable compatibility
-and performance evidence. A local path override is not acceptable proof of the
-released contract.
+[git-stunts/git-warp#738](https://github.com/git-stunts/git-warp/issues/738)
+remains open until git-warp consumes published version `6.4.0` through its
+normal package manager and records executable compatibility and performance
+evidence. A local path override is not acceptable proof of the released
+contract.
 
 Publication does not prove git-warp's unchanged ten-second integration hook or
 the direct-workspace performance advantage over its CacheSet workaround. Those

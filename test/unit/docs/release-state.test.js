@@ -72,6 +72,21 @@ function expectV640PublishedState(status, publication) {
   expect(publication).toContain('attestations/@git-stunts%2fgit-cas@6.4.0');
 }
 
+function expectCurrentV640PublicationEvidence(status, publication) {
+  expect(status).toContain('**Last tagged release:** `v6.4.0` (`2026-07-18`)');
+  expect(status).toContain('d47af74a');
+  expect(status).toContain('Release run `29627828620`');
+  expect(publication).toContain('d47af74a288ef362dba684536cff11c063cfdcc3');
+  expect(publication).toContain('3545b8aa81e395e832f112214b301dbe53d9576f');
+  expect(publication).toContain('01A63D8E9DBEEDE32918AF9C39560E0406CA9135');
+  expect(publication).toContain('actions/runs/29627828620');
+  expect(publication).toContain(
+    'sha512-xLtNBCpXolGGusV8efsr/cRlhjrRrFFKZQVwgx/gNtonPVzDor6AyidtILM88ss6M6bJLapGUgOaoimr/y3gZA=='
+  );
+  expect(publication).toContain('5feda2da0e05bbded738602dd47c8bc1d58a3921');
+  expect(publication).toContain('2,129,716');
+}
+
 function expectV640Lifecycle(status, candidate, publication) {
   const isCandidate = status.includes(v640CandidateMarker);
   const isPublished = status.includes(v640PublishedMarker);
@@ -112,6 +127,9 @@ describe('release state docs', () => {
     const v630Publication = read(v630PublicationPath);
 
     expectV640Lifecycle(status, candidate, publication);
+    if (publication !== null) {
+      expectCurrentV640PublicationEvidence(status, publication);
+    }
     expectFutureV640PublicationState();
     expect(status).toContain('Current release goalpost:');
     expect(v630Publication).toContain('33f4171f6b69d75110de834f9a75d64e2d14e1a3');
