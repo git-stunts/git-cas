@@ -47,6 +47,7 @@ function expectV640CandidateState(status, candidate, publication) {
   expect(status).toContain('**Last tagged release:** `v6.3.0` (`2026-07-17`)');
   expect(status).toContain(v640CandidateMarker);
   expect(status).toContain('remain pending the reviewed tag workflow');
+  expect(status).toContain('#75 Scoped staging workspaces for multi-object promotion');
   expect(candidate).toContain('# PERF-0049 v6.4.0 Release Candidate Witness');
   expect(candidate).toContain('1ac2fc85be857ca769c459b89c29bf4483b3f304');
   expect(candidate).toContain('8185dfb9819909d9fbe0f0394de6ae31fc0a94a3');
@@ -61,6 +62,8 @@ function expectV640CandidateState(status, candidate, publication) {
 function expectV640PublishedState(status, publication) {
   expect(status).toMatch(/\*\*Last tagged release:\*\* `v6\.4\.0` \(`\d{4}-\d{2}-\d{2}`\)/);
   expect(status).toContain(v640PublishedMarker);
+  expect(status).toContain('#38 Bounded Residency');
+  expect(status).toContain('[`v6.4.1` milestone]');
   expect(publication).toContain('# PERF-0049 v6.4.0 Publication Witness');
   expect(publication).toContain('- Signed annotated tag: `v6.4.0`');
   expect(publication).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.4.0');
@@ -85,7 +88,9 @@ function expectV640Lifecycle(status, candidate, publication) {
 function expectFutureV640PublicationState() {
   const status = [
     '**Last tagged release:** `v6.4.0` (`2026-07-17`)',
-    `${v640PublishedMarker} to npm with provenance and to GitHub Releases.`
+    `${v640PublishedMarker} to npm with provenance and to GitHub Releases.`,
+    '#38 Bounded Residency',
+    '[`v6.4.1` milestone]'
   ].join('\n');
   const publication = [
     '# PERF-0049 v6.4.0 Publication Witness',
@@ -109,7 +114,6 @@ describe('release state docs', () => {
     expectV640Lifecycle(status, candidate, publication);
     expectFutureV640PublicationState();
     expect(status).toContain('Current release goalpost:');
-    expect(status).toContain('#75 Scoped staging workspaces for multi-object promotion');
     expect(v630Publication).toContain('33f4171f6b69d75110de834f9a75d64e2d14e1a3');
     expect(v630Publication).toContain('sha512-Cl/WPjj60LvjXl3BqSb1M3a0tx2xpx6KxGEC1TXKekNzgn5so/t43LG7Qz2XuXle+YmXWoCi8H94cJYvfgI8Yw==');
     expect(v630Publication).toContain('https://slsa.dev/provenance/v1');
