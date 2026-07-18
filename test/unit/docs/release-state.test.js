@@ -31,14 +31,18 @@ function expectNoV650PublicationEvidence(...documents) {
     '- Signed annotated tag: `v6.5.0`',
     'https://github.com/git-stunts/git-cas/releases/tag/v6.5.0',
     '## npm Registry Evidence',
-    '| Package | `@git-stunts/git-cas@6.5.0` |',
-    '| Dist-tag | `latest` -> `6.5.0` |',
+    /\| Package\s+\| `@git-stunts\/git-cas@6\.5\.0`\s+\|/,
+    /\| Dist-tag\s+\| `latest` -> `6\.5\.0`\s+\|/,
     'attestations/@git-stunts%2fgit-cas@6.5.0',
   ];
 
   for (const document of documents) {
     for (const marker of forbiddenMarkers) {
-      expect(document).not.toContain(marker);
+      if (marker instanceof RegExp) {
+        expect(document).not.toMatch(marker);
+      } else {
+        expect(document).not.toContain(marker);
+      }
     }
   }
 }
@@ -62,13 +66,24 @@ function expectV650CandidateState(status, candidate, publication) {
 function expectV650PublishedState(status, publication) {
   expect(status).toMatch(/\*\*Last tagged release:\*\* `v6\.5\.0` \(`\d{4}-\d{2}-\d{2}`\)/);
   expect(status).toContain(v650PublishedMarker);
+  expect(status).toContain('f464b929');
   expect(status).toContain('#39 v6.6.0: Operator TUI');
+  expect(status).toContain('#40 v6.6.0: Agent automation follow-through');
   expect(status).toContain('[`v6.6.0` milestone]');
   expect(publication).toContain('# PERF-0050 v6.5.0 Publication Witness');
+  expect(publication).toContain('f464b9292a07dbc98cda24aad6712e9d9a3bcefa');
+  expect(publication).toContain('fa955936f1e3feb4fe07e8456b983d5a535801a8');
+  expect(publication).toContain('01A63D8E9DBEEDE32918AF9C39560E0406CA9135');
   expect(publication).toContain('- Signed annotated tag: `v6.5.0`');
   expect(publication).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.5.0');
-  expect(publication).toContain('| Package | `@git-stunts/git-cas@6.5.0` |');
-  expect(publication).toContain('| Dist-tag | `latest` -> `6.5.0` |');
+  expect(publication).toContain('actions/runs/29655337483');
+  expect(publication).toMatch(/\| Package\s+\| `@git-stunts\/git-cas@6\.5\.0`\s+\|/);
+  expect(publication).toMatch(/\| Dist-tag\s+\| `latest` -> `6\.5\.0`\s+\|/);
+  expect(publication).toContain(
+    'sha512-KfKperNdXu3xWw07tpo1yYpLTynhwAP60PhYiZ5MRsSydPdNspQzJmi6Pv0Jz+6WULD883/NJCR0V1IUhBwOBw=='
+  );
+  expect(publication).toContain('4d05349bb8373bab57e12be65621bdc08325f278');
+  expect(publication).toContain('2,149,363');
   expect(publication).toContain('attestations/@git-stunts%2fgit-cas@6.5.0');
 }
 
@@ -101,15 +116,24 @@ function expectFutureV650PublicationState() {
   const status = [
     '**Last tagged release:** `v6.5.0` (`2026-07-18`)',
     `${v650PublishedMarker} to npm with provenance and to GitHub Releases.`,
+    'f464b929',
     '#39 v6.6.0: Operator TUI',
+    '#40 v6.6.0: Agent automation follow-through',
     '[`v6.6.0` milestone]',
   ].join('\n');
   const publication = [
     '# PERF-0050 v6.5.0 Publication Witness',
+    'f464b9292a07dbc98cda24aad6712e9d9a3bcefa',
+    'fa955936f1e3feb4fe07e8456b983d5a535801a8',
+    '01A63D8E9DBEEDE32918AF9C39560E0406CA9135',
     '- Signed annotated tag: `v6.5.0`',
     'https://github.com/git-stunts/git-cas/releases/tag/v6.5.0',
+    'actions/runs/29655337483',
     '| Package | `@git-stunts/git-cas@6.5.0` |',
     '| Dist-tag | `latest` -> `6.5.0` |',
+    'sha512-KfKperNdXu3xWw07tpo1yYpLTynhwAP60PhYiZ5MRsSydPdNspQzJmi6Pv0Jz+6WULD883/NJCR0V1IUhBwOBw==',
+    '4d05349bb8373bab57e12be65621bdc08325f278',
+    '2,149,363',
     'attestations/@git-stunts%2fgit-cas@6.5.0',
   ].join('\n');
 
