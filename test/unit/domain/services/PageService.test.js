@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import PageService from '../../../../src/domain/services/PageService.js';
 import PageHandle from '../../../../src/domain/value-objects/PageHandle.js';
 import StagedPage from '../../../../src/domain/value-objects/StagedPage.js';
@@ -6,11 +6,20 @@ import MemoryPersistenceAdapter from '../../../helpers/MemoryPersistenceAdapter.
 
 const OBSERVED_AT = '2026-07-13T11:00:00.000Z';
 
-function makePages(maxPageSize = 1024) {
+function deferred() {
+  let resolve;
+  const promise = new Promise((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
+function makePages(maxPageSize = 1024, cache = {}) {
   const persistence = new MemoryPersistenceAdapter();
   const pages = new PageService({
     persistence,
     maxPageSize,
+    ...cache,
     clock: { now: () => new Date(OBSERVED_AT) },
   });
   return { pages, persistence };
@@ -68,6 +77,219 @@ describe('PageService', () => {
     await expect(pages.put({ source: Buffer.from('x'), maxBytes: 5 })).rejects.toMatchObject({
       code: 'INVALID_OPTIONS',
     });
+  });
+});
+
+describe('PageService immutable payload reuse', () => {
+  it('coalesces immutable payload reads and returns caller-owned byte copies', async () => {
+    const { pages, persistence } = makePages();
+    const bytes = Buffer.from('cached immutable page');
+    const staged = await pages.put({ source: bytes });
+    const readBlobStream = vi.spyOn(persistence, 'readBlobStream');
+    const readObjectType = vi.spyOn(persistence, 'readObjectType');
+    const readObjectSize = vi.spyOn(persistence, 'readObjectSize');
+
+    const [first, concurrent] = await Promise.all([
+      pages.get({ handle: staged.handle }),
+      pages.get({ handle: staged.handle }),
+    ]);
+    first[0] = 0;
+    const metadataReads = readObjectType.mock.calls.length + readObjectSize.mock.calls.length;
+    const warm = await pages.get({ handle: staged.handle });
+
+    expect(concurrent).toEqual(new Uint8Array(bytes));
+    expect(warm).toEqual(new Uint8Array(bytes));
+    expect(readBlobStream).toHaveBeenCalledTimes(1);
+    expect(readObjectType.mock.calls.length + readObjectSize.mock.calls.length).toBe(metadataReads);
+  });
+});
+
+describe('PageService resident payload limits', () => {
+  it('enforces a lower operation limit on a resident payload without rereading metadata', async () => {
+    const { pages, persistence } = makePages();
+    const staged = await pages.put({ source: Buffer.from('abcde') });
+    const readBlobStream = vi.spyOn(persistence, 'readBlobStream');
+    const readObjectType = vi.spyOn(persistence, 'readObjectType');
+    const readObjectSize = vi.spyOn(persistence, 'readObjectSize');
+
+    await pages.get({ handle: staged.handle });
+    const metadataReads = readObjectType.mock.calls.length + readObjectSize.mock.calls.length;
+
+    await expect(pages.get({ handle: staged.handle, maxBytes: 4 })).rejects.toMatchObject({
+      code: 'PAGE_TOO_LARGE',
+      meta: { observedBytes: 5, maxBytes: 4 },
+    });
+    expect(readBlobStream).toHaveBeenCalledTimes(1);
+    expect(readObjectType.mock.calls.length + readObjectSize.mock.calls.length).toBe(metadataReads);
+  });
+});
+
+describe('PageService entry-count residency', () => {
+  it('evicts by entry count and rereads the least-recently-used payload', async () => {
+    const { pages, persistence } = makePages(1024, {
+      pageCacheEntries: 2,
+      pageCacheBytes: 1024,
+    });
+    const first = await pages.put({ source: Buffer.from('first') });
+    const second = await pages.put({ source: Buffer.from('second') });
+    const third = await pages.put({ source: Buffer.from('third') });
+    const readBlobStream = vi.spyOn(persistence, 'readBlobStream');
+
+    await pages.get({ handle: first.handle });
+    await pages.get({ handle: second.handle });
+    await pages.get({ handle: first.handle });
+    await pages.get({ handle: third.handle });
+    await pages.get({ handle: first.handle });
+    await pages.get({ handle: second.handle });
+
+    expect(readBlobStream).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('PageService in-flight payload reuse', () => {
+  it('coalesces A/B/A contention beyond the completed-entry bound', async () => {
+    const { pages, persistence } = makePages(1024, {
+      pageCacheEntries: 1,
+      pageCacheBytes: 1024,
+    });
+    const first = await pages.put({ source: Buffer.from('first') });
+    const second = await pages.put({ source: Buffer.from('second') });
+    const gate = deferred();
+    const readBlobStream = persistence.readBlobStream.bind(persistence);
+    const read = vi.spyOn(persistence, 'readBlobStream').mockImplementation(async (oid) => {
+      await gate.promise;
+      return await readBlobStream(oid);
+    });
+
+    const firstRead = pages.get({ handle: first.handle });
+    const secondRead = pages.get({ handle: second.handle });
+    const repeatedFirstRead = pages.get({ handle: first.handle });
+    await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    gate.resolve();
+    await Promise.all([firstRead, secondRead, repeatedFirstRead]);
+
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('PageService in-flight caller limits', () => {
+  it('enforces each caller limit when callers share one in-flight payload', async () => {
+    const { pages, persistence } = makePages();
+    const staged = await pages.put({ source: Buffer.from('abcde') });
+    const gate = deferred();
+    const readBlobStream = persistence.readBlobStream.bind(persistence);
+    const read = vi.spyOn(persistence, 'readBlobStream').mockImplementation(async (oid) => {
+      await gate.promise;
+      return await readBlobStream(oid);
+    });
+
+    const permissive = pages.get({ handle: staged.handle });
+    const restrictive = pages.get({ handle: staged.handle, maxBytes: 4 });
+    const permissiveResult = expect(permissive).resolves.toEqual(
+      new Uint8Array(Buffer.from('abcde')),
+    );
+    const restrictiveResult = expect(restrictive).rejects.toMatchObject({
+      code: 'PAGE_TOO_LARGE',
+      meta: { observedBytes: 5, maxBytes: 4 },
+    });
+    await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    gate.resolve();
+
+    await Promise.all([permissiveResult, restrictiveResult]);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PageService payload byte residency', () => {
+  it('coalesces in-flight work without retaining completed payloads at a zero-byte bound', async () => {
+    const { pages, persistence } = makePages(1024, {
+      pageCacheEntries: 4,
+      pageCacheBytes: 0,
+    });
+    const staged = await pages.put({ source: Buffer.from('transient') });
+    const readBlobStream = vi.spyOn(persistence, 'readBlobStream');
+
+    await Promise.all([
+      pages.get({ handle: staged.handle }),
+      pages.get({ handle: staged.handle }),
+    ]);
+    await pages.get({ handle: staged.handle });
+
+    expect(readBlobStream).toHaveBeenCalledTimes(2);
+  });
+
+  it('evicts least-recently-used payloads when their aggregate bytes exceed the bound', async () => {
+    const { pages, persistence } = makePages(1024, {
+      pageCacheEntries: 4,
+      pageCacheBytes: 5,
+    });
+    const first = await pages.put({ source: Buffer.from('abc') });
+    const second = await pages.put({ source: Buffer.from('def') });
+    const readBlobStream = vi.spyOn(persistence, 'readBlobStream');
+
+    await pages.get({ handle: first.handle });
+    await pages.get({ handle: second.handle });
+    await pages.get({ handle: second.handle });
+    await pages.get({ handle: first.handle });
+
+    expect(readBlobStream).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('PageService oversized payload residency', () => {
+  it('does not let an oversized pending payload evict unrelated cached bytes', async () => {
+    const { pages, persistence } = makePages(1024, {
+      pageCacheEntries: 4,
+      pageCacheBytes: 4,
+    });
+    const small = await pages.put({ source: Buffer.from('abc') });
+    const oversized = await pages.put({ source: Buffer.from('12345') });
+    const oversizedGate = deferred();
+    const readBlobStream = persistence.readBlobStream.bind(persistence);
+    const read = vi.spyOn(persistence, 'readBlobStream').mockImplementation(async (oid) => {
+      if (oid === oversized.handle.oid) {
+        await oversizedGate.promise;
+      }
+      return await readBlobStream(oid);
+    });
+
+    await pages.get({ handle: small.handle });
+    const pending = pages.get({ handle: oversized.handle });
+    await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    await pages.get({ handle: small.handle });
+    oversizedGate.resolve();
+    await pending;
+    await pages.get({ handle: small.handle });
+    await pages.get({ handle: oversized.handle });
+
+    expect(read).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('PageService payload cache failure and configuration', () => {
+  it('removes rejected payload reads so a later call can retry', async () => {
+    const { pages, persistence } = makePages();
+    const staged = await pages.put({ source: Buffer.from('retry') });
+    const readBlobStream = persistence.readBlobStream.bind(persistence);
+    const read = vi.spyOn(persistence, 'readBlobStream')
+      .mockRejectedValueOnce(new Error('transient read failure'))
+      .mockImplementation(async (oid) => await readBlobStream(oid));
+
+    await expect(pages.get({ handle: staged.handle })).rejects.toThrow('transient read failure');
+    await expect(pages.get({ handle: staged.handle })).resolves.toEqual(
+      new Uint8Array(Buffer.from('retry')),
+    );
+
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['pageCacheEntries', { pageCacheEntries: 0 }],
+    ['pageCacheBytes', { pageCacheBytes: -1 }],
+  ])('rejects invalid %s bounds', (_name, cache) => {
+    expect(() => makePages(1024, cache)).toThrowError(
+      expect.objectContaining({ code: 'INVALID_OPTIONS' }),
+    );
   });
 });
 

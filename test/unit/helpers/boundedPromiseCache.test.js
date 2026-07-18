@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import BoundedPromiseCache from '../../../src/helpers/boundedPromiseCache.js';
 
+function deferred() {
+  let resolve;
+  const promise = new Promise((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 describe('BoundedPromiseCache construction', () => {
   it('rejects invalid residency options', () => {
     expect(() => new BoundedPromiseCache(0)).toThrow('positive safe integer');
@@ -36,6 +44,28 @@ describe('BoundedPromiseCache coalescing', () => {
     await expect(cache.getOrCreate('retry', retryFactory)).rejects.toThrow('transient');
     await expect(cache.getOrCreate('retry', retryFactory)).resolves.toBe('recovered');
     expect(retryFactory).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps unique in-flight work coalesced beyond the completed-entry bound', async () => {
+    const cache = new BoundedPromiseCache(1);
+    const firstGate = deferred();
+    const secondGate = deferred();
+    const firstFactory = vi.fn().mockReturnValue(firstGate.promise);
+    const secondFactory = vi.fn().mockReturnValue(secondGate.promise);
+
+    const first = cache.getOrCreate('first', firstFactory);
+    const second = cache.getOrCreate('second', secondFactory);
+    const repeated = cache.getOrCreate('first', firstFactory);
+    firstGate.resolve('first-value');
+    secondGate.resolve('second-value');
+
+    await expect(Promise.all([first, second, repeated])).resolves.toEqual([
+      'first-value',
+      'second-value',
+      'first-value',
+    ]);
+    expect(firstFactory).toHaveBeenCalledTimes(1);
+    expect(secondFactory).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -90,7 +120,9 @@ describe('BoundedPromiseCache residency', () => {
     expect(first).toHaveBeenCalledTimes(2);
     expect(second).toHaveBeenCalledTimes(1);
   });
+});
 
+describe('BoundedPromiseCache oversized residency', () => {
   it('does not retain a value larger than the weight bound', async () => {
     const cache = new BoundedPromiseCache(3, {
       maxWeight: 2,
@@ -105,6 +137,26 @@ describe('BoundedPromiseCache residency', () => {
     await cache.getOrCreate('resident', resident);
 
     expect(oversized).toHaveBeenCalledTimes(2);
+    expect(resident).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let an oversized in-flight value displace a resident', async () => {
+    const cache = new BoundedPromiseCache(1, {
+      maxWeight: 2,
+      weightOf: (value) => value.length,
+    });
+    const resident = vi.fn().mockResolvedValue('ok');
+    const oversizedGate = deferred();
+    const oversized = vi.fn().mockReturnValue(oversizedGate.promise);
+
+    await cache.getOrCreate('resident', resident);
+    const pending = cache.getOrCreate('oversized', oversized);
+    await cache.getOrCreate('resident', resident);
+    oversizedGate.resolve('oversized');
+    await pending;
+    await cache.getOrCreate('resident', resident);
+
+    expect(oversized).toHaveBeenCalledTimes(1);
     expect(resident).toHaveBeenCalledTimes(1);
   });
 });

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance
+
+- **Bounded immutable page payload reuse** - repeated `pages.get()` calls now
+  share successful in-flight and completed payload reads through an LRU bounded
+  by both entry count and aggregate bytes. Callers receive copies, failures
+  remain retryable, oversized values do not displace unrelated residents, and
+  `pages.open()` remains uncached and streaming.
+
 ## [6.5.0] — 2026-07-18
 
 ### Added
