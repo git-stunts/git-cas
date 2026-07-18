@@ -39,6 +39,27 @@ describe('BoundedPromiseCache coalescing', () => {
   });
 });
 
+describe('BoundedPromiseCache rejected work', () => {
+  it('evicts a rejection before the returned promise settles', async () => {
+    const cache = new BoundedPromiseCache(1);
+    const factory = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('transient'))
+      .mockResolvedValueOnce('recovered');
+
+    let firstError;
+    try {
+      await cache.getOrCreate('key', factory);
+    } catch (error) {
+      firstError = error;
+    }
+
+    expect(firstError).toMatchObject({ message: 'transient' });
+    await expect(cache.getOrCreate('key', factory)).resolves.toBe('recovered');
+    expect(factory).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('BoundedPromiseCache residency', () => {
   it('evicts the least-recently-used entry at its count bound', async () => {
     const cache = new BoundedPromiseCache(2);
@@ -82,4 +103,22 @@ describe('BoundedPromiseCache residency', () => {
 
     expect(factory).toHaveBeenCalledTimes(2);
   });
+});
+
+describe('BoundedPromiseCache resolved weights', () => {
+  it.each([Number.NaN, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects and evicts invalid resolved weight %s',
+    async (weight) => {
+      const cache = new BoundedPromiseCache(1, { weightOf: () => weight });
+      const factory = vi.fn().mockResolvedValue('value');
+
+      await expect(cache.getOrCreate('key', factory)).rejects.toThrow(
+        'weightOf must return a non-negative safe integer'
+      );
+      await expect(cache.getOrCreate('key', factory)).rejects.toThrow(
+        'weightOf must return a non-negative safe integer'
+      );
+      expect(factory).toHaveBeenCalledTimes(2);
+    }
+  );
 });

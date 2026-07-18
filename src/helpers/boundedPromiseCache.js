@@ -48,25 +48,41 @@ export default class BoundedPromiseCache {
       return cached.promise;
     }
 
-    const pending = Promise.resolve().then(factory);
-    const entry = { promise: pending, weight: 0 };
-    this.#entries.set(key, entry);
-    this.#evict();
-    void pending
-      .then((value) => {
-        if (this.#entries.get(key) !== entry) {
-          return;
+    const source = Promise.resolve().then(factory);
+    const entry = { promise: source, weight: 0 };
+    const tracked = source.then(
+      (value) => {
+        if (this.#entries.get(key) === entry) {
+          try {
+            entry.weight = this.#resolvedWeight(value);
+          } catch (error) {
+            this.#remove(key, entry);
+            throw error;
+          }
+          this.#totalWeight += entry.weight;
+          this.#evict();
         }
-        entry.weight = this.#weightOf(value);
-        this.#totalWeight += entry.weight;
-        this.#evict();
-      })
-      .catch(() => {
+        return value;
+      },
+      (error) => {
         if (this.#entries.get(key) === entry) {
           this.#remove(key, entry);
         }
-      });
-    return pending;
+        throw error;
+      },
+    );
+    entry.promise = tracked;
+    this.#entries.set(key, entry);
+    this.#evict();
+    return tracked;
+  }
+
+  #resolvedWeight(value) {
+    const weight = this.#weightOf(value);
+    if (!Number.isSafeInteger(weight) || weight < 0) {
+      throw new TypeError('weightOf must return a non-negative safe integer');
+    }
+    return weight;
   }
 
   #evict() {
