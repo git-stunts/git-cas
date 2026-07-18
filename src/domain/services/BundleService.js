@@ -7,12 +7,15 @@ import BundleHandle from '../value-objects/BundleHandle.js';
 import BundleLimits from '../value-objects/BundleLimits.js';
 import normalizeBundlePath from '../value-objects/BundlePath.js';
 import StagedBundle from '../value-objects/StagedBundle.js';
+import BoundedPromiseCache from '../../helpers/boundedPromiseCache.js';
 import BundleDescriptorCodec, { BUNDLE_INDEX_ENTRY } from './BundleDescriptorCodec.js';
 import BundleFanoutBuilder from './BundleFanoutBuilder.js';
 import StagingEvidence from './StagingEvidence.js';
 
 const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
 const DEFAULT_MAX_NESTING_DEPTH = 32;
+const DESCRIPTOR_CACHE_ENTRIES = 1_024;
+const DESCRIPTOR_CACHE_BYTES = 16 * 1024 * 1024;
 
 /**
  * Builds and traverses deterministic, targeted structured bundle trees.
@@ -20,6 +23,10 @@ const DEFAULT_MAX_NESTING_DEPTH = 32;
 export default class BundleService {
   #clock;
   #codec;
+  #descriptorBlobs = new BoundedPromiseCache(DESCRIPTOR_CACHE_ENTRIES, {
+    maxWeight: DESCRIPTOR_CACHE_BYTES,
+    weightOf: (value) => value.byteLength,
+  });
   #limits;
   #maxNestingDepth;
   #openHandle;
@@ -104,14 +111,30 @@ export default class BundleService {
     return member === null ? null : await this.#resolveMemberReference(member, BundleHandle.from(value));
   }
 
-  /** @internal Returns one descriptor after validating only its direct Git edge. */
+  /** Returns one descriptor after validating the bundle structure and direct Git edge. */
   async getMemberReference({ handle: value, path: rawPath }) {
     const handle = BundleHandle.from(value);
     const path = normalizeBundlePath(rawPath, this.#limits.maxMemberPathBytes);
     const root = await this.#readRoot(handle);
     let nodeOid = root.index.oid;
+    let expectedSummary = null;
+    let parentTreeOid = handle.oid;
+    let descriptorBytes = root.descriptorBytes;
     while (true) {
       const node = await this.#readNode(nodeOid, root.descriptor.limits);
+      descriptorBytes += node.descriptorBytes;
+      if (descriptorBytes > root.descriptor.limits.maxDescriptorBytes) {
+        throw corrupt('Bundle descriptors exceed their persisted byte limit', {
+          descriptorBytes,
+          maxDescriptorBytes: root.descriptor.limits.maxDescriptorBytes,
+        });
+      }
+      const actualSummary = summaryOf(node.descriptor, nodeOid);
+      if (expectedSummary === null) {
+        assertSummary(root.descriptor, actualSummary);
+      } else {
+        assertChildSummary(expectedSummary, actualSummary, parentTreeOid);
+      }
       if (node.descriptor.kind === 'leaf') {
         return await this.#referenceFromLeaf({
           bundleHandle: handle,
@@ -125,6 +148,8 @@ export default class BundleService {
         return null;
       }
       const edge = await this.#requiredEdge(nodeOid, child.slot, 'tree');
+      expectedSummary = child;
+      parentTreeOid = nodeOid;
       nodeOid = edge.oid;
     }
   }
@@ -206,7 +231,7 @@ export default class BundleService {
     yield* this.#iterateMemberReferences(value, { validateTargets: true });
   }
 
-  /** @internal Streams descriptors after validating only their direct Git edges. */
+  /** Streams descriptors after validating bundle structure and direct Git edges. */
   async *iterateMemberReferences({ handle: value }) {
     yield* this.#iterateMemberReferences(value, { validateTargets: false });
   }
@@ -587,7 +612,11 @@ export default class BundleService {
 
   async #readDescriptorBlob(oid, meta, maxBytes) {
     try {
-      return await this.#persistence.readBlob(oid, maxBytes);
+      const bytes = await this.#descriptorBlobs.getOrCreate(
+        `${oid}\0${maxBytes}`,
+        () => this.#persistence.readBlob(oid, maxBytes),
+      );
+      return Uint8Array.from(bytes);
     } catch (error) {
       throw corrupt('Bundle descriptor blob is missing or unreadable', { ...meta, oid, originalError: error });
     }

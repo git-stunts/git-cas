@@ -88,6 +88,30 @@ describe('GitPersistenceAdapter.readTreeEntry() – path lookup', () => {
   it('returns null when git finds no matching path', async () => {
     await expect(adapterFor('').readTreeEntry('tree-oid', 'missing')).resolves.toBeNull();
   });
+
+  it('coalesces repeated immutable path reads and isolates returned records', async () => {
+    const plumbing = mockPlumbing('040000 tree abc123\tdemo%2Fhello\0');
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    const first = await adapter.readTreeEntry('tree-oid', 'demo%2Fhello');
+    first.name = 'mutated';
+    const second = await adapter.readTreeEntry('tree-oid', 'demo%2Fhello');
+
+    expect(second.name).toBe('demo%2Fhello');
+    expect(plumbing.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retain failed path reads', async () => {
+    const plumbing = mockPlumbing('040000 tree abc123\tdemo%2Fhello\0');
+    plumbing.execute.mockRejectedValueOnce(new Error('transient read failure'));
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    await expect(adapter.readTreeEntry('tree-oid', 'demo%2Fhello'))
+      .rejects.toThrow('transient read failure');
+    await expect(adapter.readTreeEntry('tree-oid', 'demo%2Fhello'))
+      .resolves.toMatchObject({ oid: 'abc123' });
+    expect(plumbing.execute).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('GitPersistenceAdapter.readObjectType()', () => {
@@ -117,6 +141,74 @@ describe('GitPersistenceAdapter.readObjectType()', () => {
     const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
 
     await expect(adapter.readObjectType('f'.repeat(40))).rejects.toBe(denied);
+  });
+});
+
+describe('GitPersistenceAdapter immutable metadata cache', () => {
+  it('coalesces concurrent and sequential metadata reads by immutable OID', async () => {
+    const oid = 'a'.repeat(40);
+    let resolveInspection;
+    const inspection = new Promise((resolve) => {
+      resolveInspection = resolve;
+    });
+    const plumbing = mockPlumbing();
+    plumbing.execute.mockReturnValue(inspection);
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    const type = adapter.readObjectType(oid);
+    const size = adapter.readObjectSize(oid);
+    resolveInspection(`${oid} blob 42`);
+
+    await expect(type).resolves.toBe('blob');
+    await expect(size).resolves.toBe(42);
+    await expect(adapter.readObjectType(oid)).resolves.toBe('blob');
+    expect(plumbing.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries failed metadata reads instead of caching rejection', async () => {
+    const oid = 'b'.repeat(40);
+    const plumbing = mockPlumbing(`${oid} tree 12`);
+    plumbing.execute.mockRejectedValueOnce(new Error('transient metadata failure'));
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    await expect(adapter.readObjectType(oid)).rejects.toThrow('transient metadata failure');
+    await expect(adapter.readObjectType(oid)).resolves.toBe('tree');
+    expect(plumbing.execute).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('GitPersistenceAdapter metadata cache residency', () => {
+  it('rejects an invalid metadata cache bound', () => {
+    expect(() => new GitPersistenceAdapter({
+      plumbing: mockPlumbing(),
+      policy: noPolicy,
+      metadataCacheEntries: 0,
+    })).toThrow(expect.objectContaining({
+      code: 'INVALID_OPTIONS',
+      meta: { option: 'metadataCacheEntries', metadataCacheEntries: 0 },
+    }));
+  });
+
+  it('evicts least-recently-used object metadata at its configured bound', async () => {
+    const oids = ['a', 'b', 'c'].map((value) => value.repeat(40));
+    const plumbing = mockPlumbing();
+    plumbing.execute.mockImplementation(({ input }) => {
+      const oid = input.trim();
+      return Promise.resolve(`${oid} blob 1`);
+    });
+    const adapter = new GitPersistenceAdapter({
+      plumbing,
+      policy: noPolicy,
+      metadataCacheEntries: 2,
+    });
+
+    await adapter.readObjectType(oids[0]);
+    await adapter.readObjectType(oids[1]);
+    await adapter.readObjectType(oids[0]);
+    await adapter.readObjectType(oids[2]);
+    await adapter.readObjectType(oids[1]);
+
+    expect(plumbing.execute).toHaveBeenCalledTimes(4);
   });
 });
 

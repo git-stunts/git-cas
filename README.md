@@ -138,8 +138,8 @@ Core capabilities:
   read-only, and `sweep()` can release only markers whose expiry has passed.
 - **Application storage**: `assets`, `pages`, `bundles`, `retention`, and
   `publications` compose streaming CAS writes, bounded structured
-  materializations, targeted member reads, reachability roots,
-  compare-and-swap refs, and immutable lifecycle evidence.
+  materializations, direct-reference or complete-validation member reads,
+  reachability roots, compare-and-swap refs, and immutable lifecycle evidence.
 - **Scoped staging workspaces**: `workspaces.open()` mirrors application writes
   behind one renewable temporary RootSet, returns only after each handle is
   anchored, promotes destination-first, and exposes bounded age, expiry,

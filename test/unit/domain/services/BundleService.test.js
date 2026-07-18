@@ -263,6 +263,78 @@ describe('BundleService prevalidated references', () => {
   });
 });
 
+describe('BundleService descriptor cache', () => {
+  it('coalesces bounded descriptor blobs across repeated reference reads', async () => {
+    const { bundles, pages, persistence } = makeServices();
+    const page = await pages.put({ source: Buffer.from('page') });
+    const staged = await bundles.put({ members: { page: page.handle } });
+    const readBlob = vi.spyOn(persistence, 'readBlob');
+
+    await bundles.getMemberReference({ handle: staged.handle, path: 'page' });
+    const coldReads = readBlob.mock.calls.length;
+    await bundles.getMemberReference({ handle: staged.handle, path: 'page' });
+
+    expect(coldReads).toBeGreaterThan(0);
+    expect(readBlob).toHaveBeenCalledTimes(coldReads);
+  });
+});
+
+describe('BundleService public reference integrity', () => {
+  it('rejects a root summary that disagrees with the selected fanout root', async () => {
+    const { bundles, persistence } = makeServices();
+    const staged = await bundles.put({ members: { selected: Buffer.from('value') } });
+    const handle = await rewriteBundleRoot(persistence, staged.handle, (descriptor) => {
+      descriptor.memberCount += 1;
+    });
+
+    await expect(bundles.getMemberReference({ handle, path: 'selected' }))
+      .rejects.toMatchObject({
+        code: 'BUNDLE_CORRUPT',
+        meta: { field: 'count', expected: 2, actual: 1 },
+      });
+  });
+});
+
+describe('BundleService public references', () => {
+  it('reads public references without resolving nested support graphs', async () => {
+    const { bundles, pages, persistence } = makeServices();
+    const child = await pages.put({ source: Buffer.from('child') });
+    const nested = await bundles.put({ members: { child: child.handle } });
+    const outer = await bundles.put({ members: { nested: nested.handle } });
+    persistence.deleteObject(child.handle.oid);
+
+    await expect(bundles.getMemberReference({
+      handle: outer.handle,
+      path: 'nested',
+    })).resolves.toMatchObject({
+      path: 'nested',
+      handle: nested.handle,
+      type: 'tree',
+    });
+    await expect(bundles.getMember({
+      handle: outer.handle,
+      path: 'nested',
+    })).rejects.toMatchObject({ code: 'HANDLE_TARGET_MISSING' });
+  });
+
+  it('iterates public references without invoking target resolvers', async () => {
+    const { bundles, pages } = makeServices();
+    const page = await pages.put({ source: Buffer.from('page') });
+    const staged = await bundles.put({ members: { page: page.handle } });
+    const resolveRoot = vi.spyOn(pages, 'resolveRoot');
+
+    const references = [];
+    for await (const reference of bundles.iterateMemberReferences({ handle: staged.handle })) {
+      references.push(reference);
+    }
+
+    expect(references).toEqual([
+      expect.objectContaining({ path: 'page', handle: page.handle, type: 'blob' }),
+    ]);
+    expect(resolveRoot).not.toHaveBeenCalled();
+  });
+});
+
 describe('BundleService targeted reads and corruption evidence', () => {
   it('opens only the selected member payload', async () => {
     const { bundles, pages, persistence } = makeServices({

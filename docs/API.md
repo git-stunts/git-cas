@@ -1077,6 +1077,47 @@ The canonical bundle token is:
 git-cas:1:bundle:fanout-tree:<codec>:<sha1|sha256>:<oid>
 ```
 
+### Direct bundle references
+
+```javascript
+const reference = await cas.bundles.getMemberReference({
+  handle: materializationHandle,
+  path: 'nodes/root',
+});
+
+for await (const reference of cas.bundles.iterateMemberReferences({
+  handle: materializationHandle,
+})) {
+  indexHandle(reference.path, reference.handle);
+}
+```
+
+`getMemberReference()` and `iterateMemberReferences()` are the explicit lazy
+integrity surfaces. They validate the bundle root, persisted limits, fanout
+summaries, canonical member descriptor, direct Git tree edge, and direct target
+object type. They do not recursively resolve the referenced member's complete
+support graph. Use them for indexes and manifests that dereference only selected
+members.
+
+Each immutable `BundleMemberReference` contains `version`, `path`, `handle`,
+`type`, and declared `size`. Missing paths return `null`; malformed bundle
+structure, mismatched edges, and missing or mistyped direct targets fail closed.
+Completing reference iteration still validates root and fanout summaries.
+
+The Git persistence adapter coalesces successful exact tree-entry and
+object-info reads in one process-local LRU with a fixed 2,048-entry default.
+Bundle traversal separately retains immutable structural descriptor bytes under
+a 1,024-entry and 16 MiB total bound. Rejected work is removed, returned
+tree-entry records are cloned, and application payloads, refs, and collection
+state are never cached. Advanced direct adapter construction may set
+`metadataCacheEntries` to another positive safe integer.
+
+Object identity is immutable, but external pruning can change whether an
+unretained object remains available. Keep roots retained for the adapter's
+operation lifetime and do not race active reads with destructive repository
+maintenance. Payload access performs authoritative Git I/O if availability
+changes despite that precondition.
+
 ### `bundles.getMember()`, `bundles.iterateMembers()`, and `bundles.openMember()`
 
 ```javascript

@@ -564,7 +564,11 @@ export declare class GitRefPortBase {
 
 /** Git-backed implementation of the persistence port. */
 export declare class GitPersistenceAdapter extends GitPersistencePortBase {
-  constructor(options: { plumbing: unknown; policy?: unknown });
+  constructor(options: {
+    plumbing: unknown;
+    policy?: unknown;
+    metadataCacheEntries?: number;
+  });
   setMaxBlobSize(maxBlobSize: number): void;
 }
 
@@ -1456,12 +1460,15 @@ export type BundleMemberInput =
   | PageSource
   | { source: PageSource; maxBytes?: number };
 
-export interface BundleMember {
+export interface BundleMemberReference {
   readonly version: 1;
   readonly path: string;
   readonly handle: ApplicationHandle;
   readonly type: 'blob' | 'tree';
   readonly size: number | null;
+}
+
+export interface BundleMember extends BundleMemberReference {
   readonly logicalBytes: number;
 }
 
@@ -1483,6 +1490,11 @@ export interface BundleCapability {
     handle: BundleHandleInput;
     path: string;
   }): Promise<BundleMember | null>;
+  getMemberReference(options: {
+    handle: BundleHandleInput;
+    path: string;
+  }): Promise<BundleMemberReference | null>;
+  iterateMemberReferences(options: { handle: BundleHandleInput }): AsyncIterable<BundleMemberReference>;
   iterateMembers(options: { handle: BundleHandleInput }): AsyncIterable<BundleMember>;
   openMember(options: { handle: BundleHandleInput; path: string }): AsyncIterable<Uint8Array>;
 }

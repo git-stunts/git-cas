@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Direct bundle references** - `bundles.getMemberReference()` and
+  `bundles.iterateMemberReferences()` validate bundle structure, canonical
+  descriptors, direct Git edges, and direct target object types without
+  recursively resolving each member's support graph. Existing member and root
+  methods retain complete-validation semantics.
+
+### Performance
+
+- **Bounded immutable Git metadata coalescing** - repeated exact tree-entry and
+  object-info reads now share successful in-flight and completed work through a
+  fixed-residency LRU. BundleService separately retains only structural
+  descriptor bytes under both entry and byte bounds. Rejected work is evicted,
+  mutable records are cloned for callers, and no application payloads or ref
+  state enter either cache.
+
 ## [6.4.0] — 2026-07-17
 
 ### Added

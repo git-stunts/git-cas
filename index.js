@@ -216,7 +216,11 @@ export default class ContentAddressableStore {
       put: async (options) => (await this.#getBundleService()).put(options),
       putOrdered: async (options) => (await this.#getBundleService()).putOrdered(options),
       getMember: async (options) => (await this.#getBundleService()).getMember(options),
+      getMemberReference: async (options) => (
+        await this.#getBundleService()
+      ).getMemberReference(options),
       iterateMembers: (options) => this.#iterateBundleMembers(options),
+      iterateMemberReferences: (options) => this.#iterateBundleMemberReferences(options),
       openMember: (options) => this.#openBundleMember(options),
     });
     this.retention = Object.freeze({
@@ -484,6 +488,12 @@ export default class ContentAddressableStore {
   async *#openBundleMember(options) {
     const bundles = await this.#getBundleService();
     yield* bundles.openMember(options);
+  }
+
+  /** @returns {AsyncIterable<object>} */
+  async *#iterateBundleMemberReferences(options) {
+    const bundles = await this.#getBundleService();
+    yield* bundles.iterateMemberReferences(options);
   }
 
   /** @returns {AsyncIterable<object>} */
