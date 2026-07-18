@@ -1032,9 +1032,13 @@ one store instance. The default LRU retains at most 128 payloads and 8 MiB of
 payload bytes; `pageCacheEntries` and `pageCacheBytes` may lower or raise those
 bounds. Every result is copied for its caller, failed reads remain retryable,
 and a payload larger than the byte budget is returned without remaining
-resident. `open()` remains streaming and does not enter the payload cache. This
-reuse is not retention evidence; callers must keep the page reachable for the
-duration of use.
+resident. Cold misses validate object type and size before reading. Resident or
+in-flight hits reuse that immutable OID validation and still enforce the current
+caller's `maxBytes`. In-flight work is coalesced separately from completed LRU
+residence, so its transient memory follows caller concurrency and the per-page
+size bound. `open()` remains streaming and does not enter the payload cache.
+This reuse is not retention evidence; callers must keep the page reachable for
+the duration of use.
 
 The canonical page token is:
 

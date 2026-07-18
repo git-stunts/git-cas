@@ -35,7 +35,7 @@ streaming API.
   descriptor bytes.
 - `PageService.get()` still starts a fresh `cat-file blob` stream for every call.
 - A git-warp retained-property fixture performed 16 identical reads in 2.61
-  seconds, including 32 blob reads and a 1.80 second time to first reading.
+  seconds, including 32 blob reads and a 1.80-second time to first reading.
 - Page OIDs are immutable, and `get()` already enforces both the configured page
   limit and the caller's lower operation limit.
 
@@ -70,18 +70,22 @@ interface ContentAddressableStoreOptions {
 ```
 
 The cache allocates no fixed arena. Its actual residence is the sum of retained
-payload byte lengths plus bounded map/promise overhead. A configured byte bound
-of zero disables completed payload residence while preserving in-flight
-coalescing.
+payload byte lengths plus bounded completed-entry overhead. In-flight reads are
+tracked separately so capacity pressure cannot break coalescing; their memory
+follows caller concurrency and the configured per-page size bound. A configured
+byte bound of zero disables non-empty completed payload residence while
+preserving in-flight coalescing.
 
 ## Correctness Invariants
 
 1. Cache identity is the immutable Git blob OID carried by a validated
    `PageHandle`.
-2. `resolveRoot()` runs for every call, preserving handle, object type, and size
-   validation under the persistence adapter's own immutable metadata cache.
-3. The caller's effective byte limit is checked before payload access, including
-   on warm hits.
+2. Every call parses its `PageHandle`. A cold payload miss validates object type
+   and size before reading; a resident or in-flight hit reuses that immutable
+   OID validation without another metadata access.
+3. Cold misses check the caller's effective byte limit before starting a payload
+   read. Every resolved payload, including warm and shared in-flight hits, is
+   checked again against the current caller's limit.
 4. Returned `Uint8Array` values never alias resident bytes.
 5. Rejected work is absent before its returned promise settles.
 6. An individually oversized resolved value cannot evict unrelated residents.

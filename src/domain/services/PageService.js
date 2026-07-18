@@ -83,14 +83,22 @@ export default class PageService {
    */
   async get({ handle, maxBytes }) {
     const limit = this.#effectiveLimit(maxBytes);
-    const root = await this.resolveRoot(handle);
-    if (root.size > limit) {
-      throw PageService.#tooLarge(root.size, limit);
+    const pageHandle = PageHandle.from(handle);
+    let payload = this.#payloads.get(pageHandle.oid);
+    if (payload === undefined) {
+      const root = await this.resolveRoot(pageHandle);
+      if (root.size > limit) {
+        throw PageService.#tooLarge(root.size, limit);
+      }
+      payload = this.#payloads.getOrCreate(
+        root.oid,
+        async () => await this.#readRoot(root),
+      );
     }
-    const bytes = await this.#payloads.getOrCreate(
-      root.oid,
-      async () => await this.#readRoot(root),
-    );
+    const bytes = await payload;
+    if (bytes.byteLength > limit) {
+      throw PageService.#tooLarge(bytes.byteLength, limit);
+    }
     return new Uint8Array(bytes);
   }
 

@@ -4,7 +4,9 @@
  */
 export default class BoundedPromiseCache {
   /** @type {Map<string, { promise: Promise<unknown>, weight: number }>} */
-  #entries = new Map();
+  #completed = new Map();
+  /** @type {Map<string, Promise<unknown>>} */
+  #inFlight = new Map();
   #maxEntries;
   #maxWeight;
   #totalWeight = 0;
@@ -37,49 +39,49 @@ export default class BoundedPromiseCache {
   /**
    * @template T
    * @param {string} key
+   * @returns {Promise<T>|undefined}
+   */
+  get(key) {
+    const cached = this.#completed.get(key);
+    if (cached !== undefined) {
+      this.#completed.delete(key);
+      this.#completed.set(key, cached);
+      return cached.promise;
+    }
+    return this.#inFlight.get(key);
+  }
+
+  /**
+   * @template T
+   * @param {string} key
    * @param {() => Promise<T>|T} factory
    * @returns {Promise<T>}
    */
   getOrCreate(key, factory) {
-    const cached = this.#entries.get(key);
-    if (cached !== undefined) {
-      this.#entries.delete(key);
-      this.#entries.set(key, cached);
-      return cached.promise;
+    const present = this.get(key);
+    if (present !== undefined) {
+      return present;
     }
 
     const source = Promise.resolve().then(factory);
-    const entry = { promise: source, weight: 0 };
     const tracked = source.then(
       (value) => {
-        if (this.#entries.get(key) === entry) {
-          let weight;
-          try {
-            weight = this.#resolvedWeight(value);
-          } catch (error) {
-            this.#remove(key, entry);
-            throw error;
-          }
-          if (weight > this.#maxWeight) {
-            this.#remove(key, entry);
-            return value;
-          }
-          entry.weight = weight;
-          this.#totalWeight += entry.weight;
-          this.#evict();
+        this.#removeInFlight(key, tracked);
+        const weight = this.#resolvedWeight(value);
+        if (weight <= this.#maxWeight) {
+          const entry = { promise: Promise.resolve(value), weight };
+          this.#completed.set(key, entry);
+          this.#totalWeight += weight;
+          this.#evictCompleted();
         }
         return value;
       },
       (error) => {
-        if (this.#entries.get(key) === entry) {
-          this.#remove(key, entry);
-        }
+        this.#removeInFlight(key, tracked);
         throw error;
       },
     );
-    entry.promise = tracked;
-    this.#entries.set(key, entry);
-    this.#evict();
+    this.#inFlight.set(key, tracked);
     return tracked;
   }
 
@@ -91,18 +93,24 @@ export default class BoundedPromiseCache {
     return weight;
   }
 
-  #evict() {
-    while (this.#entries.size > this.#maxEntries || this.#totalWeight > this.#maxWeight) {
-      const oldestKey = this.#entries.keys().next().value;
-      const oldest = this.#entries.get(oldestKey);
-      this.#remove(oldestKey, oldest);
+  #evictCompleted() {
+    while (this.#completed.size > this.#maxEntries || this.#totalWeight > this.#maxWeight) {
+      const oldestKey = this.#completed.keys().next().value;
+      const oldest = this.#completed.get(oldestKey);
+      this.#removeCompleted(oldestKey, oldest);
     }
   }
 
-  #remove(key, entry) {
-    if (entry === undefined || !this.#entries.delete(key)) {
+  #removeCompleted(key, entry) {
+    if (entry === undefined || !this.#completed.delete(key)) {
       return;
     }
     this.#totalWeight -= entry.weight;
+  }
+
+  #removeInFlight(key, promise) {
+    if (this.#inFlight.get(key) === promise) {
+      this.#inFlight.delete(key);
+    }
   }
 }
