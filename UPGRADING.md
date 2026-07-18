@@ -2,6 +2,28 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.5.0 To v6.5.1
+
+v6.5.1 is API-additive and does not require stored-data migration. Repeated
+`pages.get()` calls now reuse immutable payload bytes through a process-local
+LRU bounded by entry count and aggregate bytes. Applications may tune the
+defaults with `pageCacheEntries` and `pageCacheBytes` when constructing the
+store.
+
+Every caller still receives an independent `Uint8Array`, and each call's
+`maxBytes` limit remains authoritative on cold, resident, and shared in-flight
+reads. Rejected work remains retryable, and an individually oversized payload
+does not displace unrelated residents.
+
+`pages.open()` remains the streaming API and never enters the payload cache.
+Cache residence is an optimization, not retention evidence; keep each handle
+reachable through a workspace, RootSet, cache acquisition, publication, or
+other documented lifetime while consuming it.
+
+See [v6.5.1 Release Notes](./docs/releases/v6.5.1.md) and
+[Application Storage](./docs/API.md#application-storage) for the complete
+residency and lifetime contract.
+
 ## v6.4.0 To v6.5.0
 
 v6.5.0 is API-additive and does not require stored-data migration. It adds
