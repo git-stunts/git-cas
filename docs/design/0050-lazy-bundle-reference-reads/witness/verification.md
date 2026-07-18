@@ -1,6 +1,6 @@
 # Lazy Bundle Reference Reads Verification Witness
 
-Generated: 2026-07-18 01:26:08 PDT
+Generated: 2026-07-18 01:47:33 PDT
 
 Issue: [#81](https://github.com/git-stunts/git-cas/issues/81)
 
@@ -117,9 +117,10 @@ Node stderr-drain defect is tracked as
 | Command                                                 | Result                                    |
 | ------------------------------------------------------- | ----------------------------------------- |
 | `pnpm exec vitest run` over the five focused unit files | 5 files, 61 tests passed                  |
-| `pnpm test`                                             | 220 files passed; 2,013 passed, 2 skipped |
+| `pnpm test`                                             | 220 files passed; 2,018 passed, 2 skipped |
 | `pnpm run lint`                                         | passed                                    |
 | `pnpm run test:integration:node`                        | 12 files, 192 tests passed in Docker      |
+| `pnpm run release:verify`                               | 14/14 steps; 6,619 observed tests passed  |
 | guarded-replacement Docker stress                       | 500 consecutive races passed              |
 | `git diff --check`                                      | passed                                    |
 
