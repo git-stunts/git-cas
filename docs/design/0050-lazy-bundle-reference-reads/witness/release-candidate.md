@@ -45,7 +45,7 @@ traversed tree edges, and the direct target type without recursively resolving
 the selected member's support graph.
 
 [cite: `src/domain/services/BundleService.js#111-152@d5f770fb4589cd33d2244c83232ee7ede1df9ec1`]
-[cite: `src/domain/services/BundleService.js#612-623@d5f770fb4589cd33d2244c83232ee7ede1df9ec1`]
+[cite: `src/domain/services/BundleService.js#463-492@d5f770fb4589cd33d2244c83232ee7ede1df9ec1`]
 
 The bounded cache removes rejected and individually oversized work before
 settlement can evict valid residents. RootSet recovery compares canonical OIDs
