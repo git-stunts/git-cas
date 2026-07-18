@@ -5,6 +5,8 @@ import RootSetMetadataCodec from '../../../../src/domain/services/RootSetMetadat
 import RootSetPersistence from '../../../../src/domain/services/RootSetPersistence.js';
 
 const REF = 'refs/cas/rootsets/warp/state-cache';
+const NEW_COMMIT_OID = 'c'.repeat(40);
+const EXPECTED_HEAD_OID = 'd'.repeat(40);
 const TREE_ENTRY = {
   name: 'snapshot:tree',
   oid: 'a'.repeat(40),
@@ -40,6 +42,45 @@ function mockRef(overrides = {}) {
     updateRef: vi.fn(),
     ...overrides,
   };
+}
+
+function exactUpdateRefArgs(ref = REF, expectedHeadOid = EXPECTED_HEAD_OID) {
+  return [
+    'update-ref',
+    '--no-deref',
+    ref,
+    NEW_COMMIT_OID,
+    expectedHeadOid ?? '0'.repeat(NEW_COMMIT_OID.length),
+  ];
+}
+
+function structuredUpdateRefLock({
+  ref = REF,
+  args = exactUpdateRefArgs(ref),
+  stderr = `fatal: cannot lock ref '${ref}': lock file exists`,
+} = {}) {
+  return Object.assign(new Error('Git command failed: repository is locked'), {
+    details: {
+      code: 'GIT_REPOSITORY_LOCKED',
+      args,
+      stderr,
+    },
+  });
+}
+
+async function expectStructuredLockCode(error, expectedHeadOid, code) {
+  const persistence = mockPersistence({
+    writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
+    writeTree: vi.fn().mockResolvedValue('b'.repeat(40)),
+  });
+  const ref = mockRef({
+    createCommit: vi.fn().mockResolvedValue(NEW_COMMIT_OID),
+    updateRef: vi.fn().mockRejectedValue(error),
+  });
+  const rootSet = new RootSetPersistence({ rootSetRef: REF, persistence, ref });
+
+  await expect(rootSet.write({ entries: [], expectedHeadOid }))
+    .rejects.toMatchObject({ code });
 }
 
 describe('RootSetPersistence snapshot writes', () => {
@@ -103,6 +144,51 @@ describe('RootSetPersistence write conflicts', () => {
           newCommit: 'c'.repeat(40),
         },
       });
+  });
+});
+
+describe('RootSetPersistence structured lock conflicts', () => {
+  it('normalizes a structured lock for the exact managed update-ref command', async () => {
+    await expectStructuredLockCode(
+      structuredUpdateRefLock(),
+      EXPECTED_HEAD_OID,
+      'ROOT_SET_CONFLICT',
+    );
+  });
+
+  it('normalizes an exact managed creation lock with a zero expected OID', async () => {
+    await expectStructuredLockCode(
+      structuredUpdateRefLock({ args: exactUpdateRefArgs(REF, null) }),
+      null,
+      'ROOT_SET_CONFLICT',
+    );
+  });
+
+  it('keeps a structured lock for another ref as a non-conflict failure', async () => {
+    await expectStructuredLockCode(
+      structuredUpdateRefLock({ ref: 'refs/heads/other' }),
+      EXPECTED_HEAD_OID,
+      'ROOT_SET_REF_UPDATE_FAILED',
+    );
+  });
+});
+
+describe('RootSetPersistence malformed structured locks', () => {
+  const exactArgs = exactUpdateRefArgs();
+  const conflictText =
+    `fatal: cannot lock ref '${REF}': is at ${'e'.repeat(40)} but expected ${EXPECTED_HEAD_OID}`;
+  it.each([
+    ['missing OID operands', { args: exactArgs.slice(0, 3) }],
+    ['missing expected OID', { args: exactArgs.slice(0, 4) }],
+    ['altered new OID', { args: [...exactArgs.slice(0, 3), 'e'.repeat(40), EXPECTED_HEAD_OID] }],
+    ['altered expected OID', { args: [...exactArgs.slice(0, 4), 'e'.repeat(40)] }],
+    ['trailing operand despite conflict text', { args: [...exactArgs, 'extra'], stderr: conflictText }],
+  ])('keeps %s terminal', async (_label, options) => {
+    await expectStructuredLockCode(
+      structuredUpdateRefLock(options),
+      EXPECTED_HEAD_OID,
+      'ROOT_SET_REF_UPDATE_FAILED',
+    );
   });
 });
 

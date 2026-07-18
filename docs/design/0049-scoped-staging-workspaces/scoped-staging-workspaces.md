@@ -526,7 +526,8 @@ The work is done when:
 - [x] Public declarations and docs match runtime behavior.
 - [x] README, changelog, release notes, and witness are updated.
 - [x] Issue and PR are linked correctly.
-- [ ] CI, Code Rabbit, self-review, and independent Code Lawyer review are clean.
+- [x] Implementation PR CI, Code Rabbit, self-review, and independent Code
+  Lawyer review are clean.
 - [ ] v6.4.0 is published before git-warp consumes the API.
 
 ## Validation Plan

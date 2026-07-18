@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.0] — 2026-07-17
+
 ### Added
 
 - **Scoped staging workspaces** — `cas.workspaces.open()` now provides a
@@ -23,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   claiming deduplicated or packed physical-byte attribution. Workspace
   witnesses reuse the existing `root-set` kind, and workspace-detail truncation
   uses a dedicated code without widening closed public discriminant unions.
+
+### Fixed
+
+- **RootSet structured lock retries** — exact managed `update-ref --no-deref`
+  lock races surfaced as `GIT_REPOSITORY_LOCKED` now normalize to
+  `ROOT_SET_CONFLICT`, allowing the existing bounded retry policy to run.
+  Structured lock failures for other refs remain terminal.
 
 ## [6.3.0] — 2026-07-17
 

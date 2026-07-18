@@ -138,6 +138,8 @@ Review corrected eight contract defects before this witness:
 - The first Code Rabbit and independent Code Lawyer reviews completed. Their
   findings are addressed locally; GitHub thread resolution and post-push CI are
   pending.
-- The package version and release milestone require an explicit release decision.
+- The fresh `v6.4.0` candidate verifier passed 14/14 steps with 6,538 observed
+  tests, including npm and JSR dry-runs. Release-PR review and the tag-driven
+  publication workflow remain pending.
 - Downstream git-warp adoption and its unchanged ten-second integration hook
   remain the end-to-end performance and compatibility gate.

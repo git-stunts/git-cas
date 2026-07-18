@@ -1,8 +1,8 @@
 # STATUS
 
 **Last tagged release:** `v6.3.0` (`2026-07-17`)
-**Current release state:** `v6.3.0` is published to npm with provenance and to GitHub Releases; JSR publication is not claimed.
-**Latest verification:** `pnpm run release:verify` passed 14/14 steps with 6,325 observed tests before tagging; release run `29566015478` then passed tag validation, lint, unit tests, Node/Bun/Deno integration, npm trusted publication, and final GitHub Release creation.
+**Current release state:** `v6.4.0` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
+**Latest verification:** the `v6.4.0` release verifier passed 14/14 steps with 6,538 observed tests across Node.js, Bun, and Deno; npm and JSR dry-runs passed.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,6 +18,11 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
+- **v6.4.0 candidate posture** — scoped staging workspaces are merged through
+  reviewed commit `1ac2fc8`, and structured RootSet lock retries are corrected
+  by `8185dfb9`; npm, JSR, and runtime version metadata now identify `6.4.0`,
+  while the tag and registry artifacts remain deliberately absent until
+  release-candidate review completes.
 - **v6.3.0 artifact posture** — signed tag `v6.3.0` resolves to reviewed merge
   `33f4171`; npm reports `@git-stunts/git-cas@6.3.0` as `latest` with SLSA
   provenance, and the final GitHub Release is published. JSR dry-run validation
@@ -99,11 +104,11 @@
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
 - Current release goalpost:
-  [#69 v6.3.0: Bounded scoped cache acquisitions](https://github.com/git-stunts/git-cas/issues/69)
+  [#75 Scoped staging workspaces for multi-object promotion](https://github.com/git-stunts/git-cas/issues/75)
   under the
-  [`v6.3.0` milestone](https://github.com/git-stunts/git-cas/milestone/7).
+  [`v6.4.0` milestone](https://github.com/git-stunts/git-cas/milestone/4).
 - The latest landed design record is
-  [0048-scoped-cache-acquisitions](./docs/design/0048-scoped-cache-acquisitions/scoped-cache-acquisitions.md).
+  [0049-scoped-staging-workspaces](./docs/design/0049-scoped-staging-workspaces/scoped-staging-workspaces.md).
 
 ## Read Next
 

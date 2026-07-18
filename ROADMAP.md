@@ -32,22 +32,24 @@ GitHub wins and this file should be corrected.
 | Milestone                                                     | Theme                                                      | Tracker                                                                                                        |
 | ------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | [`v6.0.1`](https://github.com/git-stunts/git-cas/milestone/1) | Patch closeout and planning truth                          | [#37](https://github.com/git-stunts/git-cas/issues/37)                                                         |
-| [`v6.1.0`](https://github.com/git-stunts/git-cas/milestone/2) | Bounded residency and scale hardening                      | [#38](https://github.com/git-stunts/git-cas/issues/38)                                                         |
+| [`v6.1.0`](https://github.com/git-stunts/git-cas/milestone/2) | Bounded residency and scale hardening                      | [#43](https://github.com/git-stunts/git-cas/issues/43), [#44](https://github.com/git-stunts/git-cas/issues/44), [#45](https://github.com/git-stunts/git-cas/issues/45), [#48](https://github.com/git-stunts/git-cas/issues/48) |
 | [`v6.2.0`](https://github.com/git-stunts/git-cas/milestone/3) | Emergency application storage and cache ownership boundary | [#50](https://github.com/git-stunts/git-cas/issues/50)                                                         |
-| [`v6.3.0`](https://github.com/git-stunts/git-cas/milestone/4) | Operator TUI and agent automation follow-through           | [#39](https://github.com/git-stunts/git-cas/issues/39), [#40](https://github.com/git-stunts/git-cas/issues/40) |
-| [`v6.4.0`](https://github.com/git-stunts/git-cas/milestone/5) | Browser and edge read-path exploration                     | [#41](https://github.com/git-stunts/git-cas/issues/41)                                                         |
+| [`v6.3.0`](https://github.com/git-stunts/git-cas/milestone/7) | Bounded scoped cache acquisitions                          | [#69](https://github.com/git-stunts/git-cas/issues/69), [#70](https://github.com/git-stunts/git-cas/issues/70) |
+| [`v6.4.0`](https://github.com/git-stunts/git-cas/milestone/4) | Scoped staging workspaces                                  | [#75](https://github.com/git-stunts/git-cas/issues/75), [#77](https://github.com/git-stunts/git-cas/issues/77) |
+| [`v6.4.1`](https://github.com/git-stunts/git-cas/milestone/8) | Historical bounded-residency proof closeout                | [#38](https://github.com/git-stunts/git-cas/issues/38), [#46](https://github.com/git-stunts/git-cas/issues/46) |
+| [`v6.5.0`](https://github.com/git-stunts/git-cas/milestone/5) | Operator TUI and agent automation follow-through           | [#39](https://github.com/git-stunts/git-cas/issues/39), [#40](https://github.com/git-stunts/git-cas/issues/40) |
+| [`v6.6.0`](https://github.com/git-stunts/git-cas/milestone/9) | Browser and edge read-path exploration                     | [#41](https://github.com/git-stunts/git-cas/issues/41)                                                         |
 | [`v7.0.0`](https://github.com/git-stunts/git-cas/milestone/6) | Protocol break only if audit requires it                   | [#42](https://github.com/git-stunts/git-cas/issues/42), only when justified                                    |
 
 ## Latest Landed Design
 
 The latest landed design record is:
 
-- [0047-application-storage-cache-boundary](./docs/design/0047-application-storage-cache-boundary/application-storage-cache-boundary.md)
+- [0049-scoped-staging-workspaces](./docs/design/0049-scoped-staging-workspaces/scoped-staging-workspaces.md)
 
 Its GitHub goalpost issue,
-[#50](https://github.com/git-stunts/git-cas/issues/50), owns the release
+[#75](https://github.com/git-stunts/git-cas/issues/75), owns the release
 evidence. The design doc is the durable contract; GitHub records completion.
-No later design is selected in this file.
 
 The `v6.2.0` slice record is:
 
