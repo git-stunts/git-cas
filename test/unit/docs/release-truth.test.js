@@ -200,6 +200,21 @@ describe('scoped cache acquisition release documentation', () => {
   });
 });
 
+describe('scoped staging workspace release documentation', () => {
+  it('ships and links the v6.4.0 temporary-reachability contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.4.0.md');
+
+    expect(readme).toContain('[v6.4.0 Release Notes](./docs/releases/v6.4.0.md)');
+    expect(upgrading).toContain('Do not use a CacheSet as temporary construction storage');
+    expect(releaseNotes).toContain('# git-cas v6.4.0 Release Notes');
+    expect(releaseNotes).toContain('cas.workspaces.open');
+    expect(releaseNotes).toContain('destination retention before releasing');
+    expect(releaseNotes).toContain('nextCursor');
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');

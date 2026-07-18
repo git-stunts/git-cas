@@ -2,6 +2,48 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.3.0 To v6.4.0
+
+v6.4.0 is API-additive and does not require stored-data migration. It adds
+scoped staging workspaces for applications that construct one durable result
+from many intermediate assets, pages, or bundles.
+
+Do not use a CacheSet as temporary construction storage. Open one workspace,
+stage the intermediate values through it, compact the retained roots after an
+aggregate becomes transitively complete, and promote only the terminal handle:
+
+```javascript
+const workspace = await cas.workspaces.open({
+  namespace: 'my-application/materializations',
+  ttlMs: 2 * 60 * 60 * 1000,
+});
+
+try {
+  const page = await workspace.pages.put({ source: encodedPage });
+  const bundle = await workspace.bundles.putOrdered({
+    members: [['pages/result.cbor', page.handle]],
+  });
+  await workspace.checkpoint({ handles: [bundle.handle] });
+  await workspace.promoteToCache({ cache, key, handle: bundle.handle });
+} finally {
+  await workspace.release();
+}
+```
+
+Every returned staged value is anchored by an exact workspace generation.
+Promotion requires matching destination retention evidence before source
+release. Expiry is diagnostic posture, not automatic deletion; abandoned
+workspaces remain reachable until a caller traverses bounded `inspect()` or
+`sweep()` pages using `nextCursor`.
+
+The interval between writing an object and publishing the workspace ref still
+depends on Git's ordinary unreachable-object grace period. Concurrent
+immediate-expiry pruning inside that interval is unsupported.
+
+See [v6.4.0 Release Notes](./docs/releases/v6.4.0.md) and
+[Scoped Staging Workspaces](./docs/API.md#scoped-staging-workspaces) for the
+complete retention, promotion, and recovery contract.
+
 ## v6.2.0 To v6.3.0
 
 v6.3.0 is API-additive and does not require stored-data migration. It adds

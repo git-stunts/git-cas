@@ -3,8 +3,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
-const v630CandidateMarker = '**Current release state:** `v6.3.0` release candidate';
-const v630PublishedMarker = '**Current release state:** `v6.3.0` is published';
+const v640CandidateMarker = '**Current release state:** `v6.4.0` release candidate';
+const v640PublishedMarker = '**Current release state:** `v6.4.0` is published';
+const v640CandidatePath =
+  'docs/design/0049-scoped-staging-workspaces/witness/release-candidate.md';
+const v640PublicationPath =
+  'docs/design/0049-scoped-staging-workspaces/witness/release-publication.md';
 const v630PublicationPath =
   'docs/design/0048-scoped-cache-acquisitions/witness/release-publication.md';
 
@@ -20,16 +24,16 @@ function v6Heading(changelog) {
   return changelog.match(/^## \[6\.0\.0\] — (.+)$/m)?.[1];
 }
 
-function expectNoV630PublicationEvidence(...documents) {
+function expectNoV640PublicationEvidence(...documents) {
   const forbiddenMarkers = [
-    '**Last tagged release:** `v6.3.0`',
-    '**Current release state:** `v6.3.0` is published',
-    '- Signed annotated tag: `v6.3.0`',
-    'https://github.com/git-stunts/git-cas/releases/tag/v6.3.0',
+    '**Last tagged release:** `v6.4.0`',
+    '**Current release state:** `v6.4.0` is published',
+    '- Signed annotated tag: `v6.4.0`',
+    'https://github.com/git-stunts/git-cas/releases/tag/v6.4.0',
     '## npm Registry Evidence',
-    '| Package | `@git-stunts/git-cas@6.3.0` |',
-    '| Dist-tag | `latest` -> `6.3.0` |',
-    'attestations/@git-stunts%2fgit-cas@6.3.0'
+    '| Package | `@git-stunts/git-cas@6.4.0` |',
+    '| Dist-tag | `latest` -> `6.4.0` |',
+    'attestations/@git-stunts%2fgit-cas@6.4.0'
   ];
 
   for (const document of documents) {
@@ -39,78 +43,77 @@ function expectNoV630PublicationEvidence(...documents) {
   }
 }
 
-function expectV630CandidateState(status, candidate, publication) {
-  expect(status).toContain('**Last tagged release:** `v6.2.0` (`2026-07-13`)');
-  expect(status).toContain(v630CandidateMarker);
-  expect(status).toContain('publication remain pending the reviewed tag workflow');
-  expect(candidate).toContain('It passed 14/14 steps and observed 6,325 tests');
-  expect(candidate).toContain('242 files, 747,220 packed bytes, and 2,054,933');
-  expect(candidate).toContain('7b15ec1819a1c2500c459818785fcd7ec6cf7676');
+function expectV640CandidateState(status, candidate, publication) {
+  expect(status).toContain('**Last tagged release:** `v6.3.0` (`2026-07-17`)');
+  expect(status).toContain(v640CandidateMarker);
+  expect(status).toContain('remain pending the reviewed tag workflow');
+  expect(candidate).toContain('# PERF-0049 v6.4.0 Release Candidate Witness');
+  expect(candidate).toContain('1ac2fc85be857ca769c459b89c29bf4483b3f304');
+  expect(candidate).toContain('8185dfb9819909d9fbe0f0394de6ae31fc0a94a3');
+  expect(candidate).toContain('passed 14/14 steps with 6,520 observed tests');
+  expect(candidate).toContain('247 files, 763,847 packed bytes');
+  expect(candidate).toContain('2,129,298 unpacked bytes');
   expect(candidate).toContain('explicitly unpublished candidate');
   expect(publication).toBeNull();
-  expectNoV630PublicationEvidence(status, candidate);
+  expectNoV640PublicationEvidence(status, candidate);
 }
 
-function expectV630PublishedState(status, publication) {
-  expect(status).toMatch(/\*\*Last tagged release:\*\* `v6\.3\.0` \(`\d{4}-\d{2}-\d{2}`\)/);
-  expect(status).toContain(v630PublishedMarker);
-  expect(publication).toContain('# PERF-0048 v6.3.0 Publication Witness');
-  expect(publication).toContain('- Signed annotated tag: `v6.3.0`');
-  expect(publication).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.3.0');
-  expect(publication).toContain('| Package | `@git-stunts/git-cas@6.3.0` |');
-  expect(publication).toContain('| Dist-tag | `latest` -> `6.3.0` |');
-  expect(publication).toContain('attestations/@git-stunts%2fgit-cas@6.3.0');
+function expectV640PublishedState(status, publication) {
+  expect(status).toMatch(/\*\*Last tagged release:\*\* `v6\.4\.0` \(`\d{4}-\d{2}-\d{2}`\)/);
+  expect(status).toContain(v640PublishedMarker);
+  expect(publication).toContain('# PERF-0049 v6.4.0 Publication Witness');
+  expect(publication).toContain('- Signed annotated tag: `v6.4.0`');
+  expect(publication).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.4.0');
+  expect(publication).toContain('| Package | `@git-stunts/git-cas@6.4.0` |');
+  expect(publication).toContain('| Dist-tag | `latest` -> `6.4.0` |');
+  expect(publication).toContain('attestations/@git-stunts%2fgit-cas@6.4.0');
 }
 
-function expectV630Lifecycle(status, candidate, publication) {
-  const isCandidate = status.includes(v630CandidateMarker);
-  const isPublished = status.includes(v630PublishedMarker);
+function expectV640Lifecycle(status, candidate, publication) {
+  const isCandidate = status.includes(v640CandidateMarker);
+  const isPublished = status.includes(v640PublishedMarker);
 
   expect(Number(isCandidate) + Number(isPublished)).toBe(1);
   if (isCandidate) {
-    expectV630CandidateState(status, candidate, publication);
+    expectV640CandidateState(status, candidate, publication);
     return;
   }
   expect(publication).not.toBeNull();
-  expectV630PublishedState(status, publication);
+  expectV640PublishedState(status, publication);
 }
 
-function expectFutureV630PublicationState() {
+function expectFutureV640PublicationState() {
   const status = [
-    '**Last tagged release:** `v6.3.0` (`2026-07-17`)',
-    `${v630PublishedMarker} to npm with provenance and to GitHub Releases.`
+    '**Last tagged release:** `v6.4.0` (`2026-07-17`)',
+    `${v640PublishedMarker} to npm with provenance and to GitHub Releases.`
   ].join('\n');
   const publication = [
-    '# PERF-0048 v6.3.0 Publication Witness',
-    '- Signed annotated tag: `v6.3.0`',
-    'https://github.com/git-stunts/git-cas/releases/tag/v6.3.0',
-    '| Package | `@git-stunts/git-cas@6.3.0` |',
-    '| Dist-tag | `latest` -> `6.3.0` |',
-    'attestations/@git-stunts%2fgit-cas@6.3.0'
+    '# PERF-0049 v6.4.0 Publication Witness',
+    '- Signed annotated tag: `v6.4.0`',
+    'https://github.com/git-stunts/git-cas/releases/tag/v6.4.0',
+    '| Package | `@git-stunts/git-cas@6.4.0` |',
+    '| Dist-tag | `latest` -> `6.4.0` |',
+    'attestations/@git-stunts%2fgit-cas@6.4.0'
   ].join('\n');
 
-  expectV630Lifecycle(status, '', publication);
+  expectV640Lifecycle(status, '', publication);
 }
 
 describe('release state docs', () => {
-  it('enforces the v6.3.0 candidate-to-publication lifecycle', () => {
+  it('enforces the v6.4.0 candidate-to-publication lifecycle', () => {
     const status = read('STATUS.md');
-    const candidate = read(
-      'docs/design/0048-scoped-cache-acquisitions/witness/release-candidate.md'
-    );
-    const publication = readOptional(v630PublicationPath);
-    const witness = read(
-      'docs/design/0047-application-storage-cache-boundary/witness/release-publication.md'
-    );
+    const candidate = read(v640CandidatePath);
+    const publication = readOptional(v640PublicationPath);
+    const v630Publication = read(v630PublicationPath);
 
-    expectV630Lifecycle(status, candidate, publication);
-    expectFutureV630PublicationState();
+    expectV640Lifecycle(status, candidate, publication);
+    expectFutureV640PublicationState();
     expect(status).toContain('Current release goalpost:');
-    expect(status).toContain('#69 v6.3.0: Bounded scoped cache acquisitions');
-    expect(witness).toContain('432c5d9effb12c9f66536f1386791bb4421f3cea');
-    expect(witness).toContain('sha512-m8+ZzgNhKU6pVS9pjqJlwAnwYI/s+NMEnINC+Q0g3h6T6mNPdH8U0jb4nEoxU9N1TF+Ut5bjtRMRRaYT75dlew==');
-    expect(witness).toContain('https://slsa.dev/provenance/v1');
-    expect(witness).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.2.0');
+    expect(status).toContain('#75 Scoped staging workspaces for multi-object promotion');
+    expect(v630Publication).toContain('33f4171f6b69d75110de834f9a75d64e2d14e1a3');
+    expect(v630Publication).toContain('sha512-Cl/WPjj60LvjXl3BqSb1M3a0tx2xpx6KxGEC1TXKekNzgn5so/t43LG7Qz2XuXle+YmXWoCi8H94cJYvfgI8Yw==');
+    expect(v630Publication).toContain('https://slsa.dev/provenance/v1');
+    expect(v630Publication).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.3.0');
   });
 });
 
