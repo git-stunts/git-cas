@@ -16,17 +16,18 @@ should treat restored data, chunker output, codec output, and keys as
 
 1. [ContentAddressableStore](#contentaddressablestore)
 2. [Application Storage](#application-storage)
-3. [Root Sets](#root-sets)
-4. [Cache Sets](#cache-sets)
-5. [Expiring Sets](#expiring-sets)
-6. [Repository Diagnostics](#repository-diagnostics)
-7. [Vault](#vault)
-8. [CasService](#casservice)
-9. [Events](#events)
-10. [Value Objects](#value-objects)
-11. [Ports](#ports)
-12. [Codecs](#codecs)
-13. [Error Codes](#error-codes)
+3. [Scoped Staging Workspaces](#scoped-staging-workspaces)
+4. [Root Sets](#root-sets)
+5. [Cache Sets](#cache-sets)
+6. [Expiring Sets](#expiring-sets)
+7. [Repository Diagnostics](#repository-diagnostics)
+8. [Vault](#vault)
+9. [CasService](#casservice)
+10. [Events](#events)
+11. [Value Objects](#value-objects)
+12. [Ports](#ports)
+13. [Codecs](#codecs)
+14. [Error Codes](#error-codes)
 
 ## ContentAddressableStore
 
@@ -1239,6 +1240,137 @@ generation later.
 `toJSON()` serializes `handle` to its canonical token and copies the root
 evidence fields.
 
+## Scoped Staging Workspaces
+
+Scoped staging workspaces retain intermediate application handles while a
+caller builds a larger asset or bundle. They are the high-level temporary
+reachability API. Use them instead of managing Git refs, raw CAS objects, or a
+general CacheSet as a build scratchpad.
+
+```javascript
+const workspace = await cas.workspaces.open({
+  namespace: 'git-warp/materializations',
+  ttlMs: 2 * 60 * 60 * 1000,
+});
+
+try {
+  const first = await workspace.pages.put({ source: firstShard });
+  const second = await workspace.pages.put({ source: secondShard });
+  const bundle = await workspace.bundles.putOrdered({
+    members: [
+      ['shards/first.cbor', first.handle],
+      ['shards/second.cbor', second.handle],
+    ],
+  });
+
+  await workspace.checkpoint({ handles: [bundle.handle] });
+  return await workspace.promoteToCache({
+    cache,
+    key: materializationKey,
+    handle: bundle.handle,
+    options: { retention: 'evictable' },
+  });
+} finally {
+  await workspace.release();
+}
+```
+
+`cas.workspaces.open({ namespace, ttlMs })` creates an in-memory workspace. It
+does not create a Git ref until the first successful stage or checkpoint. The
+default TTL is two hours; the maximum is seven days. `ttlMs` must be a positive
+safe integer.
+
+The workspace mirrors only application-storage writes:
+
+```javascript
+await workspace.assets.put(options);
+await workspace.assets.adopt(options);
+await workspace.pages.put(options);
+await workspace.bundles.put(options);
+await workspace.bundles.putOrdered(options);
+```
+
+Each method returns only after a direct workspace generation reaches the
+returned typed handle. The result is otherwise the ordinary staged result plus
+a workspace `RetentionWitness`. Calls on one workspace serialize their ref
+mutations so concurrent staging cannot silently lose an accumulated root.
+
+This guarantee starts when the method returns. Like all Git object composition,
+the object-write-to-ref-update interval still relies on Git's ordinary
+unreachable-object grace period. Running immediate-expiry prune concurrently
+inside that interval is unsupported.
+
+### Checkpoint, renew, promote, and release
+
+`checkpoint({ handles })` replaces the active roots with the unique supplied
+handles. Use it after an aggregate bundle transitively reaches its components.
+An empty checkpoint removes active targets and installs a descriptor-only lease
+generation, leaving the workspace available for later staging.
+
+`renew()` preserves the current target set and advances its lease descriptor.
+Successful staging, checkpoint, and promotion preparation also renew the
+workspace.
+
+`promoteToCache({ cache, key, handle, options })` and
+`promoteToPublication({ handle, commit, ref })` establish destination
+retention before releasing the workspace. The promoted handle must belong to
+the active generation. The destination must return an anchored witness for the
+exact handle, ref, and generation. Rejection, missing evidence, or destination
+failure leaves the workspace intact and reports
+`WORKSPACE_PROMOTION_NOT_RETAINED` where applicable. If destination retention
+succeeds but workspace cleanup conflicts, the operation fails with
+`WORKSPACE_PROMOTION_CLEANUP_PENDING`; its metadata distinguishes retained
+destination state from pending temporary cleanup.
+
+`release()` is idempotent for one workspace object and deletes only its exact
+observed direct-ref generation. A conflicting generation or symbolic ref fails
+closed. Calling any staging, checkpoint, renewal, or promotion method after a
+successful release fails with `WORKSPACE_RELEASED`.
+
+### Inspect and sweep
+
+Workspace expiry is operational posture, not automatic revocation. An expired
+workspace remains Git-reachable until an explicit checked sweep removes it.
+
+```javascript
+const inspection = await cas.workspaces.inspect({
+  namespace: 'git-warp/materializations',
+  limit: 100,
+});
+
+let cursor = null;
+do {
+  const cleanup = await cas.workspaces.sweep({
+    namespace: 'git-warp/materializations',
+    limit: 100,
+    cursor,
+  });
+  cursor = cleanup.nextCursor;
+} while (cursor !== null);
+```
+
+Inspection is namespace-scoped and bounded. Each record reports identity,
+generation, direct-root count, creation time, age, expiry, posture, and two
+different byte measures:
+
+- `logicalBytes` sums the validated semantic content size reported by each
+  retained typed handle. Overlapping handles can describe overlapping content.
+- `rootObjectBytes` sums each unique direct Git root object's loose logical
+  size. It excludes transitive support, deduplication attribution, pack
+  compression, and filesystem overhead.
+
+Inspection validates the canonical target name, typed handle, OID, Git object
+type, and complete application handle graph. Invalid persisted state produces
+`posture: 'invalid'` with structured issue evidence instead of a guessed byte
+count.
+
+`sweep()` deletes only records observed as expired, direct, and still at the
+same generation. Inspection and sweep return an opaque `nextCursor` whenever
+`truncated` is true; pass that cursor to the next call so active or invalid
+records cannot starve later expired workspaces. The sweep result reports
+inspected, changed, conflicted, missing, and truncated counts. Sweep never
+removes active or invalid records.
+
 ## Root Sets
 
 Root sets retain a mutable current set of Git blobs or trees. They are intended
@@ -1786,14 +1918,15 @@ const report = await cas.diagnostics.doctor({
 console.log(report.repository.objects);
 console.log(report.usage.acquisitions);
 console.log(report.usage.caches);
+console.log(report.usage.workspaces);
 console.log(report.limitations);
 ```
 
 Pass either `gracePeriodMs` or an exact canonical `expiresBefore` UTC timestamp,
 not both. The default grace period is 14 days. `maxCollectionsPerKind` bounds
-detailed cache-acquisition, CacheSet, RootSet, and ExpiringSet rows from 1
-through 1000; its default is 100. Every managed collection or acquisition is
-still inspected sequentially and included in `totals`. Coverage reports
+detailed cache-acquisition, CacheSet, RootSet, ExpiringSet, and workspace rows
+from 1 through 1000; its default is 100. Every managed collection or
+acquisition is still inspected sequentially and included in `totals`. Coverage reports
 `observed`, `inspected`, `detailed`, and `complete`, so detail truncation is
 visible instead of silently dropping managed refs or undercounting repository
 usage.
@@ -1831,9 +1964,12 @@ retention ref remains healthy, `ageMs` is `null`, and the entry reports
 `maxAgeMs` is `null` when any active acquisition age is incomparable. Cache
 summaries report entry count, deterministic logical bytes, age,
 expiry, capacity policy, and pinned/evictable counts. RootSet policy counts and
-Vault entry counts are reported independently from reachability. A privacy-mode
-vault remains healthy but reports `entryCount: null` because repository doctor
-does not request or retain vault key material.
+Vault entry counts are reported independently from reachability. Workspace
+summaries report active and expired counts, validated logical bytes, and unique
+direct-root object bytes; detailed rows carry creation age, exact expiry, and
+invalid-state evidence. Neither workspace byte field is physical residency. A
+privacy-mode vault remains healthy but reports `entryCount: null` because
+repository doctor does not request or retain vault key material.
 
 Git's `for-each-ref` does not enumerate dangling symbolic refs. Repository
 doctor therefore reports symbolic acquisition refs that Git returns, but does
@@ -3195,6 +3331,16 @@ new CasError({ message, code, meta, documentationUrl });
 | `ROOT_SET_METADATA_INVALID`           | `.rootset.json` is malformed, non-canonical, or belongs to another ref                                             | `read()`, `list()`, `doctor()`                                                  |
 | `ROOT_SET_TREE_INVALID`               | Metadata and the Git tree's actual reachability edges disagree                                                     | `read()`, `list()`, `doctor()`                                                  |
 | `ROOT_SET_REF_UPDATE_FAILED`          | Root-set ref update failed for a non-conflict reason                                                               | Root-set mutations and repair                                                   |
+| `WORKSPACE_REF_INVALID`               | Workspace ref namespace, identity, epoch, or canonical encoding is invalid                                         | Workspace creation, inspection, and cleanup                                     |
+| `WORKSPACE_DESCRIPTOR_INVALID`        | Workspace lease descriptor is malformed, non-canonical, inconsistent, or outside bounds                           | Workspace renewal, inspection, and cleanup                                      |
+| `WORKSPACE_STATE_INVALID`             | Retained target names, handles, OIDs, types, counts, or byte evidence disagree                                     | Workspace staging, checkpoint, inspection, and doctor                           |
+| `WORKSPACE_TTL_INVALID`               | Workspace TTL or computed expiry is outside supported bounds                                                       | `workspaces.open()`, staging, checkpoint, and renewal                            |
+| `WORKSPACE_CONFLICT`                  | Workspace generation changed during a checked operation                                                           | Workspace inspection and sweep                                                  |
+| `WORKSPACE_RELEASED`                  | A mutating operation targeted an already released workspace                                                        | Workspace staging, checkpoint, renewal, and promotion                            |
+| `WORKSPACE_RETENTION_FAILED`          | A low-level stage succeeded but its handle could not be proven in a workspace generation; metadata carries the staged receipt | Workspace asset, page, and bundle staging                                        |
+| `WORKSPACE_HANDLE_NOT_RETAINED`       | Promotion requested a handle absent from the active workspace generation                                          | `promoteToCache()`, `promoteToPublication()`                                    |
+| `WORKSPACE_PROMOTION_NOT_RETAINED`    | Destination did not return exact anchored retention evidence, so the workspace remains active                      | `promoteToCache()`, `promoteToPublication()`                                    |
+| `WORKSPACE_PROMOTION_CLEANUP_PENDING` | Destination retention succeeded but checked workspace release failed                                               | `promoteToCache()`, `promoteToPublication()`                                    |
 | `REPOSITORY_INSPECTION_INVALID`       | Repository doctor options, Git output, dependencies, or safe-integer totals are invalid                            | `cas.diagnostics.doctor()`, repository inspection adapter                       |
 | `VAULT_ENTRY_NOT_FOUND`               | Slug does not exist in vault                                                                                       | `removeFromVault()`, `resolveVaultEntry()`                                      |
 | `VAULT_ENTRY_EXISTS`                  | Slug already exists (use `force` to overwrite)                                                                     | `addToVault()`                                                                  |

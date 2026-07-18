@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Scoped staging workspaces** — `cas.workspaces.open()` now provides a
+  renewable, RootSet-backed lifetime for intermediate asset, page, and bundle
+  writes. Staging returns only after its typed handle is reachable from the
+  exact workspace generation; checkpoint compaction, witness-checked
+  destination-first cache or publication promotion, idempotent checked
+  release, and serialized mutations preserve explicit ownership under
+  concurrency. Expiry is
+  observable posture rather than automatic revocation. Namespace-bounded
+  inspection and checked sweep expose root count, age, expiry, logical content
+  bytes, unique direct-root object bytes, invalid state, conflicts, and
+  truncation. Repository doctor includes the same workspace inventory without
+  claiming deduplicated or packed physical-byte attribution. Workspace
+  witnesses reuse the existing `root-set` kind, and workspace-detail truncation
+  uses a dedicated code without widening closed public discriminant unions.
+
 ## [6.3.0] — 2026-07-17
 
 ### Added

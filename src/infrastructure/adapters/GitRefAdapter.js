@@ -15,6 +15,7 @@ import Oid from '../../domain/value-objects/Oid.js';
 const DEFAULT_POLICY = Policy.timeout(30_000);
 const FORBIDDEN_REF_CHARACTERS = new Set(['~', '^', ':', '?', '*', '[', '\\']);
 const MAX_REF_ITERATION_LIMIT = 1001;
+const REF_NAME_ENCODER = new globalThis.TextEncoder();
 
 /**
  * {@link GitRefPort} implementation backed by `@git-stunts/plumbing`.
@@ -216,8 +217,9 @@ export default class GitRefAdapter extends GitRefPort {
   }
 
   /** @override */
-  async *iterateRefs({ prefix = 'refs/', limit } = {}) {
+  async *iterateRefs({ prefix = 'refs/', after = null, limit } = {}) {
     assertRefPrefix(prefix);
+    assertRefCursor(prefix, after);
     assertRefIterationLimit(limit);
     if (typeof this.plumbing?.executeStream !== 'function') {
       throw new CasError(
@@ -226,19 +228,9 @@ export default class GitRefAdapter extends GitRefPort {
         { prefix },
       );
     }
-    const stream = await this.policy.execute(() =>
-      this.plumbing.executeStream({
-        args: [
-          'for-each-ref',
-          '--format=%(refname)%09%(objectname)%09%(symref)',
-          `--count=${limit}`,
-          prefix,
-        ],
-      }),
-    );
-    for await (const line of consumeRefLines(stream)) {
-      yield parseIteratedRef(prefix, line);
-    }
+    const args = refInventoryArgs({ prefix, after, limit });
+    const stream = await this.policy.execute(() => this.plumbing.executeStream({ args }));
+    yield* paginatedRefRecords({ stream, prefix, after, limit });
   }
 
   async #inspectDirectRef(ref) {
@@ -296,6 +288,16 @@ function assertRefName(ref) {
   assertRefSyntax(ref, { allowTrailingSlash: false });
 }
 
+function assertRefCursor(prefix, after) {
+  if (after === null) {
+    return;
+  }
+  assertRefName(after);
+  if (!after.startsWith(prefix)) {
+    throw invalidRefName(after);
+  }
+}
+
 function assertRefIterationLimit(limit) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_REF_ITERATION_LIMIT) {
     throw new CasError(
@@ -328,6 +330,46 @@ function isValidRefSyntax(value, allowTrailingSlash) {
 
 function isInvalidRefSegment(part) {
   return part.length === 0 || part.startsWith('.') || part.endsWith('.lock');
+}
+
+function compareRefNames(left, right) {
+  const leftBytes = REF_NAME_ENCODER.encode(left);
+  const rightBytes = REF_NAME_ENCODER.encode(right);
+  const sharedLength = Math.min(leftBytes.length, rightBytes.length);
+  for (let index = 0; index < sharedLength; index += 1) {
+    if (leftBytes[index] !== rightBytes[index]) {
+      return leftBytes[index] - rightBytes[index];
+    }
+  }
+  return leftBytes.length - rightBytes.length;
+}
+
+function refInventoryArgs({ prefix, after, limit }) {
+  const args = [
+    'for-each-ref',
+    '--format=%(refname)%09%(objectname)%09%(symref)',
+    '--sort=refname',
+  ];
+  if (after === null) {
+    args.push(`--count=${limit}`);
+  }
+  args.push(prefix);
+  return args;
+}
+
+async function* paginatedRefRecords({ stream, prefix, after, limit }) {
+  let returned = 0;
+  for await (const line of consumeRefLines(stream)) {
+    const record = parseIteratedRef(prefix, line);
+    if (after !== null && compareRefNames(record.ref, after) <= 0) {
+      continue;
+    }
+    yield record;
+    returned += 1;
+    if (after !== null && returned >= limit) {
+      return;
+    }
+  }
 }
 
 function hasForbiddenRefCharacter(value) {

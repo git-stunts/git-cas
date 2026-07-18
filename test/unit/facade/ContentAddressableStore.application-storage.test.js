@@ -12,6 +12,7 @@ import ContentAddressableStore, {
   StagedAsset,
   StagedBundle,
   StagedPage,
+  StagingWorkspace,
 } from '../../../index.js';
 
 function mockPlumbing() {
@@ -39,6 +40,7 @@ describe('ContentAddressableStore application storage capabilities', () => {
     ]);
     expect(Object.keys(cas.caches)).toEqual(['open']);
     expect(Object.keys(cas.expiringSets)).toEqual(['open']);
+    expect(Object.keys(cas.workspaces)).toEqual(['open', 'inspect', 'sweep']);
     expect(Object.keys(cas.retention)).toEqual(['retain']);
     expect(Object.keys(cas.publications)).toEqual(['commit']);
     expect(Object.isFrozen(cas.assets)).toBe(true);
@@ -46,6 +48,7 @@ describe('ContentAddressableStore application storage capabilities', () => {
     expect(Object.isFrozen(cas.bundles)).toBe(true);
     expect(Object.isFrozen(cas.caches)).toBe(true);
     expect(Object.isFrozen(cas.expiringSets)).toBe(true);
+    expect(Object.isFrozen(cas.workspaces)).toBe(true);
     expect(Object.isFrozen(cas.retention)).toBe(true);
     expect(Object.isFrozen(cas.publications)).toBe(true);
   });
@@ -63,6 +66,7 @@ describe('ContentAddressableStore application storage capabilities', () => {
     expect(CacheSet).toBeTypeOf('function');
     expect(ExpiringMarker).toBeTypeOf('function');
     expect(ExpiringSet).toBeTypeOf('function');
+    expect(StagingWorkspace).toBeTypeOf('function');
   });
 });
 
@@ -83,5 +87,20 @@ describe('ContentAddressableStore expiring sets', () => {
 
     expect(set).toBeInstanceOf(ExpiringSet);
     expect(set.ref).toBe('refs/cas/expiring/git-warp/replay');
+  });
+});
+
+describe('ContentAddressableStore workspaces', () => {
+  it('opens an uninstalled scoped staging workspace through the facade', async () => {
+    const cas = new ContentAddressableStore({ plumbing: mockPlumbing() });
+    const workspace = await cas.workspaces.open({
+      namespace: 'git-warp/materializations',
+      ttlMs: 60_000,
+    });
+
+    expect(workspace).toBeInstanceOf(StagingWorkspace);
+    expect(workspace.namespace).toBe('git-warp/materializations');
+    expect(workspace.expiresAt).toBeNull();
+    await expect(workspace.release()).resolves.toMatchObject({ changed: false });
   });
 });

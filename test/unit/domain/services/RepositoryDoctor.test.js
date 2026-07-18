@@ -68,6 +68,26 @@ function cacheDoctor() {
   };
 }
 
+function workspaceInspector() {
+  return {
+    inspectRecord: vi.fn(async (record) => ({
+      id: 'workspace',
+      namespace: 'git-warp/materializations',
+      ref: record.ref,
+      generation: record.oid,
+      symref: null,
+      rootCount: 1,
+      logicalBytes: 10,
+      rootObjectBytes: 4,
+      createdAt: '2026-07-13T10:00:00.000Z',
+      ageMs: 7_200_000,
+      expiresAt: '2026-07-13T14:00:00.000Z',
+      posture: 'active',
+      issue: null,
+    })),
+  };
+}
+
 function dependencies(repositoryPort = repository()) {
   return {
     repository: repositoryPort,
@@ -102,6 +122,7 @@ function dependencies(repositoryPort = repository()) {
         }),
       })),
     },
+    workspaces: workspaceInspector(),
     vault: {
       getVaultMetadata: vi.fn().mockResolvedValue({ version: 1 }),
       readState: vi.fn().mockResolvedValue({
@@ -264,6 +285,35 @@ describe('RepositoryDoctor', () => {
     }));
     expect(report.limitations.find(
       ({ code }) => code === 'CACHE_ACQUISITION_DETAILS_TRUNCATED'
+    )).not.toHaveProperty('kind');
+  });
+
+  it('reports bounded workspace detail without widening the legacy kind union', async () => {
+    const workspaceRefs = ['1', '2', '3'].map((id, index) => ({
+      ref: `refs/cas/workspaces/git-warp+materializations/v1-test-${id}`,
+      oid: String(index + 1).repeat(40),
+      symref: null,
+    }));
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values(workspaceRefs)),
+    }));
+
+    const report = await new RepositoryDoctor(ports).doctor({ maxCollectionsPerKind: 2 });
+
+    expect(report.usage.workspaces.coverage).toEqual({
+      observed: 3,
+      inspected: 3,
+      detailed: 2,
+      complete: true,
+    });
+    expect(report.limitations).toContainEqual(expect.objectContaining({
+      code: 'WORKSPACE_DETAILS_TRUNCATED',
+      observed: 3,
+      inspected: 3,
+      detailed: 2,
+    }));
+    expect(report.limitations.find(
+      ({ code }) => code === 'WORKSPACE_DETAILS_TRUNCATED'
     )).not.toHaveProperty('kind');
   });
 
@@ -470,5 +520,130 @@ describe('RepositoryDoctor', () => {
       code: 'REPOSITORY_INSPECTION_INVALID',
     });
     expect(ports.repository.iterateObjects).not.toHaveBeenCalled();
+  });
+});
+
+describe('RepositoryDoctor workspace inventory', () => {
+  it('reports workspace roots, bytes, age, expiry, and posture separately', async () => {
+    const workspaceRef = 'refs/cas/workspaces/git-warp+materializations/v1-test-workspace';
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values([
+        { ref: workspaceRef, oid: '9'.repeat(40), symref: null },
+      ])),
+    }));
+
+    const report = await new RepositoryDoctor(ports).doctor();
+
+    expect(ports.workspaces.inspectRecord).toHaveBeenCalledWith({
+      ref: workspaceRef,
+      oid: '9'.repeat(40),
+      symref: null,
+    });
+    expect(report.usage.workspaces).toMatchObject({
+      healthy: true,
+      coverage: { observed: 1, inspected: 1, detailed: 1, complete: true },
+      totals: {
+        entryCount: 1,
+        logicalBytes: 10,
+        rootObjectBytes: 4,
+        activeWorkspaces: 1,
+        expiredWorkspaces: 0,
+      },
+      entries: [
+        {
+          namespace: 'git-warp/materializations',
+          ref: workspaceRef,
+          generation: '9'.repeat(40),
+          age: { createdAt: '2026-07-13T10:00:00.000Z', ageMs: 7_200_000 },
+          expiry: { expiresAt: '2026-07-13T14:00:00.000Z', posture: 'active' },
+        },
+      ],
+    });
+  });
+});
+
+describe('RepositoryDoctor workspace failure evidence', () => {
+  it('preserves the workspace report contract when inspection fails', async () => {
+    const workspaceRef = 'refs/cas/workspaces/git-warp+materializations/v1-test-workspace';
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values([
+        { ref: workspaceRef, oid: '9'.repeat(40), symref: null },
+      ])),
+    }));
+    ports.workspaces.inspectRecord.mockRejectedValue(new Error('inspection failed'));
+
+    const report = await new RepositoryDoctor(ports).doctor();
+
+    expect(report.usage.workspaces).toMatchObject({
+      healthy: false,
+      totals: {
+        entryCount: null,
+        logicalBytes: null,
+        rootObjectBytes: null,
+      },
+      entries: [{
+        namespace: null,
+        ref: workspaceRef,
+        logicalBytes: null,
+        rootObjectBytes: null,
+        physicalBytes: null,
+        retention: null,
+        issues: [{ message: 'inspection failed' }],
+      }],
+    });
+  });
+});
+
+describe('RepositoryDoctor workspace issue health', () => {
+  it('treats issue evidence as unhealthy even when the reported posture is active', async () => {
+    const workspaceRef = 'refs/cas/workspaces/git-warp+materializations/v1-test-workspace';
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values([
+        { ref: workspaceRef, oid: '9'.repeat(40), symref: null },
+      ])),
+    }));
+    ports.workspaces.inspectRecord.mockResolvedValue({
+      id: 'workspace',
+      namespace: 'git-warp/materializations',
+      ref: workspaceRef,
+      generation: '9'.repeat(40),
+      symref: null,
+      rootCount: 1,
+      logicalBytes: 10,
+      rootObjectBytes: 4,
+      createdAt: '2026-07-13T10:00:00.000Z',
+      ageMs: 7_200_000,
+      expiresAt: '2026-07-13T14:00:00.000Z',
+      posture: 'active',
+      issue: { code: 'WORKSPACE_CONFLICT', message: 'generation changed' },
+    });
+
+    const report = await new RepositoryDoctor(ports).doctor();
+
+    expect(report.healthy).toBe(false);
+    expect(report.usage.workspaces).toMatchObject({
+      healthy: false,
+      entries: [{ healthy: false, issues: [{ code: 'WORKSPACE_CONFLICT' }] }],
+    });
+  });
+});
+
+describe('RepositoryDoctor workspace compatibility fallback', () => {
+  it('keeps direct-constructor compatibility and reports missing workspace diagnostics', async () => {
+    const workspaceRef = 'refs/cas/workspaces/git-warp+materializations/v1-test-workspace';
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values([
+        { ref: workspaceRef, oid: '9'.repeat(40), symref: null },
+      ])),
+    }));
+    delete ports.workspaces;
+
+    const report = await new RepositoryDoctor(ports).doctor();
+
+    expect(report.healthy).toBe(false);
+    expect(report.usage.workspaces.entries[0]).toMatchObject({
+      healthy: false,
+      issues: [{ code: 'REPOSITORY_INSPECTION_INVALID' }],
+    });
   });
 });

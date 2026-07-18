@@ -556,6 +556,8 @@ export declare class GitRefPortBase {
   deleteRef?(options: { ref: string; expectedOldOid: string }): Promise<boolean>;
   iterateRefs?(options: {
     prefix?: string;
+    /** Exclusive opaque continuation returned by a previous bounded inventory. */
+    after?: string | null;
     limit: number;
   }): AsyncIterable<{ ref: string; oid: string; symref: string | null }>;
 }
@@ -577,6 +579,8 @@ export declare class GitRefAdapter extends GitRefPortBase {
   deleteRef(options: { ref: string; expectedOldOid: string }): Promise<boolean>;
   iterateRefs(options: {
     prefix?: string;
+    /** Exclusive opaque continuation returned by a previous bounded inventory. */
+    after?: string | null;
     limit: number;
   }): AsyncIterable<{ ref: string; oid: string; symref: string | null }>;
 }
@@ -1241,6 +1245,32 @@ export interface RepositoryExpiringSetUsage {
   readonly issues: ReadonlyArray<Record<string, unknown>>;
 }
 
+export interface RepositoryWorkspaceUsage {
+  readonly namespace: string | null;
+  readonly ref: string;
+  readonly generation: string;
+  readonly healthy: boolean;
+  readonly entryCount: number | null;
+  readonly logicalBytes: number | null;
+  /** Sum of unique direct Git root object sizes; excludes transitive support and pack overhead. */
+  readonly rootObjectBytes: number | null;
+  readonly physicalBytes: null;
+  readonly retention: {
+    readonly pinnedEntries: 0;
+    readonly evictableEntries: number;
+  } | null;
+  readonly reachability: 'anchored';
+  readonly age: {
+    readonly createdAt: string | null;
+    readonly ageMs: number | null;
+  } | null;
+  readonly expiry: {
+    readonly expiresAt: string | null;
+    readonly posture: 'active' | 'expired' | 'invalid';
+  } | null;
+  readonly issues: ReadonlyArray<Record<string, unknown>>;
+}
+
 export interface RepositoryVaultUsage {
   readonly ref: string;
   readonly present: boolean;
@@ -1321,6 +1351,18 @@ export interface RepositoryDoctorReport {
       };
       readonly entries: ReadonlyArray<RepositoryExpiringSetUsage>;
     };
+    readonly workspaces: {
+      readonly healthy: boolean;
+      readonly coverage: RepositoryCollectionCoverage;
+      readonly totals: {
+        readonly entryCount: number | null;
+        readonly logicalBytes: number | null;
+        readonly rootObjectBytes: number | null;
+        readonly activeWorkspaces: number | null;
+        readonly expiredWorkspaces: number | null;
+      };
+      readonly entries: ReadonlyArray<RepositoryWorkspaceUsage>;
+    };
     readonly vault: RepositoryVaultUsage;
   };
   readonly limitations: ReadonlyArray<RepositoryDiagnosticLimitation>;
@@ -1334,6 +1376,14 @@ export declare class RepositoryDoctor {
     caches: { open(options: { namespace: string }): CacheSet | Promise<CacheSet> };
     expiringSets: {
       open(options: { namespace: string }): ExpiringSet | Promise<ExpiringSet>;
+    };
+    /** Optional only for backwards-compatible direct construction; workspace refs report unhealthy when absent. */
+    workspaces?: {
+      inspectRecord(record: {
+        ref: string;
+        oid: string;
+        symref: string | null;
+      }): Promise<WorkspaceInspectionRecord>;
     };
     vault: Pick<VaultService, 'getVaultMetadata' | 'readState'>;
     clock?: { now(): Date };
@@ -1452,6 +1502,146 @@ export interface ExpiringSetCapability {
   }): Promise<ExpiringSet>;
 }
 
+export interface WorkspaceRetention {
+  readonly policy: 'evictable';
+  readonly reachability: 'anchored';
+  readonly protection: 'workspace';
+}
+
+export type WorkspaceRetainedData<T> = Omit<T, 'state' | 'retention'> & {
+  state: 'retained';
+  retention: WorkspaceRetention;
+  witness: RetentionWitnessData;
+};
+
+export type WorkspaceRetainedAsset = Omit<StagedAsset, 'state' | 'retention' | 'toJSON'> & {
+  readonly state: 'retained';
+  readonly retention: WorkspaceRetention;
+  readonly witness: RetentionWitness;
+  toJSON(): WorkspaceRetainedData<StagedAssetData>;
+};
+
+export type WorkspaceRetainedPage = Omit<StagedPage, 'state' | 'retention' | 'toJSON'> & {
+  readonly state: 'retained';
+  readonly retention: WorkspaceRetention;
+  readonly witness: RetentionWitness;
+  toJSON(): WorkspaceRetainedData<StagedPageData>;
+};
+
+export type WorkspaceRetainedBundle = Omit<StagedBundle, 'state' | 'retention' | 'toJSON'> & {
+  readonly state: 'retained';
+  readonly retention: WorkspaceRetention;
+  readonly witness: RetentionWitness;
+  toJSON(): WorkspaceRetainedData<StagedBundleData>;
+};
+
+export interface WorkspaceCheckpointResult {
+  readonly changed: boolean;
+  readonly ref: string;
+  readonly generation: string;
+  readonly expiresAt: string;
+  readonly handles: ReadonlyArray<ApplicationHandle>;
+  readonly witnesses: ReadonlyArray<RetentionWitness>;
+}
+
+export interface WorkspaceReleaseResult {
+  readonly changed: boolean;
+  readonly ref: string;
+  readonly generation: string | null;
+}
+
+export interface WorkspaceInspectionRecord {
+  readonly id: string | null;
+  readonly namespace: string | null;
+  readonly ref: string;
+  readonly generation: string;
+  readonly symref: string | null;
+  readonly rootCount: number | null;
+  readonly logicalBytes: number | null;
+  /** Sum of unique direct Git root object sizes; excludes transitive support and pack overhead. */
+  readonly rootObjectBytes: number | null;
+  readonly createdAt: string | null;
+  readonly ageMs: number | null;
+  readonly expiresAt: string | null;
+  readonly posture: 'active' | 'expired' | 'invalid';
+  readonly issue: Readonly<{ code: string; message: string }> | null;
+}
+
+export interface WorkspaceInspection {
+  readonly namespace: string;
+  readonly returned: number;
+  readonly truncated: boolean;
+  /** Opaque continuation for the next bounded inspect or sweep call. */
+  readonly nextCursor: string | null;
+  readonly workspaces: ReadonlyArray<WorkspaceInspectionRecord>;
+}
+
+export interface WorkspaceSweepResult {
+  readonly namespace: string;
+  readonly inspected: number;
+  readonly changed: number;
+  readonly conflicted: number;
+  readonly missing: number;
+  readonly truncated: boolean;
+  /** Opaque continuation for the next bounded sweep call. */
+  readonly nextCursor: string | null;
+  readonly results: ReadonlyArray<Readonly<{
+    id: string | null;
+    ref: string;
+    generation: string;
+    changed: boolean;
+    conflict: boolean;
+  }>>;
+}
+
+/** One renewable, RootSet-backed scope for multi-object staging. */
+export declare class StagingWorkspace {
+  private constructor();
+  readonly id: string;
+  readonly namespace: string;
+  readonly createdAt: string;
+  readonly expiresAt: string | null;
+  readonly assets: {
+    put(options: AssetPutOptions): Promise<WorkspaceRetainedAsset>;
+    adopt(options: { treeOid: string }): Promise<WorkspaceRetainedAsset>;
+  };
+  readonly pages: {
+    put(options: { source: PageSource; maxBytes?: number }): Promise<WorkspaceRetainedPage>;
+  };
+  readonly bundles: {
+    put(options: Parameters<BundleCapability['put']>[0]): Promise<WorkspaceRetainedBundle>;
+    putOrdered(options: Parameters<BundleCapability['putOrdered']>[0]): Promise<WorkspaceRetainedBundle>;
+  };
+  checkpoint(options: { handles: Iterable<ApplicationHandleInput> }): Promise<WorkspaceCheckpointResult>;
+  renew(): Promise<WorkspaceCheckpointResult>;
+  promoteToCache(options: {
+    cache: CacheSet;
+    key: string;
+    handle: ApplicationHandleInput;
+    options?: CacheEntryOptions;
+  }): Promise<Readonly<{ destination: CacheStoreResult; release: WorkspaceReleaseResult }>>;
+  promoteToPublication(options: {
+    handle: ApplicationHandleInput;
+    commit: { message: string; parents?: string[] };
+    ref: { name: string; expected: string | null };
+  }): Promise<Readonly<{ destination: PublicationResult; release: WorkspaceReleaseResult }>>;
+  release(): Promise<WorkspaceReleaseResult>;
+}
+
+export interface WorkspaceCapability {
+  open(options: { namespace: string; ttlMs?: number }): Promise<StagingWorkspace>;
+  inspect(options: {
+    namespace: string;
+    limit?: number;
+    cursor?: string | null;
+  }): Promise<WorkspaceInspection>;
+  sweep(options: {
+    namespace: string;
+    limit?: number;
+    cursor?: string | null;
+  }): Promise<WorkspaceSweepResult>;
+}
+
 export interface DiagnosticsCapability {
   doctor(options?: RepositoryDoctorOptions): Promise<RepositoryDoctorReport>;
 }
@@ -1505,6 +1695,7 @@ export default class ContentAddressableStore {
 
   readonly caches: CacheCapability;
   readonly expiringSets: ExpiringSetCapability;
+  readonly workspaces: WorkspaceCapability;
   readonly diagnostics: DiagnosticsCapability;
 
   readonly assets: AssetCapability;

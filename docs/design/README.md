@@ -11,6 +11,7 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Active METHOD Cycles
 
+- [0049-scoped-staging-workspaces — scoped-staging-workspaces](./0049-scoped-staging-workspaces/scoped-staging-workspaces.md)
 - [0048-scoped-cache-acquisitions — scoped-cache-acquisitions](./0048-scoped-cache-acquisitions/scoped-cache-acquisitions.md)
 - [0020-method-adoption — adopt-method](./0020-method-adoption/adopt-method.md)
 - [0021-store-write-backpressure — enforce-store-backpressure](./0021-store-write-backpressure/enforce-store-backpressure.md)

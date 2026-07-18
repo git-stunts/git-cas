@@ -102,6 +102,7 @@ The README is the front door. Detailed mechanics live in the guide set:
 | CDC internals, Merkle manifests, KDF policy, and tuning | [Advanced Guide](./ADVANCED_GUIDE.md)                        |
 | Ports, adapters, and collaborator boundaries            | [Architecture](./ARCHITECTURE.md)                            |
 | Assets, pages, bundles, retention, and publication      | [Application storage](./docs/API.md#application-storage)     |
+| Temporary retention during multi-step composition      | [Scoped staging workspaces](./docs/API.md#scoped-staging-workspaces) |
 | GC retention for caches and derived state               | [Root Sets](./docs/API.md#root-sets)                         |
 | Managed TTL and capacity caches                         | [Cache Sets](./docs/API.md#cache-sets)                       |
 | Scoped protection while consuming a cache hit           | [Cache acquisitions](./docs/API.md#acquire-and-release)      |
@@ -139,13 +140,17 @@ Core capabilities:
   `publications` compose streaming CAS writes, bounded structured
   materializations, targeted member reads, reachability roots,
   compare-and-swap refs, and immutable lifecycle evidence.
+- **Scoped staging workspaces**: `workspaces.open()` mirrors application writes
+  behind one renewable temporary RootSet, returns only after each handle is
+  anchored, promotes destination-first, and exposes bounded age, expiry,
+  logical-content, and direct-root diagnostics with opaque cleanup pagination.
 - **Envelope recipients**: multi-recipient key wrapping and recipient rotation
   avoid re-encrypting data blobs.
 - **Operational diagnostics**: `cas.diagnostics.doctor()` streams repository
   object/ref evidence, classifies anchored, orphaned, and volatile objects,
-  and summarizes cache acquisitions, CacheSet, RootSet, ExpiringSet, and Vault
-  usage without mutating Git. The `git-cas doctor` CLI continues to validate
-  vault health.
+  and summarizes workspaces, cache acquisitions, CacheSet, RootSet,
+  ExpiringSet, and Vault usage without mutating Git. The `git-cas doctor` CLI
+  continues to validate vault health.
 
 ## Safety Snapshot
 
