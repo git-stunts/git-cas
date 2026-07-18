@@ -2,6 +2,51 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.4.0 To v6.5.0
+
+v6.5.0 is API-additive and does not require stored-data migration. It adds
+bounded reference reads for callers that need a member handle without
+recursively resolving that member's complete support graph.
+
+Use `getMemberReference()` for one exact path:
+
+```javascript
+const reference = await cas.bundles.getMemberReference({
+  handle: materializationBundle,
+  path: 'nodes/user-alice.cbor',
+});
+
+if (reference) {
+  await consumeRetainedHandle(reference.handle);
+}
+```
+
+Use `iterateMemberReferences()` for a streaming structural scan:
+
+```javascript
+for await (const reference of cas.bundles.iterateMemberReferences({
+  handle: materializationBundle,
+})) {
+  await indexReference(reference);
+}
+```
+
+These APIs validate the bundle root, every traversed descriptor summary, the
+selected or enumerated Git tree edges, and each direct target object type. They
+do not recursively validate nested page, asset, or bundle support graphs. Keep
+using `getMember()` or `iterateMembers()` when the operation requires complete
+recursive validation and computed `logicalBytes`.
+
+Reference results are observations, not retention claims. Keep the containing
+bundle reachable through a workspace, cache acquisition, RootSet, or other
+documented lifetime while consuming them. The immutable metadata and
+descriptor caches introduced in v6.5.0 are bounded internal implementation
+details; callers do not manage or invalidate them.
+
+See [v6.5.0 Release Notes](./docs/releases/v6.5.0.md) and
+[Application Storage](./docs/API.md#application-storage) for the
+complete integrity and lifetime contract.
+
 ## v6.3.0 To v6.4.0
 
 v6.4.0 is API-additive and does not require stored-data migration. It adds
@@ -198,13 +243,13 @@ for example a job workspace or tenant-scoped artifact directory.
 
 v5 had 5 encryption scheme identifiers. v6 has 3:
 
-| v5 Scheme | v6 Scheme | Migration |
-|---|---|---|
-| `whole-v1` | `whole` | **Re-encryption required** (v1 had no AAD) |
-| `whole-v2` | `whole` | Rename only (already had AAD) |
-| `framed-v1` | `framed` | **Re-encryption required** (v1 had no AAD) |
-| `framed-v2` | `framed` | Rename only (already had AAD) |
-| `convergent-v1` | `convergent` | Rename only |
+| v5 Scheme       | v6 Scheme    | Migration                                  |
+| --------------- | ------------ | ------------------------------------------ |
+| `whole-v1`      | `whole`      | **Re-encryption required** (v1 had no AAD) |
+| `whole-v2`      | `whole`      | Rename only (already had AAD)              |
+| `framed-v1`     | `framed`     | **Re-encryption required** (v1 had no AAD) |
+| `framed-v2`     | `framed`     | Rename only (already had AAD)              |
+| `convergent-v1` | `convergent` | Rename only                                |
 
 ### Why
 
@@ -285,11 +330,11 @@ verifier and the next keyed vault write will add it.
 
 ### What Changed
 
-| Scenario | v5 Default | v6 Default |
-|---|---|---|
-| CDC chunking + encryption | `framed-v1` | `convergent` |
-| Fixed chunking + encryption | `framed-v1` | `framed` |
-| Explicit `whole` | `whole-v1` | `whole` |
+| Scenario                    | v5 Default  | v6 Default   |
+| --------------------------- | ----------- | ------------ |
+| CDC chunking + encryption   | `framed-v1` | `convergent` |
+| Fixed chunking + encryption | `framed-v1` | `framed`     |
+| Explicit `whole`            | `whole-v1`  | `whole`      |
 
 ### What This Means
 
@@ -382,14 +427,14 @@ import { SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT } from '@git-stunts/git-
 
 ### Behavioral Changes
 
-| Change | Impact |
-|---|---|
-| Plaintext + gzip restore now streams | Lower memory usage. Should be transparent. |
-| AAD always on for `whole` and `framed` | Cannot opt out. v1-style no-AAD is gone. |
+| Change                                   | Impact                                                                                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------- |
+| Plaintext + gzip restore now streams     | Lower memory usage. Should be transparent.                                            |
+| AAD always on for `whole` and `framed`   | Cannot opt out. v1-style no-AAD is gone.                                              |
 | Manifest integrity hash verified on read | Corrupted manifests that previously loaded will now throw `MANIFEST_INTEGRITY_ERROR`. |
-| KDF policy enforced in `deriveKey()` | Dangerously weak params (e.g., 1 PBKDF2 iteration) now throw `KDF_POLICY_VIOLATION`. |
-| Concurrency capped at 64 | Was unbounded. Unlikely to affect real usage. |
-| frameBytes capped at 64 MiB | Was unbounded. Unlikely to affect real usage. |
+| KDF policy enforced in `deriveKey()`     | Dangerously weak params (e.g., 1 PBKDF2 iteration) now throw `KDF_POLICY_VIOLATION`.  |
+| Concurrency capped at 64                 | Was unbounded. Unlikely to affect real usage.                                         |
+| frameBytes capped at 64 MiB              | Was unbounded. Unlikely to affect real usage.                                         |
 
 ---
 

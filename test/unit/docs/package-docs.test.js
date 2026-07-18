@@ -14,16 +14,10 @@ const requiredStandardDocs = [
   'docs/releases/v6.2.0.md',
   'docs/releases/v6.3.0.md',
   'docs/releases/v6.4.0.md',
+  'docs/releases/v6.5.0.md',
 ];
-const forbiddenPackagePrefixes = [
-  'docs/audit/',
-  'docs/archive/',
-  'docs/method/',
-];
-const forbiddenPackageFiles = [
-  'docs/cli.gif',
-  'docs/vault.gif',
-];
+const forbiddenPackagePrefixes = ['docs/audit/', 'docs/archive/', 'docs/method/'];
+const forbiddenPackageFiles = ['docs/cli.gif', 'docs/vault.gif'];
 
 function read(relPath) {
   return readFileSync(path.join(repoRoot, relPath), 'utf8');
@@ -91,6 +85,7 @@ function publicPackagedMarkdownFiles(files) {
     'docs/releases/v6.2.0.md',
     'docs/releases/v6.3.0.md',
     'docs/releases/v6.4.0.md',
+    'docs/releases/v6.5.0.md',
     'docs/THREAT_MODEL.md',
     'docs/WALKTHROUGH.md',
   ].filter((file) => files.has(file));
@@ -138,8 +133,9 @@ describe('package documentation surface', () => {
 
   it('keeps local documentation links closed across public packaged Markdown files', () => {
     const files = packedFiles();
-    const missing = publicPackagedMarkdownFiles(files)
-      .flatMap((file) => unpackagedLinkedDocs(file, files));
+    const missing = publicPackagedMarkdownFiles(files).flatMap((file) =>
+      unpackagedLinkedDocs(file, files)
+    );
 
     expect(missing).toEqual([]);
   });
