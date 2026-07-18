@@ -12,13 +12,27 @@ const UPDATE_REF_CONFLICT_MARKERS = Object.freeze({
 });
 const GIT_REPOSITORY_LOCKED = 'GIT_REPOSITORY_LOCKED';
 
-function isStructuredUpdateRefConflict(err, rootSetRef) {
+function classifyStructuredUpdateRefConflict(err, {
+  rootSetRef,
+  newCommit,
+  expectedHeadOid,
+}) {
   const details = err?.details && typeof err.details === 'object' ? err.details : {};
-  if (details.code !== GIT_REPOSITORY_LOCKED || !Array.isArray(details.args)) {
+  if (details.code !== GIT_REPOSITORY_LOCKED) {
+    return null;
+  }
+  if (!Array.isArray(details.args)) {
     return false;
   }
-  const [command, option, ref] = details.args;
-  return command === 'update-ref' && option === '--no-deref' && ref === rootSetRef;
+  const expectedArgs = [
+    'update-ref',
+    '--no-deref',
+    rootSetRef,
+    newCommit,
+    expectedHeadOid ?? '0'.repeat(newCommit.length),
+  ];
+  return details.args.length === expectedArgs.length &&
+    expectedArgs.every((arg, index) => details.args[index] === arg);
 }
 
 /**
@@ -224,7 +238,7 @@ export default class RootSetPersistence {
       });
     } catch (err) {
       const meta = await this.#updateFailureMeta(err, commitOid, expectedHeadOid);
-      if (this.#isConflict(err)) {
+      if (this.#isConflict(err, commitOid, expectedHeadOid)) {
         throw new CasError(
           'Concurrent root-set update detected',
           ErrorCodes.ROOT_SET_CONFLICT,
@@ -258,13 +272,18 @@ export default class RootSetPersistence {
     };
   }
 
-  #isConflict(err) {
+  #isConflict(err, newCommit, expectedHeadOid) {
     const meta = err?.meta && typeof err.meta === 'object' ? err.meta : {};
     if (Object.hasOwn(meta, 'expectedOldOid') && Object.hasOwn(meta, 'actualOldOid')) {
       return true;
     }
-    if (isStructuredUpdateRefConflict(err, this.rootSetRef)) {
-      return true;
+    const structuredConflict = classifyStructuredUpdateRefConflict(err, {
+      rootSetRef: this.rootSetRef,
+      newCommit,
+      expectedHeadOid,
+    });
+    if (structuredConflict !== null) {
+      return structuredConflict;
     }
     const normalized = errorDetailsText(err).toLowerCase();
     if (!normalized.includes(this.rootSetRef.toLowerCase())) {
