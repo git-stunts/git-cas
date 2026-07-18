@@ -610,4 +610,4 @@ Fill this in after implementation.
 
 PR:
 
-- none currently
+- https://github.com/git-stunts/git-cas/pull/76
