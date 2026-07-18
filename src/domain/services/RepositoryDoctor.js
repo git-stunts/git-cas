@@ -4,6 +4,7 @@ import { CACHE_ACQUISITION_REF_PREFIX } from '../value-objects/CacheAcquisitionR
 import { CACHE_SET_REF_PREFIX } from '../value-objects/CacheSetRef.js';
 import { EXPIRING_SET_REF_PREFIX } from '../value-objects/ExpiringSetRef.js';
 import { ROOT_SET_REF_PREFIX } from '../value-objects/RootSetRef.js';
+import { WORKSPACE_REF_PREFIX } from '../value-objects/WorkspaceRef.js';
 import { VAULT_REF } from './VaultPersistence.js';
 import {
   cacheAcquisitionGroup,
@@ -17,12 +18,13 @@ const MAX_COLLECTIONS_PER_KIND = 1_000;
 
 /** Composes bounded, non-mutating repository and managed-collection evidence. */
 export default class RepositoryDoctor {
-  constructor({ repository, rootSets, caches, expiringSets, vault, clock }) {
-    assertDependencies({ repository, rootSets, caches, expiringSets, vault });
+  constructor({ repository, rootSets, caches, expiringSets, workspaces, vault, clock }) {
+    assertDependencies({ repository, rootSets, caches, expiringSets, workspaces, vault });
     this.repository = repository;
     this.rootSets = rootSets;
     this.caches = caches;
     this.expiringSets = expiringSets;
+    this.workspaces = workspaces;
     this.vault = vault;
     this.clock = clock ?? { now: () => new Date() };
     Object.freeze(this);
@@ -130,6 +132,9 @@ export default class RepositoryDoctor {
       } else if (record.ref.startsWith(EXPIRING_SET_REF_PREFIX)) {
         result.expiringSets.observed += 1;
         recordExpiringSet(result.expiringSets, await this.#inspectExpiringSet(record));
+      } else if (record.ref.startsWith(WORKSPACE_REF_PREFIX)) {
+        result.workspaces.observed += 1;
+        recordWorkspace(result.workspaces, await this.#inspectWorkspace(record));
       } else if (record.ref === VAULT_REF) {
         result.vault = record;
       }
@@ -141,6 +146,7 @@ export default class RepositoryDoctor {
         caches: collectionGroup(result.caches),
         rootSets: collectionGroup(result.rootSets),
         expiringSets: collectionGroup(result.expiringSets),
+        workspaces: collectionGroup(result.workspaces),
         vault: await this.#inspectVault(result.vault, limitations),
       },
     };
@@ -172,6 +178,14 @@ export default class RepositoryDoctor {
       return expiringSetUsage(record, namespace, await expiringSet.doctor());
     } catch (error) {
       return unhealthyExpiringSetUsage({ record, namespace, error });
+    }
+  }
+
+  async #inspectWorkspace(record) {
+    try {
+      return workspaceUsage(await this.workspaces.inspectRecord(record));
+    } catch (error) {
+      return unhealthyWorkspaceUsage({ record, error });
     }
   }
 
@@ -392,6 +406,33 @@ function expiringSetUsageWithoutState(record, namespace, report) {
   };
 }
 
+function workspaceUsage(report) {
+  const healthy = report.posture !== 'invalid';
+  return {
+    namespace: report.namespace,
+    ref: report.ref,
+    generation: report.generation,
+    healthy,
+    entryCount: report.rootCount,
+    logicalBytes: report.logicalBytes,
+    rootObjectBytes: report.rootObjectBytes,
+    physicalBytes: null,
+    retention: report.rootCount === null
+      ? null
+      : { pinnedEntries: 0, evictableEntries: report.rootCount },
+    reachability: 'anchored',
+    age: {
+      createdAt: report.createdAt,
+      ageMs: report.ageMs,
+    },
+    expiry: {
+      expiresAt: report.expiresAt,
+      posture: report.posture,
+    },
+    issues: report.issue ? [report.issue] : [],
+  };
+}
+
 function rootGeneration(report, fallback) {
   return report.root?.headOid ?? fallback;
 }
@@ -435,6 +476,16 @@ function usageInventory(detailLimit) {
       { entryCount: 0, liveEntries: 0, expiredEntries: 0 },
       detailLimit
     ),
+    workspaces: collectionInventory(
+      {
+        entryCount: 0,
+        logicalBytes: 0,
+        rootObjectBytes: 0,
+        activeWorkspaces: 0,
+        expiredWorkspaces: 0,
+      },
+      detailLimit
+    ),
     vault: null,
   };
 }
@@ -471,6 +522,16 @@ function recordExpiringSet(inventory, entry) {
     entryCount: entry.entryCount,
     liveEntries: entry.expiry?.liveEntries,
     expiredEntries: entry.expiry?.expiredEntries,
+  });
+}
+
+function recordWorkspace(inventory, entry) {
+  recordCollection(inventory, entry, {
+    entryCount: entry.entryCount,
+    logicalBytes: entry.logicalBytes,
+    rootObjectBytes: entry.rootObjectBytes,
+    activeWorkspaces: entry.expiry?.posture === 'active' ? 1 : 0,
+    expiredWorkspaces: entry.expiry?.posture === 'expired' ? 1 : 0,
   });
 }
 
@@ -522,6 +583,7 @@ function usageHealthy(usage) {
     usage.acquisitions.healthy &&
     usage.rootSets.healthy &&
     usage.expiringSets.healthy &&
+    usage.workspaces.healthy &&
     usage.vault.healthy
   );
 }
@@ -556,6 +618,18 @@ function unhealthyRootSetUsage(options) {
 
 function unhealthyExpiringSetUsage(options) {
   return { ...unhealthyBase(options), age: null, expiry: null };
+}
+
+function unhealthyWorkspaceUsage(options) {
+  return {
+    ...unhealthyBase(options),
+    namespace: options.namespace ?? null,
+    logicalBytes: null,
+    rootObjectBytes: null,
+    retention: null,
+    age: null,
+    expiry: null,
+  };
 }
 
 function publicError(error) {
@@ -620,6 +694,18 @@ function addTruncationLimitations(refs, limitations) {
         detailed: inventory.entries.length,
       });
     }
+  }
+  const workspaces = refs.workspaces;
+  if (workspaces.observed > workspaces.entries.length) {
+    limitations.push({
+      ...limitation(
+        'WORKSPACE_DETAILS_TRUNCATED',
+        'Workspace detail exceeded maxCollectionsPerKind.'
+      ),
+      observed: workspaces.observed,
+      inspected: workspaces.inspected,
+      detailed: workspaces.entries.length,
+    });
   }
 }
 

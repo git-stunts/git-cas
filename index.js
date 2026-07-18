@@ -16,6 +16,8 @@ import CacheSet from './src/domain/services/CacheSet.js';
 import CacheSetRegistry from './src/domain/services/CacheSetRegistry.js';
 import ExpiringSet from './src/domain/services/ExpiringSet.js';
 import ExpiringSetRegistry from './src/domain/services/ExpiringSetRegistry.js';
+import StagingWorkspace from './src/domain/services/StagingWorkspace.js';
+import StagingWorkspaceRegistry from './src/domain/services/StagingWorkspaceRegistry.js';
 import RepositoryDoctor from './src/domain/services/RepositoryDoctor.js';
 import PageService from './src/domain/services/PageService.js';
 import PublicationService from './src/domain/services/PublicationService.js';
@@ -69,6 +71,7 @@ export {
   RootSetRegistry,
   CacheSet,
   ExpiringSet,
+  StagingWorkspace,
   RepositoryDoctor,
   GitPersistenceAdapter,
   GitRefAdapter,
@@ -191,6 +194,11 @@ export default class ContentAddressableStore {
     this.expiringSets = Object.freeze({
       open: async (options) => (await this.#getExpiringSetRegistry()).open(options),
     });
+    this.workspaces = Object.freeze({
+      open: async (options) => (await this.#getStagingWorkspaceRegistry()).open(options),
+      inspect: async (options) => (await this.#getStagingWorkspaceRegistry()).inspect(options),
+      sweep: async (options) => (await this.#getStagingWorkspaceRegistry()).sweep(options),
+    });
     this.diagnostics = Object.freeze({
       doctor: async (options) => (await this.#getRepositoryDoctor()).doctor(options),
     });
@@ -239,6 +247,8 @@ export default class ContentAddressableStore {
   #cacheSetRegistry = null;
   /** @type {ExpiringSetRegistry|null} */
   #expiringSetRegistry = null;
+  /** @type {StagingWorkspaceRegistry|null} */
+  #stagingWorkspaceRegistry = null;
   /** @type {RepositoryDoctor|null} */
   #repositoryDoctor = null;
   #servicePromise = null;
@@ -313,6 +323,7 @@ export default class ContentAddressableStore {
       rootSets: this.#rootSetRegistry,
       caches: this.#cacheSetRegistry,
       expiringSets: this.#expiringSetRegistry,
+      workspaces: this.#stagingWorkspaceRegistry,
       vault: this.#vault,
       clock: cfg.clock,
     });
@@ -333,6 +344,17 @@ export default class ContentAddressableStore {
       ref,
       bundles: this.#bundleService,
       pages: this.#pageService,
+      crypto,
+      clock: cfg.clock,
+    });
+    this.#stagingWorkspaceRegistry = new StagingWorkspaceRegistry({
+      persistence,
+      ref,
+      assets: this.#assetService,
+      pages: this.#pageService,
+      bundles: this.#bundleService,
+      publications: this.#publicationService,
+      resolveHandle: (handle) => this.#resolveApplicationRoot(handle),
       crypto,
       clock: cfg.clock,
     });
@@ -399,6 +421,12 @@ export default class ContentAddressableStore {
   async #getExpiringSetRegistry() {
     await this.#getService();
     return this.#expiringSetRegistry;
+  }
+
+  /** @returns {Promise<StagingWorkspaceRegistry>} */
+  async #getStagingWorkspaceRegistry() {
+    await this.#getService();
+    return this.#stagingWorkspaceRegistry;
   }
 
   /** @returns {Promise<RepositoryDoctor>} */
