@@ -1,6 +1,6 @@
 # Lazy Bundle Reference Reads Verification Witness
 
-Generated: 2026-07-18 01:47:33 PDT
+Generated: 2026-07-18 02:27:45 PDT
 
 Issue: [#81](https://github.com/git-stunts/git-cas/issues/81)
 
@@ -9,6 +9,8 @@ Feature commit: `7ddbda5d369b4c0694b1bbf337834a7fc6e776cb`
 Concurrency repair commit: `d7841acbaffbc4c5b14c78d31d3dc65ac4618cce`
 
 Cache settlement repair commit: `f1d219973d40bfa8a728093d39f793c3486037ad`
+
+Review repair commit: `b7695abc5d87038d9c79f42fc3c77c3580008a24`
 
 ## Public Contract
 
@@ -112,17 +114,49 @@ replacements with exactly one accepted winner per iteration. The underlying
 Node stderr-drain defect is tracked as
 [git-stunts/plumbing#9](https://github.com/git-stunts/plumbing/issues/9).
 
+### Root-Set Stress Provenance
+
+The recovered inline stress program is preserved as a checked-in diagnostic.
+It creates a temporary bare repository, opens two cache handles per namespace,
+and races two guarded replacements of the same original handle. Every iteration
+must return exactly one accepted result.
+
+[cite: `scripts/diagnostics/stress-root-set-replacement.js#1-54@684e6731aacbebf8777f87f2a9b93552c14d2db7`]
+
+The pre-fix run used a worktree based on
+`5e3fe13f816b22b5d74790178eb873b2508e8667`, an iteration cap of 200, and the
+same fixture algorithm; it failed at iteration 149. The repaired run used the
+implementation now recorded by `b7695abc5d87038d9c79f42fc3c77c3580008a24`
+with an iteration cap of 500 and passed all 500 races. The exact current
+invocation is:
+
+```sh
+docker compose run --build --rm -T test-node \
+  node scripts/diagnostics/stress-root-set-replacement.js 500
+```
+
+The container contract is the repository `test-node` target: Ubuntu 24.04 base
+`sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90`
+and Node 22 base
+`sha256:5647be709086c696ff32edaaf1c70cd26d1da6ab2b39c32f3c7b4c4a31957e37`.
+The observed tool versions were Node `v22.23.1`, pnpm `10.34.5`, and Git
+`2.43.0`. Docker `29.5.2` with Compose `v5.1.4` ran on an Apple M1 Pro host with
+16 GB RAM and macOS 26.3.
+
+[cite: `Dockerfile#1-32@7ddbda5d369b4c0694b1bbf337834a7fc6e776cb`]
+[cite: `docker-compose.yml#1-11@7ddbda5d369b4c0694b1bbf337834a7fc6e776cb`]
+
 ## Verification Results
 
-| Command                                                 | Result                                    |
-| ------------------------------------------------------- | ----------------------------------------- |
-| `pnpm exec vitest run` over the five focused unit files | 5 files, 61 tests passed                  |
-| `pnpm test`                                             | 220 files passed; 2,018 passed, 2 skipped |
-| `pnpm run lint`                                         | passed                                    |
-| `pnpm run test:integration:node`                        | 12 files, 192 tests passed in Docker      |
-| `pnpm run release:verify`                               | 14/14 steps; 6,619 observed tests passed  |
-| guarded-replacement Docker stress                       | 500 consecutive races passed              |
-| `git diff --check`                                      | passed                                    |
+| Command                                                | Result                                    |
+| ------------------------------------------------------ | ----------------------------------------- |
+| `pnpm exec vitest run` over the six changed unit files | 6 files, 87 tests passed                  |
+| `pnpm test`                                            | 220 files passed; 2,019 passed, 2 skipped |
+| `pnpm run lint`                                        | passed                                    |
+| `pnpm run test:integration:node`                       | 12 files, 192 tests passed in Docker      |
+| `pnpm run release:verify`                              | 14/14 steps; 6,622 observed tests passed  |
+| guarded-replacement Docker stress                      | 500 consecutive races passed              |
+| `git diff --check`                                     | passed                                    |
 
 The real-Git proof requires a cold read to issue Git metadata commands, then
 requires an identical warm read to issue zero additional commands. A separate
@@ -136,6 +170,31 @@ object-inspection commands than complete recursive validation.
 These exploratory measurements use the same four-node git-warp retained
 property fixture. They are diagnostic evidence, not portable latency promises;
 the command-count integration test above is the stable regression contract.
+
+The host was the Apple M1 Pro machine described above, using Node `v26.0.0`,
+npm `11.12.1`, and Apple Git `2.50.1`. The fixture was a four-node directed
+chain with three edges and one deterministic 128-byte `payload` property per
+node. Reads targeted `node:00000003`; one-read and 16-read samples used the
+same repository-construction path.
+
+The git-warp checkout was at
+`5460be0518c769e20c5eb2919cbddf25019c5449` with the pending direct-reference
+adapter and performance-harness worktree changes. The candidate git-cas package
+was packed from `7ddbda5d369b4c0694b1bbf337834a7fc6e776cb` and overlaid into that
+checkout. The exact final-sample command, run once with `GIT_WARP_PERF_READS=1`
+and once with `GIT_WARP_PERF_READS=16`, was:
+
+```sh
+GIT_WARP_PERF_READS=16 node --input-type=module -e \
+  "import { preparePerformanceFixture } from './dist/scripts/performance/PerformanceFixture.js'; import { runPerformanceWorker } from './dist/scripts/performance/PerformanceWorker.js'; const fixture = await preparePerformanceFixture('warm-property-read', { nodeCount: 4, propertyBytesPerNode: 128 }); try { const sample = await runPerformanceWorker({ repositoryPath: fixture.repositoryPath, scenario: 'warm-property-read' }); process.stdout.write(JSON.stringify(sample, null, 2) + '\\n'); } finally { await fixture.cleanup(); }"
+```
+
+Because the git-warp adapter migration and harness were not yet committed, the
+latency rows below are an exact environment record but not a commit-replayable
+benchmark. They are intentionally excluded from merge gates and will be
+superseded by git-warp's committed v19 benchmark suite after git-cas 6.5.0 is
+published. The committed real-Git command-count test remains the reproducible
+proof for this change.
 
 | Posture                                             | Reads | Git commands |           Wall time |   Node CPU |
 | --------------------------------------------------- | ----: | -----------: | ------------------: | ---------: |
