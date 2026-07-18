@@ -227,6 +227,10 @@ describe('RootSetPersistence observed compare-and-swap conflicts', () => {
       args: exactUpdateRefArgs(),
       actualHeadOid: EXPECTED_HEAD_OID,
     }],
+    ['the managed ref differed only by OID case', {
+      args: exactUpdateRefArgs(),
+      actualHeadOid: EXPECTED_HEAD_OID.toUpperCase(),
+    }],
     ['the failed command targeted another ref', {
       args: exactUpdateRefArgs('refs/heads/other'),
       actualHeadOid: 'e'.repeat(40),

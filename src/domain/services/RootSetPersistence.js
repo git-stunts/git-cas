@@ -53,9 +53,15 @@ function isObservedUpdateRefConflict(err, {
   actualHeadOid,
 }) {
   const details = err?.details && typeof err.details === 'object' ? err.details : {};
+  if (!Oid.isValid(actualHeadOid)) {
+    return false;
+  }
+  const canonicalActualHeadOid = Oid.from(actualHeadOid).toString();
+  const canonicalExpectedHeadOid = Oid.isValid(expectedHeadOid)
+    ? Oid.from(expectedHeadOid).toString()
+    : expectedHeadOid;
   return details.code === GIT_FATAL_EXIT_CODE &&
-    Oid.isValid(actualHeadOid) &&
-    actualHeadOid !== expectedHeadOid &&
+    canonicalActualHeadOid !== canonicalExpectedHeadOid &&
     hasExactUpdateRefArgs(err, { rootSetRef, newCommit, expectedHeadOid });
 }
 

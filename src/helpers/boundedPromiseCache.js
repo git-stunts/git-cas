@@ -53,12 +53,18 @@ export default class BoundedPromiseCache {
     const tracked = source.then(
       (value) => {
         if (this.#entries.get(key) === entry) {
+          let weight;
           try {
-            entry.weight = this.#resolvedWeight(value);
+            weight = this.#resolvedWeight(value);
           } catch (error) {
             this.#remove(key, entry);
             throw error;
           }
+          if (weight > this.#maxWeight) {
+            this.#remove(key, entry);
+            return value;
+          }
+          entry.weight = weight;
           this.#totalWeight += entry.weight;
           this.#evict();
         }

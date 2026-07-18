@@ -96,12 +96,16 @@ describe('BoundedPromiseCache residency', () => {
       maxWeight: 2,
       weightOf: (value) => value.length,
     });
-    const factory = vi.fn().mockResolvedValue('oversized');
+    const oversized = vi.fn().mockResolvedValue('oversized');
+    const resident = vi.fn().mockResolvedValue('ok');
 
-    await cache.getOrCreate('value', factory);
-    await cache.getOrCreate('value', factory);
+    await cache.getOrCreate('resident', resident);
+    await cache.getOrCreate('value', oversized);
+    await cache.getOrCreate('value', oversized);
+    await cache.getOrCreate('resident', resident);
 
-    expect(factory).toHaveBeenCalledTimes(2);
+    expect(oversized).toHaveBeenCalledTimes(2);
+    expect(resident).toHaveBeenCalledTimes(1);
   });
 });
 
