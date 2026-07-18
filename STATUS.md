@@ -1,8 +1,8 @@
 # STATUS
 
 **Last tagged release:** `v6.4.0` (`2026-07-18`)
-**Current release state:** `v6.4.0` is published to npm and GitHub Releases from signed tag `v6.4.0` at reviewed merge `d47af74a`.
-**Latest verification:** Release run `29627828620` passed validation, unit and Node/Bun/Deno real-Git integration, OIDC trusted npm publication, and final GitHub Release creation; npm reports `6.4.0` as `latest` with SLSA provenance.
+**Current release state:** `v6.5.0` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
+**Latest verification:** the final v6.5.0 candidate passed 14/14 release-verifier steps with 6,625 observed tests across Node.js, Bun, and Deno; that verifier run's npm dry-run contained 249 files totaling 769,785 packed bytes and 2,149,364 unpacked bytes.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,8 +18,13 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
+- **v6.5.0 candidate posture** — bounded direct bundle references, immutable
+  metadata reuse, and the RootSet/cache concurrency repairs are merged through
+  reviewed commit `d5f770fb`; npm, JSR, and runtime version metadata identify
+  `6.5.0`, while the tag and registry artifacts remain deliberately absent
+  until release-candidate review completes.
 - **v6.4.0 artifact posture** — signed tag `v6.4.0` resolves to reviewed merge
-  `d47af74`; npm reports `@git-stunts/git-cas@6.4.0` as `latest` with SLSA
+  `d47af74a`; npm reports `@git-stunts/git-cas@6.4.0` as `latest` with SLSA
   provenance, and the final GitHub Release is published. Scoped staging
   workspaces and the corrected structured RootSet lock retry are shipped. JSR
   dry-run validation is healthy, but JSR publication is not part of the release
@@ -105,11 +110,11 @@
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
 - Current release goalpost:
-  [#38 Bounded Residency](https://github.com/git-stunts/git-cas/issues/38)
+  [#81 Bounded lazy bundle references and immutable metadata reads](https://github.com/git-stunts/git-cas/issues/81)
   under the
-  [`v6.4.1` milestone](https://github.com/git-stunts/git-cas/milestone/8).
+  [`v6.5.0` milestone](https://github.com/git-stunts/git-cas/milestone/5).
 - The latest landed design record is
-  [0049-scoped-staging-workspaces](./docs/design/0049-scoped-staging-workspaces/scoped-staging-workspaces.md).
+  [0050-lazy-bundle-reference-reads](./docs/design/0050-lazy-bundle-reference-reads/lazy-bundle-reference-reads.md).
 
 ## Read Next
 

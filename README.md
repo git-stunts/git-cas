@@ -44,7 +44,7 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
 `npm run upgrade` in dry-run mode before restoring old encrypted vault entries.
 For the release overview, see the
-[v6.4.0 Release Notes](./docs/releases/v6.4.0.md).
+[v6.5.0 Release Notes](./docs/releases/v6.5.0.md).
 
 ### 1. CLI Usage
 
@@ -94,21 +94,21 @@ the asset reachable.
 
 The README is the front door. Detailed mechanics live in the guide set:
 
-| Need                                                    | Start Here                                                   |
-| ------------------------------------------------------- | ------------------------------------------------------------ |
-| Productive library and CLI workflows                    | [Developer Guide](./GUIDE.md)                                |
-| Restore memory behavior                                 | [Streaming and restore matrix](./GUIDE.md#streaming-surface) |
-| Encryption scheme selection                             | [Encryption Modes](./docs/ENCRYPTION_MODES.md)               |
-| CDC internals, Merkle manifests, KDF policy, and tuning | [Advanced Guide](./ADVANCED_GUIDE.md)                        |
-| Ports, adapters, and collaborator boundaries            | [Architecture](./ARCHITECTURE.md)                            |
-| Assets, pages, bundles, retention, and publication      | [Application storage](./docs/API.md#application-storage)     |
-| Temporary retention during multi-step composition      | [Scoped staging workspaces](./docs/API.md#scoped-staging-workspaces) |
-| GC retention for caches and derived state               | [Root Sets](./docs/API.md#root-sets)                         |
-| Managed TTL and capacity caches                         | [Cache Sets](./docs/API.md#cache-sets)                       |
-| Scoped protection while consuming a cache hit           | [Cache acquisitions](./docs/API.md#acquire-and-release)      |
-| Durable replay markers with expiry-only release         | [Expiring Sets](./docs/API.md#expiring-sets)                 |
-| Repository reachability and git-cas usage evidence      | [Repository Diagnostics](./docs/API.md#repository-diagnostics) |
-| v5 to v6 migration                                      | [Upgrading](./UPGRADING.md)                                  |
+| Need                                                    | Start Here                                                           |
+| ------------------------------------------------------- | -------------------------------------------------------------------- |
+| Productive library and CLI workflows                    | [Developer Guide](./GUIDE.md)                                        |
+| Restore memory behavior                                 | [Streaming and restore matrix](./GUIDE.md#streaming-surface)         |
+| Encryption scheme selection                             | [Encryption Modes](./docs/ENCRYPTION_MODES.md)                       |
+| CDC internals, Merkle manifests, KDF policy, and tuning | [Advanced Guide](./ADVANCED_GUIDE.md)                                |
+| Ports, adapters, and collaborator boundaries            | [Architecture](./ARCHITECTURE.md)                                    |
+| Assets, pages, bundles, retention, and publication      | [Application storage](./docs/API.md#application-storage)             |
+| Temporary retention during multi-step composition       | [Scoped staging workspaces](./docs/API.md#scoped-staging-workspaces) |
+| GC retention for caches and derived state               | [Root Sets](./docs/API.md#root-sets)                                 |
+| Managed TTL and capacity caches                         | [Cache Sets](./docs/API.md#cache-sets)                               |
+| Scoped protection while consuming a cache hit           | [Cache acquisitions](./docs/API.md#acquire-and-release)              |
+| Durable replay markers with expiry-only release         | [Expiring Sets](./docs/API.md#expiring-sets)                         |
+| Repository reachability and git-cas usage evidence      | [Repository Diagnostics](./docs/API.md#repository-diagnostics)       |
+| v5 to v6 migration                                      | [Upgrading](./UPGRADING.md)                                          |
 
 Core capabilities:
 
@@ -202,6 +202,8 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
   reference-only cache acquisitions with explicit release and doctor evidence.
 - **[v6.4.0 Release Notes](./docs/releases/v6.4.0.md)**: Scoped staging
   workspaces for temporary multi-object reachability, promotion, and cleanup.
+- **[v6.5.0 Release Notes](./docs/releases/v6.5.0.md)**: Bounded direct bundle
+  references, immutable metadata reuse, and corrected concurrency settlement.
 - **[Upgrading](./UPGRADING.md)**: Migration guide for v5 → v6.
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.
 

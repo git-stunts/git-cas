@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.5.0] — 2026-07-18
+
 ### Added
 
 - **Direct bundle references** - `bundles.getMemberReference()` and
@@ -23,6 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   descriptor bytes under both entry and byte bounds. Rejected work is evicted,
   mutable records are cloned for callers, and no application payloads or ref
   state enter either cache.
+
+### Fixed
+
+- **Observed RootSet compare-and-swap races** - exact failed
+  `update-ref --no-deref` commands with an independently observed head advance
+  now normalize to `ROOT_SET_CONFLICT` even when Git emits no diagnostic text.
+  OIDs are compared canonically so case-only differences do not create false
+  conflicts.
+- **Bounded cache settlement** - rejected work is removed before its returned
+  promise settles, and a resolved value larger than its weight budget is
+  discarded before eviction runs, preserving retryability and unrelated
+  residents.
 
 ## [6.4.0] — 2026-07-17
 

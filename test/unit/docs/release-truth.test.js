@@ -168,7 +168,9 @@ describe('root-set release documentation', () => {
     expect(api).toContain('| Root set | anchored while present | current generation only |');
     expect(api).toContain('`pinned` does not create a\npack `.keep` file');
     expect(api).toContain('await rootSet.repair({ entries: authoritativeLiveEntries });');
-    expect(upgrading).toContain('adopt every\nstill-live OID before running destructive Git cleanup');
+    expect(upgrading).toContain(
+      'adopt every\nstill-live OID before running destructive Git cleanup'
+    );
   });
 });
 
@@ -212,6 +214,22 @@ describe('scoped staging workspace release documentation', () => {
     expect(releaseNotes).toContain('cas.workspaces.open');
     expect(releaseNotes).toContain('destination retention before releasing');
     expect(releaseNotes).toContain('nextCursor');
+  });
+});
+
+describe('lazy bundle reference release documentation', () => {
+  it('ships and links the v6.5.0 bounded-read contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.5.0.md');
+
+    expect(readme).toContain('[v6.5.0 Release Notes](./docs/releases/v6.5.0.md)');
+    expect(upgrading).toContain('bundles.getMemberReference');
+    expect(upgrading).toContain('observations, not retention claims');
+    expect(releaseNotes).toContain('# git-cas v6.5.0 Release Notes');
+    expect(releaseNotes).toContain('iterateMemberReferences');
+    expect(releaseNotes).toContain('does not recursively validate');
+    expect(releaseNotes).toContain('500/500');
   });
 });
 
