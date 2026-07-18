@@ -7,8 +7,8 @@ import StagedPage from '../value-objects/StagedPage.js';
 import BoundedPromiseCache from '../../helpers/boundedPromiseCache.js';
 
 export const DEFAULT_MAX_PAGE_SIZE = 16 * 1024 * 1024;
-export const DEFAULT_PAGE_CACHE_ENTRIES = 128;
-export const DEFAULT_PAGE_CACHE_BYTES = 8 * 1024 * 1024;
+const DEFAULT_PAGE_CACHE_ENTRIES = 128;
+const DEFAULT_PAGE_CACHE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
 
 /**
