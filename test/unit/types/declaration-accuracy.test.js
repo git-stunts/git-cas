@@ -121,3 +121,16 @@ describe('Application-storage declaration accuracy', () => {
     expect(read('index.js')).not.toMatch(/export \{ default as CacheAcquisition \}/u);
   });
 });
+
+describe('Bundle reference declaration accuracy', () => {
+  it('declares direct bundle references and bounded Git metadata caching', () => {
+    const declarations = read('index.d.ts');
+
+    expect(declarations).toContain('export interface BundleMemberReference {');
+    expect(declarations).toContain('Promise<BundleMemberReference | null>;');
+    expect(declarations).toContain(
+      'iterateMemberReferences(options: { handle: BundleHandleInput })'
+    );
+    expect(declarations).toContain('metadataCacheEntries?: number;');
+  });
+});

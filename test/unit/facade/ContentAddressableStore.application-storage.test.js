@@ -35,7 +35,9 @@ describe('ContentAddressableStore application storage capabilities', () => {
       'put',
       'putOrdered',
       'getMember',
+      'getMemberReference',
       'iterateMembers',
+      'iterateMemberReferences',
       'openMember',
     ]);
     expect(Object.keys(cas.caches)).toEqual(['open']);

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import { CasError, createCasError, ErrorCodes } from '../../domain/errors/index.js';
+import BoundedPromiseCache from '../../helpers/boundedPromiseCache.js';
 
 /**
  * Default resilience policy: 30 s timeout (no retry).
@@ -15,8 +16,10 @@ import { CasError, createCasError, ErrorCodes } from '../../domain/errors/index.
  */
 const DEFAULT_POLICY = Policy.timeout(30_000);
 export const DEFAULT_MAX_BLOB_SIZE = 10 * 1024 * 1024;
+const DEFAULT_METADATA_CACHE_ENTRIES = 2_048;
 const MIN_READ_BLOB_LIMIT = 1;
 const MIN_MAX_BLOB_SIZE = 1024;
+const MIN_METADATA_CACHE_ENTRIES = 1;
 const MAX_BLOB_SIZE_LIMIT = Number.MAX_SAFE_INTEGER;
 const OBJECT_INFO_ARGUMENT = '--batch-check=%(objectname) %(objecttype) %(objectsize)';
 const GIT_OBJECT_TYPES = new Set(['blob', 'tree', 'commit', 'tag']);
@@ -25,19 +28,25 @@ const GIT_OBJECT_TYPES = new Set(['blob', 'tree', 'commit', 'tag']);
  * {@link GitPersistencePort} implementation backed by `@git-stunts/plumbing`.
  *
  * All Git I/O is wrapped with a configurable resilience {@link Policy}
- * (30 s timeout by default).
+ * (30 s timeout by default). Successful metadata reads assume referenced roots
+ * remain retained while this adapter is in use; destructive external pruning
+ * must not race active operations.
  */
 export default class GitPersistenceAdapter extends GitPersistencePort {
   #maxBlobSize = DEFAULT_MAX_BLOB_SIZE;
+  #metadataCache;
   /**
    * @param {Object} options
    * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance.
    * @param {import('@git-stunts/alfred').Policy} [options.policy] - Resilience policy (defaults to 30 s timeout, no retry).
+   * @param {number} [options.metadataCacheEntries=2048] - Maximum immutable metadata entries retained by this adapter.
    */
-  constructor({ plumbing, policy }) {
+  constructor({ plumbing, policy, metadataCacheEntries = DEFAULT_METADATA_CACHE_ENTRIES }) {
     super();
+    GitPersistenceAdapter.#assertMetadataCacheEntries(metadataCacheEntries);
     this.plumbing = plumbing;
     this.policy = policy ?? DEFAULT_POLICY;
+    this.#metadataCache = new BoundedPromiseCache(metadataCacheEntries);
   }
 
   /**
@@ -145,12 +154,15 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
    * @returns {Promise<{ mode: string, type: string, oid: string, name: string }|null>}
    */
   async readTreeEntry(treeOid, treePath) {
-    return this.policy.execute(async () => {
+    const key = `tree\0${treeOid}\0${treePath}`;
+    const entry = await this.#metadataCache.getOrCreate(key, () => this.policy.execute(async () => {
       const output = await this.plumbing.execute({
         args: ['ls-tree', '-z', treeOid, '--', treePath],
       });
-      return GitPersistenceAdapter.#parseTreeOutput(output)[0] || null;
-    });
+      const found = GitPersistenceAdapter.#parseTreeOutput(output)[0] || null;
+      return found === null ? null : Object.freeze(found);
+    }));
+    return entry === null ? null : { ...entry };
   }
 
   /**
@@ -209,32 +221,51 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
    * @returns {Promise<{ oid: string, type: string, size: number }>} Object metadata.
    */
   async #readObjectInfo(oid) {
-    const rawOutput = await this.policy.execute(() => this.plumbing.execute({
-      args: ['cat-file', OBJECT_INFO_ARGUMENT],
-      input: `${oid}\n`,
-    }));
-    const output = typeof rawOutput === 'string' ? rawOutput.trim() : '';
-    if (output === `${oid} missing`) {
-      throw new CasError(`Git object not found: ${oid}`, ErrorCodes.GIT_OBJECT_NOT_FOUND, {
-        oid,
-      });
-    }
+    return this.#metadataCache.getOrCreate(`object\0${oid}`, async () => {
+      const rawOutput = await this.policy.execute(() => this.plumbing.execute({
+        args: ['cat-file', OBJECT_INFO_ARGUMENT],
+        input: `${oid}\n`,
+      }));
+      const output = typeof rawOutput === 'string' ? rawOutput.trim() : '';
+      if (output === `${oid} missing`) {
+        throw new CasError(`Git object not found: ${oid}`, ErrorCodes.GIT_OBJECT_NOT_FOUND, {
+          oid,
+        });
+      }
 
-    const fields = output.split(' ');
-    const size = Number(fields[2]);
+      const fields = output.split(' ');
+      const size = Number(fields[2]);
+      if (
+        fields.length !== 3 ||
+        fields[0] !== oid ||
+        !GIT_OBJECT_TYPES.has(fields[1]) ||
+        !Number.isSafeInteger(size) ||
+        size < 0
+      ) {
+        throw new CasError(`Git object has invalid metadata: ${oid}`, ErrorCodes.GIT_ERROR, {
+          oid,
+          output: rawOutput,
+        });
+      }
+      return Object.freeze({ oid: fields[0], type: fields[1], size });
+    });
+  }
+
+  /**
+   * @param {number} metadataCacheEntries
+   */
+  static #assertMetadataCacheEntries(metadataCacheEntries) {
     if (
-      fields.length !== 3 ||
-      fields[0] !== oid ||
-      !GIT_OBJECT_TYPES.has(fields[1]) ||
-      !Number.isSafeInteger(size) ||
-      size < 0
+      Number.isSafeInteger(metadataCacheEntries) &&
+      metadataCacheEntries >= MIN_METADATA_CACHE_ENTRIES
     ) {
-      throw new CasError(`Git object has invalid metadata: ${oid}`, ErrorCodes.GIT_ERROR, {
-        oid,
-        output: rawOutput,
-      });
+      return;
     }
-    return Object.freeze({ oid: fields[0], type: fields[1], size });
+    throw createCasError(
+      'Git metadata cache entries must be a positive safe integer',
+      ErrorCodes.INVALID_OPTIONS,
+      { option: 'metadataCacheEntries', metadataCacheEntries },
+    );
   }
 
   /**

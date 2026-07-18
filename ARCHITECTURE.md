@@ -374,6 +374,8 @@ Pure utility functions with no domain or infrastructure coupling:
 - **`kdfPolicy.js`** — KDF parameter validation and sensible defaults.
 - **`aesGcmMeta.js`** — AES-GCM metadata validation (IV length, tag length).
 - **`canonicalBase64.js`** — base64 encoding round-trip integrity check.
+- **`boundedPromiseCache.js`** — fixed-residency LRU coalescing for immutable
+  async reads; rejected work is never retained.
 
 ## Storage Model
 
