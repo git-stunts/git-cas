@@ -85,12 +85,18 @@ export default class StagingWorkspaceRegistry {
     });
   }
 
-  async inspect({ namespace: value, limit = DEFAULT_WORKSPACE_INSPECTION_LIMIT } = {}) {
+  async inspect({
+    namespace: value,
+    limit = DEFAULT_WORKSPACE_INSPECTION_LIMIT,
+    cursor: cursorValue = null,
+  } = {}) {
     const namespace = CollectionNamespace.from(value).toString();
     StagingWorkspaceRegistry.#assertLimit(limit);
+    const cursor = StagingWorkspaceRegistry.#cursor(cursorValue, namespace);
     const records = [];
     for await (const record of this.#ref.iterateRefs({
       prefix: WorkspaceRef.prefixForNamespace(namespace),
+      after: cursor,
       limit: limit + 1,
     })) {
       records.push(record);
@@ -105,57 +111,58 @@ export default class StagingWorkspaceRegistry {
       namespace,
       returned: workspaces.length,
       truncated,
+      nextCursor: truncated ? selected.at(-1).ref : null,
       workspaces: Object.freeze(workspaces),
     });
   }
 
   async sweep(options = {}) {
     const inspection = await this.inspect(options);
-    let changed = 0;
-    let conflicted = 0;
-    let missing = 0;
+    const totals = { changed: 0, conflicted: 0, missing: 0 };
     const results = [];
     for (const workspace of inspection.workspaces) {
-      if (workspace.posture !== 'expired' || workspace.symref !== null) {
+      const outcome = await this.#sweepWorkspace(workspace);
+      if (outcome === null) {
         continue;
       }
-      try {
-        const deleted = await this.#ref.deleteRef({
-          ref: workspace.ref,
-          expectedOldOid: workspace.generation,
-        });
-        changed += deleted ? 1 : 0;
-        missing += deleted ? 0 : 1;
-        results.push(Object.freeze({
-          id: workspace.id,
-          ref: workspace.ref,
-          generation: workspace.generation,
-          changed: deleted,
-          conflict: false,
-        }));
-      } catch (error) {
-        if (![ErrorCodes.GIT_REF_CONFLICT, ErrorCodes.WORKSPACE_CONFLICT].includes(error?.code)) {
-          throw error;
-        }
-        conflicted += 1;
-        results.push(Object.freeze({
-          id: workspace.id,
-          ref: workspace.ref,
-          generation: workspace.generation,
-          changed: false,
-          conflict: true,
-        }));
-      }
+      totals.changed += outcome.changed ? 1 : 0;
+      totals.conflicted += outcome.conflict ? 1 : 0;
+      totals.missing += outcome.missing ? 1 : 0;
+      results.push(outcome.result);
     }
     return Object.freeze({
       namespace: inspection.namespace,
       inspected: inspection.returned,
-      changed,
-      conflicted,
-      missing,
+      ...totals,
       truncated: inspection.truncated,
+      nextCursor: inspection.nextCursor,
       results: Object.freeze(results),
     });
+  }
+
+  async #sweepWorkspace(workspace) {
+    const inspectionOutcome = StagingWorkspaceRegistry.#inspectionSweepOutcome(workspace);
+    if (inspectionOutcome !== undefined) {
+      return inspectionOutcome;
+    }
+    if (workspace.posture !== 'expired' || workspace.symref !== null) {
+      return null;
+    }
+    try {
+      const changed = await this.#ref.deleteRef({
+        ref: workspace.ref,
+        expectedOldOid: workspace.generation,
+      });
+      return StagingWorkspaceRegistry.#sweepOutcome(workspace, {
+        changed,
+        missing: !changed,
+      });
+    } catch (error) {
+      if (![ErrorCodes.GIT_REF_CONFLICT, ErrorCodes.WORKSPACE_CONFLICT].includes(error?.code)) {
+        throw error;
+      }
+      return StagingWorkspaceRegistry.#sweepOutcome(workspace, { conflict: true });
+    }
   }
 
   async inspectRecord(record) {
@@ -304,6 +311,55 @@ export default class StagingWorkspaceRegistry {
         { limit, maxLimit: MAX_WORKSPACE_INSPECTION_LIMIT },
       );
     }
+  }
+
+  static #cursor(value, namespace) {
+    if (value === null) {
+      return null;
+    }
+    let cursor;
+    try {
+      cursor = WorkspaceRef.from(value);
+    } catch (error) {
+      throw createCasError(
+        'Workspace cursor must be a cursor returned for the requested namespace',
+        ErrorCodes.INVALID_OPTIONS,
+        { cursor: value, namespace, originalError: error },
+      );
+    }
+    if (cursor.namespace !== namespace) {
+      throw createCasError(
+        'Workspace cursor belongs to a different namespace',
+        ErrorCodes.INVALID_OPTIONS,
+        { cursor: cursor.toString(), namespace, cursorNamespace: cursor.namespace },
+      );
+    }
+    return cursor.toString();
+  }
+
+  static #inspectionSweepOutcome(workspace) {
+    if (workspace.issue?.code === ErrorCodes.WORKSPACE_CONFLICT) {
+      return StagingWorkspaceRegistry.#sweepOutcome(workspace, { conflict: true });
+    }
+    if (workspace.issue?.code === ErrorCodes.GIT_REF_NOT_FOUND) {
+      return StagingWorkspaceRegistry.#sweepOutcome(workspace, { missing: true });
+    }
+    return undefined;
+  }
+
+  static #sweepOutcome(workspace, { changed = false, conflict = false, missing = false }) {
+    return Object.freeze({
+      changed,
+      conflict,
+      missing,
+      result: Object.freeze({
+        id: workspace.id,
+        ref: workspace.ref,
+        generation: workspace.generation,
+        changed,
+        conflict,
+      }),
+    });
   }
 
   static #assertDependencies({ persistence, ref, assets, pages, bundles, resolveHandle, crypto,

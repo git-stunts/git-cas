@@ -38,7 +38,7 @@ function cacheDestination(staged, overrides = {}) {
   };
 }
 
-function publicationDestination(staged) {
+function publicationDestination(staged, overrides = {}) {
   const commitId = 'e'.repeat(40);
   return {
     operation: 'publication',
@@ -52,6 +52,7 @@ function publicationDestination(staged) {
       generation: commitId,
       policy: 'pinned',
     }),
+    ...overrides,
   };
 }
 
@@ -72,7 +73,7 @@ function makeFixture() {
     crypto: { randomBytes: (length) => new Uint8Array(length) },
     clock,
   });
-  return { persistence, ref, registry, publications };
+  return { persistence, ref, registry, pages, publications };
 }
 
 async function openWithPage(fixture) {
@@ -193,8 +194,19 @@ describe('StagingWorkspace publication promotion', () => {
   it('publishes before releasing and rejects handles outside the workspace', async () => {
     const fixture = makeFixture();
     const { workspace, staged } = await openWithPage(fixture);
+    const outside = await fixture.pages.put({ source: Buffer.from('outside workspace') });
     const destination = publicationDestination(staged);
-    fixture.publications.commit.mockResolvedValue(destination);
+    fixture.publications.commit.mockImplementation(async () => {
+      await expect(fixture.ref.resolveRef(staged.witness.root.ref)).resolves.toBeTruthy();
+      return destination;
+    });
+
+    await expect(workspace.promoteToPublication({
+      handle: outside.handle,
+      commit: { message: 'outside materialization' },
+      ref: { name: PUBLICATION_REF, expected: null },
+    })).rejects.toMatchObject({ code: 'WORKSPACE_HANDLE_NOT_RETAINED' });
+    expect(fixture.publications.commit).not.toHaveBeenCalled();
 
     const result = await workspace.promoteToPublication({
       handle: staged.handle,
@@ -213,5 +225,47 @@ describe('StagingWorkspace publication promotion', () => {
       commit: { message: 'again' },
       ref: { name: PUBLICATION_REF, expected: 'commit' },
     })).rejects.toMatchObject({ code: 'WORKSPACE_RELEASED' });
+  });
+});
+
+describe('StagingWorkspace publication failure evidence', () => {
+  it('leaves workspace reachability intact when publication fails', async () => {
+    const fixture = makeFixture();
+    const { workspace, staged } = await openWithPage(fixture);
+    fixture.publications.commit.mockRejectedValue(new Error('publication failed'));
+
+    await expect(workspace.promoteToPublication({
+      handle: staged.handle,
+      commit: { message: 'failed publication' },
+      ref: { name: PUBLICATION_REF, expected: null },
+    })).rejects.toThrow('publication failed');
+    await expect(fixture.ref.resolveRef(staged.witness.root.ref)).resolves.toBeTruthy();
+  });
+
+  it.each([
+    ['omits its witness', (staged) => publicationDestination(staged, { witness: null })],
+    [
+      'witnesses another ref',
+      (staged) => publicationDestination(staged, {
+        witness: destinationWitness({
+          staged,
+          kind: 'publication',
+          ref: 'refs/warp/materializations/other',
+          generation: 'e'.repeat(40),
+          policy: 'pinned',
+        }),
+      }),
+    ],
+  ])('keeps workspace reachability when the publication %s', async (_label, resultFor) => {
+    const fixture = makeFixture();
+    const { workspace, staged } = await openWithPage(fixture);
+    fixture.publications.commit.mockResolvedValue(resultFor(staged));
+
+    await expect(workspace.promoteToPublication({
+      handle: staged.handle,
+      commit: { message: 'unproven publication' },
+      ref: { name: PUBLICATION_REF, expected: null },
+    })).rejects.toMatchObject({ code: 'WORKSPACE_PROMOTION_NOT_RETAINED' });
+    await expect(fixture.ref.resolveRef(staged.witness.root.ref)).resolves.toBeTruthy();
   });
 });

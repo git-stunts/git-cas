@@ -1304,8 +1304,8 @@ inside that interval is unsupported.
 
 `checkpoint({ handles })` replaces the active roots with the unique supplied
 handles. Use it after an aggregate bundle transitively reaches its components.
-An empty checkpoint removes active targets but leaves the workspace object
-available for later staging.
+An empty checkpoint removes active targets and installs a descriptor-only lease
+generation, leaving the workspace available for later staging.
 
 `renew()` preserves the current target set and advances its lease descriptor.
 Successful staging, checkpoint, and promotion preparation also renew the
@@ -1338,10 +1338,15 @@ const inspection = await cas.workspaces.inspect({
   limit: 100,
 });
 
-const cleanup = await cas.workspaces.sweep({
-  namespace: 'git-warp/materializations',
-  limit: 100,
-});
+let cursor = null;
+do {
+  const cleanup = await cas.workspaces.sweep({
+    namespace: 'git-warp/materializations',
+    limit: 100,
+    cursor,
+  });
+  cursor = cleanup.nextCursor;
+} while (cursor !== null);
 ```
 
 Inspection is namespace-scoped and bounded. Each record reports identity,
@@ -1360,9 +1365,11 @@ type, and complete application handle graph. Invalid persisted state produces
 count.
 
 `sweep()` deletes only records observed as expired, direct, and still at the
-same generation. The result reports inspected, changed, conflicted, missing,
-and truncated counts. Repeat bounded inspection and sweep while `truncated` is
-true. Sweep never removes active or invalid records.
+same generation. Inspection and sweep return an opaque `nextCursor` whenever
+`truncated` is true; pass that cursor to the next call so active or invalid
+records cannot starve later expired workspaces. The sweep result reports
+inspected, changed, conflicted, missing, and truncated counts. Sweep never
+removes active or invalid records.
 
 ## Root Sets
 
@@ -3330,6 +3337,7 @@ new CasError({ message, code, meta, documentationUrl });
 | `WORKSPACE_TTL_INVALID`               | Workspace TTL or computed expiry is outside supported bounds                                                       | `workspaces.open()`, staging, checkpoint, and renewal                            |
 | `WORKSPACE_CONFLICT`                  | Workspace generation changed during a checked operation                                                           | Workspace inspection and sweep                                                  |
 | `WORKSPACE_RELEASED`                  | A mutating operation targeted an already released workspace                                                        | Workspace staging, checkpoint, renewal, and promotion                            |
+| `WORKSPACE_RETENTION_FAILED`          | A low-level stage succeeded but its handle could not be proven in a workspace generation; metadata carries the staged receipt | Workspace asset, page, and bundle staging                                        |
 | `WORKSPACE_HANDLE_NOT_RETAINED`       | Promotion requested a handle absent from the active workspace generation                                          | `promoteToCache()`, `promoteToPublication()`                                    |
 | `WORKSPACE_PROMOTION_NOT_RETAINED`    | Destination did not return exact anchored retention evidence, so the workspace remains active                      | `promoteToCache()`, `promoteToPublication()`                                    |
 | `WORKSPACE_PROMOTION_CLEANUP_PENDING` | Destination retention succeeded but checked workspace release failed                                               | `promoteToCache()`, `promoteToPublication()`                                    |

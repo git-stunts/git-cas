@@ -182,6 +182,15 @@ export default class RepositoryDoctor {
   }
 
   async #inspectWorkspace(record) {
+    if (!this.workspaces) {
+      return unhealthyWorkspaceUsage({
+        record,
+        error: createCasError(
+          'Workspace diagnostics are unavailable for this direct RepositoryDoctor construction',
+          ErrorCodes.REPOSITORY_INSPECTION_INVALID,
+        ),
+      });
+    }
     try {
       return workspaceUsage(await this.workspaces.inspectRecord(record));
     } catch (error) {
@@ -407,7 +416,7 @@ function expiringSetUsageWithoutState(record, namespace, report) {
 }
 
 function workspaceUsage(report) {
-  const healthy = report.posture !== 'invalid';
+  const healthy = report.posture !== 'invalid' && report.issue === null;
   return {
     namespace: report.namespace,
     ref: report.ref,

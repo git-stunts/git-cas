@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import WorkspaceDescriptorCodec from '../../../../src/domain/services/WorkspaceDescriptorCodec.js';
+import WorkspaceDescriptorCodec, {
+  MAX_WORKSPACE_TARGETS,
+} from '../../../../src/domain/services/WorkspaceDescriptorCodec.js';
 import WorkspaceRef from '../../../../src/domain/value-objects/WorkspaceRef.js';
 
 const CREATED_AT = '2026-07-17T20:00:00.000Z';
@@ -39,6 +41,7 @@ describe('WorkspaceDescriptorCodec', () => {
     descriptor({ createdAt: '2026-07-17T20:00:00Z' }),
     descriptor({ expiresAt: CREATED_AT }),
     descriptor({ targetCount: -1 }),
+    descriptor({ targetCount: MAX_WORKSPACE_TARGETS + 1 }),
   ])('rejects an invalid descriptor %#', (value) => {
     const codec = new WorkspaceDescriptorCodec();
 

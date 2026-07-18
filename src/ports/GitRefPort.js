@@ -86,6 +86,7 @@ export default class GitRefPort {
    * Streams refs below a canonical Git ref prefix.
    * @param {Object} _options
    * @param {string} [_options.prefix]
+   * @param {string|null} [_options.after] Exclusive ref-name continuation cursor.
    * @param {number} _options.limit Maximum records to request from Git.
    * @returns {AsyncIterable<{ref: string, oid: string, symref: string|null}>}
    */

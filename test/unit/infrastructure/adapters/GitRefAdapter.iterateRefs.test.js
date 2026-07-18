@@ -39,12 +39,43 @@ describe('GitRefAdapter.iterateRefs()', () => {
       args: [
         'for-each-ref',
         '--format=%(refname)%09%(objectname)%09%(symref)',
+        '--sort=refname',
         '--count=3',
         prefix,
       ],
     });
   });
+});
 
+describe('GitRefAdapter.iterateRefs() pagination', () => {
+  it('continues strictly after an opaque ref cursor and stops at the requested page size', async () => {
+    const prefix = 'refs/cas/workspaces/git-warp+materializations/';
+    const cursor = `${prefix}v1-middle`;
+    const oid = 'a'.repeat(40);
+    const plumbing = {
+      executeStream: vi.fn().mockResolvedValue(refStream([
+        `${prefix}v1-before\t${oid}\t\n`,
+        `${prefix}v1-next\t${oid}\t\n`,
+        `${prefix}v1-tail\t${oid}\t\n`,
+      ])),
+    };
+    const adapter = new GitRefAdapter({ plumbing, policy: noPolicy });
+
+    const refs = [];
+    for await (const ref of adapter.iterateRefs({ prefix, after: cursor, limit: 1 })) {
+      refs.push(ref);
+    }
+
+    expect(refs).toEqual([{ ref: `${prefix}v1-next`, oid, symref: null }]);
+    expect(plumbing.executeStream).toHaveBeenCalledWith({
+      args: [
+        'for-each-ref',
+        '--format=%(refname)%09%(objectname)%09%(symref)',
+        '--sort=refname',
+        prefix,
+      ],
+    });
+  });
 });
 
 describe('GitRefAdapter.iterateRefs() failures', () => {
@@ -71,7 +102,9 @@ describe('GitRefAdapter.iterateRefs() failures', () => {
       meta: { stderr: 'inventory failed' },
     });
   });
+});
 
+describe('GitRefAdapter.iterateRefs() input validation', () => {
   it('rejects an absent or unbounded record limit before invoking Git', async () => {
     const plumbing = { executeStream: vi.fn() };
     const adapter = new GitRefAdapter({ plumbing, policy: noPolicy });
@@ -83,6 +116,15 @@ describe('GitRefAdapter.iterateRefs() failures', () => {
     }).rejects.toMatchObject({ code: ErrorCodes.GIT_ERROR });
     await expect(async () => {
       for await (const ignored of adapter.iterateRefs({ prefix: 'refs/cas/', limit: 1002 })) {
+        void ignored;
+      }
+    }).rejects.toMatchObject({ code: ErrorCodes.GIT_ERROR });
+    await expect(async () => {
+      for await (const ignored of adapter.iterateRefs({
+        prefix: 'refs/cas/',
+        after: 'refs/heads/main',
+        limit: 10,
+      })) {
         void ignored;
       }
     }).rejects.toMatchObject({ code: ErrorCodes.GIT_ERROR });

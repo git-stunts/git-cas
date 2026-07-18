@@ -186,15 +186,15 @@ workspace.bundles.putOrdered(options);
 
 Each method performs the ordinary staging operation, advances the workspace
 RootSet to include the returned handle, and returns only after retention
-evidence exists. If retention fails, the method rejects and includes staging
-evidence where the underlying service provides it. It never returns a handle
-while claiming that the failed workspace generation retained it.
+evidence exists. If the low-level stage succeeds but retention fails, the
+method rejects with `WORKSPACE_RETENTION_FAILED`; its metadata carries the
+staged receipt and original failure. It never returns a handle while claiming
+that the failed workspace generation retained it.
 
 `checkpoint({ handles })` replaces the active target set with the supplied
 unique handles. It is the compaction operation after an aggregate bundle makes
 its component roots transitively reachable. An empty checkpoint releases all
-targets but keeps the lease identity available for later staging; no empty
-RootSet ref is created for a never-used workspace.
+targets and installs a descriptor-only lease generation for later staging.
 
 `renew()` advances the lease descriptor and generation. Ordinary successful
 stage, checkpoint, and promotion preparation also renew activity. Expiry is an
@@ -224,8 +224,8 @@ symbolic-ref posture fails closed and does not delete another writer's root.
 Bounded operator surfaces are:
 
 ```javascript
-await cas.workspaces.inspect({ namespace, limit });
-await cas.workspaces.sweep({ namespace, limit });
+const page = await cas.workspaces.inspect({ namespace, limit, cursor });
+const cleanup = await cas.workspaces.sweep({ namespace, limit, cursor });
 ```
 
 Inspection returns workspace ID, namespace, generation, root count, validated
@@ -233,7 +233,9 @@ logical content bytes, unique direct-root object bytes, created time, observed
 age, expiry, and `active`, `expired`, or `invalid` posture. Direct-root bytes do
 not claim transitive, packed, deduplicated, or filesystem residency. Sweep only
 deletes expired direct refs whose generation still matches the inspection.
-Results report changed, conflicted, and truncated counts.
+Results report changed, conflicted, missing, and truncated counts plus an
+opaque `nextCursor`. Passing that cursor to the next bounded call guarantees
+that an active or invalid first page cannot starve later expired workspaces.
 
 ## User Experience / Product Shape
 
@@ -335,9 +337,9 @@ must name a real direct Git edge.
 | Failure | Error/result | Caller recovery | Test |
 | --- | --- | --- | --- |
 | invalid namespace or TTL | typed invalid options | correct request | unit |
-| staged object fails | existing stage error with evidence | retry or release | injection |
-| workspace retention fails | typed workspace retention error | release and retry | unit |
-| workspace root cap exceeded | typed capacity error | checkpoint compact roots | unit |
+| staged object fails | existing stage error | retry or release | injection |
+| workspace retention fails | `WORKSPACE_RETENTION_FAILED` with staged receipt | release and retry | unit |
+| workspace input/root cap exceeded | typed invalid options or state error | checkpoint compact roots | unit |
 | renew races release/sweep | typed generation conflict | inspect current posture | race test |
 | promotion handle is absent | typed promotion error | checkpoint the handle | unit |
 | destination promotion fails | destination error, workspace remains active | retry or release | injection |
@@ -482,10 +484,10 @@ The implementation must be proven through:
 
 ## Implementation Slices
 
-- Add failing workspace ref, descriptor, lease, and release tests.
-- Add RootSet-backed workspace registry and scoped staging wrappers.
-- Add cache/publication promotion and failure-order tests.
-- Add bounded inspection, expiry sweep, and repository doctor inventory.
+- Define failing workspace ref, descriptor, lease, and release tests.
+- Implement the RootSet-backed workspace registry and scoped staging wrappers.
+- Prove cache/publication promotion and failure ordering.
+- Expose bounded inspection, expiry sweep, and repository doctor inventory.
 - Wire facade, declarations, errors, docs, changelog, and release evidence.
 - Publish v6.4.0 before git-warp consumes the API.
 
@@ -523,7 +525,7 @@ The work is done when:
   remain green.
 - [x] Public declarations and docs match runtime behavior.
 - [x] README, changelog, release notes, and witness are updated.
-- [ ] Issue and PR are linked correctly.
+- [x] Issue and PR are linked correctly.
 - [ ] CI, Code Rabbit, self-review, and independent Code Lawyer review are clean.
 - [ ] v6.4.0 is published before git-warp consumes the API.
 

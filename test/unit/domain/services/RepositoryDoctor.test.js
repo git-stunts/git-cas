@@ -593,3 +593,57 @@ describe('RepositoryDoctor workspace failure evidence', () => {
     });
   });
 });
+
+describe('RepositoryDoctor workspace issue health', () => {
+  it('treats issue evidence as unhealthy even when the reported posture is active', async () => {
+    const workspaceRef = 'refs/cas/workspaces/git-warp+materializations/v1-test-workspace';
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values([
+        { ref: workspaceRef, oid: '9'.repeat(40), symref: null },
+      ])),
+    }));
+    ports.workspaces.inspectRecord.mockResolvedValue({
+      id: 'workspace',
+      namespace: 'git-warp/materializations',
+      ref: workspaceRef,
+      generation: '9'.repeat(40),
+      symref: null,
+      rootCount: 1,
+      logicalBytes: 10,
+      rootObjectBytes: 4,
+      createdAt: '2026-07-13T10:00:00.000Z',
+      ageMs: 7_200_000,
+      expiresAt: '2026-07-13T14:00:00.000Z',
+      posture: 'active',
+      issue: { code: 'WORKSPACE_CONFLICT', message: 'generation changed' },
+    });
+
+    const report = await new RepositoryDoctor(ports).doctor();
+
+    expect(report.healthy).toBe(false);
+    expect(report.usage.workspaces).toMatchObject({
+      healthy: false,
+      entries: [{ healthy: false, issues: [{ code: 'WORKSPACE_CONFLICT' }] }],
+    });
+  });
+});
+
+describe('RepositoryDoctor workspace compatibility fallback', () => {
+  it('keeps direct-constructor compatibility and reports missing workspace diagnostics', async () => {
+    const workspaceRef = 'refs/cas/workspaces/git-warp+materializations/v1-test-workspace';
+    const ports = dependencies(repository({
+      iterateRefs: vi.fn(() => values([
+        { ref: workspaceRef, oid: '9'.repeat(40), symref: null },
+      ])),
+    }));
+    delete ports.workspaces;
+
+    const report = await new RepositoryDoctor(ports).doctor();
+
+    expect(report.healthy).toBe(false);
+    expect(report.usage.workspaces.entries[0]).toMatchObject({
+      healthy: false,
+      issues: [{ code: 'REPOSITORY_INSPECTION_INVALID' }],
+    });
+  });
+});

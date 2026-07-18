@@ -226,3 +226,75 @@ describe('scoped staging workspace expiry', () => {
     expect(objectExists(staged.handle.oid)).toBe(false);
   });
 });
+
+describe('scoped staging workspace pagination', () => {
+  it('pages past an active workspace to sweep a later expired workspace', async () => {
+    const active = await cas.workspaces.open({
+      namespace: 'integration/paginated-builds',
+      ttlMs: 60_000,
+    });
+    await active.pages.put({ source: Buffer.from('active first page') });
+    now = START + 1;
+    const expired = await cas.workspaces.open({
+      namespace: 'integration/paginated-builds',
+      ttlMs: 1,
+    });
+    const expiredStage = await expired.pages.put({ source: Buffer.from('expired second page') });
+    now = START + 3;
+
+    const first = await cas.workspaces.sweep({
+      namespace: 'integration/paginated-builds',
+      limit: 1,
+    });
+    expect(first).toMatchObject({ changed: 0, truncated: true, nextCursor: expect.any(String) });
+    const second = await cas.workspaces.sweep({
+      namespace: 'integration/paginated-builds',
+      limit: 1,
+      cursor: first.nextCursor,
+    });
+
+    expect(second).toMatchObject({ changed: 1, truncated: false, nextCursor: null });
+    pruneNow();
+    expect(objectExists(expiredStage.handle.oid)).toBe(false);
+    await active.release();
+  });
+});
+
+describe('scoped staging workspace symbolic ref containment', () => {
+  it('never follows or deletes a symbolic workspace ref during release or sweep', async () => {
+    const releaseWorkspace = await cas.workspaces.open({
+      namespace: 'integration/release-symref',
+      ttlMs: 1,
+    });
+    const releaseStage = await releaseWorkspace.pages.put({ source: Buffer.from('release symref') });
+    const releaseSentinel = 'refs/heads/workspace-release-sentinel';
+    git(['update-ref', releaseSentinel, releaseStage.witness.root.generation]);
+    git(['symbolic-ref', releaseStage.witness.root.ref, releaseSentinel]);
+
+    await expect(releaseWorkspace.release()).rejects.toMatchObject({ code: 'GIT_REF_CONFLICT' });
+    expect(git(['symbolic-ref', releaseStage.witness.root.ref])).toBe(releaseSentinel);
+    expect(git(['rev-parse', releaseSentinel])).toBe(releaseStage.witness.root.generation);
+
+    const sweepWorkspace = await cas.workspaces.open({
+      namespace: 'integration/sweep-symref',
+      ttlMs: 1,
+    });
+    const sweepStage = await sweepWorkspace.pages.put({ source: Buffer.from('sweep symref') });
+    const sweepSentinel = 'refs/heads/workspace-sweep-sentinel';
+    git(['update-ref', sweepSentinel, sweepStage.witness.root.generation]);
+    git(['symbolic-ref', sweepStage.witness.root.ref, sweepSentinel]);
+    now = START + 2;
+
+    await expect(cas.workspaces.sweep({
+      namespace: 'integration/sweep-symref',
+      limit: 10,
+    })).resolves.toMatchObject({ changed: 0, conflicted: 0 });
+    expect(git(['symbolic-ref', sweepStage.witness.root.ref])).toBe(sweepSentinel);
+    expect(git(['rev-parse', sweepSentinel])).toBe(sweepStage.witness.root.generation);
+
+    git(['symbolic-ref', '--delete', releaseStage.witness.root.ref]);
+    git(['symbolic-ref', '--delete', sweepStage.witness.root.ref]);
+    git(['update-ref', '-d', releaseSentinel]);
+    git(['update-ref', '-d', sweepSentinel]);
+  });
+});

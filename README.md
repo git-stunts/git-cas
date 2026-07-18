@@ -143,7 +143,7 @@ Core capabilities:
 - **Scoped staging workspaces**: `workspaces.open()` mirrors application writes
   behind one renewable temporary RootSet, returns only after each handle is
   anchored, promotes destination-first, and exposes bounded age, expiry,
-  logical-content, and direct-root diagnostics before checked cleanup.
+  logical-content, and direct-root diagnostics with opaque cleanup pagination.
 - **Envelope recipients**: multi-recipient key wrapping and recipient rotation
   avoid re-encrypting data blobs.
 - **Operational diagnostics**: `cas.diagnostics.doctor()` streams repository

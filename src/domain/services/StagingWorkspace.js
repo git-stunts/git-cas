@@ -170,21 +170,39 @@ export default class StagingWorkspace {
         { method },
       );
     }
-    const target = await this.#resolveTarget(staged.handle);
-    const targets = new Map(this.#targets);
-    targets.set(target.handle.toString(), target);
-    const installation = await this.#install([...targets.values()]);
-    const witness = installation.witnesses.find(
-      (candidate) => candidate.handle.toString() === target.handle.toString(),
-    );
-    if (!witness) {
+    try {
+      const target = await this.#resolveTarget(staged.handle);
+      const targets = new Map(this.#targets);
+      targets.set(target.handle.toString(), target);
+      const installation = await this.#install([...targets.values()]);
+      const witness = installation.witnesses.find(
+        (candidate) => candidate.handle.toString() === target.handle.toString(),
+      );
+      if (!witness) {
+        throw createCasError(
+          'Workspace generation omitted the newly staged handle',
+          ErrorCodes.WORKSPACE_STATE_INVALID,
+          { handle: target.handle.toString(), generation: installation.generation },
+        );
+      }
+      return StagingWorkspace.#retainedStage(staged, witness);
+    } catch (error) {
+      if (error?.code === ErrorCodes.WORKSPACE_TTL_INVALID) {
+        throw error;
+      }
       throw createCasError(
-        'Workspace generation omitted the newly staged handle',
-        ErrorCodes.WORKSPACE_STATE_INVALID,
-        { handle: target.handle.toString(), generation: installation.generation },
+        'Workspace staged an object but could not establish retention',
+        ErrorCodes.WORKSPACE_RETENTION_FAILED,
+        {
+          method,
+          workspaceId: this.id,
+          staged: typeof staged.toJSON === 'function'
+            ? staged.toJSON()
+            : { handle: staged.handle.toString() },
+          originalError: error,
+        },
       );
     }
-    return StagingWorkspace.#retainedStage(staged, witness);
   }
 
   async #install(targets) {
@@ -270,7 +288,20 @@ export default class StagingWorkspace {
       );
     }
     const targets = new Map();
-    for (const handle of handles) {
+    let handleCount = 0;
+    for (const value of handles) {
+      handleCount += 1;
+      if (handleCount > MAX_WORKSPACE_TARGETS) {
+        throw createCasError(
+          'Workspace checkpoint handle count exceeds the supported maximum',
+          ErrorCodes.INVALID_OPTIONS,
+          { handleCount, maxHandleCount: MAX_WORKSPACE_TARGETS },
+        );
+      }
+      const handle = parseApplicationHandle(value);
+      if (targets.has(handle.toString())) {
+        continue;
+      }
       const target = await this.#resolveTarget(handle);
       targets.set(target.handle.toString(), target);
     }

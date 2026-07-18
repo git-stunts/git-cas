@@ -556,6 +556,8 @@ export declare class GitRefPortBase {
   deleteRef?(options: { ref: string; expectedOldOid: string }): Promise<boolean>;
   iterateRefs?(options: {
     prefix?: string;
+    /** Exclusive opaque continuation returned by a previous bounded inventory. */
+    after?: string | null;
     limit: number;
   }): AsyncIterable<{ ref: string; oid: string; symref: string | null }>;
 }
@@ -577,6 +579,8 @@ export declare class GitRefAdapter extends GitRefPortBase {
   deleteRef(options: { ref: string; expectedOldOid: string }): Promise<boolean>;
   iterateRefs(options: {
     prefix?: string;
+    /** Exclusive opaque continuation returned by a previous bounded inventory. */
+    after?: string | null;
     limit: number;
   }): AsyncIterable<{ ref: string; oid: string; symref: string | null }>;
 }
@@ -1373,6 +1377,7 @@ export declare class RepositoryDoctor {
     expiringSets: {
       open(options: { namespace: string }): ExpiringSet | Promise<ExpiringSet>;
     };
+    /** Optional only for backwards-compatible direct construction; workspace refs report unhealthy when absent. */
     workspaces?: {
       inspectRecord(record: {
         ref: string;
@@ -1566,6 +1571,8 @@ export interface WorkspaceInspection {
   readonly namespace: string;
   readonly returned: number;
   readonly truncated: boolean;
+  /** Opaque continuation for the next bounded inspect or sweep call. */
+  readonly nextCursor: string | null;
   readonly workspaces: ReadonlyArray<WorkspaceInspectionRecord>;
 }
 
@@ -1576,6 +1583,8 @@ export interface WorkspaceSweepResult {
   readonly conflicted: number;
   readonly missing: number;
   readonly truncated: boolean;
+  /** Opaque continuation for the next bounded sweep call. */
+  readonly nextCursor: string | null;
   readonly results: ReadonlyArray<Readonly<{
     id: string | null;
     ref: string;
@@ -1621,8 +1630,16 @@ export declare class StagingWorkspace {
 
 export interface WorkspaceCapability {
   open(options: { namespace: string; ttlMs?: number }): Promise<StagingWorkspace>;
-  inspect(options: { namespace: string; limit?: number }): Promise<WorkspaceInspection>;
-  sweep(options: { namespace: string; limit?: number }): Promise<WorkspaceSweepResult>;
+  inspect(options: {
+    namespace: string;
+    limit?: number;
+    cursor?: string | null;
+  }): Promise<WorkspaceInspection>;
+  sweep(options: {
+    namespace: string;
+    limit?: number;
+    cursor?: string | null;
+  }): Promise<WorkspaceSweepResult>;
 }
 
 export interface DiagnosticsCapability {
