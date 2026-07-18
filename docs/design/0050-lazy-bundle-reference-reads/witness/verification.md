@@ -1,10 +1,12 @@
 # Lazy Bundle Reference Reads Verification Witness
 
-Generated: 2026-07-18 00:47:08 PDT
+Generated: 2026-07-18 01:26:08 PDT
 
 Issue: [#81](https://github.com/git-stunts/git-cas/issues/81)
 
 Feature commit: `7ddbda5d369b4c0694b1bbf337834a7fc6e776cb`
+
+Concurrency repair commit: `d7841acbaffbc4c5b14c78d31d3dc65ac4618cce`
 
 ## Public Contract
 
@@ -67,14 +69,44 @@ retry, configurable residency validation, and least-recently-used eviction.
 [cite: `test/unit/infrastructure/adapters/GitPersistenceAdapter.readTree.test.js#92-114@7ddbda5d369b4c0694b1bbf337834a7fc6e776cb`]
 [cite: `test/unit/infrastructure/adapters/GitPersistenceAdapter.readTree.test.js#147-213@7ddbda5d369b4c0694b1bbf337834a7fc6e776cb`]
 
+## Concurrent Root-Set Safety
+
+The release gate exposed a second-order failure under repeated concurrent
+cache replacement. Git occasionally returned exit code 128 with empty output
+for the exact guarded `update-ref` command. An independent ref read showed
+that the competing writer had advanced the head, but the missing text prevented
+the plumbing classifier from identifying the compare-and-swap race.
+
+Root-set persistence now accepts that narrow evidence bundle as a conflict:
+fatal exit 128, exact managed command operands, a valid observed head, and an
+observed head different from the caller's expectation. It does not normalize
+same-head failures, other-ref commands, or nonfatal exits.
+
+[cite: `src/domain/services/RootSetPersistence.js#17-70@d7841acbaffbc4c5b14c78d31d3dc65ac4618cce`]
+[cite: `src/domain/services/RootSetPersistence.js#267-337@d7841acbaffbc4c5b14c78d31d3dc65ac4618cce`]
+
+The regression suite preserves both sides of that boundary. It proves the
+empty-diagnostic advanced-head case is retryable and proves three nearby error
+shapes remain terminal.
+
+[cite: `test/unit/domain/services/RootSetPersistence.test.js#71-125@d7841acbaffbc4c5b14c78d31d3dc65ac4618cce`]
+[cite: `test/unit/domain/services/RootSetPersistence.test.js#217-245@d7841acbaffbc4c5b14c78d31d3dc65ac4618cce`]
+
+A pre-fix Docker stress run reproduced the terminal failure at iteration 149.
+The repaired implementation completed 500 consecutive two-writer guarded
+replacements with exactly one accepted winner per iteration. The underlying
+Node stderr-drain defect is tracked as
+[git-stunts/plumbing#9](https://github.com/git-stunts/plumbing/issues/9).
+
 ## Verification Results
 
 | Command                                                 | Result                                    |
 | ------------------------------------------------------- | ----------------------------------------- |
 | `pnpm exec vitest run` over the five focused unit files | 5 files, 61 tests passed                  |
-| `pnpm test`                                             | 220 files passed; 2,009 passed, 2 skipped |
+| `pnpm test`                                             | 220 files passed; 2,013 passed, 2 skipped |
 | `pnpm run lint`                                         | passed                                    |
 | `pnpm run test:integration:node`                        | 12 files, 192 tests passed in Docker      |
+| guarded-replacement Docker stress                       | 500 consecutive races passed              |
 | `git diff --check`                                      | passed                                    |
 
 The real-Git proof requires a cold read to issue Git metadata commands, then
