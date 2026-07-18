@@ -522,7 +522,7 @@ The work is done when:
 - [x] Existing asset, page, bundle, RootSet, CacheSet, doctor, and facade tests
   remain green.
 - [x] Public declarations and docs match runtime behavior.
-- [ ] README, changelog, release notes, and witness are updated.
+- [x] README, changelog, release notes, and witness are updated.
 - [ ] Issue and PR are linked correctly.
 - [ ] CI, Code Rabbit, self-review, and independent Code Lawyer review are clean.
 - [ ] v6.4.0 is published before git-warp consumes the API.
