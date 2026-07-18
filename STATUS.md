@@ -2,7 +2,7 @@
 
 **Last tagged release:** `v6.3.0` (`2026-07-17`)
 **Current release state:** `v6.4.0` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** the `v6.4.0` release verifier passed 14/14 steps with 6,520 observed tests across Node.js, Bun, and Deno; npm and JSR dry-runs passed.
+**Latest verification:** the `v6.4.0` release verifier passed 14/14 steps with 6,538 observed tests across Node.js, Bun, and Deno; npm and JSR dry-runs passed.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)

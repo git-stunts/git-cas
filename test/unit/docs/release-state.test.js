@@ -50,9 +50,9 @@ function expectV640CandidateState(status, candidate, publication) {
   expect(candidate).toContain('# PERF-0049 v6.4.0 Release Candidate Witness');
   expect(candidate).toContain('1ac2fc85be857ca769c459b89c29bf4483b3f304');
   expect(candidate).toContain('8185dfb9819909d9fbe0f0394de6ae31fc0a94a3');
-  expect(candidate).toContain('passed 14/14 steps with 6,520 observed tests');
-  expect(candidate).toContain('247 files, 763,847 packed bytes');
-  expect(candidate).toContain('2,129,298 unpacked bytes');
+  expect(candidate).toContain('passed 14/14 steps with 6,538 observed tests');
+  expect(candidate).toContain('247 files, 763,925 packed bytes');
+  expect(candidate).toContain('2,129,717 unpacked bytes');
   expect(candidate).toContain('explicitly unpublished candidate');
   expect(publication).toBeNull();
   expectNoV640PublicationEvidence(status, candidate);
