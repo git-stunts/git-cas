@@ -57,6 +57,8 @@ function expectV651CandidateState(status, candidate, publication) {
   );
   expect(status).toContain('#85 Bounded immutable page payload reuse');
   expect(candidate).toContain('# PERF-0051 v6.5.1 Release Candidate Witness');
+  expect(candidate).toContain('Implementation review: #87');
+  expect(candidate).toContain('Release review: #88');
   expect(candidate).toContain('ad5b91b2ff7c156526961a8d0575be1a250d92c6');
   expect(candidate).toContain('**PASS (14/14)**');
   expect(candidate).toContain('**6,676**');

@@ -4,7 +4,9 @@ Date: 2026-07-18
 
 Issue: #85
 
-Review: #87
+Implementation review: #87
+
+Release review: #88
 
 ## Scope
 
