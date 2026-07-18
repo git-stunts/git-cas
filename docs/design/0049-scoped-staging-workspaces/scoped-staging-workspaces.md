@@ -528,7 +528,7 @@ The work is done when:
 - [x] Issue and PR are linked correctly.
 - [x] Implementation PR CI, Code Rabbit, self-review, and independent Code
   Lawyer review are clean.
-- [ ] v6.4.0 is published before git-warp consumes the API.
+- [x] v6.4.0 is published before git-warp consumes the API.
 
 ## Validation Plan
 

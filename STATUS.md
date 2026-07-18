@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.3.0` (`2026-07-17`)
-**Current release state:** `v6.4.0` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** the `v6.4.0` release verifier passed 14/14 steps with 6,538 observed tests across Node.js, Bun, and Deno; npm and JSR dry-runs passed.
+**Last tagged release:** `v6.4.0` (`2026-07-18`)
+**Current release state:** `v6.4.0` is published to npm and GitHub Releases from signed tag `v6.4.0` at reviewed merge `d47af74a`.
+**Latest verification:** Release run `29627828620` passed validation, unit and Node/Bun/Deno real-Git integration, OIDC trusted npm publication, and final GitHub Release creation; npm reports `6.4.0` as `latest` with SLSA provenance.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,11 +18,12 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.4.0 candidate posture** — scoped staging workspaces are merged through
-  reviewed commit `1ac2fc8`, and structured RootSet lock retries are corrected
-  by `8185dfb9`; npm, JSR, and runtime version metadata now identify `6.4.0`,
-  while the tag and registry artifacts remain deliberately absent until
-  release-candidate review completes.
+- **v6.4.0 artifact posture** — signed tag `v6.4.0` resolves to reviewed merge
+  `d47af74`; npm reports `@git-stunts/git-cas@6.4.0` as `latest` with SLSA
+  provenance, and the final GitHub Release is published. Scoped staging
+  workspaces and the corrected structured RootSet lock retry are shipped. JSR
+  dry-run validation is healthy, but JSR publication is not part of the release
+  workflow.
 - **v6.3.0 artifact posture** — signed tag `v6.3.0` resolves to reviewed merge
   `33f4171`; npm reports `@git-stunts/git-cas@6.3.0` as `latest` with SLSA
   provenance, and the final GitHub Release is published. JSR dry-run validation
@@ -104,9 +105,9 @@
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
 - Current release goalpost:
-  [#75 Scoped staging workspaces for multi-object promotion](https://github.com/git-stunts/git-cas/issues/75)
+  [#38 Bounded Residency](https://github.com/git-stunts/git-cas/issues/38)
   under the
-  [`v6.4.0` milestone](https://github.com/git-stunts/git-cas/milestone/4).
+  [`v6.4.1` milestone](https://github.com/git-stunts/git-cas/milestone/8).
 - The latest landed design record is
   [0049-scoped-staging-workspaces](./docs/design/0049-scoped-staging-workspaces/scoped-staging-workspaces.md).
 
