@@ -8,6 +8,8 @@ Feature commit: `7ddbda5d369b4c0694b1bbf337834a7fc6e776cb`
 
 Concurrency repair commit: `d7841acbaffbc4c5b14c78d31d3dc65ac4618cce`
 
+Cache settlement repair commit: `f1d219973d40bfa8a728093d39f793c3486037ad`
+
 ## Public Contract
 
 The frozen `bundles` facade exposes direct lookup and streaming reference
@@ -50,8 +52,11 @@ returns a fresh byte array, so a decoder or caller cannot mutate cached bytes.
 
 The shared helper enforces positive entry bounds, optional aggregate weight,
 least-recently-used eviction, in-flight coalescing, and rejection eviction.
+Bookkeeping now settles before the shared promise becomes observable, so an
+immediate retry cannot recover a stale rejected promise. Resolved weights must
+also be non-negative safe integers or the entry is rejected and evicted.
 
-[cite: `src/helpers/boundedPromiseCache.js#1-85@7ddbda5d369b4c0694b1bbf337834a7fc6e776cb`]
+[cite: `src/helpers/boundedPromiseCache.js#35-101@f1d219973d40bfa8a728093d39f793c3486037ad`]
 
 The Git adapter uses one bounded cache for exact immutable tree-entry and
 object-info reads. Tree-entry records are frozen internally and cloned before
@@ -63,11 +68,20 @@ operations.
 [cite: `src/infrastructure/adapters/GitPersistenceAdapter.js#150-166@7ddbda5d369b4c0694b1bbf337834a7fc6e776cb`]
 [cite: `src/infrastructure/adapters/GitPersistenceAdapter.js#215-269@7ddbda5d369b4c0694b1bbf337834a7fc6e776cb`]
 
-Unit coverage proves concurrent and sequential coalescing, transient-failure
-retry, configurable residency validation, and least-recently-used eviction.
+Unit coverage proves concurrent and sequential coalescing, immediate
+transient-failure retry, resolved-weight validation, configurable residency
+validation, and least-recently-used eviction.
+
+[cite: `test/unit/helpers/boundedPromiseCache.test.js#42-60@f1d219973d40bfa8a728093d39f793c3486037ad`]
+[cite: `test/unit/helpers/boundedPromiseCache.test.js#63-123@f1d219973d40bfa8a728093d39f793c3486037ad`]
 
 [cite: `test/unit/infrastructure/adapters/GitPersistenceAdapter.readTree.test.js#92-114@7ddbda5d369b4c0694b1bbf337834a7fc6e776cb`]
 [cite: `test/unit/infrastructure/adapters/GitPersistenceAdapter.readTree.test.js#147-213@7ddbda5d369b4c0694b1bbf337834a7fc6e776cb`]
+
+A code-lawyer probe retried immediately after directly awaiting a rejected
+cache promise. Before the settlement repair, all 10,000 iterations recovered
+the stale rejection. The same probe completed with zero stale rejections after
+the repair.
 
 ## Concurrent Root-Set Safety
 
