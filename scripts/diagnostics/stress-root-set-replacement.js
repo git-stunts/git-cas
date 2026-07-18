@@ -8,10 +8,11 @@ import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js
 
 const iterations = positiveSafeInteger(process.argv[2] ?? '500');
 const repoDir = mkdtempSync(path.join(tmpdir(), 'cas-root-race-'));
-const git = (args) => execFileSync('git', args, {
-  cwd: repoDir,
-  encoding: 'utf8',
-}).trim();
+const git = (args) =>
+  execFileSync('git', args, {
+    cwd: repoDir,
+    encoding: 'utf8',
+  }).trim();
 
 try {
   git(['init', '--bare']);
@@ -32,7 +33,9 @@ try {
       right.replace('shared', rightPage.handle, { expectedHandle: original.handle }),
     ]);
     if (results.filter((result) => result.accepted).length !== 1) {
-      throw new Error(`Expected exactly one replacement winner at iteration ${index}: ${inspect(results, { depth: 8 })}`);
+      throw new Error(
+        `Expected exactly one replacement winner at iteration ${index}: ${inspect(results, { depth: 8 })}`
+      );
     }
   }
 
