@@ -87,15 +87,20 @@ export default class PageService {
       if (page === null || typeof page !== 'object' || !Object.hasOwn(page, 'source')) {
         throw createCasError('Page batch entry must provide source', ErrorCodes.INVALID_OPTIONS);
       }
-      const bytes = await PageService.#collect(page.source, this.#effectiveLimit(page.maxBytes));
+      const pageLimit = this.#effectiveLimit(page.maxBytes);
+      const remainingBatchBytes = maxBatchBytes - totalBytes;
+      const overflow = remainingBatchBytes <= pageLimit
+        ? (observedBytes) => PageService.#batchTooLarge(
+            totalBytes + observedBytes,
+            maxBatchBytes,
+          )
+        : PageService.#tooLarge;
+      const bytes = await PageService.#collectWithOverflow(
+        page.source,
+        Math.min(pageLimit, remainingBatchBytes),
+        overflow,
+      );
       totalBytes += bytes.length;
-      if (totalBytes > maxBatchBytes) {
-        throw createCasError(
-          'Page batch exceeds its configured byte limit',
-          ErrorCodes.PAGE_BATCH_LIMIT,
-          { observedBytes: totalBytes, maxBatchBytes },
-        );
-      }
       prepared.push({ bytes, observedAt: this.#observedAt() });
     }
 
@@ -225,9 +230,13 @@ export default class PageService {
   }
 
   static async #collect(source, maxBytes) {
+    return await PageService.#collectWithOverflow(source, maxBytes, PageService.#tooLarge);
+  }
+
+  static async #collectWithOverflow(source, maxBytes, overflow) {
     if (isBytes(source)) {
       if (source.length > maxBytes) {
-        throw PageService.#tooLarge(source.length, maxBytes);
+        throw overflow(source.length, maxBytes);
       }
       return new Uint8Array(source);
     }
@@ -251,7 +260,7 @@ export default class PageService {
       }
       total += bytes.length;
       if (total > maxBytes) {
-        throw PageService.#tooLarge(total, maxBytes);
+        throw overflow(total, maxBytes);
       }
       chunks.push(bytes);
     }
@@ -263,6 +272,14 @@ export default class PageService {
       observedBytes,
       maxBytes,
     });
+  }
+
+  static #batchTooLarge(observedBytes, maxBatchBytes) {
+    return createCasError(
+      'Page batch exceeds its configured byte limit',
+      ErrorCodes.PAGE_BATCH_LIMIT,
+      { observedBytes, maxBatchBytes },
+    );
   }
 
   static #assertLimit(value, label) {

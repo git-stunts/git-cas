@@ -103,19 +103,32 @@ describe('PageService.putBatch()', () => {
       new Uint8Array(Buffer.from('second')),
     );
   });
+});
 
+describe('PageService.putBatch() limits', () => {
   it('rejects count and byte overflow before starting persistence', async () => {
     const { pages, persistence } = makePages();
     const writeBlobs = vi.spyOn(persistence, 'writeBlobs');
+    let yieldedChunks = 0;
+    const overflow = (async function* source() {
+      yieldedChunks += 1;
+      yield Buffer.from('cd');
+      yieldedChunks += 1;
+      yield Buffer.from('unreachable');
+    })();
 
     await expect(pages.putBatch({
       pages: [{ source: Buffer.from('a') }, { source: Buffer.from('b') }],
       maxBatchPages: 1,
     })).rejects.toMatchObject({ code: 'PAGE_BATCH_LIMIT' });
     await expect(pages.putBatch({
-      pages: [{ source: Buffer.from('ab') }, { source: Buffer.from('cd') }],
+      pages: [{ source: Buffer.from('ab') }, { source: overflow }],
       maxBatchBytes: 3,
-    })).rejects.toMatchObject({ code: 'PAGE_BATCH_LIMIT' });
+    })).rejects.toMatchObject({
+      code: 'PAGE_BATCH_LIMIT',
+      meta: { observedBytes: 4, maxBatchBytes: 3 },
+    });
+    expect(yieldedChunks).toBe(1);
     expect(writeBlobs).not.toHaveBeenCalled();
   });
 
