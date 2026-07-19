@@ -1,11 +1,16 @@
 {
   "schema": "git-cas.git-object-session-measurement/v1",
-  "generatedAt": "2026-07-19T10:46:01.178Z",
+  "generatedAt": "2026-07-19T11:35:28.075Z",
   "environment": {
     "node": "v22.23.1",
     "git": "git version 2.43.0",
     "platform": "linux",
     "architecture": "arm64"
+  },
+  "metricScope": {
+    "wallMs": "worker elapsed time including awaited Git subprocesses",
+    "workerCpuMs": "Node worker CPU only; excludes Git subprocess CPU",
+    "workerPeakRssBytes": "Node worker peak RSS only; excludes Git subprocess RSS"
   },
   "parameters": {
     "items": 32,
@@ -23,11 +28,11 @@
         "ls-tree": 128,
         "cat-file": 33
       },
-      "wallMs": 343.911,
-      "cpuMs": 277.441,
-      "userCpuMs": 175.93,
-      "systemCpuMs": 107.204,
-      "peakRssBytes": 79433728
+      "wallMs": 288.647,
+      "workerCpuMs": 234.386,
+      "workerUserCpuMs": 136.508,
+      "workerSystemCpuMs": 105.143,
+      "workerPeakRssBytes": 79306752
     },
     "session": {
       "sampleCount": 3,
@@ -37,16 +42,16 @@
       "counts": {
         "session:cat-file": 1
       },
-      "wallMs": 54.038,
-      "cpuMs": 61.958,
-      "userCpuMs": 55.143,
-      "systemCpuMs": 6.815,
-      "peakRssBytes": 73871360
+      "wallMs": 50.366,
+      "workerCpuMs": 59.11,
+      "workerUserCpuMs": 53.206,
+      "workerSystemCpuMs": 8.256,
+      "workerPeakRssBytes": 74203136
     },
     "semanticDigestEqual": true,
     "processReductionPercent": 99.6,
-    "wallReductionPercent": 84.3,
-    "cpuReductionPercent": 77.7
+    "wallReductionPercent": 82.6,
+    "workerCpuReductionPercent": 74.8
   },
   "pageWrite": {
     "individual": {
@@ -57,11 +62,11 @@
       "counts": {
         "hash-object": 32
       },
-      "wallMs": 76.503,
-      "cpuMs": 71.906,
-      "userCpuMs": 50.053,
-      "systemCpuMs": 21.853,
-      "peakRssBytes": 73334784
+      "wallMs": 68.658,
+      "workerCpuMs": 64.342,
+      "workerUserCpuMs": 49.411,
+      "workerSystemCpuMs": 14.931,
+      "workerPeakRssBytes": 73883648
     },
     "batch": {
       "sampleCount": 3,
@@ -71,15 +76,15 @@
       "counts": {
         "session:fast-import": 1
       },
-      "wallMs": 35,
-      "cpuMs": 19.785,
-      "userCpuMs": 16.663,
-      "systemCpuMs": 3.122,
-      "peakRssBytes": 72331264
+      "wallMs": 33.49,
+      "workerCpuMs": 18.473,
+      "workerUserCpuMs": 15.18,
+      "workerSystemCpuMs": 2.472,
+      "workerPeakRssBytes": 72445952
     },
     "semanticDigestEqual": true,
     "processReductionPercent": 96.9,
-    "wallReductionPercent": 54.3,
-    "cpuReductionPercent": 72.5
+    "wallReductionPercent": 51.2,
+    "workerCpuReductionPercent": 71.3
   }
 }

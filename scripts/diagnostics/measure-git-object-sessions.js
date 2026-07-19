@@ -264,9 +264,7 @@ function summarize(samples) {
     ),
     workerUserCpuMs: roundedMedian(samples.map((sample) => sample.workerUserCpuMs)),
     workerSystemCpuMs: roundedMedian(samples.map((sample) => sample.workerSystemCpuMs)),
-    workerPeakRssBytes: Math.round(
-      median(samples.map((sample) => sample.workerPeakRssBytes))
-    ),
+    workerPeakRssBytes: Math.round(median(samples.map((sample) => sample.workerPeakRssBytes))),
   };
 }
 

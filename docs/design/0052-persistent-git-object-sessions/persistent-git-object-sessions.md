@@ -205,7 +205,8 @@ Callers that cannot use explicit resource management call `await cas.close()`.
 
 ## Cost / Residency Posture
 
-- At most one live session exists per supported protocol per adapter.
+- At most one live session exists per supported protocol per adapter. A failed
+  forced termination poisons that protocol and blocks replacement processes.
 - Session queues serialize operations and do not duplicate response buffers.
 - Parsed trees are bounded by entry count and estimated retained bytes.
 - A tree larger than the bounded cat-file read budget falls back to streaming
@@ -251,12 +252,16 @@ the normal lifecycle contract. Persisted repositories need no migration.
 - Invalidation is generation-safe: a late failure from an old process may
   terminate that process, but cannot evict a replacement session opened by a
   concurrent retry.
-- A typed protocol-process failure receives one retry through a fresh session.
-  These operations are content-addressed and idempotent; bulk inputs are
-  materialized once before the first attempt so a retry sees the same sequence.
+- A typed protocol-process failure receives one retry through a fresh session
+  only after invalidation and forced termination succeed. These operations are
+  content-addressed and idempotent; bulk inputs are materialized once before
+  the first attempt so a retry sees the same sequence.
+- Failed forced termination poisons the protocol for the adapter lifetime.
+  Later operations remain blocked and explicit close reports the unresolved
+  teardown instead of opening beside a potentially live process.
 - Close attempts every opened session and reports aggregate cleanup failure.
   A graceful close or retirement failure force-terminates the affected process
-  before the failure is surfaced.
+  before the failure is surfaced. Independent cleanup failures are preserved.
 
 ## Security / Trust / Redaction Posture
 
@@ -342,7 +347,8 @@ blob writes one-shot and streaming payloads on the existing stream path.
 - real-Git individual-versus-batch write process comparison
 - existing large-stream restore and page-cache tests
 - Node, Bun, and Deno suites
-- committed JSON witness with counts, timing, and peak memory
+- committed JSON witness with counts, wall timing, and explicitly scoped Node
+  worker CPU and peak-memory observations
 
 ## Implementation Slices
 
@@ -370,6 +376,10 @@ blob writes one-shot and streaming payloads on the existing stream path.
     output stream before resolving.
 11. A late failure from an old session cannot invalidate a concurrently opened
     replacement, and failed graceful retirement aborts before rejecting.
+12. Explicit retirement and invalidation block replacement process creation
+    until teardown completes.
+13. Failed forced termination blocks all later sessions for that protocol and
+    remains visible to explicit close.
 
 ## Acceptance Criteria
 
@@ -412,6 +422,8 @@ The witness packet must answer:
 - Idle retirement bounds reusable-session leaks when callers omit close, but an
   abandoned output stream still requires close or eventual process completion;
   docs and async disposal reduce but cannot eliminate misuse.
+- The diagnostic's CPU and RSS fields cover the Node worker, not Git children;
+  git-warp must add process-tree CPU and large-graph memory gates before v19.
 
 ## Follow-On Debt
 
