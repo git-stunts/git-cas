@@ -7,7 +7,7 @@ release_home: 'v6.5.3'
 issue: 'https://github.com/git-stunts/git-cas/issues/94'
 goalpost_issue: 'https://github.com/git-stunts/git-cas/issues/94'
 tracker_source: 'github'
-status: 'active'
+status: 'landed'
 base_commit: 'fb3d3c2b620bae11d52e8ecc7a78a7ea07f27e24'
 owners:
   - '@git-stunts'
@@ -232,3 +232,19 @@ the one-change release boundary.
 Git-warp still performs one-shot blob writes and frequent workspace RootSet,
 ref, and commit updates. Their necessity and any safe coalescing contract remain
 separate work. This cycle neither solves nor obscures that remaining cost.
+
+## Landed Evidence
+
+The single runtime correction merged through PR #95 as
+`7bdcbf1f9eccd16acd324c94d576e1ecd2e11d98`. The adapter preserves coherent
+reader and tree-writer sessions while retaining the mandatory post-pack
+`mktree` retirement boundary.
+
+[cite: `src/infrastructure/adapters/GitPersistenceAdapter.js#93-175@7bdcbf1f9eccd16acd324c94d576e1ecd2e11d98`]
+
+The unit matrix and real-Git integration cover safe loose-object reuse, packed
+object refresh, mandatory tree-writer replacement after `fast-import`, SHA-1,
+SHA-256, lifecycle, and failure behavior.
+
+[cite: `test/unit/infrastructure/adapters/GitPersistenceAdapter.sessionCoherence.test.js#6-45@7bdcbf1f9eccd16acd324c94d576e1ecd2e11d98`]
+[cite: `test/integration/git-object-session-coherence.test.js#24-60@7bdcbf1f9eccd16acd324c94d576e1ecd2e11d98`]

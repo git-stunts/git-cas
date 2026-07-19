@@ -17,6 +17,7 @@ const requiredStandardDocs = [
   'docs/releases/v6.5.0.md',
   'docs/releases/v6.5.1.md',
   'docs/releases/v6.5.2.md',
+  'docs/releases/v6.5.3.md',
 ];
 const forbiddenPackagePrefixes = ['docs/audit/', 'docs/archive/', 'docs/method/'];
 const forbiddenPackageFiles = ['docs/cli.gif', 'docs/vault.gif'];
@@ -90,6 +91,7 @@ function publicPackagedMarkdownFiles(files) {
     'docs/releases/v6.5.0.md',
     'docs/releases/v6.5.1.md',
     'docs/releases/v6.5.2.md',
+    'docs/releases/v6.5.3.md',
     'docs/THREAT_MODEL.md',
     'docs/WALKTHROUGH.md',
   ].filter((file) => files.has(file));
