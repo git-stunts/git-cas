@@ -6,7 +6,7 @@ Issue: #90
 
 Implementation review: #91
 
-Release review: pending
+Release review: #92
 
 ## Scope
 
