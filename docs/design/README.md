@@ -11,6 +11,7 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Active METHOD Cycles
 
+- [0052-persistent-git-object-sessions - persistent-git-object-sessions](./0052-persistent-git-object-sessions/persistent-git-object-sessions.md)
 - [0050-lazy-bundle-reference-reads - lazy-bundle-reference-reads](./0050-lazy-bundle-reference-reads/lazy-bundle-reference-reads.md)
 - [0049-scoped-staging-workspaces — scoped-staging-workspaces](./0049-scoped-staging-workspaces/scoped-staging-workspaces.md)
 - [0048-scoped-cache-acquisitions — scoped-cache-acquisitions](./0048-scoped-cache-acquisitions/scoped-cache-acquisitions.md)
