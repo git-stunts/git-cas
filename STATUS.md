@@ -18,7 +18,7 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.5.2 artifact posture** - signed tag `v6.5.2` resolves to reviewed merge
+- **v6.5.2 artifact posture** — signed tag `v6.5.2` resolves to reviewed merge
   `c2d41f60`; npm reports `@git-stunts/git-cas@6.5.2` as `latest` with SLSA
   provenance, and release workflow `29690794540` published the final GitHub
   Release. Persistent bounded Git object sessions, scoped page-write batches,
