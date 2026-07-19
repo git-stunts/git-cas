@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.5.1` (`2026-07-18`)
-**Current release state:** `v6.5.2` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** the versioned `v6.5.2` candidate passed 14/14 release-verifier steps with 6,817 observed tests across Node, Bun, Deno, and all three real-Git integration suites; tag and publication verification remain pending.
+**Last tagged release:** `v6.5.2` (`2026-07-19`)
+**Current release state:** `v6.5.2` is published to npm with provenance and to GitHub Releases.
+**Latest verification:** merge `c2d41f60` passed 14/14 release-verifier steps with 6,817 observed tests; release workflow `29690794540` then passed validation, tests, trusted npm publication, and final GitHub Release creation from signed tag `v6.5.2`.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,14 +18,14 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.5.2 candidate posture** - persistent bounded Git object sessions,
-  scoped page-write batches, and deterministic local resource closure are
-  merged through reviewed commit `4ce37adc` under
-  [#90](https://github.com/git-stunts/git-cas/issues/90). npm, JSR, and runtime
-  version metadata identify `6.5.2`; tag and registry artifacts remain
-  deliberately absent until release-candidate review completes.
+- **v6.5.2 artifact posture** - signed tag `v6.5.2` resolves to reviewed merge
+  `c2d41f60`; npm reports `@git-stunts/git-cas@6.5.2` as `latest` with SLSA
+  provenance, and release workflow `29690794540` published the final GitHub
+  Release. Persistent bounded Git object sessions, scoped page-write batches,
+  and deterministic local resource closure are shipped. JSR dry-run validation
+  is healthy, but JSR publication is not part of the release workflow.
 - **v6.5.1 artifact posture** — signed tag `v6.5.1` resolves to reviewed merge
-  `49b7d5cb`; npm reports `@git-stunts/git-cas@6.5.1` as `latest` with SLSA
+  `49b7d5cb`; npm retains `@git-stunts/git-cas@6.5.1` with SLSA
   provenance, and release workflow `29666480492` published the final GitHub
   Release. Bounded immutable page payload reuse is shipped. JSR dry-run
   validation is healthy, but JSR publication is not part of the release
@@ -123,10 +123,6 @@
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
 - Current release goalpost:
-  [#90 v6.5.2: Reuse bounded Git object sessions](https://github.com/git-stunts/git-cas/issues/90)
-  under the
-  [`v6.5.2` milestone](https://github.com/git-stunts/git-cas/milestone/12).
-- Next planned goalposts remain
   [#39 v6.6.0: Operator TUI](https://github.com/git-stunts/git-cas/issues/39)
   and
   [#40 v6.6.0: Agent automation follow-through](https://github.com/git-stunts/git-cas/issues/40)
