@@ -513,7 +513,7 @@ export declare class CryptoPortBase {
 /** Abstract port for persisting data to Git's object database. */
 export declare class GitPersistencePortBase {
   writeBlob(content: Uint8Array): Promise<string>;
-  writeBlobs(contents: Iterable<Uint8Array>): Promise<string[]>;
+  writeBlobs?(contents: Iterable<Uint8Array>): Promise<string[]>;
   writeTree(entries: string[]): Promise<string>;
   readBlob(oid: string, maxBytes?: number): Promise<Uint8Array>;
   readBlobStream(oid: string): Promise<AsyncIterable<Uint8Array>>;
@@ -530,8 +530,8 @@ export declare class GitPersistencePortBase {
   readObjectType(oid: string): Promise<string>;
   readObjectSize(oid: string): Promise<number>;
   setMaxBlobSize?(maxBlobSize: number): void;
-  close(): Promise<void>;
-  [Symbol.asyncDispose](): Promise<void>;
+  close?(): Promise<void>;
+  [Symbol.asyncDispose]?(): Promise<void>;
 }
 
 /** Abstract port for Git ref and commit operations. */
@@ -575,7 +575,10 @@ export declare class GitPersistenceAdapter extends GitPersistencePortBase {
     treeCacheEntries?: number;
     treeCacheBytes?: number;
   });
+  writeBlobs(contents: Iterable<Uint8Array>): Promise<string[]>;
   setMaxBlobSize(maxBlobSize: number): void;
+  close(): Promise<void>;
+  [Symbol.asyncDispose](): Promise<void>;
 }
 
 /** Git-backed implementation of the ref port. */
