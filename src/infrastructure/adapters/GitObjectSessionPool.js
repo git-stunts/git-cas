@@ -19,7 +19,7 @@ export default class GitObjectSessionPool {
   #closePromise = null;
   #closed = false;
   #idleFailures = new Map();
-  #idleRetirements = new Set();
+  #idleRetirements = new Map();
   #idleTimeoutMs;
   #idleTimers = new Map();
   #plumbing;
@@ -123,7 +123,7 @@ export default class GitObjectSessionPool {
       this.#cancelIdle(protocol);
     }
     const sessions = [...this.#sessions.entries()];
-    const idleRetirements = [...this.#idleRetirements];
+    const idleRetirements = [...this.#idleRetirements.values()];
     this.#sessions.clear();
     this.#closePromise = (async () => {
       const results = await Promise.allSettled(
@@ -217,6 +217,13 @@ export default class GitObjectSessionPool {
     }
     let opening = this.#sessions.get(protocol);
     if (opening === undefined) {
+      await this.#idleRetirements.get(protocol);
+      if (this.#closed) {
+        throw new Error('Git object session pool is closed');
+      }
+      opening = this.#sessions.get(protocol);
+    }
+    if (opening === undefined) {
       opening = Promise.resolve().then(() => this.#plumbing[descriptor.opener]());
       this.#sessions.set(protocol, opening);
       opening.catch(() => {
@@ -271,8 +278,12 @@ export default class GitObjectSessionPool {
     const tracked = retirement.catch((error) => {
       this.#idleFailures.set(protocol, error);
     });
-    this.#idleRetirements.add(tracked);
-    void tracked.finally(() => this.#idleRetirements.delete(tracked));
+    this.#idleRetirements.set(protocol, tracked);
+    void tracked.finally(() => {
+      if (this.#idleRetirements.get(protocol) === tracked) {
+        this.#idleRetirements.delete(protocol);
+      }
+    });
   }
 
   #cancelIdle(protocol) {

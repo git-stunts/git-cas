@@ -513,19 +513,25 @@ describe('GitPersistenceAdapter idle retirement shutdown', () => {
     vi.useFakeTimers();
     try {
       const oid = '2'.repeat(40);
+      const nextOid = '3'.repeat(40);
       const retired = deferred();
       const cat = fakeCatSession({
         info: vi.fn().mockResolvedValue({ oid, type: 'blob', size: 1 }),
         close: vi.fn().mockReturnValue(retired.promise),
       });
+      const replacement = fakeCatSession({
+        info: vi.fn().mockResolvedValue({ oid: nextOid, type: 'tree', size: 1 }),
+      });
+      const plumbing = sessionPlumbing({ catSessions: [cat, replacement] });
       const adapter = new GitPersistenceAdapter({
-        plumbing: sessionPlumbing({ catSessions: [cat] }),
+        plumbing,
         policy: noPolicy,
         sessionIdleTimeoutMs: 10,
       });
 
       await adapter.readObjectType(oid);
       await vi.advanceTimersByTimeAsync(10);
+      const nextRead = adapter.readObjectType(nextOid);
       let closeSettled = false;
       const close = adapter.close().then(() => {
         closeSettled = true;
@@ -533,9 +539,12 @@ describe('GitPersistenceAdapter idle retirement shutdown', () => {
       await Promise.resolve();
 
       expect(closeSettled).toBe(false);
+      expect(plumbing.openCatFileSession).toHaveBeenCalledTimes(1);
       retired.resolve();
+      await expect(nextRead).resolves.toBe('tree');
       await close;
       expect(closeSettled).toBe(true);
+      expect(plumbing.openCatFileSession).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
