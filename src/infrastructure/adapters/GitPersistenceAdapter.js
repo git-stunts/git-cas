@@ -122,8 +122,8 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
         return oids;
       }
       try {
-        const oids = await this.#executeSession('fastImport', () =>
-          this.#sessions.writeBlobs(replayableContents)
+        const oids = await this.#sessions.writeBlobs(replayableContents, (operation) =>
+          this.policy.execute(operation)
         );
         await Promise.all([this.#sessions.retire('catFile'), this.#sessions.retire('mktree')]);
         return [...oids];
@@ -142,8 +142,8 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     return await this.#runOperation(async () => {
       if (this.#sessions.supports('mktree')) {
         const structured = GitTreeObjectCodec.parseMktreeLines(entries);
-        const oid = await this.#executeSession('mktree', () =>
-          this.#sessions.writeTree(structured)
+        const oid = await this.#sessions.writeTree(structured, (operation) =>
+          this.policy.execute(operation)
         );
         await this.#sessions.retire('catFile');
         return oid;
@@ -172,10 +172,8 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       if (this.#sessions.supports('catFile')) {
         let object;
         try {
-          object = await this.#executeSession(
-            'catFile',
-            () => this.#sessions.read(oid, { maxBytes: limit }),
-            GitPersistenceAdapter.#isRecoverableCatError
+          object = await this.#sessions.read(oid, { maxBytes: limit }, (operation) =>
+            this.policy.execute(operation)
           );
         } catch (error) {
           throw this.#normalizeObjectReadError(error, oid, limit);
@@ -353,10 +351,8 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     return this.#metadataCache.getOrCreate(`object\0${oid}`, async () => {
       if (this.#sessions.supports('catFile')) {
         try {
-          const info = await this.#executeSession(
-            'catFile',
-            () => this.#sessions.info(oid),
-            GitPersistenceAdapter.#isRecoverableCatError
+          const info = await this.#sessions.info(oid, (operation) =>
+            this.policy.execute(operation)
           );
           return Object.freeze({ oid: info.oid, type: info.type, size: info.size });
         } catch (error) {
@@ -396,10 +392,10 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
 
   async #readTreeObject(treeOid) {
     return this.#treeCache.getOrCreate(treeOid, async () => {
-      const object = await this.#executeSession(
-        'catFile',
-        () => this.#sessions.read(treeOid, { maxBytes: this.#treeReadMaxBytes }),
-        GitPersistenceAdapter.#isRecoverableCatError
+      const object = await this.#sessions.read(
+        treeOid,
+        { maxBytes: this.#treeReadMaxBytes },
+        (operation) => this.policy.execute(operation)
       );
       if (object.type !== 'tree') {
         throw createCasError(`Git object is not a tree: ${treeOid}`, ErrorCodes.TREE_PARSE_ERROR, {
@@ -454,21 +450,6 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       currentOid = entry.oid;
     }
     return null;
-  }
-
-  async #executeSession(protocol, operation, recoverable = () => false) {
-    try {
-      return await this.policy.execute(operation);
-    } catch (error) {
-      if (!recoverable(error)) {
-        try {
-          await this.#sessions.invalidate(protocol);
-        } catch {
-          // Preserve the operation or timeout failure.
-        }
-      }
-      throw error;
-    }
   }
 
   #normalizeObjectReadError(error, oid, maxBytes) {
@@ -553,12 +534,6 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
 
   static #isObjectBufferLimit(error) {
     return error?.details?.code === 'OBJECT_BUFFER_LIMIT_EXCEEDED';
-  }
-
-  static #isRecoverableCatError(error) {
-    return (
-      error instanceof GitObjectMissingError || GitPersistenceAdapter.#isObjectBufferLimit(error)
-    );
   }
 
   /**

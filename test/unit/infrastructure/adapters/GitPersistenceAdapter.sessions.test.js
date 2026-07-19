@@ -118,6 +118,36 @@ describe('GitPersistenceAdapter cat-file recovery', () => {
   });
 });
 
+describe('GitPersistenceAdapter concurrent cat-file recovery', () => {
+  it('does not let a late old-session failure invalidate its replacement', async () => {
+    const firstOid = '1'.repeat(40);
+    const secondOid = '2'.repeat(40);
+    const firstFailure = deferred();
+    const lateFailure = deferred();
+    const failed = fakeCatSession({
+      info: vi.fn((oid) => (oid === firstOid ? firstFailure.promise : lateFailure.promise)),
+    });
+    const replacement = fakeCatSession({
+      info: vi.fn(async (oid) => ({ oid, type: 'blob', size: 1 })),
+    });
+    const plumbing = sessionPlumbing({ catSessions: [failed, replacement] });
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    const firstRead = adapter.readObjectType(firstOid);
+    const secondRead = adapter.readObjectType(secondOid);
+    await vi.waitFor(() => expect(failed.info).toHaveBeenCalledTimes(2));
+
+    firstFailure.reject(new GitProtocolError('first process failure', 'test'));
+    await expect(firstRead).resolves.toBe('blob');
+    lateFailure.reject(new GitProtocolError('late process failure', 'test'));
+    await expect(secondRead).resolves.toBe('blob');
+
+    expect(plumbing.openCatFileSession).toHaveBeenCalledTimes(2);
+    expect(replacement.info).toHaveBeenCalledTimes(2);
+    expect(replacement.terminate).not.toHaveBeenCalled();
+  });
+});
+
 describe('GitPersistenceAdapter payload streaming', () => {
   it('keeps payload streaming on executeStream instead of buffering through cat-file', async () => {
     const oid = 'd'.repeat(40);
@@ -410,6 +440,26 @@ describe('GitPersistenceAdapter stream shutdown', () => {
     await close;
 
     expect(closeSettled).toBe(true);
+  });
+});
+
+describe('GitPersistenceAdapter failed session shutdown', () => {
+  it('terminates a session whose graceful close fails before reporting the error', async () => {
+    const oid = '4'.repeat(40);
+    const cat = fakeCatSession({
+      info: vi.fn().mockResolvedValue({ oid, type: 'blob', size: 1 }),
+      close: vi.fn().mockRejectedValue(new Error('graceful close failed')),
+    });
+    const adapter = new GitPersistenceAdapter({
+      plumbing: sessionPlumbing({ catSessions: [cat] }),
+      policy: noPolicy,
+    });
+
+    await adapter.readObjectType(oid);
+    await expect(adapter.close()).rejects.toBeInstanceOf(AggregateError);
+
+    expect(cat.close).toHaveBeenCalledTimes(1);
+    expect(cat.terminate).toHaveBeenCalledTimes(1);
   });
 });
 

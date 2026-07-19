@@ -9,6 +9,7 @@ const PROTOCOLS = Object.freeze({
   fastImport: Object.freeze({ opener: 'openFastImportSession', abort: 'abort' }),
   mktree: Object.freeze({ opener: 'openMktreeSession', abort: 'terminate' }),
 });
+const EXECUTE_DIRECTLY = (operation) => operation();
 
 /**
  * Lazily owns one typed plumbing session per Git object protocol.
@@ -32,41 +33,54 @@ export default class GitObjectSessionPool {
     return descriptor !== undefined && typeof this.#plumbing[descriptor.opener] === 'function';
   }
 
-  async info(objectName) {
-    return await this.#run('catFile', (session) => session.info(objectName), isRecoverableCatError);
-  }
-
-  async read(objectName, options) {
+  async info(objectName, execute = EXECUTE_DIRECTLY) {
     return await this.#run(
       'catFile',
-      (session) => session.read(objectName, options),
+      (session) => execute(() => session.info(objectName)),
       isRecoverableCatError
     );
   }
 
-  async writeBlobs(contents) {
-    return await this.#run('fastImport', async (session) => {
-      const oids = [];
-      for (const content of contents) {
-        oids.push(await session.writeBlob(content));
-      }
-      await session.checkpoint();
-      return Object.freeze(oids);
-    });
+  async read(objectName, options, execute = EXECUTE_DIRECTLY) {
+    return await this.#run(
+      'catFile',
+      (session) => execute(() => session.read(objectName, options)),
+      isRecoverableCatError
+    );
   }
 
-  async writeTree(entries) {
-    return await this.#run('mktree', (session) => session.write(entries));
+  async writeBlobs(contents, execute = EXECUTE_DIRECTLY) {
+    return await this.#run('fastImport', (session) =>
+      execute(async () => {
+        const oids = [];
+        for (const content of contents) {
+          oids.push(await session.writeBlob(content));
+        }
+        await session.checkpoint();
+        return Object.freeze(oids);
+      })
+    );
+  }
+
+  async writeTree(entries, execute = EXECUTE_DIRECTLY) {
+    return await this.#run('mktree', (session) => execute(() => session.write(entries)));
   }
 
   async invalidate(protocol, expectedSession) {
     this.#cancelIdle(protocol);
-    const present = this.#sessions.get(protocol);
-    this.#sessions.delete(protocol);
-    let session = expectedSession;
-    if (session === undefined && present !== undefined) {
-      session = await present.catch(() => undefined);
+    const opening = this.#sessions.get(protocol);
+    if (expectedSession !== undefined) {
+      if (opening !== undefined) {
+        const current = await opening.catch(() => undefined);
+        if (current === expectedSession && this.#sessions.get(protocol) === opening) {
+          this.#sessions.delete(protocol);
+        }
+      }
+      await this.#abort(protocol, expectedSession);
+      return;
     }
+    this.#sessions.delete(protocol);
+    const session = await opening?.catch(() => undefined);
     if (session !== undefined) {
       await this.#abort(protocol, session);
     }
@@ -85,8 +99,15 @@ export default class GitObjectSessionPool {
     }
     try {
       await session.close();
-    } catch {
-      await this.#abort(protocol, session).catch(() => {});
+    } catch (closeError) {
+      try {
+        await this.#abort(protocol, session);
+      } catch (abortError) {
+        throw new AggregateError(
+          [closeError, abortError],
+          `Git ${protocol} session failed to retire`
+        );
+      }
     }
   }
 
@@ -102,9 +123,24 @@ export default class GitObjectSessionPool {
     this.#sessions.clear();
     this.#closePromise = (async () => {
       const results = await Promise.allSettled(
-        sessions.map(async ([, opening]) => {
-          const session = await opening;
-          await session.close();
+        sessions.map(async ([protocol, opening]) => {
+          let session;
+          try {
+            session = await opening;
+            await session.close();
+          } catch (closeError) {
+            if (session !== undefined) {
+              try {
+                await this.#abort(protocol, session);
+              } catch (abortError) {
+                throw new AggregateError(
+                  [closeError, abortError],
+                  `Git ${protocol} session failed to close or terminate`
+                );
+              }
+            }
+            throw closeError;
+          }
         })
       );
       const failures = results
