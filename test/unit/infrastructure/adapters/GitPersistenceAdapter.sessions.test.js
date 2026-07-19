@@ -148,6 +148,54 @@ describe('GitPersistenceAdapter concurrent cat-file recovery', () => {
   });
 });
 
+describe('GitPersistenceAdapter cat-file invalidation barrier', () => {
+  it('does not open a replacement before the failed process terminates', async () => {
+    const firstOid = '3'.repeat(40);
+    const secondOid = '4'.repeat(40);
+    const terminated = deferred();
+    const failed = fakeCatSession({
+      info: vi.fn().mockRejectedValue(new GitProtocolError('process closed', 'test')),
+      terminate: vi.fn().mockReturnValue(terminated.promise),
+    });
+    const replacement = fakeCatSession({
+      info: vi.fn(async (oid) => ({ oid, type: 'blob', size: 1 })),
+    });
+    const plumbing = sessionPlumbing({ catSessions: [failed, replacement] });
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    const firstRead = adapter.readObjectType(firstOid);
+    await vi.waitFor(() => expect(failed.terminate).toHaveBeenCalledTimes(1));
+    const secondRead = adapter.readObjectType(secondOid);
+    await Promise.resolve();
+
+    expect(plumbing.openCatFileSession).toHaveBeenCalledTimes(1);
+    terminated.resolve();
+    await expect(Promise.all([firstRead, secondRead])).resolves.toEqual(['blob', 'blob']);
+    expect(plumbing.openCatFileSession).toHaveBeenCalledTimes(2);
+    await adapter.close();
+  });
+});
+
+describe('GitPersistenceAdapter cat-file invalidation failures', () => {
+  it('preserves the operation and teardown failures without opening a replacement', async () => {
+    const operationError = new GitProtocolError('process closed', 'test');
+    const terminationError = new Error('termination failed');
+    const failed = fakeCatSession({
+      info: vi.fn().mockRejectedValue(operationError),
+      terminate: vi.fn().mockRejectedValue(terminationError),
+    });
+    const replacement = fakeCatSession();
+    const plumbing = sessionPlumbing({ catSessions: [failed, replacement] });
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    const failure = await adapter.readObjectType('5'.repeat(40)).catch((error) => error);
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure.errors).toEqual([operationError, terminationError]);
+    expect(plumbing.openCatFileSession).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('GitPersistenceAdapter payload streaming', () => {
   it('keeps payload streaming on executeStream instead of buffering through cat-file', async () => {
     const oid = 'd'.repeat(40);
@@ -362,6 +410,37 @@ describe('GitPersistenceAdapter cache session retirement failures', () => {
     expect(failure.errors).toEqual([catCloseError, mktreeCloseError]);
     expect(cat.terminate).toHaveBeenCalledTimes(1);
     expect(mktree.terminate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('GitPersistenceAdapter explicit retirement barrier', () => {
+  it('does not open a replacement while the previous process drains', async () => {
+    const firstOid = 'c'.repeat(40);
+    const secondOid = 'd'.repeat(40);
+    const retired = deferred();
+    const cat = fakeCatSession({
+      info: vi.fn().mockResolvedValue({ oid: firstOid, type: 'blob', size: 1 }),
+      close: vi.fn().mockReturnValue(retired.promise),
+    });
+    const replacement = fakeCatSession({
+      info: vi.fn().mockResolvedValue({ oid: secondOid, type: 'tree', size: 1 }),
+    });
+    const plumbing = sessionPlumbing({ catSessions: [cat, replacement] });
+    plumbing.execute.mockResolvedValue('e'.repeat(40));
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    await adapter.readObjectType(firstOid);
+    const write = adapter.writeBlob(Buffer.from('value'));
+    await vi.waitFor(() => expect(cat.close).toHaveBeenCalledTimes(1));
+    const nextRead = adapter.readObjectType(secondOid);
+    await Promise.resolve();
+
+    expect(plumbing.openCatFileSession).toHaveBeenCalledTimes(1);
+    retired.resolve();
+    await expect(write).resolves.toBe('e'.repeat(40));
+    await expect(nextRead).resolves.toBe('tree');
+    expect(plumbing.openCatFileSession).toHaveBeenCalledTimes(2);
+    await adapter.close();
   });
 });
 

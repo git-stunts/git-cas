@@ -19,10 +19,10 @@ export default class GitObjectSessionPool {
   #closePromise = null;
   #closed = false;
   #idleFailures = new Map();
-  #idleRetirements = new Map();
   #idleTimeoutMs;
   #idleTimers = new Map();
   #plumbing;
+  #retirements = new Map();
   #sessions = new Map();
 
   constructor({ plumbing, idleTimeoutMs }) {
@@ -78,14 +78,23 @@ export default class GitObjectSessionPool {
           this.#sessions.delete(protocol);
         }
       }
-      await this.#abort(protocol, expectedSession);
+      await this.#trackRetirement(protocol, () => this.#abort(protocol, expectedSession));
       return;
     }
     this.#sessions.delete(protocol);
-    const session = await opening?.catch(() => undefined);
-    if (session !== undefined) {
-      await this.#abort(protocol, session);
+    if (opening === undefined) {
+      const retirement = this.#retirements.get(protocol);
+      if (retirement !== undefined) {
+        await retirement.completion;
+      }
+      return;
     }
+    await this.#trackRetirement(protocol, async () => {
+      const session = await opening.catch(() => undefined);
+      if (session !== undefined) {
+        await this.#abort(protocol, session);
+      }
+    });
   }
 
   async retire(protocol) {
@@ -93,25 +102,18 @@ export default class GitObjectSessionPool {
     const opening = this.#sessions.get(protocol);
     this.#sessions.delete(protocol);
     if (opening === undefined) {
-      return;
-    }
-    const session = await opening.catch(() => undefined);
-    if (session === undefined) {
-      return;
-    }
-    try {
-      await session.close();
-    } catch (closeError) {
-      try {
-        await this.#abort(protocol, session);
-      } catch (abortError) {
-        throw new AggregateError(
-          [closeError, abortError],
-          `Git ${protocol} session failed to retire`
-        );
+      const retirement = this.#retirements.get(protocol);
+      if (retirement !== undefined) {
+        await retirement.completion;
       }
-      throw closeError;
+      return;
     }
+    await this.#trackRetirement(protocol, async () => {
+      const session = await opening.catch(() => undefined);
+      if (session !== undefined) {
+        await this.#closeSession(protocol, session, `Git ${protocol} session failed to retire`);
+      }
+    });
   }
 
   async close() {
@@ -123,31 +125,20 @@ export default class GitObjectSessionPool {
       this.#cancelIdle(protocol);
     }
     const sessions = [...this.#sessions.entries()];
-    const idleRetirements = [...this.#idleRetirements.values()];
+    const retirements = [...this.#retirements.values()].map((retirement) => retirement.barrier);
     this.#sessions.clear();
     this.#closePromise = (async () => {
       const results = await Promise.allSettled(
         sessions.map(async ([protocol, opening]) => {
-          let session;
-          try {
-            session = await opening;
-            await session.close();
-          } catch (closeError) {
-            if (session !== undefined) {
-              try {
-                await this.#abort(protocol, session);
-              } catch (abortError) {
-                throw new AggregateError(
-                  [closeError, abortError],
-                  `Git ${protocol} session failed to close or terminate`
-                );
-              }
-            }
-            throw closeError;
-          }
+          const session = await opening;
+          await this.#closeSession(
+            protocol,
+            session,
+            `Git ${protocol} session failed to close or terminate`
+          );
         })
       );
-      await Promise.allSettled(idleRetirements);
+      await Promise.allSettled(retirements);
       const failures = results
         .filter((result) => result.status === 'rejected')
         .map((result) => result.reason);
@@ -178,22 +169,18 @@ export default class GitObjectSessionPool {
       if (recoverable(error) || error instanceof InvalidArgumentError) {
         throw error;
       }
-      await this.#invalidateSafely(protocol, session);
+      try {
+        await this.invalidate(protocol, session);
+      } catch (invalidationError) {
+        throw new AggregateError(
+          [error, invalidationError],
+          `Git ${protocol} operation and session invalidation both failed`
+        );
+      }
       if (mayRetry && error instanceof GitProtocolError) {
         return await this.#attempt({ protocol, operation, recoverable, mayRetry: false });
       }
       throw error;
-    }
-  }
-
-  async #invalidateSafely(protocol, session) {
-    if (session === undefined) {
-      return;
-    }
-    try {
-      await this.invalidate(protocol, session);
-    } catch {
-      // Preserve the operation failure; cleanup is best effort here.
     }
   }
 
@@ -217,7 +204,15 @@ export default class GitObjectSessionPool {
     }
     let opening = this.#sessions.get(protocol);
     if (opening === undefined) {
-      await this.#idleRetirements.get(protocol);
+      let retirement = this.#retirements.get(protocol);
+      while (retirement !== undefined) {
+        await retirement.barrier;
+        const latest = this.#retirements.get(protocol);
+        if (latest === retirement) {
+          break;
+        }
+        retirement = latest;
+      }
       if (this.#closed) {
         throw new Error('Git object session pool is closed');
       }
@@ -242,6 +237,19 @@ export default class GitObjectSessionPool {
     }
   }
 
+  async #closeSession(protocol, session, message) {
+    try {
+      await session.close();
+    } catch (closeError) {
+      try {
+        await this.#abort(protocol, session);
+      } catch (abortError) {
+        throw new AggregateError([closeError, abortError], message);
+      }
+      throw closeError;
+    }
+  }
+
   #scheduleIdle(protocol) {
     if (this.#closed || this.#active.has(protocol) || !this.#sessions.has(protocol)) {
       return;
@@ -260,30 +268,36 @@ export default class GitObjectSessionPool {
   }
 
   #trackIdleRetirement(protocol, opening) {
-    const retirement = opening.then(async (session) => {
-      try {
-        await session.close();
-      } catch (closeError) {
-        try {
-          await this.#abort(protocol, session);
-        } catch (abortError) {
-          throw new AggregateError(
-            [closeError, abortError],
-            `Idle Git ${protocol} session failed to close or terminate`
-          );
-        }
-        throw closeError;
+    this.#trackRetirement(
+      protocol,
+      async () => {
+        const session = await opening;
+        await this.#closeSession(
+          protocol,
+          session,
+          `Idle Git ${protocol} session failed to close or terminate`
+        );
+      },
+      true
+    );
+  }
+
+  #trackRetirement(protocol, operation, recordFailure = false) {
+    const previous = this.#retirements.get(protocol)?.barrier ?? Promise.resolve();
+    const completion = previous.then(operation);
+    const barrier = completion.catch((error) => {
+      if (recordFailure) {
+        this.#idleFailures.set(protocol, error);
       }
     });
-    const tracked = retirement.catch((error) => {
-      this.#idleFailures.set(protocol, error);
-    });
-    this.#idleRetirements.set(protocol, tracked);
-    void tracked.finally(() => {
-      if (this.#idleRetirements.get(protocol) === tracked) {
-        this.#idleRetirements.delete(protocol);
+    const retirement = { barrier, completion };
+    this.#retirements.set(protocol, retirement);
+    void barrier.finally(() => {
+      if (this.#retirements.get(protocol) === retirement) {
+        this.#retirements.delete(protocol);
       }
     });
+    return completion;
   }
 
   #cancelIdle(protocol) {
