@@ -1,8 +1,8 @@
 # STATUS
 
 **Last tagged release:** `v6.5.2` (`2026-07-19`)
-**Current release state:** `v6.5.2` is published to npm with provenance and to GitHub Releases.
-**Latest verification:** merge `c2d41f60` passed 14/14 release-verifier steps with 6,817 observed tests; release workflow `29690794540` then passed validation, tests, trusted npm publication, and final GitHub Release creation from signed tag `v6.5.2`.
+**Current release state:** `v6.5.3` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
+**Latest verification:** the versioned `v6.5.3` candidate passed 14/14 release-verifier steps with 6,829 observed tests across Node, Bun, Deno, and all three real-Git integration suites; tag and publication verification remain pending.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,6 +18,11 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
+- **v6.5.3 candidate posture** — coherent Git object sessions merged through
+  reviewed commit `7bdcbf1f` under
+  [#94](https://github.com/git-stunts/git-cas/issues/94). npm, JSR, and runtime
+  version metadata identify `6.5.3`; tag and registry artifacts remain
+  deliberately absent until release-candidate review completes.
 - **v6.5.2 artifact posture** — signed tag `v6.5.2` resolves to reviewed merge
   `c2d41f60`; npm reports `@git-stunts/git-cas@6.5.2` as `latest` with SLSA
   provenance, and release workflow `29690794540` published the final GitHub
@@ -129,7 +134,7 @@
   under the
   [`v6.6.0` milestone](https://github.com/git-stunts/git-cas/milestone/9).
 - The latest landed design record is
-  [0052-persistent-git-object-sessions](./docs/design/0052-persistent-git-object-sessions/persistent-git-object-sessions.md).
+  [0053-git-object-session-coherence](./docs/design/0053-git-object-session-coherence/git-object-session-coherence.md).
 
 ## Read Next
 

@@ -2,6 +2,21 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.5.2 To v6.5.3
+
+v6.5.3 changes no public API and requires no stored-data migration. Long-lived
+stores automatically preserve their typed `cat-file` session across successful
+immutable writes. They also preserve typed `mktree` across loose blob and tree
+writes, while bounded bulk writes still retire `mktree` because `fast-import`
+may create a pack that an already prepared process cannot discover.
+
+No application code changes are required. Continue to call `await cas.close()`
+when the store is no longer needed; explicit closure remains the deterministic
+boundary for local Git children and bounded in-memory residency.
+
+See [v6.5.3 Release Notes](./docs/releases/v6.5.3.md) for the audited coherence
+matrix and measured process-count reduction.
+
 ## v6.5.1 To v6.5.2
 
 v6.5.2 is API-additive and does not require stored-data migration. Immutable

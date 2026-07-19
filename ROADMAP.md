@@ -40,6 +40,7 @@ GitHub wins and this file should be corrected.
 | [`v6.5.0`](https://github.com/git-stunts/git-cas/milestone/5)  | Bounded lazy bundle references and immutable metadata reads | [#81](https://github.com/git-stunts/git-cas/issues/81)                                                                                                                                                                         |
 | [`v6.5.1`](https://github.com/git-stunts/git-cas/milestone/11) | Bounded immutable page payload reuse                        | [#85](https://github.com/git-stunts/git-cas/issues/85)                                                                                                                                                                         |
 | [`v6.5.2`](https://github.com/git-stunts/git-cas/milestone/12) | Persistent bounded Git object sessions                      | [#90](https://github.com/git-stunts/git-cas/issues/90)                                                                                                                                                                         |
+| [`v6.5.3`](https://github.com/git-stunts/git-cas/milestone/13) | Coherent Git object sessions across immutable writes        | [#94](https://github.com/git-stunts/git-cas/issues/94)                                                                                                                                                                         |
 | [`v6.6.0`](https://github.com/git-stunts/git-cas/milestone/9)  | Operator TUI and agent automation follow-through            | [#39](https://github.com/git-stunts/git-cas/issues/39), [#40](https://github.com/git-stunts/git-cas/issues/40)                                                                                                                 |
 | [`v6.7.0`](https://github.com/git-stunts/git-cas/milestone/10) | Browser and edge read-path exploration                      | [#41](https://github.com/git-stunts/git-cas/issues/41)                                                                                                                                                                         |
 | [`v7.0.0`](https://github.com/git-stunts/git-cas/milestone/6)  | Protocol break only if audit requires it                    | [#42](https://github.com/git-stunts/git-cas/issues/42), only when justified                                                                                                                                                    |
@@ -48,10 +49,10 @@ GitHub wins and this file should be corrected.
 
 The latest landed design record is:
 
-- [0052-persistent-git-object-sessions](./docs/design/0052-persistent-git-object-sessions/persistent-git-object-sessions.md)
+- [0053-git-object-session-coherence](./docs/design/0053-git-object-session-coherence/git-object-session-coherence.md)
 
 Its GitHub goalpost issue,
-[#90](https://github.com/git-stunts/git-cas/issues/90), owns the release
+[#94](https://github.com/git-stunts/git-cas/issues/94), owns the release
 evidence. The design doc is the durable contract; GitHub records completion.
 
 The `v6.2.0` slice record is:

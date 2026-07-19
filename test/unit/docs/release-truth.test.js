@@ -263,6 +263,21 @@ describe('persistent Git object session release documentation', () => {
   });
 });
 
+describe('Git object session coherence release documentation', () => {
+  it('ships and links the v6.5.3 coherence contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.5.3.md');
+
+    expect(readme).toContain('[v6.5.3 Release Notes](./docs/releases/v6.5.3.md)');
+    expect(upgrading).toContain('## v6.5.2 To v6.5.3');
+    expect(upgrading).toContain('No application code changes are required');
+    expect(releaseNotes).toContain('# git-cas v6.5.3 Release Notes');
+    expect(releaseNotes).toMatch(/total Git\s+children fell from 558 to 401/);
+    expect(releaseNotes).toMatch(/changes no\s+public API/);
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');
