@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
-const v653CandidateMarker = '**Current release state:** `v6.5.3` release candidate';
+const v653PublishedMarker = '**Current release state:** `v6.5.3` is published';
 const v653CandidatePath =
   'docs/design/0053-git-object-session-coherence/witness/release-candidate.md';
 const v653PublicationPath =
@@ -98,12 +98,7 @@ function expectNoV653PublicationEvidence(...documents) {
   }
 }
 
-function expectV653CandidateEvidence(status, candidate) {
-  expect(status).toContain('**Last tagged release:** `v6.5.2` (`2026-07-19`)');
-  expect(status).toContain(v653CandidateMarker);
-  expect(status).toContain('remain pending the reviewed tag workflow');
-  expect(status).toContain('passed 14/14 release-verifier steps with 6,829 observed tests');
-  expect(status).toContain('7bdcbf1f');
+function expectV653CandidateEvidence(candidate) {
   expect(candidate).toContain('# PERF-0053 v6.5.3 Release Candidate Witness');
   expect(candidate).toContain('Implementation review: #95');
   expect(candidate).toContain('Release review: #96');
@@ -111,8 +106,31 @@ function expectV653CandidateEvidence(status, candidate) {
   expect(candidate).toContain('**PASS (14/14)**');
   expect(candidate).toContain('**6,829**');
   expect(candidate).toMatch(/explicitly\s+unpublished candidate/);
-  expectNoV653PublicationEvidence(status, candidate);
-  expect(existsSync(path.join(repoRoot, v653PublicationPath))).toBe(false);
+  expectNoV653PublicationEvidence(candidate);
+}
+
+function expectV653PublishedEvidence(status, publication) {
+  expect(status).toContain('**Last tagged release:** `v6.5.3` (`2026-07-19`)');
+  expect(status).toContain(v653PublishedMarker);
+  expect(status).toContain('00df6077');
+  expect(status).toContain('29696131557');
+  expect(status).toContain('#39 v6.6.0: Operator TUI');
+  expect(status).toContain('#40 v6.6.0: Agent automation follow-through');
+  expect(publication).toContain('# PERF-0053 v6.5.3 Publication Witness');
+  expect(publication).toContain('00df6077f1f9c111b9d0d9b636b7d746df0d2aad');
+  expect(publication).toContain('efd1a1e0f9d71cf971a74d254d2661a52b366a81');
+  expect(publication).toContain('01A63D8E9DBEEDE32918AF9C39560E0406CA9135');
+  expect(publication).toContain('- Signed annotated tag: `v6.5.3`');
+  expect(publication).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.5.3');
+  expect(publication).toContain('actions/runs/29696131557');
+  expect(publication).toMatch(/\| Package\s+\| `@git-stunts\/git-cas@6\.5\.3`\s+\|/);
+  expect(publication).toMatch(/\| Dist-tag\s+\| `latest` -> `6\.5\.3`\s+\|/);
+  expect(publication).toContain(
+    'sha512-to7bk0BCcp0He5rSwViI7ZD0gb5CL0fFrIPbKpuIwXpuc9MBW0y5AzqvZFGicEncN4iwccEaIZm87paOfpEDrg=='
+  );
+  expect(publication).toContain('4010d528abfde6b49739dfa2a4dd0bf41fea4981');
+  expect(publication).toContain('2,203,509');
+  expect(publication).toContain('attestations/@git-stunts%2fgit-cas@6.5.3');
 }
 
 function expectV652CandidateEvidence(candidate) {
@@ -127,7 +145,6 @@ function expectV652CandidateEvidence(candidate) {
 }
 
 function expectV652PublishedEvidence(status, publication) {
-  expect(status).toContain('**Last tagged release:** `v6.5.2` (`2026-07-19`)');
   expect(status).toContain('**v6.5.2 artifact posture**');
   expect(status).toContain('c2d41f60');
   expect(status).toContain('29690794540');
@@ -217,9 +234,10 @@ function expectCurrentV640PublicationEvidence(publication) {
 }
 
 describe('release state docs', () => {
-  it('enforces the v6.5.3 candidate while preserving prior evidence', () => {
+  it('enforces v6.5.3 publication while preserving candidate and prior evidence', () => {
     const status = read('STATUS.md');
     const candidate = read(v653CandidatePath);
+    const v653Publication = read(v653PublicationPath);
     const v652Candidate = read(v652CandidatePath);
     const v652Publication = read(v652PublicationPath);
     const v651Candidate = read(v651CandidatePath);
@@ -229,7 +247,8 @@ describe('release state docs', () => {
     const v650Publication = read(v650PublicationPath);
     const v640Publication = read(v640PublicationPath);
 
-    expectV653CandidateEvidence(status, candidate);
+    expectV653CandidateEvidence(candidate);
+    expectV653PublishedEvidence(status, v653Publication);
     expectV652CandidateEvidence(v652Candidate);
     expectV652PublishedEvidence(status, v652Publication);
     expectV651CandidateEvidence(v651Candidate);

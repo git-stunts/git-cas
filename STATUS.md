@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.5.2` (`2026-07-19`)
-**Current release state:** `v6.5.3` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** the versioned `v6.5.3` candidate passed 14/14 release-verifier steps with 6,829 observed tests across Node, Bun, Deno, and all three real-Git integration suites; tag and publication verification remain pending.
+**Last tagged release:** `v6.5.3` (`2026-07-19`)
+**Current release state:** `v6.5.3` is published to npm with provenance and to GitHub Releases.
+**Latest verification:** merge `00df6077` passed 14/14 release-verifier steps with 6,829 observed tests; release workflow `29696131557` then passed validation, tests, trusted npm publication, and final GitHub Release creation from signed tag `v6.5.3`.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,13 +18,13 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.5.3 candidate posture** — coherent Git object sessions merged through
-  reviewed commit `7bdcbf1f` under
-  [#94](https://github.com/git-stunts/git-cas/issues/94). npm, JSR, and runtime
-  version metadata identify `6.5.3`; tag and registry artifacts remain
-  deliberately absent until release-candidate review completes.
+- **v6.5.3 artifact posture** — signed tag `v6.5.3` resolves to reviewed merge
+  `00df6077`; npm reports `@git-stunts/git-cas@6.5.3` as `latest` with SLSA
+  provenance, and release workflow `29696131557` published the final GitHub
+  Release. Coherent Git object sessions are shipped. JSR dry-run validation is
+  healthy, but JSR publication is not part of the release workflow.
 - **v6.5.2 artifact posture** — signed tag `v6.5.2` resolves to reviewed merge
-  `c2d41f60`; npm reports `@git-stunts/git-cas@6.5.2` as `latest` with SLSA
+  `c2d41f60`; npm retains `@git-stunts/git-cas@6.5.2` with SLSA
   provenance, and release workflow `29690794540` published the final GitHub
   Release. Persistent bounded Git object sessions, scoped page-write batches,
   and deterministic local resource closure are shipped. JSR dry-run validation
@@ -36,7 +36,7 @@
   validation is healthy, but JSR publication is not part of the release
   workflow.
 - **v6.5.0 artifact posture** — signed tag `v6.5.0` resolves to reviewed merge
-  `f464b929`; npm reports `@git-stunts/git-cas@6.5.0` as `latest` with SLSA
+  `f464b929`; npm retains `@git-stunts/git-cas@6.5.0` with SLSA
   provenance, and the final GitHub Release is published. Bounded direct bundle
   references, immutable metadata reuse, and the RootSet/cache concurrency
   repairs are shipped. JSR dry-run validation is healthy, but JSR publication
