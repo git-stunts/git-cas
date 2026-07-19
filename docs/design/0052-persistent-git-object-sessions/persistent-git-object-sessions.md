@@ -144,7 +144,10 @@ This cycle does not include:
 class ContentAddressableStore {
   pages: {
     putBatch(options: {
-      pages: Array<{ source: Uint8Array | Iterable<Uint8Array> }>;
+      pages: Array<{
+        source: Uint8Array | Iterable<Uint8Array>;
+        maxBytes?: number;
+      }>;
       maxBatchBytes?: number;
       maxBatchPages?: number;
     }): Promise<ReadonlyArray<StagedPage>>;
@@ -239,9 +242,11 @@ never cached. No new refs or object formats are introduced.
 ## Compatibility / Migration Posture
 
 This is additive. Injected plumbing doubles without typed-session methods keep
-the legacy path. Existing callers are not required to call `close()` unless a
-session-capable operation was used, but documentation treats explicit close as
-the normal lifecycle contract. Persisted repositories need no migration.
+the legacy path. Existing callers remain source-compatible, but explicit
+`close()` is the normal lifecycle contract and is required whenever operations
+may remain active or streams may remain unconsumed. That includes fallback
+`readBlobStream()` operations and their child processes, not only typed
+sessions. Persisted repositories need no migration.
 
 ## Error Contract
 

@@ -11,6 +11,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import ContentAddressableStore from '../../index.js';
+import { createCountingGitPlumbing } from '../../scripts/diagnostics/createCountingGitPlumbing.js';
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 
 if (process.env.GIT_STUNTS_DOCKER !== '1') {
@@ -37,50 +38,25 @@ function git(args) {
   return result.stdout.trim();
 }
 
-function operationOf(args) {
-  if (args[0] === 'cat-file' && args.some((arg) => arg.startsWith('--batch-check='))) {
-    return 'cat-file:batch-check';
-  }
-  return args[0];
+async function countingReader({ sessions = false } = {}) {
+  const counted = await createCountingGitPlumbing({ cwd: repoDir, sessions });
+  return {
+    cas: new ContentAddressableStore({ plumbing: counted.plumbing }),
+    snapshot: counted.snapshot,
+  };
 }
 
-async function countingReader({ sessions = false } = {}) {
-  const plumbing = await createGitPlumbing({ cwd: repoDir });
-  const counts = new Map();
-  const record = (options) => {
-    const operation = operationOf(options.args);
-    counts.set(operation, (counts.get(operation) ?? 0) + 1);
-  };
-  const counted = {
-    execute(options) {
-      record(options);
-      return plumbing.execute(options);
-    },
-    executeStream(options) {
-      record(options);
-      return plumbing.executeStream(options);
-    },
-  };
-  if (sessions) {
-    counted.openCatFileSession = (...args) => {
-      counts.set('session:cat-file', count(counts, 'session:cat-file') + 1);
-      return plumbing.openCatFileSession(...args);
-    };
-    counted.openMktreeSession = (...args) => {
-      counts.set('session:mktree', count(counts, 'session:mktree') + 1);
-      return plumbing.openMktreeSession(...args);
-    };
-    counted.openFastImportSession = (...args) => {
-      counts.set('session:fast-import', count(counts, 'session:fast-import') + 1);
-      return plumbing.openFastImportSession(...args);
-    };
+async function closeAll(...stores) {
+  const results = await Promise.allSettled(stores.map((store) => store.close()));
+  const failures = results
+    .filter((result) => result.status === 'rejected')
+    .map((result) => result.reason);
+  if (failures.length === 1) {
+    throw failures[0];
   }
-  return {
-    cas: new ContentAddressableStore({ plumbing: counted }),
-    snapshot() {
-      return new Map(counts);
-    },
-  };
+  if (failures.length > 1) {
+    throw new AggregateError(failures, 'Multiple stores failed to close');
+  }
 }
 
 function count(snapshot, operation) {
@@ -192,24 +168,25 @@ describe('real-Git persistent object session process count', () => {
     const fallback = await countingReader();
     const persistent = await countingReader({ sessions: true });
 
-    const fallbackResult = await fallback.cas.bundles.getMemberReference({
-      handle: outer.handle,
-      path: 'nested',
-    });
-    const persistentResult = await persistent.cas.bundles.getMemberReference({
-      handle: outer.handle,
-      path: 'nested',
-    });
-    const fallbackCounts = fallback.snapshot();
-    const persistentCounts = persistent.snapshot();
+    try {
+      const fallbackResult = await fallback.cas.bundles.getMemberReference({
+        handle: outer.handle,
+        path: 'nested',
+      });
+      const persistentResult = await persistent.cas.bundles.getMemberReference({
+        handle: outer.handle,
+        path: 'nested',
+      });
+      const fallbackCounts = fallback.snapshot();
+      const persistentCounts = persistent.snapshot();
 
-    expect(persistentResult).toEqual(fallbackResult);
-    expect(count(persistentCounts, 'session:cat-file')).toBe(1);
-    expect(count(persistentCounts, 'ls-tree')).toBe(0);
-    expect(total(persistentCounts)).toBeLessThan(total(fallbackCounts));
-
-    await fallback.cas.close();
-    await persistent.cas.close();
+      expect(persistentResult).toEqual(fallbackResult);
+      expect(count(persistentCounts, 'session:cat-file')).toBe(1);
+      expect(count(persistentCounts, 'ls-tree')).toBe(0);
+      expect(total(persistentCounts)).toBeLessThan(total(fallbackCounts));
+    } finally {
+      await closeAll(fallback.cas, persistent.cas);
+    }
   });
 });
 
@@ -218,24 +195,25 @@ describe('real-Git scoped bulk write process count', () => {
     const individual = await countingReader({ sessions: true });
     const batched = await countingReader({ sessions: true });
     const inputs = Array.from({ length: 8 }, (_, index) => Buffer.from(`page-${index}`));
-    const individualPages = [];
-    for (const source of inputs) {
-      individualPages.push(await individual.cas.pages.put({ source }));
+    try {
+      const individualPages = [];
+      for (const source of inputs) {
+        individualPages.push(await individual.cas.pages.put({ source }));
+      }
+      const batchPages = await batched.cas.pages.putBatch({
+        pages: inputs.map((source) => ({ source })),
+      });
+      const individualCounts = individual.snapshot();
+      const batchCounts = batched.snapshot();
+
+      expect(batchPages.map((page) => page.handle.toString())).toEqual(
+        individualPages.map((page) => page.handle.toString())
+      );
+      expect(count(batchCounts, 'session:fast-import')).toBe(1);
+      expect(total(batchCounts)).toBeLessThan(total(individualCounts));
+    } finally {
+      await closeAll(individual.cas, batched.cas);
     }
-    const batchPages = await batched.cas.pages.putBatch({
-      pages: inputs.map((source) => ({ source })),
-    });
-    const individualCounts = individual.snapshot();
-    const batchCounts = batched.snapshot();
-
-    expect(batchPages.map((page) => page.handle.toString())).toEqual(
-      individualPages.map((page) => page.handle.toString())
-    );
-    expect(count(batchCounts, 'session:fast-import')).toBe(1);
-    expect(total(batchCounts)).toBeLessThan(total(individualCounts));
-
-    await individual.cas.close();
-    await batched.cas.close();
   });
 });
 

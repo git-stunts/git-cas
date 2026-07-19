@@ -8,6 +8,7 @@ import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import ContentAddressableStore from '../../index.js';
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
+import { createCountingGitPlumbing } from './createCountingGitPlumbing.js';
 
 const WORKER = '--worker';
 const DEFAULT_ITEMS = 32;
@@ -139,37 +140,46 @@ async function emitWorkerResult(options) {
 }
 
 async function measureReads({ mode, repo, handles }) {
-  const counted = await countedPlumbing(repo, { sessions: mode === 'session' });
+  const counted = await createCountingGitPlumbing({
+    cwd: repo,
+    sessions: mode === 'session',
+  });
   const cas = new ContentAddressableStore({ plumbing: counted.plumbing });
   const values = [];
   const metrics = await timed(async () => {
-    for (const handle of handles) {
-      const reference = await cas.bundles.getMemberReference({ handle, path: 'nested' });
-      values.push(`${reference.path}\0${reference.type}\0${reference.handle.toString()}`);
+    try {
+      for (const handle of handles) {
+        const reference = await cas.bundles.getMemberReference({ handle, path: 'nested' });
+        values.push(`${reference.path}\0${reference.type}\0${reference.handle.toString()}`);
+      }
+    } finally {
+      await cas.close();
     }
-    await cas.close();
   });
-  return resultEnvelope(values, counted.snapshot(), metrics);
+  return resultEnvelope(values, Object.fromEntries(counted.snapshot()), metrics);
 }
 
 async function measureWrites({ mode, items, pageBytes }) {
   const repo = mkdtempSync(path.join(os.tmpdir(), `cas-${mode}-write-`));
   try {
     initBare(repo);
-    const counted = await countedPlumbing(repo, { sessions: true });
+    const counted = await createCountingGitPlumbing({ cwd: repo, sessions: true });
     const cas = new ContentAddressableStore({ plumbing: counted.plumbing });
     const sources = Array.from({ length: items }, (_, index) => pageSource(index, pageBytes));
     let pages;
     const metrics = await timed(async () => {
-      pages =
-        mode === 'batch'
-          ? await cas.pages.putBatch({ pages: sources.map((source) => ({ source })) })
-          : await putIndividually(cas, sources);
-      await cas.close();
+      try {
+        pages =
+          mode === 'batch'
+            ? await cas.pages.putBatch({ pages: sources.map((source) => ({ source })) })
+            : await putIndividually(cas, sources);
+      } finally {
+        await cas.close();
+      }
     });
     return resultEnvelope(
       pages.map((page) => page.handle.toString()),
-      counted.snapshot(),
+      Object.fromEntries(counted.snapshot()),
       metrics
     );
   } finally {
@@ -196,44 +206,6 @@ async function timed(operation) {
     workerSystemCpuMs: cpu.system / 1000,
     workerPeakRssBytes: process.resourceUsage().maxRSS * 1024,
   };
-}
-
-async function countedPlumbing(repo, { sessions }) {
-  const plumbing = await createGitPlumbing({ cwd: repo });
-  const counts = new Map();
-  const record = (name) => counts.set(name, (counts.get(name) ?? 0) + 1);
-  const counted = {
-    execute(options) {
-      record(operationOf(options.args));
-      return plumbing.execute(options);
-    },
-    executeStream(options) {
-      record(operationOf(options.args));
-      return plumbing.executeStream(options);
-    },
-  };
-  if (sessions) {
-    counted.openCatFileSession = sessionOpener(plumbing, counts, 'cat-file');
-    counted.openMktreeSession = sessionOpener(plumbing, counts, 'mktree');
-    counted.openFastImportSession = sessionOpener(plumbing, counts, 'fast-import');
-  }
-  return { plumbing: counted, snapshot: () => Object.fromEntries(counts) };
-}
-
-function sessionOpener(plumbing, counts, protocol) {
-  const method = `open${protocol === 'cat-file' ? 'CatFile' : protocol === 'mktree' ? 'Mktree' : 'FastImport'}Session`;
-  return (...args) => {
-    const key = `session:${protocol}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-    return plumbing[method](...args);
-  };
-}
-
-function operationOf(args) {
-  if (args[0] === 'cat-file' && args.some((arg) => arg.startsWith('--batch-check='))) {
-    return 'cat-file:batch-check';
-  }
-  return args[0];
 }
 
 function resultEnvelope(values, counts, metrics) {

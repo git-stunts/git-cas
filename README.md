@@ -38,8 +38,9 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
   objects, trees, or payload OIDs directly.
 - **Bounded Git Process Reuse**: Immutable object metadata and tree reads reuse
   typed Git sessions behind the adapter, while explicitly bounded page batches
-  amortize writes without changing content identity or buffering payload
-  streams.
+  amortize writes without changing content identity. Read and payload streams
+  remain streaming; complete page-batch inputs are collected and validated only
+  within the explicit count-and-byte envelope.
 - **Key Lifecycle**: Envelope encryption separates DEKs from KEKs. Rotate passphrases across an entire vault without re-encrypting data blobs. Privacy mode HMAC-hashes slug names to prevent metadata discovery.
 - **Runtime-Adaptive**: A single core supports Node.js 22+, Bun, and Deno through a strict hexagonal port architecture with runtime-specific crypto adapters.
 

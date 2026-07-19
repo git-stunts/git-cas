@@ -130,7 +130,7 @@ With v6.5.1 shipped and the v6.5.2 performance candidate under review, active
 work is tracked in GitHub Issues and Milestones. Repo docs hold design and
 evidence records, not the active queue.
 
-The latest landed design record is
+The current design under review is
 [0052-persistent-git-object-sessions](./docs/design/0052-persistent-git-object-sessions/persistent-git-object-sessions.md).
 Its release evidence is attached to
 [#90](https://github.com/git-stunts/git-cas/issues/90) and the

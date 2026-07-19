@@ -130,7 +130,7 @@
   [#40 v6.6.0: Agent automation follow-through](https://github.com/git-stunts/git-cas/issues/40)
   under the
   [`v6.6.0` milestone](https://github.com/git-stunts/git-cas/milestone/9).
-- The latest landed design record is
+- The latest active design record is
   [0052-persistent-git-object-sessions](./docs/design/0052-persistent-git-object-sessions/persistent-git-object-sessions.md).
 
 ## Read Next
