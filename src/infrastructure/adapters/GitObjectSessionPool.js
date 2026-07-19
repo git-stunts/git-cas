@@ -22,6 +22,7 @@ export default class GitObjectSessionPool {
   #idleTimeoutMs;
   #idleTimers = new Map();
   #plumbing;
+  #poisoned = new Map();
   #retirements = new Map();
   #sessions = new Map();
 
@@ -125,6 +126,7 @@ export default class GitObjectSessionPool {
       this.#cancelIdle(protocol);
     }
     const sessions = [...this.#sessions.entries()];
+    const poisoned = new Map(this.#poisoned);
     const retirements = [...this.#retirements.values()].map((retirement) => retirement.barrier);
     this.#sessions.clear();
     this.#closePromise = (async () => {
@@ -143,6 +145,11 @@ export default class GitObjectSessionPool {
         .filter((result) => result.status === 'rejected')
         .map((result) => result.reason);
       failures.push(...this.#idleFailures.values());
+      for (const [protocol, error] of poisoned) {
+        if (!this.#idleFailures.has(protocol)) {
+          failures.push(error);
+        }
+      }
       if (failures.length > 0) {
         throw new AggregateError(failures, 'One or more Git object sessions failed to close');
       }
@@ -198,6 +205,10 @@ export default class GitObjectSessionPool {
     if (this.#closed) {
       throw new Error('Git object session pool is closed');
     }
+    const poison = this.#poisoned.get(protocol);
+    if (poison !== undefined) {
+      throw poison;
+    }
     const descriptor = PROTOCOLS[protocol];
     if (descriptor === undefined || typeof this.#plumbing[descriptor.opener] !== 'function') {
       throw new Error(`Git object protocol is unavailable: ${protocol}`);
@@ -233,7 +244,12 @@ export default class GitObjectSessionPool {
   async #abort(protocol, session) {
     const method = PROTOCOLS[protocol]?.abort;
     if (method !== undefined && typeof session[method] === 'function') {
-      await session[method]();
+      try {
+        await session[method]();
+      } catch (error) {
+        this.#poisoned.set(protocol, error);
+        throw error;
+      }
     }
   }
 

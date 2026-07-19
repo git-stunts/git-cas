@@ -192,6 +192,8 @@ describe('GitPersistenceAdapter cat-file invalidation failures', () => {
 
     expect(failure).toBeInstanceOf(AggregateError);
     expect(failure.errors).toEqual([operationError, terminationError]);
+    await expect(adapter.readObjectType('6'.repeat(40))).rejects.toBe(terminationError);
+    await expect(adapter.close()).rejects.toBeInstanceOf(AggregateError);
     expect(plumbing.openCatFileSession).toHaveBeenCalledTimes(1);
   });
 });
