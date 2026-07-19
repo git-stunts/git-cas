@@ -1,7 +1,9 @@
 # Git Object Session Coherence Verification Witness
 
-Issue: [#94](https://github.com/git-stunts/git-cas/issues/94)  
-Milestone: [`v6.5.3`](https://github.com/git-stunts/git-cas/milestone/13)  
+Issue: [#94](https://github.com/git-stunts/git-cas/issues/94)
+
+Milestone: [`v6.5.3`](https://github.com/git-stunts/git-cas/milestone/13)
+
 Implementation: `9208871802a596cbc508be725353532110d40198`
 
 ## Decision Boundary
