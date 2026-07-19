@@ -77,6 +77,11 @@ function buildReport({ items, pageBytes, samples, reads, writes }) {
       platform: process.platform,
       architecture: process.arch,
     },
+    metricScope: {
+      wallMs: 'worker elapsed time including awaited Git subprocesses',
+      workerCpuMs: 'Node worker CPU only; excludes Git subprocess CPU',
+      workerPeakRssBytes: 'Node worker peak RSS only; excludes Git subprocess RSS',
+    },
     parameters: { items, pageBytes, samples },
     selectedBundleRead: comparison({
       left: reads.left,
@@ -100,7 +105,7 @@ function comparison({ left, right, leftName, rightName }) {
     semanticDigestEqual: left.semanticDigest === right.semanticDigest,
     processReductionPercent: percentageReduction(left.processCount, right.processCount),
     wallReductionPercent: percentageReduction(left.wallMs, right.wallMs),
-    cpuReductionPercent: percentageReduction(left.cpuMs, right.cpuMs),
+    workerCpuReductionPercent: percentageReduction(left.workerCpuMs, right.workerCpuMs),
   };
 }
 
@@ -187,9 +192,9 @@ async function timed(operation) {
   const cpu = process.cpuUsage(startedCpu);
   return {
     wallMs: performance.now() - startedAt,
-    userCpuMs: cpu.user / 1000,
-    systemCpuMs: cpu.system / 1000,
-    peakRssBytes: process.resourceUsage().maxRSS * 1024,
+    workerUserCpuMs: cpu.user / 1000,
+    workerSystemCpuMs: cpu.system / 1000,
+    workerPeakRssBytes: process.resourceUsage().maxRSS * 1024,
   };
 }
 
@@ -254,10 +259,14 @@ function summarize(samples) {
     processCount: samples[0].processCount,
     counts: samples[0].counts,
     wallMs: roundedMedian(samples.map((sample) => sample.wallMs)),
-    cpuMs: roundedMedian(samples.map((sample) => sample.userCpuMs + sample.systemCpuMs)),
-    userCpuMs: roundedMedian(samples.map((sample) => sample.userCpuMs)),
-    systemCpuMs: roundedMedian(samples.map((sample) => sample.systemCpuMs)),
-    peakRssBytes: Math.round(median(samples.map((sample) => sample.peakRssBytes))),
+    workerCpuMs: roundedMedian(
+      samples.map((sample) => sample.workerUserCpuMs + sample.workerSystemCpuMs)
+    ),
+    workerUserCpuMs: roundedMedian(samples.map((sample) => sample.workerUserCpuMs)),
+    workerSystemCpuMs: roundedMedian(samples.map((sample) => sample.workerSystemCpuMs)),
+    workerPeakRssBytes: Math.round(
+      median(samples.map((sample) => sample.workerPeakRssBytes))
+    ),
   };
 }
 
