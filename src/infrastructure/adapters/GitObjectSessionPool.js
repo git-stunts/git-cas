@@ -18,6 +18,8 @@ export default class GitObjectSessionPool {
   #active = new Map();
   #closePromise = null;
   #closed = false;
+  #idleFailures = new Map();
+  #idleRetirements = new Set();
   #idleTimeoutMs;
   #idleTimers = new Map();
   #plumbing;
@@ -121,6 +123,7 @@ export default class GitObjectSessionPool {
       this.#cancelIdle(protocol);
     }
     const sessions = [...this.#sessions.entries()];
+    const idleRetirements = [...this.#idleRetirements];
     this.#sessions.clear();
     this.#closePromise = (async () => {
       const results = await Promise.allSettled(
@@ -144,9 +147,11 @@ export default class GitObjectSessionPool {
           }
         })
       );
+      await Promise.allSettled(idleRetirements);
       const failures = results
         .filter((result) => result.status === 'rejected')
         .map((result) => result.reason);
+      failures.push(...this.#idleFailures.values());
       if (failures.length > 0) {
         throw new AggregateError(failures, 'One or more Git object sessions failed to close');
       }
@@ -241,17 +246,33 @@ export default class GitObjectSessionPool {
         return;
       }
       this.#sessions.delete(protocol);
-      void opening
-        .then((session) => session.close())
-        .catch(async () => {
-          const session = await opening.catch(() => undefined);
-          if (session !== undefined) {
-            await this.#abort(protocol, session).catch(() => {});
-          }
-        });
+      this.#trackIdleRetirement(protocol, opening);
     }, this.#idleTimeoutMs);
     timer.unref?.();
     this.#idleTimers.set(protocol, timer);
+  }
+
+  #trackIdleRetirement(protocol, opening) {
+    const retirement = opening.then(async (session) => {
+      try {
+        await session.close();
+      } catch (closeError) {
+        try {
+          await this.#abort(protocol, session);
+        } catch (abortError) {
+          throw new AggregateError(
+            [closeError, abortError],
+            `Idle Git ${protocol} session failed to close or terminate`
+          );
+        }
+        throw closeError;
+      }
+    });
+    const tracked = retirement.catch((error) => {
+      this.#idleFailures.set(protocol, error);
+    });
+    this.#idleRetirements.add(tracked);
+    void tracked.finally(() => this.#idleRetirements.delete(tracked));
   }
 
   #cancelIdle(protocol) {

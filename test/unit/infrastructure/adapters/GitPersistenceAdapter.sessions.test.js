@@ -507,3 +507,63 @@ describe('GitPersistenceAdapter idle lifecycle fallback', () => {
     }
   });
 });
+
+describe('GitPersistenceAdapter idle retirement shutdown', () => {
+  it('waits for an in-flight idle retirement before explicit close resolves', async () => {
+    vi.useFakeTimers();
+    try {
+      const oid = '2'.repeat(40);
+      const retired = deferred();
+      const cat = fakeCatSession({
+        info: vi.fn().mockResolvedValue({ oid, type: 'blob', size: 1 }),
+        close: vi.fn().mockReturnValue(retired.promise),
+      });
+      const adapter = new GitPersistenceAdapter({
+        plumbing: sessionPlumbing({ catSessions: [cat] }),
+        policy: noPolicy,
+        sessionIdleTimeoutMs: 10,
+      });
+
+      await adapter.readObjectType(oid);
+      await vi.advanceTimersByTimeAsync(10);
+      let closeSettled = false;
+      const close = adapter.close().then(() => {
+        closeSettled = true;
+      });
+      await Promise.resolve();
+
+      expect(closeSettled).toBe(false);
+      retired.resolve();
+      await close;
+      expect(closeSettled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('GitPersistenceAdapter failed idle retirement', () => {
+  it('reports an idle retirement failure after force-terminating the session', async () => {
+    vi.useFakeTimers();
+    try {
+      const oid = '3'.repeat(40);
+      const cat = fakeCatSession({
+        info: vi.fn().mockResolvedValue({ oid, type: 'blob', size: 1 }),
+        close: vi.fn().mockRejectedValue(new Error('idle close failed')),
+      });
+      const adapter = new GitPersistenceAdapter({
+        plumbing: sessionPlumbing({ catSessions: [cat] }),
+        policy: noPolicy,
+        sessionIdleTimeoutMs: 10,
+      });
+
+      await adapter.readObjectType(oid);
+      await vi.advanceTimersByTimeAsync(10);
+      await expect(adapter.close()).rejects.toBeInstanceOf(AggregateError);
+
+      expect(cat.terminate).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
