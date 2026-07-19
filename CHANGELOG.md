@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance
+
+- **Coherent Git object session reuse** - successful loose object and tree
+  writes preserve typed `cat-file` and `mktree` processes. Scoped bulk writes
+  preserve `cat-file` but still retire `mktree` after checkpoint because Git's
+  quick tree-entry validation does not refresh packs created after the
+  session's object-database snapshot.
+
 ## [6.5.2] — 2026-07-19
 
 ### Added

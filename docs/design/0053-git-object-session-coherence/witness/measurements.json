@@ -1,0 +1,95 @@
+{
+  "schema": "git-cas.git-object-session-coherence-measurement/v1",
+  "generatedAt": "2026-07-19T16:16:43Z",
+  "implementationCommit": "9208871802a596cbc508be725353532110d40198",
+  "environment": {
+    "node": "v26.0.0",
+    "git": "git version 2.50.1 (Apple Git-155)",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "protocolMatrix": {
+    "gitVersions": ["2.50.1", "2.39.5"],
+    "objectFormats": ["sha1", "sha256"],
+    "results": {
+      "catFileAfterLooseBlob": "preserved-and-readable",
+      "catFileAfterLooseTree": "preserved-and-readable",
+      "catFileAfterPackedBulk": "preserved-and-readable",
+      "mktreeAfterLooseBlob": "preserved-and-writable",
+      "mktreeAfterPackedBulk": "must-retire"
+    }
+  },
+  "consumerExploratory": {
+    "repository": "git-stunts/git-warp",
+    "commit": "0d0cefa9f8ade44e58c0a83b65f85ce557d3e9dd",
+    "fixture": "temporary 128-node retained materialization diagnostic",
+    "samples": 3,
+    "baseline": {
+      "gitCas": "6.5.2",
+      "gitChildProcesses": 558,
+      "majorProcessCounts": {
+        "hash-object": 140,
+        "rev-parse": 87,
+        "mktree": 82,
+        "cat-file": 80,
+        "update-ref": 43,
+        "symbolic-ref": 43,
+        "commit-tree": 39,
+        "rev-list": 37
+      },
+      "medianMaterializationSeconds": 14.24,
+      "medianProcessCpuSeconds": 15.74,
+      "medianWallSeconds": 17.39
+    },
+    "candidate": {
+      "implementationCommit": "9208871802a596cbc508be725353532110d40198",
+      "gitChildProcesses": 401,
+      "majorProcessCounts": {
+        "hash-object": 140,
+        "rev-parse": 87,
+        "mktree": 1,
+        "cat-file": 4,
+        "update-ref": 43,
+        "symbolic-ref": 43,
+        "commit-tree": 39,
+        "rev-list": 37
+      },
+      "medianMaterializationSeconds": 12.72,
+      "medianProcessCpuSeconds": 13.83,
+      "medianWallSeconds": 16.93
+    },
+    "deltaPercent": {
+      "gitChildProcesses": -28.1,
+      "cat-file": -95.0,
+      "mktree": -98.8,
+      "materializationTime": -10.7,
+      "processCpu": -12.1,
+      "wall": -2.6
+    },
+    "interpretation": {
+      "processCounts": "deterministic for this fixture",
+      "timings": "local three-run medians; not a cross-platform guarantee",
+      "reproducibility": "exploratory consumer fixture was temporary; repository integration counts are the durable gate"
+    }
+  },
+  "verification": {
+    "releaseVerify": {
+      "stepsPassed": 14,
+      "stepsTotal": 14,
+      "observedTests": 6826
+    },
+    "nodeIntegrationAfterFinalAssertionPass": {
+      "filesPassed": 13,
+      "testsPassed": 198
+    },
+    "platformBats": {
+      "parallelCommand": "pnpm test:platforms",
+      "parallelResult": "host-harness-failure-before-tests",
+      "parallelCause": "Homebrew moreutils parallel is not GNU parallel",
+      "serialCommand": "bats test/platform/runtimes.bats",
+      "serialTestsPassed": 3,
+      "serialTestsTotal": 3
+    },
+    "publicApiSemverImpact": "none"
+  }
+}
