@@ -80,6 +80,57 @@ describe('PageService', () => {
   });
 });
 
+describe('PageService.putBatch()', () => {
+  it('uses one bounded persistence batch and preserves input order', async () => {
+    const { pages, persistence } = makePages();
+    const writeBlobs = vi.spyOn(persistence, 'writeBlobs');
+
+    const staged = await pages.putBatch({
+      pages: [
+        { source: Buffer.from('first') },
+        { source: (async function* source() { yield Buffer.from('second'); })() },
+      ],
+      maxBatchBytes: 32,
+    });
+
+    expect(writeBlobs).toHaveBeenCalledTimes(1);
+    expect(staged).toHaveLength(2);
+    expect(staged.map((page) => page.page.size)).toEqual([5, 6]);
+    await expect(pages.get({ handle: staged[0].handle })).resolves.toEqual(
+      new Uint8Array(Buffer.from('first')),
+    );
+    await expect(pages.get({ handle: staged[1].handle })).resolves.toEqual(
+      new Uint8Array(Buffer.from('second')),
+    );
+  });
+
+  it('rejects count and byte overflow before starting persistence', async () => {
+    const { pages, persistence } = makePages();
+    const writeBlobs = vi.spyOn(persistence, 'writeBlobs');
+
+    await expect(pages.putBatch({
+      pages: [{ source: Buffer.from('a') }, { source: Buffer.from('b') }],
+      maxBatchPages: 1,
+    })).rejects.toMatchObject({ code: 'PAGE_BATCH_LIMIT' });
+    await expect(pages.putBatch({
+      pages: [{ source: Buffer.from('ab') }, { source: Buffer.from('cd') }],
+      maxBatchBytes: 3,
+    })).rejects.toMatchObject({ code: 'PAGE_BATCH_LIMIT' });
+    expect(writeBlobs).not.toHaveBeenCalled();
+  });
+
+  it('returns an empty frozen result without opening persistence', async () => {
+    const { pages, persistence } = makePages();
+    const writeBlobs = vi.spyOn(persistence, 'writeBlobs');
+
+    const staged = await pages.putBatch({ pages: [] });
+
+    expect(staged).toEqual([]);
+    expect(Object.isFrozen(staged)).toBe(true);
+    expect(writeBlobs).not.toHaveBeenCalled();
+  });
+});
+
 describe('PageService immutable payload reuse', () => {
   it('coalesces immutable payload reads and returns caller-owned byte copies', async () => {
     const { pages, persistence } = makePages();

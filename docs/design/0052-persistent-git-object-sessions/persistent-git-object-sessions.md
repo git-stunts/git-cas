@@ -47,12 +47,16 @@ This design is primarily:
 
 ## Decision Summary
 
-`GitPersistenceAdapter` will lazily own typed `cat-file`, `mktree`, and
-`fast-import` sessions supplied by `@git-stunts/plumbing` 3.2.0. Bounded
-immutable object and tree reads, blob writes, and tree writes will reuse those
-processes. Payload streams will continue to use `readBlobStream()` and will not
-be converted into whole-object reads. `ContentAddressableStore.close()` will
-deterministically release adapter-owned sessions.
+`GitPersistenceAdapter` will lazily own typed `cat-file` and `mktree` sessions
+supplied by `@git-stunts/plumbing` 3.2.0. Bounded immutable object and tree
+reads plus tree writes will reuse those processes. Explicitly bounded page
+batches will use one scoped `fast-import` session that closes before returning.
+Individual blob writes remain one-shot because a long-lived `fast-import`
+process can remember an object that external pruning has removed and decline to
+recreate it. Payload streams continue to use `readBlobStream()` and are not
+converted into whole-object reads. `ContentAddressableStore.close()`
+deterministically drains started operations, cancels abandoned output streams,
+and releases adapter-owned sessions.
 
 ## Sponsored Human
 
@@ -115,7 +119,8 @@ This cycle includes:
 - bounded raw tree decoding and exact path traversal
 - count-and-byte-bounded immutable tree reuse
 - session-backed bounded blob and object-info reads
-- session-backed blob and tree writes with visibility guarantees
+- scoped bulk blob writes and session-backed tree writes with visibility guarantees
+- one-shot individual blob writes that remain correct across external pruning
 - deterministic adapter and facade close semantics
 - capability fallback for injected plumbing implementations without sessions
 - real-Git process-count, wall-clock, and memory evidence
@@ -137,6 +142,13 @@ This cycle does not include:
 
 ```ts
 class ContentAddressableStore {
+  pages: {
+    putBatch(options: {
+      pages: Array<{ source: Uint8Array | Iterable<Uint8Array> }>;
+      maxBatchBytes?: number;
+      maxBatchPages?: number;
+    }): Promise<ReadonlyArray<StagedPage>>;
+  };
   close(): Promise<void>;
   [Symbol.asyncDispose](): Promise<void>;
 }
@@ -149,9 +161,11 @@ class GitPersistenceAdapter {
 
 `close()` releases local resources only. It does not delete objects, update
 refs, expire retained content, run garbage collection, or mutate witnesses.
-It is idempotent. A close begun while operations are active waits for the
-typed protocol queues to settle. New adapter operations after close fail with
-a stable closed-resource error.
+It is idempotent. A close begun while operations are active blocks new work,
+waits for started commands, destroys returned output streams that callers did
+not consume, waits for their Git processes, and then closes typed protocol
+sessions. New adapter operations after close fail with a stable
+closed-resource error.
 
 The adapter feature-detects each typed plumbing capability independently.
 Missing capabilities use the existing command-per-operation implementation.
@@ -170,12 +184,13 @@ Callers that cannot use explicit resource management call `await cas.close()`.
 
 ## Data / State Model
 
-| State           | Source of truth       | Derived state             | Invalid states                    | Reset behavior                       | Serialization | Determinism assumptions             |
-| --------------- | --------------------- | ------------------------- | --------------------------------- | ------------------------------------ | ------------- | ----------------------------------- |
-| Git objects     | Git object database   | None                      | Malformed or missing object       | External repair                      | Git native    | OID identifies immutable bytes      |
-| Session handles | Adapter process state | Lazy promise per protocol | Closed or poisoned session reused | Invalidate; next lawful call reopens | None          | Operations serialize per protocol   |
-| Parsed trees    | Immutable tree object | Frozen entry array        | Malformed raw tree                | Reject; do not cache                 | None          | Same tree OID yields same entries   |
-| Tree cache      | Adapter memory        | LRU entries               | Count or byte bound exceeded      | Evict oldest                         | None          | Cache never changes semantic result |
+| State            | Source of truth       | Derived state             | Invalid states                    | Reset behavior                       | Serialization | Determinism assumptions             |
+| ---------------- | --------------------- | ------------------------- | --------------------------------- | ------------------------------------ | ------------- | ----------------------------------- |
+| Git objects      | Git object database   | None                      | Malformed or missing object       | External repair                      | Git native    | OID identifies immutable bytes      |
+| Session handles  | Adapter process state | Lazy promise per protocol | Closed or poisoned session reused | Invalidate; next lawful call reopens | None          | Operations serialize per protocol   |
+| Page write batch | Caller input          | Bounded byte arrays       | Page or byte limit exceeded       | Reject before persistence begins     | None          | Input order determines OID order    |
+| Parsed trees     | Immutable tree object | Frozen entry array        | Malformed raw tree                | Reject; do not cache                 | None          | Same tree OID yields same entries   |
+| Tree cache       | Adapter memory        | LRU entries               | Count or byte bound exceeded      | Evict oldest                         | None          | Cache never changes semantic result |
 
 ## Architecture / Anti-SLUDGE Posture
 
@@ -197,8 +212,14 @@ Callers that cannot use explicit resource management call `await cas.close()`.
   `ls-tree` behavior and is not cached.
 - `readBlobStream()` remains one bounded stream per payload and does not share a
   buffered cat-file session.
-- Fast-import writes checkpoint before `writeBlob()` resolves so a different
-  Git process can consume the returned OID.
+- Returned Git output streams remain adapter-owned until consumption completes
+  or `close()` destroys them and waits for the underlying process.
+- `pages.putBatch()` admits at most 256 pages and 32 MiB by default, collecting
+  and validating the complete bounded batch before persistence begins.
+- A bulk fast-import session checkpoints and closes before `putBatch()`
+  resolves so a different Git process can consume every returned OID.
+- Individual `pages.put()` and `writeBlob()` calls remain one-shot. This is a
+  correctness boundary, not an unimplemented optimization.
 
 ## Determinism / Replay / Causality
 
@@ -208,10 +229,11 @@ determinism proof.
 
 ## Git Substrate Impact
 
-The adapter uses three stock Git protocols through plumbing: `cat-file
---batch-command`, `mktree --batch -z`, and `fast-import`. Ref access remains on
-the existing ref adapter and is never cached. No new refs or object formats are
-introduced.
+The adapter uses three stock Git protocols through plumbing: persistent
+`cat-file --batch-command`, persistent `mktree --batch -z`, and scoped
+`fast-import` for an explicitly bounded blob batch. Individual blob writes use
+`hash-object` as before. Ref access remains on the existing ref adapter and is
+never cached. No new refs or object formats are introduced.
 
 ## Compatibility / Migration Posture
 
@@ -226,8 +248,9 @@ the normal lifecycle contract. Persisted repositories need no migration.
 - Object read-budget failures map to the existing size-limit contract.
 - Malformed tree bytes map to `TREE_PARSE_ERROR`.
 - Protocol failure invalidates the affected session before surfacing.
-- A later independent call may open a fresh session; writes are not silently
-  retried after ambiguous failure.
+- A typed protocol-process failure receives one retry through a fresh session.
+  These operations are content-addressed and idempotent; bulk inputs are
+  materialized once before the first attempt so a retry sees the same sequence.
 - Close attempts every opened session and reports aggregate cleanup failure.
 
 ## Security / Trust / Redaction Posture
@@ -287,18 +310,31 @@ still reread the same immutable tree object repeatedly.
 
 Rejected. Hidden live child processes are a correctness and test-isolation bug.
 
+### Reuse one fast-import process across individual blob writes
+
+Rejected after a real-Git counterexample. When an unreachable blob was pruned
+between two identical writes, the still-running `fast-import` process retained
+its duplicate-object knowledge and returned the old OID without recreating the
+missing object. A scoped batch is safe because it checkpoints and closes before
+the OIDs cross the method boundary; the next batch starts with fresh Git object
+state.
+
 ## Decision
 
-Adopt typed persistent sessions inside `GitPersistenceAdapter`, bounded tree
-reuse, explicit close, and capability fallback. Keep streaming payloads on the
-existing stream path.
+Adopt typed persistent read/tree sessions inside `GitPersistenceAdapter`,
+bounded tree reuse, explicit close, capability fallback, and an explicit
+bounded page-batch API backed by one scoped fast-import process. Keep individual
+blob writes one-shot and streaming payloads on the existing stream path.
 
 ## Proof Surface
 
 - unit tests for tree decoding, session coalescing, error invalidation, close,
-  fallback, and residency eviction
+  active-command draining, abandoned-stream cleanup, fallback, and residency
+  eviction
 - facade tests for lazy close and async disposal
 - real-Git same-fixture fallback/session command-process comparison
+- real-Git prune/rewrite regression for individually written blobs
+- real-Git individual-versus-batch write process comparison
 - existing large-stream restore and page-cache tests
 - Node, Bun, and Deno suites
 - committed JSON witness with counts, timing, and peak memory
@@ -321,6 +357,12 @@ existing stream path.
 6. `readBlobStream()` still delegates to `executeStream()`.
 7. A session-capable real-Git read returns the same reference with fewer child
    process openings than the fallback adapter.
+8. An individually written unreachable blob can be pruned and recreated with
+   the same OID.
+9. A bounded page batch returns the same handles as individual writes while
+   opening one scoped fast-import process.
+10. Close waits for an active one-shot command and destroys an abandoned Git
+    output stream before resolving.
 
 ## Acceptance Criteria
 
@@ -352,14 +394,17 @@ The witness packet must answer:
 
 ## Risks
 
-- Fast-import checkpoint cost may erase write-path gains; benchmark before
-  claiming improvement.
+- Fast-import checkpoint and close cost may erase gains for tiny batches;
+  benchmark before claiming a wall-clock improvement.
+- Low-level `writeBlobs()` callers must still provide a bounded iterable; the
+  adapter retains its yielded byte arrays until the scoped operation settles.
 - Policy timeouts can race an in-flight protocol operation; timeout handling
   must invalidate the session.
 - Raw tree parsing must support SHA-1 and SHA-256 repositories and malformed
   input without out-of-bounds reads.
-- Callers that omit close may keep a process alive; docs and async disposal
-  reduce but cannot eliminate misuse.
+- Idle retirement bounds reusable-session leaks when callers omit close, but an
+  abandoned output stream still requires close or eventual process completion;
+  docs and async disposal reduce but cannot eliminate misuse.
 
 ## Follow-On Debt
 

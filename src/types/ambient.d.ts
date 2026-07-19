@@ -9,11 +9,53 @@ declare module '@git-stunts/plumbing' {
     env?: Record<string, string | undefined>;
   }
 
-  interface StreamResult {
+  interface StreamResult extends AsyncIterable<Uint8Array | string> {
     collect(options?: { asString?: boolean; maxBytes?: number }): Promise<string | Uint8Array>;
+    destroy(): Promise<void>;
+    finished: Promise<{ code: number; stderr: string }>;
   }
 
   type ShellRunner = (options: Record<string, unknown>) => Promise<unknown>;
+
+  interface GitObjectInfo {
+    oid: string;
+    type: string;
+    size: number;
+  }
+
+  interface GitObject extends GitObjectInfo {
+    content: Uint8Array;
+  }
+
+  interface GitCatFileSession {
+    info(objectName: string): Promise<GitObjectInfo>;
+    read(objectName: string, options?: { maxBytes?: number }): Promise<GitObject>;
+    close(): Promise<void>;
+    terminate(): Promise<void>;
+  }
+
+  interface GitMktreeSession {
+    write(
+      entries: Array<{ mode: string; type: string; oid: string; name: string }>
+    ): Promise<string>;
+    close(): Promise<void>;
+    terminate(): Promise<void>;
+  }
+
+  interface GitFastImportSession {
+    writeBlob(content: string | Uint8Array): Promise<string>;
+    checkpoint(): Promise<void>;
+    close(): Promise<void>;
+    abort(): Promise<void>;
+  }
+
+  export class GitObjectMissingError extends Error {
+    details?: Record<string, unknown>;
+  }
+
+  export class GitProtocolError extends Error {}
+
+  export class InvalidArgumentError extends Error {}
 
   export class ShellRunnerFactory {
     static ENV_BUN: 'bun';
@@ -29,6 +71,9 @@ declare module '@git-stunts/plumbing' {
     static createRepository(options?: { cwd?: string; env?: string }): Promise<unknown>;
     execute(options: ExecuteOptions): Promise<string>;
     executeStream(options: ExecuteOptions): Promise<StreamResult>;
+    openCatFileSession(): Promise<GitCatFileSession>;
+    openMktreeSession(): Promise<GitMktreeSession>;
+    openFastImportSession(): Promise<GitFastImportSession>;
   }
 }
 

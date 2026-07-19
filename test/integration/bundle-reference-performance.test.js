@@ -44,7 +44,7 @@ function operationOf(args) {
   return args[0];
 }
 
-async function countingReader() {
+async function countingReader({ sessions = false } = {}) {
   const plumbing = await createGitPlumbing({ cwd: repoDir });
   const counts = new Map();
   const record = (options) => {
@@ -61,6 +61,20 @@ async function countingReader() {
       return plumbing.executeStream(options);
     },
   };
+  if (sessions) {
+    counted.openCatFileSession = (...args) => {
+      counts.set('session:cat-file', count(counts, 'session:cat-file') + 1);
+      return plumbing.openCatFileSession(...args);
+    };
+    counted.openMktreeSession = (...args) => {
+      counts.set('session:mktree', count(counts, 'session:mktree') + 1);
+      return plumbing.openMktreeSession(...args);
+    };
+    counted.openFastImportSession = (...args) => {
+      counts.set('session:fast-import', count(counts, 'session:fast-import') + 1);
+      return plumbing.openFastImportSession(...args);
+    };
+  }
   return {
     cas: new ContentAddressableStore({ plumbing: counted }),
     snapshot() {
@@ -104,7 +118,8 @@ beforeAll(async () => {
   outer = await writer.bundles.put({ members: { nested: nested.handle } });
 });
 
-afterAll(() => {
+afterAll(async () => {
+  await writer.close();
   rmSync(repoDir, { recursive: true, force: true });
 });
 
@@ -114,7 +129,7 @@ describe('real-Git immutable page payload reads', () => {
     const page = await writer.pages.put({ source: Buffer.from('warm page payload') });
 
     await expect(reader.cas.pages.get({ handle: page.handle })).resolves.toEqual(
-      new Uint8Array(Buffer.from('warm page payload')),
+      new Uint8Array(Buffer.from('warm page payload'))
     );
     const cold = reader.snapshot();
     await reader.cas.pages.get({ handle: page.handle });
@@ -122,6 +137,7 @@ describe('real-Git immutable page payload reads', () => {
 
     expect(count(cold, 'cat-file')).toBeGreaterThan(0);
     expect(total(warm)).toBe(0);
+    await reader.cas.close();
   });
 });
 
@@ -144,6 +160,7 @@ describe('real-Git direct bundle reference reads', () => {
     expect(count(warm, 'ls-tree')).toBe(0);
     expect(count(warm, 'cat-file:batch-check')).toBe(0);
     expect(total(warm)).toBe(0);
+    await reader.cas.close();
   });
 
   it('does less Git work than complete recursive member validation', async () => {
@@ -165,5 +182,89 @@ describe('real-Git direct bundle reference reads', () => {
     expect(count(directCounts, 'cat-file:batch-check')).toBeLessThan(
       count(completeCounts, 'cat-file:batch-check')
     );
+    await direct.cas.close();
+    await complete.cas.close();
+  });
+});
+
+describe('real-Git persistent object session process count', () => {
+  it('uses fewer Git child processes through persistent object sessions', async () => {
+    const fallback = await countingReader();
+    const persistent = await countingReader({ sessions: true });
+
+    const fallbackResult = await fallback.cas.bundles.getMemberReference({
+      handle: outer.handle,
+      path: 'nested',
+    });
+    const persistentResult = await persistent.cas.bundles.getMemberReference({
+      handle: outer.handle,
+      path: 'nested',
+    });
+    const fallbackCounts = fallback.snapshot();
+    const persistentCounts = persistent.snapshot();
+
+    expect(persistentResult).toEqual(fallbackResult);
+    expect(count(persistentCounts, 'session:cat-file')).toBe(1);
+    expect(count(persistentCounts, 'ls-tree')).toBe(0);
+    expect(total(persistentCounts)).toBeLessThan(total(fallbackCounts));
+
+    await fallback.cas.close();
+    await persistent.cas.close();
+  });
+});
+
+describe('real-Git scoped bulk write process count', () => {
+  it('stores a bounded page batch through one scoped fast-import process', async () => {
+    const individual = await countingReader({ sessions: true });
+    const batched = await countingReader({ sessions: true });
+    const inputs = Array.from({ length: 8 }, (_, index) => Buffer.from(`page-${index}`));
+    const individualPages = [];
+    for (const source of inputs) {
+      individualPages.push(await individual.cas.pages.put({ source }));
+    }
+    const batchPages = await batched.cas.pages.putBatch({
+      pages: inputs.map((source) => ({ source })),
+    });
+    const individualCounts = individual.snapshot();
+    const batchCounts = batched.snapshot();
+
+    expect(batchPages.map((page) => page.handle.toString())).toEqual(
+      individualPages.map((page) => page.handle.toString())
+    );
+    expect(count(batchCounts, 'session:fast-import')).toBe(1);
+    expect(total(batchCounts)).toBeLessThan(total(individualCounts));
+
+    await individual.cas.close();
+    await batched.cas.close();
+  });
+});
+
+describe('real-Git individual blob rewrite after pruning', () => {
+  it('recreates an individually written blob after external pruning', async () => {
+    const isolatedRepo = mkdtempSync(path.join(os.tmpdir(), 'cas-pruned-blob-rewrite-'));
+    const isolatedGit = (args) => spawnSync('git', args, { cwd: isolatedRepo, encoding: 'utf8' });
+    isolatedGit(['init', '--bare']);
+    const cas = new ContentAddressableStore({
+      plumbing: await createGitPlumbing({ cwd: isolatedRepo }),
+    });
+
+    try {
+      const source = Buffer.from('rewrite me after prune');
+      const first = await cas.pages.put({ source });
+      expect(isolatedGit(['cat-file', '-e', first.handle.oid]).status).toBe(0);
+
+      expect(isolatedGit(['prune', '--expire=now']).status).toBe(0);
+      expect(isolatedGit(['cat-file', '-e', first.handle.oid]).status).not.toBe(0);
+
+      const second = await cas.pages.put({ source });
+      expect(second.handle.oid).toBe(first.handle.oid);
+      expect(isolatedGit(['cat-file', '-e', second.handle.oid]).status).toBe(0);
+      await expect(cas.pages.get({ handle: second.handle })).resolves.toEqual(
+        new Uint8Array(source)
+      );
+    } finally {
+      await cas.close();
+      rmSync(isolatedRepo, { recursive: true, force: true });
+    }
   });
 });
