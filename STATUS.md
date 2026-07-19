@@ -1,8 +1,8 @@
 # STATUS
 
 **Last tagged release:** `v6.5.0` (`2026-07-18`)
-**Current release state:** `v6.5.0` is published to npm with provenance and to GitHub Releases.
-**Latest verification:** the exact reviewed merge `f464b929` passed 14/14 release-verifier steps with 6,625 observed tests across Node.js, Bun, and Deno; release workflow `29655337483` then passed validation, tests, trusted npm publication, and final GitHub Release creation.
+**Current release state:** `v6.5.1` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
+**Latest verification:** the versioned `v6.5.1` candidate passed 14/14 release-verifier steps with 6,676 observed tests across Node, Bun, Deno, and all three real-Git integration suites; tag and publication verification remain pending.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,6 +18,10 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
+- **v6.5.1 candidate posture** — bounded immutable page payload reuse is merged
+  through reviewed commit `ad5b91b2`; npm, JSR, and runtime version metadata
+  identify `6.5.1`, while the tag and registry artifacts remain deliberately
+  absent until release-candidate review completes.
 - **v6.5.0 artifact posture** — signed tag `v6.5.0` resolves to reviewed merge
   `f464b929`; npm reports `@git-stunts/git-cas@6.5.0` as `latest` with SLSA
   provenance, and the final GitHub Release is published. Bounded direct bundle
@@ -111,13 +115,11 @@
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
 - Current release goalpost:
-  [#39 v6.6.0: Operator TUI](https://github.com/git-stunts/git-cas/issues/39)
-  and
-  [#40 v6.6.0: Agent automation follow-through](https://github.com/git-stunts/git-cas/issues/40)
+  [#85 Bounded immutable page payload reuse](https://github.com/git-stunts/git-cas/issues/85)
   under the
-  [`v6.6.0` milestone](https://github.com/git-stunts/git-cas/milestone/9).
+  [`v6.5.1` milestone](https://github.com/git-stunts/git-cas/milestone/11).
 - The latest landed design record is
-  [0050-lazy-bundle-reference-reads](./docs/design/0050-lazy-bundle-reference-reads/lazy-bundle-reference-reads.md).
+  [0051-bounded-page-payload-reuse](./docs/design/0051-bounded-page-payload-reuse/bounded-page-payload-reuse.md).
 
 ## Read Next
 

@@ -3,10 +3,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
-const v650CandidateMarker = '**Current release state:** `v6.5.0` release candidate';
-const v650PublishedMarker = '**Current release state:** `v6.5.0` is published';
-const v650CandidatePath =
-  'docs/design/0050-lazy-bundle-reference-reads/witness/release-candidate.md';
+const v651CandidateMarker = '**Current release state:** `v6.5.1` release candidate';
+const v651CandidatePath =
+  'docs/design/0051-bounded-page-payload-reuse/witness/release-candidate.md';
+const v651PublicationPath =
+  'docs/design/0051-bounded-page-payload-reuse/witness/release-publication.md';
 const v650PublicationPath =
   'docs/design/0050-lazy-bundle-reference-reads/witness/release-publication.md';
 const v640PublicationPath =
@@ -24,16 +25,16 @@ function v6Heading(changelog) {
   return changelog.match(/^## \[6\.0\.0\] — (.+)$/m)?.[1];
 }
 
-function expectNoV650PublicationEvidence(...documents) {
+function expectNoV651PublicationEvidence(...documents) {
   const forbiddenMarkers = [
-    '**Last tagged release:** `v6.5.0`',
-    '**Current release state:** `v6.5.0` is published',
-    '- Signed annotated tag: `v6.5.0`',
-    'https://github.com/git-stunts/git-cas/releases/tag/v6.5.0',
+    '**Last tagged release:** `v6.5.1`',
+    '**Current release state:** `v6.5.1` is published',
+    '- Signed annotated tag: `v6.5.1`',
+    'https://github.com/git-stunts/git-cas/releases/tag/v6.5.1',
     '## npm Registry Evidence',
-    /\| Package\s+\| `@git-stunts\/git-cas@6\.5\.0`\s+\|/,
-    /\| Dist-tag\s+\| `latest` -> `6\.5\.0`\s+\|/,
-    'attestations/@git-stunts%2fgit-cas@6.5.0',
+    /\| Package\s+\| `@git-stunts\/git-cas@6\.5\.1`\s+\|/,
+    /\| Dist-tag\s+\| `latest` -> `6\.5\.1`\s+\|/,
+    'attestations/@git-stunts%2fgit-cas@6.5.1',
   ];
 
   for (const document of documents) {
@@ -47,29 +48,28 @@ function expectNoV650PublicationEvidence(...documents) {
   }
 }
 
-function expectV650CandidateState(status, candidate, publication) {
-  expect(status).toContain('**Last tagged release:** `v6.4.0` (`2026-07-18`)');
-  expect(status).toContain(v650CandidateMarker);
+function expectV651CandidateState(status, candidate, publication) {
+  expect(status).toContain('**Last tagged release:** `v6.5.0` (`2026-07-18`)');
+  expect(status).toContain(v651CandidateMarker);
   expect(status).toContain('remain pending the reviewed tag workflow');
-  expect(status).toContain('#81 Bounded lazy bundle references and immutable metadata reads');
-  expect(candidate).toContain('# PERF-0050 v6.5.0 Release Candidate Witness');
-  expect(candidate).toContain('d5f770fb4589cd33d2244c83232ee7ede1df9ec1');
-  expect(candidate).toMatch(/passed 14\/14 steps with 6,625 observed tests/);
-  expect(candidate).toContain('249 files totaling 769,785 packed bytes');
-  expect(candidate).toMatch(/2,149,364\s+unpacked bytes/);
-  expect(candidate).toMatch(/500\/500 two-writer\s+races/);
+  expect(status).toContain(
+    'passed 14/14 release-verifier steps with 6,676 observed tests'
+  );
+  expect(status).toContain('#85 Bounded immutable page payload reuse');
+  expect(candidate).toContain('# PERF-0051 v6.5.1 Release Candidate Witness');
+  expect(candidate).toContain('Implementation review: #87');
+  expect(candidate).toContain('Release review: #88');
+  expect(candidate).toContain('ad5b91b2ff7c156526961a8d0575be1a250d92c6');
+  expect(candidate).toContain('**PASS (14/14)**');
+  expect(candidate).toContain('**6,676**');
   expect(candidate).toMatch(/explicitly\s+unpublished candidate/);
   expect(publication).toBeNull();
-  expectNoV650PublicationEvidence(status, candidate);
+  expectNoV651PublicationEvidence(status, candidate);
 }
 
-function expectV650PublishedState(status, publication) {
-  expect(status).toMatch(/\*\*Last tagged release:\*\* `v6\.5\.0` \(`\d{4}-\d{2}-\d{2}`\)/);
-  expect(status).toContain(v650PublishedMarker);
+function expectV650PublishedEvidence(status, publication) {
+  expect(status).toContain('**v6.5.0 artifact posture**');
   expect(status).toContain('f464b929');
-  expect(status).toContain('#39 v6.6.0: Operator TUI');
-  expect(status).toContain('#40 v6.6.0: Agent automation follow-through');
-  expect(status).toContain('[`v6.6.0` milestone]');
   expect(publication).toContain('# PERF-0050 v6.5.0 Publication Witness');
   expect(publication).toContain('f464b9292a07dbc98cda24aad6712e9d9a3bcefa');
   expect(publication).toContain('fa955936f1e3feb4fe07e8456b983d5a535801a8');
@@ -99,59 +99,22 @@ function expectCurrentV640PublicationEvidence(publication) {
   expect(publication).toContain('2,129,716');
 }
 
-function expectV650Lifecycle(status, candidate, publication) {
-  const isCandidate = status.includes(v650CandidateMarker);
-  const isPublished = status.includes(v650PublishedMarker);
-
-  expect(Number(isCandidate) + Number(isPublished)).toBe(1);
-  if (isCandidate) {
-    expectV650CandidateState(status, candidate, publication);
-    return;
-  }
-  expect(publication).not.toBeNull();
-  expectV650PublishedState(status, publication);
-}
-
-function expectFutureV650PublicationState() {
-  const status = [
-    '**Last tagged release:** `v6.5.0` (`2026-07-18`)',
-    `${v650PublishedMarker} to npm with provenance and to GitHub Releases.`,
-    'f464b929',
-    '#39 v6.6.0: Operator TUI',
-    '#40 v6.6.0: Agent automation follow-through',
-    '[`v6.6.0` milestone]',
-  ].join('\n');
-  const publication = [
-    '# PERF-0050 v6.5.0 Publication Witness',
-    'f464b9292a07dbc98cda24aad6712e9d9a3bcefa',
-    'fa955936f1e3feb4fe07e8456b983d5a535801a8',
-    '01A63D8E9DBEEDE32918AF9C39560E0406CA9135',
-    '- Signed annotated tag: `v6.5.0`',
-    'https://github.com/git-stunts/git-cas/releases/tag/v6.5.0',
-    'actions/runs/29655337483',
-    '| Package | `@git-stunts/git-cas@6.5.0` |',
-    '| Dist-tag | `latest` -> `6.5.0` |',
-    'sha512-KfKperNdXu3xWw07tpo1yYpLTynhwAP60PhYiZ5MRsSydPdNspQzJmi6Pv0Jz+6WULD883/NJCR0V1IUhBwOBw==',
-    '4d05349bb8373bab57e12be65621bdc08325f278',
-    '2,149,363',
-    'attestations/@git-stunts%2fgit-cas@6.5.0',
-  ].join('\n');
-
-  expectV650Lifecycle(status, '', publication);
-}
-
 describe('release state docs', () => {
-  it('enforces the v6.5.0 candidate-to-publication lifecycle', () => {
+  it('enforces the v6.5.1 candidate boundary while preserving v6.5.0 publication', () => {
     const status = read('STATUS.md');
-    const candidate = read(v650CandidatePath);
-    const publication = readOptional(v650PublicationPath);
+    const candidate = read(v651CandidatePath);
+    const releaseNotes = read('docs/releases/v6.5.1.md');
+    const publication = readOptional(v651PublicationPath);
+    const v650Publication = read(v650PublicationPath);
     const v640Publication = read(v640PublicationPath);
 
-    expectV650Lifecycle(status, candidate, publication);
-    expectFutureV650PublicationState();
+    expectV651CandidateState(status, candidate, publication);
+    expect(releaseNotes).toContain(
+      'passed all 14 release-verifier steps with 6,676 observed'
+    );
+    expectV650PublishedEvidence(status, v650Publication);
     expectCurrentV640PublicationEvidence(v640Publication);
     expect(status).toContain('Current release goalpost:');
-    expect(status).toContain('d47af74a');
     expect(v640Publication).toContain('https://slsa.dev/provenance/v1');
     expect(v640Publication).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.4.0');
   });

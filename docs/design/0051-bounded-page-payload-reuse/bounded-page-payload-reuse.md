@@ -2,7 +2,7 @@
 schema: 'method.design/v1'
 cycle: '0051'
 slug: 'bounded-page-payload-reuse'
-status: 'active'
+status: 'landed'
 sponsor_human: 'James Ross'
 sponsor_agent: 'Codex'
 created: '2026-07-18'

@@ -233,6 +233,21 @@ describe('lazy bundle reference release documentation', () => {
   });
 });
 
+describe('page payload reuse release documentation', () => {
+  it('ships and links the v6.5.1 bounded page cache contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.5.1.md');
+
+    expect(readme).toContain('[v6.5.1 Release Notes](./docs/releases/v6.5.1.md)');
+    expect(upgrading).toContain('pageCacheEntries');
+    expect(upgrading).toContain('Cache residence is an optimization, not retention evidence');
+    expect(releaseNotes).toContain('# git-cas v6.5.1 Release Notes');
+    expect(releaseNotes).toContain('zero additional Git commands');
+    expect(releaseNotes).toContain('does not require stored-data migration');
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');
