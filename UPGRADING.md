@@ -2,6 +2,29 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.5.1 To v6.5.2
+
+v6.5.2 is API-additive and does not require stored-data migration. Immutable
+metadata and tree reads automatically reuse bounded typed Git sessions when the
+injected plumbing supports them. Existing structural adapters remain compatible
+and continue through the command-per-operation fallback.
+
+Use `pages.putBatch()` when an application already has an explicit bounded page
+group. The default envelope accepts at most 256 pages and 32 MiB, supports a
+lower `maxBytes` on each page, preserves input order, and performs no writes
+until the complete bounded batch is valid. Individual `pages.put()` calls remain
+one-shot so an externally pruned unreachable blob can be recreated correctly.
+
+Call `await cas.close()` when the store is no longer needed, especially when an
+operation may still be active or a stream may remain unconsumed. Closing drains
+or terminates local Git processes and releases bounded cache residency only; it
+does not delete stored objects, move refs, or change retention or publication
+state.
+
+See [v6.5.2 Release Notes](./docs/releases/v6.5.2.md) and
+[Application Storage](./docs/API.md#application-storage) for the complete batch,
+streaming, and lifecycle contracts.
+
 ## v6.5.0 To v6.5.1
 
 v6.5.1 is API-additive and does not require stored-data migration. Repeated

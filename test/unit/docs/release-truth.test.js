@@ -248,6 +248,21 @@ describe('page payload reuse release documentation', () => {
   });
 });
 
+describe('persistent Git object session release documentation', () => {
+  it('ships and links the v6.5.2 bounded process contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.5.2.md');
+
+    expect(readme).toContain('[v6.5.2 Release Notes](./docs/releases/v6.5.2.md)');
+    expect(upgrading).toContain('pages.putBatch()');
+    expect(upgrading).toMatch(/Closing drains\s+or terminates local Git processes/);
+    expect(releaseNotes).toContain('# git-cas v6.5.2 Release Notes');
+    expect(releaseNotes).toContain('225 Git processes to one');
+    expect(releaseNotes).toContain('does not require stored-data migration');
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');
