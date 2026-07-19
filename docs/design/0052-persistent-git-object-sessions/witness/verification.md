@@ -6,7 +6,9 @@ Issue: [#90](https://github.com/git-stunts/git-cas/issues/90)
 
 Implementation commit: `27831926327afc7522b39ab435d29b46b7ac428e`
 
-Final reviewed source commit: `1819d8572707d8846ffa7ace9847f490cdb6438b`
+Final reviewed source commit: `efce7879348072a25759996dd159e35b638c4035`
+
+Reviewed feature merge: `4ce37adc57d49d2633507c3fbdc46e98617b26d6`
 
 ## Contract
 

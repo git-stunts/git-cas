@@ -7,7 +7,7 @@ release_home: 'v6.5.2'
 issue: 'https://github.com/git-stunts/git-cas/issues/90'
 goalpost_issue: 'https://github.com/git-stunts/git-cas/issues/90'
 tracker_source: 'github'
-status: 'active'
+status: 'landed'
 base_commit: '12fd67200641f385d2d756c302bb2e5701beefbc'
 owners:
   - '@git-stunts'

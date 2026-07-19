@@ -44,9 +44,9 @@ GitHub wins and this file should be corrected.
 | [`v6.7.0`](https://github.com/git-stunts/git-cas/milestone/10) | Browser and edge read-path exploration                      | [#41](https://github.com/git-stunts/git-cas/issues/41)                                                                                                                                                                         |
 | [`v7.0.0`](https://github.com/git-stunts/git-cas/milestone/6)  | Protocol break only if audit requires it                    | [#42](https://github.com/git-stunts/git-cas/issues/42), only when justified                                                                                                                                                    |
 
-## Current Design
+## Latest Landed Design
 
-The current active design record is:
+The latest landed design record is:
 
 - [0052-persistent-git-object-sessions](./docs/design/0052-persistent-git-object-sessions/persistent-git-object-sessions.md)
 
