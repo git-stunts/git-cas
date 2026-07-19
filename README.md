@@ -36,6 +36,10 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
   and deterministic structured bundles through validated handles, then retain
   or publish them with generation-scoped evidence instead of managing Git
   objects, trees, or payload OIDs directly.
+- **Bounded Git Process Reuse**: Immutable object metadata and tree reads reuse
+  typed Git sessions behind the adapter, while explicitly bounded page batches
+  amortize writes without changing content identity or buffering payload
+  streams.
 - **Key Lifecycle**: Envelope encryption separates DEKs from KEKs. Rotate passphrases across an entire vault without re-encrypting data blobs. Privacy mode HMAC-hashes slug names to prevent metadata discovery.
 - **Runtime-Adaptive**: A single core supports Node.js 22+, Bun, and Deno through a strict hexagonal port architecture with runtime-specific crypto adapters.
 
@@ -84,11 +88,13 @@ const retained = await cas.retention.retain({
   root: { ref: 'refs/cas/rootsets/my-app', name: 'app/asset' },
   policy: 'pinned',
 });
+await cas.close();
 ```
 
 `staged.handle` is a content locator, not a durability promise. The returned
 retention witness identifies the exact Git generation and tree edge that made
-the asset reachable.
+the asset reachable. `close()` releases local resources only; it never deletes
+objects, updates refs, or changes retention.
 
 ## Capability Map
 
@@ -138,8 +144,9 @@ Core capabilities:
   read-only, and `sweep()` can release only markers whose expiry has passed.
 - **Application storage**: `assets`, `pages`, `bundles`, `retention`, and
   `publications` compose streaming CAS writes, bounded structured
-  materializations, direct-reference or complete-validation member reads,
-  reachability roots, compare-and-swap refs, and immutable lifecycle evidence.
+  materializations, explicitly bounded page batches, direct-reference or
+  complete-validation member reads, reachability roots, compare-and-swap refs,
+  and immutable lifecycle evidence.
 - **Scoped staging workspaces**: `workspaces.open()` mirrors application writes
   behind one renewable temporary RootSet, returns only after each handle is
   anchored, promotes destination-first, and exposes bounded age, expiry,

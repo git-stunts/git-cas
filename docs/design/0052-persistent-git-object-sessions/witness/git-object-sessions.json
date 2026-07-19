@@ -1,0 +1,85 @@
+{
+  "schema": "git-cas.git-object-session-measurement/v1",
+  "generatedAt": "2026-07-19T10:46:01.178Z",
+  "environment": {
+    "node": "v22.23.1",
+    "git": "git version 2.43.0",
+    "platform": "linux",
+    "architecture": "arm64"
+  },
+  "parameters": {
+    "items": 32,
+    "pageBytes": 4096,
+    "samples": 3
+  },
+  "selectedBundleRead": {
+    "fallback": {
+      "sampleCount": 3,
+      "semanticDigest": "f33d2c7157761572c4cbb8cb367bcf4f1f4bc1c8cbb34e9bb502b1cfd085a63d",
+      "resultCount": 32,
+      "processCount": 225,
+      "counts": {
+        "cat-file:batch-check": 64,
+        "ls-tree": 128,
+        "cat-file": 33
+      },
+      "wallMs": 343.911,
+      "cpuMs": 277.441,
+      "userCpuMs": 175.93,
+      "systemCpuMs": 107.204,
+      "peakRssBytes": 79433728
+    },
+    "session": {
+      "sampleCount": 3,
+      "semanticDigest": "f33d2c7157761572c4cbb8cb367bcf4f1f4bc1c8cbb34e9bb502b1cfd085a63d",
+      "resultCount": 32,
+      "processCount": 1,
+      "counts": {
+        "session:cat-file": 1
+      },
+      "wallMs": 54.038,
+      "cpuMs": 61.958,
+      "userCpuMs": 55.143,
+      "systemCpuMs": 6.815,
+      "peakRssBytes": 73871360
+    },
+    "semanticDigestEqual": true,
+    "processReductionPercent": 99.6,
+    "wallReductionPercent": 84.3,
+    "cpuReductionPercent": 77.7
+  },
+  "pageWrite": {
+    "individual": {
+      "sampleCount": 3,
+      "semanticDigest": "6b1abc55f720680d74d1bf24b5b9ef7de1494807b7cd2e339af87f118c2b1d26",
+      "resultCount": 32,
+      "processCount": 32,
+      "counts": {
+        "hash-object": 32
+      },
+      "wallMs": 76.503,
+      "cpuMs": 71.906,
+      "userCpuMs": 50.053,
+      "systemCpuMs": 21.853,
+      "peakRssBytes": 73334784
+    },
+    "batch": {
+      "sampleCount": 3,
+      "semanticDigest": "6b1abc55f720680d74d1bf24b5b9ef7de1494807b7cd2e339af87f118c2b1d26",
+      "resultCount": 32,
+      "processCount": 1,
+      "counts": {
+        "session:fast-import": 1
+      },
+      "wallMs": 35,
+      "cpuMs": 19.785,
+      "userCpuMs": 16.663,
+      "systemCpuMs": 3.122,
+      "peakRssBytes": 72331264
+    },
+    "semanticDigestEqual": true,
+    "processReductionPercent": 96.9,
+    "wallReductionPercent": 54.3,
+    "cpuReductionPercent": 72.5
+  }
+}

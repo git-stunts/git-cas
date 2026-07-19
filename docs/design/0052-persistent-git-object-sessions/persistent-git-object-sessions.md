@@ -248,10 +248,15 @@ the normal lifecycle contract. Persisted repositories need no migration.
 - Object read-budget failures map to the existing size-limit contract.
 - Malformed tree bytes map to `TREE_PARSE_ERROR`.
 - Protocol failure invalidates the affected session before surfacing.
+- Invalidation is generation-safe: a late failure from an old process may
+  terminate that process, but cannot evict a replacement session opened by a
+  concurrent retry.
 - A typed protocol-process failure receives one retry through a fresh session.
   These operations are content-addressed and idempotent; bulk inputs are
   materialized once before the first attempt so a retry sees the same sequence.
 - Close attempts every opened session and reports aggregate cleanup failure.
+  A graceful close or retirement failure force-terminates the affected process
+  before the failure is surfaced.
 
 ## Security / Trust / Redaction Posture
 
@@ -328,9 +333,9 @@ blob writes one-shot and streaming payloads on the existing stream path.
 
 ## Proof Surface
 
-- unit tests for tree decoding, session coalescing, error invalidation, close,
-  active-command draining, abandoned-stream cleanup, fallback, and residency
-  eviction
+- unit tests for tree decoding, session coalescing, generation-safe error
+  invalidation, close and retirement failure, active-command draining,
+  abandoned-stream cleanup, fallback, and residency eviction
 - facade tests for lazy close and async disposal
 - real-Git same-fixture fallback/session command-process comparison
 - real-Git prune/rewrite regression for individually written blobs
@@ -363,14 +368,16 @@ blob writes one-shot and streaming payloads on the existing stream path.
    opening one scoped fast-import process.
 10. Close waits for an active one-shot command and destroys an abandoned Git
     output stream before resolving.
+11. A late failure from an old session cannot invalidate a concurrently opened
+    replacement, and failed graceful retirement aborts before rejecting.
 
 ## Acceptance Criteria
 
 - [ ] All acceptance criteria in #90 are proven.
-- [ ] Public declarations include close and async disposal.
-- [ ] No public session, process, or mutable ref handle is exported.
-- [ ] Existing storage identity fixtures remain unchanged.
-- [ ] `npm test`, integration suites, platform suites, and lint pass.
+- [x] Public declarations include close and async disposal.
+- [x] No public session, process, or mutable ref handle is exported.
+- [x] Existing storage identity fixtures remain unchanged.
+- [x] `npm test`, integration suites, platform suites, and lint pass.
 - [ ] Witness evidence is committed and linked from the PR.
 
 ## Validation Plan

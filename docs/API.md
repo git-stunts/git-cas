@@ -182,6 +182,21 @@ Lazily initializes and returns the underlying VaultService instance.
 const vaultService = await cas.getVaultService();
 ```
 
+#### close
+
+```javascript
+await cas.close();
+```
+
+Blocks new facade operations, drains started persistence operations, and
+releases adapter-owned Git sessions and streams. The method is idempotent and
+is also available as `Symbol.asyncDispose`.
+
+Closure affects local resources only. It does not delete Git objects, update
+refs, run garbage collection, expire retained content, or mutate publication
+state. Production code should call `close()` from `finally` when async disposal
+syntax is unavailable.
+
 #### store
 
 ```javascript
@@ -1004,10 +1019,19 @@ Validates an existing git-cas manifest tree and wraps it in the same staged
 result returned by `assets.put()`. This is a migration bridge for callers that
 already persisted raw tree OIDs; new application code should exchange handles.
 
-### `pages.put()`, `pages.open()`, and `pages.get()`
+### `pages.put()`, `pages.putBatch()`, `pages.open()`, and `pages.get()`
 
 ```javascript
 const staged = await cas.pages.put({ source, maxBytes });
+
+const stagedBatch = await cas.pages.putBatch({
+  pages: [
+    { source: firstPage, maxBytes: 4096 },
+    { source: secondPage, maxBytes: 4096 },
+  ],
+  maxBatchPages: 16,
+  maxBatchBytes: 65536,
+});
 
 for await (const chunk of cas.pages.open({ handle: staged.handle })) {
   consume(chunk);
@@ -1026,6 +1050,14 @@ same `PageHandle`. `open()` validates the blob type and size through Git object
 metadata before streaming it. `get()` additionally collects the page under its
 effective byte bound. An imported handle above the configured maximum fails
 with `PAGE_TOO_LARGE` without materializing the blob.
+
+`putBatch()` returns an immutable ordered array of `StagedPage` results. It
+validates and collects every page before persistence begins, defaults to at
+most 256 pages and 32 MiB across the batch, and rejects count or aggregate-byte
+overflow with `PAGE_BATCH_LIMIT`. A session-capable Git adapter writes the
+batch through one scoped fast-import process that checkpoints and closes before
+the method returns. Individual `put()` calls remain one-shot so an externally
+pruned object is recreated correctly on a later identical write.
 
 Successful `get()` payloads share in-flight and completed immutable reads inside
 one store instance. The default LRU retains at most 128 payloads and 8 MiB of
@@ -3342,12 +3374,14 @@ new CasError({ message, code, meta, documentationUrl });
 | `GIT_ERROR`                           | Underlying Git plumbing command failed                                                                             | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`                 |
 | `GIT_REF_NOT_FOUND`                   | Git ref lookup found no ref; vault reads normalize this to empty state                                             | `GitRefAdapter`, `VaultPersistence`                                             |
 | `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value                                                    | `store()`, `restore()`                                                          |
+| `RESOURCE_CLOSED`                     | A facade or persistence adapter operation began after local resources were closed                                  | `ContentAddressableStore`, `GitPersistenceAdapter`                              |
 | `HANDLE_INVALID`                      | Handle object, canonical token, or staged result is malformed or unsupported                                       | Application handles and staged results                                          |
 | `HANDLE_KIND_MISMATCH`                | A handle has a valid envelope but the wrong content kind                                                           | Handle parsing and application storage                                          |
 | `HANDLE_CODEC_MISMATCH`               | Handle manifest codec differs from the active CAS codec                                                            | `assets.open()`, `assets.adopt()`, retention, publication                       |
 | `HANDLE_TARGET_MISSING`               | The repository does not contain the complete object graph referenced by a handle                                   | `assets.open()`, `assets.adopt()`, retention, publication                       |
 | `HANDLE_TARGET_TYPE_MISMATCH`         | A handle root or referenced object has the wrong Git object type                                                   | Application storage validation                                                  |
 | `PAGE_TOO_LARGE`                      | Page input or imported page blob exceeds the effective byte bound                                                  | `pages.put()`, `pages.get()`, `pages.open()`                                    |
+| `PAGE_BATCH_LIMIT`                    | Page batch count or aggregate bytes exceed the explicit batch policy                                               | `pages.putBatch()`                                                              |
 | `BUNDLE_CORRUPT`                      | Persisted bundle descriptors, edges, ranges, or target summaries disagree                                          | Bundle reads, retention, publication                                             |
 | `BUNDLE_DESCRIPTOR_LIMIT`             | Bundle descriptor bytes exceed admission or repository read policy                                                 | Bundle construction and validation                                               |
 | `BUNDLE_DUPLICATE_PATH`               | Two ordered bundle members use the same canonical path                                                             | `bundles.putOrdered()`                                                           |

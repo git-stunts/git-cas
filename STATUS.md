@@ -18,6 +18,11 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
+- **v6.5.2 candidate posture** - persistent bounded Git object sessions,
+  scoped page-write batches, and deterministic local resource closure are
+  implemented under [#90](https://github.com/git-stunts/git-cas/issues/90).
+  Unit, Docker real-Git integration, and Node/Bun/Deno platform gates pass; PR,
+  review, merge, and publication evidence remain outstanding.
 - **v6.5.1 artifact posture** — signed tag `v6.5.1` resolves to reviewed merge
   `49b7d5cb`; npm reports `@git-stunts/git-cas@6.5.1` as `latest` with SLSA
   provenance, and the final GitHub Release is published. Bounded immutable page
@@ -116,13 +121,17 @@
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
 - Current release goalpost:
+  [#90 v6.5.2: Reuse bounded Git object sessions](https://github.com/git-stunts/git-cas/issues/90)
+  under the
+  [`v6.5.2` milestone](https://github.com/git-stunts/git-cas/milestone/12).
+- Next planned goalposts remain
   [#39 v6.6.0: Operator TUI](https://github.com/git-stunts/git-cas/issues/39)
   and
   [#40 v6.6.0: Agent automation follow-through](https://github.com/git-stunts/git-cas/issues/40)
   under the
   [`v6.6.0` milestone](https://github.com/git-stunts/git-cas/milestone/9).
 - The latest landed design record is
-  [0051-bounded-page-payload-reuse](./docs/design/0051-bounded-page-payload-reuse/bounded-page-payload-reuse.md).
+  [0052-persistent-git-object-sessions](./docs/design/0052-persistent-git-object-sessions/persistent-git-object-sessions.md).
 
 ## Read Next
 

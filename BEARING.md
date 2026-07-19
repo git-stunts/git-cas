@@ -14,11 +14,12 @@ timeline
 
 ## Current State
 
-`v6.2.0` shipped on `2026-07-13`. Application asset, bundle, page, cache,
-expiry, witness, and repository-diagnostics APIs now sit above mutable root
-sets and the low-level CAS pipeline. npm plus GitHub Releases are the active
-publication surfaces. JSR validation is healthy, but JSR publication remains
-outside the release workflow.
+`v6.5.1` shipped on `2026-07-18`. Application asset, bundle, page, cache,
+expiry, witness, and repository-diagnostics APIs sit above mutable root sets
+and the low-level CAS pipeline. Direct bundle-reference reads and bounded
+immutable metadata/page reuse are published. npm plus GitHub Releases are the
+active publication surfaces. JSR validation is healthy, but JSR publication
+remains outside the release workflow.
 
 What exists now:
 
@@ -66,6 +67,10 @@ What exists now:
   current-generation retention, and allowlisted compare-and-swap application
   refs. Staged results and immutable witnesses keep content identity separate
   from retention claims.
+- **Persistent bounded Git object sessions.** The v6.5.2 candidate reuses typed
+  cat-file and mktree processes behind `GitPersistenceAdapter`, uses one scoped
+  fast-import process for an explicit page batch, and keeps individual blob
+  writes one-shot so external pruning cannot poison duplicate writes.
 - **Migration script.** `scripts/migrate-encryption.js` upgrades legacy v1/v2
   manifests to the current scheme identifiers.
 
@@ -121,19 +126,20 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With v6.2.0 shipped, active work is tracked in GitHub Issues and Milestones.
-Repo docs hold design and evidence records, not the active queue.
+With v6.5.1 shipped and the v6.5.2 performance candidate under review, active
+work is tracked in GitHub Issues and Milestones. Repo docs hold design and
+evidence records, not the active queue.
 
 The latest landed design record is
-[0047-application-storage-cache-boundary](./docs/design/0047-application-storage-cache-boundary/application-storage-cache-boundary.md).
+[0052-persistent-git-object-sessions](./docs/design/0052-persistent-git-object-sessions/persistent-git-object-sessions.md).
 Its release evidence is attached to
-[#50](https://github.com/git-stunts/git-cas/issues/50) and the
-[`v6.2.0` milestone](https://github.com/git-stunts/git-cas/milestone/3). No
+[#90](https://github.com/git-stunts/git-cas/issues/90) and the
+[`v6.5.2` milestone](https://github.com/git-stunts/git-cas/milestone/12). No
 later design is selected here; GitHub owns that decision.
 
 The broader horizon remains:
 
-- **TUI modernization.** Carried forward to `v6.3.0`; track
+- **TUI modernization.** Carried forward to `v6.6.0`; track
   [#39](https://github.com/git-stunts/git-cas/issues/39). Keep dashboard and
   wizard actions sharing executable
   option-building truth while improving operator ergonomics around long-lived
