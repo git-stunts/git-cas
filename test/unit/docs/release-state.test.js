@@ -128,6 +128,8 @@ describe('release state docs', () => {
     expectV650PublishedEvidence(status, v650Publication);
     expectCurrentV640PublicationEvidence(v640Publication);
     expect(status).toContain('Current release goalpost:');
+    expect(status).toContain('#90 v6.5.2: Reuse bounded Git object sessions');
+    expect(status).toContain('0052-persistent-git-object-sessions');
     expect(v640Publication).toContain('https://slsa.dev/provenance/v1');
     expect(v640Publication).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.4.0');
   });

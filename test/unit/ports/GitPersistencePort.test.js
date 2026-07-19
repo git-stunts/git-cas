@@ -8,6 +8,10 @@ describe('GitPersistencePort – abstract methods', () => {
     await expect(port.writeBlob(Buffer.alloc(0))).rejects.toThrow('Not implemented');
   });
 
+  it('writeBlobs() preserves the writeBlob fallback contract', async () => {
+    await expect(port.writeBlobs([Buffer.alloc(0)])).rejects.toThrow('Not implemented');
+  });
+
   it('writeTree() throws Not implemented', async () => {
     await expect(port.writeTree([])).rejects.toThrow('Not implemented');
   });

@@ -1,10 +1,50 @@
 import type {
+  GitPersistencePortBase,
   GitRefPortBase,
   RepositoryDiagnosticLimitation,
   RepositoryDoctorReport,
   RepositoryInspectionPort,
   RetentionRootKind,
 } from '../../index.d.ts';
+
+class LegacyGitPersistenceAdapter {
+  async writeBlob(_content: Uint8Array): Promise<string> {
+    return 'a'.repeat(40);
+  }
+
+  async writeTree(_entries: string[]): Promise<string> {
+    return 'b'.repeat(40);
+  }
+
+  async readBlob(_oid: string, _maxBytes?: number): Promise<Uint8Array> {
+    return new Uint8Array();
+  }
+
+  async readBlobStream(_oid: string): Promise<AsyncIterable<Uint8Array>> {
+    return (async function* emptyStream() {})();
+  }
+
+  async readTree(_treeOid: string) {
+    return [];
+  }
+
+  async readTreeEntry(_treeOid: string, _treePath: string) {
+    return null;
+  }
+
+  async *iterateTree(_treeOid: string) {}
+
+  async readObjectType(_oid: string): Promise<string> {
+    return 'blob';
+  }
+
+  async readObjectSize(_oid: string): Promise<number> {
+    return 0;
+  }
+}
+
+const legacyPersistence: GitPersistencePortBase = new LegacyGitPersistenceAdapter();
+void legacyPersistence;
 
 class LegacyGitRefAdapter {
   async resolveRef(_ref: string): Promise<string> {

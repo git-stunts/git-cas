@@ -99,10 +99,13 @@ for await (const chunk of cas.assets.open({ handle: staged.handle })) {
 }
 
 console.log(retained.witness.root.generation);
+await cas.close();
 ```
 
 Node's file stream is an `AsyncIterable<Uint8Array>`; Bun and Deno callers can
-supply their native async byte streams through the same contract.
+supply their native async byte streams through the same contract. In production
+code, call `close()` from `finally` or use async disposal. Closure releases
+local resources only and does not change stored objects or retention.
 
 ## Application Storage Lifecycle
 
@@ -139,8 +142,9 @@ that is already sorted by canonical member path, so construction does not need
 to collect the complete member set.
 
 ```js
-const nodes = await cas.pages.put({ source: encodedNodePage });
-const edges = await cas.pages.put({ source: encodedEdgePage });
+const [nodes, edges] = await cas.pages.putBatch({
+  pages: [{ source: encodedNodePage }, { source: encodedEdgePage }],
+});
 const materialization = await cas.bundles.putOrdered({
   members: (async function* members() {
     yield ['edges/root', edges.handle];
@@ -162,6 +166,12 @@ the bundle handle therefore retains its transitive pages and assets. Targeted
 lookup reads only the descriptor path and selected payload; retention and
 publication perform full bounded graph validation. Identical page bytes and
 identically constructed bundles produce identical handles.
+
+`pages.putBatch()` collects and validates the complete explicit batch before
+persistence. It accepts at most 256 pages and 32 MiB by default, preserves input
+order, and uses one scoped Git write session when the plumbing adapter supports
+it. Use individual `pages.put()` calls when inputs should not share one bounded
+memory envelope.
 
 Repeated `pages.get()` calls reuse immutable payload reads within the store's
 bounded page cache. The defaults retain at most 128 payloads and 8 MiB; use

@@ -147,6 +147,8 @@ The public entrypoint is [index.js](./index.js).
 - exposes `retention`, `publications`, `caches`, and `expiringSets` for explicit
   reachability and lifecycle policy
 - exposes read-only repository evidence through `diagnostics.doctor()`
+- owns explicit local resource closure without coupling closure to object or ref
+  mutation
 
 The facade is orchestration glue. It is not the storage engine itself.
 
@@ -329,7 +331,10 @@ Crypto:
 
 Git:
 - **`GitPersistenceAdapter`** — `GitPersistencePort` implementation using
-  `@git-stunts/plumbing` to shell out to the `git` CLI.
+  `@git-stunts/plumbing` to shell out to the `git` CLI. It reuses typed
+  cat-file and mktree sessions, keeps parsed immutable trees count-and-byte
+  bounded, uses scoped fast-import only for explicit page batches, preserves
+  streaming payload reads, and owns deterministic child-process closure.
 - **`GitRefAdapter`** — `GitRefPort` implementation using
   `@git-stunts/plumbing`.
 - **`GitRepositoryInspectionAdapter`** — `RepositoryInspectionPort`
@@ -354,6 +359,8 @@ File I/O:
 
 - **`JsonCodec`** — `CodecPort` using JSON serialization (default).
 - **`CborCodec`** — `CodecPort` using CBOR serialization.
+- **`GitTreeObjectCodec`** — boundary decoder for canonical SHA-1 and SHA-256
+  Git tree bytes plus typed mktree session entries.
 
 #### Chunkers (`src/infrastructure/chunkers/`)
 

@@ -13,6 +13,20 @@ export default class GitPersistencePort {
   }
 
   /**
+   * Writes a bounded group of blobs. Adapters may override this to amortize
+   * process startup while preserving visibility before the method resolves.
+   * @param {Iterable<Uint8Array>} contents
+   * @returns {Promise<string[]>}
+   */
+  async writeBlobs(contents) {
+    const oids = [];
+    for (const content of contents) {
+      oids.push(await this.writeBlob(content));
+    }
+    return oids;
+  }
+
+  /**
    * Creates a Git tree object from formatted entries.
    * @param {string[]} _entries - Lines in `git mktree` format.
    * @returns {Promise<string>} The Git OID of the created tree.
@@ -86,5 +100,17 @@ export default class GitPersistencePort {
    */
   async readObjectSize(_oid) {
     throw new Error('Not implemented');
+  }
+
+  /**
+   * Releases adapter-owned local resources. The default implementation is a
+   * no-op so persistence adapters without long-lived resources remain valid.
+   * @returns {Promise<void>}
+   */
+  async close() {}
+
+  /** @returns {Promise<void>} */
+  async [Symbol.asyncDispose]() {
+    await this.close();
   }
 }

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Bounded page batches and explicit resource closure** -
+  `pages.putBatch()` stores an explicitly count-and-byte-bounded page group in
+  input order, while `ContentAddressableStore.close()` and async disposal drain
+  started operations and release local adapter resources without mutating
+  objects, refs, retention, or publication state.
+
+### Performance
+
+- **Persistent Git object sessions** - immutable metadata and bounded tree
+  reads reuse one typed `cat-file` process, tree writes reuse typed `mktree`,
+  and page batches use one scoped `fast-import` process. Parsed tree reuse is
+  bounded by entry count and estimated bytes; payload streams remain streaming.
+  Individual blob writes deliberately remain one-shot so an object pruned by
+  an external process is recreated correctly on the next write.
+
 ## [6.5.1] — 2026-07-18
 
 ### Performance

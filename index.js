@@ -215,6 +215,7 @@ export default class ContentAddressableStore {
     });
     this.pages = Object.freeze({
       put: async (options) => (await this.#getPageService()).put(options),
+      putBatch: async (options) => (await this.#getPageService()).putBatch(options),
       get: async (options) => (await this.#getPageService()).get(options),
       open: (options) => this.#openPage(options),
     });
@@ -261,6 +262,8 @@ export default class ContentAddressableStore {
   #stagingWorkspaceRegistry = null;
   /** @type {RepositoryDoctor|null} */
   #repositoryDoctor = null;
+  #closePromise = null;
+  #closed = false;
   #servicePromise = null;
 
   /**
@@ -269,6 +272,7 @@ export default class ContentAddressableStore {
    * @returns {Promise<CasService>}
    */
   async #getService() {
+    this.#assertOpen();
     if (!this.#servicePromise) {
       this.#servicePromise = this.#initService();
     }
@@ -606,6 +610,37 @@ export default class ContentAddressableStore {
    */
   async getRootSetRegistry() {
     return await this.#getRootSetRegistry();
+  }
+
+  /**
+   * Releases local adapter resources. This does not mutate stored objects,
+   * refs, retention, or publication state.
+   * @returns {Promise<void>}
+   */
+  async close() {
+    if (this.#closePromise !== null) {
+      return await this.#closePromise;
+    }
+    this.#closed = true;
+    this.#closePromise = (async () => {
+      if (this.#servicePromise === null) {
+        return;
+      }
+      const service = await this.#servicePromise;
+      await service.persistence.close();
+    })();
+    return await this.#closePromise;
+  }
+
+  /** @returns {Promise<void>} */
+  async [Symbol.asyncDispose]() {
+    await this.close();
+  }
+
+  #assertOpen() {
+    if (this.#closed) {
+      throw createCasError('Content-addressable store is closed', ErrorCodes.RESOURCE_CLOSED);
+    }
   }
 
   /**

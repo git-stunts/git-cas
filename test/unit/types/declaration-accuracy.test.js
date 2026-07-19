@@ -89,6 +89,7 @@ describe('Application-storage declaration accuracy', () => {
     expect(declarations).toContain('readonly assets: AssetCapability;');
     expect(declarations).toContain('readonly bundles: BundleCapability;');
     expect(declarations).toContain('readonly pages: PageCapability;');
+    expect(declarations).toContain('putBatch(options: {');
     expect(declarations).toContain('readonly retention: RetentionCapability;');
     expect(declarations).toContain('readonly publications: PublicationCapability;');
     expect(declarations).toContain('export declare class CacheSet');
@@ -121,6 +122,21 @@ describe('Application-storage declaration accuracy', () => {
     expect(declarations).toContain('iterateRefs?(options: {');
     expect(declarations).toContain('readonly symref?: string | null;');
     expect(read('index.js')).not.toMatch(/export \{ default as CacheAcquisition \}/u);
+  });
+});
+
+describe('Persistence lifecycle declaration accuracy', () => {
+  it('declares bounded tree reuse and deterministic resource release', () => {
+    const declarations = read('index.d.ts');
+
+    expect(declarations).toContain('treeCacheEntries?: number;');
+    expect(declarations).toContain('treeCacheBytes?: number;');
+    expect(declarations).toContain('sessionIdleTimeoutMs?: number;');
+    expect(declarations).toContain('writeBlobs?(contents: Iterable<Uint8Array>)');
+    expect(declarations).toContain('close?(): Promise<void>;');
+    expect(declarations).toContain('[Symbol.asyncDispose]?(): Promise<void>;');
+    expect(declarations).toContain('close(): Promise<void>;');
+    expect(declarations).toContain('[Symbol.asyncDispose](): Promise<void>;');
   });
 });
 

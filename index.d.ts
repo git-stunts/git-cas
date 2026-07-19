@@ -513,6 +513,7 @@ export declare class CryptoPortBase {
 /** Abstract port for persisting data to Git's object database. */
 export declare class GitPersistencePortBase {
   writeBlob(content: Uint8Array): Promise<string>;
+  writeBlobs?(contents: Iterable<Uint8Array>): Promise<string[]>;
   writeTree(entries: string[]): Promise<string>;
   readBlob(oid: string, maxBytes?: number): Promise<Uint8Array>;
   readBlobStream(oid: string): Promise<AsyncIterable<Uint8Array>>;
@@ -529,6 +530,8 @@ export declare class GitPersistencePortBase {
   readObjectType(oid: string): Promise<string>;
   readObjectSize(oid: string): Promise<number>;
   setMaxBlobSize?(maxBlobSize: number): void;
+  close?(): Promise<void>;
+  [Symbol.asyncDispose]?(): Promise<void>;
 }
 
 /** Abstract port for Git ref and commit operations. */
@@ -568,8 +571,14 @@ export declare class GitPersistenceAdapter extends GitPersistencePortBase {
     plumbing: unknown;
     policy?: unknown;
     metadataCacheEntries?: number;
+    sessionIdleTimeoutMs?: number;
+    treeCacheEntries?: number;
+    treeCacheBytes?: number;
   });
+  writeBlobs(contents: Iterable<Uint8Array>): Promise<string[]>;
   setMaxBlobSize(maxBlobSize: number): void;
+  close(): Promise<void>;
+  [Symbol.asyncDispose](): Promise<void>;
 }
 
 /** Git-backed implementation of the ref port. */
@@ -1455,6 +1464,11 @@ export type PageSource =
 
 export interface PageCapability {
   put(options: { source: PageSource; maxBytes?: number }): Promise<StagedPage>;
+  putBatch(options: {
+    pages: Array<{ source: PageSource; maxBytes?: number }>;
+    maxBatchBytes?: number;
+    maxBatchPages?: number;
+  }): Promise<ReadonlyArray<StagedPage>>;
   get(options: { handle: PageHandleInput; maxBytes?: number }): Promise<Uint8Array>;
   open(options: { handle: PageHandleInput }): AsyncIterable<Uint8Array>;
 }
@@ -1723,6 +1737,9 @@ export default class ContentAddressableStore {
   getService(): Promise<CasService>;
   getVaultService(): Promise<VaultService>;
   getRootSetRegistry(): Promise<RootSetRegistry>;
+  /** Releases local resources only. Stored objects and refs are unchanged. */
+  close(): Promise<void>;
+  [Symbol.asyncDispose](): Promise<void>;
 
   static open(options?: ContentAddressableStoreOpenOptions): Promise<ContentAddressableStore>;
 

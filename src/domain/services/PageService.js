@@ -9,6 +9,8 @@ import BoundedPromiseCache from '../../helpers/boundedPromiseCache.js';
 export const DEFAULT_MAX_PAGE_SIZE = 16 * 1024 * 1024;
 const DEFAULT_PAGE_CACHE_ENTRIES = 128;
 const DEFAULT_PAGE_CACHE_BYTES = 8 * 1024 * 1024;
+const DEFAULT_PAGE_WRITE_BATCH_BYTES = 32 * 1024 * 1024;
+const DEFAULT_PAGE_WRITE_BATCH_PAGES = 256;
 const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
 
 /**
@@ -62,6 +64,62 @@ export default class PageService {
       size: bytes.length,
       observedAt,
     });
+  }
+
+  /**
+   * Stores one explicitly bounded page batch. All inputs are validated and
+   * collected before the persistence batch begins.
+   * @param {object} options
+   * @param {Array<{source: Uint8Array|Iterable<Uint8Array>|AsyncIterable<Uint8Array>, maxBytes?: number}>} options.pages
+   * @param {number} [options.maxBatchBytes]
+   * @param {number} [options.maxBatchPages]
+   * @returns {Promise<ReadonlyArray<StagedPage>>}
+   */
+  async putBatch({
+    pages,
+    maxBatchBytes = DEFAULT_PAGE_WRITE_BATCH_BYTES,
+    maxBatchPages = DEFAULT_PAGE_WRITE_BATCH_PAGES,
+  }) {
+    PageService.#assertBatch(pages, maxBatchBytes, maxBatchPages);
+    const prepared = [];
+    let totalBytes = 0;
+    for (const page of pages) {
+      if (page === null || typeof page !== 'object' || !Object.hasOwn(page, 'source')) {
+        throw createCasError('Page batch entry must provide source', ErrorCodes.INVALID_OPTIONS);
+      }
+      const pageLimit = this.#effectiveLimit(page.maxBytes);
+      const remainingBatchBytes = maxBatchBytes - totalBytes;
+      const overflow = remainingBatchBytes <= pageLimit
+        ? (observedBytes) => PageService.#batchTooLarge(
+            totalBytes + observedBytes,
+            maxBatchBytes,
+          )
+        : PageService.#tooLarge;
+      const bytes = await PageService.#collectWithOverflow(
+        page.source,
+        Math.min(pageLimit, remainingBatchBytes),
+        overflow,
+      );
+      totalBytes += bytes.length;
+      prepared.push({ bytes, observedAt: this.#observedAt() });
+    }
+
+    if (prepared.length === 0) {
+      return Object.freeze([]);
+    }
+    const oids = await this.#writeBlobs(prepared.map((page) => page.bytes));
+    if (oids.length !== prepared.length) {
+      throw createCasError(
+        'Persistence returned the wrong number of page object identifiers',
+        ErrorCodes.GIT_ERROR,
+        { expected: prepared.length, actual: oids.length },
+      );
+    }
+    return Object.freeze(oids.map((oid, index) => new StagedPage({
+      handle: new PageHandle({ oid }),
+      size: prepared[index].bytes.length,
+      observedAt: prepared[index].observedAt,
+    })));
   }
 
   /**
@@ -160,10 +218,25 @@ export default class PageService {
     return now.toISOString();
   }
 
+  async #writeBlobs(contents) {
+    if (typeof this.#persistence.writeBlobs === 'function') {
+      return await this.#persistence.writeBlobs(contents);
+    }
+    const oids = [];
+    for (const content of contents) {
+      oids.push(await this.#persistence.writeBlob(content));
+    }
+    return oids;
+  }
+
   static async #collect(source, maxBytes) {
+    return await PageService.#collectWithOverflow(source, maxBytes, PageService.#tooLarge);
+  }
+
+  static async #collectWithOverflow(source, maxBytes, overflow) {
     if (isBytes(source)) {
       if (source.length > maxBytes) {
-        throw PageService.#tooLarge(source.length, maxBytes);
+        throw overflow(source.length, maxBytes);
       }
       return new Uint8Array(source);
     }
@@ -187,7 +260,7 @@ export default class PageService {
       }
       total += bytes.length;
       if (total > maxBytes) {
-        throw PageService.#tooLarge(total, maxBytes);
+        throw overflow(total, maxBytes);
       }
       chunks.push(bytes);
     }
@@ -199,6 +272,14 @@ export default class PageService {
       observedBytes,
       maxBytes,
     });
+  }
+
+  static #batchTooLarge(observedBytes, maxBatchBytes) {
+    return createCasError(
+      'Page batch exceeds its configured byte limit',
+      ErrorCodes.PAGE_BATCH_LIMIT,
+      { observedBytes, maxBatchBytes },
+    );
   }
 
   static #assertLimit(value, label) {
@@ -214,6 +295,21 @@ export default class PageService {
       throw createCasError(`${label} must be a positive safe integer`, ErrorCodes.INVALID_OPTIONS, {
         value,
       });
+    }
+  }
+
+  static #assertBatch(pages, maxBatchBytes, maxBatchPages) {
+    PageService.#assertPositiveLimit(maxBatchBytes, 'Page batch bytes');
+    PageService.#assertPositiveLimit(maxBatchPages, 'Page batch pages');
+    if (!Array.isArray(pages)) {
+      throw createCasError('Page batch must be an array', ErrorCodes.INVALID_OPTIONS);
+    }
+    if (pages.length > maxBatchPages) {
+      throw createCasError(
+        'Page batch exceeds its configured page limit',
+        ErrorCodes.PAGE_BATCH_LIMIT,
+        { observedPages: pages.length, maxBatchPages },
+      );
     }
   }
 
