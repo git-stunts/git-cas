@@ -121,15 +121,34 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
         }
         return oids;
       }
+      let result;
+      let operationFailed = false;
+      let operationError;
       try {
         const oids = await this.#sessions.writeBlobs(replayableContents, (operation) =>
           this.policy.execute(operation)
         );
         await Promise.all([this.#sessions.retire('catFile'), this.#sessions.retire('mktree')]);
-        return [...oids];
-      } finally {
-        await this.#sessions.retire('fastImport');
+        result = [...oids];
+      } catch (error) {
+        operationFailed = true;
+        operationError = error;
       }
+      try {
+        await this.#sessions.retire('fastImport');
+      } catch (retirementError) {
+        if (operationFailed) {
+          throw new AggregateError(
+            [operationError, retirementError],
+            'Bulk Git object write and session retirement both failed'
+          );
+        }
+        throw retirementError;
+      }
+      if (operationFailed) {
+        throw operationError;
+      }
+      return result;
     });
   }
 

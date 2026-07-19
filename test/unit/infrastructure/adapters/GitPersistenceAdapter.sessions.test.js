@@ -305,6 +305,36 @@ describe('GitPersistenceAdapter persistent write sessions', () => {
   });
 });
 
+describe('GitPersistenceAdapter bulk write retirement failures', () => {
+  it('preserves cache and bulk session retirement failures', async () => {
+    const catCloseError = new Error('cat-file close failed');
+    const fastImportCloseError = new Error('fast-import close failed');
+    const cat = fakeCatSession({
+      info: vi.fn().mockResolvedValue({ oid: 'a'.repeat(40), type: 'blob', size: 1 }),
+      close: vi.fn().mockRejectedValue(catCloseError),
+      terminate: vi.fn().mockResolvedValue(undefined),
+    });
+    const fastImport = {
+      writeBlob: vi.fn().mockResolvedValue('b'.repeat(40)),
+      checkpoint: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockRejectedValue(fastImportCloseError),
+      abort: vi.fn().mockResolvedValue(undefined),
+    };
+    const adapter = new GitPersistenceAdapter({
+      plumbing: sessionPlumbing({ catSessions: [cat], fastImportSession: fastImport }),
+      policy: noPolicy,
+    });
+    await adapter.readObjectType('a'.repeat(40));
+
+    const failure = await adapter.writeBlobs([Buffer.from('value')]).catch((error) => error);
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure.errors).toEqual([catCloseError, fastImportCloseError]);
+    expect(cat.terminate).toHaveBeenCalledTimes(1);
+    expect(fastImport.abort).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('GitPersistenceAdapter bulk write recovery', () => {
   it('replays a materialized bulk input through a fresh typed session', async () => {
     const failed = {
