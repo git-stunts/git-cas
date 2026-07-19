@@ -282,6 +282,27 @@ describe('GitPersistenceAdapter persistent write sessions', () => {
     expect(fastImport.close).toHaveBeenCalledTimes(1);
     expect(plumbing.execute).not.toHaveBeenCalled();
   });
+
+  it('aborts and rejects when a scoped bulk session cannot close cleanly', async () => {
+    const fastImport = {
+      writeBlob: vi.fn().mockResolvedValue('a'.repeat(40)),
+      checkpoint: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockRejectedValue(new Error('graceful close failed')),
+      abort: vi.fn().mockResolvedValue(undefined),
+    };
+    const adapter = new GitPersistenceAdapter({
+      plumbing: sessionPlumbing({ fastImportSession: fastImport }),
+      policy: noPolicy,
+    });
+
+    await expect(adapter.writeBlobs([Buffer.from('value')])).rejects.toThrow(
+      'graceful close failed'
+    );
+
+    expect(fastImport.checkpoint).toHaveBeenCalledTimes(1);
+    expect(fastImport.close).toHaveBeenCalledTimes(1);
+    expect(fastImport.abort).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('GitPersistenceAdapter bulk write recovery', () => {

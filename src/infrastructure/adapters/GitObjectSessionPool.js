@@ -108,6 +108,7 @@ export default class GitObjectSessionPool {
           `Git ${protocol} session failed to retire`
         );
       }
+      throw closeError;
     }
   }
 
