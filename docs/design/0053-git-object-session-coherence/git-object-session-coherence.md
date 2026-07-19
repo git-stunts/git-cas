@@ -212,13 +212,13 @@ the one-change release boundary.
 
 ## Acceptance Criteria
 
-- [ ] Every checkbox in issue #94 is proven.
-- [ ] No public export or declaration changes.
-- [ ] The unit retirement matrix is explicit and complete.
-- [ ] Real-Git tests exceed `fastimport.unpackLimit`.
-- [ ] Full unit, integration, platform, lint, and release gates pass.
-- [ ] Witness evidence distinguishes deterministic process counts from local timing.
-- [ ] The complete diff passes self-review against `origin/main`.
+- [x] Every checkbox in issue #94 is proven.
+- [x] No public export or declaration changes.
+- [x] The unit retirement matrix is explicit and complete.
+- [x] Real-Git tests exceed `fastimport.unpackLimit`.
+- [x] Full unit, integration, platform, lint, and release gates pass.
+- [x] Witness evidence distinguishes deterministic process counts from local timing.
+- [x] The complete diff passes self-review against `origin/main`.
 
 ## Implementation Slices
 
