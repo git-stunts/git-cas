@@ -167,12 +167,14 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
         await this.#sessions.retire('catFile');
         return oid;
       }
-      return this.policy.execute(() =>
+      const oid = await this.policy.execute(() =>
         this.plumbing.execute({
           args: ['mktree'],
           input: `${entries.join('\n')}\n`,
         })
       );
+      await this.#sessions.retire('catFile');
+      return oid;
     });
   }
 
@@ -671,11 +673,22 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
   }
 
   static async #closeStream(stream) {
+    const operations = [];
     if (typeof stream.destroy === 'function') {
-      await stream.destroy();
+      operations.push(Promise.resolve().then(() => stream.destroy()));
     }
     if (stream.finished !== undefined) {
-      await stream.finished;
+      operations.push(Promise.resolve(stream.finished));
+    }
+    const results = await Promise.allSettled(operations);
+    const failures = results
+      .filter((result) => result.status === 'rejected')
+      .map((result) => result.reason);
+    if (failures.length === 1) {
+      throw failures[0];
+    }
+    if (failures.length > 1) {
+      throw new AggregateError(failures, 'Git output stream failed to terminate cleanly');
     }
   }
 

@@ -501,6 +501,24 @@ describe('GitPersistenceAdapter persistent tree writes', () => {
   });
 });
 
+describe('GitPersistenceAdapter fallback tree writes', () => {
+  it('retires the persistent reader after a one-shot tree write', async () => {
+    const blobOid = 'd'.repeat(40);
+    const treeOid = 'e'.repeat(40);
+    const cat = fakeCatSession({
+      info: vi.fn().mockResolvedValue({ oid: blobOid, type: 'blob', size: 1 }),
+    });
+    const plumbing = sessionPlumbing({ catSessions: [cat] });
+    plumbing.execute.mockResolvedValue(treeOid);
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+    await adapter.readObjectType(blobOid);
+
+    await expect(adapter.writeTree([])).resolves.toBe(treeOid);
+
+    expect(cat.close).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('GitPersistenceAdapter lifecycle', () => {
   it('closes every opened session once and rejects later operations', async () => {
     const oid = 'e'.repeat(40);
@@ -600,6 +618,39 @@ describe('GitPersistenceAdapter stream shutdown', () => {
     await close;
 
     expect(closeSettled).toBe(true);
+  });
+});
+
+describe('GitPersistenceAdapter failed stream shutdown', () => {
+  it('waits for process completion and preserves a destroy failure', async () => {
+    const destroyError = new Error('stream destroy failed');
+    const finished = deferred();
+    const stream = {
+      async *[Symbol.asyncIterator]() {},
+      destroy: vi.fn().mockRejectedValue(destroyError),
+      finished: finished.promise,
+    };
+    const plumbing = sessionPlumbing();
+    plumbing.executeStream.mockResolvedValue(stream);
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+    await adapter.readBlobStream('4'.repeat(40));
+
+    let closeSettled = false;
+    const close = adapter.close().then(
+      () => ({ status: 'fulfilled' }),
+      (error) => ({ status: 'rejected', error })
+    );
+    void close.then(() => {
+      closeSettled = true;
+    });
+    await vi.waitFor(() => expect(stream.destroy).toHaveBeenCalledTimes(1));
+
+    expect(closeSettled).toBe(false);
+    finished.resolve({ code: 1, stderr: 'terminated' });
+    const outcome = await close;
+    expect(outcome).toMatchObject({ status: 'rejected' });
+    expect(outcome.error).toBeInstanceOf(AggregateError);
+    expect(outcome.error.errors).toContain(destroyError);
   });
 });
 
