@@ -99,7 +99,6 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
             input: content,
           })
     );
-    await this.#retireSessions(['catFile', 'mktree']);
     return oid;
   }
 
@@ -128,7 +127,8 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
         const oids = await this.#sessions.writeBlobs(replayableContents, (operation) =>
           this.policy.execute(operation)
         );
-        await this.#retireSessions(['catFile', 'mktree']);
+        // mktree's quick lookup cannot discover packs created after its ODB snapshot.
+        await this.#sessions.retire('mktree');
         result = [...oids];
       } catch (error) {
         operationFailed = true;
@@ -164,7 +164,6 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
         const oid = await this.#sessions.writeTree(structured, (operation) =>
           this.policy.execute(operation)
         );
-        await this.#sessions.retire('catFile');
         return oid;
       }
       const oid = await this.policy.execute(() =>
@@ -173,7 +172,6 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
           input: `${entries.join('\n')}\n`,
         })
       );
-      await this.#sessions.retire('catFile');
       return oid;
     });
   }
@@ -551,21 +549,6 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       () => this.#activeOperations.delete(promise)
     );
     return promise;
-  }
-
-  async #retireSessions(protocols) {
-    const results = await Promise.allSettled(
-      protocols.map((protocol) => this.#sessions.retire(protocol))
-    );
-    const failures = results
-      .filter((result) => result.status === 'rejected')
-      .map((result) => result.reason);
-    if (failures.length === 1) {
-      throw failures[0];
-    }
-    if (failures.length > 1) {
-      throw new AggregateError(failures, 'Multiple Git object sessions failed to retire');
-    }
   }
 
   static #isObjectBufferLimit(error) {
