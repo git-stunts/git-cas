@@ -99,7 +99,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
             input: content,
           })
     );
-    await Promise.all([this.#sessions.retire('catFile'), this.#sessions.retire('mktree')]);
+    await this.#retireSessions(['catFile', 'mktree']);
     return oid;
   }
 
@@ -128,7 +128,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
         const oids = await this.#sessions.writeBlobs(replayableContents, (operation) =>
           this.policy.execute(operation)
         );
-        await Promise.all([this.#sessions.retire('catFile'), this.#sessions.retire('mktree')]);
+        await this.#retireSessions(['catFile', 'mktree']);
         result = [...oids];
       } catch (error) {
         operationFailed = true;
@@ -549,6 +549,21 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       () => this.#activeOperations.delete(promise)
     );
     return promise;
+  }
+
+  async #retireSessions(protocols) {
+    const results = await Promise.allSettled(
+      protocols.map((protocol) => this.#sessions.retire(protocol))
+    );
+    const failures = results
+      .filter((result) => result.status === 'rejected')
+      .map((result) => result.reason);
+    if (failures.length === 1) {
+      throw failures[0];
+    }
+    if (failures.length > 1) {
+      throw new AggregateError(failures, 'Multiple Git object sessions failed to retire');
+    }
   }
 
   static #isObjectBufferLimit(error) {

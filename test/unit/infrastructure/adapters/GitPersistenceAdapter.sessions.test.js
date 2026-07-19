@@ -335,6 +335,36 @@ describe('GitPersistenceAdapter bulk write retirement failures', () => {
   });
 });
 
+describe('GitPersistenceAdapter cache session retirement failures', () => {
+  it('preserves every cache session failure after an object write', async () => {
+    const catCloseError = new Error('cat-file close failed');
+    const mktreeCloseError = new Error('mktree close failed');
+    const cat = fakeCatSession({
+      info: vi.fn().mockResolvedValue({ oid: 'a'.repeat(40), type: 'blob', size: 1 }),
+      close: vi.fn().mockRejectedValue(catCloseError),
+      terminate: vi.fn().mockResolvedValue(undefined),
+    });
+    const mktree = {
+      write: vi.fn().mockResolvedValue('b'.repeat(40)),
+      close: vi.fn().mockRejectedValue(mktreeCloseError),
+      terminate: vi.fn().mockResolvedValue(undefined),
+    };
+    const adapter = new GitPersistenceAdapter({
+      plumbing: sessionPlumbing({ catSessions: [cat], mktreeSession: mktree }),
+      policy: noPolicy,
+    });
+    await adapter.writeTree([]);
+    await adapter.readObjectType('a'.repeat(40));
+
+    const failure = await adapter.writeBlob(Buffer.from('value')).catch((error) => error);
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure.errors).toEqual([catCloseError, mktreeCloseError]);
+    expect(cat.terminate).toHaveBeenCalledTimes(1);
+    expect(mktree.terminate).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('GitPersistenceAdapter bulk write recovery', () => {
   it('replays a materialized bulk input through a fresh typed session', async () => {
     const failed = {
