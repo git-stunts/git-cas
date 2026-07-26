@@ -139,7 +139,7 @@ function expectV654CandidateEvidence(status, candidate) {
   expect(status).toContain('**Current release state:** `v6.5.4` release candidate');
   expect(candidate).toContain('# PERF-0054 v6.5.4 Release Candidate Witness');
   expect(candidate).toContain('Implementation review: #100');
-  expect(candidate).toContain('Release review: pending');
+  expect(candidate).toContain('Release review: #101');
   expect(candidate).toContain('e6c58f10bf5244d0ee815a60636dec3c896ef38f');
   expect(candidate).toContain('**PASS (14/14)**');
   expect(candidate).toContain('**6,844**');
