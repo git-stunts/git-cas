@@ -2,6 +2,22 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.5.4 To v6.5.5
+
+v6.5.5 changes no public API and requires no stored-data migration. New
+git-cas-owned root-set, publication, and vault commits carry a stable internal
+author and committer identity, so writes no longer depend on repository-local
+or global `user.name` and `user.email` configuration.
+
+Existing refs, stored objects, and handles remain valid. Because Git commit
+identity contributes to commit bytes, a newly created internal commit may have
+a different OID than the same tree, parents, message, and timestamp would have
+produced under an operator's ambient identity. Applications must continue to
+treat these commits as opaque storage generations.
+
+See [v6.5.5 Release Notes](./docs/releases/v6.5.5.md) for the exact identity
+contract and clean-bare-repository verification.
+
 ## v6.5.3 To v6.5.4
 
 v6.5.4 adds `workspace.pages.putBatch()` and requires no stored-data migration.

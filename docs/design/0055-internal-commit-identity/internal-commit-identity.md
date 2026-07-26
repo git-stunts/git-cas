@@ -7,7 +7,7 @@ release_home: "v6.5.5"
 issue: "https://github.com/git-stunts/git-cas/issues/102"
 goalpost_issue: "none"
 tracker_source: "github"
-status: "active"
+status: "landed"
 base_commit: "a2d23f5bfc5d00eecab897eadd9072dab4aff534"
 owners:
   - "@git-stunts"
@@ -263,7 +263,8 @@ Use option C. Pass an immutable internal identity map on every adapter-owned
 - [x] Bare root-set write records the internal identity.
 - [x] Full unit and integration suites are green.
 - [x] Changelog and issue are linked.
-- [ ] CI is green and the patch package is published.
+- [x] Implementation CI is green.
+- [ ] The patch package is published.
 - [ ] git-warp's clean-Linux migration verification passes on the patch.
 
 ## Validation Plan
@@ -315,5 +316,6 @@ commits, or a general public commit-author API.
 
 The adapter proved to be the narrow ownership boundary: one environment map
 covers root-set, publication, and vault commits without repository
-configuration or caller coupling. Local cross-runtime verification is green.
-PR, release, and downstream verification remain pending.
+configuration or caller coupling. PR #103 merged after local and GitHub
+cross-runtime verification passed. Release and downstream verification remain
+pending.
