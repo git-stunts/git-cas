@@ -9,6 +9,7 @@ Callers that stage many bounded pages can opt into one count-and-byte-bounded
 page write plus one workspace-generation installation:
 
 ```js
+const sources = [Uint8Array.of(1), Uint8Array.of(2)];
 const staged = await workspace.pages.putBatch({
   pages: sources.map((source) => ({ source })),
   maxBatchPages: 256,
