@@ -197,7 +197,7 @@ function expectV655CandidateEvidence(status, candidate) {
   expect(status).toContain('**Current release state:** `v6.5.5` release candidate');
   expect(candidate).toContain('# INFRA-0055 v6.5.5 Release Candidate Witness');
   expect(candidate).toContain('Implementation review: #103');
-  expect(candidate).toContain('Release review: pending');
+  expect(candidate).toContain('Release review: #104');
   expect(candidate).toContain('fa3d5f6479b66bc09578487b33d1a55dec9e02b4');
   expect(candidate).toContain('**PASS (14/14)**');
   expect(candidate).toContain('**6,850**');
