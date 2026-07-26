@@ -14,7 +14,7 @@ timeline
 
 ## Current State
 
-`v6.5.2` shipped on `2026-07-19`. Application asset, bundle, page, cache,
+`v6.5.3` shipped on `2026-07-19`. Application asset, bundle, page, cache,
 expiry, witness, and repository-diagnostics APIs sit above mutable root sets
 and the low-level CAS pipeline. Direct bundle-reference reads and bounded
 immutable metadata/page reuse, bounded Git object sessions, page batches, and
@@ -72,11 +72,15 @@ What exists now:
   and `mktree` processes behind `GitPersistenceAdapter`, uses one scoped
   `fast-import` process for an explicit page batch, and keeps individual blob
   writes one-shot so external pruning cannot poison duplicate writes.
-- **Coherent session reuse.** The v6.5.3 candidate preserves `cat-file` across
+- **Coherent session reuse.** v6.5.3 preserves `cat-file` across
   successful immutable writes and preserves `mktree` across loose writes. It
   still retires `mktree` after a bounded bulk write because Git's quick lookup
   cannot discover a pack created after that process prepared its object
   database.
+- **Batched workspace page retention.** The v6.5.4 candidate adds
+  `workspace.pages.putBatch()` so one bounded ordered page group is written and
+  retained under one exact workspace generation instead of rewriting a growing
+  root set for every page.
 - **Migration script.** `scripts/migrate-encryption.js` upgrades legacy v1/v2
   manifests to the current scheme identifiers.
 
@@ -132,15 +136,15 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With v6.5.2 shipped and the versioned v6.5.3 release candidate being prepared,
+With v6.5.3 shipped and the versioned v6.5.4 release candidate being prepared,
 active work is tracked in GitHub Issues and Milestones. Repo docs hold design
 and evidence records, not the active queue.
 
 The latest landed design is
-[0053-git-object-session-coherence](./docs/design/0053-git-object-session-coherence/git-object-session-coherence.md).
+[0054-batched-page-retention](./docs/design/0054-batched-page-retention/batched-page-retention.md).
 Its release evidence is attached to
-[#94](https://github.com/git-stunts/git-cas/issues/94) and the
-[`v6.5.3` milestone](https://github.com/git-stunts/git-cas/milestone/13). Tag
+[#99](https://github.com/git-stunts/git-cas/issues/99) and the
+[`v6.5.4` milestone](https://github.com/git-stunts/git-cas/milestone/14). Tag
 and publication evidence remain pending; no later design is selected here.
 
 The broader horizon remains:

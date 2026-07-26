@@ -7,7 +7,7 @@ release_home: 'v6.5.4'
 issue: 'https://github.com/git-stunts/git-cas/issues/99'
 goalpost_issue: 'https://github.com/git-stunts/git-cas/issues/99'
 tracker_source: 'github'
-status: 'active'
+status: 'landed'
 base_commit: 'd446d97e0436afccdfc0398091ba18888375d8b0'
 owners:
   - '@git-stunts'
@@ -297,4 +297,11 @@ does it authorize git-warp v19 release without its full migration rehearsal.
 
 ## Retrospective
 
-Fill this section after implementation and review.
+PR #100 landed the bounded batch surface without changing stored formats or
+existing staging methods. The final review repair strengthened the order proof
+by deriving expected handles independently from the returned batch.
+
+The synthetic 8,188-page workload completed in 32 workspace generations and
+15.546 seconds, replacing the pre-change per-page rewrite path that had retained
+only 5,213 pages after 75 minutes. Downstream git-warp adoption and a complete
+disposable migration rehearsal remain separate release gates for git-warp v19.

@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
-const v653PublishedMarker = '**Current release state:** `v6.5.3` is published';
+const v653PublishedMarker = '**v6.5.3 artifact posture**';
+const v654CandidatePath =
+  'docs/design/0054-batched-page-retention/witness/release-candidate.md';
 const v653CandidatePath =
   'docs/design/0053-git-object-session-coherence/witness/release-candidate.md';
 const v653PublicationPath =
@@ -27,6 +29,29 @@ function read(relPath) {
 
 function v6Heading(changelog) {
   return changelog.match(/^## \[6\.0\.0\] — (.+)$/m)?.[1];
+}
+
+function expectNoV654PublicationEvidence(...documents) {
+  const forbiddenMarkers = [
+    '**Last tagged release:** `v6.5.4`',
+    '**Current release state:** `v6.5.4` is published',
+    '- Signed annotated tag: `v6.5.4`',
+    'https://github.com/git-stunts/git-cas/releases/tag/v6.5.4',
+    '## npm Registry Evidence',
+    /\| Package\s+\| `@git-stunts\/git-cas@6\.5\.4`\s+\|/,
+    /\| Dist-tag\s+\| `latest` -> `6\.5\.4`\s+\|/,
+    'attestations/@git-stunts%2fgit-cas@6.5.4',
+  ];
+
+  for (const document of documents) {
+    for (const marker of forbiddenMarkers) {
+      if (marker instanceof RegExp) {
+        expect(document).not.toMatch(marker);
+      } else {
+        expect(document).not.toContain(marker);
+      }
+    }
+  }
 }
 
 function expectNoV651PublicationEvidence(...documents) {
@@ -107,6 +132,19 @@ function expectV653CandidateEvidence(candidate) {
   expect(candidate).toContain('**6,829**');
   expect(candidate).toMatch(/explicitly\s+unpublished candidate/);
   expectNoV653PublicationEvidence(candidate);
+}
+
+function expectV654CandidateEvidence(status, candidate) {
+  expect(status).toContain('**Last tagged release:** `v6.5.3` (`2026-07-19`)');
+  expect(status).toContain('**Current release state:** `v6.5.4` release candidate');
+  expect(candidate).toContain('# PERF-0054 v6.5.4 Release Candidate Witness');
+  expect(candidate).toContain('Implementation review: #100');
+  expect(candidate).toContain('Release review: #101');
+  expect(candidate).toContain('e6c58f10bf5244d0ee815a60636dec3c896ef38f');
+  expect(candidate).toContain('**PASS (14/14)**');
+  expect(candidate).toContain('**6,844**');
+  expect(candidate).toMatch(/explicitly\s+unpublished\s+candidate/);
+  expectNoV654PublicationEvidence(status, candidate);
 }
 
 function expectV653PublishedEvidence(status, publication) {
@@ -234,19 +272,22 @@ function expectCurrentV640PublicationEvidence(publication) {
 }
 
 describe('release state docs', () => {
-  it('enforces v6.5.3 publication while preserving candidate and prior evidence', () => {
+  it('enforces the v6.5.4 candidate while preserving published evidence', () => {
     const status = read('STATUS.md');
+    const v654Candidate = read(v654CandidatePath);
     const candidate = read(v653CandidatePath);
     const v653Publication = read(v653PublicationPath);
     const v652Candidate = read(v652CandidatePath);
     const v652Publication = read(v652PublicationPath);
     const v651Candidate = read(v651CandidatePath);
     const v653ReleaseNotes = read('docs/releases/v6.5.3.md');
+    const v654ReleaseNotes = read('docs/releases/v6.5.4.md');
     const v652ReleaseNotes = read('docs/releases/v6.5.2.md');
     const publication = read(v651PublicationPath);
     const v650Publication = read(v650PublicationPath);
     const v640Publication = read(v640PublicationPath);
 
+    expectV654CandidateEvidence(status, v654Candidate);
     expectV653CandidateEvidence(candidate);
     expectV653PublishedEvidence(status, v653Publication);
     expectV652CandidateEvidence(v652Candidate);
@@ -254,13 +295,14 @@ describe('release state docs', () => {
     expectV651CandidateEvidence(v651Candidate);
     expectV651PublishedEvidence(status, publication);
     expect(v653ReleaseNotes).toContain('release verifier passed all 14 steps with 6,829');
+    expect(v654ReleaseNotes).toContain('full release verifier passed all 14 steps with 6,844');
     expect(v652ReleaseNotes).toContain('passed all 14 release-verifier steps with 6,817 observed');
     expectV650PublishedEvidence(status, v650Publication);
     expectCurrentV640PublicationEvidence(v640Publication);
     expect(status).toContain('Current release goalpost:');
     expect(status).toContain('#39 v6.6.0: Operator TUI');
     expect(status).toContain('#40 v6.6.0: Agent automation follow-through');
-    expect(status).toContain('0053-git-object-session-coherence');
+    expect(status).toContain('0054-batched-page-retention');
     expect(v640Publication).toContain('https://slsa.dev/provenance/v1');
     expect(v640Publication).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.4.0');
   });
