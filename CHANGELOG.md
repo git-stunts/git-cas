@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Batched staging-workspace page retention** -
+  `workspace.pages.putBatch()` writes an explicitly count-and-byte-bounded
+  ordered page group and anchors every returned page in one workspace
+  generation, avoiding a growing root-set rewrite for each page.
+
 ## [6.5.3] — 2026-07-19
 
 ### Performance

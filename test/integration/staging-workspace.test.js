@@ -67,6 +67,13 @@ async function collect(source) {
   return Buffer.concat(buffers);
 }
 
+async function expectBundleMember(handle, memberPath, expected) {
+  await expect(cas.bundles.getMember({
+    handle,
+    path: memberPath,
+  })).resolves.toMatchObject(expected);
+}
+
 beforeAll(async () => {
   repoDir = mkdtempSync(path.join(os.tmpdir(), 'cas-staging-workspace-'));
   tempDirs.push(repoDir);
@@ -104,6 +111,45 @@ describe('scoped staging workspace direct reachability', () => {
     await workspace.release();
     pruneNow();
     expect(objectExists(staged.handle.oid)).toBe(false);
+  });
+});
+
+describe('scoped staging workspace page batches', () => {
+  it('retains a bounded page batch under one exact workspace generation', async () => {
+    const workspace = await cas.workspaces.open({
+      namespace: 'integration/direct-page-batch',
+      ttlMs: 60_000,
+    });
+
+    const staged = await workspace.pages.putBatch({
+      pages: Array.from({ length: 32 }, (_, index) => ({
+        source: Buffer.from(`retained batch page ${index}`),
+      })),
+      maxBatchBytes: 64 * 1024,
+      maxBatchPages: 32,
+    });
+
+    expect(staged).toHaveLength(32);
+    expect(new Set(staged.map((page) => page.witness.root.generation))).toEqual(
+      new Set([staged[0].witness.root.generation]),
+    );
+    expect(git(['rev-parse', staged[0].witness.root.ref])).toBe(
+      staged[0].witness.root.generation,
+    );
+    const reachable = reachableOids(staged[0].witness.root.ref);
+    for (const page of staged) {
+      expect(reachable).toContain(page.handle.oid);
+    }
+    pruneNow();
+    for (const page of staged) {
+      expect(objectExists(page.handle.oid)).toBe(true);
+    }
+
+    await workspace.release();
+    pruneNow();
+    for (const page of staged) {
+      expect(objectExists(page.handle.oid)).toBe(false);
+    }
   });
 });
 
@@ -178,10 +224,9 @@ describe('scoped staging workspace mirrored capabilities', () => {
     pruneNow();
 
     expect(await collect(cas.assets.open({ handle: adopted.handle }))).toEqual(secondPayload);
-    await expect(cas.bundles.getMember({
-      handle: bundle.handle,
+    await expectBundleMember(bundle.handle, 'inline/value.txt', {
       path: 'inline/value.txt',
-    })).resolves.toMatchObject({ path: 'inline/value.txt' });
+    });
     expect(bundle.toJSON().witness.root.kind).toBe('root-set');
     const inspection = await cas.workspaces.inspect({
       namespace: 'integration/mirrored-capabilities',

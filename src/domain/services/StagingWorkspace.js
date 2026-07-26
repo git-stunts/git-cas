@@ -61,6 +61,7 @@ export default class StagingWorkspace {
     });
     this.pages = Object.freeze({
       put: (options) => this.#enqueue(() => this.#stage(this.#pages, 'put', options)),
+      putBatch: (options) => this.#stagePageBatch(options),
     });
     this.bundles = Object.freeze({
       put: (options) => this.#enqueue(() => this.#stage(this.#bundles, 'put', options)),
@@ -203,6 +204,68 @@ export default class StagingWorkspace {
         },
       );
     }
+  }
+
+  async #stageBatch(service, method, options) {
+    this.#assertActive();
+    const staged = await service[method](options);
+    if (!Array.isArray(staged) || staged.some((page) => !page?.handle)) {
+      throw createCasError(
+        `Workspace ${method}() did not return staged handles`,
+        ErrorCodes.WORKSPACE_STATE_INVALID,
+        { method },
+      );
+    }
+    if (staged.length === 0) {
+      return Object.freeze([]);
+    }
+    try {
+      return await this.#retainBatch(staged);
+    } catch (error) {
+      if (error?.code === ErrorCodes.WORKSPACE_TTL_INVALID) {
+        throw error;
+      }
+      throw createCasError(
+        'Workspace staged a batch but could not establish retention',
+        ErrorCodes.WORKSPACE_RETENTION_FAILED,
+        {
+          method,
+          workspaceId: this.id,
+          stagedCount: staged.length,
+          originalError: error,
+        },
+      );
+    }
+  }
+
+  #stagePageBatch(options) {
+    return this.#enqueue(() => this.#stageBatch(this.#pages, 'putBatch', options));
+  }
+
+  async #retainBatch(staged) {
+    const resolved = [];
+    const targets = new Map(this.#targets);
+    for (const page of staged) {
+      const target = await this.#resolveTarget(page.handle);
+      resolved.push(target);
+      targets.set(target.handle.toString(), target);
+    }
+    const installation = await this.#install([...targets.values()]);
+    const witnesses = new Map(
+      installation.witnesses.map((witness) => [witness.handle.toString(), witness]),
+    );
+    return Object.freeze(staged.map((page, index) => {
+      const handle = resolved[index].handle.toString();
+      const witness = witnesses.get(handle);
+      if (!witness) {
+        throw createCasError(
+          'Workspace generation omitted a newly staged batch handle',
+          ErrorCodes.WORKSPACE_STATE_INVALID,
+          { handle, generation: installation.generation },
+        );
+      }
+      return StagingWorkspace.#retainedStage(page, witness);
+    }));
   }
 
   async #install(targets) {
@@ -509,7 +572,7 @@ export default class StagingWorkspace {
       ['rootSet', StagingWorkspace.#hasMethods(rootSet, ['replace'])],
       ['refs', StagingWorkspace.#hasMethods(refs, ['deleteRef'])],
       ['assets', StagingWorkspace.#hasMethods(assets, ['put', 'adopt'])],
-      ['pages', StagingWorkspace.#hasMethods(pages, ['put'])],
+      ['pages', StagingWorkspace.#hasMethods(pages, ['put', 'putBatch'])],
       ['bundles', StagingWorkspace.#hasMethods(bundles, ['put', 'putOrdered'])],
       ['resolveHandle', typeof resolveHandle === 'function'],
       ['descriptorCodec', StagingWorkspace.#hasMethods(descriptorCodec, ['encode'])],

@@ -24,6 +24,13 @@ const TARGET_ROOT_TYPES = Object.freeze({
   page: 'blob',
 });
 const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
+const PERSISTENCE_METHODS = Object.freeze([
+  'writeBlob', 'writeTree', 'readBlob', 'readTree', 'readObjectType', 'readObjectSize',
+]);
+const REF_METHODS = Object.freeze([
+  'resolveRef', 'resolveTree', 'resolveParents', 'createCommit', 'updateRef', 'deleteRef',
+  'iterateRefs',
+]);
 
 /** Creates staging workspaces and provides bounded abandoned-workspace operations. */
 export default class StagingWorkspaceRegistry {
@@ -365,15 +372,10 @@ export default class StagingWorkspaceRegistry {
   static #assertDependencies({ persistence, ref, assets, pages, bundles, resolveHandle, crypto,
     clock, descriptorCodec }) {
     const dependencies = [
-      ['persistence', StagingWorkspaceRegistry.#hasMethods(persistence, [
-        'writeBlob', 'writeTree', 'readBlob', 'readTree', 'readObjectType', 'readObjectSize',
-      ])],
-      ['ref', StagingWorkspaceRegistry.#hasMethods(ref, [
-        'resolveRef', 'resolveTree', 'resolveParents', 'createCommit', 'updateRef', 'deleteRef',
-        'iterateRefs',
-      ])],
+      ['persistence', StagingWorkspaceRegistry.#hasMethods(persistence, PERSISTENCE_METHODS)],
+      ['ref', StagingWorkspaceRegistry.#hasMethods(ref, REF_METHODS)],
       ['assets', StagingWorkspaceRegistry.#hasMethods(assets, ['put', 'adopt'])],
-      ['pages', StagingWorkspaceRegistry.#hasMethods(pages, ['put', 'get'])],
+      ['pages', StagingWorkspaceRegistry.#hasMethods(pages, ['put', 'putBatch', 'get'])],
       ['bundles', StagingWorkspaceRegistry.#hasMethods(bundles, ['put', 'putOrdered'])],
       ['resolveHandle', typeof resolveHandle === 'function'],
       ['crypto', StagingWorkspaceRegistry.#hasMethods(crypto, ['randomBytes'])],
