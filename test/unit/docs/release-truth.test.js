@@ -293,6 +293,21 @@ describe('batched workspace page retention release documentation', () => {
   });
 });
 
+describe('internal commit identity release documentation', () => {
+  it('ships and links the v6.5.5 clean-bare-repository contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.5.5.md');
+
+    expect(readme).toContain('[v6.5.5 Release Notes](./docs/releases/v6.5.5.md)');
+    expect(upgrading).toContain('## v6.5.4 To v6.5.5');
+    expect(upgrading).toMatch(/requires no stored-data migration/);
+    expect(releaseNotes).toContain('# git-cas v6.5.5 Release Notes');
+    expect(releaseNotes).toContain('git-cas <git-cas@example.invalid>');
+    expect(releaseNotes).toMatch(/does not invoke\s+`git config`/);
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');

@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.5.3` (`2026-07-19`)
-**Current release state:** `v6.5.4` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** the versioned `v6.5.4` candidate passed 14/14 release-verifier steps with 6,844 observed tests across Node, Bun, Deno, and all three real-Git integration suites; tag and publication verification remain pending.
+**Last tagged release:** `v6.5.4` (`2026-07-26`)
+**Current release state:** `v6.5.5` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
+**Latest verification:** the versioned `v6.5.5` candidate passed 14/14 release-verifier steps with 6,850 observed tests across Node, Bun, Deno, and all three real-Git integration suites; tag and publication verification remain pending.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,13 +18,20 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.5.4 candidate posture** — batched staging-workspace page retention
-  merged through reviewed commit `e6c58f10` under
-  [#99](https://github.com/git-stunts/git-cas/issues/99). npm, JSR, and runtime
-  version metadata identify `6.5.4`; tag and registry artifacts remain
-  deliberately absent until release-candidate review completes.
+- **v6.5.5 candidate posture** — internal root-set, publication, and vault
+  commits now supply a git-cas-owned author and committer identity instead of
+  depending on ambient Git user configuration. Implementation PR
+  [#103](https://github.com/git-stunts/git-cas/pull/103) merged as
+  `fa3d5f64`; npm, JSR, and runtime metadata identify `6.5.5`, while tag and
+  registry artifacts remain deliberately absent pending release review.
+- **v6.5.4 artifact posture** — signed tag `v6.5.4` resolves to reviewed merge
+  `a2d23f5b`; npm reports `@git-stunts/git-cas@6.5.4` as `latest` with SLSA
+  provenance, and release workflow `30205009357` published the final GitHub
+  Release. Batched staging-workspace page retention is shipped. JSR dry-run
+  validation is healthy, but JSR publication is not part of the release
+  workflow.
 - **v6.5.3 artifact posture** — signed tag `v6.5.3` resolves to reviewed merge
-  `00df6077`; npm reports `@git-stunts/git-cas@6.5.3` as `latest` with SLSA
+  `00df6077`; npm retains `@git-stunts/git-cas@6.5.3` with SLSA
   provenance, and release workflow `29696131557` published the final GitHub
   Release. Coherent Git object sessions are shipped. JSR dry-run validation is
   healthy, but JSR publication is not part of the release workflow.
@@ -139,7 +146,7 @@
   under the
   [`v6.6.0` milestone](https://github.com/git-stunts/git-cas/milestone/9).
 - The latest landed design record is
-  [0054-batched-page-retention](./docs/design/0054-batched-page-retention/batched-page-retention.md).
+  [0055-internal-commit-identity](./docs/design/0055-internal-commit-identity/internal-commit-identity.md).
 
 ## Read Next
 

@@ -14,13 +14,14 @@ timeline
 
 ## Current State
 
-`v6.5.3` shipped on `2026-07-19`. Application asset, bundle, page, cache,
+`v6.5.4` shipped on `2026-07-26`. Application asset, bundle, page, cache,
 expiry, witness, and repository-diagnostics APIs sit above mutable root sets
 and the low-level CAS pipeline. Direct bundle-reference reads and bounded
 immutable metadata/page reuse, bounded Git object sessions, page batches, and
-deterministic resource closure are published. npm plus GitHub Releases are the
-active publication surfaces. JSR validation is healthy, but JSR publication
-remains outside the release workflow.
+deterministic resource closure are published. The versioned v6.5.5 candidate
+makes internal commits independent of ambient Git identity. npm plus GitHub
+Releases are the active publication surfaces. JSR validation is healthy, but
+JSR publication remains outside the release workflow.
 
 What exists now:
 
@@ -77,10 +78,13 @@ What exists now:
   still retires `mktree` after a bounded bulk write because Git's quick lookup
   cannot discover a pack created after that process prepared its object
   database.
-- **Batched workspace page retention.** The v6.5.4 candidate adds
+- **Batched workspace page retention.** v6.5.4 adds
   `workspace.pages.putBatch()` so one bounded ordered page group is written and
   retained under one exact workspace generation instead of rewriting a growing
   root set for every page.
+- **Self-contained internal commit identity.** The v6.5.5 candidate supplies a
+  stable git-cas author and committer for root-set, publication, and vault
+  commits without mutating repository or global Git configuration.
 - **Migration script.** `scripts/migrate-encryption.js` upgrades legacy v1/v2
   manifests to the current scheme identifiers.
 
@@ -136,15 +140,15 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With v6.5.3 shipped and the versioned v6.5.4 release candidate being prepared,
+With v6.5.4 shipped and the versioned v6.5.5 release candidate being prepared,
 active work is tracked in GitHub Issues and Milestones. Repo docs hold design
 and evidence records, not the active queue.
 
 The latest landed design is
-[0054-batched-page-retention](./docs/design/0054-batched-page-retention/batched-page-retention.md).
+[0055-internal-commit-identity](./docs/design/0055-internal-commit-identity/internal-commit-identity.md).
 Its release evidence is attached to
-[#99](https://github.com/git-stunts/git-cas/issues/99) and the
-[`v6.5.4` milestone](https://github.com/git-stunts/git-cas/milestone/14). Tag
+[#102](https://github.com/git-stunts/git-cas/issues/102) and the
+[`v6.5.5` milestone](https://github.com/git-stunts/git-cas/milestone/15). Tag
 and publication evidence remain pending; no later design is selected here.
 
 The broader horizon remains:
