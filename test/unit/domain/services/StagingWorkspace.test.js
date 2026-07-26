@@ -84,13 +84,14 @@ function inventoryPage(records, after, limit) {
   return records.filter((record) => after === null || record.ref > after).slice(0, limit);
 }
 
-async function expectRetainedPageBatch({ fixture, staged, updateRef }) {
+async function expectRetainedPageBatch({
+  fixture,
+  staged,
+  expectedHandles,
+  updateRef,
+}) {
   expect(staged).toHaveLength(3);
-  expect(staged.map((page) => page.handle.toString())).toEqual([
-    staged[0].handle.toString(),
-    staged[1].handle.toString(),
-    staged[0].handle.toString(),
-  ]);
+  expect(staged.map((page) => page.handle.toString())).toEqual(expectedHandles);
   expect(staged.map((page) => page.state)).toEqual(['retained', 'retained', 'retained']);
   expect(new Set(staged.map((page) => page.witness.root.generation))).toEqual(
     new Set([staged[0].witness.root.generation]),
@@ -139,20 +140,29 @@ describe('StagingWorkspace page batches', () => {
   it('retains one ordered page batch in one workspace generation', async () => {
     const fixture = makeFixture();
     const updateRef = vi.spyOn(fixture.ref, 'updateRef');
+    const sources = [
+      Buffer.from('first retained page'),
+      Buffer.from('second retained page'),
+      Buffer.from('first retained page'),
+    ];
+    const expectedHandles = await Promise.all(sources.map(async (source) => (
+      (await fixture.pages.put({ source })).handle.toString()
+    )));
     const workspace = await fixture.registry.open({
       namespace: 'git-warp/materializations',
       ttlMs: TTL_MS,
     });
 
     const staged = await workspace.pages.putBatch({
-      pages: [
-        { source: Buffer.from('first retained page') },
-        { source: Buffer.from('second retained page') },
-        { source: Buffer.from('first retained page') },
-      ],
+      pages: sources.map((source) => ({ source })),
     });
 
-    await expectRetainedPageBatch({ fixture, staged, updateRef });
+    await expectRetainedPageBatch({
+      fixture,
+      staged,
+      expectedHandles,
+      updateRef,
+    });
   });
 
   it('rejects an oversized page batch before mutating the workspace ref', async () => {
