@@ -278,6 +278,21 @@ describe('Git object session coherence release documentation', () => {
   });
 });
 
+describe('batched workspace page retention release documentation', () => {
+  it('ships and links the v6.5.4 ordered retention contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.5.4.md');
+
+    expect(readme).toContain('[v6.5.4 Release Notes](./docs/releases/v6.5.4.md)');
+    expect(upgrading).toContain('## v6.5.3 To v6.5.4');
+    expect(upgrading).toContain('workspace.pages.putBatch()');
+    expect(releaseNotes).toContain('# git-cas v6.5.4 Release Notes');
+    expect(releaseNotes).toMatch(/8,188 deterministic tiny pages in 32\s+batches/);
+    expect(releaseNotes).toMatch(/requires no application or stored-data\s+migration/);
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');

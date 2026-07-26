@@ -2,6 +2,27 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.5.3 To v6.5.4
+
+v6.5.4 adds `workspace.pages.putBatch()` and requires no stored-data migration.
+Callers that stage many bounded pages can opt into one count-and-byte-bounded
+page write plus one workspace-generation installation:
+
+```js
+const staged = await workspace.pages.putBatch({
+  pages: sources.map((source) => ({ source })),
+  maxBatchPages: 256,
+});
+```
+
+Results preserve input order, including repeated content, and every result has
+an exact retained witness for the same workspace generation. Existing
+`workspace.pages.put()` behavior is unchanged. Applications do not need to
+adopt the batch API unless they need to remove per-page root-set rewrites.
+
+See [v6.5.4 Release Notes](./docs/releases/v6.5.4.md) for the measured
+8,188-page migration workload and compatibility details.
+
 ## v6.5.2 To v6.5.3
 
 v6.5.3 changes no public API and requires no stored-data migration. Long-lived
