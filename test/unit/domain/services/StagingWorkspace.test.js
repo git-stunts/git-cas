@@ -84,6 +84,26 @@ function inventoryPage(records, after, limit) {
   return records.filter((record) => after === null || record.ref > after).slice(0, limit);
 }
 
+async function expectRetainedPageBatch({ fixture, staged, updateRef }) {
+  expect(staged).toHaveLength(3);
+  expect(staged.map((page) => page.handle.toString())).toEqual([
+    staged[0].handle.toString(),
+    staged[1].handle.toString(),
+    staged[0].handle.toString(),
+  ]);
+  expect(staged.map((page) => page.state)).toEqual(['retained', 'retained', 'retained']);
+  expect(new Set(staged.map((page) => page.witness.root.generation))).toEqual(
+    new Set([staged[0].witness.root.generation]),
+  );
+  expect(updateRef).toHaveBeenCalledTimes(1);
+
+  const roots = await reachableOids(fixture, staged[0].witness.root.ref);
+  expect(roots.headOid).toBe(staged[0].witness.root.generation);
+  expect(roots.oids).toContain(staged[0].handle.oid);
+  expect(roots.oids).toContain(staged[1].handle.oid);
+  expect(roots.oids).toHaveLength(4);
+}
+
 describe('StagingWorkspace staging', () => {
   it('returns from page staging only after the exact workspace generation reaches it', async () => {
     const fixture = makeFixture();
@@ -112,6 +132,66 @@ describe('StagingWorkspace staging', () => {
     const roots = await reachableOids(fixture, staged.witness.root.ref);
     expect(roots.headOid).toBe(staged.witness.root.generation);
     expect(roots.oids).toContain(staged.handle.oid);
+  });
+});
+
+describe('StagingWorkspace page batches', () => {
+  it('retains one ordered page batch in one workspace generation', async () => {
+    const fixture = makeFixture();
+    const updateRef = vi.spyOn(fixture.ref, 'updateRef');
+    const workspace = await fixture.registry.open({
+      namespace: 'git-warp/materializations',
+      ttlMs: TTL_MS,
+    });
+
+    const staged = await workspace.pages.putBatch({
+      pages: [
+        { source: Buffer.from('first retained page') },
+        { source: Buffer.from('second retained page') },
+        { source: Buffer.from('first retained page') },
+      ],
+    });
+
+    await expectRetainedPageBatch({ fixture, staged, updateRef });
+  });
+
+  it('rejects an oversized page batch before mutating the workspace ref', async () => {
+    const fixture = makeFixture();
+    const updateRef = vi.spyOn(fixture.ref, 'updateRef');
+    const workspace = await fixture.registry.open({
+      namespace: 'git-warp/materializations',
+      ttlMs: TTL_MS,
+    });
+
+    await expect(workspace.pages.putBatch({
+      pages: [
+        { source: Buffer.from('first') },
+        { source: Buffer.from('second') },
+      ],
+      maxBatchPages: 1,
+    })).rejects.toMatchObject({
+      code: 'PAGE_BATCH_LIMIT',
+    });
+    expect(updateRef).not.toHaveBeenCalled();
+  });
+});
+
+describe('StagingWorkspace page batch failure containment', () => {
+  it('returns no retained batch when the workspace generation cannot install', async () => {
+    const fixture = makeFixture();
+    vi.spyOn(fixture.ref, 'updateRef').mockRejectedValueOnce(
+      new Error('simulated ref failure'),
+    );
+    const workspace = await fixture.registry.open({
+      namespace: 'git-warp/materializations',
+      ttlMs: TTL_MS,
+    });
+
+    await expect(workspace.pages.putBatch({
+      pages: [{ source: Buffer.from('unretained batch page') }],
+    })).rejects.toMatchObject({
+      code: 'WORKSPACE_RETENTION_FAILED',
+    });
   });
 });
 

@@ -1342,8 +1342,12 @@ const workspace = await cas.workspaces.open({
 });
 
 try {
-  const first = await workspace.pages.put({ source: firstShard });
-  const second = await workspace.pages.put({ source: secondShard });
+  const [first, second] = await workspace.pages.putBatch({
+    pages: [
+      { source: firstShard },
+      { source: secondShard },
+    ],
+  });
   const bundle = await workspace.bundles.putOrdered({
     members: [
       ['shards/first.cbor', first.handle],
@@ -1374,6 +1378,7 @@ The workspace mirrors only application-storage writes:
 await workspace.assets.put(options);
 await workspace.assets.adopt(options);
 await workspace.pages.put(options);
+await workspace.pages.putBatch(options);
 await workspace.bundles.put(options);
 await workspace.bundles.putOrdered(options);
 ```
@@ -1382,6 +1387,12 @@ Each method returns only after a direct workspace generation reaches the
 returned typed handle. The result is otherwise the ordinary staged result plus
 a workspace `RetentionWitness`. Calls on one workspace serialize their ref
 mutations so concurrent staging cannot silently lose an accumulated root.
+
+`workspace.pages.putBatch()` accepts the same `pages`, `maxBatchBytes`, and
+`maxBatchPages` bounds as `cas.pages.putBatch()`. It returns one retained result
+per input in input order, while all results from the batch name the same exact
+workspace generation. Duplicate page content preserves ordered results but is
+retained only once in that generation.
 
 This guarantee starts when the method returns. Like all Git object composition,
 the object-write-to-ref-update interval still relies on Git's ordinary

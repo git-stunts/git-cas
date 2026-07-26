@@ -1637,6 +1637,9 @@ export declare class StagingWorkspace {
   };
   readonly pages: {
     put(options: { source: PageSource; maxBytes?: number }): Promise<WorkspaceRetainedPage>;
+    putBatch(
+      options: Parameters<PageCapability['putBatch']>[0],
+    ): Promise<ReadonlyArray<WorkspaceRetainedPage>>;
   };
   readonly bundles: {
     put(options: Parameters<BundleCapability['put']>[0]): Promise<WorkspaceRetainedBundle>;

@@ -149,9 +149,10 @@ Core capabilities:
   complete-validation member reads, reachability roots, compare-and-swap refs,
   and immutable lifecycle evidence.
 - **Scoped staging workspaces**: `workspaces.open()` mirrors application writes
-  behind one renewable temporary RootSet, returns only after each handle is
-  anchored, promotes destination-first, and exposes bounded age, expiry,
-  logical-content, and direct-root diagnostics with opaque cleanup pagination.
+  behind one renewable temporary RootSet, supports one-generation bounded page
+  batches, returns only after each handle is anchored, promotes
+  destination-first, and exposes bounded age, expiry, logical-content, and
+  direct-root diagnostics with opaque cleanup pagination.
 - **Envelope recipients**: multi-recipient key wrapping and recipient rotation
   avoid re-encrypting data blobs.
 - **Operational diagnostics**: `cas.diagnostics.doctor()` streams repository
