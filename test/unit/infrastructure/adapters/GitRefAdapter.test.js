@@ -77,6 +77,30 @@ describe('GitRefAdapter.resolveParents()', () => {
   });
 });
 
+describe('GitRefAdapter.createCommit()', () => {
+  it('supplies internal identity instead of depending on ambient Git config', async () => {
+    const { adapter, plumbing } = createAdapter();
+    const treeOid = 'a'.repeat(40);
+    plumbing.execute.mockResolvedValueOnce('b'.repeat(40));
+
+    await adapter.createCommit({
+      treeOid,
+      parentOid: null,
+      message: 'root-set: replace current roots',
+    });
+
+    expect(plumbing.execute).toHaveBeenCalledWith({
+      args: ['commit-tree', treeOid, '-m', 'root-set: replace current roots'],
+      env: {
+        GIT_AUTHOR_EMAIL: 'git-cas@example.invalid',
+        GIT_AUTHOR_NAME: 'git-cas',
+        GIT_COMMITTER_EMAIL: 'git-cas@example.invalid',
+        GIT_COMMITTER_NAME: 'git-cas',
+      },
+    });
+  });
+});
+
 // eslint-disable-next-line max-lines-per-function
 describe('GitRefAdapter.updateRef()', () => {
   it('uses Git create-only CAS semantics when expectedOldOid is null', async () => {

@@ -76,6 +76,9 @@ describe('RootSet Git reachability', () => {
 
     expect(prunableOids()).not.toContain(targetTreeOid);
     expect(git(['cat-file', '-p', ROOT_SET_REF])).not.toMatch(/^parent /m);
+    expect(git(['show', '-s', '--format=%an <%ae>%n%cn <%ce>', ROOT_SET_REF])).toBe(
+      'git-cas <git-cas@example.invalid>\ngit-cas <git-cas@example.invalid>',
+    );
   });
 
   it('makes a removed and otherwise-unreferenced tree prunable', async () => {

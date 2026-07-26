@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Self-contained internal Git commits** - root-set, publication, and vault
+  commits now carry git-cas-owned author and committer identity, so bare
+  repositories do not depend on ambient Git user configuration.
+
 ## [6.5.4] — 2026-07-26
 
 ### Added

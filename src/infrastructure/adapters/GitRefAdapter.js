@@ -14,6 +14,12 @@ import Oid from '../../domain/value-objects/Oid.js';
  */
 const DEFAULT_POLICY = Policy.timeout(30_000);
 const FORBIDDEN_REF_CHARACTERS = new Set(['~', '^', ':', '?', '*', '[', '\\']);
+const INTERNAL_COMMIT_IDENTITY = Object.freeze({
+  GIT_AUTHOR_EMAIL: 'git-cas@example.invalid',
+  GIT_AUTHOR_NAME: 'git-cas',
+  GIT_COMMITTER_EMAIL: 'git-cas@example.invalid',
+  GIT_COMMITTER_NAME: 'git-cas',
+});
 const MAX_REF_ITERATION_LIMIT = 1001;
 const REF_NAME_ENCODER = new globalThis.TextEncoder();
 
@@ -103,7 +109,7 @@ export default class GitRefAdapter extends GitRefPort {
       args.push('-p', parent);
     }
     return this.policy.execute(() =>
-      this.plumbing.execute({ args }),
+      this.plumbing.execute({ args, env: INTERNAL_COMMIT_IDENTITY }),
     );
   }
 
