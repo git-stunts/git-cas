@@ -71,10 +71,9 @@ git-cas vault dashboard
 ```
 
 The framed cockpit keeps Explorer, Atlas, and Operations in one shared session.
-Use `/` to search assets, `Ctrl+P` or `:` for commands, `?` for keyboard help,
-`F2` for session settings, `Shift+N` for notification history, and `q` for a
-confirmed exit. Noninteractive invocations retain the plain tab-separated
-listing.
+Use `/` to search assets, `Ctrl+P` for the command palette, `?` for keyboard
+help, `F2` for session settings, and `q` for a confirmed exit. Noninteractive
+invocations retain the plain tab-separated listing.
 
 ### 3. Library Ingress
 

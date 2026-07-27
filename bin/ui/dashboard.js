@@ -1080,29 +1080,13 @@ function handleWizardKey(msg, model, deps) {
 
 function handleOperationsKey(msg, model, deps) {
   if (msg.key === 'n') {
-    return [{ ...model, storeWizard: createWizardState() }, []];
+    return handleOpenStoreWizardMsg(msg, model);
   }
   if (msg.key === 's') {
-    return [
-      { ...model, statsStatus: 'loading', statsError: null },
-      [loadStatsCmd(deps.cas, model.entries, model.source)],
-    ];
+    return handleRefreshStatisticsMsg(msg, model, deps);
   }
   if (msg.key === 'x') {
-    return [
-      {
-        ...model,
-        doctorStatus: 'loading',
-        doctorError: null,
-      },
-      [
-        loadDoctorCmd(deps.cas, {
-          source: model.source,
-          entries: model.entries,
-          encryptionKey: model.vaultEncryptionKey,
-        }),
-      ],
-    ];
+    return handleRunDoctorMsg(msg, model, deps);
   }
   return null;
 }
@@ -1181,8 +1165,6 @@ function createDashboardKeyMap() {
         .bind('pageup', 'Page up', keyMessage('pageup'))
         .bind('g', 'Move to first item', keyMessage('g'))
         .bind('enter', 'Open or activate selection', keyMessage('enter'))
-        .bind('escape', 'Close application overlay', keyMessage('escape'))
-        .bind('backspace', 'Go back', keyMessage('backspace'))
     )
     .group('Explorer', (group) =>
       group
@@ -1217,12 +1199,11 @@ function createDashboardModalKeyMap(model) {
       .bind('backspace', 'Delete previous character', keyMessage('backspace'))
       .bind('escape', 'Cancel active input', keyMessage('escape'))
   );
-  return {
-    ...helpMap,
+  return Object.assign(Object.create(helpMap), {
     handle(msg) {
-      return msg;
+      return helpMap.handle(msg) ?? msg;
     },
-  };
+  });
 }
 
 function cockpitWorkspaceCommands() {

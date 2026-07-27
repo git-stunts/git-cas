@@ -53,5 +53,6 @@ describe('launchDashboard lower modes', () => {
     expect(output.write).toHaveBeenCalledOnce();
     expect(output.write.mock.calls[0][0]).toContain('alpha');
     expect(output.write.mock.calls[0][0]).toContain('abc123');
+    expect(output.write.mock.calls[0][0]).toContain('alpha\tabc123');
   });
 });

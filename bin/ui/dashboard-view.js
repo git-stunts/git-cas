@@ -542,7 +542,7 @@ function renderAtlasBriefing(sidebar, ctx) {
     '',
     sidebar.notes,
   ]
-    .filter(Boolean)
+    .filter((section) => section !== null && section !== undefined)
     .join('\n');
 }
 

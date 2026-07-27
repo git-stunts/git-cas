@@ -12,7 +12,7 @@ vi.mock('../../../bin/ui/context.js', () => ({
 const { createDashboardApp: createFramedDashboardApp, createDashboardPage } =
   await import('../../../bin/ui/dashboard.js');
 
-function createDashboardApp(deps) {
+function createPageHarness(deps) {
   const page = createDashboardPage(deps);
   return {
     init: page.init,
@@ -283,19 +283,19 @@ describe('hosted dashboard notifications', () => {
 describe('dashboard basic rendering', () => {
   it('renders themed dashboard headers', () => {
     const deps = makeDeps();
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const rendered = renderView(app.view(makeModel()), deps.ctx);
     expect(rendered).not.toContain('git-cas cockpit');
-    expect(rendered).toContain('Explorer');
-    expect(rendered).toContain('Atlas');
-    expect(rendered).toContain('Operations');
+    expect(rendered).toContain('1 Explorer');
+    expect(rendered).toContain('2 Atlas');
+    expect(rendered).toContain('3 Operations');
     expect(rendered).toContain('Asset Ledger');
     expect(rendered.split('\n').slice(0, 4).join('\n')).not.toContain('palette ctrl+p');
   });
 
   it('renders entry list when entries exist', () => {
     const deps = makeDeps();
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const model = makeModel({
       entries: [{ slug: 'alpha', treeOid: 'abc' }],
       filtered: [{ slug: 'alpha', treeOid: 'abc' }],
@@ -316,7 +316,7 @@ describe('dashboard basic rendering', () => {
 describe('dashboard detail chrome', () => {
   it('paginates detail chunks and expands the selected digest in the footer', () => {
     const deps = makeDeps();
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const chunks = Array.from({ length: 30 }, (_, index) => ({
       index,
       size: 2048,
@@ -383,7 +383,7 @@ describe('dashboard vault lock detection', () => {
         listVault,
       },
     });
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const [model, cmds] = app.init();
     const msg = await cmds[0]();
     const [next] = app.update(msg, model);
@@ -407,7 +407,7 @@ describe('dashboard vault passphrase handling', () => {
         verifyIntegrity: vi.fn().mockResolvedValue(false),
       },
     });
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const [pending, cmds] = app.update(
       { type: 'key', key: 'enter' },
       makeModel({
@@ -440,7 +440,7 @@ describe('dashboard vault key threading', () => {
         verifyIntegrity: vi.fn().mockResolvedValue(true),
       },
     });
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const [pending, authCmds] = app.update(
       { type: 'key', key: 'enter' },
       makeModel({
@@ -492,7 +492,7 @@ function treemapReport() {
 describe('dashboard atlas rendering', () => {
   it('renders the treemap panel with title', () => {
     const deps = makeDeps();
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const rendered = renderView(
       app.view(
         makeModel({
@@ -511,7 +511,7 @@ describe('dashboard atlas rendering', () => {
 
   it('switches to atlas and queues a treemap load', () => {
     const deps = makeDeps();
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const [next, cmds] = app.update({ type: 'key', key: '2' }, makeModel());
     expect(next.workspace).toBe('atlas');
     expect(next.treemapStatus).toBe('loading');
@@ -522,7 +522,7 @@ describe('dashboard atlas rendering', () => {
 describe('dashboard operations rendering', () => {
   it('renders the operations deck', () => {
     const deps = makeDeps();
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const rendered = renderView(
       app.view(makeModel({ workspace: 'operations', columns: 120 })),
       deps.ctx
@@ -546,7 +546,7 @@ describe('dashboard operations commands', () => {
         readManifest: vi.fn(),
       },
     });
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
 
     const [next, cmds] = app.update(
       { type: 'key', key: 'x' },
@@ -567,7 +567,7 @@ describe('dashboard store wizard command', () => {
     const createTree = vi.fn().mockResolvedValue('f'.repeat(40));
     const addToVault = vi.fn().mockResolvedValue({ commitOid: 'c'.repeat(40) });
     const deps = makeDeps({ cas: { storeFile, createTree, addToVault } });
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const model = makeModel({
       workspace: 'operations',
       storeWizard: {

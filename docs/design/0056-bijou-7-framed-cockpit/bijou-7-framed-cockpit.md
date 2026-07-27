@@ -364,9 +364,9 @@ merge, and patch release are complete.
 
 ## Done Does Not Mean
 
-- v19 git-warp migration UX is complete;
-- the v18-to-v19 retained substrate has been migrated;
-- the live Think mind is safe to mutate;
+- the broader TUI modernization tracked by #39 is complete;
+- a light cockpit theme has been designed or shipped;
+- the store wizard has been rewritten around newer form blocks;
 - every internal cockpit panel has been rewritten as a Bijou frame pane.
 
 ## Retrospective
