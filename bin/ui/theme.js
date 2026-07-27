@@ -2,7 +2,7 @@
  * Shared visual language for git-cas terminal surfaces.
  */
 
-import { parseAnsiToSurface } from '@flyingrobots/bijou';
+import { defineThemeSafePairs, parseAnsiToSurface } from '@flyingrobots/bijou';
 
 export const GIT_CAS_PALETTE = {
   ghost: [251, 252, 252],
@@ -31,16 +31,18 @@ function token(rgb, modifiers = [], bg) {
   };
 }
 
-const {
-  ghost, pearl, slate, cyan, orange, midnight, ink, ruby, sky, violet, deepSlate,
-} = GIT_CAS_PALETTE;
+const { ghost, slate, cyan, orange, midnight, ink, ruby, sky, violet, deepSlate } = GIT_CAS_PALETTE;
+
+const secondaryBackground = [43, 58, 68];
+const elevatedBackground = [51, 68, 78];
+const mutedBackground = [31, 41, 49];
 
 /**
- * Bijou v5 theme for the git-cas cockpit.
+ * Bijou v7 theme for the git-cas cockpit.
  *
  * Keep this object aligned with Bijou's public Theme shape. App-specific
- * colors belong in local helpers, not in stray token groups that components
- * will never read.
+ * surface tokens are registered under `ui` so Bijou's theme doctor can verify
+ * every foreground/background relationship used by the cockpit.
  */
 export const GIT_CAS_THEME = {
   name: 'git-cas-cockpit',
@@ -51,7 +53,7 @@ export const GIT_CAS_THEME = {
     info: token(sky),
     pending: token(slate),
     active: token(cyan, ['bold']),
-    muted: token(deepSlate),
+    muted: token(slate),
   },
   semantic: {
     success: token(cyan, ['bold']),
@@ -91,22 +93,47 @@ export const GIT_CAS_THEME = {
     logo: token(cyan, ['bold']),
     tableHeader: token(ghost, ['bold']),
     trackEmpty: token(deepSlate),
+    canvas: token(midnight),
+    secondaryCanvas: token(secondaryBackground),
+    elevatedCanvas: token(elevatedBackground),
+    overlayCanvas: token(ink),
+    mutedCanvas: token(mutedBackground),
   },
   surface: {
     primary: token(ghost, [], midnight),
-    secondary: token(pearl, [], [43, 58, 68]),
-    elevated: token(ghost, [], [51, 68, 78]),
+    secondary: token(ghost, [], secondaryBackground),
+    elevated: token(ghost, [], elevatedBackground),
     overlay: token(ghost, [], ink),
-    muted: token(slate, [], [31, 41, 49]),
+    muted: token(ghost, [], mutedBackground),
   },
 };
+
+/**
+ * High-contrast foreground/background contracts selected with Design Book and
+ * enforced by Bijou's theme doctor. Decorative track and border colors are not
+ * text pairs and are intentionally excluded.
+ */
+export const GIT_CAS_THEME_SAFE_PAIRS = defineThemeSafePairs()
+  .readable('surface.primary', 'ui.canvas', { label: 'primary surface text' })
+  .readable('surface.secondary', 'ui.secondaryCanvas', { label: 'secondary surface text' })
+  .readable('surface.elevated', 'ui.elevatedCanvas', { label: 'elevated surface text' })
+  .readable('surface.overlay', 'ui.overlayCanvas', { label: 'overlay surface text' })
+  .readable('surface.muted', 'ui.mutedCanvas', { label: 'muted surface text' })
+  .readable('semantic.primary', 'ui.canvas', { label: 'primary cockpit text' })
+  .readable('semantic.muted', 'ui.canvas', { label: 'muted cockpit text' })
+  .status('semantic.success', 'ui.canvas', { label: 'success cockpit text' })
+  .status('semantic.error', 'ui.canvas', { label: 'error cockpit text' })
+  .status('semantic.warning', 'ui.canvas', { label: 'warning cockpit text' })
+  .status('semantic.info', 'ui.canvas', { label: 'informational cockpit text' })
+  .status('semantic.accent', 'ui.canvas', { label: 'accent cockpit text' })
+  .build();
 
 const TEXT_TONES = {
   brand: { fg: cyan, bold: true },
   accent: { fg: orange, bold: true },
   primary: { fg: ghost },
   secondary: { fg: slate },
-  subdued: { fg: deepSlate },
+  subdued: { fg: slate },
   info: { fg: sky, bold: true },
   violet: { fg: violet, bold: true },
   success: { fg: cyan, bold: true },
