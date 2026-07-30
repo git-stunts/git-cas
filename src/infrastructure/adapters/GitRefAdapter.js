@@ -1,7 +1,7 @@
 import { Policy } from '@git-stunts/alfred';
 import GitRefPort from '../../ports/GitRefPort.js';
 import { CasError, ErrorCodes } from '../../domain/errors/index.js';
-import { errorDetailsText, isGitMissingRefError } from '../../domain/helpers/gitRefErrors.js';
+import { isGitMissingRefError } from '../../domain/helpers/gitRefErrors.js';
 import Oid from '../../domain/value-objects/Oid.js';
 
 /**
@@ -136,9 +136,22 @@ export default class GitRefAdapter extends GitRefPort {
     if (expectedOldOid !== undefined) {
       args.push(expectedOldOid ?? '0'.repeat(newOid.length));
     }
-    await this.policy.execute(() =>
-      this.plumbing.execute({ args }),
-    );
+    try {
+      await this.policy.execute(() =>
+        this.plumbing.execute({ args }),
+      );
+    } catch (error) {
+      const actual = await this.#inspectRefPosture(ref);
+      if (postureDisprovesExpectedOid(actual, expectedOldOid)) {
+        throw refConflictFromPosture({
+          ref,
+          expectedOldOid: expectedOldOid ?? null,
+          actual,
+          originalError: error,
+        });
+      }
+      throw error;
+    }
   }
 
   /** @override */
@@ -168,7 +181,12 @@ export default class GitRefAdapter extends GitRefPort {
       );
       return true;
     } catch (error) {
-      if (isUpdateRefConflict(error, [sourceRef, targetRef])) {
+      const sourceActual = await this.#inspectRefPosture(sourceRef);
+      if (postureDisprovesExpectedOid(sourceActual, generation)) {
+        return false;
+      }
+      const targetActual = await this.#inspectRefPosture(targetRef);
+      if (postureDisprovesExpectedOid(targetActual, null)) {
         return false;
       }
       throw error;
@@ -197,27 +215,16 @@ export default class GitRefAdapter extends GitRefPort {
         }),
       );
     } catch (error) {
-      if (!isUpdateRefConflict(error, [ref])) {
-        throw error;
-      }
-      const racedSymbolicTarget = await this.#resolveSymbolicRef(ref);
-      if (racedSymbolicTarget !== null) {
-        throw refConflict({
+      const actual = await this.#inspectRefPosture(ref);
+      if (postureDisprovesExpectedOid(actual, expectedGeneration)) {
+        throw refConflictFromPosture({
           ref,
           expectedOldOid: expectedGeneration,
-          actualOldOid: null,
-          actualSymref: racedSymbolicTarget,
+          actual,
           originalError: error,
         });
       }
-      const actual = await this.#inspectDirectRef(ref);
-      throw refConflict({
-        ref,
-        expectedOldOid: expectedGeneration,
-        actualOldOid: actual?.oid ?? null,
-        actualSymref: actual?.symref ?? null,
-        originalError: error,
-      });
+      throw error;
     }
     return true;
   }
@@ -268,6 +275,18 @@ export default class GitRefAdapter extends GitRefPort {
       oid: Oid.from(fields[1]).toString(),
       symref: fields[2] || null,
     });
+  }
+
+  async #inspectRefPosture(ref) {
+    const symbolicTarget = await this.#resolveSymbolicRef(ref);
+    if (symbolicTarget !== null) {
+      return Object.freeze({ oid: null, symref: symbolicTarget });
+    }
+    const direct = await this.#inspectDirectRef(ref);
+    if (direct?.symref) {
+      return Object.freeze({ oid: null, symref: direct.symref });
+    }
+    return Object.freeze({ oid: direct?.oid ?? null, symref: null });
   }
 
   async #resolveSymbolicRef(ref) {
@@ -443,17 +462,18 @@ function invalidRefName(ref) {
   return new CasError('Git ref name or prefix is invalid', ErrorCodes.GIT_ERROR, { ref });
 }
 
-function isUpdateRefConflict(error, refs) {
-  const text = errorDetailsText(error).toLowerCase();
-  return refs.some((ref) => text.includes(ref.toLowerCase()))
-    && (
-      text.includes('cannot lock ref') ||
-      text.includes('but expected') ||
-      text.includes('reference already exists') ||
-      text.includes('unable to resolve reference') ||
-      text.includes('zero <oldvalue>') ||
-      text.includes('is a symref')
-    );
+function postureDisprovesExpectedOid(actual, expectedOldOid) {
+  if (actual.symref !== null) {
+    return true;
+  }
+  if (expectedOldOid === undefined) {
+    return false;
+  }
+  if (expectedOldOid === null) {
+    return actual.oid !== null;
+  }
+  return actual.oid === null
+    || Oid.from(actual.oid).toString() !== Oid.from(expectedOldOid).toString();
 }
 
 function isQuietSymbolicRefMiss(error, ref) {
@@ -478,4 +498,14 @@ function refConflict({
     ErrorCodes.GIT_REF_CONFLICT,
     { ref, expectedOldOid, actualOldOid, actualSymref, originalError },
   );
+}
+
+function refConflictFromPosture({ ref, expectedOldOid, actual, originalError }) {
+  return refConflict({
+    ref,
+    expectedOldOid,
+    actualOldOid: actual.oid,
+    actualSymref: actual.symref,
+    originalError,
+  });
 }
