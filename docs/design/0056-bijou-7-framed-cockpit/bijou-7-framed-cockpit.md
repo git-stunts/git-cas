@@ -360,7 +360,8 @@ fallback theme lookup, and payload review.
 ## Tracker Disposition
 
 GitHub issues #105 and #106 closed after implementation PR #109 merged. The
-patch-release evidence remains with the v6.5.6 candidate witness.
+patch-release evidence is retained by the v6.5.6 candidate and publication
+witnesses under design 0057.
 
 ## Done Does Not Mean
 
@@ -376,4 +377,5 @@ PR #109 merged the framed cockpit as
 Node/Bun/Deno validation passed. Hosting one coherent cockpit page kept Bijou
 responsible for the application shell without splitting the shared vault and
 storage model across independently owned page states. The v6.5.6 release
-candidate then passed the repository's complete 14-step verifier.
+candidate then passed the repository's complete 14-step verifier, and signed
+tag `v6.5.6` published the reviewed release through workflow `30526282895`.

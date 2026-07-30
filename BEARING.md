@@ -14,17 +14,17 @@ timeline
 
 ## Current State
 
-`v6.5.5` shipped on `2026-07-26`. Application asset, bundle, page, cache,
+`v6.5.6` shipped on `2026-07-30`. Application asset, bundle, page, cache,
 expiry, witness, and repository-diagnostics APIs sit above mutable root sets
 and the low-level CAS pipeline. Direct bundle-reference reads and bounded
 immutable metadata/page reuse, bounded Git object sessions, page batches, and
 deterministic resource closure are published. Internal commits are independent
-of ambient Git identity. The v6.5.6 release candidate updates the coherent
-Bijou family to 7.2.0, moves the interactive cockpit onto Bijou's hosted
-framed-app boundary, and classifies failed checked ref mutations from structured
-post-failure posture instead of Git diagnostics. npm plus GitHub Releases are
-the active publication surfaces. JSR validation is healthy, but JSR publication
-remains outside the release workflow.
+of ambient Git identity. The coherent Bijou family is at 7.2.0, the interactive
+cockpit runs on Bijou's hosted framed-app boundary, and failed checked ref
+mutations are classified from structured post-failure posture instead of Git
+diagnostics. npm plus GitHub Releases are the active publication surfaces. JSR
+validation is healthy, but JSR publication remains outside the release
+workflow.
 
 What exists now:
 
@@ -88,11 +88,11 @@ What exists now:
 - **Self-contained internal commit identity.** v6.5.5 supplies a
   stable git-cas author and committer for root-set, publication, and vault
   commits without mutating repository or global Git configuration.
-- **Bijou 7 framed-cockpit candidate.** The active v6.5.6 cycle updates the
-  complete Bijou family and makes the frame the sole owner of terminal
-  lifecycle, outer chrome, help, command/search palettes, settings,
-  notifications, performance telemetry, and quit confirmation.
-- **Deterministic checked-ref conflict candidate.** Failed checked updates,
+- **Bijou 7 framed cockpit.** v6.5.6 updates the complete Bijou family and
+  makes the frame the sole owner of terminal lifecycle, outer chrome, help,
+  command/search palettes, settings, notifications, performance telemetry, and
+  quit confirmation.
+- **Deterministic checked-ref conflicts.** Failed checked updates,
   atomic anchors, and checked deletes inspect direct, symbolic, or absent
   post-failure ref posture. Only disproved compare-and-swap preconditions become
   the existing conflict result; unrelated operational failures remain original.
@@ -151,19 +151,14 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With v6.5.5 shipped and the v6.5.6 candidate under release review, active work
-is tracked in GitHub Issues and Milestones. Repo docs hold design and evidence
-records, not the active queue.
+With v6.5.6 shipped, active work is tracked in GitHub Issues and Milestones.
+Repo docs hold design and evidence records, not the active queue.
 
-The candidate designs are
+The latest landed designs are
 [0056-bijou-7-framed-cockpit](./docs/design/0056-bijou-7-framed-cockpit/bijou-7-framed-cockpit.md)
 and
 [0057-deterministic-ref-conflict-posture](./docs/design/0057-deterministic-ref-conflict-posture/deterministic-ref-conflict-posture.md).
-Their tracker issues are
-[#105](https://github.com/git-stunts/git-cas/issues/105) and
-[#106](https://github.com/git-stunts/git-cas/issues/106), plus
-[#111](https://github.com/git-stunts/git-cas/issues/111), in the
-[`v6.5.6` milestone](https://github.com/git-stunts/git-cas/milestone/16).
+Their release evidence is retained under their witness directories.
 
 The broader horizon remains:
 

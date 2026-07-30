@@ -291,7 +291,7 @@ operation's precondition, and otherwise rethrow the original error.
 - [x] Focused unit and real-Git integration tests pass.
 - [x] Full lint, unit, integration, and release verification pass.
 - [x] PR review and CI are green.
-- [ ] `v6.5.6` is tagged, published to npm, and represented by a GitHub Release.
+- [x] `v6.5.6` is tagged, published to npm, and represented by a GitHub Release.
 
 ## Validation Plan
 
@@ -344,4 +344,7 @@ Re-reading structured state after a failed checked mutation proved narrower
 than both diagnostic parsing and exit-code classification: only a contradicted
 precondition becomes concurrency, while repository and process failures retain
 their original identity. The v6.5.6 release candidate then passed the complete
-14-step verifier.
+14-step verifier. Release PR #113 merged as
+`257e8821ddb971bb922d618b7944da07a987e6c4`; signed tag `v6.5.6` peels to that
+reviewed merge, and workflow `30526282895` published npm plus the final GitHub
+Release.
