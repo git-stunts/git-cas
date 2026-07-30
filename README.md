@@ -49,7 +49,7 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
 `npm run upgrade` in dry-run mode before restoring old encrypted vault entries.
 For the release overview, see the
-[v6.5.5 Release Notes](./docs/releases/v6.5.5.md).
+[v6.5.6 Release Notes](./docs/releases/v6.5.6.md).
 
 ### 1. CLI Usage
 
@@ -228,6 +228,8 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
   retained under one exact staging-workspace generation.
 - **[v6.5.5 Release Notes](./docs/releases/v6.5.5.md)**: Self-contained
   identity for git-cas-owned commits in unconfigured bare repositories.
+- **[v6.5.6 Release Notes](./docs/releases/v6.5.6.md)**: Bijou 7 hosted
+  cockpit ownership and deterministic checked-ref conflict classification.
 - **[Upgrading](./UPGRADING.md)**: Migration guide for v5 → v6.
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.
 
