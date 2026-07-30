@@ -267,8 +267,15 @@ function expectV656PublishedEvidence(status, publication) {
   expect(status).toContain('257e8821');
   expect(status).toContain('30526282895');
   expect(publication).toContain('# TRUST-0057 v6.5.6 Publication Witness');
-  expect(publication).toContain('257e8821ddb971bb922d618b7944da07a987e6c4');
-  expect(publication).toContain('248f3c740348e019cc0a4fb0ce8d5457dba824e2');
+  expect(publication).toContain(
+    '- Reviewed merge commit: `257e8821ddb971bb922d618b7944da07a987e6c4`'
+  );
+  expect(publication).toContain(
+    '- Tag object: `248f3c740348e019cc0a4fb0ce8d5457dba824e2`'
+  );
+  expect(publication).toContain(
+    '- Peeled tag target: `257e8821ddb971bb922d618b7944da07a987e6c4`'
+  );
   expect(publication).toContain('01A63D8E9DBEEDE32918AF9C39560E0406CA9135');
   expect(publication).toContain('- Signed annotated tag: `v6.5.6`');
   expect(publication).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.5.6');
