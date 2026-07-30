@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.5.5` (`2026-07-26`)
-**Current release state:** `v6.5.6` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** the versioned `v6.5.6` candidate at implementation merge `4327effd` passed 14/14 release-verifier steps with 6,898 observed tests across Node, Bun, Deno, and all three real-Git integration suites.
+**Last tagged release:** `v6.5.6` (`2026-07-30`)
+**Current release state:** `v6.5.6` is published to npm and GitHub Releases; JSR remains validation-only.
+**Latest verification:** reviewed merge `257e8821` passed 14/14 release-verifier steps with 6,898 observed tests before tagging; release workflow `30526282895` then passed tag validation, lint, unit, Node/Bun/Deno real-Git integration, npm OIDC publication, and final GitHub Release creation.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,13 +18,12 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.5.6 candidate posture** — PR
-  [#109](https://github.com/git-stunts/git-cas/pull/109) merged the Bijou 7.2
-  framed cockpit as `e802269a`; PR
-  [#112](https://github.com/git-stunts/git-cas/pull/112) merged deterministic
-  checked-ref conflict classification as `4327effd`. npm, JSR, and runtime
-  metadata identify `6.5.6`; tag and registry artifacts remain deliberately
-  absent pending release review.
+- **v6.5.6 artifact posture** — signed tag `v6.5.6` resolves to reviewed release
+  merge `257e8821`; npm reports `@git-stunts/git-cas@6.5.6` as `latest` with
+  publish and SLSA provenance, and release workflow `30526282895` published the
+  final GitHub Release. The Bijou 7.2 hosted cockpit and deterministic
+  checked-ref conflict classification are shipped. JSR dry-run validation is
+  healthy, but JSR publication is not part of the release workflow.
 - **v6.5.5 artifact posture** — signed tag `v6.5.5` resolves to reviewed merge
   `9ea91a73`; npm reports `@git-stunts/git-cas@6.5.5` as the retained published
   predecessor with SLSA provenance, and release workflow `30211630524`
