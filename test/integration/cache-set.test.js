@@ -94,6 +94,37 @@ function hookPlumbing(plumbing, hook) {
   });
 }
 
+function stripMutationDiagnostics(plumbing) {
+  return new Proxy(plumbing, {
+    get(target, property) {
+      const value = Reflect.get(target, property, target);
+      if (typeof value !== 'function') {
+        return value;
+      }
+      if (property === 'execute') {
+        return async (options) => {
+          try {
+            return await value.call(target, options);
+          } catch (error) {
+            if (options.args[0] !== 'update-ref' || !options.args.includes('-d')) {
+              throw error;
+            }
+            throw Object.assign(new Error('checked ref mutation failed'), {
+              details: {
+                args: options.args,
+                code: error?.details?.code ?? 128,
+                stderr: '',
+                stdout: '',
+              },
+            });
+          }
+        };
+      }
+      return value.bind(target);
+    },
+  });
+}
+
 function tracedPlumbing(plumbing) {
   return new Proxy(plumbing, {
     get(target, property) {
@@ -463,13 +494,13 @@ describe('CacheSet acquisition target ref authority', () => {
     const plumbing = await createGitPlumbing({ cwd: repoDir });
     let raced = false;
     const racingRefs = new GitRefAdapter({
-      plumbing: hookPlumbing(plumbing, ({ args }) => {
+      plumbing: stripMutationDiagnostics(hookPlumbing(plumbing, ({ args }) => {
         if (!raced && args[0] === 'update-ref' && args.includes('-d')) {
           raced = true;
           git(['update-ref', '-d', acquisitionRef]);
           git(['symbolic-ref', acquisitionRef, danglingTarget]);
         }
-      }),
+      })),
     });
 
     await expect(racingRefs.deleteRef({
@@ -477,7 +508,12 @@ describe('CacheSet acquisition target ref authority', () => {
       expectedOldOid: stored.generation,
     })).rejects.toMatchObject({
       code: 'GIT_REF_CONFLICT',
-      meta: { actualSymref: danglingTarget },
+      meta: {
+        actualSymref: danglingTarget,
+        originalError: {
+          details: { stderr: '' },
+        },
+      },
     });
 
     expect(raced).toBe(true);

@@ -15,6 +15,33 @@ function createAdapter() {
   };
 }
 
+function createFailedMutationAdapter({ mutationError, postures }) {
+  let mutationAttempted = false;
+  const plumbing = {
+    execute: vi.fn().mockImplementation(({ args }) => {
+      if (args[0] === 'update-ref') {
+        mutationAttempted = true;
+        return Promise.reject(mutationError);
+      }
+      const ref = args.at(-1);
+      const posture = mutationAttempted ? postures[ref] : null;
+      if (args[0] === 'symbolic-ref') {
+        return Promise.resolve(posture?.symref ?? '');
+      }
+      if (args[0] === 'for-each-ref') {
+        return Promise.resolve(posture?.oid
+          ? `${ref}\t${posture.oid}\t${posture.symref ?? ''}`
+          : '');
+      }
+      return Promise.resolve('');
+    }),
+  };
+  return {
+    adapter: new GitRefAdapter({ plumbing, policy: noPolicy }),
+    plumbing,
+  };
+}
+
 describe('GitRefAdapter.resolveRef()', () => {
   it('normalizes Git missing-ref stderr into a structured ref-not-found error', async () => {
     const { adapter, plumbing } = createAdapter();
@@ -163,6 +190,73 @@ describe('GitRefAdapter.updateRef()', () => {
     });
     expect(plumbing.execute).toHaveBeenCalledTimes(1);
   });
+
+  it('normalizes a diagnostic-free checked update from observed OID posture', async () => {
+    const ref = 'refs/cas/vault';
+    const expectedOldOid = 'a'.repeat(40);
+    const actualOldOid = 'b'.repeat(40);
+    const rootCause = new Error('update failed');
+    const { adapter } = createFailedMutationAdapter({
+      mutationError: rootCause,
+      postures: { [ref]: { oid: actualOldOid, symref: null } },
+    });
+
+    await expect(adapter.updateRef({
+      ref,
+      newOid: 'c'.repeat(40),
+      expectedOldOid,
+    })).rejects.toMatchObject({
+      code: ErrorCodes.GIT_REF_CONFLICT,
+      meta: {
+        ref,
+        expectedOldOid,
+        actualOldOid,
+        actualSymref: null,
+        originalError: rootCause,
+      },
+    });
+  });
+
+  it('normalizes a diagnostic-free create-only update when the target appeared', async () => {
+    const ref = 'refs/cas/vault';
+    const actualOldOid = 'b'.repeat(40);
+    const rootCause = new Error('update failed');
+    const { adapter } = createFailedMutationAdapter({
+      mutationError: rootCause,
+      postures: { [ref]: { oid: actualOldOid, symref: null } },
+    });
+
+    await expect(adapter.updateRef({
+      ref,
+      newOid: 'c'.repeat(40),
+      expectedOldOid: null,
+    })).rejects.toMatchObject({
+      code: ErrorCodes.GIT_REF_CONFLICT,
+      meta: {
+        ref,
+        expectedOldOid: null,
+        actualOldOid,
+        actualSymref: null,
+        originalError: rootCause,
+      },
+    });
+  });
+
+  it('preserves a failed checked update when observed posture still satisfies it', async () => {
+    const ref = 'refs/cas/vault';
+    const expectedOldOid = 'a'.repeat(40);
+    const rootCause = new Error('permission denied');
+    const { adapter } = createFailedMutationAdapter({
+      mutationError: rootCause,
+      postures: { [ref]: { oid: expectedOldOid, symref: null } },
+    });
+
+    await expect(adapter.updateRef({
+      ref,
+      newOid: 'b'.repeat(40),
+      expectedOldOid,
+    })).rejects.toBe(rootCause);
+  });
 });
 
 describe('GitRefAdapter scoped anchors', () => {
@@ -243,33 +337,124 @@ describe('GitRefAdapter scoped-anchor conflicts', () => {
     expect(plumbing.execute).toHaveBeenCalledTimes(1);
   });
 
-  it('reports a generation race without hiding unrelated Git failures', async () => {
-    const { adapter, plumbing } = createAdapter();
+  it('normalizes a diagnostic-free anchor failure from observed source posture', async () => {
     const sourceRef = 'refs/cas/caches/git-warp/materializations';
     const targetRef = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
     const generation = 'a'.repeat(40);
-    plumbing.execute
-      .mockResolvedValueOnce('')
-      .mockResolvedValueOnce('')
-      .mockRejectedValueOnce(Object.assign(new Error('transaction failed'), {
-        details: { stderr: `fatal: prepare: cannot lock ref '${sourceRef}': is at b but expected a` },
-      }));
+    const { adapter } = createFailedMutationAdapter({
+      mutationError: new Error('transaction failed'),
+      postures: {
+        [sourceRef]: { oid: 'b'.repeat(40), symref: null },
+        [targetRef]: null,
+      },
+    });
 
-    await expect(adapter.anchorRef({ sourceRef, expectedSourceOid: generation, targetRef }))
-      .resolves.toBe(false);
+    await expect(adapter.anchorRef({
+      sourceRef,
+      expectedSourceOid: generation,
+      targetRef,
+    })).resolves.toBe(false);
+  });
+});
 
-    const failure = new Error('permission denied');
-    plumbing.execute
-      .mockResolvedValueOnce('')
-      .mockResolvedValueOnce('')
-      .mockRejectedValueOnce(failure);
-    await expect(adapter.anchorRef({ sourceRef, expectedSourceOid: generation, targetRef }))
-      .rejects.toBe(failure);
+describe('GitRefAdapter scoped-anchor target and operational failures', () => {
+  it('normalizes a diagnostic-free anchor failure when the target appeared', async () => {
+    const sourceRef = 'refs/cas/caches/git-warp/materializations';
+    const targetRef = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
+    const generation = 'a'.repeat(40);
+    const { adapter } = createFailedMutationAdapter({
+      mutationError: new Error('transaction failed'),
+      postures: {
+        [sourceRef]: { oid: generation, symref: null },
+        [targetRef]: { oid: generation, symref: null },
+      },
+    });
+
+    await expect(adapter.anchorRef({
+      sourceRef,
+      expectedSourceOid: generation,
+      targetRef,
+    })).resolves.toBe(false);
+  });
+
+  it('preserves a failed anchor when observed posture still satisfies it', async () => {
+    const sourceRef = 'refs/cas/caches/git-warp/materializations';
+    const targetRef = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
+    const generation = 'a'.repeat(40);
+    const rootCause = new Error('permission denied');
+    const { adapter } = createFailedMutationAdapter({
+      mutationError: rootCause,
+      postures: {
+        [sourceRef]: { oid: generation, symref: null },
+        [targetRef]: null,
+      },
+    });
+
+    await expect(adapter.anchorRef({
+      sourceRef,
+      expectedSourceOid: generation,
+      targetRef,
+    })).rejects.toBe(rootCause);
   });
 });
 
 // eslint-disable-next-line max-lines-per-function
 describe('GitRefAdapter checked-delete conflicts', () => {
+  it('normalizes a diagnostic-free checked delete from observed absence', async () => {
+    const ref = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
+    const generation = 'a'.repeat(40);
+    const rootCause = new Error('delete failed');
+    const { adapter } = createFailedMutationAdapter({
+      mutationError: rootCause,
+      postures: { [ref]: null },
+    });
+
+    await expect(adapter.deleteRef({ ref, expectedOldOid: generation })).rejects.toMatchObject({
+      code: ErrorCodes.GIT_REF_CONFLICT,
+      meta: {
+        ref,
+        expectedOldOid: generation,
+        actualOldOid: null,
+        actualSymref: null,
+        originalError: rootCause,
+      },
+    });
+  });
+
+  it('normalizes a diagnostic-free checked delete from an observed OID mismatch', async () => {
+    const ref = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
+    const generation = 'a'.repeat(40);
+    const actualOldOid = 'b'.repeat(40);
+    const rootCause = new Error('delete failed');
+    const { adapter } = createFailedMutationAdapter({
+      mutationError: rootCause,
+      postures: { [ref]: { oid: actualOldOid, symref: null } },
+    });
+
+    await expect(adapter.deleteRef({ ref, expectedOldOid: generation })).rejects.toMatchObject({
+      code: ErrorCodes.GIT_REF_CONFLICT,
+      meta: {
+        ref,
+        expectedOldOid: generation,
+        actualOldOid,
+        actualSymref: null,
+        originalError: rootCause,
+      },
+    });
+  });
+
+  it('preserves a failed checked delete when observed posture still satisfies it', async () => {
+    const ref = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';
+    const generation = 'a'.repeat(40);
+    const rootCause = new Error('permission denied');
+    const { adapter } = createFailedMutationAdapter({
+      mutationError: rootCause,
+      postures: { [ref]: { oid: generation, symref: null } },
+    });
+
+    await expect(adapter.deleteRef({ ref, expectedOldOid: generation })).rejects.toBe(rootCause);
+  });
+
   it('fails closed when a checked-delete conflict leaves no inspectable direct ref', async () => {
     const { adapter, plumbing } = createAdapter();
     const ref = 'refs/cas/cache-acquisitions/git-warp/materializations/acquisition';

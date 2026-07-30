@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Deterministic checked-ref conflicts** - failed checked updates, atomic
+  anchors, and checked deletes now classify concurrency from structured
+  post-failure ref posture instead of Git's human-readable diagnostics.
+  Operational failures remain unchanged when the observed ref still satisfies
+  the attempted precondition.
 - **Shared progress cursor ownership** - store and restore progress now use
   Bijou's reference-counted cursor guard and render the initial zero state
   without counting it as a processed chunk.

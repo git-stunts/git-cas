@@ -54,6 +54,8 @@ export default class GitRefPort {
    * @param {string} _options.newOid - New OID to set.
    * @param {string|null} [_options.expectedOldOid] - Expected current OID for CAS; `null` means the ref must not exist.
    * @returns {Promise<void>}
+   * @throws A `GIT_REF_CONFLICT` error when observed ref posture disproves the
+   * checked mutation precondition.
    */
   async updateRef(_options) {
     throw new Error('Not implemented');
@@ -66,6 +68,8 @@ export default class GitRefPort {
    * @param {string} _options.expectedSourceOid
    * @param {string} _options.targetRef
    * @returns {Promise<boolean>} Whether the source generation was anchored.
+   * `false` means observed ref posture disproved the atomic verify/create
+   * preconditions.
    */
   async anchorRef(_options) {
     throw unsupportedAcquisitionCapability('anchorRef');
@@ -77,6 +81,8 @@ export default class GitRefPort {
    * @param {string} _options.ref
    * @param {string} _options.expectedOldOid
    * @returns {Promise<boolean>} Whether the ref existed and was deleted.
+   * @throws A `GIT_REF_CONFLICT` error when observed ref posture disproves the
+   * checked delete precondition.
    */
   async deleteRef(_options) {
     throw unsupportedAcquisitionCapability('deleteRef');
