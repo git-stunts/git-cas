@@ -2,26 +2,16 @@
  * TEA app shell for the V6 git-cas cockpit.
  */
 
-import { startApp as bijouStartApp } from '@flyingrobots/bijou-node';
 import {
-  cpFilter,
-  cpFocusNext,
-  cpFocusPrev,
-  cpPageDown,
-  cpPageUp,
-  cpSelectedItem,
-  createCommandPaletteState,
+  createFramedApp,
+  createKeyMap,
   createNavigableTableState,
-  createNotificationState,
   navTableFocusNext,
   navTableFocusPrev,
   navTablePageDown,
   navTablePageUp,
-  notificationsNeedTick,
-  pushNotification,
-  quit,
+  notify,
   tick as bijouTick,
-  tickNotifications,
 } from '@flyingrobots/bijou-tui';
 import { renderDashboard, tableSchema } from './dashboard-view.js';
 import { createCliTuiContext } from './context.js';
@@ -44,9 +34,7 @@ import { shortenSha } from './components/short-sha.js';
 /** @typedef {import('../src/domain/value-objects/Manifest.js').default} Manifest */
 /** @typedef {import('../src/domain/services/VaultService.js').VaultEntry} VaultEntry */
 /** @typedef {import('@flyingrobots/bijou').BijouContext} BijouContext */
-/** @typedef {import('@flyingrobots/bijou-tui').CommandPaletteState} CommandPaletteState */
 /** @typedef {import('@flyingrobots/bijou-tui').NavigableTableState} NavigableTableState */
-/** @typedef {import('@flyingrobots/bijou-tui').NotificationState} NotificationState */
 /** @typedef {import('./store-wizard.js').StoreWizardState} StoreWizardState */
 /** @typedef {import('./blocks/operation-feed.js').OperationFeedState} OperationFeedState */
 
@@ -62,9 +50,6 @@ import { shortenSha } from './components/short-sha.js';
  * @typedef {Object} DashModel
  * @property {AppPhase} phase
  * @property {number} titleTimeMs
- * @property {number} lastTickTime
- * @property {number} fps
- * @property {boolean} showPerfHud
  * @property {number} vaultEntryCount
  * @property {string} passphrase
  * @property {string | null} authError
@@ -80,16 +65,12 @@ import { shortenSha } from './components/short-sha.js';
  * @property {VaultEntry[]} entries
  * @property {VaultEntry[]} filtered
  * @property {string} filterText
- * @property {boolean} filtering
  * @property {any} metadata
  * @property {Map<string, Manifest>} manifestCache
  * @property {string | null} loadingSlug
  * @property {string | null} error
  * @property {NavigableTableState} table
- * @property {CommandPaletteState | null} palette
- * @property {boolean} showHelp
  * @property {boolean} promptEnter
- * @property {boolean} quitConfirm
  * @property {any} refsStatus
  * @property {any | null} refsInventory
  * @property {string | null} refsError
@@ -106,12 +87,10 @@ import { shortenSha } from './components/short-sha.js';
  * @property {any} treemapStatus
  * @property {any | null} treemapReport
  * @property {string | null} treemapError
- * @property {NotificationState} notifications
  * @property {OperationFeedState} operationFeed
  * @property {StoreWizardState | null} storeWizard
  * @property {string | null} gitBranch
  * @property {Buffer | null} vaultEncryptionKey
- * @property {boolean} settingsOpen
  */
 
 /**
@@ -124,8 +103,6 @@ import { shortenSha } from './components/short-sha.js';
  */
 
 const TITLE_TICK_MS = 33;
-const NOTIFICATION_TICK_MS = 40;
-
 const FULL_COLUMNS = [
   { header: 'Slug' },
   { header: 'Tree OID' },
@@ -275,9 +252,6 @@ function createShellState(columns, rows, source) {
   return {
     phase: 'title',
     titleTimeMs: 0,
-    lastTickTime: 0,
-    fps: 0,
-    showPerfHud: false,
     vaultEntryCount: 0,
     passphrase: '',
     authError: null,
@@ -291,10 +265,8 @@ function createShellState(columns, rows, source) {
     focusPane: 'ledger',
     chunkFocus: 0,
     promptEnter: false,
-    quitConfirm: false,
     gitBranch: null,
     vaultEncryptionKey: null,
-    settingsOpen: false,
   };
 }
 
@@ -303,7 +275,6 @@ function createExplorerState(rows) {
     entries: [],
     filtered: [],
     filterText: '',
-    filtering: false,
     metadata: null,
     manifestCache: new Map(),
     loadingSlug: null,
@@ -313,8 +284,6 @@ function createExplorerState(rows) {
       rows: [],
       height: tableHeight(rows),
     }),
-    palette: null,
-    showHelp: false,
   };
 }
 
@@ -336,7 +305,6 @@ function createServiceState() {
     treemapStatus: 'idle',
     treemapReport: null,
     treemapError: null,
-    notifications: createNotificationState(),
     operationFeed: createFeedState(),
     storeWizard: null,
   };
@@ -516,45 +484,21 @@ function enterDashboard(model, deps) {
   ];
 }
 
-function pushToast(model, spec) {
-  return {
-    ...model,
-    notifications: pushNotification(
-      model.notifications,
-      {
-        variant: 'TOAST',
-        placement: 'LOWER_RIGHT',
-        width: 42,
-        ...spec,
-      },
-      Date.now()
-    ),
-  };
-}
-
-function notificationTick(model, deps) {
-  return notificationsNeedTick(model.notifications)
-    ? [deps.tick(NOTIFICATION_TICK_MS, { type: 'notification-tick' })]
-    : [];
+function toastCommand(spec) {
+  return notify({
+    ...spec,
+    durationMs: 4_000,
+  });
 }
 
 function handleTickMsg(msg, model, deps) {
-  if (msg.type === 'notification-tick') {
-    const next = { ...model, notifications: tickNotifications(model.notifications, Date.now()) };
-    return [next, notificationTick(next, deps)];
-  }
   if (msg.type !== 'title-tick' || (model.phase !== 'title' && model.phase !== 'password')) {
     return [model, []];
   }
-  const now = Date.now();
-  const elapsed = now - (model.lastTickTime || now);
-  const fps = elapsed > 0 ? Math.round(1000 / elapsed) : 0;
   return [
     {
       ...model,
       titleTimeMs: (model.titleTimeMs || 0) + TITLE_TICK_MS,
-      lastTickTime: now,
-      fps: model.lastTickTime ? fps : 0,
     },
     [deps.tick(TITLE_TICK_MS, { type: 'title-tick' })],
   ];
@@ -627,7 +571,7 @@ function handleLoadError(msg, model) {
   } else if (msg.source === 'treemap') {
     next = { ...next, treemapStatus: 'error', treemapError: error };
   }
-  return [pushToast(next, { title: 'Dashboard load failed', message: error, tone: 'ERROR' }), []];
+  return [next, [toastCommand({ title: 'Dashboard load failed', message: error, tone: 'ERROR' })]];
 }
 
 function handleAuthOkMsg(_msg, model, deps) {
@@ -676,39 +620,101 @@ function handleLoadedBranchMsg(msg, model) {
 function handleStoreCompleteMsg(msg, model, deps) {
   const manifestCache = new Map(model.manifestCache);
   manifestCache.set(msg.slug, msg.manifest);
-  const next = pushToast(
-    {
-      ...syncExplorer(model, { manifestCache, storeWizard: null }),
-      operationFeed: completeLatestOperation(model.operationFeed, msg.slug, null),
-    },
-    { title: 'Stored asset', message: `${msg.slug} -> ${shortenSha(msg.treeOid)}`, tone: 'SUCCESS' }
-  );
+  const next = {
+    ...syncExplorer(model, { manifestCache, storeWizard: null }),
+    operationFeed: completeLatestOperation(model.operationFeed, msg.slug, null),
+  };
   return [
     next,
-    [loadEntriesCmd(casForModel(deps.cas, model), model.source), ...notificationTick(next, deps)],
+    [
+      loadEntriesCmd(casForModel(deps.cas, model), model.source),
+      toastCommand({
+        title: 'Stored asset',
+        message: `${msg.slug} -> ${shortenSha(msg.treeOid)}`,
+        tone: 'SUCCESS',
+      }),
+    ],
   ];
 }
 
-function handleStoreErrorMsg(msg, model, deps) {
-  const next = pushToast(
+function handleStoreErrorMsg(msg, model) {
+  const next = {
+    ...model,
+    storeWizard: model.storeWizard
+      ? { ...model.storeWizard, step: 'error', error: msg.error }
+      : null,
+    operationFeed: completeLatestOperation(
+      model.operationFeed,
+      model.storeWizard?.slug ?? 'store',
+      msg.error
+    ),
+  };
+  return [next, [toastCommand({ title: 'Store failed', message: msg.error, tone: 'ERROR' })]];
+}
+
+function handleSelectAssetMsg(msg, model, deps) {
+  const selected = model.entries.find((entry) => entry.slug === msg.slug);
+  const next = syncExplorer(model, {
+    workspace: 'explorer',
+    explorerMode: 'manifest',
+    filterText: selected ? selected.slug : model.filterText,
+  });
+  const manifestCmd = maybeLoadSelectedManifest(next, deps);
+  return [next, manifestCmd ? [manifestCmd] : []];
+}
+
+function handleOpenStoreWizardMsg(_msg, model) {
+  return [
     {
       ...model,
-      storeWizard: model.storeWizard
-        ? { ...model.storeWizard, step: 'error', error: msg.error }
-        : null,
-      operationFeed: completeLatestOperation(
-        model.operationFeed,
-        model.storeWizard?.slug ?? 'store',
-        msg.error
-      ),
+      workspace: 'operations',
+      storeWizard: createWizardState(),
     },
-    { title: 'Store failed', message: msg.error, tone: 'ERROR' }
-  );
-  return [next, notificationTick(next, deps)];
+    [],
+  ];
+}
+
+function handleRefreshStatisticsMsg(_msg, model, deps) {
+  return [
+    {
+      ...model,
+      workspace: 'operations',
+      statsStatus: 'loading',
+      statsError: null,
+    },
+    [loadStatsCmd(deps.cas, model.entries, model.source)],
+  ];
+}
+
+function handleRunDoctorMsg(_msg, model, deps) {
+  return [
+    {
+      ...model,
+      workspace: 'operations',
+      doctorStatus: 'loading',
+      doctorError: null,
+    },
+    [
+      loadDoctorCmd(deps.cas, {
+        source: model.source,
+        entries: model.entries,
+        encryptionKey: model.vaultEncryptionKey,
+      }),
+    ],
+  ];
+}
+
+function handleClearAssetSearchMsg(_msg, model) {
+  return [
+    syncExplorer(model, {
+      workspace: 'explorer',
+      filterText: '',
+    }),
+    [],
+  ];
 }
 
 const APP_MSG_HANDLERS = {
-  'notification-tick': handleTickMsg,
   'title-tick': handleTickMsg,
   'vault-auth-check': handleVaultAuthCheck,
   'vault-auth-ok': handleAuthOkMsg,
@@ -723,6 +729,11 @@ const APP_MSG_HANDLERS = {
   'store-complete': handleStoreCompleteMsg,
   'store-error': handleStoreErrorMsg,
   'load-error': handleLoadError,
+  'select-asset': handleSelectAssetMsg,
+  'open-store-wizard': handleOpenStoreWizardMsg,
+  'refresh-statistics': handleRefreshStatisticsMsg,
+  'run-doctor': handleRunDoctorMsg,
+  'clear-asset-search': handleClearAssetSearchMsg,
 };
 
 function handleAppMsg(msg, model, deps) {
@@ -731,12 +742,6 @@ function handleAppMsg(msg, model, deps) {
 }
 
 function handleTitleKey(msg, model, deps) {
-  if (msg.key === '`') {
-    return [{ ...model, showPerfHud: !model.showPerfHud }, []];
-  }
-  if (msg.key === 'q' || msg.key === 'escape') {
-    return [model, [quit()]];
-  }
   if (msg.key === 'enter' && model.promptEnter) {
     return enterDashboard(model, deps);
   }
@@ -744,12 +749,6 @@ function handleTitleKey(msg, model, deps) {
 }
 
 function handlePasswordKey(msg, model, deps) {
-  if (msg.key === '`') {
-    return [{ ...model, showPerfHud: !model.showPerfHud }, []];
-  }
-  if (msg.key === 'escape') {
-    return [model, [quit()]];
-  }
   if (msg.key === 'enter') {
     return [{ ...model, authError: null }, [verifyPassphraseCmd(deps.cas, model.passphrase)]];
   }
@@ -778,103 +777,6 @@ function buildPaletteItems(model) {
       shortcut: 'enter',
     };
   });
-}
-
-function openPalette(model) {
-  return {
-    ...model,
-    palette: createCommandPaletteState(buildPaletteItems(model), 9),
-    showHelp: false,
-  };
-}
-
-function selectPaletteItem(model, deps) {
-  const item = cpSelectedItem(model.palette);
-  if (!item) {
-    return [{ ...model, palette: null }, []];
-  }
-  const selected = model.entries.find((entry) => entry.slug === item.id);
-  const next = syncExplorer(model, {
-    workspace: 'explorer',
-    explorerMode: 'manifest',
-    palette: null,
-    filterText: selected ? selected.slug : model.filterText,
-    filtering: false,
-  });
-  const manifestCmd = maybeLoadSelectedManifest(next, deps);
-  return [next, manifestCmd ? [manifestCmd] : []];
-}
-
-const PALETTE_ACTIONS = {
-  close: (_msg, model) => [{ ...model, palette: null }, []],
-  select: (_msg, model, deps) => selectPaletteItem(model, deps),
-  next: (_msg, model) => [{ ...model, palette: cpFocusNext(model.palette) }, []],
-  previous: (_msg, model) => [{ ...model, palette: cpFocusPrev(model.palette) }, []],
-  pageDown: (_msg, model) => [{ ...model, palette: cpPageDown(model.palette) }, []],
-  pageUp: (_msg, model) => [{ ...model, palette: cpPageUp(model.palette) }, []],
-};
-
-const PALETTE_KEY_ACTIONS = {
-  escape: 'close',
-  enter: 'select',
-  down: 'next',
-  up: 'previous',
-  pagedown: 'pageDown',
-  pageup: 'pageUp',
-};
-
-function paletteAction(msg) {
-  if (msg.ctrl && msg.key === 'n') {
-    return 'next';
-  }
-  if (msg.ctrl && msg.key === 'p') {
-    return 'previous';
-  }
-  if (msg.ctrl && msg.key === 'd') {
-    return 'pageDown';
-  }
-  if (msg.ctrl && msg.key === 'u') {
-    return 'pageUp';
-  }
-  return PALETTE_KEY_ACTIONS[msg.key] ?? null;
-}
-
-function paletteQueryForKey(msg, palette) {
-  if (msg.key === 'backspace') {
-    return palette.query.slice(0, -1);
-  }
-  if (msg.key.length === 1 && !msg.ctrl && !msg.alt) {
-    return `${palette.query}${msg.key}`;
-  }
-  return null;
-}
-
-function handlePaletteKey(msg, model, deps) {
-  if (!model.palette) {
-    return [model, []];
-  }
-  const action = paletteAction(msg);
-  if (action) {
-    return PALETTE_ACTIONS[action](msg, model, deps);
-  }
-  const query = paletteQueryForKey(msg, model.palette);
-  return query === null ? [model, []] : [{ ...model, palette: cpFilter(model.palette, query) }, []];
-}
-
-function handleFilterKey(msg, model) {
-  if (msg.key === 'escape') {
-    return [syncExplorer(model, { filtering: false }), []];
-  }
-  if (msg.key === 'enter') {
-    return [syncExplorer(model, { filtering: false }), []];
-  }
-  if (msg.key === 'backspace') {
-    return [syncExplorer(model, { filterText: model.filterText.slice(0, -1) }), []];
-  }
-  if (msg.key.length === 1 && !msg.ctrl && !msg.alt) {
-    return [syncExplorer(model, { filterText: `${model.filterText}${msg.key}` }), []];
-  }
-  return [model, []];
 }
 
 const LEDGER_NAVIGATORS = {
@@ -952,7 +854,7 @@ function handleDetailNavigation(msg, model) {
 }
 
 function switchWorkspace(model, workspace, deps) {
-  const next = { ...model, workspace, showHelp: false };
+  const next = { ...model, workspace };
   if (workspace === 'atlas' && next.treemapStatus === 'idle') {
     const cas = casForModel(deps.cas, next);
     return [
@@ -1178,90 +1080,18 @@ function handleWizardKey(msg, model, deps) {
 
 function handleOperationsKey(msg, model, deps) {
   if (msg.key === 'n') {
-    return [{ ...model, storeWizard: createWizardState() }, []];
+    return handleOpenStoreWizardMsg(msg, model);
   }
   if (msg.key === 's') {
-    return [
-      { ...model, statsStatus: 'loading', statsError: null },
-      [loadStatsCmd(deps.cas, model.entries, model.source)],
-    ];
+    return handleRefreshStatisticsMsg(msg, model, deps);
   }
   if (msg.key === 'x') {
-    return [
-      {
-        ...model,
-        doctorStatus: 'loading',
-        doctorError: null,
-      },
-      [
-        loadDoctorCmd(deps.cas, {
-          source: model.source,
-          entries: model.entries,
-          encryptionKey: model.vaultEncryptionKey,
-        }),
-      ],
-    ];
-  }
-  return null;
-}
-
-function handleQuitConfirmKey(msg, model) {
-  if (msg.key === 'y' || msg.key === 'enter') {
-    return [model, [quit()]];
-  }
-  if (msg.key === 'n' || msg.key === 'escape' || msg.key === 'q') {
-    return [{ ...model, quitConfirm: false }, []];
-  }
-  return [model, []];
-}
-
-function clearDashboardOverlays(model) {
-  return {
-    ...model,
-    showHelp: false,
-    storeWizard: null,
-    palette: null,
-    filtering: false,
-    quitConfirm: false,
-    settingsOpen: false,
-  };
-}
-
-function handleOverlayShortcut(msg, model) {
-  if (msg.key === 'escape') {
-    return [clearDashboardOverlays(model), []];
-  }
-  if (msg.key === 'f2') {
-    return [{ ...model, settingsOpen: !model.settingsOpen, showHelp: false, palette: null }, []];
-  }
-  if (msg.key === '?' || (msg.shift && msg.key === '/')) {
-    return [{ ...model, showHelp: !model.showHelp, palette: null }, []];
-  }
-  if (msg.key === 'q') {
-    return [{ ...model, quitConfirm: true }, []];
-  }
-  return null;
-}
-
-function handleSearchShortcut(msg, model) {
-  if (msg.key === '/' && !msg.ctrl) {
-    return [syncExplorer(model, { workspace: 'explorer', filtering: true, palette: null }), []];
-  }
-  if ((msg.ctrl && msg.key === 'p') || msg.key === ':') {
-    return [openPalette(model), []];
+    return handleRunDoctorMsg(msg, model, deps);
   }
   return null;
 }
 
 function handleGlobalDashboardKey(msg, model, deps) {
-  const overlay = handleOverlayShortcut(msg, model);
-  if (overlay) {
-    return overlay;
-  }
-  const search = handleSearchShortcut(msg, model);
-  if (search) {
-    return search;
-  }
   return handleWorkspaceKey(msg, model, deps);
 }
 
@@ -1277,18 +1107,9 @@ function handleWorkspaceSpecificKey(msg, model, deps) {
 }
 
 function handleDashboardKey(msg, model, deps) {
-  if (model.quitConfirm) {
-    return handleQuitConfirmKey(msg, model);
-  }
-  if (model.palette) {
-    return handlePaletteKey(msg, model, deps);
-  }
   const wizard = handleWizardKey(msg, model, deps);
   if (wizard) {
     return wizard;
-  }
-  if (model.filtering) {
-    return handleFilterKey(msg, model);
   }
   const global = handleGlobalDashboardKey(msg, model, deps);
   return global ?? handleWorkspaceSpecificKey(msg, model, deps) ?? [model, []];
@@ -1310,14 +1131,262 @@ function handleUpdate(msg, model, deps) {
   return handleAppMsg(msg, model, deps);
 }
 
-export function createDashboardApp(deps) {
+function keyMessage(key, options = {}) {
   return {
+    type: 'key',
+    key,
+    ctrl: options.ctrl ?? false,
+    alt: options.alt ?? false,
+    shift: options.shift ?? false,
+  };
+}
+
+function createDashboardKeyMap() {
+  return createKeyMap()
+    .group('Workspaces', (group) =>
+      group
+        .bind('1', 'Open Explorer workspace', keyMessage('1'))
+        .bind('2', 'Open Atlas workspace', keyMessage('2'))
+        .bind('3', 'Open Operations workspace', keyMessage('3'))
+        .bind('e', 'Open Explorer workspace', keyMessage('e'))
+        .bind('a', 'Open Atlas workspace', keyMessage('a'))
+        .bind('o', 'Open Operations workspace', keyMessage('o'))
+    )
+    .group('Navigate cockpit', (group) =>
+      group
+        .bind('tab', 'Change cockpit focus', keyMessage('tab'))
+        .bind('j', 'Move down', keyMessage('j'))
+        .bind('k', 'Move up', keyMessage('k'))
+        .bind('down', 'Move down', keyMessage('down'))
+        .bind('up', 'Move up', keyMessage('up'))
+        .bind('d', 'Page down', keyMessage('d'))
+        .bind('u', 'Page up', keyMessage('u'))
+        .bind('pagedown', 'Page down', keyMessage('pagedown'))
+        .bind('pageup', 'Page up', keyMessage('pageup'))
+        .bind('g', 'Move to first item', keyMessage('g'))
+        .bind('enter', 'Open or activate selection', keyMessage('enter'))
+    )
+    .group('Explorer', (group) =>
+      group
+        .bind('m', 'Cycle Merkle view', keyMessage('m'))
+        .bind('i', 'Toggle inspector view', keyMessage('i'))
+    )
+    .group('Atlas', (group) =>
+      group
+        .bind('t', 'Toggle atlas scope', keyMessage('t'))
+        .bind('r', 'Reload atlas', keyMessage('r'))
+        .bind('+', 'Drill into atlas tile', keyMessage('+'))
+        .bind('-', 'Drill out of atlas tile', keyMessage('-'))
+    )
+    .group('Operations', (group) =>
+      group
+        .bind('n', 'Open store wizard', keyMessage('n'))
+        .bind('s', 'Refresh vault statistics', keyMessage('s'))
+        .bind('x', 'Run repository doctor', keyMessage('x'))
+    );
+}
+
+function createDashboardModalKeyMap(model) {
+  if (model.phase !== 'password' && !model.storeWizard) {
+    return undefined;
+  }
+  // Bijou modal key maps intentionally swallow unmatched keys. Keep a compact
+  // help surface, but make input handling total so text and shell-reserved
+  // characters still reach the active password or wizard reducer.
+  const helpMap = createKeyMap().group('Active input', (group) =>
+    group
+      .bind('enter', 'Confirm active input', keyMessage('enter'))
+      .bind('backspace', 'Delete previous character', keyMessage('backspace'))
+      .bind('escape', 'Cancel active input', keyMessage('escape'))
+  );
+  return Object.assign(Object.create(helpMap), {
+    handle(msg) {
+      return helpMap.handle(msg) ?? msg;
+    },
+  });
+}
+
+function cockpitWorkspaceCommands() {
+  return [
+    {
+      id: 'workspace-explorer',
+      label: 'Open Explorer',
+      category: 'workspace',
+      shortcut: '1',
+      action: keyMessage('1'),
+    },
+    {
+      id: 'workspace-atlas',
+      label: 'Open Repository Atlas',
+      category: 'workspace',
+      shortcut: '2',
+      action: keyMessage('2'),
+    },
+    {
+      id: 'workspace-operations',
+      label: 'Open Operations',
+      category: 'workspace',
+      shortcut: '3',
+      action: keyMessage('3'),
+    },
+  ];
+}
+
+function cockpitOperationCommands() {
+  return [
+    {
+      id: 'store-asset',
+      label: 'Store a new asset',
+      category: 'operation',
+      shortcut: 'n',
+      action: { type: 'open-store-wizard' },
+    },
+    {
+      id: 'refresh-statistics',
+      label: 'Refresh vault statistics',
+      category: 'operation',
+      shortcut: 's',
+      action: { type: 'refresh-statistics' },
+    },
+    {
+      id: 'run-doctor',
+      label: 'Run repository doctor',
+      category: 'operation',
+      shortcut: 'x',
+      action: { type: 'run-doctor' },
+    },
+  ];
+}
+
+function buildCockpitCommands(model) {
+  return [
+    ...cockpitWorkspaceCommands(),
+    ...cockpitOperationCommands(),
+    ...(model.filterText
+      ? [
+          {
+            id: 'clear-asset-search',
+            label: 'Show all assets',
+            category: 'search',
+            action: { type: 'clear-asset-search' },
+          },
+        ]
+      : []),
+    ...(model.workspace === 'atlas'
+      ? [
+          {
+            id: 'reload-atlas',
+            label: 'Reload Repository Atlas',
+            category: 'atlas',
+            shortcut: 'r',
+            action: keyMessage('r'),
+          },
+        ]
+      : []),
+  ];
+}
+
+function buildCockpitSearchItems(model) {
+  return buildPaletteItems(model).map((item) => ({
+    ...item,
+    action: { type: 'select-asset', slug: item.id },
+  }));
+}
+
+function cockpitVaultStatus(model) {
+  if (model.metadata?.encryption && model.vaultEncryptionKey) {
+    return 'encrypted / unlocked';
+  }
+  if (model.metadata?.encryption) {
+    return 'encrypted / locked';
+  }
+  return 'plaintext vault';
+}
+
+function cockpitSourceLabel(source) {
+  if (source.type === 'vault') {
+    return 'vault';
+  }
+  if (source.type === 'ref') {
+    return `ref ${source.ref}`;
+  }
+  return `oid ${source.treeOid}`;
+}
+
+function buildCockpitSettings(model, ctx) {
+  return {
+    title: 'Cockpit Settings',
+    borderToken: ctx.theme.theme.border.primary,
+    bgToken: ctx.theme.theme.surface.overlay,
+    sections: [
+      {
+        id: 'session',
+        title: 'Session',
+        rows: [
+          { id: 'workspace', label: 'Workspace', valueLabel: model.workspace, kind: 'info' },
+          { id: 'focus', label: 'Focus', valueLabel: model.focusPane ?? '-', kind: 'info' },
+          {
+            id: 'source',
+            label: 'Source',
+            valueLabel: cockpitSourceLabel(model.source),
+            kind: 'info',
+          },
+          { id: 'vault', label: 'Vault', valueLabel: cockpitVaultStatus(model), kind: 'info' },
+        ],
+      },
+      {
+        id: 'display',
+        title: 'Display',
+        rows: [
+          {
+            id: 'short-sha',
+            label: 'Selected digest',
+            description: 'The selected chunk expands in the cockpit detail status.',
+            kind: 'info',
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export function createDashboardApp(deps) {
+  return createFramedApp({
+    title: 'git-cas',
+    pages: [createDashboardPage(deps)],
+    defaultPageId: 'cockpit',
+    initialColumns: deps.ctx.runtime.columns ?? 80,
+    initialRows: deps.ctx.runtime.rows ?? 24,
+    enableCommandPalette: true,
+    keyPriority: 'page-first',
+    ctx: deps.ctx,
+    observeKey(msg, route) {
+      return route === 'unhandled' ? msg : undefined;
+    },
+    settings: ({ pageModel }) => buildCockpitSettings(pageModel, deps.ctx),
+    runtimeNotifications: true,
+  });
+}
+
+export function createDashboardPage(deps) {
+  return {
+    id: 'cockpit',
+    title: 'Cockpit',
     init: () => [
       createInitModel(deps.ctx, deps.source),
       [checkVaultAuthCmd(deps.cas), deps.tick(TITLE_TICK_MS, { type: 'title-tick' })],
     ],
     update: (msg, model) => handleUpdate(msg, model, deps),
-    view: (model) => renderDashboard(model, deps),
+    keyMap: createDashboardKeyMap(),
+    modalKeyMap: (model) => createDashboardModalKeyMap(model),
+    commandItems: (model) => buildCockpitCommands(model),
+    searchItems: (model) => buildCockpitSearchItems(model),
+    searchTitle: 'Search assets',
+    layout: (model) => ({
+      kind: 'pane',
+      paneId: 'cockpit',
+      render: (width, height) => renderDashboard(model, deps, { width, height }),
+    }),
   };
 }
 
@@ -1341,8 +1410,8 @@ export async function launchDashboard(cas, options = {}) {
   }
   const dashTick = options.tick || bijouTick;
   const deps = { cas, ctx, cwdLabel: options.cwd ?? process.cwd(), source, tick: dashTick };
-  const runApp = options.runApp || bijouStartApp;
-  return runApp(createDashboardApp(deps), { ctx });
+  const app = createDashboardApp(deps);
+  return options.runApp ? options.runApp(app, { ctx }) : app.run({ ctx });
 }
 
 export { buildTableRows, selectedEntry, selectedManifest, tableSchema };

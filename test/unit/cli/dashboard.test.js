@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { surfaceToString } from '@flyingrobots/bijou';
-import { createNavigableTableState, createNotificationState } from '@flyingrobots/bijou-tui';
+import { createNavigableTableState, wrapPageMsg } from '@flyingrobots/bijou-tui';
 import { makeCtx } from './_testContext.js';
 import { createFeedState } from '../../../bin/ui/blocks/operation-feed.js';
 
@@ -9,7 +9,19 @@ vi.mock('../../../bin/ui/context.js', () => ({
   createCliTuiContext: () => makeCtx(),
 }));
 
-const { createDashboardApp } = await import('../../../bin/ui/dashboard.js');
+const { createDashboardApp: createFramedDashboardApp, createDashboardPage } =
+  await import('../../../bin/ui/dashboard.js');
+
+function createPageHarness(deps) {
+  const page = createDashboardPage(deps);
+  return {
+    init: page.init,
+    update: page.update,
+    view(model) {
+      return page.layout(model).render(model.columns, model.rows);
+    },
+  };
+}
 
 function makeDeps(overrides = {}) {
   const ctx = makeCtx();
@@ -40,9 +52,6 @@ function modelCoreDefaults() {
   return {
     phase: 'dashboard',
     titleTimeMs: 0,
-    lastTickTime: 0,
-    fps: 0,
-    showPerfHud: false,
     vaultEntryCount: 0,
     passphrase: '',
     authError: null,
@@ -56,20 +65,15 @@ function modelCoreDefaults() {
     focusPane: 'ledger',
     chunkFocus: 0,
     vaultEncryptionKey: null,
-    settingsOpen: false,
     entries: [],
     filtered: [],
     filterText: '',
-    filtering: false,
     metadata: null,
     manifestCache: new Map(),
     loadingSlug: null,
-    quitConfirm: false,
     storeWizard: null,
     error: null,
     table: createNavigableTableState({ columns: [], rows: [], height: 10 }),
-    palette: null,
-    showHelp: false,
   };
 }
 
@@ -91,7 +95,6 @@ function modelServiceDefaults() {
     treemapStatus: 'idle',
     treemapReport: null,
     treemapError: null,
-    notifications: createNotificationState(),
     operationFeed: createFeedState(),
     gitBranch: null,
     promptEnter: false,
@@ -113,22 +116,186 @@ function renderView(view, ctx) {
   return surfaceToString(view, ctx.style);
 }
 
+async function dispatchFrameKey(app, model, key) {
+  const [routed, commands] = app.update(
+    {
+      type: 'key',
+      key,
+      ctrl: false,
+      alt: false,
+      shift: false,
+    },
+    model
+  );
+  let next = routed;
+  for (const command of commands) {
+    const message = await command();
+    if (message !== undefined) {
+      [next] = app.update(message, next);
+    }
+  }
+  return next;
+}
+
+describe('hosted dashboard frame', () => {
+  it('owns settings, performance telemetry, and quit confirmation', () => {
+    const deps = makeDeps();
+    const app = createFramedDashboardApp(deps);
+    const [initial] = app.init();
+
+    expect(initial.activePageId).toBe('cockpit');
+    expect(initial.settingsOpen).toBe(false);
+    expect(initial.perfHudOpen).toBe(false);
+    expect(initial.quitConfirmOpen).toBe(false);
+
+    const [settings] = app.update(
+      { type: 'key', key: 'f2', ctrl: false, alt: false, shift: false },
+      initial
+    );
+    expect(settings.settingsOpen).toBe(true);
+    expect(renderView(app.view(settings), deps.ctx)).toContain('Cockpit Settings');
+
+    const [closedSettings] = app.update(
+      { type: 'key', key: 'escape', ctrl: false, alt: false, shift: false },
+      settings
+    );
+    const [performance] = app.update(
+      { type: 'key', key: '`', ctrl: false, alt: false, shift: false },
+      closedSettings
+    );
+    expect(performance.perfHudOpen).toBe(true);
+
+    const [quitRequested] = app.update(
+      { type: 'key', key: 'q', ctrl: false, alt: false, shift: false },
+      performance
+    );
+    expect(quitRequested.quitConfirmOpen).toBe(true);
+  });
+});
+
+describe('hosted dashboard active input', () => {
+  it('routes ordinary and shell-reserved characters to the password page', async () => {
+    const deps = makeDeps();
+    const app = createFramedDashboardApp(deps);
+    const [initial] = app.init();
+    const seeded = {
+      ...initial,
+      pageModels: {
+        ...initial.pageModels,
+        cockpit: makeModel({ phase: 'password', passphrase: '' }),
+      },
+    };
+
+    let next = await dispatchFrameKey(app, seeded, 'a');
+    next = await dispatchFrameKey(app, next, 'q');
+    next = await dispatchFrameKey(app, next, '/');
+    next = await dispatchFrameKey(app, next, '?');
+
+    expect(next.pageModels.cockpit.passphrase).toBe('aq/?');
+    expect(next.quitConfirmOpen).toBe(false);
+    expect(next.helpOpen).toBe(false);
+    expect(next.commandPalette).toBeUndefined();
+  });
+});
+
+describe('hosted dashboard search', () => {
+  it('owns asset search and dispatches the selected page action', async () => {
+    const deps = makeDeps();
+    const app = createFramedDashboardApp(deps);
+    const [initial] = app.init();
+    const cockpit = makeModel({
+      entries: [{ slug: 'alpha', treeOid: 'abc' }],
+      filtered: [{ slug: 'alpha', treeOid: 'abc' }],
+      manifestCache: new Map([
+        [
+          'alpha',
+          {
+            chunks: [{ digest: 'sha256:deadbeef', blob: 'blob-1' }],
+          },
+        ],
+      ]),
+    });
+    const seeded = {
+      ...initial,
+      pageModels: { ...initial.pageModels, cockpit },
+    };
+
+    const [search] = app.update(
+      { type: 'key', key: '/', ctrl: false, alt: false, shift: false },
+      seeded
+    );
+    expect(search.commandPaletteKind).toBe('search');
+
+    const [queried] = app.update(
+      { type: 'key', key: 'd', ctrl: false, alt: false, shift: false },
+      search
+    );
+    expect(queried.commandPalette.query).toBe('d');
+    expect(queried.commandPalette.filteredItems[0].label).toBe('alpha');
+
+    const [closed, commands] = app.update(
+      { type: 'key', key: 'enter', ctrl: false, alt: false, shift: false },
+      queried
+    );
+    expect(closed.commandPalette).toBeUndefined();
+    expect(commands).toHaveLength(1);
+
+    const pageMessage = await commands[0]();
+    const [selected] = app.update(pageMessage, closed);
+    expect(selected.pageModels.cockpit.workspace).toBe('explorer');
+    expect(selected.pageModels.cockpit.explorerMode).toBe('manifest');
+    expect(selected.pageModels.cockpit.filterText).toBe('alpha');
+  });
+});
+
+describe('hosted dashboard notifications', () => {
+  it('routes page failures into frame-managed notifications', async () => {
+    const deps = makeDeps();
+    const app = createFramedDashboardApp(deps);
+    const [initial] = app.init();
+    const seeded = {
+      ...initial,
+      pageModels: { ...initial.pageModels, cockpit: makeModel() },
+    };
+
+    const [failed, commands] = app.update(
+      wrapPageMsg('cockpit', {
+        type: 'load-error',
+        source: 'entries',
+        error: 'object read failed',
+      }),
+      seeded
+    );
+    expect(failed.pageModels.cockpit.error).toBe('object read failed');
+    expect(commands).toHaveLength(1);
+
+    const notificationMessage = await commands[0]();
+    const [notified] = app.update(notificationMessage, failed);
+    expect(notified.runtimeNotifications.items).toHaveLength(1);
+    expect(notified.runtimeNotifications.items[0]).toMatchObject({
+      title: 'Dashboard load failed',
+      message: 'object read failed',
+      tone: 'ERROR',
+    });
+  });
+});
+
 describe('dashboard basic rendering', () => {
   it('renders themed dashboard headers', () => {
     const deps = makeDeps();
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const rendered = renderView(app.view(makeModel()), deps.ctx);
-    expect(rendered).toContain('git-cas cockpit');
-    expect(rendered).toContain('Explorer');
-    expect(rendered).toContain('Atlas');
-    expect(rendered).toContain('Operations');
+    expect(rendered).not.toContain('git-cas cockpit');
+    expect(rendered).toContain('1 Explorer');
+    expect(rendered).toContain('2 Atlas');
+    expect(rendered).toContain('3 Operations');
     expect(rendered).toContain('Asset Ledger');
     expect(rendered.split('\n').slice(0, 4).join('\n')).not.toContain('palette ctrl+p');
   });
 
   it('renders entry list when entries exist', () => {
     const deps = makeDeps();
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const model = makeModel({
       entries: [{ slug: 'alpha', treeOid: 'abc' }],
       filtered: [{ slug: 'alpha', treeOid: 'abc' }],
@@ -146,45 +313,10 @@ describe('dashboard basic rendering', () => {
   });
 });
 
-describe('dashboard command palette', () => {
-  it('opens command palette for digest search', () => {
-    const deps = makeDeps();
-    const app = createDashboardApp(deps);
-    const model = makeModel({
-      entries: [{ slug: 'alpha', treeOid: 'abc' }],
-      filtered: [{ slug: 'alpha', treeOid: 'abc' }],
-      manifestCache: new Map([
-        [
-          'alpha',
-          {
-            chunks: [{ digest: 'sha256:deadbeef', blob: 'blob-1' }],
-          },
-        ],
-      ]),
-    });
-    const [next] = app.update({ type: 'key', key: 'p', ctrl: true }, model);
-    const [queried] = app.update({ type: 'key', key: 'd' }, next);
-    expect(queried.palette.query).toBe('d');
-    expect(queried.palette.filteredItems[0].id).toBe('alpha');
-  });
-});
-
-describe('dashboard settings chrome', () => {
-  it('opens the settings drawer with F2', () => {
-    const deps = makeDeps();
-    const app = createDashboardApp(deps);
-    const [next] = app.update({ type: 'key', key: 'f2' }, makeModel());
-    expect(next.settingsOpen).toBe(true);
-    const rendered = renderView(app.view(next), deps.ctx);
-    expect(rendered).toContain('Settings');
-    expect(rendered).toContain('Cockpit Settings');
-  });
-});
-
 describe('dashboard detail chrome', () => {
   it('paginates detail chunks and expands the selected digest in the footer', () => {
     const deps = makeDeps();
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const chunks = Array.from({ length: 30 }, (_, index) => ({
       index,
       size: 2048,
@@ -222,7 +354,7 @@ describe('dashboard detail chrome', () => {
     });
     const rendered = renderView(app.view(model), deps.ctx);
     expect(rendered).toContain('Chunk Ledger (30)');
-    expect(rendered).toContain('Showing 22-30 of 30');
+    expect(rendered).toContain('Showing 24-30 of 30');
     expect(rendered).toContain('Page 2/2');
     expect(rendered).toContain(`${chunks[25].digest.slice(0, 20)}...`);
     expect(rendered).toContain(chunks[25].digest);
@@ -251,7 +383,7 @@ describe('dashboard vault lock detection', () => {
         listVault,
       },
     });
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const [model, cmds] = app.init();
     const msg = await cmds[0]();
     const [next] = app.update(msg, model);
@@ -275,7 +407,7 @@ describe('dashboard vault passphrase handling', () => {
         verifyIntegrity: vi.fn().mockResolvedValue(false),
       },
     });
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const [pending, cmds] = app.update(
       { type: 'key', key: 'enter' },
       makeModel({
@@ -308,7 +440,7 @@ describe('dashboard vault key threading', () => {
         verifyIntegrity: vi.fn().mockResolvedValue(true),
       },
     });
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const [pending, authCmds] = app.update(
       { type: 'key', key: 'enter' },
       makeModel({
@@ -360,7 +492,7 @@ function treemapReport() {
 describe('dashboard atlas rendering', () => {
   it('renders the treemap panel with title', () => {
     const deps = makeDeps();
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const rendered = renderView(
       app.view(
         makeModel({
@@ -379,7 +511,7 @@ describe('dashboard atlas rendering', () => {
 
   it('switches to atlas and queues a treemap load', () => {
     const deps = makeDeps();
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const [next, cmds] = app.update({ type: 'key', key: '2' }, makeModel());
     expect(next.workspace).toBe('atlas');
     expect(next.treemapStatus).toBe('loading');
@@ -390,7 +522,7 @@ describe('dashboard atlas rendering', () => {
 describe('dashboard operations rendering', () => {
   it('renders the operations deck', () => {
     const deps = makeDeps();
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const rendered = renderView(
       app.view(makeModel({ workspace: 'operations', columns: 120 })),
       deps.ctx
@@ -414,7 +546,7 @@ describe('dashboard operations commands', () => {
         readManifest: vi.fn(),
       },
     });
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
 
     const [next, cmds] = app.update(
       { type: 'key', key: 'x' },
@@ -435,7 +567,7 @@ describe('dashboard store wizard command', () => {
     const createTree = vi.fn().mockResolvedValue('f'.repeat(40));
     const addToVault = vi.fn().mockResolvedValue({ commitOid: 'c'.repeat(40) });
     const deps = makeDeps({ cas: { storeFile, createTree, addToVault } });
-    const app = createDashboardApp(deps);
+    const app = createPageHarness(deps);
     const model = makeModel({
       workspace: 'operations',
       storeWizard: {

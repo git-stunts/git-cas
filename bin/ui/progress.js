@@ -4,7 +4,7 @@
  */
 
 import { statSync } from 'node:fs';
-import { CLEAR_LINE_RETURN, progressBar } from '@flyingrobots/bijou';
+import { CLEAR_LINE_RETURN, cursorGuard, progressBar } from '@flyingrobots/bijou';
 import { getCliContext } from './context.js';
 
 /**
@@ -43,7 +43,13 @@ function formatBytes(bytes) {
  * @param {import('@flyingrobots/bijou').BijouContext} [options.ctx] - Context override.
  * @returns {ProgressTracker}
  */
-export function createStoreProgress({ filePath, chunkSize, quiet, fileSize: providedSize, ctx: providedCtx }) {
+export function createStoreProgress({
+  filePath,
+  chunkSize,
+  quiet,
+  fileSize: providedSize,
+  ctx: providedCtx,
+}) {
   if (quiet) {
     return { attach() {}, detach() {} };
   }
@@ -92,6 +98,7 @@ export function createRestoreProgress({ totalChunks, quiet, ctx: providedCtx }) 
  * @property {number | null} startTime
  * @property {Observer | null} service
  * @property {((evt: { size: number }) => void) | null} handler
+ * @property {import('@flyingrobots/bijou').CursorHideHandle | null} cursorHandle
  */
 
 /**
@@ -102,18 +109,77 @@ export function createRestoreProgress({ totalChunks, quiet, ctx: providedCtx }) 
  * @param {{ ctx: import('@flyingrobots/bijou').BijouContext, totalChunks: number, label: string, width: number }} deps
  */
 function handleChunkEvent({ size }, state, deps) {
-  if (!state.startTime) { state.startTime = Date.now(); }
+  if (!state.startTime) {
+    state.startTime = Date.now();
+  }
   state.chunksProcessed++;
   state.bytesProcessed += size;
+  renderProgress(state, deps);
+}
+
+/**
+ * Render the current tracker state without mutating its counters.
+ *
+ * @param {TrackerState} state
+ * @param {{ ctx: import('@flyingrobots/bijou').BijouContext, totalChunks: number, label: string, width: number }} deps
+ */
+function renderProgress(state, deps) {
   const pct = (state.chunksProcessed / deps.totalChunks) * 100;
-  const elapsed = (Date.now() - state.startTime) / 1000;
+  const elapsed = state.startTime ? (Date.now() - state.startTime) / 1000 : 0;
   const throughput = elapsed > 0 ? state.bytesProcessed / elapsed : 0;
   if (deps.ctx.mode === 'interactive') {
     const status = `  ${deps.label} ${state.chunksProcessed}/${deps.totalChunks}  ${formatBytes(throughput)}/s  `;
     const barStr = progressBar(pct, { width: deps.width, showPercent: false, ctx: deps.ctx });
     deps.ctx.io.writeError(`${CLEAR_LINE_RETURN}${status}${barStr}`);
-  } else if (state.chunksProcessed === 1 || state.chunksProcessed === deps.totalChunks || state.chunksProcessed % 10 === 0) {
-    deps.ctx.io.writeError(`${deps.label} ${state.chunksProcessed}/${deps.totalChunks}  ${Math.round(pct)}%\n`);
+  } else if (
+    state.chunksProcessed === 1 ||
+    state.chunksProcessed === deps.totalChunks ||
+    state.chunksProcessed % 10 === 0
+  ) {
+    deps.ctx.io.writeError(
+      `${deps.label} ${state.chunksProcessed}/${deps.totalChunks}  ${Math.round(pct)}%\n`
+    );
+  }
+}
+
+function releaseTracker(state) {
+  state.cursorHandle?.dispose();
+  state.cursorHandle = null;
+  state.service = null;
+  state.handler = null;
+}
+
+function attachProgress(svc, state, deps) {
+  state.service = svc;
+  state.handler = (/** @type {{ size: number }} */ evt) => handleChunkEvent(evt, state, deps);
+  try {
+    if (deps.ctx.mode === 'interactive') {
+      state.cursorHandle = cursorGuard(deps.ctx.io).hide();
+      renderProgress(state, deps);
+    }
+    state.service.on(deps.event, state.handler);
+  } catch (error) {
+    releaseTracker(state);
+    throw error;
+  }
+}
+
+function detachProgress(state, deps) {
+  try {
+    if (state.service && state.handler) {
+      state.service.removeListener(deps.event, state.handler);
+    }
+    const elapsed = state.startTime ? (Date.now() - state.startTime) / 1000 : 0;
+    const throughput = elapsed > 0 ? state.bytesProcessed / elapsed : 0;
+    if (deps.ctx.mode === 'interactive') {
+      deps.ctx.io.writeError(
+        `${CLEAR_LINE_RETURN}  ${deps.label} ${state.chunksProcessed}/${deps.totalChunks} done  ${formatBytes(throughput)}/s\n`
+      );
+    } else {
+      deps.ctx.io.writeError(`${deps.label} ${state.chunksProcessed}/${deps.totalChunks} done\n`);
+    }
+  } finally {
+    releaseTracker(state);
   }
 }
 
@@ -126,29 +192,23 @@ function handleChunkEvent({ size }, state, deps) {
 function createProgressTracker({ ctx, totalChunks, event, label }) {
   const width = Math.min(40, (ctx.runtime.columns || 80) - 30);
   /** @type {TrackerState} */
-  const state = { chunksProcessed: 0, bytesProcessed: 0, startTime: null, service: null, handler: null };
-  const deps = { ctx, totalChunks, label, width };
+  const state = {
+    chunksProcessed: 0,
+    bytesProcessed: 0,
+    startTime: null,
+    service: null,
+    handler: null,
+    cursorHandle: null,
+  };
+  const deps = { ctx, totalChunks, event, label, width };
 
   return {
     /** @param {Observer} svc */
     attach(svc) {
-      state.service = svc;
-      state.handler = (/** @type {{ size: number }} */ evt) => handleChunkEvent(evt, state, deps);
-      if (ctx.mode === 'interactive') {
-        ctx.io.writeError('\x1b[?25l'); // hide cursor
-        handleChunkEvent({ size: 0 }, state, deps);
-      }
-      state.service.on(event, state.handler);
+      attachProgress(svc, state, deps);
     },
     detach() {
-      if (state.service && state.handler) { state.service.removeListener(event, state.handler); }
-      const elapsed = state.startTime ? (Date.now() - state.startTime) / 1000 : 0;
-      const throughput = elapsed > 0 ? state.bytesProcessed / elapsed : 0;
-      if (ctx.mode === 'interactive') {
-        ctx.io.writeError(`${CLEAR_LINE_RETURN}  ${label} ${state.chunksProcessed}/${totalChunks} done  ${formatBytes(throughput)}/s\n\x1b[?25h`); // show cursor
-      } else {
-        ctx.io.writeError(`${label} ${state.chunksProcessed}/${totalChunks} done\n`);
-      }
+      detachProgress(state, deps);
     },
   };
 }

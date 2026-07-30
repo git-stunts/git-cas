@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Bijou 7 framed cockpit** - updates the coherent Bijou dependency family to
+  7.2.0 and moves terminal lifecycle, shell chrome, help, command/search
+  palettes, settings, notifications, performance telemetry, and quit
+  confirmation to the hosted `createFramedApp()` boundary.
+
+### Fixed
+
+- **Shared progress cursor ownership** - store and restore progress now use
+  Bijou's reference-counted cursor guard and render the initial zero state
+  without counting it as a processed chunk.
+- **Audited cockpit contrast** - foreground/background choices selected with
+  Design Book are registered as semantic theme tokens and verified at WCAG AA
+  contrast by Bijou's theme doctor.
+
 ## [6.5.5] — 2026-07-26
 
 ### Fixed

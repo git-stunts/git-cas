@@ -70,6 +70,11 @@ Navigate your stored assets through the reader-first interactive dashboard.
 git-cas vault dashboard
 ```
 
+The framed cockpit keeps Explorer, Atlas, and Operations in one shared session.
+Use `/` to search assets, `Ctrl+P` for the command palette, `?` for keyboard
+help, `F2` for session settings, and `q` for a confirmed exit. Noninteractive
+invocations retain the plain tab-separated listing.
+
 ### 3. Library Ingress
 
 Integrate managed blob storage directly into your TypeScript or JavaScript application.

@@ -31,7 +31,7 @@ describe('dependency pins', () => {
       .sort(([a], [b]) => a.localeCompare(b));
 
     expect(bijouDeps.length).toBeGreaterThan(0);
-    expect(bijouDeps).toEqual(bijouDeps.map(([name]) => [name, '^5.0.0']));
+    expect(bijouDeps).toEqual(bijouDeps.map(([name]) => [name, '^7.2.0']));
   });
 });
 
@@ -55,10 +55,14 @@ describe('release package scripts', () => {
     const outsideGit = mkdtempSync(path.join(tmpdir(), 'git-cas-stamp-'));
 
     try {
-      const output = execFileSync('node', [path.join(repoRoot, 'scripts/stamp-build.js'), '--quiet'], {
-        cwd: outsideGit,
-        encoding: 'utf8',
-      });
+      const output = execFileSync(
+        'node',
+        [path.join(repoRoot, 'scripts/stamp-build.js'), '--quiet'],
+        {
+          cwd: outsideGit,
+          encoding: 'utf8',
+        }
+      );
       const buildInfo = readJson('build-info.json');
 
       expect(output).toBe('');
