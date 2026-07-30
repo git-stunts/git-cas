@@ -2,6 +2,22 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.5.5 To v6.5.6
+
+v6.5.6 changes no public API or stored-data schema and requires no migration.
+Interactive terminals now run the cockpit through Bijou 7.2's hosted
+`FramedApp`; noninteractive output and machine-readable command behavior are
+unchanged.
+
+Checked ref updates, atomic anchors, and checked deletes now classify
+concurrency from structured post-failure ref posture instead of Git's
+human-readable diagnostics. Existing callers keep the same boolean and
+`GIT_REF_CONFLICT` contracts. Operational failures remain unchanged when the
+attempted ref precondition still holds.
+
+See [v6.5.6 Release Notes](./docs/releases/v6.5.6.md) for the framed-cockpit,
+progress, contrast, and deterministic conflict details.
+
 ## v6.5.4 To v6.5.5
 
 v6.5.5 changes no public API and requires no stored-data migration. New

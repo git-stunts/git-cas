@@ -7,7 +7,7 @@ release_home: 'v6.5.6'
 issue: 'https://github.com/git-stunts/git-cas/issues/105'
 goalpost_issue: 'https://github.com/git-stunts/git-cas/issues/105'
 tracker_source: 'github'
-status: 'active'
+status: 'landed'
 base_commit: '9ea91a738f2cbadf2a20b5ac7c2c6d54ba9f409e'
 owners:
   - '@git-stunts'
@@ -18,7 +18,7 @@ blocking_issues: []
 supersedes: []
 superseded_by: null
 created: '2026-07-27'
-updated: '2026-07-27'
+updated: '2026-07-30'
 ---
 
 # TUI-0056 - Bijou 7 Framed Cockpit
@@ -318,7 +318,7 @@ outer-shell concern from the page model and renderer.
 - [x] application actions appear in frame help/commands/search;
 - [x] static mode and structured stdout boundaries are unchanged;
 - [x] all declared text/surface pairs pass at 4.5:1 or higher;
-- [ ] full validation and package/release checks pass.
+- [x] full validation and package/release checks pass.
 
 ## Validation Plan
 
@@ -359,8 +359,8 @@ fallback theme lookup, and payload review.
 
 ## Tracker Disposition
 
-GitHub issues #105 and #106 remain open until the implementation, witness,
-merge, and patch release are complete.
+GitHub issues #105 and #106 closed after implementation PR #109 merged. The
+patch-release evidence remains with the v6.5.6 candidate witness.
 
 ## Done Does Not Mean
 
@@ -371,4 +371,9 @@ merge, and patch release are complete.
 
 ## Retrospective
 
-Pending merge and release evidence.
+PR #109 merged the framed cockpit as
+`e802269ab6035eae75c2d61a8e8a898800cffbb8` after focused and hosted
+Node/Bun/Deno validation passed. Hosting one coherent cockpit page kept Bijou
+responsible for the application shell without splitting the shared vault and
+storage model across independently owned page states. The v6.5.6 release
+candidate then passed the repository's complete 14-step verifier.

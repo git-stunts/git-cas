@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/git-cas",
-  "version": "6.5.5",
+  "version": "6.5.6",
   "description": "Content-addressed storage backed by Git's object database, with optional encryption and pluggable codecs",
   "type": "module",
   "main": "index.js",
@@ -42,6 +42,7 @@
     "docs/releases/v6.5.3.md",
     "docs/releases/v6.5.4.md",
     "docs/releases/v6.5.5.md",
+    "docs/releases/v6.5.6.md",
     "docs/THREAT_MODEL.md",
     "docs/VAULT_INTERNALS.md",
     "docs/WALKTHROUGH.md",

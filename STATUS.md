@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.5.4` (`2026-07-26`)
-**Current release state:** `v6.5.5` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** the versioned `v6.5.5` candidate passed 14/14 release-verifier steps with 6,850 observed tests across Node, Bun, Deno, and all three real-Git integration suites; tag and publication verification remain pending.
+**Last tagged release:** `v6.5.5` (`2026-07-26`)
+**Current release state:** `v6.5.6` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
+**Latest verification:** the versioned `v6.5.6` candidate at implementation merge `4327effd` passed 14/14 release-verifier steps with 6,898 observed tests across Node, Bun, Deno, and all three real-Git integration suites.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,12 +18,19 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.5.5 candidate posture** — internal root-set, publication, and vault
-  commits now supply a git-cas-owned author and committer identity instead of
-  depending on ambient Git user configuration. Implementation PR
-  [#103](https://github.com/git-stunts/git-cas/pull/103) merged as
-  `fa3d5f64`; npm, JSR, and runtime metadata identify `6.5.5`, while tag and
-  registry artifacts remain deliberately absent pending release review.
+- **v6.5.6 candidate posture** — PR
+  [#109](https://github.com/git-stunts/git-cas/pull/109) merged the Bijou 7.2
+  framed cockpit as `e802269a`; PR
+  [#112](https://github.com/git-stunts/git-cas/pull/112) merged deterministic
+  checked-ref conflict classification as `4327effd`. npm, JSR, and runtime
+  metadata identify `6.5.6`; tag and registry artifacts remain deliberately
+  absent pending release review.
+- **v6.5.5 artifact posture** — signed tag `v6.5.5` resolves to reviewed merge
+  `9ea91a73`; npm reports `@git-stunts/git-cas@6.5.5` as the retained published
+  predecessor with SLSA provenance, and release workflow `30211630524`
+  published the final GitHub Release. Identity-independent git-cas-owned
+  commits are shipped. JSR dry-run validation is healthy, but JSR publication
+  is not part of the release workflow.
 - **v6.5.4 artifact posture** — signed tag `v6.5.4` resolves to reviewed merge
   `a2d23f5b`; npm reports `@git-stunts/git-cas@6.5.4` as `latest` with SLSA
   provenance, and release workflow `30205009357` published the final GitHub
@@ -146,7 +153,7 @@
   under the
   [`v6.6.0` milestone](https://github.com/git-stunts/git-cas/milestone/9).
 - The latest landed design record is
-  [0055-internal-commit-identity](./docs/design/0055-internal-commit-identity/internal-commit-identity.md).
+  [0057-deterministic-ref-conflict-posture](./docs/design/0057-deterministic-ref-conflict-posture/deterministic-ref-conflict-posture.md).
 
 ## Read Next
 

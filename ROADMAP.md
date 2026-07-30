@@ -43,7 +43,7 @@ GitHub wins and this file should be corrected.
 | [`v6.5.3`](https://github.com/git-stunts/git-cas/milestone/13) | Coherent Git object sessions across immutable writes        | [#94](https://github.com/git-stunts/git-cas/issues/94)                                                                                                                                                                         |
 | [`v6.5.4`](https://github.com/git-stunts/git-cas/milestone/14) | Batched staging-workspace page retention                    | [#99](https://github.com/git-stunts/git-cas/issues/99)                                                                                                                                                                         |
 | [`v6.5.5`](https://github.com/git-stunts/git-cas/milestone/15) | Identity-independent internal Git commits                   | [#102](https://github.com/git-stunts/git-cas/issues/102)                                                                                                                                                                       |
-| [`v6.5.6`](https://github.com/git-stunts/git-cas/milestone/16) | Bijou 7 framed cockpit                                      | [#105](https://github.com/git-stunts/git-cas/issues/105), [#106](https://github.com/git-stunts/git-cas/issues/106)                                                                                                             |
+| [`v6.5.6`](https://github.com/git-stunts/git-cas/milestone/16) | Bijou 7 framed cockpit and deterministic ref conflicts      | [#105](https://github.com/git-stunts/git-cas/issues/105), [#106](https://github.com/git-stunts/git-cas/issues/106), [#111](https://github.com/git-stunts/git-cas/issues/111)                                                    |
 | [`v6.6.0`](https://github.com/git-stunts/git-cas/milestone/9)  | Operator TUI and agent automation follow-through            | [#39](https://github.com/git-stunts/git-cas/issues/39), [#40](https://github.com/git-stunts/git-cas/issues/40)                                                                                                                 |
 | [`v6.7.0`](https://github.com/git-stunts/git-cas/milestone/10) | Browser and edge read-path exploration                      | [#41](https://github.com/git-stunts/git-cas/issues/41)                                                                                                                                                                         |
 | [`v7.0.0`](https://github.com/git-stunts/git-cas/milestone/6)  | Protocol break only if audit requires it                    | [#42](https://github.com/git-stunts/git-cas/issues/42), only when justified                                                                                                                                                    |
@@ -52,10 +52,10 @@ GitHub wins and this file should be corrected.
 
 The latest landed design record is:
 
-- [0055-internal-commit-identity](./docs/design/0055-internal-commit-identity/internal-commit-identity.md)
+- [0057-deterministic-ref-conflict-posture](./docs/design/0057-deterministic-ref-conflict-posture/deterministic-ref-conflict-posture.md)
 
 Its GitHub goalpost issue,
-[#102](https://github.com/git-stunts/git-cas/issues/102), owns the release
+[#111](https://github.com/git-stunts/git-cas/issues/111), owns the release
 evidence. The design doc is the durable contract; GitHub records completion.
 
 The `v6.2.0` slice record is:

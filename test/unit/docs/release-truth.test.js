@@ -308,6 +308,21 @@ describe('internal commit identity release documentation', () => {
   });
 });
 
+describe('hosted cockpit and checked-ref release documentation', () => {
+  it('ships and links the v6.5.6 compatibility contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.5.6.md');
+
+    expect(readme).toContain('[v6.5.6 Release Notes](./docs/releases/v6.5.6.md)');
+    expect(upgrading).toContain('## v6.5.5 To v6.5.6');
+    expect(upgrading).toMatch(/requires no migration/);
+    expect(releaseNotes).toContain('# git-cas v6.5.6 Release Notes');
+    expect(releaseNotes).toContain('structured post-failure');
+    expect(releaseNotes).toContain('FramedApp');
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');

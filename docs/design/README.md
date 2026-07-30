@@ -11,8 +11,6 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Active METHOD Cycles
 
-- [0057-deterministic-ref-conflict-posture - deterministic-ref-conflict-posture](./0057-deterministic-ref-conflict-posture/deterministic-ref-conflict-posture.md)
-- [0056-bijou-7-framed-cockpit - bijou-7-framed-cockpit](./0056-bijou-7-framed-cockpit/bijou-7-framed-cockpit.md)
 - [0054-batched-page-retention - batched-page-retention](./0054-batched-page-retention/batched-page-retention.md)
 - [0050-lazy-bundle-reference-reads - lazy-bundle-reference-reads](./0050-lazy-bundle-reference-reads/lazy-bundle-reference-reads.md)
 - [0049-scoped-staging-workspaces — scoped-staging-workspaces](./0049-scoped-staging-workspaces/scoped-staging-workspaces.md)
@@ -46,6 +44,8 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Landed METHOD Cycles
 
+- [0057-deterministic-ref-conflict-posture - deterministic-ref-conflict-posture](./0057-deterministic-ref-conflict-posture/deterministic-ref-conflict-posture.md)
+- [0056-bijou-7-framed-cockpit - bijou-7-framed-cockpit](./0056-bijou-7-framed-cockpit/bijou-7-framed-cockpit.md)
 - [0055-internal-commit-identity - internal-commit-identity](./0055-internal-commit-identity/internal-commit-identity.md)
 - [0053-git-object-session-coherence - git-object-session-coherence](./0053-git-object-session-coherence/git-object-session-coherence.md)
 - [0052-persistent-git-object-sessions - persistent-git-object-sessions](./0052-persistent-git-object-sessions/persistent-git-object-sessions.md)
