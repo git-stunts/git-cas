@@ -254,6 +254,7 @@ function expectV656CandidateEvidence(status, candidate) {
   expect(status).toContain('**Current release state:** `v6.5.6` release candidate');
   expect(candidate).toContain('# TRUST-0057 v6.5.6 Release Candidate Witness');
   expect(candidate).toContain('Implementation reviews: #109 and #112');
+  expect(candidate).toContain('Release review: #113');
   expect(candidate).toContain('e802269ab6035eae75c2d61a8e8a898800cffbb8');
   expect(candidate).toContain('4327effd31c6d8ff00980512d6c59fc5064432d7');
   expect(candidate).toContain('**PASS: 14/14 gates**');
