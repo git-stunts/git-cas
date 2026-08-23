@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.5.6` (`2026-07-30`)
-**Current release state:** `v6.5.7` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** versioned `v6.5.7` candidate-preparation commit `7631d597` (the direct child of implementation merge `1e30740c`) passed 14/14 release-verifier steps with 6,922 observed tests across Node, Bun, Deno, and all three real-Git integration suites.
+**Last tagged release:** `v6.5.7` (`2026-08-23`)
+**Current release state:** `v6.5.7` is published to npm and GitHub Releases.
+**Latest verification:** reviewed release merge `eebc6e37` passed 14/14 release-verifier steps with 6,925 observed tests; signed tag `v6.5.7` peels to that merge, and release workflow `32637934268` published the matching npm artifact plus final GitHub Release.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,16 +18,20 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.5.7 candidate posture** — implementation PR
-  [#116](https://github.com/git-stunts/git-cas/pull/116) merged bounded
-  session-backed small stream reads as `1e30740c`. npm, JSR, and runtime
-  metadata identify `6.5.7`; the signed tag and registry artifacts remain
-  deliberately absent pending release review. The fixed 10 MiB ceiling is
+- **v6.5.7 artifact posture** — implementation PR
+  [#116](https://github.com/git-stunts/git-cas/pull/116) and release PR
+  [#117](https://github.com/git-stunts/git-cas/pull/117) merged normally.
+  Signed tag `v6.5.7` resolves to reviewed release merge `eebc6e37`; npm reports
+  `@git-stunts/git-cas@6.5.7` as `latest` with publish and SLSA provenance, and
+  release workflow `32637934268` published the final GitHub Release. Bounded
+  session-backed small stream reads are shipped. The fixed 10 MiB ceiling is
   independent of `maxBlobSize`, and larger objects remain genuinely streamed.
+  JSR dry-run validation is healthy, but JSR publication is not part of the
+  release workflow.
 - **v6.5.6 artifact posture** — signed tag `v6.5.6` resolves to reviewed release
-  merge `257e8821`; npm reports `@git-stunts/git-cas@6.5.6` as `latest` with
-  publish and SLSA provenance, and release workflow `30526282895` published the
-  final GitHub Release. The Bijou 7.2 hosted cockpit and deterministic
+  merge `257e8821`; npm retains `@git-stunts/git-cas@6.5.6` with publish and
+  SLSA provenance, and release workflow `30526282895` published the final
+  GitHub Release. The Bijou 7.2 hosted cockpit and deterministic
   checked-ref conflict classification are shipped. JSR dry-run validation is
   healthy, but JSR publication is not part of the release workflow.
 - **v6.5.5 artifact posture** — signed tag `v6.5.5` resolves to reviewed merge
@@ -37,8 +41,8 @@
   commits are shipped. JSR dry-run validation is healthy, but JSR publication
   is not part of the release workflow.
 - **v6.5.4 artifact posture** — signed tag `v6.5.4` resolves to reviewed merge
-  `a2d23f5b`; npm reports `@git-stunts/git-cas@6.5.4` as `latest` with SLSA
-  provenance, and release workflow `30205009357` published the final GitHub
+  `a2d23f5b`; npm retains `@git-stunts/git-cas@6.5.4` with SLSA provenance, and
+  release workflow `30205009357` published the final GitHub
   Release. Batched staging-workspace page retention is shipped. JSR dry-run
   validation is healthy, but JSR publication is not part of the release
   workflow.
@@ -151,15 +155,15 @@
 
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
-- Current release goalpost:
+- Latest completed release goalpost:
   [#115 v6.5.7: Reuse bounded Git sessions for small streaming reads](https://github.com/git-stunts/git-cas/issues/115)
   under the
   [`v6.5.7` milestone](https://github.com/git-stunts/git-cas/milestone/17).
-- The broader
+- Current queued release goalposts are
   [#39 v6.6.0: Operator TUI](https://github.com/git-stunts/git-cas/issues/39)
   and
   [#40 v6.6.0: Agent automation follow-through](https://github.com/git-stunts/git-cas/issues/40)
-  goalposts remain queued under
+  under
   [`v6.6.0`](https://github.com/git-stunts/git-cas/milestone/9).
 - The latest landed design record is
   [0058-bounded-stream-session-reads](./docs/design/0058-bounded-stream-session-reads/bounded-stream-session-reads.md).

@@ -17,13 +17,18 @@
   fixed-bound authority, fallbacks, and deterministic close.
 - Implementation PR #116 merged normally as
   `1e30740c8670bf42b8bb863f8feb99a5e0f0f29b`.
+- Release PR #117 merged normally as
+  `eebc6e37179f4fffd55f6ff7df2cab2613902772`; the signed `v6.5.7` tag peels
+  to that exact reviewed merge.
+- Release workflow `32637934268` published
+  `@git-stunts/git-cas@6.5.7` with npm publish and SLSA provenance plus a final
+  GitHub Release. A fresh registry install reported CLI build
+  `6.5.7+eebc6e3`.
 
-## What Did Not Yet Ship
+## What Remains Downstream
 
-- The `v6.5.7` signed tag, npm artifact, provenance, and GitHub Release remain
-  deliberately absent until the reviewed release candidate merges.
-- git-warp and Think remain untouched; their publication order begins only
-  after git-cas v6.5.7 is independently verified live.
+- git-warp and Think remain untouched. git-warp must consume the live release,
+  rerun its process census, and publish before Think upgrades both dependencies.
 
 ## Debt
 
