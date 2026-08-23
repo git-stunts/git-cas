@@ -375,31 +375,31 @@ The implementation must be proven through:
 
 ## Tests To Write First
 
-- [ ] A small session-capable stream yields exact bytes through one bounded
+- [x] A small session-capable stream yields exact bytes through one bounded
       session read and never invokes `executeStream()`.
-- [ ] An object above 10 MiB performs metadata inspection but never invokes the
+- [x] An object above 10 MiB performs metadata inspection but never invokes the
       session content read; its bytes come from exactly one streamed command.
-- [ ] Raising `maxBlobSize` cannot raise the fixed stream-session ceiling.
-- [ ] Missing, non-blob, invalid, and failed-session metadata retain the
+- [x] Raising `maxBlobSize` cannot raise the fixed stream-session ceiling.
+- [x] Missing, non-blob, invalid, and failed-session metadata retain the
       existing one-shot route.
-- [ ] Plumbing without session support retains the existing stream behavior.
-- [ ] Repeated real-Git small reads produce one persistent child and zero
+- [x] Plumbing without session support retains the existing stream behavior.
+- [x] Repeated real-Git small reads produce one persistent child and zero
       one-shot children with identical bytes.
-- [ ] Real-Git oversized content produces one metadata session and one one-shot
+- [x] Real-Git oversized content produces one metadata session and one one-shot
       stream with identical bytes.
-- [ ] Explicit close reduces the diagnostic active-session count to zero.
+- [x] Explicit close reduces the diagnostic active-session count to zero.
 
 ## Acceptance Criteria
 
 The work is done when:
 
-- [ ] Every required test above is GREEN and calibrated RED against v6.5.6.
-- [ ] Small repeated reads prove constant session-process startup.
-- [ ] Large payloads never enter the session content-read path.
-- [ ] Bytes, OIDs, public signatures, storage, refs, and retention are
+- [x] Every required test above is GREEN and calibrated RED against v6.5.6.
+- [x] Small repeated reads prove constant session-process startup.
+- [x] Large payloads never enter the session content-read path.
+- [x] Bytes, OIDs, public signatures, storage, refs, and retention are
       unchanged.
-- [ ] The fixed ceiling and nonclaims are documented consistently.
-- [ ] Node, Bun, Deno, lint, package, JSR, and release gates pass.
+- [x] The fixed ceiling and nonclaims are documented consistently.
+- [x] Node, Bun, Deno, lint, package, JSR, and release gates pass.
 - [ ] The committed witness is linked from the reviewed PR.
 - [ ] The implementation and release PRs merge normally.
 - [ ] Signed tag, npm package/provenance, workflow, and GitHub Release are
@@ -424,6 +424,9 @@ The host integration command is shown only as the test's fail-closed contract;
 the authoritative real-Git run is through Docker.
 
 ## Playback / Witness
+
+- [Machine-readable process-topology witness](./witness/bounded-stream-session-reads.json)
+- [Human-readable verification record](./witness/verification.md)
 
 The witness packet answers:
 
@@ -476,8 +479,23 @@ When this lands, it does not prove:
 
 ## Retrospective
 
-Fill this in after implementation and publication.
+Implementation checkpoint before review:
+
+- RED specification commit:
+  `f35775f7b8aac0f613cc76bf6bb482815f0ed934`
+- bounded-session implementation commit:
+  `135a8ff416b12e6abede0b0f78a3e6ba00ca1255`
+- the deterministic witness proves 32 small fallback reads open 32 one-shot
+  children while the session route opens one persistent child, returns the
+  same semantic digest, and closes cleanly;
+- the 10 MiB + 1 byte witness opens one metadata session and one genuine
+  content stream, with no session content read;
+- the implementation tree passed all 14 release-verification gates with 6,919
+  observed tests before publication work began.
+
+Publication outcome will be appended after the signed tag, npm package,
+provenance, workflow, and GitHub Release are independently verified.
 
 PR:
 
-- none currently
+- pending

@@ -149,7 +149,11 @@
   [#115 v6.5.7: Reuse bounded Git sessions for small streaming reads](https://github.com/git-stunts/git-cas/issues/115)
   under the
   [`v6.5.7` milestone](https://github.com/git-stunts/git-cas/milestone/17).
-- The broader operator TUI and agent automation goalposts remain queued under
+- The broader
+  [#39 v6.6.0: Operator TUI](https://github.com/git-stunts/git-cas/issues/39)
+  and
+  [#40 v6.6.0: Agent automation follow-through](https://github.com/git-stunts/git-cas/issues/40)
+  goalposts remain queued under
   [`v6.6.0`](https://github.com/git-stunts/git-cas/milestone/9).
 - The latest landed design record is
   [0057-deterministic-ref-conflict-posture](./docs/design/0057-deterministic-ref-conflict-posture/deterministic-ref-conflict-posture.md).

@@ -1,0 +1,79 @@
+{
+  "schema": "git-cas.bounded-stream-session-reads/v1",
+  "generatedAt": "2026-08-23T10:14:41.826Z",
+  "sourceCommit": "135a8ff416b12e6abede0b0f78a3e6ba00ca1255",
+  "environment": {
+    "node": "v26.0.0",
+    "git": "git version 2.50.1 (Apple Git-155)",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "parameters": {
+    "items": 32,
+    "smallBytes": 4096,
+    "sessionBufferCeilingBytes": 10485760,
+    "oversizedBytes": 10485761
+  },
+  "smallReads": {
+    "fallback": {
+      "objectCount": 32,
+      "contentBytes": 131072,
+      "semanticDigest": "4eac8ed135f35f38f32a7e9a9889f273146dd5bd15daa991963f084befa91974",
+      "processCount": 32,
+      "processCounts": {
+        "cat-file": 32
+      },
+      "sessionOperations": {},
+      "activeSessionsBeforeClose": {},
+      "activeSessionsAfterClose": {}
+    },
+    "session": {
+      "objectCount": 32,
+      "contentBytes": 131072,
+      "semanticDigest": "4eac8ed135f35f38f32a7e9a9889f273146dd5bd15daa991963f084befa91974",
+      "processCount": 1,
+      "processCounts": {
+        "session:cat-file": 1
+      },
+      "sessionOperations": {
+        "cat-file:info": 32,
+        "cat-file:read": 32
+      },
+      "activeSessionsBeforeClose": {
+        "cat-file": 1
+      },
+      "activeSessionsAfterClose": {}
+    }
+  },
+  "oversizedRead": {
+    "objectCount": 1,
+    "contentBytes": 10485761,
+    "semanticDigest": "af6af04dc3eab0d6c1b484c187d6be27eafa9a0d105d6a012942adf916ed27fd",
+    "processCount": 2,
+    "processCounts": {
+      "session:cat-file": 1,
+      "cat-file": 1
+    },
+    "sessionOperations": {
+      "cat-file:info": 1
+    },
+    "activeSessionsBeforeClose": {
+      "cat-file": 1
+    },
+    "activeSessionsAfterClose": {}
+  },
+  "laws": {
+    "smallSemanticEquality": true,
+    "fallbackUsesOneShotPerBlob": true,
+    "smallSessionUsesOneChild": true,
+    "smallSessionReadsEveryBlob": true,
+    "oversizedSemanticEquality": true,
+    "oversizedStreamsExactlyOnce": true,
+    "everySessionCloses": true
+  },
+  "nonclaims": [
+    "Process counts are structural evidence, not a wall-clock guarantee.",
+    "The 10 MiB ceiling is per admitted read, not an aggregate caller-residency bound.",
+    "The oversized payload is streamed once after metadata inspection; no session content read occurs."
+  ]
+}
