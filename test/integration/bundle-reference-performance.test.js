@@ -210,34 +210,37 @@ describe('real-Git bounded small stream session process count', () => {
     'reads repeated small %s streams through one persistent cat-file child',
     async (objectFormat) => {
       const isolatedRepo = mkdtempSync(path.join(os.tmpdir(), `cas-bounded-${objectFormat}-`));
-      gitAt(isolatedRepo, ['init', '--bare', `--object-format=${objectFormat}`]);
-      const sources = Array.from({ length: 12 }, (_, index) =>
-        Buffer.from(`bounded-stream-payload-${index}`)
-      );
-      const oids = sources.map((source) =>
-        gitAt(isolatedRepo, ['hash-object', '-w', '--stdin'], source)
-      );
-      const counted = await createCountingGitPlumbing({ cwd: isolatedRepo, sessions: true });
-      const adapter = new GitPersistenceAdapter({ plumbing: counted.plumbing });
-
       try {
-        const restored = [];
-        for (const oid of oids) {
-          restored.push(await collectBytes(await adapter.readBlobStream(oid)));
+        gitAt(isolatedRepo, ['init', '--bare', `--object-format=${objectFormat}`]);
+        const sources = Array.from({ length: 12 }, (_, index) =>
+          Buffer.from(`bounded-stream-payload-${index}`)
+        );
+        const oids = sources.map((source) =>
+          gitAt(isolatedRepo, ['hash-object', '-w', '--stdin'], source)
+        );
+        const counted = await createCountingGitPlumbing({ cwd: isolatedRepo, sessions: true });
+        const adapter = new GitPersistenceAdapter({ plumbing: counted.plumbing });
+
+        try {
+          const restored = [];
+          for (const oid of oids) {
+            restored.push(await collectBytes(await adapter.readBlobStream(oid)));
+          }
+
+          expect(restored).toEqual(sources);
+          expect(count(counted.snapshot(), 'session:cat-file')).toBe(1);
+          expect(count(counted.snapshot(), 'cat-file')).toBe(0);
+          expect(count(counted.sessionOperations(), 'cat-file:info')).toBe(sources.length);
+          expect(count(counted.sessionOperations(), 'cat-file:read')).toBe(sources.length);
+          expect(count(counted.activeSessions(), 'cat-file')).toBe(1);
+        } finally {
+          await adapter.close();
         }
 
-        expect(restored).toEqual(sources);
-        expect(count(counted.snapshot(), 'session:cat-file')).toBe(1);
-        expect(count(counted.snapshot(), 'cat-file')).toBe(0);
-        expect(count(counted.sessionOperations(), 'cat-file:info')).toBe(sources.length);
-        expect(count(counted.sessionOperations(), 'cat-file:read')).toBe(sources.length);
-        expect(count(counted.activeSessions(), 'cat-file')).toBe(1);
+        expect(count(counted.activeSessions(), 'cat-file')).toBe(0);
       } finally {
-        await adapter.close();
         rmSync(isolatedRepo, { recursive: true, force: true });
       }
-
-      expect(count(counted.activeSessions(), 'cat-file')).toBe(0);
     }
   );
 });
