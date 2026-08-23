@@ -55,6 +55,8 @@ This design is primarily:
 operations and mirror them through staging workspaces. Internally, a bounded
 write-wave coordinator will admit independent blob and tree requests, use the
 new Plumbing batch methods when present, and retain typed one-shot fallbacks.
+Asset batches will complete their bounded store pipelines before emitting all
+manifest trees in one final dependency wave.
 Bundle batches will preplan the existing deterministic fanout graph, pipeline
 all descriptor blobs, then pipeline tree layers bottom-up without changing one
 serialized byte. Workspace batches will retain all returned handles in one
@@ -122,6 +124,20 @@ ref behavior, bounded residency, failure cleanup, and session closure before
   `openUpdateRefSession()` contracts. Its measured 1,000-operation protocol
   benchmarks reduce wall time by 48.0%, 41.6%, 87.4%, and 89.5% respectively,
   with exact ordered output identity. The dependency is not yet released.
+
+## Measured Implementation Posture
+
+At clean git-cas commit `59c9d1a0` against clean Plumbing commit `eee0dfd8`,
+the five-sample SHA-1/SHA-256 witness records identical ordered handle digests
+for individual and batch modes. Sixteen assets fall from 49 Git children to two
+and sixteen workspace bundles fall from 147 to eight. Median wall time falls
+86.6-87.3% and 90.9% respectively. Raising the explicit active-asset bound from
+four to sixteen keeps the two-child floor, reduces typed interactions from 19
+to seven, and trims another 17.9-22.1% from this fixture.
+
+The readable analysis and exact JSON are committed under
+[`witness/`](./witness/verification.md). These are implementation witnesses,
+not release or downstream-consumer claims.
 
 ## Problem
 
@@ -503,26 +519,28 @@ Named mutation calibration:
 
 - [ ] Plumbing PR #16 is reviewed, merged normally, released, and pinned by
       git-cas before v6.5.8 publication.
-- [ ] Public asset and ordered-bundle batches are explicitly bounded and
+- [x] Public asset and ordered-bundle batches are explicitly bounded and
       preserve input-order output.
-- [ ] Golden SHA-1/SHA-256 tests prove persisted identity against repeated
+- [x] Golden SHA-1/SHA-256 tests prove persisted identity against repeated
       single operations.
-- [ ] Workspace batch results share exactly one reported generation and remain
+- [x] Workspace batch results share exactly one reported generation and remain
       readable after pruning at each dependency-wave boundary.
-- [ ] Exact RootSet replacement performs zero old-generation reads and retains
+- [x] Exact RootSet replacement performs zero old-generation reads and retains
       checked no-dereference conflict behavior.
-- [ ] Repeated successful checked updates use one update-ref process; every
+- [x] Repeated successful checked updates use one update-ref process; every
       session is closed at adapter close.
-- [ ] Older/sessionless Plumbing tests exercise real fallbacks.
-- [ ] Failure and cancellation never return a partial batch as complete and
+- [x] Older/sessionless Plumbing tests exercise real fallbacks.
+- [x] Failure and cancellation never return a partial batch as complete and
       expose bounded staging evidence.
-- [ ] The durable git-cas witness records lower process/protocol counts with
+- [x] The durable git-cas witness records lower process/protocol counts with
       identical semantics in both object formats.
 - [ ] The downstream git-warp reference run materially lowers cold and
       incremental process count from 641 and 349 without regressing CPU,
       memory, oversized streaming, or semantic fingerprints.
-- [ ] `npm test`, `npx eslint .`, integration matrices, declarations, package
-      checks, and the release verifier pass.
+- [x] `npm test`, `npx eslint .`, integration matrices, declarations, package
+      checks, and the current-dependency release verifier pass.
+- [ ] The complete release verifier passes again after git-cas pins the released
+      Plumbing dependency.
 
 ## Validation Plan
 
@@ -537,11 +555,12 @@ npm run test:integration:deno
 npm run release:verify
 ```
 
-The process witness runs only in the repository Docker environment and records
-Git, Node/Bun/Deno, package, Plumbing, OS, architecture, object format, input
-sizes, warmups, samples, command/session topology, RootSet generations,
-high-water bounds, semantic digests, and close state. Wall time and CPU are
-reported but process topology and identity are the deterministic gates.
+The process witness runs isolated workers against temporary bare repositories
+and records Git, runtime, Plumbing, OS, architecture, object format, input
+sizes, samples, command/session topology, high-water bounds, semantic digests,
+and close state. Docker integration separately proves pruning and runtime
+behavior. Wall time and CPU are reported but process topology and identity are
+the deterministic gates.
 
 After publication, git-warp runs its counterbalanced base/head reference suite
 and a deeper multi-patch fixture. Think then runs against released git-cas and
@@ -620,4 +639,20 @@ Required artifacts:
 
 ## Retrospective
 
-Pending implementation, review, publication, and downstream playback.
+The implementation exhausts the material stock-Git process startup and
+round-trip waste exposed by the current git-cas API. The canonical witness
+reduces assets from 49 children to the two-process blob/tree dependency floor
+and workspace bundles from 147 children to an eight-process checked-retention
+floor without changing handles in either object format. An explicit
+concurrency sweep preserved the conservative four-source default while proving
+the higher-throughput caller option.
+
+The remaining child processes each preserve a capability boundary: Git object
+identity, tree validation, direct target inspection, Git-authored commits,
+symbolic-ref containment, or compare-and-swap publication. Removing one now
+would require manual object encoding, weaker existence checks, or a broader
+cross-layer lifetime for a marginal gain. Publication and downstream playback
+remain intentionally open: Plumbing must merge and release normally, git-cas
+must pin that release and pass its full runtime/release matrix, and git-warp
+must adopt semantic bundle waves before the campaign can claim end-to-end
+improvement.

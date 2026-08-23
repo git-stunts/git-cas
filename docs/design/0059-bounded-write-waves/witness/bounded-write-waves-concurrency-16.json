@@ -1,6 +1,6 @@
 {
   "schema": "git-cas.bounded-write-waves/v1",
-  "generatedAt": "2026-08-23T21:53:29.743Z",
+  "generatedAt": "2026-08-23T21:54:26.126Z",
   "environment": {
     "node": "v26.0.0",
     "git": "git version 2.50.1 (Apple Git-155)",
@@ -23,7 +23,7 @@
   "parameters": {
     "items": 16,
     "samples": 5,
-    "assetConcurrency": 4,
+    "assetConcurrency": 16,
     "assetBytes": 2048,
     "assetChunkBytes": 1024,
     "bundleMembers": 3
@@ -45,39 +45,39 @@
           "protocolOperations": {
             "mktree:write": 16
           },
-          "wallMs": 997.094,
-          "workerCpuMs": 112.897,
-          "workerUserCpuMs": 81.739,
-          "workerSystemCpuMs": 31.158,
-          "workerPeakRssBytes": 81281024
+          "wallMs": 912.517,
+          "workerCpuMs": 110.5,
+          "workerUserCpuMs": 78.695,
+          "workerSystemCpuMs": 31.805,
+          "workerPeakRssBytes": 81133568
         },
         "batch": {
           "sampleCount": 5,
           "semanticDigest": "bb4a4204b9fc1e1639e03414682f5d87c36444f3ad9ae11148a0f59602e79f79",
           "resultCount": 16,
           "processCount": 2,
-          "protocolOperationCount": 19,
-          "gitInteractionCount": 19,
+          "protocolOperationCount": 7,
+          "gitInteractionCount": 7,
           "counts": {
             "session:fast-import": 1,
             "session:mktree": 1
           },
           "protocolOperations": {
-            "fast-import:writeBlobs": 9,
-            "fast-import:checkpoint": 9,
+            "fast-import:writeBlobs": 3,
+            "fast-import:checkpoint": 3,
             "mktree:writeMany": 1
           },
-          "wallMs": 126.157,
-          "workerCpuMs": 47.316,
-          "workerUserCpuMs": 43.397,
-          "workerSystemCpuMs": 3.919,
-          "workerPeakRssBytes": 80953344
+          "wallMs": 98.218,
+          "workerCpuMs": 43.084,
+          "workerUserCpuMs": 39.836,
+          "workerSystemCpuMs": 3.248,
+          "workerPeakRssBytes": 81051648
         },
         "semanticDigestEqual": true,
         "processReductionPercent": 95.918,
-        "gitInteractionReductionPercent": 70.313,
-        "wallReductionPercent": 87.348,
-        "workerCpuReductionPercent": 58.089
+        "gitInteractionReductionPercent": 89.063,
+        "wallReductionPercent": 89.237,
+        "workerCpuReductionPercent": 61.01
       },
       "workspaceBundleWrite": {
         "individual": {
@@ -100,11 +100,11 @@
             "cat-file:infoMany": 16,
             "update-ref:update": 16
           },
-          "wallMs": 2896.449,
-          "workerCpuMs": 266.952,
-          "workerUserCpuMs": 174.156,
-          "workerSystemCpuMs": 93.725,
-          "workerPeakRssBytes": 85442560
+          "wallMs": 2659.895,
+          "workerCpuMs": 252.08,
+          "workerUserCpuMs": 163.62,
+          "workerSystemCpuMs": 88.46,
+          "workerPeakRssBytes": 85458944
         },
         "batch": {
           "sampleCount": 5,
@@ -130,17 +130,17 @@
             "mktree:write": 1,
             "update-ref:update": 1
           },
-          "wallMs": 262.229,
-          "workerCpuMs": 59.232,
-          "workerUserCpuMs": 51.766,
-          "workerSystemCpuMs": 7.483,
-          "workerPeakRssBytes": 81215488
+          "wallMs": 243.473,
+          "workerCpuMs": 57.293,
+          "workerUserCpuMs": 50.267,
+          "workerSystemCpuMs": 7.072,
+          "workerPeakRssBytes": 80986112
         },
         "semanticDigestEqual": true,
         "processReductionPercent": 94.558,
         "gitInteractionReductionPercent": 94.196,
-        "wallReductionPercent": 90.947,
-        "workerCpuReductionPercent": 77.812
+        "wallReductionPercent": 90.847,
+        "workerCpuReductionPercent": 77.272
       }
     },
     "sha256": {
@@ -159,39 +159,39 @@
           "protocolOperations": {
             "mktree:write": 16
           },
-          "wallMs": 903.447,
-          "workerCpuMs": 110.638,
-          "workerUserCpuMs": 78.599,
-          "workerSystemCpuMs": 32.725,
-          "workerPeakRssBytes": 80953344
+          "wallMs": 924.722,
+          "workerCpuMs": 108.555,
+          "workerUserCpuMs": 77.487,
+          "workerSystemCpuMs": 31.083,
+          "workerPeakRssBytes": 81018880
         },
         "batch": {
           "sampleCount": 5,
           "semanticDigest": "1c302cde909ad0d44f3c757ec0532c2d9d6e52133c3d2c553e65273670ceee4f",
           "resultCount": 16,
           "processCount": 2,
-          "protocolOperationCount": 19,
-          "gitInteractionCount": 19,
+          "protocolOperationCount": 7,
+          "gitInteractionCount": 7,
           "counts": {
             "session:fast-import": 1,
             "session:mktree": 1
           },
           "protocolOperations": {
-            "fast-import:writeBlobs": 9,
-            "fast-import:checkpoint": 9,
+            "fast-import:writeBlobs": 3,
+            "fast-import:checkpoint": 3,
             "mktree:writeMany": 1
           },
-          "wallMs": 121.215,
-          "workerCpuMs": 44.957,
-          "workerUserCpuMs": 41.517,
-          "workerSystemCpuMs": 3.44,
-          "workerPeakRssBytes": 80986112
+          "wallMs": 99.558,
+          "workerCpuMs": 42.07,
+          "workerUserCpuMs": 39.152,
+          "workerSystemCpuMs": 3.185,
+          "workerPeakRssBytes": 81199104
         },
         "semanticDigestEqual": true,
         "processReductionPercent": 95.918,
-        "gitInteractionReductionPercent": 70.313,
-        "wallReductionPercent": 86.583,
-        "workerCpuReductionPercent": 59.366
+        "gitInteractionReductionPercent": 89.063,
+        "wallReductionPercent": 89.234,
+        "workerCpuReductionPercent": 61.245
       },
       "workspaceBundleWrite": {
         "individual": {
@@ -214,11 +214,11 @@
             "cat-file:infoMany": 16,
             "update-ref:update": 16
           },
-          "wallMs": 2789.445,
-          "workerCpuMs": 263.362,
-          "workerUserCpuMs": 170.351,
-          "workerSystemCpuMs": 93.011,
-          "workerPeakRssBytes": 85770240
+          "wallMs": 2860.811,
+          "workerCpuMs": 259.784,
+          "workerUserCpuMs": 168.771,
+          "workerSystemCpuMs": 91.013,
+          "workerPeakRssBytes": 81739776
         },
         "batch": {
           "sampleCount": 5,
@@ -244,17 +244,17 @@
             "mktree:write": 1,
             "update-ref:update": 1
           },
-          "wallMs": 254.603,
-          "workerCpuMs": 58.755,
-          "workerUserCpuMs": 50.916,
-          "workerSystemCpuMs": 7.654,
-          "workerPeakRssBytes": 81100800
+          "wallMs": 269.467,
+          "workerCpuMs": 59.012,
+          "workerUserCpuMs": 51.141,
+          "workerSystemCpuMs": 7.871,
+          "workerPeakRssBytes": 81248256
         },
         "semanticDigestEqual": true,
         "processReductionPercent": 94.558,
         "gitInteractionReductionPercent": 94.196,
-        "wallReductionPercent": 90.873,
-        "workerCpuReductionPercent": 77.69
+        "wallReductionPercent": 90.581,
+        "workerCpuReductionPercent": 77.284
       }
     }
   }
