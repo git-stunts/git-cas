@@ -323,6 +323,22 @@ describe('hosted cockpit and checked-ref release documentation', () => {
   });
 });
 
+describe('bounded stream-session release documentation', () => {
+  it('ships and links the v6.5.7 fixed-bound compatibility contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.5.7.md');
+
+    expect(readme).toContain('[v6.5.7 Release Notes](./docs/releases/v6.5.7.md)');
+    expect(upgrading).toContain('## v6.5.6 To v6.5.7');
+    expect(upgrading).toMatch(/requires no application or stored-data\s+migration/);
+    expect(releaseNotes).toContain('# git-cas v6.5.7 Release Notes');
+    expect(releaseNotes).toContain('fixed 10 MiB');
+    expect(releaseNotes).toMatch(/fallback opened 32 one-shot\s+`cat-file` children/);
+    expect(releaseNotes).toMatch(/large\s+payloads.*streaming behavior/s);
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');

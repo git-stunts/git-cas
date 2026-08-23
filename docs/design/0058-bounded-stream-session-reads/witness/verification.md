@@ -97,7 +97,8 @@ checks and non-test packaging/type gates are not included in that total.
 
 ## Remaining Publication Gates
 
-- merge the reviewed implementation PR normally;
+- implementation PR [#116](https://github.com/git-stunts/git-cas/pull/116)
+  merged normally as `1e30740c8670bf42b8bb863f8feb99a5e0f0f29b`;
 - prepare and fully verify a separate v6.5.7 release candidate from merged
   `main`;
 - merge the reviewed release PR normally;

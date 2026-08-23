@@ -7,7 +7,7 @@ release_home: 'v6.5.7'
 issue: 'https://github.com/git-stunts/git-cas/issues/115'
 goalpost_issue: 'https://github.com/git-stunts/git-cas/issues/115'
 tracker_source: 'github'
-status: 'active'
+status: 'landed'
 base_commit: '00661b07271d8ca7166c0b62beeb1408d72a3706'
 owners:
   - '@git-stunts'
@@ -400,7 +400,7 @@ The work is done when:
       unchanged.
 - [x] The fixed ceiling and nonclaims are documented consistently.
 - [x] Node, Bun, Deno, lint, package, JSR, and release gates pass.
-- [ ] The committed witness is linked from the reviewed PR.
+- [x] The committed witness is linked from the reviewed PR.
 - [ ] The implementation and release PRs merge normally.
 - [ ] Signed tag, npm package/provenance, workflow, and GitHub Release are
       independently verified.
@@ -427,6 +427,7 @@ the authoritative real-Git run is through Docker.
 
 - [Machine-readable process-topology witness](./witness/bounded-stream-session-reads.json)
 - [Human-readable verification record](./witness/verification.md)
+- [v6.5.7 release-candidate witness](./witness/release-candidate.md)
 
 The witness packet answers:
 
@@ -492,10 +493,15 @@ Implementation checkpoint before review:
   content stream, with no session content read;
 - the implementation tree passed all 14 release-verification gates with 6,919
   observed tests before publication work began.
+- implementation PR [#116](https://github.com/git-stunts/git-cas/pull/116)
+  merged normally as `1e30740c8670bf42b8bb863f8feb99a5e0f0f29b` after the
+  sole review finding was fixed and confirmed;
+- merged-main CI run `32635843285` repeated lint, unit, and Node/Bun/Deno
+  real-Git validation before the release candidate was prepared.
 
 Publication outcome will be appended after the signed tag, npm package,
 provenance, workflow, and GitHub Release are independently verified.
 
 PR:
 
-- pending
+- [#116 - Reuse bounded Git sessions for small streaming reads](https://github.com/git-stunts/git-cas/pull/116)

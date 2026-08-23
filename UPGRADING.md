@@ -2,6 +2,25 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.5.6 To v6.5.7
+
+v6.5.7 changes no public API, package export, object identity, manifest, ref,
+or retention contract and requires no application or stored-data migration.
+
+On session-capable Git persistence adapters, `readBlobStream()` now inspects
+immutable object metadata through the persistent `cat-file` session. Blobs at
+or below a fixed 10 MiB ceiling are returned as one bounded chunk through that
+session. This changes backpressure granularity for admitted small reads, but
+the method remains an `AsyncIterable` with identical bytes and errors.
+
+Objects above 10 MiB retain the genuine one-shot streaming path and are never
+speculatively session-read. Raising `maxBlobSize` cannot raise this fixed
+ceiling. Adapters without typed sessions, plus exceptional metadata or bounded
+read failures, retain the existing one-shot fallback.
+
+See [v6.5.7 Release Notes](./docs/releases/v6.5.7.md) for the measured process
+topology, fixed residency boundary, and compatibility details.
+
 ## v6.5.5 To v6.5.6
 
 v6.5.6 changes no public API or stored-data schema and requires no migration.

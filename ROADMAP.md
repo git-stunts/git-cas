@@ -53,10 +53,10 @@ GitHub wins and this file should be corrected.
 
 The latest landed design record is:
 
-- [0057-deterministic-ref-conflict-posture](./docs/design/0057-deterministic-ref-conflict-posture/deterministic-ref-conflict-posture.md)
+- [0058-bounded-stream-session-reads](./docs/design/0058-bounded-stream-session-reads/bounded-stream-session-reads.md)
 
 Its GitHub goalpost issue,
-[#111](https://github.com/git-stunts/git-cas/issues/111), owns the release
+[#115](https://github.com/git-stunts/git-cas/issues/115), owns the release
 evidence. The design doc is the durable contract; GitHub records completion.
 
 The `v6.2.0` slice record is:

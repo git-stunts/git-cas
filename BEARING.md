@@ -22,9 +22,11 @@ deterministic resource closure are published. Internal commits are independent
 of ambient Git identity. The coherent Bijou family is at 7.2.0, the interactive
 cockpit runs on Bijou's hosted framed-app boundary, and failed checked ref
 mutations are classified from structured post-failure posture instead of Git
-diagnostics. npm plus GitHub Releases are the active publication surfaces. JSR
-validation is healthy, but JSR publication remains outside the release
-workflow.
+diagnostics. The v6.5.7 release candidate reuses the persistent `cat-file`
+session for streaming blob reads at or below a fixed 10 MiB ceiling while
+preserving genuine one-shot streaming above that ceiling. npm plus GitHub
+Releases are the active publication surfaces. JSR validation is healthy, but
+JSR publication remains outside the release workflow.
 
 What exists now:
 
@@ -81,6 +83,10 @@ What exists now:
   still retires `mktree` after a bounded bulk write because Git's quick lookup
   cannot discover a pack created after that process prepared its object
   database.
+- **Bounded stream-session read candidate.** v6.5.7 routes blobs at or below a
+  fixed 10 MiB ceiling through the persistent `cat-file` session and returns one
+  bounded chunk. Larger objects are metadata-inspected but enter exactly one
+  genuine content stream; no session content read is attempted for them.
 - **Batched workspace page retention.** v6.5.4 adds
   `workspace.pages.putBatch()` so one bounded ordered page group is written and
   retained under one exact workspace generation instead of rewriting a growing
@@ -151,14 +157,14 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With v6.5.6 shipped, active work is tracked in GitHub Issues and Milestones.
-Repo docs hold design and evidence records, not the active queue.
+With v6.5.6 shipped and the v6.5.7 candidate under release review, active work
+is tracked in GitHub Issues and Milestones. Repo docs hold design and evidence
+records, not the active queue.
 
-The latest landed designs are
-[0056-bijou-7-framed-cockpit](./docs/design/0056-bijou-7-framed-cockpit/bijou-7-framed-cockpit.md)
-and
-[0057-deterministic-ref-conflict-posture](./docs/design/0057-deterministic-ref-conflict-posture/deterministic-ref-conflict-posture.md).
-Their release evidence is retained under their witness directories.
+The candidate design is
+[0058-bounded-stream-session-reads](./docs/design/0058-bounded-stream-session-reads/bounded-stream-session-reads.md).
+Its release goalpost is [#115](https://github.com/git-stunts/git-cas/issues/115)
+in the [`v6.5.7` milestone](https://github.com/git-stunts/git-cas/milestone/17).
 
 The broader horizon remains:
 

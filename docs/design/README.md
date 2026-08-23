@@ -11,7 +11,6 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Active METHOD Cycles
 
-- [0058-bounded-stream-session-reads - bounded-stream-session-reads](./0058-bounded-stream-session-reads/bounded-stream-session-reads.md)
 - [0054-batched-page-retention - batched-page-retention](./0054-batched-page-retention/batched-page-retention.md)
 - [0050-lazy-bundle-reference-reads - lazy-bundle-reference-reads](./0050-lazy-bundle-reference-reads/lazy-bundle-reference-reads.md)
 - [0049-scoped-staging-workspaces — scoped-staging-workspaces](./0049-scoped-staging-workspaces/scoped-staging-workspaces.md)
@@ -45,6 +44,7 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Landed METHOD Cycles
 
+- [0058-bounded-stream-session-reads - bounded-stream-session-reads](./0058-bounded-stream-session-reads/bounded-stream-session-reads.md)
 - [0057-deterministic-ref-conflict-posture - deterministic-ref-conflict-posture](./0057-deterministic-ref-conflict-posture/deterministic-ref-conflict-posture.md)
 - [0056-bijou-7-framed-cockpit - bijou-7-framed-cockpit](./0056-bijou-7-framed-cockpit/bijou-7-framed-cockpit.md)
 - [0055-internal-commit-identity - internal-commit-identity](./0055-internal-commit-identity/internal-commit-identity.md)
