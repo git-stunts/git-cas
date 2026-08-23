@@ -487,6 +487,31 @@ describe('GitPersistenceAdapter operation-owned write scopes', () => {
     expect(fastImport.close).toHaveBeenCalledOnce();
     await adapter.close();
   });
+
+});
+
+describe('GitPersistenceAdapter operation-owned oversized writes', () => {
+  it('keeps an oversized blob on the genuine one-shot write path', async () => {
+    const fastImport = {
+      writeBlobs: vi.fn(),
+      checkpoint: vi.fn(),
+      close: vi.fn(),
+      abort: vi.fn(),
+    };
+    const plumbing = sessionPlumbing({ fastImportSession: fastImport });
+    plumbing.execute.mockResolvedValue('d'.repeat(40));
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+    const content = Buffer.alloc(64 * 1024 * 1024 + 1);
+
+    await expect(adapter.withWriteScope((persistence) => persistence.writeBlob(content)))
+      .resolves.toBe('d'.repeat(40));
+
+    expect(plumbing.execute).toHaveBeenCalledOnce();
+    expect(plumbing.execute.mock.calls[0][0].args).toEqual(['hash-object', '-w', '--stdin']);
+    expect(plumbing.execute.mock.calls[0][0].input).toBe(content);
+    expect(plumbing.openFastImportSession).not.toHaveBeenCalled();
+    await adapter.close();
+  });
 });
 
 describe('GitPersistenceAdapter persistent write sessions', () => {

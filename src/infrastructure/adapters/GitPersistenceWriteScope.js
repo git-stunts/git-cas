@@ -2,6 +2,8 @@ import GitPersistencePort from '../../ports/GitPersistencePort.js';
 import GitObjectSessionPool from './GitObjectSessionPool.js';
 
 const EXECUTE_DIRECTLY = (operation) => operation();
+const MAX_FAST_IMPORT_BLOB_BYTES = 64 * 1024 * 1024;
+const UTF8_ENCODER = new globalThis.TextEncoder();
 
 /** Operation-owned persistence view with one scoped fast-import process. */
 export default class GitPersistenceWriteScope extends GitPersistencePort {
@@ -52,7 +54,10 @@ export default class GitPersistenceWriteScope extends GitPersistencePort {
   }
 
   async writeBlob(content) {
-    if (!this.#sessions.supports('fastImport')) {
+    if (
+      !this.#sessions.supports('fastImport') ||
+      contentBytes(content) > MAX_FAST_IMPORT_BLOB_BYTES
+    ) {
       return await this.#adapter.writeBlob(content);
     }
     return (await this.writeBlobs([content]))[0];
@@ -114,4 +119,13 @@ export default class GitPersistenceWriteScope extends GitPersistencePort {
   setMaxBlobSize(maxBlobSize) {
     this.#adapter.setMaxBlobSize(maxBlobSize);
   }
+}
+
+function contentBytes(content) {
+  if (content instanceof Uint8Array) {
+    return content.byteLength;
+  }
+  return typeof content === 'string'
+    ? UTF8_ENCODER.encode(content).byteLength
+    : Number.MAX_SAFE_INTEGER;
 }
