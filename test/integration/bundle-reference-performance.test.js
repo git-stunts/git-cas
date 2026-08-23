@@ -13,6 +13,9 @@ import path from 'node:path';
 import ContentAddressableStore from '../../index.js';
 import { createCountingGitPlumbing } from '../../scripts/diagnostics/createCountingGitPlumbing.js';
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
+import GitPersistenceAdapter, {
+  DEFAULT_MAX_BLOB_SIZE,
+} from '../../src/infrastructure/adapters/GitPersistenceAdapter.js';
 
 if (process.env.GIT_STUNTS_DOCKER !== '1') {
   throw new Error(
@@ -27,8 +30,8 @@ let repoDir;
 let writer;
 let outer;
 
-function git(args) {
-  const result = spawnSync('git', args, { cwd: repoDir, encoding: 'utf8' });
+function git(args, input) {
+  const result = spawnSync('git', args, { cwd: repoDir, encoding: 'utf8', input });
   if (result.error) {
     throw result.error;
   }
@@ -81,6 +84,14 @@ async function collect(iterable) {
     values.push(value);
   }
   return values;
+}
+
+async function collectBytes(iterable) {
+  const chunks = [];
+  for await (const chunk of iterable) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
 }
 
 beforeAll(async () => {
@@ -187,6 +198,53 @@ describe('real-Git persistent object session process count', () => {
     } finally {
       await closeAll(fallback.cas, persistent.cas);
     }
+  });
+});
+
+describe('real-Git bounded stream session process count', () => {
+  it('reads repeated small streams through one persistent cat-file child', async () => {
+    const sources = Array.from({ length: 12 }, (_, index) =>
+      Buffer.from(`bounded-stream-payload-${index}`)
+    );
+    const oids = sources.map((source) => git(['hash-object', '-w', '--stdin'], source));
+    const counted = await createCountingGitPlumbing({ cwd: repoDir, sessions: true });
+    const adapter = new GitPersistenceAdapter({ plumbing: counted.plumbing });
+
+    try {
+      const restored = [];
+      for (const oid of oids) {
+        restored.push(await collectBytes(await adapter.readBlobStream(oid)));
+      }
+
+      expect(restored).toEqual(sources);
+      expect(count(counted.snapshot(), 'session:cat-file')).toBe(1);
+      expect(count(counted.snapshot(), 'cat-file')).toBe(0);
+      expect(count(counted.activeSessions(), 'cat-file')).toBe(1);
+    } finally {
+      await adapter.close();
+    }
+
+    expect(count(counted.activeSessions(), 'cat-file')).toBe(0);
+  });
+
+  it('streams an oversized object once without a bounded session content read', async () => {
+    const source = Buffer.alloc(DEFAULT_MAX_BLOB_SIZE + 1, 0x5a);
+    const oid = git(['hash-object', '-w', '--stdin'], source);
+    const counted = await createCountingGitPlumbing({ cwd: repoDir, sessions: true });
+    const adapter = new GitPersistenceAdapter({ plumbing: counted.plumbing });
+
+    try {
+      const restored = await collectBytes(await adapter.readBlobStream(oid));
+      expect(restored.byteLength).toBe(source.byteLength);
+      expect(restored.equals(source)).toBe(true);
+      expect(count(counted.snapshot(), 'session:cat-file')).toBe(1);
+      expect(count(counted.snapshot(), 'cat-file')).toBe(1);
+      expect(count(counted.activeSessions(), 'cat-file')).toBe(1);
+    } finally {
+      await adapter.close();
+    }
+
+    expect(count(counted.activeSessions(), 'cat-file')).toBe(0);
   });
 });
 
