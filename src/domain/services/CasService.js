@@ -81,6 +81,7 @@ export default class CasService {
     this.chunker = chunker;
     this.compressionAdapter = compressionAdapter;
     this.formatVersion = formatVersion;
+    this.legacyMode = legacyMode;
     this.merkleThreshold = merkleThreshold;
     this.concurrency = concurrency;
     this.maxRestoreBufferSize = maxRestoreBufferSize;

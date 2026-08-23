@@ -1465,6 +1465,12 @@ export interface AssetPutOptions {
 
 export interface AssetCapability {
   put(options: AssetPutOptions): Promise<StagedAsset>;
+  putBatch(options: {
+    assets: AssetPutOptions[];
+    maxBatchAssets?: number;
+    maxBatchObjects?: number;
+    maxBatchBytes?: number;
+  }): Promise<ReadonlyArray<StagedAsset>>;
   adopt(options: { treeOid: string }): Promise<StagedAsset>;
   open(options: {
     handle: AssetHandleInput;
@@ -1520,6 +1526,18 @@ export interface BundleCapability {
       | AsyncIterable<[string, BundleMemberInput]>;
     limits?: Partial<BundleLimits>;
   }): Promise<StagedBundle>;
+  putOrderedBatch(options: {
+    bundles: Array<{
+      members:
+        | Iterable<[string, BundleMemberInput]>
+        | AsyncIterable<[string, BundleMemberInput]>;
+      limits?: Partial<BundleLimits>;
+    }>;
+    maxBatchBundles?: number;
+    maxBatchMembers?: number;
+    maxBatchObjects?: number;
+    maxBatchBytes?: number;
+  }): Promise<ReadonlyArray<StagedBundle>>;
   getMember(options: {
     handle: BundleHandleInput;
     path: string;
@@ -1649,6 +1667,9 @@ export declare class StagingWorkspace {
   readonly expiresAt: string | null;
   readonly assets: {
     put(options: AssetPutOptions): Promise<WorkspaceRetainedAsset>;
+    putBatch(
+      options: Parameters<AssetCapability['putBatch']>[0],
+    ): Promise<ReadonlyArray<WorkspaceRetainedAsset>>;
     adopt(options: { treeOid: string }): Promise<WorkspaceRetainedAsset>;
   };
   readonly pages: {
@@ -1660,6 +1681,9 @@ export declare class StagingWorkspace {
   readonly bundles: {
     put(options: Parameters<BundleCapability['put']>[0]): Promise<WorkspaceRetainedBundle>;
     putOrdered(options: Parameters<BundleCapability['putOrdered']>[0]): Promise<WorkspaceRetainedBundle>;
+    putOrderedBatch(
+      options: Parameters<BundleCapability['putOrderedBatch']>[0],
+    ): Promise<ReadonlyArray<WorkspaceRetainedBundle>>;
   };
   checkpoint(options: { handles: Iterable<ApplicationHandleInput> }): Promise<WorkspaceCheckpointResult>;
   renew(): Promise<WorkspaceCheckpointResult>;

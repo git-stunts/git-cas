@@ -2,8 +2,13 @@ import createCasError from '../errors/createCasError.js';
 import { ErrorCodes } from '../errors/index.js';
 import AssetHandle from '../value-objects/AssetHandle.js';
 import StagedAsset from '../value-objects/StagedAsset.js';
+import BoundedWriteWavePersistence from './BoundedWriteWavePersistence.js';
+import forkCasPersistence from './forkCasPersistence.js';
 
 const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
+export const DEFAULT_ASSET_WRITE_BATCH_ASSETS = 4;
+export const DEFAULT_ASSET_WRITE_BATCH_OBJECTS = 4_096;
+export const DEFAULT_ASSET_WRITE_BATCH_BYTES = 256 * 1024 * 1024;
 
 /**
  * High-level asset handle boundary over the existing streaming CAS pipeline.
@@ -30,13 +35,61 @@ export default class AssetService {
    * @returns {Promise<StagedAsset>}
    */
   async put(options) {
+    return await this.#putWith(this.#cas, options);
+  }
+
+  /** Stores an input-ordered group with bounded concurrent CAS pipelines. */
+  async putBatch(options = {}) {
+    const batch = AssetService.#batchOptions(options);
+    const persistence = new BoundedWriteWavePersistence({
+      persistence: this.#cas.persistence,
+      maxBatchObjects: batch.maxBatchObjects,
+      maxBatchBytes: batch.maxBatchBytes,
+    });
+    const cas = forkCasPersistence(this.#cas, persistence);
+    const results = new Array(batch.assets.length);
+    const state = { next: 0, error: null };
+    const workers = Array.from(
+      { length: Math.min(batch.maxBatchAssets, batch.assets.length) },
+      () => this.#putBatchWorker({ batch, cas, results, state }),
+    );
+    await Promise.allSettled(workers);
+    if (state.error !== null) {
+      state.error.meta = {
+        ...state.error.meta,
+        staging: {
+          ...persistence.snapshot(),
+          stagedAssetCount: results.filter(Boolean).length,
+        },
+      };
+      throw state.error;
+    }
+    return Object.freeze(results);
+  }
+
+  async #putWith(cas, options) {
     const filename = options?.filename ?? options?.slug;
-    const manifest = await this.#cas.store({ ...options, filename });
-    const oid = await this.#cas.createTree({
+    const manifest = await cas.store({ ...options, filename });
+    const oid = await cas.createTree({
       manifest,
       merkleThreshold: options?.merkleThreshold,
     });
     return this.#staged({ manifest, oid });
+  }
+
+  async #putBatchWorker({ batch, cas, results, state }) {
+    while (state.error === null) {
+      const index = state.next;
+      if (index >= batch.assets.length) {
+        return;
+      }
+      state.next += 1;
+      try {
+        results[index] = await this.#putWith(cas, batch.assets[index]);
+      } catch (error) {
+        state.error ??= error;
+      }
+    }
   }
 
   /**
@@ -208,6 +261,32 @@ export default class AssetService {
     }
     if (!clock || typeof clock.now !== 'function') {
       throw createCasError('AssetService clock must provide now()', ErrorCodes.INVALID_OPTIONS);
+    }
+  }
+
+  static #batchOptions(options) {
+    if (!options || typeof options !== 'object' || !Array.isArray(options.assets)) {
+      throw createCasError('Asset batch must provide an asset array', ErrorCodes.INVALID_OPTIONS);
+    }
+    const batch = {
+      assets: options.assets,
+      maxBatchAssets: options.maxBatchAssets ?? DEFAULT_ASSET_WRITE_BATCH_ASSETS,
+      maxBatchObjects: options.maxBatchObjects ?? DEFAULT_ASSET_WRITE_BATCH_OBJECTS,
+      maxBatchBytes: options.maxBatchBytes ?? DEFAULT_ASSET_WRITE_BATCH_BYTES,
+    };
+    AssetService.#assertBatchLimit(batch.maxBatchAssets, 'assets', 64);
+    AssetService.#assertBatchLimit(batch.maxBatchObjects, 'objects', 100_000);
+    AssetService.#assertBatchLimit(batch.maxBatchBytes, 'bytes', 1024 * 1024 * 1024);
+    return batch;
+  }
+
+  static #assertBatchLimit(value, label, maximum) {
+    if (!Number.isSafeInteger(value) || value < 1 || value > maximum) {
+      throw createCasError(
+        `Asset batch ${label} limit is outside its supported range`,
+        ErrorCodes.INVALID_OPTIONS,
+        { label, value, maximum },
+      );
     }
   }
 }

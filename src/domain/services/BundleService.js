@@ -9,6 +9,7 @@ import normalizeBundlePath from '../value-objects/BundlePath.js';
 import StagedBundle from '../value-objects/StagedBundle.js';
 import BoundedPromiseCache from '../../helpers/boundedPromiseCache.js';
 import BundleDescriptorCodec, { BUNDLE_INDEX_ENTRY } from './BundleDescriptorCodec.js';
+import BundleBatchPlanner from './BundleBatchPlanner.js';
 import BundleFanoutBuilder from './BundleFanoutBuilder.js';
 import StagingEvidence from './StagingEvidence.js';
 
@@ -16,6 +17,10 @@ const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
 const DEFAULT_MAX_NESTING_DEPTH = 32;
 const DESCRIPTOR_CACHE_ENTRIES = 1_024;
 const DESCRIPTOR_CACHE_BYTES = 16 * 1024 * 1024;
+export const DEFAULT_BUNDLE_WRITE_BATCH_BUNDLES = 64;
+export const DEFAULT_BUNDLE_WRITE_BATCH_MEMBERS = 8_192;
+export const DEFAULT_BUNDLE_WRITE_BATCH_OBJECTS = 256;
+export const DEFAULT_BUNDLE_WRITE_BATCH_BYTES = 64 * 1024 * 1024;
 
 /**
  * Builds and traverses deterministic, targeted structured bundle trees.
@@ -90,6 +95,41 @@ export default class BundleService {
       throw createCasError('Ordered bundle members must be an iterable', ErrorCodes.BUNDLE_MEMBER_INVALID);
     }
     return await this.#putOrdered(members, limits);
+  }
+
+  /**
+   * Builds an explicitly bounded group of ordered bundles through shared
+   * descriptor and tree dependency waves.
+   */
+  async putOrderedBatch(options = {}) {
+    const batch = BundleService.#batchOptions(options);
+    const staging = new StagingEvidence();
+    try {
+      const admitted = await this.#admitOrderedBatch(batch.bundles, batch.maxBatchMembers);
+      if (admitted.length === 0) {
+        return Object.freeze([]);
+      }
+      const inlinePages = admitted.flatMap((request) =>
+        request.members.filter((member) => member.inline).map((member) => member.inline)
+      );
+      const plannedObjects = BundleBatchPlanner.estimateObjectCount(admitted);
+      BundleService.#assertBatchObjects(plannedObjects + inlinePages.length, batch.maxBatchObjects);
+      const pages = await this.#writeInlinePageBatch(inlinePages, batch, staging);
+      const prepared = await this.#prepareAdmittedBatch(admitted, pages);
+      const pageBytes = pages.reduce((total, page) => total + page.page.size, 0);
+      const planner = new BundleBatchPlanner({
+        persistence: this.#persistence,
+        codec: this.#codec,
+        staging,
+        maxBatchObjects: batch.maxBatchObjects - pages.length,
+        maxBatchBytes: batch.maxBatchBytes - pageBytes,
+      });
+      const plans = prepared.map((request) => planner.create(request));
+      const results = await planner.write(plans);
+      return Object.freeze(results.map((result) => this.#stagedBatchBundle(result)));
+    } catch (error) {
+      throw augmentError(error, { staging: staging.snapshot() });
+    }
   }
 
   /** @internal Builds from handles whose complete support graphs were already validated. */
@@ -338,6 +378,88 @@ export default class BundleService {
     } catch (error) {
       throw augmentError(error, { staging: staging.snapshot() });
     }
+  }
+
+  async #admitOrderedBatch(requests, maxBatchMembers) {
+    const admitted = [];
+    let aggregateMembers = 0;
+    for (const request of requests) {
+      if (!request || typeof request !== 'object' || !isIterable(request.members)) {
+        throw createCasError(
+          'Ordered bundle batch entries must provide iterable members',
+          ErrorCodes.INVALID_OPTIONS,
+        );
+      }
+      const limits = this.#limits.lower(request.limits);
+      const members = [];
+      let previousPath = null;
+      for await (const pair of request.members) {
+        const [rawPath, value] = BundleService.#memberPair(pair);
+        const path = normalizeBundlePath(rawPath, limits.maxMemberPathBytes);
+        BundleService.#assertOrder(path, previousPath);
+        aggregateMembers += 1;
+        BundleService.#assertMemberCounts(members.length + 1, aggregateMembers, {
+          maxMembers: limits.maxMembers,
+          maxBatchMembers,
+        });
+        members.push({ path, value, inline: inlinePageOptions(value) });
+        previousPath = path;
+      }
+      admitted.push({ members, limits, observedAt: this.#observedAt() });
+    }
+    return admitted;
+  }
+
+  async #writeInlinePageBatch(inlinePages, batch, staging) {
+    if (inlinePages.length === 0) {
+      return [];
+    }
+    if (typeof this.#pages.putBatch !== 'function') {
+      throw createCasError('Bundle batching requires page batch support', ErrorCodes.INVALID_OPTIONS);
+    }
+    const pages = await this.#pages.putBatch({
+      pages: inlinePages,
+      maxBatchBytes: batch.maxBatchBytes,
+      maxBatchPages: batch.maxBatchObjects,
+    });
+    for (const page of pages) {
+      staging.record(page.handle.oid, 'blob');
+      staging.recordHandle(page.handle);
+    }
+    return pages;
+  }
+
+  async #prepareAdmittedBatch(admitted, pages) {
+    const validation = { active: new Set(), cache: new Map() };
+    const prepared = [];
+    let pageIndex = 0;
+    for (const request of admitted) {
+      const members = [];
+      for (const member of request.members) {
+        if (member.inline) {
+          members.push(preparedPageMember(member.path, pages[pageIndex]));
+          pageIndex += 1;
+        } else {
+          members.push(await this.#prepareHandleMember(member.path, member.value, {
+            validation,
+            validateTargets: true,
+          }));
+        }
+      }
+      prepared.push({ ...request, members });
+    }
+    return prepared;
+  }
+
+  #stagedBatchBundle(result) {
+    return new StagedBundle({
+      handle: new BundleHandle({ codec: this.#codec.extension, oid: result.oid }),
+      memberCount: result.memberCount,
+      indexDepth: result.indexDepth,
+      descriptorBytes: result.descriptorBytes,
+      limits: result.limits,
+      observedAt: result.observedAt,
+    });
   }
 
   async #prepareMember(path, value, { staging, validation, validateTargets }) {
@@ -693,6 +815,54 @@ export default class BundleService {
     );
   }
 
+  static #batchOptions(options) {
+    if (!options || typeof options !== 'object' || !Array.isArray(options.bundles)) {
+      throw createCasError('Bundle batch must provide a bundle array', ErrorCodes.INVALID_OPTIONS);
+    }
+    const batch = {
+      bundles: options.bundles,
+      maxBatchBundles: options.maxBatchBundles ?? DEFAULT_BUNDLE_WRITE_BATCH_BUNDLES,
+      maxBatchMembers: options.maxBatchMembers ?? DEFAULT_BUNDLE_WRITE_BATCH_MEMBERS,
+      maxBatchObjects: options.maxBatchObjects ?? DEFAULT_BUNDLE_WRITE_BATCH_OBJECTS,
+      maxBatchBytes: options.maxBatchBytes ?? DEFAULT_BUNDLE_WRITE_BATCH_BYTES,
+    };
+    assertBatchLimit(batch.maxBatchBundles, 'bundle count', DEFAULT_BUNDLE_WRITE_BATCH_OBJECTS);
+    assertBatchLimit(batch.maxBatchMembers, 'member count', 100_000);
+    assertBatchLimit(batch.maxBatchObjects, 'object count', DEFAULT_BUNDLE_WRITE_BATCH_OBJECTS);
+    assertBatchLimit(batch.maxBatchBytes, 'byte count', DEFAULT_BUNDLE_WRITE_BATCH_BYTES);
+    if (batch.bundles.length > batch.maxBatchBundles) {
+      throw createCasError('Bundle batch exceeds its configured bundle limit', ErrorCodes.INVALID_OPTIONS, {
+        observedBundles: batch.bundles.length,
+        maxBatchBundles: batch.maxBatchBundles,
+      });
+    }
+    return batch;
+  }
+
+  static #assertBatchObjects(observedObjects, maxBatchObjects) {
+    if (observedObjects > maxBatchObjects) {
+      throw createCasError('Bundle batch exceeds its configured object limit', ErrorCodes.INVALID_OPTIONS, {
+        observedObjects,
+        maxBatchObjects,
+      });
+    }
+  }
+
+  static #assertMemberCounts(bundleMembers, batchMembers, limits) {
+    if (bundleMembers > limits.maxMembers) {
+      throw createCasError('Bundle exceeds its member limit', ErrorCodes.BUNDLE_MEMBER_LIMIT, {
+        observedMembers: bundleMembers,
+        maxMembers: limits.maxMembers,
+      });
+    }
+    if (batchMembers > limits.maxBatchMembers) {
+      throw createCasError('Bundle batch exceeds its member limit', ErrorCodes.BUNDLE_MEMBER_LIMIT, {
+        observedMembers: batchMembers,
+        maxBatchMembers: limits.maxBatchMembers,
+      });
+    }
+  }
+
   static #assertDependencies({ persistence, codec, pages, resolveHandle, openHandle, clock }) {
     BundleService.#assertPersistence(persistence);
     BundleService.#assertCodecDependency(codec);
@@ -744,6 +914,33 @@ function inlinePageOptions(value) {
     return { source: value.source, maxBytes: value.maxBytes };
   }
   return null;
+}
+
+function preparedPageMember(path, staged) {
+  if (!staged?.handle) {
+    throw createCasError(
+      'Page batch did not return a staged handle for every inline member',
+      ErrorCodes.GIT_ERROR,
+      { path },
+    );
+  }
+  return Object.freeze({
+    path,
+    handle: staged.handle,
+    oid: staged.handle.oid,
+    type: 'blob',
+    size: staged.page.size,
+  });
+}
+
+function assertBatchLimit(value, label, maximum) {
+  if (!Number.isSafeInteger(value) || value < 1 || value > maximum) {
+    throw createCasError(
+      `Bundle batch ${label} must be a positive safe integer within its supported maximum`,
+      ErrorCodes.INVALID_OPTIONS,
+      { label, value, maximum },
+    );
+  }
 }
 
 function bundleReference(value) {

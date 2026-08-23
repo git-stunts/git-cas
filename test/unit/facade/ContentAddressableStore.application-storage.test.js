@@ -29,11 +29,12 @@ describe('ContentAddressableStore application storage capabilities', () => {
       applicationRefPrefixes: ['refs/warp/'],
     });
 
-    expect(Object.keys(cas.assets)).toEqual(['put', 'adopt', 'open']);
+    expect(Object.keys(cas.assets)).toEqual(['put', 'putBatch', 'adopt', 'open']);
     expect(Object.keys(cas.pages)).toEqual(['put', 'putBatch', 'get', 'open']);
     expect(Object.keys(cas.bundles)).toEqual([
       'put',
       'putOrdered',
+      'putOrderedBatch',
       'getMember',
       'getMemberReference',
       'iterateMembers',

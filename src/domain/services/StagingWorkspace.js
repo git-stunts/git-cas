@@ -57,6 +57,9 @@ export default class StagingWorkspace {
 
     this.assets = Object.freeze({
       put: (options) => this.#enqueue(() => this.#stage(this.#assets, 'put', options)),
+      putBatch: (options) => (
+        this.#enqueue(() => this.#stageBatch(this.#assets, 'putBatch', options))
+      ),
       adopt: (options) => this.#enqueue(() => this.#stage(this.#assets, 'adopt', options)),
     });
     this.pages = Object.freeze({
@@ -67,6 +70,9 @@ export default class StagingWorkspace {
       put: (options) => this.#enqueue(() => this.#stage(this.#bundles, 'put', options)),
       putOrdered: (options) => (
         this.#enqueue(() => this.#stage(this.#bundles, 'putOrdered', options))
+      ),
+      putOrderedBatch: (options) => (
+        this.#enqueue(() => this.#stageBatch(this.#bundles, 'putOrderedBatch', options))
       ),
     });
     Object.freeze(this);
@@ -208,6 +214,13 @@ export default class StagingWorkspace {
 
   async #stageBatch(service, method, options) {
     this.#assertActive();
+    if (typeof service[method] !== 'function') {
+      throw createCasError(
+        `Workspace ${method}() is unavailable on the configured service`,
+        ErrorCodes.INVALID_OPTIONS,
+        { method },
+      );
+    }
     const staged = await service[method](options);
     if (!Array.isArray(staged) || staged.some((page) => !page?.handle)) {
       throw createCasError(
@@ -245,8 +258,8 @@ export default class StagingWorkspace {
   async #retainBatch(staged) {
     const resolved = [];
     const targets = new Map(this.#targets);
-    for (const page of staged) {
-      const target = await this.#resolveTarget(page.handle);
+    for (const artifact of staged) {
+      const target = await this.#resolveTarget(artifact.handle);
       resolved.push(target);
       targets.set(target.handle.toString(), target);
     }
@@ -254,7 +267,7 @@ export default class StagingWorkspace {
     const witnesses = new Map(
       installation.witnesses.map((witness) => [witness.handle.toString(), witness]),
     );
-    return Object.freeze(staged.map((page, index) => {
+    return Object.freeze(staged.map((artifact, index) => {
       const handle = resolved[index].handle.toString();
       const witness = witnesses.get(handle);
       if (!witness) {
@@ -264,7 +277,7 @@ export default class StagingWorkspace {
           { handle, generation: installation.generation },
         );
       }
-      return StagingWorkspace.#retainedStage(page, witness);
+      return StagingWorkspace.#retainedStage(artifact, witness);
     }));
   }
 

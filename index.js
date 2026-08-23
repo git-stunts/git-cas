@@ -210,6 +210,7 @@ export default class ContentAddressableStore {
     });
     this.assets = Object.freeze({
       put: async (options) => (await this.#getAssetService()).put(options),
+      putBatch: async (options) => (await this.#getAssetService()).putBatch(options),
       adopt: async (options) => (await this.#getAssetService()).adopt(options),
       open: (options) => this.#openAsset(options),
     });
@@ -222,6 +223,7 @@ export default class ContentAddressableStore {
     this.bundles = Object.freeze({
       put: async (options) => (await this.#getBundleService()).put(options),
       putOrdered: async (options) => (await this.#getBundleService()).putOrdered(options),
+      putOrderedBatch: async (options) => (await this.#getBundleService()).putOrderedBatch(options),
       getMember: async (options) => (await this.#getBundleService()).getMember(options),
       getMemberReference: async (options) => (
         await this.#getBundleService()

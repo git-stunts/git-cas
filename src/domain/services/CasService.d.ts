@@ -178,7 +178,11 @@ export interface FileRestorePlan {
 export default class CasService {
   readonly persistence: GitPersistencePort;
   readonly codec: CodecPort;
+  readonly compressionAdapter: CompressionPort;
   readonly crypto: CryptoPort;
+  readonly chunker: ChunkingPort;
+  readonly formatVersion?: string;
+  readonly legacyMode: boolean;
   readonly observability: ObservabilityPort;
   readonly chunkSize: number;
   readonly merkleThreshold: number;
