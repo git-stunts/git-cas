@@ -329,10 +329,14 @@ function gitDirty(cwd, ignoredPath = undefined) {
   const ignored = ignoredPath === undefined
     ? null
     : path.relative(cwd, path.resolve(ignoredPath));
-  const records = execFileSync('git', ['status', '--porcelain=v1', '-z'], {
+  const records = execFileSync(
+    'git',
+    ['status', '--porcelain=v1', '--untracked-files=all', '-z'],
+    {
     cwd,
     encoding: 'utf8',
-  }).split('\0').filter(Boolean);
+    },
+  ).split('\0').filter(Boolean);
   return records.some((record) => !(record.startsWith('?? ') && record.slice(3) === ignored));
 }
 
