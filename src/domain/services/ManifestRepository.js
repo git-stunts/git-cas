@@ -71,6 +71,30 @@ export default class ManifestRepository {
   }
 
   /**
+   * Creates an explicitly bounded ordered manifest-tree wave. Flat manifest
+   * blobs and Merkle sub-manifests share the first blob phase, Merkle roots
+   * share the second, and all complete trees share one final tree phase.
+   *
+   * @param {Array<{ manifest: Manifest, merkleThreshold?: number }>} requests
+   * @returns {Promise<string[]>}
+   */
+  async createTrees(requests) {
+    const plans = await Promise.all(requests.map((request) => this.#planTree(request)));
+    const firstBlobs = plans.flatMap((plan) => plan.firstBlobs);
+    const firstOids = await this.#writeBlobs(firstBlobs);
+    let firstIndex = 0;
+    for (const plan of plans) {
+      plan.acceptFirstOids(firstOids.slice(firstIndex, firstIndex + plan.firstBlobs.length));
+      firstIndex += plan.firstBlobs.length;
+    }
+    const merklePlans = plans.filter((plan) => plan.kind === 'merkle');
+    const rootBytes = await Promise.all(merklePlans.map((plan) => plan.rootBytes()));
+    const rootOids = await this.#writeBlobs(rootBytes);
+    merklePlans.forEach((plan, index) => plan.acceptRootOid(rootOids[index]));
+    return await this.#writeTrees(plans.map((plan) => plan.treeEntries()));
+  }
+
+  /**
    * @param {{ treeOid: string }} options
    * @returns {Promise<Manifest>}
    */
@@ -158,6 +182,95 @@ export default class ManifestRepository {
     });
 
     return await this.#persistence.writeTree(treeEntries);
+  }
+
+  async #planTree({ manifest, merkleThreshold }) {
+    const effectiveThreshold = merkleThreshold ?? this.#merkleThreshold;
+    if (manifest.chunks.length > effectiveThreshold) {
+      return this.#planMerkleTree(manifest, effectiveThreshold);
+    }
+    const manifestData = manifest.toJSON();
+    const hashableBytes = encodeForHash(manifestData, this.#codec);
+    manifestData.manifestHash = await this.#crypto.sha256(hashableBytes);
+    const serialized = normalizeCodecBytes(this.#codec.encode(manifestData));
+    let manifestOid;
+    return {
+      kind: 'flat',
+      firstBlobs: [serialized],
+      acceptFirstOids: ([oid]) => { manifestOid = oid; },
+      rootBytes: async () => null,
+      acceptRootOid: () => {},
+      treeEntries: () => buildFlatManifestTreeEntries({
+        manifestOid,
+        chunks: manifest.chunks,
+        extension: this.#codec.extension,
+      }),
+    };
+  }
+
+  #planMerkleTree(manifest, merkleThreshold) {
+    const chunks = [...manifest.chunks];
+    const groups = [];
+    for (let index = 0; index < chunks.length; index += merkleThreshold) {
+      groups.push({ index, chunks: chunks.slice(index, index + merkleThreshold) });
+    }
+    const firstBlobs = groups.map(({ chunks: group }) => normalizeCodecBytes(this.#codec.encode({
+      chunks: group.map((chunk) => ({
+        index: chunk.index,
+        size: chunk.size,
+        digest: chunk.digest,
+        blob: chunk.blob,
+      })),
+    })));
+    let subManifestRefs;
+    let rootManifestOid;
+    return {
+      kind: 'merkle',
+      firstBlobs,
+      acceptFirstOids: (oids) => {
+        subManifestRefs = groups.map((group, index) => ({
+          oid: oids[index],
+          chunkCount: group.chunks.length,
+          startIndex: group.index,
+        }));
+      },
+      rootBytes: async () => {
+        const rootManifestData = {
+          ...manifest.toJSON(),
+          version: 2,
+          chunks: [],
+          subManifests: subManifestRefs,
+        };
+        const hashableBytes = encodeForHash(rootManifestData, this.#codec);
+        rootManifestData.manifestHash = await this.#crypto.sha256(hashableBytes);
+        return normalizeCodecBytes(this.#codec.encode(rootManifestData));
+      },
+      acceptRootOid: (oid) => { rootManifestOid = oid; },
+      treeEntries: () => buildMerkleTreeEntries({
+        rootManifestOid,
+        subManifests: subManifestRefs,
+        chunks,
+        extension: this.#codec.extension,
+      }),
+    };
+  }
+
+  async #writeBlobs(contents) {
+    if (contents.length === 0) {
+      return [];
+    }
+    const oids = await this.#persistence.writeBlobs(contents);
+    ManifestRepository.#assertCardinality('blob', contents, oids);
+    return oids;
+  }
+
+  async #writeTrees(trees) {
+    if (trees.length === 0) {
+      return [];
+    }
+    const oids = await this.#persistence.writeTrees(trees);
+    ManifestRepository.#assertCardinality('tree', trees, oids);
+    return oids;
   }
 
   async #readManifestBlob(treeOid) {
@@ -264,6 +377,16 @@ export default class ManifestRepository {
       }
     }
     return allChunks;
+  }
+
+  static #assertCardinality(kind, input, output) {
+    if (output.length !== input.length) {
+      throw createCasError(
+        `Persistence returned the wrong number of manifest ${kind} identifiers`,
+        ErrorCodes.GIT_ERROR,
+        { expected: input.length, actual: output.length },
+      );
+    }
   }
 
   async #readSubManifestBlob(oid, treeOid) {

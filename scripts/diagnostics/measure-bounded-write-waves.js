@@ -12,6 +12,7 @@ import { instrumentGitPlumbing } from './createCountingGitPlumbing.js';
 const WORKER = '--worker';
 const DEFAULT_ITEMS = 16;
 const DEFAULT_SAMPLES = 3;
+const DEFAULT_ASSET_CONCURRENCY = 4;
 const ASSET_BYTES = 2 * 1024;
 const ASSET_CHUNK_BYTES = 1024;
 const BUNDLE_MEMBERS = 3;
@@ -27,6 +28,10 @@ if (process.argv[2] === WORKER) {
 async function runController() {
   const items = positiveSafeInteger(process.argv[2] ?? DEFAULT_ITEMS, 'items');
   const samples = positiveSafeInteger(process.argv[3] ?? DEFAULT_SAMPLES, 'samples');
+  const assetConcurrency = positiveSafeInteger(
+    process.argv[4] ?? DEFAULT_ASSET_CONCURRENCY,
+    'asset concurrency',
+  );
   const plumbingRepo = process.env.GIT_CAS_PLUMBING_REPO
     ? path.resolve(process.env.GIT_CAS_PLUMBING_REPO)
     : null;
@@ -36,16 +41,18 @@ async function runController() {
       objectFormat,
       items,
       samples,
+      assetConcurrency,
       plumbingRepo,
     });
   }
-  emitReport(report({ items, samples, plumbingRepo, objectFormats }));
+  emitReport(report({ items, samples, assetConcurrency, plumbingRepo, objectFormats }));
 }
 
 async function measureObjectFormat(options) {
   const common = {
     objectFormat: options.objectFormat,
     items: options.items,
+    assetConcurrency: options.assetConcurrency,
     plumbingRepo: options.plumbingRepo,
   };
   const assetWrite = await compareModes({
@@ -132,10 +139,10 @@ async function measureWorker(options) {
   }
 }
 
-async function writeAssets(cas, { items, mode }) {
+async function writeAssets(cas, { items, mode, assetConcurrency }) {
   const requests = Array.from({ length: items }, assetRequest);
   const staged = mode === 'batch'
-    ? await cas.assets.putBatch({ assets: requests })
+    ? await cas.assets.putBatch({ assets: requests, maxBatchAssets: assetConcurrency })
     : await writeIndividually(requests, (request) => cas.assets.put(request));
   return staged.map((asset) => asset.handle.toString());
 }
@@ -248,7 +255,7 @@ function summarize(samples) {
   };
 }
 
-function report({ items, samples, plumbingRepo, objectFormats }) {
+function report({ items, samples, assetConcurrency, plumbingRepo, objectFormats }) {
   return {
     schema: 'git-cas.bounded-write-waves/v1',
     generatedAt: new Date().toISOString(),
@@ -258,8 +265,12 @@ function report({ items, samples, plumbingRepo, objectFormats }) {
       platform: process.platform,
       architecture: process.arch,
       gitCasCommit: gitCommit(process.cwd()),
-      plumbingSource: plumbingRepo ?? 'installed:@git-stunts/plumbing',
+      gitCasDirty: gitDirty(process.cwd()),
+      plumbingSource: plumbingRepo === null
+        ? 'installed:@git-stunts/plumbing'
+        : 'workspace:@git-stunts/plumbing',
       plumbingCommit: plumbingRepo === null ? null : gitCommit(plumbingRepo),
+      plumbingDirty: plumbingRepo === null ? null : gitDirty(plumbingRepo),
     },
     metricScope: {
       processCount: 'Git child processes opened by the instrumented git-cas operation',
@@ -272,6 +283,7 @@ function report({ items, samples, plumbingRepo, objectFormats }) {
     parameters: {
       items,
       samples,
+      assetConcurrency,
       assetBytes: ASSET_BYTES,
       assetChunkBytes: ASSET_CHUNK_BYTES,
       bundleMembers: BUNDLE_MEMBERS,
@@ -311,6 +323,10 @@ function settleWorker({ code, response, resolve, reject }) {
 
 function gitCommit(cwd) {
   return execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
+}
+
+function gitDirty(cwd) {
+  return execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).length > 0;
 }
 
 function digest(values) {

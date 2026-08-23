@@ -83,7 +83,8 @@ describe('AssetService write batches', () => {
     );
     expect(Object.isFrozen(batch)).toBe(true);
     expect(writeBlobs).toHaveBeenCalled();
-    expect(writeTrees).toHaveBeenCalled();
+    expect(writeTrees).toHaveBeenCalledOnce();
+    expect(writeTrees.mock.calls[0][0]).toHaveLength(requests().length);
   });
 
   it('returns results in input order under bounded asset concurrency', async () => {

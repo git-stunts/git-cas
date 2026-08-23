@@ -55,29 +55,31 @@ export default class AssetService {
       maxBatchBytes: batch.maxBatchBytes,
     });
     const cas = forkCasPersistence(this.#cas, persistence);
-    const results = new Array(batch.assets.length);
+    const manifests = new Array(batch.assets.length);
     const state = { next: 0, error: null };
     const workers = Array.from(
       { length: Math.min(batch.maxBatchAssets, batch.assets.length) },
-      () => this.#putBatchWorker({ batch, cas, results, state }),
+      () => this.#storeBatchWorker({ batch, cas, manifests, state }),
     );
     await Promise.allSettled(workers);
     if (state.error !== null) {
-      state.error.meta = {
-        ...state.error.meta,
-        staging: {
-          ...persistence.snapshot(),
-          stagedAssetCount: results.filter(Boolean).length,
-        },
-      };
-      throw state.error;
+      throw AssetService.#batchFailure(state.error, persistence, 0);
     }
+    let oids;
+    try {
+      oids = await cas.createTrees(manifests.map((manifest, index) => ({
+        manifest,
+        merkleThreshold: batch.assets[index]?.merkleThreshold,
+      })));
+    } catch (error) {
+      throw AssetService.#batchFailure(error, persistence, 0);
+    }
+    const results = manifests.map((manifest, index) => this.#staged({ manifest, oid: oids[index] }));
     return Object.freeze(results);
   }
 
   async #putWith(cas, options) {
-    const filename = options?.filename ?? options?.slug;
-    const manifest = await cas.store({ ...options, filename });
+    const manifest = await this.#storeWith(cas, options);
     const oid = await cas.createTree({
       manifest,
       merkleThreshold: options?.merkleThreshold,
@@ -85,7 +87,7 @@ export default class AssetService {
     return this.#staged({ manifest, oid });
   }
 
-  async #putBatchWorker({ batch, cas, results, state }) {
+  async #storeBatchWorker({ batch, cas, manifests, state }) {
     while (state.error === null) {
       const index = state.next;
       if (index >= batch.assets.length) {
@@ -93,11 +95,16 @@ export default class AssetService {
       }
       state.next += 1;
       try {
-        results[index] = await this.#putWith(cas, batch.assets[index]);
+        manifests[index] = await this.#storeWith(cas, batch.assets[index]);
       } catch (error) {
         state.error ??= error;
       }
     }
+  }
+
+  async #storeWith(cas, options) {
+    const filename = options?.filename ?? options?.slug;
+    return await cas.store({ ...options, filename });
   }
 
   /**
@@ -296,6 +303,17 @@ export default class AssetService {
         { label, value, maximum },
       );
     }
+  }
+
+  static #batchFailure(error, persistence, stagedAssetCount) {
+    error.meta = {
+      ...error.meta,
+      staging: {
+        ...persistence.snapshot(),
+        stagedAssetCount,
+      },
+    };
+    return error;
   }
 }
 

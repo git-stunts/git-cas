@@ -47,7 +47,6 @@ export default class CasService {
   #recipientService;
   #restoreStrategies;
   #storeStrategies;
-
   /**
    * @param {Object} options
    * @param {import('../../ports/GitPersistencePort.js').default} options.persistence
@@ -376,6 +375,7 @@ export default class CasService {
     });
   }
 
+  async createTrees(requests) { return await this.#manifestRepository.createTrees(requests); }
   async restore({ manifest, encryptionKey, passphrase }) {
     const chunks = [];
     for await (const chunk of this.restoreStream({ manifest, encryptionKey, passphrase })) {
