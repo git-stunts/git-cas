@@ -12,6 +12,7 @@ import BundleDescriptorCodec, { BUNDLE_INDEX_ENTRY } from './BundleDescriptorCod
 import BundleBatchPlanner from './BundleBatchPlanner.js';
 import BundleFanoutBuilder from './BundleFanoutBuilder.js';
 import StagingEvidence from './StagingEvidence.js';
+import { recordStagedTarget } from './StagedTarget.js';
 
 const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
 const DEFAULT_MAX_NESTING_DEPTH = 32;
@@ -109,24 +110,15 @@ export default class BundleService {
       if (admitted.length === 0) {
         return Object.freeze([]);
       }
-      const inlinePages = admitted.flatMap((request) =>
-        request.members.filter((member) => member.inline).map((member) => member.inline)
+      return await withWriteScope(
+        this.#persistence,
+        async (persistence) => await this.#writeAdmittedBatch({
+          admitted,
+          batch,
+          persistence,
+          staging,
+        }),
       );
-      const plannedObjects = BundleBatchPlanner.estimateObjectCount(admitted);
-      BundleService.#assertBatchObjects(plannedObjects + inlinePages.length, batch.maxBatchObjects);
-      const pages = await this.#writeInlinePageBatch(inlinePages, batch, staging);
-      const prepared = await this.#prepareAdmittedBatch(admitted, pages);
-      const pageBytes = pages.reduce((total, page) => total + page.page.size, 0);
-      const planner = new BundleBatchPlanner({
-        persistence: this.#persistence,
-        codec: this.#codec,
-        staging,
-        maxBatchObjects: batch.maxBatchObjects - pages.length,
-        maxBatchBytes: batch.maxBatchBytes - pageBytes,
-      });
-      const plans = prepared.map((request) => planner.create(request));
-      const results = await planner.write(plans);
-      return Object.freeze(results.map((result) => this.#stagedBatchBundle(result)));
     } catch (error) {
       throw augmentError(error, { staging: staging.snapshot() });
     }
@@ -367,14 +359,14 @@ export default class BundleService {
         previousPath = path;
       }
       const result = await builder.finish();
-      return new StagedBundle({
+      return recordStagedTarget(new StagedBundle({
         handle: new BundleHandle({ codec: this.#codec.extension, oid: result.oid }),
         memberCount: result.memberCount,
         indexDepth: result.indexDepth,
         descriptorBytes: result.descriptorBytes,
         limits,
         observedAt,
-      });
+      }));
     } catch (error) {
       throw augmentError(error, { staging: staging.snapshot() });
     }
@@ -410,18 +402,46 @@ export default class BundleService {
     return admitted;
   }
 
-  async #writeInlinePageBatch(inlinePages, batch, staging) {
+  async #writeAdmittedBatch({ admitted, batch, persistence, staging }) {
+    const inlinePages = admitted.flatMap((request) =>
+      request.members.filter((member) => member.inline).map((member) => member.inline)
+    );
+    const plannedObjects = BundleBatchPlanner.estimateObjectCount(admitted);
+    BundleService.#assertBatchObjects(plannedObjects + inlinePages.length, batch.maxBatchObjects);
+    const pages = await this.#writeInlinePageBatch(inlinePages, {
+      batch,
+      persistence,
+      staging,
+    });
+    const prepared = await this.#prepareAdmittedBatch(admitted, pages);
+    const pageBytes = pages.reduce((total, page) => total + page.page.size, 0);
+    const planner = new BundleBatchPlanner({
+      persistence,
+      codec: this.#codec,
+      staging,
+      maxBatchObjects: batch.maxBatchObjects - pages.length,
+      maxBatchBytes: batch.maxBatchBytes - pageBytes,
+    });
+    const plans = prepared.map((request) => planner.create(request));
+    const results = await planner.write(plans);
+    return Object.freeze(results.map((result) => this.#stagedBatchBundle(result)));
+  }
+
+  async #writeInlinePageBatch(inlinePages, { batch, staging, persistence }) {
     if (inlinePages.length === 0) {
       return [];
     }
     if (typeof this.#pages.putBatch !== 'function') {
       throw createCasError('Bundle batching requires page batch support', ErrorCodes.INVALID_OPTIONS);
     }
-    const pages = await this.#pages.putBatch({
+    const options = {
       pages: inlinePages,
       maxBatchBytes: batch.maxBatchBytes,
       maxBatchPages: batch.maxBatchObjects,
-    });
+    };
+    const pages = typeof this.#pages.putBatchWithPersistence === 'function'
+      ? await this.#pages.putBatchWithPersistence(options, persistence)
+      : await this.#pages.putBatch(options);
     for (const page of pages) {
       staging.record(page.handle.oid, 'blob');
       staging.recordHandle(page.handle);
@@ -452,14 +472,14 @@ export default class BundleService {
   }
 
   #stagedBatchBundle(result) {
-    return new StagedBundle({
+    return recordStagedTarget(new StagedBundle({
       handle: new BundleHandle({ codec: this.#codec.extension, oid: result.oid }),
       memberCount: result.memberCount,
       indexDepth: result.indexDepth,
       descriptorBytes: result.descriptorBytes,
       limits: result.limits,
       observedAt: result.observedAt,
-    });
+    }));
   }
 
   async #prepareMember(path, value, { staging, validation, validateTargets }) {
@@ -1049,6 +1069,12 @@ function assertSummary(root, actual) {
 
 function compareText(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+async function withWriteScope(persistence, operation) {
+  return typeof persistence.withWriteScope === 'function'
+    ? await persistence.withWriteScope(operation)
+    : await operation(persistence);
 }
 
 function augmentError(error, meta) {

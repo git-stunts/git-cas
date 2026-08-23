@@ -134,6 +134,18 @@ export default class GitPersistencePort {
   }
 
   /**
+   * Runs one bounded operation against an operation-owned write scope.
+   * Adapters may override this to retain protocol processes until the callback
+   * settles. The default preserves compatibility for custom persistence ports.
+   * @template T
+   * @param {(persistence: GitPersistencePort) => Promise<T>} operation
+   * @returns {Promise<T>}
+   */
+  async withWriteScope(operation) {
+    return await operation(this);
+  }
+
+  /**
    * Releases adapter-owned local resources. The default implementation is a
    * no-op so persistence adapters without long-lived resources remain valid.
    * @returns {Promise<void>}

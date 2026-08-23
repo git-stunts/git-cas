@@ -85,6 +85,9 @@ export interface GitPersistencePort {
   readObjectInfos?(
     oids: Iterable<string>
   ): Promise<Array<{ oid: string; type: string; size: number }>>;
+  withWriteScope?<T>(
+    operation: (persistence: GitPersistencePort) => Promise<T>
+  ): Promise<T>;
   setMaxBlobSize?(maxBlobSize: number): void;
 }
 

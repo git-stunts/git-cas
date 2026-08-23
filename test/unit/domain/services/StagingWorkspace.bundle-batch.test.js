@@ -14,12 +14,12 @@ function fixture() {
   const ref = new MemoryRefAdapter();
   const pages = new PageService({ persistence, maxPageSize: 4096, clock: CLOCK });
   const services = {};
-  const resolveHandle = async (value, context) => {
+  const resolveHandle = vi.fn(async (value, context) => {
     const handle = parseApplicationHandle(value);
     return handle.kind === 'page'
       ? await pages.resolveRoot(handle)
       : await services.bundles.resolveRoot(handle, context);
-  };
+  });
   services.bundles = new BundleService({
     persistence,
     codec: new JsonCodec(),
@@ -38,12 +38,12 @@ function fixture() {
     crypto: { randomBytes: (length) => new Uint8Array(length) },
     clock: CLOCK,
   });
-  return { ref, registry };
+  return { ref, registry, resolveHandle };
 }
 
 describe('StagingWorkspace bundle batches', () => {
   it('retains every bundle in one exact workspace generation', async () => {
-    const { ref, registry } = fixture();
+    const { ref, registry, resolveHandle } = fixture();
     const updateRef = vi.spyOn(ref, 'updateRef');
     const workspace = await registry.open({
       namespace: 'git-warp/materializations',
@@ -61,5 +61,6 @@ describe('StagingWorkspace bundle batches', () => {
     expect(new Set(staged.map((bundle) => bundle.witness.root.generation)).size).toBe(1);
     expect(staged.every((bundle) => bundle.state === 'retained')).toBe(true);
     expect(updateRef).toHaveBeenCalledOnce();
+    expect(resolveHandle).not.toHaveBeenCalled();
   });
 });

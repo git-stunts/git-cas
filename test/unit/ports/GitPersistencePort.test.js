@@ -50,6 +50,12 @@ describe('GitPersistencePort – abstract methods', () => {
 });
 
 describe('GitPersistencePort batch fallbacks', () => {
+  it('runs write scopes against the same custom persistence port by default', async () => {
+    const port = new GitPersistencePort();
+
+    await expect(port.withWriteScope(async (persistence) => persistence)).resolves.toBe(port);
+  });
+
   it('writes trees sequentially in input order', async () => {
     const calls = [];
     const port = new GitPersistencePort();

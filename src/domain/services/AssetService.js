@@ -4,6 +4,7 @@ import AssetHandle from '../value-objects/AssetHandle.js';
 import StagedAsset from '../value-objects/StagedAsset.js';
 import BoundedWriteWavePersistence from './BoundedWriteWavePersistence.js';
 import forkCasPersistence from './forkCasPersistence.js';
+import { recordStagedTarget } from './StagedTarget.js';
 
 const DEFAULT_CLOCK = Object.freeze({ now: () => new Date() });
 export const DEFAULT_ASSET_WRITE_BATCH_ASSETS = 4;
@@ -41,8 +42,15 @@ export default class AssetService {
   /** Stores an input-ordered group with bounded concurrent CAS pipelines. */
   async putBatch(options = {}) {
     const batch = AssetService.#batchOptions(options);
+    return await withWriteScope(
+      this.#cas.persistence,
+      async (persistence) => await this.#putBatch(batch, persistence),
+    );
+  }
+
+  async #putBatch(batch, scopedPersistence) {
     const persistence = new BoundedWriteWavePersistence({
-      persistence: this.#cas.persistence,
+      persistence: scopedPersistence,
       maxBatchObjects: batch.maxBatchObjects,
       maxBatchBytes: batch.maxBatchBytes,
     });
@@ -225,13 +233,13 @@ export default class AssetService {
   }
 
   #staged({ manifest, oid }) {
-    return new StagedAsset({
+    return recordStagedTarget(new StagedAsset({
       handle: new AssetHandle({ codec: this.#cas.codec.extension, oid }),
       slug: manifest.slug,
       filename: manifest.filename,
       size: manifest.size,
       observedAt: this.#observedAt(),
-    });
+    }));
   }
 
   #observedAt() {
@@ -289,4 +297,10 @@ export default class AssetService {
       );
     }
   }
+}
+
+async function withWriteScope(persistence, operation) {
+  return typeof persistence.withWriteScope === 'function'
+    ? await persistence.withWriteScope(operation)
+    : await operation(persistence);
 }

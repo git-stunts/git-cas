@@ -4,6 +4,7 @@ import parseApplicationHandle from '../value-objects/ApplicationHandle.js';
 import RetentionWitness from '../value-objects/RetentionWitness.js';
 import WorkspaceRef from '../value-objects/WorkspaceRef.js';
 import RootSetMetadataCodec from './RootSetMetadataCodec.js';
+import { stagedTargetOf } from './StagedTarget.js';
 import {
   MAX_WORKSPACE_TARGETS,
   WORKSPACE_DESCRIPTOR_ENTRY,
@@ -178,7 +179,7 @@ export default class StagingWorkspace {
       );
     }
     try {
-      const target = await this.#resolveTarget(staged.handle);
+      const target = stagedTargetOf(staged) ?? await this.#resolveTarget(staged.handle);
       const targets = new Map(this.#targets);
       targets.set(target.handle.toString(), target);
       const installation = await this.#install([...targets.values()]);
@@ -259,7 +260,7 @@ export default class StagingWorkspace {
     const resolved = [];
     const targets = new Map(this.#targets);
     for (const artifact of staged) {
-      const target = await this.#resolveTarget(artifact.handle);
+      const target = stagedTargetOf(artifact) ?? await this.#resolveTarget(artifact.handle);
       resolved.push(target);
       targets.set(target.handle.toString(), target);
     }

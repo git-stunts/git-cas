@@ -533,6 +533,9 @@ export declare class GitPersistencePortBase {
   readObjectInfos?(
     oids: Iterable<string>
   ): Promise<Array<{ oid: string; type: string; size: number }>>;
+  withWriteScope?<T>(
+    operation: (persistence: GitPersistencePortBase) => Promise<T>
+  ): Promise<T>;
   setMaxBlobSize?(maxBlobSize: number): void;
   close?(): Promise<void>;
   [Symbol.asyncDispose]?(): Promise<void>;
@@ -586,6 +589,9 @@ export declare class GitPersistenceAdapter extends GitPersistencePortBase {
   readObjectInfos(
     oids: Iterable<string>
   ): Promise<Array<{ oid: string; type: string; size: number }>>;
+  withWriteScope<T>(
+    operation: (persistence: GitPersistencePortBase) => Promise<T>
+  ): Promise<T>;
   setMaxBlobSize(maxBlobSize: number): void;
   close(): Promise<void>;
   [Symbol.asyncDispose](): Promise<void>;

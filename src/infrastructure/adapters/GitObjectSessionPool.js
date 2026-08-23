@@ -304,7 +304,12 @@ export default class GitObjectSessionPool {
   }
 
   #scheduleIdle(protocol) {
-    if (this.#closed || this.#active.has(protocol) || !this.#sessions.has(protocol)) {
+    if (
+      this.#idleTimeoutMs === null ||
+      this.#closed ||
+      this.#active.has(protocol) ||
+      !this.#sessions.has(protocol)
+    ) {
       return;
     }
     const opening = this.#sessions.get(protocol);

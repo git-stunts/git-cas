@@ -5,6 +5,7 @@ import { assertHandleObjectType, mapHandleTargetError } from '../helpers/handleT
 import PageHandle from '../value-objects/PageHandle.js';
 import StagedPage from '../value-objects/StagedPage.js';
 import BoundedPromiseCache from '../../helpers/boundedPromiseCache.js';
+import { recordStagedTarget } from './StagedTarget.js';
 
 export const DEFAULT_MAX_PAGE_SIZE = 16 * 1024 * 1024;
 const DEFAULT_PAGE_CACHE_ENTRIES = 128;
@@ -59,11 +60,11 @@ export default class PageService {
     const observedAt = this.#observedAt();
     const bytes = await PageService.#collect(source, limit);
     const oid = await this.#persistence.writeBlob(bytes);
-    return new StagedPage({
+    return recordStagedTarget(new StagedPage({
       handle: new PageHandle({ oid }),
       size: bytes.length,
       observedAt,
-    });
+    }));
   }
 
   /**
@@ -80,6 +81,19 @@ export default class PageService {
     maxBatchBytes = DEFAULT_PAGE_WRITE_BATCH_BYTES,
     maxBatchPages = DEFAULT_PAGE_WRITE_BATCH_PAGES,
   }) {
+    return await this.#putBatch({ pages, maxBatchBytes, maxBatchPages }, this.#persistence);
+  }
+
+  /** @internal Stores a page batch through an operation-owned persistence view. */
+  async putBatchWithPersistence({
+    pages,
+    maxBatchBytes = DEFAULT_PAGE_WRITE_BATCH_BYTES,
+    maxBatchPages = DEFAULT_PAGE_WRITE_BATCH_PAGES,
+  }, persistence) {
+    return await this.#putBatch({ pages, maxBatchBytes, maxBatchPages }, persistence);
+  }
+
+  async #putBatch({ pages, maxBatchBytes, maxBatchPages }, persistence) {
     PageService.#assertBatch(pages, maxBatchBytes, maxBatchPages);
     const prepared = [];
     let totalBytes = 0;
@@ -107,7 +121,10 @@ export default class PageService {
     if (prepared.length === 0) {
       return Object.freeze([]);
     }
-    const oids = await this.#writeBlobs(prepared.map((page) => page.bytes));
+    const oids = await this.#writeBlobs(
+      prepared.map((page) => page.bytes),
+      persistence,
+    );
     if (oids.length !== prepared.length) {
       throw createCasError(
         'Persistence returned the wrong number of page object identifiers',
@@ -115,11 +132,11 @@ export default class PageService {
         { expected: prepared.length, actual: oids.length },
       );
     }
-    return Object.freeze(oids.map((oid, index) => new StagedPage({
+    return Object.freeze(oids.map((oid, index) => recordStagedTarget(new StagedPage({
       handle: new PageHandle({ oid }),
       size: prepared[index].bytes.length,
       observedAt: prepared[index].observedAt,
-    })));
+    }))));
   }
 
   /**
@@ -218,13 +235,13 @@ export default class PageService {
     return now.toISOString();
   }
 
-  async #writeBlobs(contents) {
-    if (typeof this.#persistence.writeBlobs === 'function') {
-      return await this.#persistence.writeBlobs(contents);
+  async #writeBlobs(contents, persistence = this.#persistence) {
+    if (typeof persistence.writeBlobs === 'function') {
+      return await persistence.writeBlobs(contents);
     }
     const oids = [];
     for (const content of contents) {
-      oids.push(await this.#persistence.writeBlob(content));
+      oids.push(await persistence.writeBlob(content));
     }
     return oids;
   }

@@ -458,6 +458,37 @@ describe('GitPersistenceAdapter tree cache residency', () => {
   });
 });
 
+describe('GitPersistenceAdapter operation-owned write scopes', () => {
+  it('keeps one operation-owned fast-import child across dependency waves', async () => {
+    const fastImport = {
+      writeBlobs: vi
+        .fn()
+        .mockResolvedValueOnce(['a'.repeat(40), 'b'.repeat(40)])
+        .mockResolvedValueOnce(['c'.repeat(40)]),
+      checkpoint: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+      abort: vi.fn().mockResolvedValue(undefined),
+    };
+    const plumbing = sessionPlumbing({ fastImportSession: fastImport });
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    await expect(adapter.withWriteScope(async (persistence) => {
+      const first = await persistence.writeBlobs([
+        Buffer.from('first'),
+        Buffer.from('second'),
+      ]);
+      const second = await persistence.writeBlob(Buffer.from('third'));
+      return [...first, second];
+    })).resolves.toEqual(['a'.repeat(40), 'b'.repeat(40), 'c'.repeat(40)]);
+
+    expect(plumbing.openFastImportSession).toHaveBeenCalledOnce();
+    expect(fastImport.writeBlobs).toHaveBeenCalledTimes(2);
+    expect(fastImport.checkpoint).toHaveBeenCalledTimes(2);
+    expect(fastImport.close).toHaveBeenCalledOnce();
+    await adapter.close();
+  });
+});
+
 describe('GitPersistenceAdapter persistent write sessions', () => {
   it('checkpoints and closes one scoped bulk blob write before returning OIDs', async () => {
     const fastImport = {

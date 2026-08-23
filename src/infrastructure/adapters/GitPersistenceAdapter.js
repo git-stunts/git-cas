@@ -8,6 +8,7 @@ import { CasError, createCasError, ErrorCodes } from '../../domain/errors/index.
 import BoundedPromiseCache from '../../helpers/boundedPromiseCache.js';
 import GitTreeObjectCodec from '../codecs/GitTreeObjectCodec.js';
 import GitObjectSessionPool from './GitObjectSessionPool.js';
+import GitPersistenceWriteScope from './GitPersistenceWriteScope.js';
 
 /**
  * Default resilience policy: 30 s timeout (no retry).
@@ -153,6 +154,25 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
         throw operationError;
       }
       return result;
+    });
+  }
+
+  /** Runs one bounded operation with an operation-owned fast-import process. */
+  async withWriteScope(operation) {
+    if (typeof operation !== 'function') {
+      throw createCasError(
+        'Git persistence write scope requires an operation callback',
+        ErrorCodes.INVALID_OPTIONS,
+      );
+    }
+    return await this.#runOperation(async () => {
+      const scope = new GitPersistenceWriteScope({
+        adapter: this,
+        plumbing: this.plumbing,
+        execute: (attempt) => this.policy.execute(attempt),
+        retireMktree: () => this.#sessions.retire('mktree'),
+      });
+      return await scope.run(operation);
     });
   }
 
