@@ -19,6 +19,7 @@ import GitObjectSessionPool from './GitObjectSessionPool.js';
  */
 const DEFAULT_POLICY = Policy.timeout(30_000);
 export const DEFAULT_MAX_BLOB_SIZE = 10 * 1024 * 1024;
+const MAX_SESSION_STREAM_BLOB_BYTES = DEFAULT_MAX_BLOB_SIZE;
 const DEFAULT_METADATA_CACHE_ENTRIES = 2_048;
 const DEFAULT_SESSION_IDLE_TIMEOUT_MS = 1_000;
 const DEFAULT_TREE_CACHE_BYTES = 8 * 1024 * 1024;
@@ -189,21 +190,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
           ? this.#maxBlobSize
           : GitPersistenceAdapter.#validatedReadBlobLimit(maxBytes);
       if (this.#sessions.supports('catFile')) {
-        let object;
-        try {
-          object = await this.#sessions.read(oid, { maxBytes: limit }, (operation) =>
-            this.policy.execute(operation)
-          );
-        } catch (error) {
-          throw this.#normalizeObjectReadError(error, oid, limit);
-        }
-        if (object.type !== 'blob') {
-          throw createCasError(`Git object is not a blob: ${oid}`, ErrorCodes.GIT_ERROR, {
-            oid,
-            actualType: object.type,
-          });
-        }
-        return GitPersistenceAdapter.#toBuffer(object.content);
+        return await this.#readBlobFromSession(oid, limit);
       }
       const chunks = [];
       let bytesRead = 0;
@@ -241,7 +228,48 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
    * @returns {Promise<AsyncIterable<Buffer>>} The blob content stream.
    */
   async readBlobStream(oid) {
-    return await this.#runOperation(() => this.#openBufferStream(['cat-file', 'blob', oid]));
+    return await this.#runOperation(async () => {
+      if (!this.#sessions.supports('catFile')) {
+        return await this.#openBlobStream(oid);
+      }
+      let info;
+      try {
+        info = await this.#readObjectInfo(oid);
+      } catch {
+        return await this.#openBlobStream(oid);
+      }
+      if (info.type !== 'blob' || info.size > MAX_SESSION_STREAM_BLOB_BYTES) {
+        return await this.#openBlobStream(oid);
+      }
+      try {
+        const content = await this.#readBlobFromSession(oid, MAX_SESSION_STREAM_BLOB_BYTES);
+        return GitPersistenceAdapter.#singleBufferStream(content);
+      } catch {
+        return await this.#openBlobStream(oid);
+      }
+    });
+  }
+
+  async #readBlobFromSession(oid, maxBytes) {
+    let object;
+    try {
+      object = await this.#sessions.read(oid, { maxBytes }, (operation) =>
+        this.policy.execute(operation)
+      );
+    } catch (error) {
+      throw this.#normalizeObjectReadError(error, oid, maxBytes);
+    }
+    if (object.type !== 'blob') {
+      throw createCasError(`Git object is not a blob: ${oid}`, ErrorCodes.GIT_ERROR, {
+        oid,
+        actualType: object.type,
+      });
+    }
+    return GitPersistenceAdapter.#toBuffer(object.content);
+  }
+
+  async #openBlobStream(oid) {
+    return await this.#openBufferStream(['cat-file', 'blob', oid]);
   }
 
   /**
@@ -673,6 +701,10 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     if (failures.length > 1) {
       throw new AggregateError(failures, 'Git output stream failed to terminate cleanly');
     }
+  }
+
+  static async *#singleBufferStream(content) {
+    yield content;
   }
 
   /**

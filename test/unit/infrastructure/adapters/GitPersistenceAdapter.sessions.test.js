@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GitProtocolError } from '@git-stunts/plumbing';
-import GitPersistenceAdapter from '../../../../src/infrastructure/adapters/GitPersistenceAdapter.js';
+import GitPersistenceAdapter, {
+  DEFAULT_MAX_BLOB_SIZE,
+} from '../../../../src/infrastructure/adapters/GitPersistenceAdapter.js';
 
 const noPolicy = { execute: (operation) => operation() };
 
@@ -198,14 +200,18 @@ describe('GitPersistenceAdapter cat-file invalidation failures', () => {
   });
 });
 
-describe('GitPersistenceAdapter payload streaming', () => {
-  it('keeps payload streaming on executeStream instead of buffering through cat-file', async () => {
+describe('GitPersistenceAdapter bounded payload streaming', () => {
+  it('reads a bounded small payload through the persistent cat-file session', async () => {
     const oid = 'd'.repeat(40);
-    const cat = fakeCatSession();
+    const content = Buffer.from('session-backed');
+    const cat = fakeCatSession({
+      info: vi.fn().mockResolvedValue({ oid, type: 'blob', size: content.length }),
+      read: vi.fn().mockResolvedValue(catObject({ oid, content })),
+    });
     const plumbing = sessionPlumbing({ catSessions: [cat] });
     plumbing.executeStream.mockResolvedValue(
       (async function* stream() {
-        yield Buffer.from('streamed');
+        yield Buffer.from('legacy-stream');
       })()
     );
     const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
@@ -215,9 +221,109 @@ describe('GitPersistenceAdapter payload streaming', () => {
       chunks.push(chunk);
     }
 
-    expect(Buffer.concat(chunks).toString()).toBe('streamed');
+    expect(Buffer.concat(chunks)).toEqual(content);
+    expect(plumbing.openCatFileSession).toHaveBeenCalledTimes(1);
+    expect(cat.info).toHaveBeenCalledWith(oid);
+    expect(cat.read).toHaveBeenCalledWith(oid, { maxBytes: DEFAULT_MAX_BLOB_SIZE });
+    expect(plumbing.executeStream).not.toHaveBeenCalled();
+    await adapter.close();
+  });
+});
+
+describe('GitPersistenceAdapter oversized payload streaming', () => {
+  it('routes an oversized payload directly to the genuine streaming path', async () => {
+    const oid = 'e'.repeat(40);
+    const content = Buffer.from('large-stream');
+    const cat = fakeCatSession({
+      info: vi.fn().mockResolvedValue({
+        oid,
+        type: 'blob',
+        size: DEFAULT_MAX_BLOB_SIZE + 1,
+      }),
+    });
+    const plumbing = sessionPlumbing({ catSessions: [cat] });
+    plumbing.executeStream.mockResolvedValue(
+      (async function* stream() {
+        yield content.subarray(0, 5);
+        yield content.subarray(5);
+      })()
+    );
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+    adapter.setMaxBlobSize(Number.MAX_SAFE_INTEGER);
+
+    const chunks = [];
+    for await (const chunk of await adapter.readBlobStream(oid)) {
+      chunks.push(chunk);
+    }
+
+    expect(Buffer.concat(chunks)).toEqual(content);
+    expect(plumbing.openCatFileSession).toHaveBeenCalledTimes(1);
+    expect(cat.info).toHaveBeenCalledWith(oid);
+    expect(cat.read).not.toHaveBeenCalled();
     expect(plumbing.executeStream).toHaveBeenCalledTimes(1);
-    expect(plumbing.openCatFileSession).not.toHaveBeenCalled();
+    expect(plumbing.executeStream).toHaveBeenCalledWith({
+      args: ['cat-file', 'blob', oid],
+    });
+    await adapter.close();
+  });
+});
+
+describe('GitPersistenceAdapter exceptional payload streaming', () => {
+  it.each([
+    ['missing metadata', new Error('missing'), undefined],
+    ['a non-blob object', undefined, { type: 'tree', size: 8 }],
+  ])('keeps %s on the existing one-shot path', async (_label, infoError, info) => {
+    const oid = 'f'.repeat(40);
+    const cat = fakeCatSession({
+      info:
+        infoError === undefined
+          ? vi.fn().mockResolvedValue({ oid, ...info })
+          : vi.fn().mockRejectedValue(infoError),
+    });
+    const plumbing = sessionPlumbing({ catSessions: [cat] });
+    plumbing.executeStream.mockResolvedValue(
+      (async function* stream() {
+        yield Buffer.from('legacy');
+      })()
+    );
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    const chunks = [];
+    for await (const chunk of await adapter.readBlobStream(oid)) {
+      chunks.push(chunk);
+    }
+
+    expect(Buffer.concat(chunks)).toEqual(Buffer.from('legacy'));
+    expect(cat.read).not.toHaveBeenCalled();
+    expect(plumbing.executeStream).toHaveBeenCalledTimes(1);
+    await adapter.close();
+  });
+});
+
+describe('GitPersistenceAdapter failed session payload streaming', () => {
+  it('falls back before yielding when the bounded session content read fails', async () => {
+    const oid = '9'.repeat(40);
+    const cat = fakeCatSession({
+      info: vi.fn().mockResolvedValue({ oid, type: 'blob', size: 8 }),
+      read: vi.fn().mockRejectedValue(new Error('session read failed')),
+    });
+    const plumbing = sessionPlumbing({ catSessions: [cat] });
+    plumbing.executeStream.mockResolvedValue(
+      (async function* stream() {
+        yield Buffer.from('fallback');
+      })()
+    );
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    const chunks = [];
+    for await (const chunk of await adapter.readBlobStream(oid)) {
+      chunks.push(chunk);
+    }
+
+    expect(Buffer.concat(chunks)).toEqual(Buffer.from('fallback'));
+    expect(cat.terminate).toHaveBeenCalledTimes(1);
+    expect(plumbing.executeStream).toHaveBeenCalledTimes(1);
+    await adapter.close();
   });
 });
 
