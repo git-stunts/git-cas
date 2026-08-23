@@ -1,8 +1,8 @@
 # STATUS
 
 **Last tagged release:** `v6.5.6` (`2026-07-30`)
-**Current release state:** `v6.5.6` is published to npm and GitHub Releases; JSR remains validation-only.
-**Latest verification:** reviewed merge `257e8821` passed 14/14 release-verifier steps with 6,898 observed tests before tagging; release workflow `30526282895` then passed tag validation, lint, unit, Node/Bun/Deno real-Git integration, npm OIDC publication, and final GitHub Release creation.
+**Current release state:** `v6.5.7` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
+**Latest verification:** versioned `v6.5.7` candidate-preparation commit `7631d597` (the direct child of implementation merge `1e30740c`) passed 14/14 release-verifier steps with 6,922 observed tests across Node, Bun, Deno, and all three real-Git integration suites.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,6 +18,12 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
+- **v6.5.7 candidate posture** — implementation PR
+  [#116](https://github.com/git-stunts/git-cas/pull/116) merged bounded
+  session-backed small stream reads as `1e30740c`. npm, JSR, and runtime
+  metadata identify `6.5.7`; the signed tag and registry artifacts remain
+  deliberately absent pending release review. The fixed 10 MiB ceiling is
+  independent of `maxBlobSize`, and larger objects remain genuinely streamed.
 - **v6.5.6 artifact posture** — signed tag `v6.5.6` resolves to reviewed release
   merge `257e8821`; npm reports `@git-stunts/git-cas@6.5.6` as `latest` with
   publish and SLSA provenance, and release workflow `30526282895` published the
@@ -156,7 +162,7 @@
   goalposts remain queued under
   [`v6.6.0`](https://github.com/git-stunts/git-cas/milestone/9).
 - The latest landed design record is
-  [0057-deterministic-ref-conflict-posture](./docs/design/0057-deterministic-ref-conflict-posture/deterministic-ref-conflict-posture.md).
+  [0058-bounded-stream-session-reads](./docs/design/0058-bounded-stream-session-reads/bounded-stream-session-reads.md).
 
 ## Read Next
 

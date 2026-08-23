@@ -37,10 +37,10 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
   or publish them with generation-scoped evidence instead of managing Git
   objects, trees, or payload OIDs directly.
 - **Bounded Git Process Reuse**: Immutable object metadata and tree reads reuse
-  typed Git sessions behind the adapter, while explicitly bounded page batches
-  amortize writes without changing content identity. Read and payload streams
-  remain streaming; complete page-batch inputs are collected and validated only
-  within the explicit count-and-byte envelope.
+  typed Git sessions behind the adapter. On session-capable adapters, streaming
+  blob reads at or below a fixed 10 MiB ceiling use one bounded session read;
+  larger payloads retain the genuine one-shot streaming path. Explicitly
+  bounded page batches amortize writes without changing content identity.
 - **Key Lifecycle**: Envelope encryption separates DEKs from KEKs. Rotate passphrases across an entire vault without re-encrypting data blobs. Privacy mode HMAC-hashes slug names to prevent metadata discovery.
 - **Runtime-Adaptive**: A single core supports Node.js 22+, Bun, and Deno through a strict hexagonal port architecture with runtime-specific crypto adapters.
 
@@ -49,7 +49,7 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
 `npm run upgrade` in dry-run mode before restoring old encrypted vault entries.
 For the release overview, see the
-[v6.5.6 Release Notes](./docs/releases/v6.5.6.md).
+[v6.5.7 Release Notes](./docs/releases/v6.5.7.md).
 
 ### 1. CLI Usage
 
@@ -230,6 +230,8 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
   identity for git-cas-owned commits in unconfigured bare repositories.
 - **[v6.5.6 Release Notes](./docs/releases/v6.5.6.md)**: Bijou 7 hosted
   cockpit ownership and deterministic checked-ref conflict classification.
+- **[v6.5.7 Release Notes](./docs/releases/v6.5.7.md)**: Bounded persistent
+  sessions for small streaming blob reads while large payloads remain streamed.
 - **[Upgrading](./UPGRADING.md)**: Migration guide for v5 → v6.
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.
 
