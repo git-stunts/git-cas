@@ -401,8 +401,8 @@ The work is done when:
 - [x] The fixed ceiling and nonclaims are documented consistently.
 - [x] Node, Bun, Deno, lint, package, JSR, and release gates pass.
 - [x] The committed witness is linked from the reviewed PR.
-- [ ] The implementation and release PRs merge normally.
-- [ ] Signed tag, npm package/provenance, workflow, and GitHub Release are
+- [x] The implementation and release PRs merge normally.
+- [x] Signed tag, npm package/provenance, workflow, and GitHub Release are
       independently verified.
 
 ## Validation Plan
@@ -428,6 +428,7 @@ the authoritative real-Git run is through Docker.
 - [Machine-readable process-topology witness](./witness/bounded-stream-session-reads.json)
 - [Human-readable verification record](./witness/verification.md)
 - [v6.5.7 release-candidate witness](./witness/release-candidate.md)
+- [v6.5.7 publication witness](./witness/release-publication.md)
 
 The witness packet answers:
 
@@ -455,17 +456,17 @@ The witness packet answers:
 ## Follow-On Debt
 
 `git-warp#847` owns the downstream metadata batching and consumer benchmark.
-After `v6.5.7` is independently published, git-warp must consume it, rerun its
-process census, and publish its own release before Think upgrades. Any demand
+Now that `v6.5.7` is independently published, git-warp must consume it, rerun
+its process census, and publish its own release before Think upgrades. Any demand
 for persistent truly streaming `cat-file` multiplexing becomes a separate
 plumbing/git-cas issue rather than expanding this cycle.
 
 ## Tracker Disposition
 
-| Issue                                            | Role                | Expected disposition                                          |
-| ------------------------------------------------ | ------------------- | ------------------------------------------------------------- |
-| https://github.com/git-stunts/git-cas/issues/115 | Primary goalpost    | Close only after v6.5.7 publication is independently verified |
-| https://github.com/git-stunts/git-warp/pull/847  | Downstream consumer | Leave untouched until git-cas v6.5.7 is live                  |
+| Issue                                            | Role                | Expected disposition                                     |
+| ------------------------------------------------ | ------------------- | -------------------------------------------------------- |
+| https://github.com/git-stunts/git-cas/issues/115 | Primary goalpost    | Close on the independently verified publication witness  |
+| https://github.com/git-stunts/git-warp/pull/847  | Downstream consumer | Consume live git-cas v6.5.7 and rerun the process census |
 
 ## Done Does Not Mean
 
@@ -499,9 +500,19 @@ Implementation checkpoint before review:
 - merged-main CI run `32635843285` repeated lint, unit, and Node/Bun/Deno
   real-Git validation before the release candidate was prepared.
 
-Publication outcome will be appended after the signed tag, npm package,
-provenance, workflow, and GitHub Release are independently verified.
+Release PR [#117](https://github.com/git-stunts/git-cas/pull/117) merged normally
+as `eebc6e37179f4fffd55f6ff7df2cab2613902772`. The exact merge passed the
+14-step release verifier with 6,925 observed tests. Signed annotated tag
+`v6.5.7` has tag object `74ce49dc415365b966b39bf6d2a8a0e2e0d9b846`
+and peels to that reviewed merge. Release workflow
+[`32637934268`](https://github.com/git-stunts/git-cas/actions/runs/32637934268)
+published `@git-stunts/git-cas@6.5.7` with npm publish and SLSA provenance and
+created the final
+[GitHub Release](https://github.com/git-stunts/git-cas/releases/tag/v6.5.7).
+A fresh registry install reported CLI build `6.5.7+eebc6e3`, matching the
+reviewed merge.
 
 PR:
 
 - [#116 - Reuse bounded Git sessions for small streaming reads](https://github.com/git-stunts/git-cas/pull/116)
+- [#117 - Release git-cas v6.5.7](https://github.com/git-stunts/git-cas/pull/117)

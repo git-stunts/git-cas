@@ -14,7 +14,7 @@ timeline
 
 ## Current State
 
-`v6.5.6` shipped on `2026-07-30`. Application asset, bundle, page, cache,
+`v6.5.7` shipped on `2026-08-23`. Application asset, bundle, page, cache,
 expiry, witness, and repository-diagnostics APIs sit above mutable root sets
 and the low-level CAS pipeline. Direct bundle-reference reads and bounded
 immutable metadata/page reuse, bounded Git object sessions, page batches, and
@@ -22,7 +22,7 @@ deterministic resource closure are published. Internal commits are independent
 of ambient Git identity. The coherent Bijou family is at 7.2.0, the interactive
 cockpit runs on Bijou's hosted framed-app boundary, and failed checked ref
 mutations are classified from structured post-failure posture instead of Git
-diagnostics. The v6.5.7 release candidate reuses the persistent `cat-file`
+diagnostics. v6.5.7 reuses the persistent `cat-file`
 session for streaming blob reads at or below a fixed 10 MiB ceiling while
 preserving genuine one-shot streaming above that ceiling. npm plus GitHub
 Releases are the active publication surfaces. JSR validation is healthy, but
@@ -83,7 +83,7 @@ What exists now:
   still retires `mktree` after a bounded bulk write because Git's quick lookup
   cannot discover a pack created after that process prepared its object
   database.
-- **Bounded stream-session read candidate.** v6.5.7 routes blobs at or below a
+- **Bounded stream-session reads.** v6.5.7 routes blobs at or below a
   fixed 10 MiB ceiling through the persistent `cat-file` session and returns one
   bounded chunk. Larger objects are metadata-inspected but enter exactly one
   genuine content stream; no session content read is attempted for them.
@@ -157,13 +157,13 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With v6.5.6 shipped and the v6.5.7 candidate under release review, active work
+With v6.5.7 shipped, active work
 is tracked in GitHub Issues and Milestones. Repo docs hold design and evidence
 records, not the active queue.
 
-The candidate design is
+The completed release design is
 [0058-bounded-stream-session-reads](./docs/design/0058-bounded-stream-session-reads/bounded-stream-session-reads.md).
-Its release goalpost is [#115](https://github.com/git-stunts/git-cas/issues/115)
+Its completed release goalpost is [#115](https://github.com/git-stunts/git-cas/issues/115)
 in the [`v6.5.7` milestone](https://github.com/git-stunts/git-cas/milestone/17).
 
 The broader horizon remains:
