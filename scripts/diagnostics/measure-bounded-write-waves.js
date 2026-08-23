@@ -265,7 +265,7 @@ function report({ items, samples, assetConcurrency, plumbingRepo, objectFormats 
       platform: process.platform,
       architecture: process.arch,
       gitCasCommit: gitCommit(process.cwd()),
-      gitCasDirty: gitDirty(process.cwd()),
+      gitCasDirty: gitDirty(process.cwd(), process.env.GIT_CAS_BENCHMARK_OUTPUT),
       plumbingSource: plumbingRepo === null
         ? 'installed:@git-stunts/plumbing'
         : 'workspace:@git-stunts/plumbing',
@@ -325,8 +325,15 @@ function gitCommit(cwd) {
   return execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
 }
 
-function gitDirty(cwd) {
-  return execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).length > 0;
+function gitDirty(cwd, ignoredPath = undefined) {
+  const ignored = ignoredPath === undefined
+    ? null
+    : path.relative(cwd, path.resolve(ignoredPath));
+  const records = execFileSync('git', ['status', '--porcelain=v1', '-z'], {
+    cwd,
+    encoding: 'utf8',
+  }).split('\0').filter(Boolean);
+  return records.some((record) => !(record.startsWith('?? ') && record.slice(3) === ignored));
 }
 
 function digest(values) {
