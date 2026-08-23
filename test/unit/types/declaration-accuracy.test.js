@@ -133,6 +133,9 @@ describe('Persistence lifecycle declaration accuracy', () => {
     expect(declarations).toContain('treeCacheBytes?: number;');
     expect(declarations).toContain('sessionIdleTimeoutMs?: number;');
     expect(declarations).toContain('writeBlobs?(contents: Iterable<Uint8Array>)');
+    expect(declarations).toContain('writeTrees?(trees: Iterable<string[]>)');
+    expect(declarations).toContain('readObjectInfos?(');
+    expect(declarations).toContain('replaceExact(options: {');
     expect(declarations).toContain('close?(): Promise<void>;');
     expect(declarations).toContain('[Symbol.asyncDispose]?(): Promise<void>;');
     expect(declarations).toContain('close(): Promise<void>;');

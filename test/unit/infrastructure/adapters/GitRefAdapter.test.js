@@ -42,6 +42,20 @@ function createFailedMutationAdapter({ mutationError, postures }) {
   };
 }
 
+function createSessionAdapter({ sessions, execute = vi.fn().mockResolvedValue('') }) {
+  const plumbing = {
+    execute,
+    openUpdateRefSession: vi.fn(),
+  };
+  for (const session of sessions) {
+    plumbing.openUpdateRefSession.mockResolvedValueOnce(session);
+  }
+  return {
+    adapter: new GitRefAdapter({ plumbing, policy: noPolicy }),
+    plumbing,
+  };
+}
+
 describe('GitRefAdapter.resolveRef()', () => {
   it('normalizes Git missing-ref stderr into a structured ref-not-found error', async () => {
     const { adapter, plumbing } = createAdapter();
@@ -125,6 +139,86 @@ describe('GitRefAdapter.createCommit()', () => {
         GIT_COMMITTER_NAME: 'git-cas',
       },
     });
+  });
+});
+
+describe('GitRefAdapter typed update-ref reuse', () => {
+  it('uses one process across successful checked updates and closes it once', async () => {
+    const session = {
+      update: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const { adapter, plumbing } = createSessionAdapter({ sessions: [session] });
+
+    await adapter.updateRef({
+      ref: 'refs/cas/rootsets/one',
+      newOid: 'a'.repeat(40),
+      expectedOldOid: null,
+    });
+    await adapter.updateRef({
+      ref: 'refs/cas/rootsets/two',
+      newOid: 'b'.repeat(40),
+      expectedOldOid: 'c'.repeat(40),
+    });
+
+    expect(plumbing.openUpdateRefSession).toHaveBeenCalledOnce();
+    expect(session.update).toHaveBeenNthCalledWith(1, {
+      ref: 'refs/cas/rootsets/one',
+      newOid: 'a'.repeat(40),
+      expectedOldOid: null,
+      noDeref: true,
+    });
+    expect(session.update).toHaveBeenNthCalledWith(2, {
+      ref: 'refs/cas/rootsets/two',
+      newOid: 'b'.repeat(40),
+      expectedOldOid: 'c'.repeat(40),
+      noDeref: true,
+    });
+    expect(plumbing.execute).toHaveBeenCalledTimes(2);
+    await Promise.all([adapter.close(), adapter.close(), adapter[Symbol.asyncDispose]()]);
+    expect(session.close).toHaveBeenCalledOnce();
+    await expect(adapter.resolveRef('refs/cas/rootsets/one')).rejects.toMatchObject({
+      code: ErrorCodes.RESOURCE_CLOSED,
+    });
+  });
+});
+
+describe('GitRefAdapter typed update-ref failure', () => {
+  it('discards the failed process without replaying its transaction', async () => {
+    const ref = 'refs/cas/rootsets/one';
+    const expectedOldOid = 'a'.repeat(40);
+    const rootCause = new Error('update failed');
+    let mutationFailed = false;
+    const failed = {
+      update: vi.fn(async () => {
+        mutationFailed = true;
+        throw rootCause;
+      }),
+      close: vi.fn(),
+    };
+    const replacement = {
+      update: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const execute = vi.fn().mockImplementation(({ args }) => {
+      if (args[0] === 'for-each-ref' && mutationFailed) {
+        return Promise.resolve(`${ref}\t${expectedOldOid}\t`);
+      }
+      return Promise.resolve('');
+    });
+    const { adapter, plumbing } = createSessionAdapter({
+      sessions: [failed, replacement],
+      execute,
+    });
+
+    await expect(adapter.updateRef({ ref, newOid: 'b'.repeat(40), expectedOldOid }))
+      .rejects.toBe(rootCause);
+    expect(failed.update).toHaveBeenCalledOnce();
+    expect(replacement.update).not.toHaveBeenCalled();
+    await adapter.updateRef({ ref, newOid: 'c'.repeat(40), expectedOldOid });
+    expect(plumbing.openUpdateRefSession).toHaveBeenCalledTimes(2);
+    expect(replacement.update).toHaveBeenCalledOnce();
+    await adapter.close();
   });
 });
 

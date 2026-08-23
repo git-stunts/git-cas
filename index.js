@@ -262,6 +262,8 @@ export default class ContentAddressableStore {
   #stagingWorkspaceRegistry = null;
   /** @type {RepositoryDoctor|null} */
   #repositoryDoctor = null;
+  /** @type {GitRefAdapter|null} */
+  #ref = null;
   #closePromise = null;
   #closed = false;
   #servicePromise = null;
@@ -314,6 +316,7 @@ export default class ContentAddressableStore {
       plumbing: cfg.plumbing,
       policy: cfg.policy,
     });
+    this.#ref = ref;
     this.#vault = new VaultService({
       persistence,
       ref,
@@ -627,7 +630,16 @@ export default class ContentAddressableStore {
         return;
       }
       const service = await this.#servicePromise;
-      await service.persistence.close();
+      const results = await Promise.allSettled([
+        service.persistence.close(),
+        this.#ref?.close(),
+      ]);
+      const failures = results
+        .filter((result) => result.status === 'rejected')
+        .map((result) => result.reason);
+      if (failures.length > 0) {
+        throw new AggregateError(failures, 'Content-addressable store failed to close cleanly');
+      }
     })();
     return await this.#closePromise;
   }

@@ -48,3 +48,31 @@ describe('GitPersistencePort – abstract methods', () => {
     await expect(port.readObjectSize('object-oid')).rejects.toThrow('Not implemented');
   });
 });
+
+describe('GitPersistencePort batch fallbacks', () => {
+  it('writes trees sequentially in input order', async () => {
+    const calls = [];
+    const port = new GitPersistencePort();
+    port.writeTree = async (entries) => {
+      calls.push(entries);
+      return `tree-${calls.length}`;
+    };
+
+    await expect(port.writeTrees([['first'], ['second']])).resolves.toEqual([
+      'tree-1',
+      'tree-2',
+    ]);
+    expect(calls).toEqual([['first'], ['second']]);
+  });
+
+  it('reads metadata sequentially in input order', async () => {
+    const port = new GitPersistencePort();
+    port.readObjectType = async (oid) => (oid === 'tree-oid' ? 'tree' : 'blob');
+    port.readObjectSize = async (oid) => oid.length;
+
+    await expect(port.readObjectInfos(['tree-oid', 'blob-oid'])).resolves.toEqual([
+      { oid: 'tree-oid', type: 'tree', size: 8 },
+      { oid: 'blob-oid', type: 'blob', size: 8 },
+    ]);
+  });
+});

@@ -396,7 +396,50 @@ export default class RootSetPersistence {
   }
 
   async #assertTargets(entries) {
-    const report = await this.inspectTargets(entries);
+    if (typeof this.persistence.readObjectInfos === 'function') {
+      try {
+        const infos = await this.persistence.readObjectInfos(entries.map((entry) => entry.oid));
+        this.#assertBatchTargetInfos(entries, infos);
+        return;
+      } catch (err) {
+        if (err?.code === ErrorCodes.ROOT_SET_TARGET_TYPE_MISMATCH) {
+          throw err;
+        }
+        if (err?.code !== ErrorCodes.GIT_OBJECT_NOT_FOUND) {
+          throw this.#targetUnreadable(entries[0], err);
+        }
+      }
+    }
+    this.#assertTargetReport(await this.inspectTargets(entries));
+  }
+
+  #assertBatchTargetInfos(entries, infos) {
+    if (infos.length !== entries.length) {
+      throw new CasError(
+        'Root-set target metadata count does not match the entry count',
+        ErrorCodes.GIT_ERROR,
+        { expectedCount: entries.length, actualCount: infos.length },
+      );
+    }
+    const mismatchIndex = infos.findIndex((info, index) => info.type !== entries[index].type);
+    if (mismatchIndex === -1) {
+      return;
+    }
+    const entry = entries[mismatchIndex];
+    throw new CasError(
+      `Root-set target type mismatch for ${entry.oid}`,
+      ErrorCodes.ROOT_SET_TARGET_TYPE_MISMATCH,
+      {
+        ref: this.rootSetRef,
+        name: entry.name,
+        oid: entry.oid,
+        expectedType: entry.type,
+        actualType: infos[mismatchIndex].type,
+      },
+    );
+  }
+
+  #assertTargetReport(report) {
     const issue = report.issues[0];
     if (!issue) {
       return;
@@ -411,5 +454,19 @@ export default class RootSetPersistence {
       ref: this.rootSetRef,
       ...issue,
     });
+  }
+
+  #targetUnreadable(entry, originalError) {
+    return new CasError(
+      `Root-set target could not be inspected: ${entry?.oid ?? 'unknown'}`,
+      ErrorCodes.ROOT_SET_TARGET_UNREADABLE,
+      {
+        ref: this.rootSetRef,
+        name: entry?.name,
+        oid: entry?.oid,
+        expectedType: entry?.type,
+        originalError,
+      },
+    );
   }
 }

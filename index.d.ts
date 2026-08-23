@@ -515,6 +515,7 @@ export declare class GitPersistencePortBase {
   writeBlob(content: Uint8Array): Promise<string>;
   writeBlobs?(contents: Iterable<Uint8Array>): Promise<string[]>;
   writeTree(entries: string[]): Promise<string>;
+  writeTrees?(trees: Iterable<string[]>): Promise<string[]>;
   readBlob(oid: string, maxBytes?: number): Promise<Uint8Array>;
   readBlobStream(oid: string): Promise<AsyncIterable<Uint8Array>>;
   readTree(
@@ -529,6 +530,9 @@ export declare class GitPersistencePortBase {
   ): AsyncIterable<{ mode: string; type: string; oid: string; name: string }>;
   readObjectType(oid: string): Promise<string>;
   readObjectSize(oid: string): Promise<number>;
+  readObjectInfos?(
+    oids: Iterable<string>
+  ): Promise<Array<{ oid: string; type: string; size: number }>>;
   setMaxBlobSize?(maxBlobSize: number): void;
   close?(): Promise<void>;
   [Symbol.asyncDispose]?(): Promise<void>;
@@ -563,6 +567,8 @@ export declare class GitRefPortBase {
     after?: string | null;
     limit: number;
   }): AsyncIterable<{ ref: string; oid: string; symref: string | null }>;
+  close?(): Promise<void>;
+  [Symbol.asyncDispose]?(): Promise<void>;
 }
 
 /** Git-backed implementation of the persistence port. */
@@ -576,6 +582,10 @@ export declare class GitPersistenceAdapter extends GitPersistencePortBase {
     treeCacheBytes?: number;
   });
   writeBlobs(contents: Iterable<Uint8Array>): Promise<string[]>;
+  writeTrees(trees: Iterable<string[]>): Promise<string[]>;
+  readObjectInfos(
+    oids: Iterable<string>
+  ): Promise<Array<{ oid: string; type: string; size: number }>>;
   setMaxBlobSize(maxBlobSize: number): void;
   close(): Promise<void>;
   [Symbol.asyncDispose](): Promise<void>;
@@ -596,6 +606,8 @@ export declare class GitRefAdapter extends GitRefPortBase {
     after?: string | null;
     limit: number;
   }): AsyncIterable<{ ref: string; oid: string; symref: string | null }>;
+  close(): Promise<void>;
+  [Symbol.asyncDispose](): Promise<void>;
 }
 
 export type RepositoryObjectType = 'blob' | 'tree' | 'commit' | 'tag';
@@ -815,6 +827,10 @@ export declare class RootSet {
   replace(options: {
     entries: Iterable<RootSetEntry>;
     expectedHeadOid?: string | null;
+  }): Promise<RootSetMutationResult>;
+  replaceExact(options: {
+    entries: Iterable<RootSetEntry>;
+    expectedHeadOid: string | null;
   }): Promise<RootSetMutationResult>;
   mutate(
     mutator: (

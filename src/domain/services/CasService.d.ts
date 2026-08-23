@@ -65,7 +65,9 @@ export interface CodecPort {
 /** Port interface for persisting data to Git's object database. */
 export interface GitPersistencePort {
   writeBlob(content: Uint8Array): Promise<string>;
+  writeBlobs?(contents: Iterable<Uint8Array>): Promise<string[]>;
   writeTree(entries: string[]): Promise<string>;
+  writeTrees?(trees: Iterable<string[]>): Promise<string[]>;
   readBlob(oid: string, maxBytes?: number): Promise<Uint8Array>;
   readBlobStream(oid: string): Promise<AsyncIterable<Uint8Array>>;
   readTree(
@@ -80,6 +82,9 @@ export interface GitPersistencePort {
   ): AsyncIterable<{ mode: string; type: string; oid: string; name: string }>;
   readObjectType(oid: string): Promise<string>;
   readObjectSize(oid: string): Promise<number>;
+  readObjectInfos?(
+    oids: Iterable<string>
+  ): Promise<Array<{ oid: string; type: string; size: number }>>;
   setMaxBlobSize?(maxBlobSize: number): void;
 }
 

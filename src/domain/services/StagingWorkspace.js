@@ -295,7 +295,7 @@ export default class StagingWorkspace {
       },
       ...targets.map(StagingWorkspace.#targetEntry),
     ];
-    const mutation = await this.#rootSet.replace({
+    const mutation = await this.#rootSet.replaceExact({
       entries,
       expectedHeadOid: this.#generation,
     });
@@ -569,7 +569,7 @@ export default class StagingWorkspace {
   static #assertDependencies({ rootSet, refs, assets, pages, bundles, resolveHandle,
     descriptorCodec, clock }) {
     const missing = [
-      ['rootSet', StagingWorkspace.#hasMethods(rootSet, ['replace'])],
+      ['rootSet', StagingWorkspace.#hasMethods(rootSet, ['replaceExact'])],
       ['refs', StagingWorkspace.#hasMethods(refs, ['deleteRef'])],
       ['assets', StagingWorkspace.#hasMethods(assets, ['put', 'adopt'])],
       ['pages', StagingWorkspace.#hasMethods(pages, ['put', 'putBatch'])],

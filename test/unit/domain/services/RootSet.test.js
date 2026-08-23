@@ -16,6 +16,16 @@ function emptyState() {
   return { ref: REF, headOid: null, treeOid: null, entries: [] };
 }
 
+function exactPersistence(overrides = {}) {
+  return {
+    read: vi.fn(),
+    write: vi.fn(),
+    resolveRefOnly: vi.fn(),
+    inspectTargets: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe('RootSet mutations', () => {
   it('puts, lists, and removes named entries', async () => {
     let state = emptyState();
@@ -112,6 +122,52 @@ describe('RootSet expected-head conflicts', () => {
       },
     });
     expect(persistence.write).not.toHaveBeenCalled();
+  });
+});
+
+describe('RootSet exact replacement', () => {
+  it('writes under caller authority without reading the old generation', async () => {
+    const expectedHeadOid = 'd'.repeat(40);
+    const replacement = { ...ENTRY, name: 'snapshot:replacement' };
+    const storage = exactPersistence({
+      write: vi.fn().mockResolvedValue({
+        commitOid: 'e'.repeat(40),
+        treeOid: 'f'.repeat(40),
+        entries: [replacement],
+      }),
+    });
+    const rootSet = new RootSet({ ref: REF, persistence: storage });
+
+    await expect(rootSet.replaceExact({ entries: [replacement], expectedHeadOid }))
+      .resolves.toMatchObject({ changed: true, commitOid: 'e'.repeat(40) });
+    expect(storage.read).not.toHaveBeenCalled();
+    expect(storage.write).toHaveBeenCalledWith({
+      entries: [replacement],
+      expectedHeadOid,
+      message: 'root-set: replace exact current roots',
+    });
+  });
+
+  it('requires explicit head authority', async () => {
+    const storage = exactPersistence();
+    const rootSet = new RootSet({ ref: REF, persistence: storage });
+
+    await expect(rootSet.replaceExact({ entries: [ENTRY] })).rejects.toMatchObject({
+      code: 'INVALID_OPTIONS',
+    });
+    expect(storage.read).not.toHaveBeenCalled();
+    expect(storage.write).not.toHaveBeenCalled();
+  });
+
+  it('does not retry an ambiguous checked write', async () => {
+    const conflict = new CasError('Concurrent update', ErrorCodes.ROOT_SET_CONFLICT);
+    const storage = exactPersistence({ write: vi.fn().mockRejectedValue(conflict) });
+    const rootSet = new RootSet({ ref: REF, persistence: storage });
+
+    await expect(rootSet.replaceExact({ entries: [ENTRY], expectedHeadOid: null }))
+      .rejects.toBe(conflict);
+    expect(storage.read).not.toHaveBeenCalled();
+    expect(storage.write).toHaveBeenCalledOnce();
   });
 });
 

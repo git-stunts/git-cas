@@ -160,6 +160,35 @@ describe('RootSetPersistence snapshot writes', () => {
 
 });
 
+describe('RootSetPersistence target metadata batches', () => {
+  it('validates all reachable targets through one ordered batch', async () => {
+    const persistence = mockPersistence({
+      readObjectInfos: vi.fn().mockResolvedValue([
+        { oid: BLOB_ENTRY.oid, type: 'blob', size: 7 },
+        { oid: TREE_ENTRY.oid, type: 'tree', size: 12 },
+      ]),
+      writeBlob: vi.fn().mockResolvedValue('c'.repeat(40)),
+      writeTree: vi.fn().mockResolvedValue('d'.repeat(40)),
+    });
+    const ref = mockRef({
+      createCommit: vi.fn().mockResolvedValue('e'.repeat(40)),
+      updateRef: vi.fn().mockResolvedValue(undefined),
+    });
+    const rootSet = new RootSetPersistence({ rootSetRef: REF, persistence, ref });
+
+    await rootSet.write({
+      entries: [TREE_ENTRY, BLOB_ENTRY],
+      expectedHeadOid: null,
+    });
+
+    expect(persistence.readObjectInfos).toHaveBeenCalledWith([
+      BLOB_ENTRY.oid,
+      TREE_ENTRY.oid,
+    ]);
+    expect(persistence.readObjectType).not.toHaveBeenCalled();
+  });
+});
+
 describe('RootSetPersistence write conflicts', () => {
   it('normalizes compare-and-swap failures as ROOT_SET_CONFLICT', async () => {
     const conflict = new CasError('Ref changed', ErrorCodes.GIT_ERROR, {

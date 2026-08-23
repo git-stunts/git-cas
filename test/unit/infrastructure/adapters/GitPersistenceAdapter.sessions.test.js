@@ -84,6 +84,50 @@ describe('GitPersistenceAdapter persistent cat-file reads', () => {
   });
 });
 
+describe('GitPersistenceAdapter metadata batches', () => {
+  it('pipelines uncached metadata and preserves input order', async () => {
+    const firstOid = 'a'.repeat(40);
+    const secondOid = 'b'.repeat(40);
+    const cat = fakeCatSession({
+      infoMany: vi.fn().mockResolvedValue([
+        { oid: firstOid, type: 'blob', size: 7 },
+        { oid: secondOid, type: 'tree', size: 11 },
+      ]),
+    });
+    const adapter = new GitPersistenceAdapter({
+      plumbing: sessionPlumbing({ catSessions: [cat] }),
+      policy: noPolicy,
+    });
+
+    await expect(adapter.readObjectInfos([firstOid, secondOid, firstOid])).resolves.toEqual([
+      { oid: firstOid, type: 'blob', size: 7 },
+      { oid: secondOid, type: 'tree', size: 11 },
+      { oid: firstOid, type: 'blob', size: 7 },
+    ]);
+    await expect(adapter.readObjectType(secondOid)).resolves.toBe('tree');
+    expect(cat.infoMany).toHaveBeenCalledWith([firstOid, secondOid]);
+    expect(cat.info).not.toHaveBeenCalled();
+  });
+
+  it('falls back to ordered info() calls when infoMany() is unavailable', async () => {
+    const firstOid = 'c'.repeat(40);
+    const secondOid = 'd'.repeat(40);
+    const cat = fakeCatSession({
+      info: vi.fn(async (oid) => ({ oid, type: 'blob', size: oid === firstOid ? 1 : 2 })),
+    });
+    const adapter = new GitPersistenceAdapter({
+      plumbing: sessionPlumbing({ catSessions: [cat] }),
+      policy: noPolicy,
+    });
+
+    await expect(adapter.readObjectInfos([firstOid, secondOid])).resolves.toEqual([
+      { oid: firstOid, type: 'blob', size: 1 },
+      { oid: secondOid, type: 'blob', size: 2 },
+    ]);
+    expect(cat.info).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('GitPersistenceAdapter cat-file recovery', () => {
   it('invalidates a failed session and opens a fresh session on the next call', async () => {
     const oid = 'c'.repeat(40);
@@ -461,6 +505,32 @@ describe('GitPersistenceAdapter persistent write sessions', () => {
   });
 });
 
+describe('GitPersistenceAdapter pipelined blob writes', () => {
+  it('uses one bounded writeBlobs() protocol operation', async () => {
+    const contents = [Buffer.from('first'), Buffer.from('second')];
+    const fastImport = {
+      writeBlobs: vi.fn().mockResolvedValue(['a'.repeat(40), 'b'.repeat(40)]),
+      writeBlob: vi.fn(),
+      checkpoint: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+      abort: vi.fn().mockResolvedValue(undefined),
+    };
+    const adapter = new GitPersistenceAdapter({
+      plumbing: sessionPlumbing({ fastImportSession: fastImport }),
+      policy: noPolicy,
+    });
+
+    await expect(adapter.writeBlobs(contents)).resolves.toEqual([
+      'a'.repeat(40),
+      'b'.repeat(40),
+    ]);
+    expect(fastImport.writeBlobs).toHaveBeenCalledWith(contents);
+    expect(fastImport.writeBlob).not.toHaveBeenCalled();
+    expect(fastImport.checkpoint).toHaveBeenCalledOnce();
+    expect(fastImport.close).toHaveBeenCalledOnce();
+  });
+});
+
 describe('GitPersistenceAdapter bulk write retirement failures', () => {
   it('preserves mktree and bulk session retirement failures', async () => {
     const mktreeCloseError = new Error('mktree close failed');
@@ -591,6 +661,63 @@ describe('GitPersistenceAdapter persistent tree writes', () => {
     ]);
     expect(cat.close).not.toHaveBeenCalled();
     expect(plumbing.execute).not.toHaveBeenCalled();
+    await adapter.close();
+  });
+});
+
+describe('GitPersistenceAdapter pipelined tree writes', () => {
+  it('uses one writeMany() operation and preserves order', async () => {
+    const firstOid = 'd'.repeat(40);
+    const secondOid = 'e'.repeat(40);
+    const trees = [
+      [`100644 blob ${firstOid}\tfirst`],
+      [`100644 blob ${secondOid}\tsecond`],
+    ];
+    const mktree = {
+      write: vi.fn(),
+      writeMany: vi.fn().mockResolvedValue(['1'.repeat(40), '2'.repeat(40)]),
+      close: vi.fn().mockResolvedValue(undefined),
+      terminate: vi.fn().mockResolvedValue(undefined),
+    };
+    const adapter = new GitPersistenceAdapter({
+      plumbing: sessionPlumbing({ mktreeSession: mktree }),
+      policy: noPolicy,
+    });
+
+    await expect(adapter.writeTrees(trees)).resolves.toEqual([
+      '1'.repeat(40),
+      '2'.repeat(40),
+    ]);
+    expect(mktree.writeMany).toHaveBeenCalledWith([
+      [{ mode: '100644', type: 'blob', oid: firstOid, name: 'first' }],
+      [{ mode: '100644', type: 'blob', oid: secondOid, name: 'second' }],
+    ]);
+    expect(mktree.write).not.toHaveBeenCalled();
+    await adapter.close();
+  });
+});
+
+describe('GitPersistenceAdapter tree batch fallback', () => {
+  it('uses ordered write() calls when writeMany() is unavailable', async () => {
+    const firstOid = 'f'.repeat(40);
+    const secondOid = '0'.repeat(40);
+    const mktree = {
+      write: vi.fn()
+        .mockResolvedValueOnce('3'.repeat(40))
+        .mockResolvedValueOnce('4'.repeat(40)),
+      close: vi.fn().mockResolvedValue(undefined),
+      terminate: vi.fn().mockResolvedValue(undefined),
+    };
+    const adapter = new GitPersistenceAdapter({
+      plumbing: sessionPlumbing({ mktreeSession: mktree }),
+      policy: noPolicy,
+    });
+
+    await expect(adapter.writeTrees([
+      [`100644 blob ${firstOid}\tfirst`],
+      [`100644 blob ${secondOid}\tsecond`],
+    ])).resolves.toEqual(['3'.repeat(40), '4'.repeat(40)]);
+    expect(mktree.write).toHaveBeenCalledTimes(2);
     await adapter.close();
   });
 });

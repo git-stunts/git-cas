@@ -109,6 +109,31 @@ export default class RootSet {
   }
 
   /**
+   * Replaces the current generation under caller-supplied exact head
+   * authority. Unlike replace(), this path deliberately does not read or
+   * retry: the checked ref update is the authority test.
+   *
+   * @param {{ entries: Iterable<object>, expectedHeadOid: string|null }} options
+   * @returns {Promise<object>}
+   */
+  async replaceExact(options) {
+    if (!RootSet.#hasExpectedHead(options)) {
+      throw new CasError(
+        'Exact root-set replacement requires expectedHeadOid authority',
+        ErrorCodes.INVALID_OPTIONS,
+      );
+    }
+    const entries = this.#metadataCodec.normalizeEntries(options.entries);
+    const expectedHeadOid = RootSet.#normalizeExpectedHead(options.expectedHeadOid);
+    const written = await this.persistence.write({
+      entries,
+      expectedHeadOid,
+      message: 'root-set: replace exact current roots',
+    });
+    return { changed: true, ...written };
+  }
+
+  /**
    * @param {(entries: ReadonlyArray<object>, state: Readonly<object>) => Iterable<object>|Promise<Iterable<object>>} mutator
    * @param {{ expectedHeadOid?: string|null }} [options]
    * @returns {Promise<object>}
@@ -248,6 +273,13 @@ export default class RootSet {
       return expectedHeadOid;
     }
     return Oid.from(expectedHeadOid).toString();
+  }
+
+  static #hasExpectedHead(options) {
+    return typeof options === 'object' &&
+      options !== null &&
+      Object.hasOwn(options, 'expectedHeadOid') &&
+      options.expectedHeadOid !== undefined;
   }
 
   static #entriesEqual(left, right) {
