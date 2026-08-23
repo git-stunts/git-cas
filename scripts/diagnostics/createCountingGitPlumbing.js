@@ -4,7 +4,10 @@ export async function createCountingGitPlumbing({ cwd, sessions = false }) {
   const plumbing = await createGitPlumbing({ cwd });
   const activeSessions = new Map();
   const counts = new Map();
+  const sessionOperations = new Map();
   const record = (operation) => counts.set(operation, (counts.get(operation) ?? 0) + 1);
+  const recordSessionOperation = (operation) =>
+    sessionOperations.set(operation, (sessionOperations.get(operation) ?? 0) + 1);
   const counted = {
     execute(options) {
       record(operationOf(options.args));
@@ -20,18 +23,21 @@ export async function createCountingGitPlumbing({ cwd, sessions = false }) {
     counted.openCatFileSession = sessionOpener({
       plumbing,
       record,
+      recordSessionOperation,
       activeSessions,
       protocol: 'cat-file',
     });
     counted.openMktreeSession = sessionOpener({
       plumbing,
       record,
+      recordSessionOperation,
       activeSessions,
       protocol: 'mktree',
     });
     counted.openFastImportSession = sessionOpener({
       plumbing,
       record,
+      recordSessionOperation,
       activeSessions,
       protocol: 'fast-import',
     });
@@ -40,11 +46,12 @@ export async function createCountingGitPlumbing({ cwd, sessions = false }) {
   return {
     activeSessions: () => new Map(activeSessions),
     plumbing: counted,
+    sessionOperations: () => new Map(sessionOperations),
     snapshot: () => new Map(counts),
   };
 }
 
-function sessionOpener({ plumbing, record, activeSessions, protocol }) {
+function sessionOpener({ plumbing, record, recordSessionOperation, activeSessions, protocol }) {
   const method =
     protocol === 'cat-file'
       ? 'openCatFileSession'
@@ -75,7 +82,10 @@ function sessionOpener({ plumbing, record, activeSessions, protocol }) {
           return value;
         }
         if (!['abort', 'close', 'terminate'].includes(property)) {
-          return value.bind(target);
+          return (...methodArgs) => {
+            recordSessionOperation(`${protocol}:${String(property)}`);
+            return value.apply(target, methodArgs);
+          };
         }
         return async (...methodArgs) => {
           const result = await value.apply(target, methodArgs);

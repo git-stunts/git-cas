@@ -300,6 +300,33 @@ describe('GitPersistenceAdapter exceptional payload streaming', () => {
   });
 });
 
+describe('GitPersistenceAdapter failed session payload streaming', () => {
+  it('falls back before yielding when the bounded session content read fails', async () => {
+    const oid = '9'.repeat(40);
+    const cat = fakeCatSession({
+      info: vi.fn().mockResolvedValue({ oid, type: 'blob', size: 8 }),
+      read: vi.fn().mockRejectedValue(new Error('session read failed')),
+    });
+    const plumbing = sessionPlumbing({ catSessions: [cat] });
+    plumbing.executeStream.mockResolvedValue(
+      (async function* stream() {
+        yield Buffer.from('fallback');
+      })()
+    );
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+
+    const chunks = [];
+    for await (const chunk of await adapter.readBlobStream(oid)) {
+      chunks.push(chunk);
+    }
+
+    expect(Buffer.concat(chunks)).toEqual(Buffer.from('fallback'));
+    expect(cat.terminate).toHaveBeenCalledTimes(1);
+    expect(plumbing.executeStream).toHaveBeenCalledTimes(1);
+    await adapter.close();
+  });
+});
+
 describe('GitPersistenceAdapter immutable tree reuse', () => {
   it('reads one tree object for distinct exact lookups and isolates returned entries', async () => {
     const treeOid = '1'.repeat(40);

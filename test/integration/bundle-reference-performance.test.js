@@ -219,6 +219,8 @@ describe('real-Git bounded stream session process count', () => {
       expect(restored).toEqual(sources);
       expect(count(counted.snapshot(), 'session:cat-file')).toBe(1);
       expect(count(counted.snapshot(), 'cat-file')).toBe(0);
+      expect(count(counted.sessionOperations(), 'cat-file:info')).toBe(sources.length);
+      expect(count(counted.sessionOperations(), 'cat-file:read')).toBe(sources.length);
       expect(count(counted.activeSessions(), 'cat-file')).toBe(1);
     } finally {
       await adapter.close();
@@ -239,6 +241,8 @@ describe('real-Git bounded stream session process count', () => {
       expect(restored.equals(source)).toBe(true);
       expect(count(counted.snapshot(), 'session:cat-file')).toBe(1);
       expect(count(counted.snapshot(), 'cat-file')).toBe(1);
+      expect(count(counted.sessionOperations(), 'cat-file:info')).toBe(1);
+      expect(count(counted.sessionOperations(), 'cat-file:read')).toBe(0);
       expect(count(counted.activeSessions(), 'cat-file')).toBe(1);
     } finally {
       await adapter.close();

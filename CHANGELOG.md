@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance
+
+- **Bounded stream session reads** - `readBlobStream()` now reuses the
+  persistent `cat-file` session for blobs at or below a fixed 10 MiB ceiling,
+  removing process-per-payload startup for small reads. Larger objects retain
+  the genuine one-shot streaming path without a speculative content read, and
+  plumbing without typed sessions retains the existing fallback.
+
 ## [6.5.6] — 2026-07-30
 
 ### Changed
