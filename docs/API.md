@@ -939,7 +939,7 @@ explicit lifecycle operations. It composes the lower-level store, manifest,
 tree, RootSet, commit, and ref operations without requiring callers to manage
 payload OIDs.
 
-### `assets.put()`
+### `assets.put()` and `assets.putBatch()`
 
 ```javascript
 const staged = await cas.assets.put({
@@ -955,6 +955,13 @@ const staged = await cas.assets.put({
   merkleThreshold,
   chunking,
 });
+
+const stagedBatch = await cas.assets.putBatch({
+  assets: [firstAssetOptions, secondAssetOptions],
+  maxBatchAssets: 4,
+  maxBatchObjects: 4096,
+  maxBatchBytes: 256 * 1024 * 1024,
+});
 ```
 
 Streams an `AsyncIterable<Uint8Array>` through the existing CAS pipeline,
@@ -965,6 +972,22 @@ limits documented in the streaming matrix.
 
 `filename` defaults to `slug`. All other storage options have the same meaning
 as `store()`.
+
+`putBatch()` requires an explicit array of ordinary asset options and returns
+an immutable result array in the same order. It keeps at most
+`maxBatchAssets` source pipelines active, pipelines immutable blob and manifest
+writes through bounded Git protocol waves, and writes all complete manifest
+trees in one final dependency phase. Defaults are four active assets, 4,096
+aggregate written objects, and 256 MiB of aggregate written bytes. Supported
+upper bounds are 64 active assets, 100,000 objects, and 1 GiB. Plumbing protocol
+requests remain internally capped at 256 objects and 64 MiB per request.
+
+A failed source, bound, persistence operation, or result-cardinality check
+rejects the whole call; it never returns a partial array as a complete batch.
+The error metadata includes bounded staging counts for immutable objects that
+may have been written before failure. `maxBatchAssets` is a resource/performance
+choice: raising it can reduce protocol rounds while increasing the number of
+simultaneously live caller streams.
 
 **Returns:** `Promise<StagedAsset>`
 
@@ -1078,7 +1101,7 @@ The canonical page token is:
 git-cas:1:page:blob:raw:<sha1|sha256>:<oid>
 ```
 
-### `bundles.put()` and `bundles.putOrdered()`
+### `bundles.put()`, `bundles.putOrdered()`, and `bundles.putOrderedBatch()`
 
 ```javascript
 const staged = await cas.bundles.put({
@@ -1093,6 +1116,17 @@ const staged = await cas.bundles.put({
 const streamed = await cas.bundles.putOrdered({
   members: orderedAsyncMemberPairs,
 });
+
+const stagedBatch = await cas.bundles.putOrderedBatch({
+  bundles: [
+    { members: firstOrderedMemberPairs },
+    { members: secondOrderedMemberPairs },
+  ],
+  maxBatchBundles: 64,
+  maxBatchMembers: 8192,
+  maxBatchObjects: 256,
+  maxBatchBytes: 64 * 1024 * 1024,
+});
 ```
 
 Members are named application handles, byte sources, or `{ source, maxBytes }`
@@ -1102,6 +1136,20 @@ to every member handle. `put()` sorts an in-memory object, `Map`, or pair array.
 `putOrdered()` consumes an already sorted iterable and rejects duplicate or
 out-of-order canonical paths, enabling construction with bounded resident
 state.
+
+`putOrderedBatch()` requires an explicit array of ordered-bundle requests,
+collects only that declared group, and returns an immutable input-ordered array.
+It defaults to at most 64 bundles, 8,192 aggregate members, 256 planned objects,
+and 64 MiB across inline pages, descriptors, and trees. Callers may lower any
+limit; supported maxima are 256 bundles, 100,000 aggregate members, 256 objects,
+and 64 MiB. Per-bundle repository limits still apply independently.
+
+After admission, the batch validates shared immutable handles once, writes
+inline pages together, writes all descriptor blobs in bounded windows, and
+writes independent tree nodes bottom-up by depth. Grouping changes scheduling,
+not descriptor bytes, tree entries, handles, or member order. A failure returns
+no complete result array and carries bounded staging evidence for immutable
+objects already written.
 
 Repository defaults, which an operation may only lower, are:
 
@@ -1376,11 +1424,13 @@ The workspace mirrors only application-storage writes:
 
 ```javascript
 await workspace.assets.put(options);
+await workspace.assets.putBatch(options);
 await workspace.assets.adopt(options);
 await workspace.pages.put(options);
 await workspace.pages.putBatch(options);
 await workspace.bundles.put(options);
 await workspace.bundles.putOrdered(options);
+await workspace.bundles.putOrderedBatch(options);
 ```
 
 Each method returns only after a direct workspace generation reaches the
@@ -1388,11 +1438,12 @@ returned typed handle. The result is otherwise the ordinary staged result plus
 a workspace `RetentionWitness`. Calls on one workspace serialize their ref
 mutations so concurrent staging cannot silently lose an accumulated root.
 
-`workspace.pages.putBatch()` accepts the same `pages`, `maxBatchBytes`, and
-`maxBatchPages` bounds as `cas.pages.putBatch()`. It returns one retained result
-per input in input order, while all results from the batch name the same exact
-workspace generation. Duplicate page content preserves ordered results but is
-retained only once in that generation.
+The three workspace batch methods accept the same options as their top-level
+counterparts. Each returns one retained result per input in input order, while
+all results from that batch name the same exact workspace generation. Duplicate
+content preserves ordered results but is retained only once in that generation.
+Batch construction and the one-generation installation remain serialized with
+all other mutations on that workspace.
 
 This guarantee starts when the method returns. Like all Git object composition,
 the object-write-to-ref-update interval still relies on Git's ordinary
@@ -3384,7 +3435,7 @@ new CasError({ message, code, meta, documentationUrl });
 | `MANIFEST_NOT_FOUND`                  | No manifest entry found in the Git tree                                                                            | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`                 |
 | `GIT_ERROR`                           | Underlying Git plumbing command failed                                                                             | `readManifest()`, `inspectAsset()`, `collectReferencedChunks()`                 |
 | `GIT_REF_NOT_FOUND`                   | Git ref lookup found no ref; vault reads normalize this to empty state                                             | `GitRefAdapter`, `VaultPersistence`                                             |
-| `INVALID_OPTIONS`                     | Mutually exclusive options provided or unsupported option value                                                    | `store()`, `restore()`                                                          |
+| `INVALID_OPTIONS`                     | Mutually exclusive options, malformed batch input, or unsupported option value                                     | `store()`, `restore()`, asset and bundle batches                                |
 | `RESOURCE_CLOSED`                     | A facade or persistence adapter operation began while or after closure was in progress                             | `ContentAddressableStore`, `GitPersistenceAdapter`                              |
 | `HANDLE_INVALID`                      | Handle object, canonical token, or staged result is malformed or unsupported                                       | Application handles and staged results                                          |
 | `HANDLE_KIND_MISMATCH`                | A handle has a valid envelope but the wrong content kind                                                           | Handle parsing and application storage                                          |
@@ -3395,14 +3446,14 @@ new CasError({ message, code, meta, documentationUrl });
 | `PAGE_BATCH_LIMIT`                    | Page batch count or aggregate bytes exceed the explicit batch policy                                               | `pages.putBatch()`                                                              |
 | `BUNDLE_CORRUPT`                      | Persisted bundle descriptors, edges, ranges, or target summaries disagree                                          | Bundle reads, retention, publication                                             |
 | `BUNDLE_DESCRIPTOR_LIMIT`             | Bundle descriptor bytes exceed admission or repository read policy                                                 | Bundle construction and validation                                               |
-| `BUNDLE_DUPLICATE_PATH`               | Two ordered bundle members use the same canonical path                                                             | `bundles.putOrdered()`                                                           |
+| `BUNDLE_DUPLICATE_PATH`               | Two ordered bundle members use the same canonical path                                                             | `bundles.putOrdered()`, `bundles.putOrderedBatch()`                              |
 | `BUNDLE_FANOUT_LIMIT`                 | Bundle tree width, depth, or nesting exceeds policy                                                                | Bundle construction and validation                                               |
 | `BUNDLE_LIMIT_INVALID`                | Configured or per-operation bundle limits are malformed or attempt to raise repository policy                     | Facade construction, bundle writes                                               |
 | `BUNDLE_MEMBER_INVALID`               | Bundle member input or resolved handle target is invalid                                                           | Bundle construction                                                              |
-| `BUNDLE_MEMBER_LIMIT`                 | Bundle member count exceeds admission or repository read policy                                                    | Bundle construction and validation                                               |
+| `BUNDLE_MEMBER_LIMIT`                 | Bundle or aggregate batch member count exceeds admission or repository read policy                                 | Bundle construction and validation                                               |
 | `BUNDLE_MEMBER_NOT_FOUND`             | Requested bundle member path is absent                                                                             | `bundles.openMember()`                                                           |
 | `BUNDLE_MEMBER_NOT_STREAMABLE`        | Requested member is a nested structured bundle rather than bytes                                                   | `bundles.openMember()`                                                           |
-| `BUNDLE_MEMBER_ORDER`                 | Ordered bundle input is not strictly increasing by canonical path                                                  | `bundles.putOrdered()`                                                           |
+| `BUNDLE_MEMBER_ORDER`                 | Ordered bundle input is not strictly increasing by canonical path                                                  | `bundles.putOrdered()`, `bundles.putOrderedBatch()`                              |
 | `BUNDLE_PATH_INVALID`                 | Bundle member path is empty, unsafe, or non-canonical                                                              | Bundle writes and reads                                                          |
 | `BUNDLE_PATH_LIMIT`                   | Bundle member path exceeds its UTF-8 byte bound                                                                    | Bundle construction and validation                                               |
 | `COLLECTION_NAMESPACE_INVALID`        | Managed collection namespace or cache ref is not canonical                                                         | `caches.open()`                                                                  |

@@ -173,6 +173,35 @@ order, and uses one scoped Git write session when the plumbing adapter supports
 it. Use individual `pages.put()` calls when inputs should not share one bounded
 memory envelope.
 
+Independent assets and ordered bundles have equivalent bounded write-wave
+surfaces:
+
+```js
+const stagedAssets = await cas.assets.putBatch({
+  assets: assetRequests,
+  maxBatchAssets: 4,
+  maxBatchObjects: 4096,
+  maxBatchBytes: 256 * 1024 * 1024,
+});
+
+const stagedBundles = await cas.bundles.putOrderedBatch({
+  bundles: orderedBundleRequests,
+  maxBatchBundles: 64,
+  maxBatchMembers: 8192,
+  maxBatchObjects: 256,
+  maxBatchBytes: 64 * 1024 * 1024,
+});
+```
+
+Asset batching keeps at most `maxBatchAssets` source pipelines active, shares
+bounded blob phases, and emits complete manifest trees in one final dependency
+wave. Bundle batching collects only the explicitly bounded request array,
+preplans its deterministic descriptor graph, and writes each bottom-up tree
+depth as one bounded wave. Both methods preserve input-order output and return
+no partial result array on failure. Higher `maxBatchAssets` values can reduce
+protocol round trips when the caller can afford more simultaneously live
+source pipelines; the default remains four.
+
 Repeated `pages.get()` calls reuse immutable payload reads within the store's
 bounded page cache. The defaults retain at most 128 payloads and 8 MiB; use
 `pageCacheEntries` and `pageCacheBytes` to tune that ceiling. Every result is a
