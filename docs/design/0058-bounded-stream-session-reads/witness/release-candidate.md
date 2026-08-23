@@ -35,6 +35,13 @@ Implementation review #116 merged normally as
 `1e30740c8670bf42b8bb863f8feb99a5e0f0f29b`. Its second parent is the exact
 reviewed head `c344d119fd2afb5f7c024b4912714acbfd156768`.
 
+The immutable versioned candidate-preparation commit is
+`7631d597b1091f5cb5c29c7c7770a5a2bf435cc7`. It is the direct child of
+implementation merge `1e30740c8670bf42b8bb863f8feb99a5e0f0f29b`; its tree is
+the exact candidate tree that produced the 6,922-test verification record
+below. Final release identity remains the normal merge of release review #117
+and the signed tag that peels to that merge.
+
 ## Failure Witness
 
 At the RED commit, repeated `readBlobStream()` calls still opened one one-shot

@@ -285,18 +285,20 @@ function expectV656CandidateEvidence(candidate) {
   expectNoV656PublicationEvidence(candidate);
 }
 
-function expectV657CandidateEvidence(status, candidate) {
+function expectV657CandidateEvidence(status, candidate, releaseNotes) {
   expect(status).toContain('**Last tagged release:** `v6.5.6` (`2026-07-30`)');
   expect(status).toContain('**Current release state:** `v6.5.7` release candidate');
+  expect(status).toContain('candidate-preparation commit `7631d597`');
   expect(candidate).toContain('# PERF-0058 v6.5.7 Release Candidate Witness');
   expect(candidate).toContain('Implementation review: #116');
   expect(candidate).toContain('Release review: #117');
+  expect(candidate).toContain('7631d597b1091f5cb5c29c7c7770a5a2bf435cc7');
   expect(candidate).toContain('1e30740c8670bf42b8bb863f8feb99a5e0f0f29b');
   expect(candidate).toContain('c344d119fd2afb5f7c024b4912714acbfd156768');
   expect(candidate).toContain('**PASS: 14/14 gates**');
   expect(candidate).toContain('**6,922**');
   expect(candidate).toMatch(/explicitly\s+unpublished\s+candidate/);
-  expectNoV657PublicationEvidence(status, candidate);
+  expectNoV657PublicationEvidence(status, candidate, releaseNotes);
 }
 
 function expectV656PublishedEvidence(status, publication) {
@@ -455,7 +457,7 @@ function expectV657CandidateDocs(status) {
   const candidate = read(v657CandidatePath);
   const releaseNotes = read('docs/releases/v6.5.7.md');
 
-  expectV657CandidateEvidence(status, candidate);
+  expectV657CandidateEvidence(status, candidate, releaseNotes);
   expect(releaseNotes).toContain('14-step verifier with\n6,922 observed tests');
   expect(releaseNotes).toMatch(/requires no application or stored-data\s+migration/);
 }
@@ -514,6 +516,17 @@ describe('release state docs', () => {
     expectCurrentQueue(status);
     expect(v640Publication).toContain('https://slsa.dev/provenance/v1');
     expect(v640Publication).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.4.0');
+  });
+
+});
+
+describe('v6.5.7 candidate publication-marker calibration', () => {
+  it('rejects a GitHub Release marker in candidate release notes', () => {
+    const status = read('STATUS.md');
+    const candidate = read(v657CandidatePath);
+    const releaseNotes = `${read('docs/releases/v6.5.7.md')}\nhttps://github.com/git-stunts/git-cas/releases/tag/v6.5.7\n`;
+
+    expect(() => expectV657CandidateEvidence(status, candidate, releaseNotes)).toThrow();
   });
 });
 

@@ -2,7 +2,7 @@
 
 **Last tagged release:** `v6.5.6` (`2026-07-30`)
 **Current release state:** `v6.5.7` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** the versioned `v6.5.7` candidate at implementation merge `1e30740c` passed 14/14 release-verifier steps with 6,922 observed tests across Node, Bun, Deno, and all three real-Git integration suites.
+**Latest verification:** versioned `v6.5.7` candidate-preparation commit `7631d597` (the direct child of implementation merge `1e30740c`) passed 14/14 release-verifier steps with 6,922 observed tests across Node, Bun, Deno, and all three real-Git integration suites.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
