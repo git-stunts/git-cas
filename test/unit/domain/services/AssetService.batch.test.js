@@ -65,6 +65,45 @@ function trackedRequests(count, activity) {
   return inputs;
 }
 
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+function failedSource(started, failure) {
+  return {
+    [Symbol.asyncIterator]() {
+      return {
+        async next() {
+          await started.promise;
+          throw failure;
+        },
+      };
+    },
+  };
+}
+
+async function* siblingSource(started, closed, progress) {
+  try {
+    started.resolve();
+    for (let index = 0; index < 32; index += 1) {
+      progress.chunks += 1;
+      yield Buffer.alloc(1024, index);
+      await Promise.resolve();
+    }
+  } finally {
+    closed();
+  }
+}
+
+async function* laterSource(started) {
+  started();
+  yield Buffer.from('must not start');
+}
+
 describe('AssetService write batches', () => {
   it('preserves single-write handles and uses bounded persistence batches', async () => {
     const singlesFixture = fixture();
@@ -98,9 +137,7 @@ describe('AssetService write batches', () => {
       maxBatchAssets: 2,
     });
 
-    expect(batch.map((asset) => asset.asset.slug)).toEqual(
-      inputs.map((asset) => asset.slug)
-    );
+    expect(batch.map((asset) => asset.asset.slug)).toEqual(inputs.map((asset) => asset.slug));
     expect(activity.maximum).toBe(2);
   });
 });
@@ -109,11 +146,13 @@ describe('AssetService batch limits', () => {
   it('rejects an aggregate byte overflow with bounded staging evidence', async () => {
     const { assets } = fixture();
 
-    await expect(assets.putBatch({
-      assets: requests(),
-      ...LIMITS,
-      maxBatchBytes: 1024,
-    })).rejects.toMatchObject({
+    await expect(
+      assets.putBatch({
+        assets: requests(),
+        ...LIMITS,
+        maxBatchBytes: 1024,
+      })
+    ).rejects.toMatchObject({
       code: 'INVALID_OPTIONS',
       meta: {
         staging: {
@@ -135,13 +174,66 @@ describe('AssetService batch limits', () => {
       slug: 'unused',
     };
 
-    await expect(assets.putBatch({
-      assets: [input],
-      ...LIMITS,
-      maxBatchAssets: 0,
-    })).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
-    await expect(assets.putBatch({ assets: new Set(), ...LIMITS }))
-      .rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+    await expect(
+      assets.putBatch({
+        assets: [input],
+        ...LIMITS,
+        maxBatchAssets: 0,
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+    await expect(assets.putBatch({ assets: new Set(), ...LIMITS })).rejects.toMatchObject({
+      code: 'INVALID_OPTIONS',
+    });
     expect(started).not.toHaveBeenCalled();
+  });
+});
+
+describe('AssetService batch failure containment', () => {
+  it('cancels sibling iterators and reports the first failed input without a partial result', async () => {
+    const { assets } = fixture();
+    const siblingStarted = deferred();
+    const siblingClosed = vi.fn();
+    const laterStarted = vi.fn();
+    const cancellation = new Error('caller cancelled the source');
+    cancellation.name = 'AbortError';
+    const progress = { chunks: 0 };
+    const inputs = [
+      {
+        source: failedSource(siblingStarted, cancellation),
+        slug: 'cancelled',
+      },
+      {
+        source: siblingSource(siblingStarted, siblingClosed, progress),
+        slug: 'sibling',
+      },
+      {
+        source: laterSource(laterStarted),
+        slug: 'later',
+      },
+    ];
+
+    const failure = await assets
+      .putBatch({
+        assets: inputs,
+        ...LIMITS,
+        maxBatchAssets: 2,
+      })
+      .catch((error) => error);
+
+    expect(failure).toMatchObject({
+      code: 'STREAM_ERROR',
+      meta: {
+        batchIndex: 0,
+        staging: {
+          writeObjects: expect.any(Number),
+          writeBytes: expect.any(Number),
+          stagedAssetCount: 0,
+        },
+      },
+    });
+    expect(failure.meta.originalError).toBe(cancellation);
+    expect(siblingClosed).toHaveBeenCalledOnce();
+    expect(progress.chunks).toBeLessThan(32);
+    expect(laterStarted).not.toHaveBeenCalled();
   });
 });

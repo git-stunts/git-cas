@@ -52,9 +52,8 @@ describe('BoundedWriteWavePersistence scheduling', () => {
 
   it('splits protocol windows at 256 objects without reordering results', async () => {
     const { persistence, waves } = fixture();
-    const writes = Array.from(
-      { length: 257 },
-      (_, index) => waves.writeBlob(Uint8Array.of(index % 256)),
+    const writes = Array.from({ length: 257 }, (_, index) =>
+      waves.writeBlob(Uint8Array.of(index % 256))
     );
 
     const oids = await Promise.all(writes);
@@ -91,7 +90,9 @@ describe('BoundedWriteWavePersistence failures', () => {
   it('shares a protocol failure with queued and future writes', async () => {
     const failure = new Error('batch protocol failed');
     const { persistence, waves } = fixture({
-      writeBlobs: vi.fn(async () => { throw failure; }),
+      writeBlobs: vi.fn(async () => {
+        throw failure;
+      }),
     });
 
     const first = await Promise.allSettled([
@@ -102,6 +103,29 @@ describe('BoundedWriteWavePersistence failures', () => {
 
     expect(first.map((result) => result.reason)).toEqual([failure, failure]);
     expect(later).toBe(failure);
+    expect(persistence.writeBlobs).toHaveBeenCalledOnce();
+  });
+});
+
+describe('BoundedWriteWavePersistence cardinality failures', () => {
+  it('rejects every waiter and poisons later writes on wrong batch cardinality', async () => {
+    const { persistence, waves } = fixture({
+      writeBlobs: vi.fn(async () => ['only-one-oid']),
+    });
+
+    const admitted = await Promise.allSettled([
+      waves.writeBlob(Uint8Array.of(1)),
+      waves.writeBlob(Uint8Array.of(2)),
+    ]);
+    const later = await waves.writeBlob(Uint8Array.of(3)).catch((error) => error);
+
+    expect(admitted.map((result) => result.status)).toEqual(['rejected', 'rejected']);
+    expect(admitted[0].reason).toBe(admitted[1].reason);
+    expect(admitted[0].reason).toMatchObject({
+      code: 'GIT_ERROR',
+      meta: { expected: 2, actual: 1 },
+    });
+    expect(later).toBe(admitted[0].reason);
     expect(persistence.writeBlobs).toHaveBeenCalledOnce();
   });
 });

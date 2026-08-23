@@ -63,4 +63,25 @@ describe('StagingWorkspace bundle batches', () => {
     expect(updateRef).toHaveBeenCalledOnce();
     expect(resolveHandle).not.toHaveBeenCalled();
   });
+
+  it('returns no retained subset when the exact generation cannot install', async () => {
+    const { ref, registry } = fixture();
+    vi.spyOn(ref, 'updateRef').mockRejectedValueOnce(new Error('simulated ref failure'));
+    const workspace = await registry.open({
+      namespace: 'git-warp/materializations',
+      ttlMs: 60_000,
+    });
+
+    await expect(
+      workspace.bundles.putOrderedBatch({
+        bundles: [
+          { members: [['root', Buffer.from('first')]] },
+          { members: [['root', Buffer.from('second')]] },
+        ],
+      })
+    ).rejects.toMatchObject({
+      code: 'WORKSPACE_RETENTION_FAILED',
+      meta: { method: 'putOrderedBatch', stagedCount: 2 },
+    });
+  });
 });

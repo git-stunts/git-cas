@@ -31,7 +31,12 @@ function fixture() {
 
 function requests() {
   return [
-    { members: [['a', Buffer.from('a')], ['b', Buffer.from('b')]] },
+    {
+      members: [
+        ['a', Buffer.from('a')],
+        ['b', Buffer.from('b')],
+      ],
+    },
     {
       members: Array.from({ length: 17 }, (_, index) => [
         `member-${String(index).padStart(2, '0')}`,
@@ -65,9 +70,7 @@ describe('BundleService ordered batches', () => {
     expect(batch.map((staged) => staged.handle.toString())).toEqual(
       singles.map((staged) => staged.handle.toString())
     );
-    expect(batch.map((staged) => staged.bundle)).toEqual(
-      singles.map((staged) => staged.bundle)
-    );
+    expect(batch.map((staged) => staged.bundle)).toEqual(singles.map((staged) => staged.bundle));
     expect(writeBlobs).toHaveBeenCalledTimes(2);
     expect(writeBlobs.mock.calls[0][0]).toHaveLength(19);
     expect(writeTrees.mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -99,11 +102,13 @@ describe('BundleService ordered batch admission', () => {
     const writeBlob = vi.spyOn(persistence, 'writeBlob');
     const writeTree = vi.spyOn(persistence, 'writeTree');
 
-    await expect(bundles.putOrderedBatch({
-      bundles: requests(),
-      ...BATCH_LIMITS,
-      maxBatchMembers: 10,
-    })).rejects.toMatchObject({ code: 'BUNDLE_MEMBER_LIMIT' });
+    await expect(
+      bundles.putOrderedBatch({
+        bundles: requests(),
+        ...BATCH_LIMITS,
+        maxBatchMembers: 10,
+      })
+    ).rejects.toMatchObject({ code: 'BUNDLE_MEMBER_LIMIT' });
 
     expect(writeBlob).not.toHaveBeenCalled();
     expect(writeTree).not.toHaveBeenCalled();
@@ -112,12 +117,40 @@ describe('BundleService ordered batch admission', () => {
   it('requires an explicitly bounded array of bundle requests', async () => {
     const { bundles } = fixture();
 
-    await expect(bundles.putOrderedBatch({
-      bundles: requests(),
-      ...BATCH_LIMITS,
-      maxBatchBundles: 2,
-    })).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
-    await expect(bundles.putOrderedBatch({ bundles: new Set(), ...BATCH_LIMITS }))
-      .rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+    await expect(
+      bundles.putOrderedBatch({
+        bundles: requests(),
+        ...BATCH_LIMITS,
+        maxBatchBundles: 2,
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+    await expect(
+      bundles.putOrderedBatch({ bundles: new Set(), ...BATCH_LIMITS })
+    ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+  });
+});
+
+describe('BundleService ordered batch failure containment', () => {
+  it('rejects the whole result with bounded staging evidence after a tree-wave failure', async () => {
+    const { bundles, persistence } = fixture();
+    const protocolFailure = new Error('tree wave failed');
+    vi.spyOn(persistence, 'writeTrees').mockRejectedValueOnce(protocolFailure);
+
+    const failure = await bundles
+      .putOrderedBatch({
+        bundles: requests(),
+        ...BATCH_LIMITS,
+      })
+      .catch((error) => error);
+
+    expect(failure).toBe(protocolFailure);
+    expect(failure.meta.staging).toMatchObject({
+      objectCount: expect.any(Number),
+      stagedHandleCount: 19,
+      objectSample: expect.any(Array),
+      stagedHandleSample: expect.any(Array),
+      sampleTruncated: true,
+    });
+    expect(failure.meta.staging.objectCount).toBeGreaterThan(19);
   });
 });

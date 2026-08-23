@@ -44,7 +44,7 @@ export default class AssetService {
     const batch = AssetService.#batchOptions(options);
     return await withWriteScope(
       this.#cas.persistence,
-      async (persistence) => await this.#putBatch(batch, persistence),
+      async (persistence) => await this.#putBatch(batch, persistence)
     );
   }
 
@@ -56,25 +56,32 @@ export default class AssetService {
     });
     const cas = forkCasPersistence(this.#cas, persistence);
     const manifests = new Array(batch.assets.length);
-    const state = { next: 0, error: null };
+    const state = { next: 0, error: null, errorIndex: null };
     const workers = Array.from(
       { length: Math.min(batch.maxBatchAssets, batch.assets.length) },
-      () => this.#storeBatchWorker({ batch, cas, manifests, state }),
+      () => this.#storeBatchWorker({ batch, cas, manifests, state })
     );
     await Promise.allSettled(workers);
     if (state.error !== null) {
-      throw AssetService.#batchFailure(state.error, persistence, 0);
+      throw AssetService.#batchFailure(state.error, persistence, {
+        stagedAssetCount: 0,
+        batchIndex: state.errorIndex,
+      });
     }
     let oids;
     try {
-      oids = await cas.createTrees(manifests.map((manifest, index) => ({
-        manifest,
-        merkleThreshold: batch.assets[index]?.merkleThreshold,
-      })));
+      oids = await cas.createTrees(
+        manifests.map((manifest, index) => ({
+          manifest,
+          merkleThreshold: batch.assets[index]?.merkleThreshold,
+        }))
+      );
     } catch (error) {
-      throw AssetService.#batchFailure(error, persistence, 0);
+      throw AssetService.#batchFailure(error, persistence, { stagedAssetCount: 0 });
     }
-    const results = manifests.map((manifest, index) => this.#staged({ manifest, oid: oids[index] }));
+    const results = manifests.map((manifest, index) =>
+      this.#staged({ manifest, oid: oids[index] })
+    );
     return Object.freeze(results);
   }
 
@@ -95,16 +102,23 @@ export default class AssetService {
       }
       state.next += 1;
       try {
-        manifests[index] = await this.#storeWith(cas, batch.assets[index]);
+        manifests[index] = await this.#storeWith(cas, batch.assets[index], state);
       } catch (error) {
-        state.error ??= error;
+        if (state.error === null) {
+          state.error = error;
+          state.errorIndex = index;
+        }
       }
     }
   }
 
-  async #storeWith(cas, options) {
+  async #storeWith(cas, options, batchState = null) {
     const filename = options?.filename ?? options?.slug;
-    return await cas.store({ ...options, filename });
+    const source =
+      batchState !== null && options?.source?.[Symbol.asyncIterator]
+        ? cancelAfterBatchFailure(options.source, batchState)
+        : options?.source;
+    return await cas.store({ ...options, source, filename });
   }
 
   /**
@@ -240,13 +254,15 @@ export default class AssetService {
   }
 
   #staged({ manifest, oid }) {
-    return recordStagedTarget(new StagedAsset({
-      handle: new AssetHandle({ codec: this.#cas.codec.extension, oid }),
-      slug: manifest.slug,
-      filename: manifest.filename,
-      size: manifest.size,
-      observedAt: this.#observedAt(),
-    }));
+    return recordStagedTarget(
+      new StagedAsset({
+        handle: new AssetHandle({ codec: this.#cas.codec.extension, oid }),
+        slug: manifest.slug,
+        filename: manifest.filename,
+        size: manifest.size,
+        observedAt: this.#observedAt(),
+      })
+    );
   }
 
   #observedAt() {
@@ -300,20 +316,62 @@ export default class AssetService {
       throw createCasError(
         `Asset batch ${label} limit is outside its supported range`,
         ErrorCodes.INVALID_OPTIONS,
-        { label, value, maximum },
+        { label, value, maximum }
       );
     }
   }
 
-  static #batchFailure(error, persistence, stagedAssetCount) {
-    error.meta = {
-      ...error.meta,
+  static #batchFailure(error, persistence, { stagedAssetCount, batchIndex = null }) {
+    const failure =
+      error && typeof error === 'object'
+        ? error
+        : createCasError(String(error), ErrorCodes.GIT_ERROR, { originalError: error });
+    failure.meta = {
+      ...failure.meta,
+      ...(batchIndex === null ? {} : { batchIndex }),
       staging: {
         ...persistence.snapshot(),
         stagedAssetCount,
       },
     };
-    return error;
+    return failure;
+  }
+}
+
+function cancelAfterBatchFailure(source, state) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      const iterator = source[Symbol.asyncIterator]();
+      let complete = false;
+      try {
+        while (state.error === null) {
+          const next = await iterator.next();
+          if (next.done) {
+            complete = true;
+            return;
+          }
+          if (state.error !== null) {
+            return;
+          }
+          yield next.value;
+        }
+      } finally {
+        if (!complete) {
+          await closeAsyncIterator(iterator);
+        }
+      }
+    },
+  };
+}
+
+async function closeAsyncIterator(iterator) {
+  if (typeof iterator.return !== 'function') {
+    return;
+  }
+  try {
+    await iterator.return();
+  } catch {
+    // Preserve the first batch failure; iterator cleanup is best effort.
   }
 }
 
