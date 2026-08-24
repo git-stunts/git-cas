@@ -405,31 +405,31 @@ Named mutation calibration:
 
 ## Tests To Write First
 
-- [ ] Asset, page, and bundle waves share the supplied persistence scope and
+- [x] Asset, page, and bundle waves share the supplied persistence scope and
       preserve invocation order.
-- [ ] The selector retains one terminal staged handle and deduplicates repeated
+- [x] The selector retains one terminal staged handle and deduplicates repeated
       canonical inputs.
-- [ ] Non-function, non-array, promise, empty, oversized, malformed, lookalike,
+- [x] Non-function, non-array, promise, empty, oversized, malformed, lookalike,
       and unstaged selector results fail before ref movement.
-- [ ] Prior retained workspace targets survive exact new-root selection.
-- [ ] Asset failure poisons queued dependent work and emits no generation.
-- [ ] Public TypeScript declarations accept the new method and selector.
-- [ ] SHA-1 and SHA-256 immediate-prune tests prove terminal transitive reachability
+- [x] Prior retained workspace targets survive exact new-root selection.
+- [x] Asset failure poisons queued dependent work and emits no generation.
+- [x] Public TypeScript declarations accept the new method and selector.
+- [x] SHA-1 and SHA-256 immediate-prune tests prove terminal transitive reachability
       with only selected direct roots.
 
 ## Acceptance Criteria
 
 The work is done when:
 
-- [ ] One bounded asset/page/bundle graph produces one exact workspace
+- [x] One bounded asset/page/bundle graph produces one exact workspace
       generation.
-- [ ] Existing asset limits, ordered handles, and errors are preserved.
-- [ ] Selector validation proves canonical exact staged membership and stable
+- [x] Existing asset limits, ordered handles, and errors are preserved.
+- [x] Selector validation proves canonical exact staged membership and stable
       deduplication.
-- [ ] Failure and lifecycle tests prove no partial admitted result.
-- [ ] Real Git proves byte-identical handles and transitive prune safety in
+- [x] Failure and lifecycle tests prove no partial admitted result.
+- [x] Real Git proves byte-identical handles and transitive prune safety in
       SHA-1 and SHA-256 repositories.
-- [ ] Existing v6.5.9 calls and all persisted repositories remain compatible
+- [x] Existing v6.5.9 calls and all persisted repositories remain compatible
       without migration.
 - [ ] Public docs, architecture, changelog, issue, PR, CI, and local validation
       are complete.
@@ -496,8 +496,18 @@ When this lands, it does not prove:
 
 ## Retrospective
 
-Fill this in after implementation.
+Implementation PR:
 
-PR:
+- [#128 - Complete compound workspace asset admission](https://github.com/git-stunts/git-cas/pull/128)
 
-- pending
+The implementation checkpoint is
+`e663754bf221784f0e5856a41fe071bebfa5befb`. Its complete release method passed
+14/14 stages with 7,186 observed tests. Self-audit found and closed one
+boundedness hole before review: selector input count is now capped by the exact
+staged-artifact count, preventing duplicate input scanning from exceeding the
+admission's own evidence ledger.
+
+The controlled git-warp prototype reduced cold Git commands from 139 to 50 and
+incremental commands from 149 to 60 with equal semantic fingerprints and replay
+counts. That result remains provisional until it is repeated against the
+public v6.5.10 registry artifact.
