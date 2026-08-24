@@ -7,7 +7,7 @@ release_home: 'v6.5.10'
 issue: 'https://github.com/git-stunts/git-cas/issues/127'
 goalpost_issue: 'https://github.com/git-stunts/git-cas/issues/127'
 tracker_source: 'github'
-status: 'active'
+status: 'landed'
 base_commit: '6d5a43e2853f61b3c12d5000e81ef7832c00b8d2'
 owners:
   - '@git-stunts'
@@ -431,7 +431,7 @@ The work is done when:
       SHA-1 and SHA-256 repositories.
 - [x] Existing v6.5.9 calls and all persisted repositories remain compatible
       without migration.
-- [ ] Public docs, architecture, changelog, issue, PR, CI, and local validation
+- [x] Public docs, architecture, changelog, issue, PR, CI, and local validation
       are complete.
 - [ ] v6.5.10 is publicly installable before downstream results are claimed as
       release behavior.

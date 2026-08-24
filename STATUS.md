@@ -1,8 +1,8 @@
 # STATUS
 
 **Last tagged release:** `v6.5.9` (`2026-08-24`)
-**Current release state:** `v6.5.9` is published to npm and GitHub Releases.
-**Latest verification:** reviewed release merge `a16e31a9` passed 14/14 release-verifier stages with 7,147 observed tests; signed tag `v6.5.9` peels to that merge, and release workflow `32766297971` published the matching npm artifact plus final GitHub Release.
+**Current release state:** `v6.5.10` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
+**Latest verification:** exact implementation checkpoint `e663754b` passed 14/14 release-verifier stages with 7,186 observed tests; exact versioned-candidate verification remains pending.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,6 +18,19 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
+- **v6.5.10 candidate posture** — implementation PR
+  [#128](https://github.com/git-stunts/git-cas/pull/128) merged normally as
+  `57cd3002`; its exact reviewed head is `67147506`, and exact implementation
+  checkpoint `e663754b` passed all 14 release-verifier stages with 7,186
+  observed tests. npm, JSR, and runtime metadata identify `6.5.10`, while the
+  signed tag and registry artifact remain deliberately absent pending release
+  review. The additive contract admits bounded asset waves into the compound
+  scope and can retain exact selected terminal roots without changing stored
+  formats, handles, refs, or readers. The controlled git-warp prototype cut
+  cold Git commands from 139 to 50 and incremental commands from 149 to 60;
+  those downstream numbers remain provisional until repeated against the
+  public registry artifact. No application or stored-data migration is
+  required.
 - **v6.5.9 artifact posture** — implementation PR
   [#124](https://github.com/git-stunts/git-cas/pull/124) and release PR
   [#125](https://github.com/git-stunts/git-cas/pull/125) merged normally.
@@ -193,8 +206,6 @@
   under
   [`v6.6.0`](https://github.com/git-stunts/git-cas/milestone/9).
 - The latest landed design record is
-  [0060-compound-workspace-admission](./docs/design/0060-compound-workspace-admission/compound-workspace-admission.md).
-- The active design record is
   [0061-compound-workspace-assets](./docs/design/0061-compound-workspace-assets/compound-workspace-assets.md).
 
 ## Read Next

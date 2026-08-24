@@ -14,7 +14,7 @@ timeline
 
 ## Current State
 
-`v6.5.9` shipped on `2026-08-24`.
+`v6.5.9` shipped on `2026-08-24`, and `v6.5.10` is under release review.
 Application asset, bundle, page, cache,
 expiry, witness, and repository-diagnostics APIs sit above mutable root sets
 and the low-level CAS pipeline. Direct bundle-reference reads and bounded
@@ -100,6 +100,14 @@ What exists now:
   generation retains their union. A 33-operation witness reduced 200 Git
   children to 23 and 33 retained generations to one in both SHA-1 and SHA-256
   repositories without changing any application handle.
+- **Compound workspace assets and exact roots.** The v6.5.10 candidate adds
+  bounded asset waves to the same compound persistence scope and optionally
+  retains a canonical, nonempty, deduplicated selection of handles staged by
+  that exact admission. Prior workspace roots and v6.5.9 retain-all behavior
+  remain intact. A controlled downstream git-warp prototype reduced cold Git
+  commands from 139 to 50 and incremental commands from 149 to 60; those
+  consumer numbers remain provisional until repeated against the public
+  registry artifact.
 - **Batched workspace page retention.** v6.5.4 adds
   `workspace.pages.putBatch()` so one bounded ordered page group is written and
   retained under one exact workspace generation instead of rewriting a growing
@@ -170,19 +178,16 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With v6.5.9 shipped, active work is tracked in GitHub Issues and Milestones.
-Repo docs hold design and evidence records, not the active queue. The immediate
-v6.5.10 goalpost completes compound admission with bounded asset waves and
-exact newly staged terminal-root selection:
+With v6.5.9 shipped and the v6.5.10 candidate under release review, active work
+is tracked in GitHub Issues and Milestones. Repo docs hold design and evidence
+records, not the active queue. The candidate design is:
 
 - [#127](https://github.com/git-stunts/git-cas/issues/127)
 - [0061-compound-workspace-assets](./docs/design/0061-compound-workspace-assets/compound-workspace-assets.md)
 
-The completed release design is
-[0060-compound-workspace-admission](./docs/design/0060-compound-workspace-admission/compound-workspace-admission.md).
-Its completed release goalpost is
-[#123](https://github.com/git-stunts/git-cas/issues/123) in the
-[`v6.5.9` milestone](https://github.com/git-stunts/git-cas/milestone/19).
+Its release evidence remains owned by
+[#127](https://github.com/git-stunts/git-cas/issues/127) under the
+[`v6.5.10` milestone](https://github.com/git-stunts/git-cas/milestone/20).
 
 The broader horizon remains:
 

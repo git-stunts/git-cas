@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.5.10] — 2026-08-24
+
 ### Added
 
 - **Compound asset admission and exact terminal roots** -

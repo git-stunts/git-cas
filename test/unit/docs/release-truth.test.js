@@ -373,6 +373,26 @@ describe('compound workspace-admission release documentation', () => {
   });
 });
 
+describe('compound workspace-asset release documentation', () => {
+  it('ships and links the v6.5.10 migration-free exact-root contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.5.10.md');
+
+    expect(readme).toContain('[v6.5.10 Release Notes](./docs/releases/v6.5.10.md)');
+    expect(upgrading).toContain('## v6.5.9 To v6.5.10');
+    expect(upgrading).toMatch(/requires no application or stored-data\s+migration/);
+    expect(releaseNotes).toContain('# git-cas v6.5.10 Release Notes');
+    expect(releaseNotes).toMatch(/139 to\s+50/);
+    expect(releaseNotes).toMatch(/149 to\s+60/);
+    expect(releaseNotes).toMatch(/exact selected terminal roots/);
+    expect(releaseNotes).toMatch(/requires no application or stored-data migration/);
+    expect(releaseNotes).toMatch(
+      /no stored object, handle, descriptor, ref layout, or reader change/
+    );
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');
