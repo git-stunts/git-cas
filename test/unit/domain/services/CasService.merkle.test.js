@@ -520,6 +520,19 @@ describe('CasService Merkle – merkleThreshold validation', () => {
   it('rejects non-integer merkleThreshold', () => {
     expect(() => setup(1.5)).toThrow(/merkleThreshold must be an integer in/i);
   });
+
+  it('rejects an invalid per-request threshold in createTrees', async () => {
+    const { service } = setup();
+    const manifest = new Manifest({
+      slug: 'invalid-batch-threshold',
+      filename: 'invalid.bin',
+      size: 0,
+      chunks: [],
+    });
+
+    await expect(service.createTrees([{ manifest, merkleThreshold: 1.5 }]))
+      .rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+  });
 });
 
 // ---------------------------------------------------------------------------

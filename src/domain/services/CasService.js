@@ -375,7 +375,16 @@ export default class CasService {
     });
   }
 
-  async createTrees(requests) { return await this.#manifestRepository.createTrees(requests); }
+  async createTrees(requests) {
+    const validated = requests.map(({ manifest, merkleThreshold }) => {
+      CasService.#validateMerkleThreshold(merkleThreshold);
+      return {
+        manifest,
+        merkleThreshold: merkleThreshold ?? this.#merkleThresholdByManifest.get(manifest),
+      };
+    });
+    return await this.#manifestRepository.createTrees(validated);
+  }
   async restore({ manifest, encryptionKey, passphrase }) {
     const chunks = [];
     for await (const chunk of this.restoreStream({ manifest, encryptionKey, passphrase })) {

@@ -222,6 +222,10 @@ export default class CasService {
 
   createTree(options: { manifest: Manifest; merkleThreshold?: number }): Promise<string>;
 
+  createTrees(
+    requests: Array<{ manifest: Manifest; merkleThreshold?: number }>,
+  ): Promise<string[]>;
+
   restore(options: {
     manifest: Manifest;
     encryptionKey?: Uint8Array;

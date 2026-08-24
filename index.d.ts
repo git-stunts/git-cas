@@ -1859,6 +1859,10 @@ export default class ContentAddressableStore {
 
   createTree(options: { manifest: Manifest; merkleThreshold?: number }): Promise<string>;
 
+  createTrees(
+    requests: Array<{ manifest: Manifest; merkleThreshold?: number }>,
+  ): Promise<string[]>;
+
   verifyIntegrity(manifest: Manifest, options?: VerifyIntegrityOptions): Promise<boolean>;
 
   readManifest(options: { treeOid: string }): Promise<Manifest>;
