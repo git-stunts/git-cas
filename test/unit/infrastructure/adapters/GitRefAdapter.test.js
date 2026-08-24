@@ -214,6 +214,7 @@ describe('GitRefAdapter typed update-ref failure', () => {
     await expect(adapter.updateRef({ ref, newOid: 'b'.repeat(40), expectedOldOid }))
       .rejects.toBe(rootCause);
     expect(failed.update).toHaveBeenCalledOnce();
+    expect(failed.close).toHaveBeenCalledOnce();
     expect(replacement.update).not.toHaveBeenCalled();
     await adapter.updateRef({ ref, newOid: 'c'.repeat(40), expectedOldOid });
     expect(plumbing.openUpdateRefSession).toHaveBeenCalledTimes(2);

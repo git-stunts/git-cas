@@ -58,8 +58,10 @@ export default class GitUpdateRefSessionPool {
       const opening = this.#opening;
       this.#opening = null;
       if (opening !== null) {
-        const session = await opening;
-        await session.close();
+        const session = await opening.catch(() => null);
+        if (session !== null) {
+          await session.close();
+        }
       }
     })();
     return await this.#closePromise;
@@ -73,6 +75,7 @@ export default class GitUpdateRefSessionPool {
     const session = await opening.catch(() => undefined);
     if (session === expectedSession && this.#opening === opening) {
       this.#opening = null;
+      await releaseDiscardedSession(session);
     }
   }
 
@@ -94,5 +97,19 @@ export default class GitUpdateRefSessionPool {
     if (this.#closed) {
       throw createCasError('Git ref session pool is closed', ErrorCodes.RESOURCE_CLOSED);
     }
+  }
+}
+
+async function releaseDiscardedSession(session) {
+  try {
+    if (typeof session.terminate === 'function') {
+      await session.terminate();
+    } else if (typeof session.abort === 'function') {
+      await session.abort();
+    } else if (typeof session.close === 'function') {
+      await session.close();
+    }
+  } catch {
+    // Preserve the mutation failure that caused this best-effort teardown.
   }
 }
