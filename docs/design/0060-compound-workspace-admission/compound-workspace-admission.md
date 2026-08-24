@@ -301,8 +301,9 @@ count, command/session topology, and closure state are the hard gates.
 - redaction behavior: benchmark artifacts contain counts, versions, OIDs, and
   digests but no payloads or machine-local paths;
 - log/report behavior: failures report counts and operation names, not content;
-- abuse or replay concern: hostile callbacks are structurally call-bounded,
-  and an escaped scope is closed before caller-visible settlement.
+- abuse or replay concern: scope calls are structurally bounded, and an escaped
+  scope is closed before caller-visible settlement; callback time, CPU, memory,
+  and side effects remain caller-controlled.
 
 ## Lower Modes
 
