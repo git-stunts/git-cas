@@ -356,6 +356,23 @@ describe('bounded application-write release documentation', () => {
   });
 });
 
+describe('compound workspace-admission release documentation', () => {
+  it('ships and links the v6.5.9 migration-free compound contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.5.9.md');
+
+    expect(readme).toContain('[v6.5.9 Release Notes](./docs/releases/v6.5.9.md)');
+    expect(upgrading).toContain('## v6.5.8 To v6.5.9');
+    expect(upgrading).toMatch(/requires no application or stored-data\s+migration/);
+    expect(releaseNotes).toContain('# git-cas v6.5.9 Release Notes');
+    expect(releaseNotes).toContain('200 to 23 Git children');
+    expect(releaseNotes).toMatch(/33 retained generations\s+to one/);
+    expect(releaseNotes).toMatch(/requires no application or stored-data migration/);
+    expect(releaseNotes).toMatch(/no new object format,\s+descriptor version, ref namespace/);
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');

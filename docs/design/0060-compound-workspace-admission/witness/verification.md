@@ -48,9 +48,9 @@ workspace generation.
 | Object format | Mode     | Git children | Git interactions | Wall ms | Worker CPU ms |
 | ------------- | -------- | -----------: | ---------------: | ------: | ------------: |
 | SHA-1         | per-wave |          200 |              380 | 3763.82 |       370.336 |
-| SHA-1         | compound |           23 |              238 |  733.116 |       113.672 |
+| SHA-1         | compound |           23 |              238 | 733.116 |       113.672 |
 | SHA-256       | per-wave |          200 |              380 | 3709.93 |       373.898 |
-| SHA-256       | compound |           23 |              238 |  726.976 |       114.407 |
+| SHA-256       | compound |           23 |              238 | 726.976 |       114.407 |
 
 | Object format | Process reduction | Interaction reduction | Wall reduction | Worker CPU reduction |
 | ------------- | ----------------: | --------------------: | -------------: | -------------------: |
@@ -69,15 +69,15 @@ that the batching change did not change page or bundle identity.
 
 Both object formats produced the same process topology:
 
-| Process/session       | Per-wave | Compound |
-| --------------------- | -------: | -------: |
-| `fast-import`         |       33 |        1 |
-| `hash-object`         |       66 |        0 |
-| `cat-file`            |        1 |        1 |
-| `mktree`              |       33 |       18 |
-| `commit-tree`         |       33 |        1 |
-| `symbolic-ref`        |       33 |        1 |
-| `update-ref --stdin`  |        1 |        1 |
+| Process/session      | Per-wave | Compound |
+| -------------------- | -------: | -------: |
+| `fast-import`        |       33 |        1 |
+| `hash-object`        |       66 |        0 |
+| `cat-file`           |        1 |        1 |
+| `mktree`             |       33 |       18 |
+| `commit-tree`        |       33 |        1 |
+| `symbolic-ref`       |       33 |        1 |
+| `update-ref --stdin` |        1 |        1 |
 
 The single update-ref session performs 33 checked updates in per-wave mode and
 one checked update in compound mode. Compound admission also keeps one scoped
@@ -116,3 +116,13 @@ This change is additive and migration-free. It changes neither application
 handles nor stored object bytes, descriptor schemas, ref namespaces, existing
 workspace methods, or read paths. Existing repositories and active v6.5.8
 workspace refs remain readable without rewriting or cutover.
+
+## Review and Release Boundary
+
+Implementation PR [#124](https://github.com/git-stunts/git-cas/pull/124)
+merged normally as `eb8d617620fa8f401fb887f5b1bbc341d4746b0a`. Its exact
+reviewed head `29ba6e88c787a5e54c95a554e9166fd21aae31c0` passed the full
+14-stage release verifier with 7,141 observed tests. The versioned v6.5.9
+candidate, reviewed merge, signed tag, registry artifact, and GitHub Release
+remain separate gates recorded by the
+[release-candidate witness](./release-candidate.md).

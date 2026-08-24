@@ -46,6 +46,7 @@ GitHub wins and this file should be corrected.
 | [`v6.5.6`](https://github.com/git-stunts/git-cas/milestone/16) | Bijou 7 framed cockpit and deterministic ref conflicts      | [#105](https://github.com/git-stunts/git-cas/issues/105), [#106](https://github.com/git-stunts/git-cas/issues/106), [#111](https://github.com/git-stunts/git-cas/issues/111)                                                   |
 | [`v6.5.7`](https://github.com/git-stunts/git-cas/milestone/17) | Bounded session-backed small payload stream reads           | [#115](https://github.com/git-stunts/git-cas/issues/115)                                                                                                                                                                       |
 | [`v6.5.8`](https://github.com/git-stunts/git-cas/milestone/18) | Bounded application write and retention waves               | [#119](https://github.com/git-stunts/git-cas/issues/119)                                                                                                                                                                       |
+| [`v6.5.9`](https://github.com/git-stunts/git-cas/milestone/19) | Compound staging-workspace admission                        | [#123](https://github.com/git-stunts/git-cas/issues/123)                                                                                                                                                                       |
 | [`v6.6.0`](https://github.com/git-stunts/git-cas/milestone/9)  | Operator TUI and agent automation follow-through            | [#39](https://github.com/git-stunts/git-cas/issues/39), [#40](https://github.com/git-stunts/git-cas/issues/40)                                                                                                                 |
 | [`v6.7.0`](https://github.com/git-stunts/git-cas/milestone/10) | Browser and edge read-path exploration                      | [#41](https://github.com/git-stunts/git-cas/issues/41)                                                                                                                                                                         |
 | [`v7.0.0`](https://github.com/git-stunts/git-cas/milestone/6)  | Protocol break only if audit requires it                    | [#42](https://github.com/git-stunts/git-cas/issues/42), only when justified                                                                                                                                                    |
@@ -54,10 +55,10 @@ GitHub wins and this file should be corrected.
 
 The latest landed design record is:
 
-- [0059-bounded-write-waves](./docs/design/0059-bounded-write-waves/bounded-write-waves.md)
+- [0060-compound-workspace-admission](./docs/design/0060-compound-workspace-admission/compound-workspace-admission.md)
 
 Its GitHub goalpost issue,
-[#119](https://github.com/git-stunts/git-cas/issues/119), owns the release
+[#123](https://github.com/git-stunts/git-cas/issues/123), owns the release
 evidence. The design doc is the durable contract; GitHub records completion.
 
 The `v6.2.0` slice record is:
