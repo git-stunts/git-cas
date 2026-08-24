@@ -259,7 +259,9 @@ export default class ManifestRepository {
     if (contents.length === 0) {
       return [];
     }
-    const oids = await this.#persistence.writeBlobs(contents);
+    const oids = typeof this.#persistence.writeBlobs === 'function'
+      ? await this.#persistence.writeBlobs(contents)
+      : await writeIndividually(contents, (content) => this.#persistence.writeBlob(content));
     ManifestRepository.#assertCardinality('blob', contents, oids);
     return oids;
   }
@@ -268,7 +270,9 @@ export default class ManifestRepository {
     if (trees.length === 0) {
       return [];
     }
-    const oids = await this.#persistence.writeTrees(trees);
+    const oids = typeof this.#persistence.writeTrees === 'function'
+      ? await this.#persistence.writeTrees(trees)
+      : await writeIndividually(trees, (entries) => this.#persistence.writeTree(entries));
     ManifestRepository.#assertCardinality('tree', trees, oids);
     return oids;
   }
@@ -406,4 +410,12 @@ export default class ManifestRepository {
       );
     }
   }
+}
+
+async function writeIndividually(values, write) {
+  const results = [];
+  for (const value of values) {
+    results.push(await write(value));
+  }
+  return results;
 }
