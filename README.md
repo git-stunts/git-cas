@@ -150,12 +150,12 @@ Core capabilities:
   read-only, and `sweep()` can release only markers whose expiry has passed.
 - **Application storage**: `assets`, `pages`, `bundles`, `retention`, and
   `publications` compose streaming CAS writes, bounded structured
-  materializations, explicitly bounded page batches, direct-reference or
-  complete-validation member reads, reachability roots, compare-and-swap refs,
-  and immutable lifecycle evidence.
+  materializations, explicitly bounded asset/page/bundle batches,
+  direct-reference or complete-validation member reads, reachability roots,
+  compare-and-swap refs, and immutable lifecycle evidence.
 - **Scoped staging workspaces**: `workspaces.open()` mirrors application writes
-  behind one renewable temporary RootSet, supports one-generation bounded page
-  batches, returns only after each handle is anchored, promotes
+  behind one renewable temporary RootSet, supports one-generation bounded
+  asset/page/bundle batches, returns only after each handle is anchored, promotes
   destination-first, and exposes bounded age, expiry, logical-content, and
   direct-root diagnostics with opaque cleanup pagination.
 - **Envelope recipients**: multi-recipient key wrapping and recipient rotation

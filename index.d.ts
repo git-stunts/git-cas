@@ -515,6 +515,7 @@ export declare class GitPersistencePortBase {
   writeBlob(content: Uint8Array): Promise<string>;
   writeBlobs?(contents: Iterable<Uint8Array>): Promise<string[]>;
   writeTree(entries: string[]): Promise<string>;
+  writeTrees?(trees: Iterable<string[]>): Promise<string[]>;
   readBlob(oid: string, maxBytes?: number): Promise<Uint8Array>;
   readBlobStream(oid: string): Promise<AsyncIterable<Uint8Array>>;
   readTree(
@@ -529,6 +530,12 @@ export declare class GitPersistencePortBase {
   ): AsyncIterable<{ mode: string; type: string; oid: string; name: string }>;
   readObjectType(oid: string): Promise<string>;
   readObjectSize(oid: string): Promise<number>;
+  readObjectInfos?(
+    oids: Iterable<string>
+  ): Promise<Array<{ oid: string; type: string; size: number }>>;
+  withWriteScope?<T>(
+    operation: (persistence: GitPersistencePortBase) => Promise<T>
+  ): Promise<T>;
   setMaxBlobSize?(maxBlobSize: number): void;
   close?(): Promise<void>;
   [Symbol.asyncDispose]?(): Promise<void>;
@@ -563,6 +570,8 @@ export declare class GitRefPortBase {
     after?: string | null;
     limit: number;
   }): AsyncIterable<{ ref: string; oid: string; symref: string | null }>;
+  close?(): Promise<void>;
+  [Symbol.asyncDispose]?(): Promise<void>;
 }
 
 /** Git-backed implementation of the persistence port. */
@@ -576,6 +585,13 @@ export declare class GitPersistenceAdapter extends GitPersistencePortBase {
     treeCacheBytes?: number;
   });
   writeBlobs(contents: Iterable<Uint8Array>): Promise<string[]>;
+  writeTrees(trees: Iterable<string[]>): Promise<string[]>;
+  readObjectInfos(
+    oids: Iterable<string>
+  ): Promise<Array<{ oid: string; type: string; size: number }>>;
+  withWriteScope<T>(
+    operation: (persistence: GitPersistencePortBase) => Promise<T>
+  ): Promise<T>;
   setMaxBlobSize(maxBlobSize: number): void;
   close(): Promise<void>;
   [Symbol.asyncDispose](): Promise<void>;
@@ -596,6 +612,8 @@ export declare class GitRefAdapter extends GitRefPortBase {
     after?: string | null;
     limit: number;
   }): AsyncIterable<{ ref: string; oid: string; symref: string | null }>;
+  close(): Promise<void>;
+  [Symbol.asyncDispose](): Promise<void>;
 }
 
 export type RepositoryObjectType = 'blob' | 'tree' | 'commit' | 'tag';
@@ -815,6 +833,10 @@ export declare class RootSet {
   replace(options: {
     entries: Iterable<RootSetEntry>;
     expectedHeadOid?: string | null;
+  }): Promise<RootSetMutationResult>;
+  replaceExact(options: {
+    entries: Iterable<RootSetEntry>;
+    expectedHeadOid: string | null;
   }): Promise<RootSetMutationResult>;
   mutate(
     mutator: (
@@ -1449,6 +1471,12 @@ export interface AssetPutOptions {
 
 export interface AssetCapability {
   put(options: AssetPutOptions): Promise<StagedAsset>;
+  putBatch(options: {
+    assets: AssetPutOptions[];
+    maxBatchAssets?: number;
+    maxBatchObjects?: number;
+    maxBatchBytes?: number;
+  }): Promise<ReadonlyArray<StagedAsset>>;
   adopt(options: { treeOid: string }): Promise<StagedAsset>;
   open(options: {
     handle: AssetHandleInput;
@@ -1504,6 +1532,18 @@ export interface BundleCapability {
       | AsyncIterable<[string, BundleMemberInput]>;
     limits?: Partial<BundleLimits>;
   }): Promise<StagedBundle>;
+  putOrderedBatch(options: {
+    bundles: Array<{
+      members:
+        | Iterable<[string, BundleMemberInput]>
+        | AsyncIterable<[string, BundleMemberInput]>;
+      limits?: Partial<BundleLimits>;
+    }>;
+    maxBatchBundles?: number;
+    maxBatchMembers?: number;
+    maxBatchObjects?: number;
+    maxBatchBytes?: number;
+  }): Promise<ReadonlyArray<StagedBundle>>;
   getMember(options: {
     handle: BundleHandleInput;
     path: string;
@@ -1633,6 +1673,9 @@ export declare class StagingWorkspace {
   readonly expiresAt: string | null;
   readonly assets: {
     put(options: AssetPutOptions): Promise<WorkspaceRetainedAsset>;
+    putBatch(
+      options: Parameters<AssetCapability['putBatch']>[0],
+    ): Promise<ReadonlyArray<WorkspaceRetainedAsset>>;
     adopt(options: { treeOid: string }): Promise<WorkspaceRetainedAsset>;
   };
   readonly pages: {
@@ -1644,6 +1687,9 @@ export declare class StagingWorkspace {
   readonly bundles: {
     put(options: Parameters<BundleCapability['put']>[0]): Promise<WorkspaceRetainedBundle>;
     putOrdered(options: Parameters<BundleCapability['putOrdered']>[0]): Promise<WorkspaceRetainedBundle>;
+    putOrderedBatch(
+      options: Parameters<BundleCapability['putOrderedBatch']>[0],
+    ): Promise<ReadonlyArray<WorkspaceRetainedBundle>>;
   };
   checkpoint(options: { handles: Iterable<ApplicationHandleInput> }): Promise<WorkspaceCheckpointResult>;
   renew(): Promise<WorkspaceCheckpointResult>;
@@ -1812,6 +1858,10 @@ export default class ContentAddressableStore {
   }): AsyncIterable<Uint8Array>;
 
   createTree(options: { manifest: Manifest; merkleThreshold?: number }): Promise<string>;
+
+  createTrees(
+    requests: Array<{ manifest: Manifest; merkleThreshold?: number }>,
+  ): Promise<string[]>;
 
   verifyIntegrity(manifest: Manifest, options?: VerifyIntegrityOptions): Promise<boolean>;
 

@@ -89,9 +89,38 @@ function hookPlumbing(plumbing, hook) {
           return value.call(target, options);
         };
       }
+      if (property === 'openUpdateRefSession') {
+        return async (...args) => hookUpdateRefSession(await value.call(target, ...args), hook);
+      }
       return value.bind(target);
     },
   });
+}
+
+function hookUpdateRefSession(session, hook) {
+  return new Proxy(session, {
+    get(target, property) {
+      const value = Reflect.get(target, property, target);
+      if (typeof value !== 'function') {
+        return value;
+      }
+      if (property === 'update') {
+        return (options) => {
+          hook({ args: sessionUpdateArgs(options) });
+          return value.call(target, options);
+        };
+      }
+      return value.bind(target);
+    },
+  });
+}
+
+function sessionUpdateArgs(options) {
+  const args = ['update-ref'];
+  if (options.noDeref) {
+    args.push('--no-deref');
+  }
+  return args;
 }
 
 function stripMutationDiagnostics(plumbing) {

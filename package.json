@@ -109,7 +109,7 @@
     "@flyingrobots/bijou-tui": "^7.2.0",
     "@flyingrobots/bijou-tui-app": "^7.2.0",
     "@git-stunts/alfred": "^0.10.0",
-    "@git-stunts/plumbing": "^3.2.0",
+    "@git-stunts/plumbing": "^3.3.0",
     "@git-stunts/vault": "^1.0.1",
     "cbor-x": "^1.6.0",
     "commander": "14.0.3",

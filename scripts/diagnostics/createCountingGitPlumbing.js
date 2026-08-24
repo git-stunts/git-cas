@@ -1,7 +1,18 @@
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 
+const SESSION_METHODS = Object.freeze({
+  'cat-file': 'openCatFileSession',
+  'fast-import': 'openFastImportSession',
+  mktree: 'openMktreeSession',
+  'update-ref': 'openUpdateRefSession',
+});
+
 export async function createCountingGitPlumbing({ cwd, sessions = false }) {
   const plumbing = await createGitPlumbing({ cwd });
+  return instrumentGitPlumbing({ plumbing, sessions });
+}
+
+export function instrumentGitPlumbing({ plumbing, sessions = false }) {
   const activeSessions = new Map();
   const counts = new Map();
   const sessionOperations = new Map();
@@ -20,27 +31,18 @@ export async function createCountingGitPlumbing({ cwd, sessions = false }) {
   };
 
   if (sessions) {
-    counted.openCatFileSession = sessionOpener({
-      plumbing,
-      record,
-      recordSessionOperation,
-      activeSessions,
-      protocol: 'cat-file',
-    });
-    counted.openMktreeSession = sessionOpener({
-      plumbing,
-      record,
-      recordSessionOperation,
-      activeSessions,
-      protocol: 'mktree',
-    });
-    counted.openFastImportSession = sessionOpener({
-      plumbing,
-      record,
-      recordSessionOperation,
-      activeSessions,
-      protocol: 'fast-import',
-    });
+    for (const [protocol, method] of Object.entries(SESSION_METHODS)) {
+      if (typeof plumbing[method] === 'function') {
+        counted[method] = sessionOpener({
+          plumbing,
+          record,
+          recordSessionOperation,
+          activeSessions,
+          protocol,
+          method,
+        });
+      }
+    }
   }
 
   return {
@@ -51,13 +53,7 @@ export async function createCountingGitPlumbing({ cwd, sessions = false }) {
   };
 }
 
-function sessionOpener({ plumbing, record, recordSessionOperation, activeSessions, protocol }) {
-  const method =
-    protocol === 'cat-file'
-      ? 'openCatFileSession'
-      : protocol === 'mktree'
-        ? 'openMktreeSession'
-        : 'openFastImportSession';
+function sessionOpener({ plumbing, record, recordSessionOperation, activeSessions, protocol, method }) {
   return async (...args) => {
     record(`session:${protocol}`);
     const session = await plumbing[method](...args);

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import GitPersistencePort from '../../../src/ports/GitPersistencePort.js';
 
 describe('GitPersistencePort – abstract methods', () => {
@@ -48,3 +48,82 @@ describe('GitPersistencePort – abstract methods', () => {
     await expect(port.readObjectSize('object-oid')).rejects.toThrow('Not implemented');
   });
 });
+
+describe('GitPersistencePort batch fallbacks', () => {
+  it('runs write scopes against the same custom persistence port by default', async () => {
+    const port = new GitPersistencePort();
+
+    await expect(port.withWriteScope(async (persistence) => persistence)).resolves.toBe(port);
+  });
+
+  it('writes trees sequentially in input order', async () => {
+    const calls = [];
+    const first = deferred();
+    const second = deferred();
+    const port = new GitPersistencePort();
+    port.writeTree = async (entries) => {
+      calls.push(entries);
+      return await (calls.length === 1 ? first.promise : second.promise);
+    };
+
+    const writing = port.writeTrees([['first'], ['second']]);
+    await vi.waitFor(() => expect(calls).toEqual([['first']]));
+    first.resolve('tree-1');
+    await vi.waitFor(() => expect(calls).toEqual([['first'], ['second']]));
+    second.resolve('tree-2');
+
+    await expect(writing).resolves.toEqual([
+      'tree-1',
+      'tree-2',
+    ]);
+    expect(calls).toEqual([['first'], ['second']]);
+  });
+});
+
+describe('GitPersistencePort metadata fallback', () => {
+  it('reads metadata sequentially in input order', async () => {
+    const port = new GitPersistencePort();
+    const gates = [deferred(), deferred(), deferred(), deferred()];
+    const calls = [];
+    port.readObjectType = async (oid) => {
+      calls.push(`type:${oid}`);
+      return await gates[calls.length - 1].promise;
+    };
+    port.readObjectSize = async (oid) => {
+      calls.push(`size:${oid}`);
+      return await gates[calls.length - 1].promise;
+    };
+
+    const reading = port.readObjectInfos(['tree-oid', 'blob-oid']);
+    await advance({ gate: gates[0], calls, expected: ['type:tree-oid'], value: 'tree' });
+    await advance({
+      gate: gates[1], calls, expected: ['type:tree-oid', 'size:tree-oid'], value: 8,
+    });
+    await advance({
+      gate: gates[2],
+      calls,
+      expected: ['type:tree-oid', 'size:tree-oid', 'type:blob-oid'],
+      value: 'blob',
+    });
+    await vi.waitFor(() => expect(calls).toEqual([
+      'type:tree-oid', 'size:tree-oid', 'type:blob-oid', 'size:blob-oid',
+    ]));
+    gates[3].resolve(8);
+
+    await expect(reading).resolves.toEqual([
+      { oid: 'tree-oid', type: 'tree', size: 8 },
+      { oid: 'blob-oid', type: 'blob', size: 8 },
+    ]);
+  });
+});
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+async function advance({ gate, calls, expected, value }) {
+  await vi.waitFor(() => expect(calls).toEqual(expected));
+  gate.resolve(value);
+}

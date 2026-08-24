@@ -99,6 +99,14 @@ export default class GitRefPort {
   iterateRefs(_options) {
     throw unsupportedAcquisitionCapability('iterateRefs');
   }
+
+  /** Releases adapter-owned local resources. */
+  async close() {}
+
+  /** @returns {Promise<void>} */
+  async [Symbol.asyncDispose]() {
+    await this.close();
+  }
 }
 
 function unsupportedAcquisitionCapability(capability) {

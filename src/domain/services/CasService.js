@@ -26,6 +26,7 @@ import RestoreFramed from '../strategies/RestoreFramed.js';
 import RestoreWhole from '../strategies/RestoreWhole.js';
 import RestoreStrategy from '../strategies/RestoreStrategy.js';
 import ManifestRepository from './ManifestRepository.js';
+import ManifestTreeService from './ManifestTreeService.js';
 import RecipientService from './RecipientService.js';
 import IntegrityVerifier from './IntegrityVerifier.js';
 import RestoreSuccess from '../outcomes/RestoreSuccess.js';
@@ -43,11 +44,10 @@ export default class CasService {
   #integrityVerifier;
   #keyResolver;
   #manifestRepository;
-  #merkleThresholdByManifest = new WeakMap();
+  #manifestTrees;
   #recipientService;
   #restoreStrategies;
   #storeStrategies;
-
   /**
    * @param {Object} options
    * @param {import('../../ports/GitPersistencePort.js').default} options.persistence
@@ -81,6 +81,7 @@ export default class CasService {
     this.chunker = chunker;
     this.compressionAdapter = compressionAdapter;
     this.formatVersion = formatVersion;
+    this.legacyMode = legacyMode;
     this.merkleThreshold = merkleThreshold;
     this.concurrency = concurrency;
     this.maxRestoreBufferSize = maxRestoreBufferSize;
@@ -106,6 +107,7 @@ export default class CasService {
     });
     this.#framed = new FramedRecordCodec({ crypto, observability: safeObservability });
     this.#manifestRepository = new ManifestRepository({ codec, crypto, legacyMode, merkleThreshold, persistence });
+    this.#manifestTrees = new ManifestTreeService({ repository: this.#manifestRepository });
     this.#storeStrategies = this.#buildStoreStrategies({ crypto });
     this.#restoreStrategies = this.#buildRestoreStrategies({ crypto, maxRestoreBufferSize });
     this.#recipientService = new RecipientService({ crypto, keyResolver: this.#keyResolver });
@@ -313,7 +315,7 @@ export default class CasService {
 
   #finalizeStore({ manifestData, merkleThreshold, keyInfo, slug }) {
     const manifest = new Manifest(manifestData);
-    this.#rememberMerkleThreshold(manifest, merkleThreshold);
+    this.#manifestTrees.remember(manifest, merkleThreshold);
     this.observability.metric('file', {
       action: 'stored',
       slug,
@@ -326,16 +328,6 @@ export default class CasService {
 
   _resolveStoreEncryptionConfigForChunker({ encryption, hasEncryptionKey, chunker }) {
     return StoreEncryptionConfig.resolve({ encryption, hasEncryptionKey, chunker, observability: this.observability });
-  }
-
-  /**
-   * @param {Manifest} manifest
-   * @param {number|undefined} merkleThreshold
-   */
-  #rememberMerkleThreshold(manifest, merkleThreshold) {
-    if (merkleThreshold !== undefined) {
-      this.#merkleThresholdByManifest.set(manifest, merkleThreshold);
-    }
   }
 
   async _dispatchStore({ processedSource, manifestData, keyInfo, encryptionConfig, chunker = this.chunker }) {
@@ -368,13 +360,12 @@ export default class CasService {
   }
 
   async createTree({ manifest, merkleThreshold }) {
-    CasService.#validateMerkleThreshold(merkleThreshold);
-    return await this.#manifestRepository.createTree({
-      manifest,
-      merkleThreshold: merkleThreshold ?? this.#merkleThresholdByManifest.get(manifest),
-    });
+    return await this.#manifestTrees.createTree({ manifest, merkleThreshold });
   }
 
+  async createTrees(requests) {
+    return await this.#manifestTrees.createTrees(requests);
+  }
   async restore({ manifest, encryptionKey, passphrase }) {
     const chunks = [];
     for await (const chunk of this.restoreStream({ manifest, encryptionKey, passphrase })) {

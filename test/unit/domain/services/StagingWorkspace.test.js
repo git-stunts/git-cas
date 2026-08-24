@@ -106,6 +106,19 @@ async function expectRetainedPageBatch({
 }
 
 describe('StagingWorkspace staging', () => {
+  it('installs a known generation without reading its old tree', async () => {
+    const fixture = makeFixture();
+    const readTree = vi.spyOn(fixture.persistence, 'readTree');
+    const workspace = await fixture.registry.open({
+      namespace: 'git-warp/materializations',
+      ttlMs: TTL_MS,
+    });
+
+    await workspace.pages.put({ source: Buffer.from('retained page') });
+
+    expect(readTree).not.toHaveBeenCalled();
+  });
+
   it('returns from page staging only after the exact workspace generation reaches it', async () => {
     const fixture = makeFixture();
     const workspace = await fixture.registry.open({

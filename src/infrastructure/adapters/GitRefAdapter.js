@@ -3,6 +3,7 @@ import GitRefPort from '../../ports/GitRefPort.js';
 import { CasError, ErrorCodes } from '../../domain/errors/index.js';
 import { isGitMissingRefError } from '../../domain/helpers/gitRefErrors.js';
 import Oid from '../../domain/value-objects/Oid.js';
+import GitUpdateRefSessionPool from './GitUpdateRefSessionPool.js';
 
 /**
  * Default resilience policy: 30 s timeout (no retry).
@@ -30,6 +31,9 @@ const REF_NAME_ENCODER = new globalThis.TextEncoder();
  * (30 s timeout by default).
  */
 export default class GitRefAdapter extends GitRefPort {
+  #closed = false;
+  #updateRefs;
+
   /**
    * @param {Object} options
    * @param {import('@git-stunts/plumbing').default} options.plumbing - GitPlumbing instance.
@@ -39,6 +43,7 @@ export default class GitRefAdapter extends GitRefPort {
     super();
     this.plumbing = plumbing;
     this.policy = policy ?? DEFAULT_POLICY;
+    this.#updateRefs = new GitUpdateRefSessionPool({ plumbing });
   }
 
   /**
@@ -47,6 +52,7 @@ export default class GitRefAdapter extends GitRefPort {
    * @returns {Promise<string>} The commit OID.
    */
   async resolveRef(ref) {
+    this.#assertOpen();
     try {
       return await this.policy.execute(() =>
         this.plumbing.execute({ args: ['rev-parse', ref] }),
@@ -68,6 +74,7 @@ export default class GitRefAdapter extends GitRefPort {
    * @returns {Promise<string>} The tree OID.
    */
   async resolveTree(commitOid) {
+    this.#assertOpen();
     return this.policy.execute(() =>
       this.plumbing.execute({ args: ['rev-parse', `${commitOid}^{tree}`] }),
     );
@@ -79,6 +86,7 @@ export default class GitRefAdapter extends GitRefPort {
    * @returns {Promise<string[]>} Direct parent OIDs.
    */
   async resolveParents(commitOid) {
+    this.#assertOpen();
     const line = await this.policy.execute(() =>
       this.plumbing.execute({ args: ['rev-list', '--parents', '-n', '1', commitOid] }),
     );
@@ -103,6 +111,7 @@ export default class GitRefAdapter extends GitRefPort {
    * @returns {Promise<string>} The new commit OID.
    */
   async createCommit({ treeOid, parentOid, parentOids, message }) {
+    this.#assertOpen();
     const args = ['commit-tree', treeOid, '-m', message];
     const parents = parentOids ?? (parentOid ? [parentOid] : []);
     for (const parent of parents) {
@@ -122,6 +131,7 @@ export default class GitRefAdapter extends GitRefPort {
    * @returns {Promise<void>}
    */
   async updateRef({ ref, newOid, expectedOldOid }) {
+    this.#assertOpen();
     assertRefName(ref);
     const symbolicTarget = await this.#resolveSymbolicRef(ref);
     if (symbolicTarget !== null) {
@@ -137,9 +147,14 @@ export default class GitRefAdapter extends GitRefPort {
       args.push(expectedOldOid ?? '0'.repeat(newOid.length));
     }
     try {
-      await this.policy.execute(() =>
-        this.plumbing.execute({ args }),
-      );
+      if (this.#updateRefs.supports()) {
+        await this.#updateRefs.update(
+          { ref, newOid, expectedOldOid, noDeref: true },
+          (operation) => this.policy.execute(operation),
+        );
+      } else {
+        await this.policy.execute(() => this.plumbing.execute({ args }));
+      }
     } catch (error) {
       const actual = await this.#inspectRefPosture(ref);
       if (postureDisprovesExpectedOid(actual, expectedOldOid)) {
@@ -156,6 +171,7 @@ export default class GitRefAdapter extends GitRefPort {
 
   /** @override */
   async anchorRef({ sourceRef, expectedSourceOid, targetRef }) {
+    this.#assertOpen();
     assertRefName(sourceRef);
     assertRefName(targetRef);
     const generation = Oid.from(expectedSourceOid).toString();
@@ -195,6 +211,7 @@ export default class GitRefAdapter extends GitRefPort {
 
   /** @override */
   async deleteRef({ ref, expectedOldOid }) {
+    this.#assertOpen();
     assertRefName(ref);
     const expectedGeneration = Oid.from(expectedOldOid).toString();
     // A post-probe type race may delete this managed symref name, never its
@@ -231,6 +248,7 @@ export default class GitRefAdapter extends GitRefPort {
 
   /** @override */
   async *iterateRefs({ prefix = 'refs/', after = null, limit } = {}) {
+    this.#assertOpen();
     assertRefPrefix(prefix);
     assertRefCursor(prefix, after);
     assertRefIterationLimit(limit);
@@ -244,6 +262,23 @@ export default class GitRefAdapter extends GitRefPort {
     const args = refInventoryArgs({ prefix, after, limit });
     const stream = await this.policy.execute(() => this.plumbing.executeStream({ args }));
     yield* paginatedRefRecords({ stream, prefix, after, limit });
+  }
+
+  /** @override */
+  async close() {
+    this.#closed = true;
+    await this.#updateRefs.close();
+  }
+
+  /** @override */
+  async [Symbol.asyncDispose]() {
+    await this.close();
+  }
+
+  #assertOpen() {
+    if (this.#closed) {
+      throw new CasError('Git ref adapter is closed', ErrorCodes.RESOURCE_CLOSED);
+    }
   }
 
   async #inspectDirectRef(ref) {

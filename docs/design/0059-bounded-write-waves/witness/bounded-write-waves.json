@@ -1,0 +1,261 @@
+{
+  "schema": "git-cas.bounded-write-waves/v1",
+  "generatedAt": "2026-08-23T21:53:29.743Z",
+  "environment": {
+    "node": "v26.0.0",
+    "git": "git version 2.50.1 (Apple Git-155)",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "gitCasCommit": "59c9d1a00ccb5be3de974c8c23c825cbe43ac666",
+    "gitCasDirty": false,
+    "plumbingSource": "workspace:@git-stunts/plumbing",
+    "plumbingCommit": "eee0dfd8d42ccd635b7027d2921b34ece8901455",
+    "plumbingDirty": false
+  },
+  "metricScope": {
+    "processCount": "Git child processes opened by the instrumented git-cas operation",
+    "protocolOperationCount": "typed operations invoked on persistent Git sessions",
+    "gitInteractionCount": "one-shot Git commands plus typed persistent-session calls",
+    "wallMs": "isolated worker elapsed time including Git children and session close",
+    "workerCpuMs": "Node worker CPU only; excludes Git subprocess CPU",
+    "workerPeakRssBytes": "Node worker peak RSS only; excludes Git subprocess RSS"
+  },
+  "parameters": {
+    "items": 16,
+    "samples": 5,
+    "assetConcurrency": 4,
+    "assetBytes": 2048,
+    "assetChunkBytes": 1024,
+    "bundleMembers": 3
+  },
+  "objectFormats": {
+    "sha1": {
+      "assetWrite": {
+        "individual": {
+          "sampleCount": 5,
+          "semanticDigest": "bb4a4204b9fc1e1639e03414682f5d87c36444f3ad9ae11148a0f59602e79f79",
+          "resultCount": 16,
+          "processCount": 49,
+          "protocolOperationCount": 16,
+          "gitInteractionCount": 64,
+          "counts": {
+            "hash-object": 48,
+            "session:mktree": 1
+          },
+          "protocolOperations": {
+            "mktree:write": 16
+          },
+          "wallMs": 997.094,
+          "workerCpuMs": 112.897,
+          "workerUserCpuMs": 81.739,
+          "workerSystemCpuMs": 31.158,
+          "workerPeakRssBytes": 81281024
+        },
+        "batch": {
+          "sampleCount": 5,
+          "semanticDigest": "bb4a4204b9fc1e1639e03414682f5d87c36444f3ad9ae11148a0f59602e79f79",
+          "resultCount": 16,
+          "processCount": 2,
+          "protocolOperationCount": 19,
+          "gitInteractionCount": 19,
+          "counts": {
+            "session:fast-import": 1,
+            "session:mktree": 1
+          },
+          "protocolOperations": {
+            "fast-import:writeBlobs": 9,
+            "fast-import:checkpoint": 9,
+            "mktree:writeMany": 1
+          },
+          "wallMs": 126.157,
+          "workerCpuMs": 47.316,
+          "workerUserCpuMs": 43.397,
+          "workerSystemCpuMs": 3.919,
+          "workerPeakRssBytes": 80953344
+        },
+        "semanticDigestEqual": true,
+        "processReductionPercent": 95.918,
+        "gitInteractionReductionPercent": 70.313,
+        "wallReductionPercent": 87.348,
+        "workerCpuReductionPercent": 58.089
+      },
+      "workspaceBundleWrite": {
+        "individual": {
+          "sampleCount": 5,
+          "semanticDigest": "dc75736f497fc932d846dc368a0ee59ab9439e258e79abc3c86dcbf84dfa266a",
+          "resultCount": 16,
+          "processCount": 147,
+          "protocolOperationCount": 80,
+          "gitInteractionCount": 224,
+          "counts": {
+            "hash-object": 112,
+            "session:mktree": 1,
+            "session:cat-file": 1,
+            "commit-tree": 16,
+            "symbolic-ref": 16,
+            "session:update-ref": 1
+          },
+          "protocolOperations": {
+            "mktree:write": 48,
+            "cat-file:infoMany": 16,
+            "update-ref:update": 16
+          },
+          "wallMs": 2896.449,
+          "workerCpuMs": 266.952,
+          "workerUserCpuMs": 174.156,
+          "workerSystemCpuMs": 93.725,
+          "workerPeakRssBytes": 85442560
+        },
+        "batch": {
+          "sampleCount": 5,
+          "semanticDigest": "dc75736f497fc932d846dc368a0ee59ab9439e258e79abc3c86dcbf84dfa266a",
+          "resultCount": 16,
+          "processCount": 8,
+          "protocolOperationCount": 9,
+          "gitInteractionCount": 13,
+          "counts": {
+            "session:fast-import": 1,
+            "session:mktree": 1,
+            "hash-object": 2,
+            "session:cat-file": 1,
+            "commit-tree": 1,
+            "symbolic-ref": 1,
+            "session:update-ref": 1
+          },
+          "protocolOperations": {
+            "fast-import:writeBlobs": 2,
+            "fast-import:checkpoint": 2,
+            "mktree:writeMany": 2,
+            "cat-file:infoMany": 1,
+            "mktree:write": 1,
+            "update-ref:update": 1
+          },
+          "wallMs": 262.229,
+          "workerCpuMs": 59.232,
+          "workerUserCpuMs": 51.766,
+          "workerSystemCpuMs": 7.483,
+          "workerPeakRssBytes": 81215488
+        },
+        "semanticDigestEqual": true,
+        "processReductionPercent": 94.558,
+        "gitInteractionReductionPercent": 94.196,
+        "wallReductionPercent": 90.947,
+        "workerCpuReductionPercent": 77.812
+      }
+    },
+    "sha256": {
+      "assetWrite": {
+        "individual": {
+          "sampleCount": 5,
+          "semanticDigest": "1c302cde909ad0d44f3c757ec0532c2d9d6e52133c3d2c553e65273670ceee4f",
+          "resultCount": 16,
+          "processCount": 49,
+          "protocolOperationCount": 16,
+          "gitInteractionCount": 64,
+          "counts": {
+            "hash-object": 48,
+            "session:mktree": 1
+          },
+          "protocolOperations": {
+            "mktree:write": 16
+          },
+          "wallMs": 903.447,
+          "workerCpuMs": 110.638,
+          "workerUserCpuMs": 78.599,
+          "workerSystemCpuMs": 32.725,
+          "workerPeakRssBytes": 80953344
+        },
+        "batch": {
+          "sampleCount": 5,
+          "semanticDigest": "1c302cde909ad0d44f3c757ec0532c2d9d6e52133c3d2c553e65273670ceee4f",
+          "resultCount": 16,
+          "processCount": 2,
+          "protocolOperationCount": 19,
+          "gitInteractionCount": 19,
+          "counts": {
+            "session:fast-import": 1,
+            "session:mktree": 1
+          },
+          "protocolOperations": {
+            "fast-import:writeBlobs": 9,
+            "fast-import:checkpoint": 9,
+            "mktree:writeMany": 1
+          },
+          "wallMs": 121.215,
+          "workerCpuMs": 44.957,
+          "workerUserCpuMs": 41.517,
+          "workerSystemCpuMs": 3.44,
+          "workerPeakRssBytes": 80986112
+        },
+        "semanticDigestEqual": true,
+        "processReductionPercent": 95.918,
+        "gitInteractionReductionPercent": 70.313,
+        "wallReductionPercent": 86.583,
+        "workerCpuReductionPercent": 59.366
+      },
+      "workspaceBundleWrite": {
+        "individual": {
+          "sampleCount": 5,
+          "semanticDigest": "5261e344aeacebd73f2b6b51abb94e4400244e49098fc58da06b433d33909d65",
+          "resultCount": 16,
+          "processCount": 147,
+          "protocolOperationCount": 80,
+          "gitInteractionCount": 224,
+          "counts": {
+            "hash-object": 112,
+            "session:mktree": 1,
+            "session:cat-file": 1,
+            "commit-tree": 16,
+            "symbolic-ref": 16,
+            "session:update-ref": 1
+          },
+          "protocolOperations": {
+            "mktree:write": 48,
+            "cat-file:infoMany": 16,
+            "update-ref:update": 16
+          },
+          "wallMs": 2789.445,
+          "workerCpuMs": 263.362,
+          "workerUserCpuMs": 170.351,
+          "workerSystemCpuMs": 93.011,
+          "workerPeakRssBytes": 85770240
+        },
+        "batch": {
+          "sampleCount": 5,
+          "semanticDigest": "5261e344aeacebd73f2b6b51abb94e4400244e49098fc58da06b433d33909d65",
+          "resultCount": 16,
+          "processCount": 8,
+          "protocolOperationCount": 9,
+          "gitInteractionCount": 13,
+          "counts": {
+            "session:fast-import": 1,
+            "session:mktree": 1,
+            "hash-object": 2,
+            "session:cat-file": 1,
+            "commit-tree": 1,
+            "symbolic-ref": 1,
+            "session:update-ref": 1
+          },
+          "protocolOperations": {
+            "fast-import:writeBlobs": 2,
+            "fast-import:checkpoint": 2,
+            "mktree:writeMany": 2,
+            "cat-file:infoMany": 1,
+            "mktree:write": 1,
+            "update-ref:update": 1
+          },
+          "wallMs": 254.603,
+          "workerCpuMs": 58.755,
+          "workerUserCpuMs": 50.916,
+          "workerSystemCpuMs": 7.654,
+          "workerPeakRssBytes": 81100800
+        },
+        "semanticDigestEqual": true,
+        "processReductionPercent": 94.558,
+        "gitInteractionReductionPercent": 94.196,
+        "wallReductionPercent": 90.873,
+        "workerCpuReductionPercent": 77.69
+      }
+    }
+  }
+}

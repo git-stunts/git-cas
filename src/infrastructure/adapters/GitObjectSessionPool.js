@@ -44,6 +44,23 @@ export default class GitObjectSessionPool {
     );
   }
 
+  async infoMany(objectNames, execute = EXECUTE_DIRECTLY) {
+    return await this.#run(
+      'catFile',
+      (session) => execute(async () => {
+        if (typeof session.infoMany === 'function') {
+          return await session.infoMany(objectNames);
+        }
+        const infos = [];
+        for (const objectName of objectNames) {
+          infos.push(await session.info(objectName));
+        }
+        return Object.freeze(infos);
+      }),
+      isRecoverableCatError
+    );
+  }
+
   async read(objectName, options, execute = EXECUTE_DIRECTLY) {
     return await this.#run(
       'catFile',
@@ -55,10 +72,9 @@ export default class GitObjectSessionPool {
   async writeBlobs(contents, execute = EXECUTE_DIRECTLY) {
     return await this.#run('fastImport', (session) =>
       execute(async () => {
-        const oids = [];
-        for (const content of contents) {
-          oids.push(await session.writeBlob(content));
-        }
+        const oids = typeof session.writeBlobs === 'function'
+          ? await session.writeBlobs(contents)
+          : await GitObjectSessionPool.#writeBlobsIndividually(session, contents);
         await session.checkpoint();
         return Object.freeze(oids);
       })
@@ -67,6 +83,19 @@ export default class GitObjectSessionPool {
 
   async writeTree(entries, execute = EXECUTE_DIRECTLY) {
     return await this.#run('mktree', (session) => execute(() => session.write(entries)));
+  }
+
+  async writeTrees(trees, execute = EXECUTE_DIRECTLY) {
+    return await this.#run('mktree', (session) => execute(async () => {
+      if (typeof session.writeMany === 'function') {
+        return await session.writeMany(trees);
+      }
+      const oids = [];
+      for (const entries of trees) {
+        oids.push(await session.write(entries));
+      }
+      return Object.freeze(oids);
+    }));
   }
 
   async invalidate(protocol, expectedSession) {
@@ -266,8 +295,21 @@ export default class GitObjectSessionPool {
     }
   }
 
+  static async #writeBlobsIndividually(session, contents) {
+    const oids = [];
+    for (const content of contents) {
+      oids.push(await session.writeBlob(content));
+    }
+    return oids;
+  }
+
   #scheduleIdle(protocol) {
-    if (this.#closed || this.#active.has(protocol) || !this.#sessions.has(protocol)) {
+    if (
+      this.#idleTimeoutMs === null ||
+      this.#closed ||
+      this.#active.has(protocol) ||
+      !this.#sessions.has(protocol)
+    ) {
       return;
     }
     const opening = this.#sessions.get(protocol);

@@ -8,6 +8,7 @@ import { CasError, createCasError, ErrorCodes } from '../../domain/errors/index.
 import BoundedPromiseCache from '../../helpers/boundedPromiseCache.js';
 import GitTreeObjectCodec from '../codecs/GitTreeObjectCodec.js';
 import GitObjectSessionPool from './GitObjectSessionPool.js';
+import GitPersistenceWriteScope from './GitPersistenceWriteScope.js';
 
 /**
  * Default resilience policy: 30 s timeout (no retry).
@@ -114,6 +115,9 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
   async writeBlobs(contents) {
     return await this.#runOperation(async () => {
       const replayableContents = [...contents];
+      if (replayableContents.length === 0) {
+        return [];
+      }
       if (!this.#sessions.supports('fastImport')) {
         const oids = [];
         for (const content of replayableContents) {
@@ -153,6 +157,25 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     });
   }
 
+  /** Runs one bounded operation with an operation-owned fast-import process. */
+  async withWriteScope(operation) {
+    if (typeof operation !== 'function') {
+      throw createCasError(
+        'Git persistence write scope requires an operation callback',
+        ErrorCodes.INVALID_OPTIONS,
+      );
+    }
+    return await this.#runOperation(async () => {
+      const scope = new GitPersistenceWriteScope({
+        adapter: this,
+        plumbing: this.plumbing,
+        execute: (attempt) => this.policy.execute(attempt),
+        retireMktree: () => this.#sessions.retire('mktree'),
+      });
+      return await scope.run(operation);
+    });
+  }
+
   /**
    * @override
    * @param {string[]} entries - Lines in `git mktree` format.
@@ -174,6 +197,40 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
         })
       );
       return oid;
+    });
+  }
+
+  /**
+   * Writes a bounded group of independent trees through one mktree session.
+   * @override
+   * @param {Iterable<string[]>} trees - Groups of lines in `git mktree` format.
+   * @returns {Promise<string[]>} Git OIDs in input order.
+   */
+  async writeTrees(trees) {
+    return await this.#runOperation(async () => {
+      const replayableTrees = [...trees];
+      if (replayableTrees.length === 0) {
+        return [];
+      }
+      if (this.#sessions.supports('mktree')) {
+        const structured = replayableTrees.map((entries) =>
+          GitTreeObjectCodec.parseMktreeLines(entries)
+        );
+        const oids = await this.#sessions.writeTrees(structured, (operation) =>
+          this.policy.execute(operation)
+        );
+        return [...oids];
+      }
+      const oids = [];
+      for (const entries of replayableTrees) {
+        oids.push(await this.policy.execute(() =>
+          this.plumbing.execute({
+            args: ['mktree'],
+            input: `${entries.join('\n')}\n`,
+          })
+        ));
+      }
+      return oids;
     });
   }
 
@@ -387,6 +444,88 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
   }
 
   /**
+   * @override
+   * @param {Iterable<string>} oids - Git object IDs.
+   * @returns {Promise<Array<{oid: string, type: string, size: number}>>}
+   */
+  async readObjectInfos(oids) {
+    return await this.#runOperation(async () => {
+      const objectNames = [...oids];
+      if (objectNames.length === 0) {
+        return [];
+      }
+      const pending = new Array(objectNames.length);
+      const missing = [];
+      const missingSet = new Set();
+      for (let index = 0; index < objectNames.length; index += 1) {
+        const oid = objectNames[index];
+        const cached = this.#metadataCache.get(`object\0${oid}`);
+        if (cached !== undefined) {
+          pending[index] = cached;
+        } else if (!missingSet.has(oid)) {
+          missingSet.add(oid);
+          missing.push(oid);
+        }
+      }
+      const byOid = this.#cacheObjectInfoBatch(missing);
+      for (let index = 0; index < objectNames.length; index += 1) {
+        pending[index] ??= byOid.get(objectNames[index]);
+      }
+      return await Promise.all(pending);
+    });
+  }
+
+  #cacheObjectInfoBatch(objectNames) {
+    const byOid = new Map();
+    if (objectNames.length === 0) {
+      return byOid;
+    }
+    const batch = this.#readObjectInfosUncached(objectNames);
+    for (let index = 0; index < objectNames.length; index += 1) {
+      const oid = objectNames[index];
+      byOid.set(
+        oid,
+        this.#metadataCache.getOrCreate(`object\0${oid}`, async () => (await batch)[index])
+      );
+    }
+    return byOid;
+  }
+
+  async #readObjectInfosUncached(objectNames) {
+    let infos;
+    try {
+      infos = this.#sessions.supports('catFile')
+        ? await this.#sessions.infoMany(objectNames, (operation) => this.policy.execute(operation))
+        : await this.#readObjectInfosWithCommand(objectNames);
+    } catch (error) {
+      const oid = error?.details?.objectName ?? objectNames[0];
+      throw this.#normalizeObjectReadError(error, oid, this.#maxBlobSize);
+    }
+    if (infos.length !== objectNames.length) {
+      throw new CasError('Git metadata batch returned an invalid result count', ErrorCodes.GIT_ERROR, {
+        expectedCount: objectNames.length,
+        actualCount: infos.length,
+      });
+    }
+    return Object.freeze(infos.map((info, index) =>
+      GitPersistenceAdapter.#validatedObjectInfo(info, objectNames[index])
+    ));
+  }
+
+  async #readObjectInfosWithCommand(objectNames) {
+    const rawOutput = await this.policy.execute(() =>
+      this.plumbing.execute({
+        args: ['cat-file', OBJECT_INFO_ARGUMENT],
+        input: `${objectNames.join('\n')}\n`,
+      })
+    );
+    const lines = typeof rawOutput === 'string' ? rawOutput.trimEnd().split(/\r?\n/u) : [];
+    return lines.map((line, index) =>
+      GitPersistenceAdapter.#parseObjectInfo(line, objectNames[index])
+    );
+  }
+
+  /**
    * Reads object metadata through Git's structured batch protocol. Missing
    * objects are reported on stdout with exit zero, avoiding runtime-specific
    * stderr capture while preserving genuine command failures.
@@ -435,6 +574,36 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
       }
       return Object.freeze({ oid: fields[0], type: fields[1], size });
     });
+  }
+
+  static #parseObjectInfo(output, oid) {
+    if (output === `${oid} missing`) {
+      throw new CasError(`Git object not found: ${oid}`, ErrorCodes.GIT_OBJECT_NOT_FOUND, { oid });
+    }
+    const fields = output.split(' ');
+    return GitPersistenceAdapter.#validatedObjectInfo(
+      { oid: fields[0], type: fields[1], size: Number(fields[2]) },
+      oid,
+      output
+    );
+  }
+
+  static #validatedObjectInfo(info, requestedOid, output = info) {
+    if (
+      typeof info !== 'object' ||
+      info === null ||
+      info.oid !== requestedOid ||
+      !GIT_OBJECT_TYPES.has(info.type) ||
+      !Number.isSafeInteger(info.size) ||
+      info.size < 0
+    ) {
+      throw new CasError(
+        `Git object has invalid metadata: ${requestedOid}`,
+        ErrorCodes.GIT_ERROR,
+        { oid: requestedOid, output }
+      );
+    }
+    return Object.freeze({ oid: info.oid, type: info.type, size: info.size });
   }
 
   async #readTreeObject(treeOid) {

@@ -36,6 +36,20 @@ export default class GitPersistencePort {
   }
 
   /**
+   * Creates a bounded group of independent Git tree objects in input order.
+   * Adapters may override this to pipeline one typed protocol request.
+   * @param {Iterable<string[]>} trees
+   * @returns {Promise<string[]>} Git OIDs in input order.
+   */
+  async writeTrees(trees) {
+    const oids = [];
+    for (const entries of trees) {
+      oids.push(await this.writeTree(entries));
+    }
+    return oids;
+  }
+
+  /**
    * Reads a Git blob by its OID.
    * @param {string} _oid - Git object ID.
    * @param {number} [_maxBytes] - Maximum bytes the adapter may materialize.
@@ -100,6 +114,35 @@ export default class GitPersistencePort {
    */
   async readObjectSize(_oid) {
     throw new Error('Not implemented');
+  }
+
+  /**
+   * Reads metadata for a bounded group of Git objects in input order.
+   * @param {Iterable<string>} oids - Git object IDs.
+   * @returns {Promise<Array<{oid: string, type: string, size: number}>>}
+   */
+  async readObjectInfos(oids) {
+    const infos = [];
+    for (const oid of oids) {
+      infos.push({
+        oid,
+        type: await this.readObjectType(oid),
+        size: await this.readObjectSize(oid),
+      });
+    }
+    return infos;
+  }
+
+  /**
+   * Runs one bounded operation against an operation-owned write scope.
+   * Adapters may override this to retain protocol processes until the callback
+   * settles. The default preserves compatibility for custom persistence ports.
+   * @template T
+   * @param {(persistence: GitPersistencePort) => Promise<T>} operation
+   * @returns {Promise<T>}
+   */
+  async withWriteScope(operation) {
+    return await operation(this);
   }
 
   /**

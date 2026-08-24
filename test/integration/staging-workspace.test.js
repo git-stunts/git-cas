@@ -153,6 +153,45 @@ describe('scoped staging workspace page batches', () => {
   });
 });
 
+describe('scoped staging workspace application write batches', () => {
+  it('anchors asset and ordered-bundle batches before aggressive prune', async () => {
+    const workspace = await cas.workspaces.open({
+      namespace: 'integration/application-write-batches',
+      ttlMs: 60_000,
+    });
+    const assets = await workspace.assets.putBatch({
+      assets: [
+        { source: chunks(Buffer.from('first asset')), slug: 'first-asset' },
+        { source: chunks(Buffer.from('second asset')), slug: 'second-asset' },
+      ],
+    });
+
+    expect(new Set(assets.map((asset) => asset.witness.root.generation)).size).toBe(1);
+    pruneNow();
+    await expect(collect(cas.assets.open({ handle: assets[0].handle })))
+      .resolves.toEqual(Buffer.from('first asset'));
+
+    const bundles = await workspace.bundles.putOrderedBatch({
+      bundles: [
+        { members: [['payload', Buffer.from('first bundle')]] },
+        { members: [['payload', Buffer.from('second bundle')]] },
+      ],
+    });
+
+    expect(new Set(bundles.map((bundle) => bundle.witness.root.generation)).size).toBe(1);
+    pruneNow();
+    await expect(collect(cas.bundles.openMember({
+      handle: bundles[1].handle,
+      path: 'payload',
+    }))).resolves.toEqual(Buffer.from('second bundle'));
+
+    const bundleOids = bundles.map((bundle) => bundle.handle.oid);
+    await workspace.release();
+    pruneNow();
+    expect(bundleOids.every((oid) => !objectExists(oid))).toBe(true);
+  });
+});
+
 describe('scoped staging workspace composition', () => {
   it('survives prune through bundle construction, checkpoint, and cache promotion', async () => {
     const cache = await cas.caches.open({ namespace: 'integration/promoted-materializations' });

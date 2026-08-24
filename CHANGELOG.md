@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Bounded application write waves** - `assets.putBatch()` and
+  `bundles.putOrderedBatch()` accept explicit count, object, and byte limits,
+  preserve input-order results, and are mirrored by scoped staging workspaces.
+  A successful workspace batch anchors every returned handle in one exact
+  generation.
+
+### Performance
+
+- **Pipelined Git object and ref protocols** - bounded asset and bundle writes
+  pipeline blob, manifest-tree, descriptor-tree, and target-metadata waves;
+  checked ref updates reuse one typed `update-ref --stdin` process. Existing
+  single-write and older-Plumbing fallbacks remain available.
+
 ## [6.5.7] — 2026-08-23
 
 ### Performance

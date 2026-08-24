@@ -4,6 +4,7 @@ import parseApplicationHandle from '../value-objects/ApplicationHandle.js';
 import RetentionWitness from '../value-objects/RetentionWitness.js';
 import WorkspaceRef from '../value-objects/WorkspaceRef.js';
 import RootSetMetadataCodec from './RootSetMetadataCodec.js';
+import { stagedTargetOf } from './StagedTarget.js';
 import {
   MAX_WORKSPACE_TARGETS,
   WORKSPACE_DESCRIPTOR_ENTRY,
@@ -57,6 +58,9 @@ export default class StagingWorkspace {
 
     this.assets = Object.freeze({
       put: (options) => this.#enqueue(() => this.#stage(this.#assets, 'put', options)),
+      putBatch: (options) => (
+        this.#enqueue(() => this.#stageBatch(this.#assets, 'putBatch', options))
+      ),
       adopt: (options) => this.#enqueue(() => this.#stage(this.#assets, 'adopt', options)),
     });
     this.pages = Object.freeze({
@@ -67,6 +71,9 @@ export default class StagingWorkspace {
       put: (options) => this.#enqueue(() => this.#stage(this.#bundles, 'put', options)),
       putOrdered: (options) => (
         this.#enqueue(() => this.#stage(this.#bundles, 'putOrdered', options))
+      ),
+      putOrderedBatch: (options) => (
+        this.#enqueue(() => this.#stageBatch(this.#bundles, 'putOrderedBatch', options))
       ),
     });
     Object.freeze(this);
@@ -172,7 +179,7 @@ export default class StagingWorkspace {
       );
     }
     try {
-      const target = await this.#resolveTarget(staged.handle);
+      const target = stagedTargetOf(staged) ?? await this.#resolveTarget(staged.handle);
       const targets = new Map(this.#targets);
       targets.set(target.handle.toString(), target);
       const installation = await this.#install([...targets.values()]);
@@ -208,6 +215,13 @@ export default class StagingWorkspace {
 
   async #stageBatch(service, method, options) {
     this.#assertActive();
+    if (typeof service[method] !== 'function') {
+      throw createCasError(
+        `Workspace ${method}() is unavailable on the configured service`,
+        ErrorCodes.INVALID_OPTIONS,
+        { method },
+      );
+    }
     const staged = await service[method](options);
     if (!Array.isArray(staged) || staged.some((page) => !page?.handle)) {
       throw createCasError(
@@ -245,8 +259,8 @@ export default class StagingWorkspace {
   async #retainBatch(staged) {
     const resolved = [];
     const targets = new Map(this.#targets);
-    for (const page of staged) {
-      const target = await this.#resolveTarget(page.handle);
+    for (const artifact of staged) {
+      const target = stagedTargetOf(artifact) ?? await this.#resolveTarget(artifact.handle);
       resolved.push(target);
       targets.set(target.handle.toString(), target);
     }
@@ -254,7 +268,7 @@ export default class StagingWorkspace {
     const witnesses = new Map(
       installation.witnesses.map((witness) => [witness.handle.toString(), witness]),
     );
-    return Object.freeze(staged.map((page, index) => {
+    return Object.freeze(staged.map((artifact, index) => {
       const handle = resolved[index].handle.toString();
       const witness = witnesses.get(handle);
       if (!witness) {
@@ -264,7 +278,7 @@ export default class StagingWorkspace {
           { handle, generation: installation.generation },
         );
       }
-      return StagingWorkspace.#retainedStage(page, witness);
+      return StagingWorkspace.#retainedStage(artifact, witness);
     }));
   }
 
@@ -295,7 +309,7 @@ export default class StagingWorkspace {
       },
       ...targets.map(StagingWorkspace.#targetEntry),
     ];
-    const mutation = await this.#rootSet.replace({
+    const mutation = await this.#rootSet.replaceExact({
       entries,
       expectedHeadOid: this.#generation,
     });
@@ -569,7 +583,7 @@ export default class StagingWorkspace {
   static #assertDependencies({ rootSet, refs, assets, pages, bundles, resolveHandle,
     descriptorCodec, clock }) {
     const missing = [
-      ['rootSet', StagingWorkspace.#hasMethods(rootSet, ['replace'])],
+      ['rootSet', StagingWorkspace.#hasMethods(rootSet, ['replaceExact'])],
       ['refs', StagingWorkspace.#hasMethods(refs, ['deleteRef'])],
       ['assets', StagingWorkspace.#hasMethods(assets, ['put', 'adopt'])],
       ['pages', StagingWorkspace.#hasMethods(pages, ['put', 'putBatch'])],
