@@ -2,7 +2,7 @@
 
 **Last tagged release:** `v6.5.9` (`2026-08-24`)
 **Current release state:** `v6.5.10` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** exact implementation checkpoint `e663754b` passed 14/14 release-verifier stages with 7,186 observed tests; exact versioned-candidate verification remains pending.
+**Latest verification:** exact versioned candidate `2a5be40c` passed 14/14 release-verifier stages with 7,192 observed tests; tag and publication verification remain pending.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -22,15 +22,16 @@
   [#128](https://github.com/git-stunts/git-cas/pull/128) merged normally as
   `57cd3002`; its exact reviewed head is `67147506`, and exact implementation
   checkpoint `e663754b` passed all 14 release-verifier stages with 7,186
-  observed tests. npm, JSR, and runtime metadata identify `6.5.10`, while the
-  signed tag and registry artifact remain deliberately absent pending release
-  review. The additive contract admits bounded asset waves into the compound
-  scope and can retain exact selected terminal roots without changing stored
-  formats, handles, refs, or readers. The controlled git-warp prototype cut
-  cold Git commands from 139 to 50 and incremental commands from 149 to 60;
-  those downstream numbers remain provisional until repeated against the
-  public registry artifact. No application or stored-data migration is
-  required.
+  observed tests. Exact versioned candidate `2a5be40c` passed the same 14-stage
+  method with 7,192 observed tests. npm, JSR, and runtime metadata identify
+  `6.5.10`, while the signed tag and registry artifact remain deliberately
+  absent pending release review [#129](https://github.com/git-stunts/git-cas/pull/129).
+  The additive contract admits bounded asset waves into the compound scope and
+  can retain exact selected terminal roots without changing stored formats,
+  handles, refs, or readers. The controlled git-warp prototype cut cold Git
+  commands from 139 to 50 and incremental commands from 149 to 60; those
+  downstream numbers remain provisional until repeated against the public
+  registry artifact. No application or stored-data migration is required.
 - **v6.5.9 artifact posture** — implementation PR
   [#124](https://github.com/git-stunts/git-cas/pull/124) and release PR
   [#125](https://github.com/git-stunts/git-cas/pull/125) merged normally.
