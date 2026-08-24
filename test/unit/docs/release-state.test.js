@@ -6,6 +6,8 @@ const repoRoot = process.cwd();
 const v653PublishedMarker = '**v6.5.3 artifact posture**';
 const v6510CandidatePath =
   'docs/design/0061-compound-workspace-assets/witness/release-candidate.md';
+const v6510PublicationPath =
+  'docs/design/0061-compound-workspace-assets/witness/release-publication.md';
 const v659CandidatePath =
   'docs/design/0060-compound-workspace-admission/witness/release-candidate.md';
 const v659PublicationPath =
@@ -455,9 +457,7 @@ function expectV659CandidateEvidence(candidate, releaseNotes) {
   expectNoV659PublicationEvidence(candidate, releaseNotes);
 }
 
-function expectV6510CandidateEvidence(status, candidate, releaseNotes) {
-  expect(status).toContain('**Current release state:** `v6.5.10` release candidate');
-  expect(status).toContain('**v6.5.10 candidate posture**');
+function expectV6510CandidateEvidence(candidate, releaseNotes) {
   expect(candidate).toContain('# PERF-0061 v6.5.10 Release Candidate Witness');
   expect(candidate).toContain('Implementation review: #128');
   expect(candidate).toContain('Release review: #129');
@@ -470,11 +470,38 @@ function expectV6510CandidateEvidence(status, candidate, releaseNotes) {
   expect(candidate).toContain('**7,192**');
   expect(candidate).toMatch(/explicitly\s+unpublished\s+candidate/);
   expect(releaseNotes).toMatch(/requires no application or stored-data migration/);
-  expectNoV6510PublicationEvidence(status, candidate, releaseNotes);
+  expectNoV6510PublicationEvidence(candidate, releaseNotes);
+}
+
+function expectV6510PublishedEvidence(status, publication) {
+  expect(status).toContain('**Last tagged release:** `v6.5.10` (`2026-08-24`)');
+  expect(status).toContain('**v6.5.10 artifact posture**');
+  expect(status).toContain('4316f4ec');
+  expect(status).toContain('32782415971');
+  expect(publication).toContain('# PERF-0061 v6.5.10 Publication Witness');
+  expect(publication).toContain(
+    '- Reviewed merge commit: `4316f4ec7eeda531c07627d2ad0d15c1fcade2f8`'
+  );
+  expect(publication).toContain('- Tag object: `37e2b32f501b09abd10130cf0046e2a99885f5f3`');
+  expect(publication).toContain('- Peeled tag target: `4316f4ec7eeda531c07627d2ad0d15c1fcade2f8`');
+  expect(publication).toContain('01A63D8E9DBEEDE32918AF9C39560E0406CA9135');
+  expect(publication).toContain('- Signed annotated tag: `v6.5.10`');
+  expect(publication).toContain('https://github.com/git-stunts/git-cas/releases/tag/v6.5.10');
+  expect(publication).toContain('actions/runs/32782415971');
+  expect(publication).toMatch(/\| Package\s+\| `@git-stunts\/git-cas@6\.5\.10`\s+\|/);
+  expect(publication).toMatch(/\| Dist-tag\s+\| `latest` -> `6\.5\.10`\s+\|/);
+  expect(publication).toContain(
+    'sha512-JemWVMtuzqArMyxnIMBBQFMOIQ3CsvhXKfza9aIjNPxQ3MBt7J/Hm2ePr3k7Z+wtM+MO38BTGA7gzCZ/Hpld4w=='
+  );
+  expect(publication).toContain('3592d2b86ad7e8ab54ae8809d6de977c8eee5ad2');
+  expect(publication).toContain('2,331,318');
+  expect(publication).toContain('attestations/@git-stunts%2fgit-cas@6.5.10');
+  expect(publication).toContain('CLI version `6.5.10+4316f4e`');
+  expect(publication).toContain('`scope.assets.putBatch()`');
+  expect(publication).toContain('exactly one selected terminal root');
 }
 
 function expectV659PublishedEvidence(status, publication) {
-  expect(status).toContain('**Last tagged release:** `v6.5.9` (`2026-08-24`)');
   expect(status).toContain('**v6.5.9 artifact posture**');
   expect(status).toContain('a16e31a9');
   expect(status).toContain('32766297971');
@@ -680,9 +707,11 @@ function expectV659ReleaseDocs(status) {
 
 function expectV6510ReleaseDocs(status) {
   const candidate = read(v6510CandidatePath);
+  const publication = read(v6510PublicationPath);
   const releaseNotes = read('docs/releases/v6.5.10.md');
 
-  expectV6510CandidateEvidence(status, candidate, releaseNotes);
+  expectV6510CandidateEvidence(candidate, releaseNotes);
+  expectV6510PublishedEvidence(status, publication);
 }
 
 function expectRecentReleaseDocs(status) {
@@ -697,13 +726,13 @@ function expectCurrentQueue(status) {
   expect(status).toContain('Current queued release goalposts are');
   expect(status).toContain('#39 v6.6.0: Operator TUI');
   expect(status).toContain('#40 v6.6.0: Agent automation follow-through');
-  expect(status).toContain('#123 v6.5.9: Compound staging-workspace admission');
   expect(status).toContain('#127 v6.5.10: Compound workspace assets and exact roots');
   expect(status).toContain('0061-compound-workspace-assets');
+  expect(status).not.toContain('Active release goalpost:');
 }
 
 describe('release state docs', () => {
-  it('enforces the v6.5.10 candidate and prior publication evidence', () => {
+  it('enforces the v6.5.10 publication and prior release evidence', () => {
     const status = read('STATUS.md');
     const [v656Candidate, v656Publication] = [v656CandidatePath, v656PublicationPath].map(read);
     const v655Candidate = read(v655CandidatePath);
@@ -753,11 +782,10 @@ describe('release state docs', () => {
 
 describe('v6.5.10 candidate publication-marker calibration', () => {
   it('rejects a GitHub Release marker in candidate release notes', () => {
-    const status = read('STATUS.md');
     const candidate = read(v6510CandidatePath);
     const releaseNotes = `${read('docs/releases/v6.5.10.md')}\nhttps://github.com/git-stunts/git-cas/releases/tag/v6.5.10\n`;
 
-    expect(() => expectV6510CandidateEvidence(status, candidate, releaseNotes)).toThrow();
+    expect(() => expectV6510CandidateEvidence(candidate, releaseNotes)).toThrow();
   });
 });
 

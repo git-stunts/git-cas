@@ -26,10 +26,15 @@
   `6714750620aa2310ad0279f957414be65898a66a` contains implementation checkpoint
   `e663754bf221784f0e5856a41fe071bebfa5befb`, whose complete release method
   passed 14/14 stages with 7,186 observed tests.
+- Release PR #129 merged normally as
+  `4316f4ec7eeda531c07627d2ad0d15c1fcade2f8`; signed tag `v6.5.10`, trusted npm
+  publication with SLSA provenance, and the final GitHub Release all resolve to
+  that reviewed merge.
+- The publication witness records the exact tag object, release workflow,
+  registry integrity, signature audit, and clean-room compound asset smoke.
 
 ## What Did Not Yet Ship
 
-- v6.5.10 has not yet been tagged or published to npm and GitHub Releases.
 - git-warp has not yet installed the registry artifact or repeated its exact
   reference, migrated-v18, process-census, CPU, and wall-time gates.
 - Think remains unchanged until the ordered Plumbing -> git-cas -> git-warp

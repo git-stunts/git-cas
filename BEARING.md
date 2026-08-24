@@ -14,7 +14,7 @@ timeline
 
 ## Current State
 
-`v6.5.9` shipped on `2026-08-24`, and `v6.5.10` is under release review.
+`v6.5.10` shipped on `2026-08-24`.
 Application asset, bundle, page, cache,
 expiry, witness, and repository-diagnostics APIs sit above mutable root sets
 and the low-level CAS pipeline. Direct bundle-reference reads and bounded
@@ -100,14 +100,14 @@ What exists now:
   generation retains their union. A 33-operation witness reduced 200 Git
   children to 23 and 33 retained generations to one in both SHA-1 and SHA-256
   repositories without changing any application handle.
-- **Compound workspace assets and exact roots.** The v6.5.10 candidate adds
+- **Compound workspace assets and exact roots.** v6.5.10 adds
   bounded asset waves to the same compound persistence scope and optionally
   retains a canonical, nonempty, deduplicated selection of handles staged by
   that exact admission. Prior workspace roots and v6.5.9 retain-all behavior
   remain intact. A controlled downstream git-warp prototype reduced cold Git
   commands from 139 to 50 and incremental commands from 149 to 60; those
-  consumer numbers remain provisional until repeated against the public
-  registry artifact.
+  consumer numbers remain provisional until git-warp installs the public
+  registry artifact and repeats the exact corpus.
 - **Batched workspace page retention.** v6.5.4 adds
   `workspace.pages.putBatch()` so one bounded ordered page group is written and
   retained under one exact workspace generation instead of rewriting a growing
@@ -178,15 +178,15 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With v6.5.9 shipped and the v6.5.10 candidate under release review, active work
-is tracked in GitHub Issues and Milestones. Repo docs hold design and evidence
-records, not the active queue. The candidate design is:
+With v6.5.10 shipped, active work is tracked in GitHub Issues and Milestones.
+Repo docs hold design and evidence records, not the active queue. The completed
+release design is:
 
 - [#127](https://github.com/git-stunts/git-cas/issues/127)
 - [0061-compound-workspace-assets](./docs/design/0061-compound-workspace-assets/compound-workspace-assets.md)
 
-Its release evidence remains owned by
-[#127](https://github.com/git-stunts/git-cas/issues/127) under the
+Its completed release evidence is owned by
+[#127](https://github.com/git-stunts/git-cas/issues/127) in the
 [`v6.5.10` milestone](https://github.com/git-stunts/git-cas/milestone/20).
 
 The broader horizon remains:
