@@ -8,6 +8,7 @@ import RootSet from './RootSet.js';
 import RootSetMetadataCodec from './RootSetMetadataCodec.js';
 import RootSetPersistence from './RootSetPersistence.js';
 import StagingWorkspace from './StagingWorkspace.js';
+import WorkspaceCompoundAdmission from './WorkspaceCompoundAdmission.js';
 import WorkspaceDescriptorCodec, {
   WORKSPACE_DESCRIPTOR_ENTRY,
 } from './WorkspaceDescriptorCodec.js';
@@ -37,6 +38,7 @@ export default class StagingWorkspaceRegistry {
   #assets;
   #bundles;
   #clock;
+  #compound;
   #crypto;
   #descriptorCodec;
   #pages;
@@ -68,6 +70,7 @@ export default class StagingWorkspaceRegistry {
     this.#crypto = crypto;
     this.#clock = clock;
     this.#descriptorCodec = descriptorCodec;
+    this.#compound = new WorkspaceCompoundAdmission({ persistence, pages, bundles });
     Object.freeze(this);
   }
 
@@ -81,6 +84,7 @@ export default class StagingWorkspaceRegistry {
       workspaceRef,
       ttlMs,
       rootSet: this.#rootSet(workspaceRef),
+      rootSetForPersistence: (persistence) => this.#rootSet(workspaceRef, persistence),
       refs: this.#ref,
       assets: this.#assets,
       pages: this.#pages,
@@ -88,6 +92,7 @@ export default class StagingWorkspaceRegistry {
       publications: this.#publications,
       resolveHandle: this.#resolveHandle,
       descriptorCodec: this.#descriptorCodec,
+      compound: this.#compound,
       clock: this.#clock,
     });
   }
@@ -271,19 +276,19 @@ export default class StagingWorkspaceRegistry {
     return logicalBytes;
   }
 
-  #rootSet(workspaceRef) {
+  #rootSet(workspaceRef, persistence = this.#persistence) {
     const ref = WorkspaceRef.from(workspaceRef).toString();
     const metadataCodec = new RootSetMetadataCodec({ refType: WorkspaceRef });
-    const persistence = new RootSetPersistence({
+    const rootSetPersistence = new RootSetPersistence({
       rootSetRef: ref,
-      persistence: this.#persistence,
+      persistence,
       ref: this.#ref,
       refType: WorkspaceRef,
       metadataCodec,
     });
     return new RootSet({
       ref,
-      persistence,
+      persistence: rootSetPersistence,
       refType: WorkspaceRef,
       metadataCodec,
     });

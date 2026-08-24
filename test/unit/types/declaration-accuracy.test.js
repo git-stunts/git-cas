@@ -125,6 +125,18 @@ describe('Application-storage declaration accuracy', () => {
   });
 });
 
+describe('Compound workspace declaration accuracy', () => {
+  it('declares its bounded scope and retained result', () => {
+    const declarations = read('index.d.ts');
+
+    expect(declarations).toContain('export interface WorkspaceCompoundScope {');
+    expect(declarations).toContain('export interface WorkspaceCompoundResult<T> {');
+    expect(declarations).toContain('batch<T>(options: {');
+    expect(declarations).toContain('export const DEFAULT_WORKSPACE_COMPOUND_OPERATIONS: 64;');
+    expect(declarations).toContain('export const MAX_WORKSPACE_COMPOUND_OPERATIONS: 1024;');
+  });
+});
+
 describe('Persistence lifecycle declaration accuracy', () => {
   it('declares bounded tree reuse and deterministic resource release', () => {
     const declarations = read('index.d.ts');
