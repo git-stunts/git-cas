@@ -123,7 +123,8 @@ ref behavior, bounded residency, failure cleanup, and session closure before
 - Plumbing PR #16 adds bounded `infoMany()`, `writeBlobs()`, `writeMany()`, and
   `openUpdateRefSession()` contracts. Its measured 1,000-operation protocol
   benchmarks reduce wall time by 48.0%, 41.6%, 87.4%, and 89.5% respectively,
-  with exact ordered output identity. The dependency is not yet released.
+  with exact ordered output identity. Plumbing v3.3.0 publishes those contracts
+  from merge commit `b7067988209c63f09b2fe1ff8859aa6f98cdc933`.
 
 ## Measured Implementation Posture
 
@@ -138,6 +139,13 @@ to seven, and trims another 17.9-22.1% from this fixture.
 The readable analysis and exact JSON are committed under
 [`witness/`](./witness/verification.md). These are implementation witnesses,
 not release or downstream-consumer claims.
+
+At clean git-cas commit `f34acd0e`, the same five-sample fixture consumes the
+published `@git-stunts/plumbing@3.3.0` package from the registry. It reproduces
+the exact 49-to-two asset and 147-to-eight workspace-bundle process topology,
+with identical SHA-1/SHA-256 semantic digests. Median wall time falls
+86.7-87.1% and 90.9-91.0% respectively. This closes dependency provenance; it
+does not yet make a git-cas release or downstream-adoption claim.
 
 ## Problem
 
@@ -318,7 +326,7 @@ must make the identity test fail.
 | symrefs        | Existing preflight remains mandatory because supported Git cannot atomically assert ref type.             |
 | object ids     | Must be identical between single and batch paths in SHA-1 and SHA-256 repositories.                       |
 | pruning        | Every returned workspace batch is anchored before handles escape; dependency waves retain earlier layers. |
-| release        | Plumbing must publish first; v6.5.8 then pins the released capability before downstream adoption.         |
+| release        | Plumbing v3.3.0 is published and pinned; v6.5.8 must publish before downstream adoption.                  |
 
 ## Compatibility / Migration Posture
 
@@ -491,8 +499,8 @@ Named mutation calibration:
 5. Add SHA-1/SHA-256 process-topology integration tests and committed witness
    generation.
 6. Validate all runtimes and package surfaces, update public docs/changelog,
-   publish the implementation PR, and wait for released Plumbing before the
-   release candidate.
+   publish the implementation PR, and verify the released Plumbing dependency
+   before the release candidate.
 7. After v6.5.8 publication, adopt bundle waves in git-warp by page/leaf/depth
    and rerun its reference plus current-Think witnesses.
 
@@ -517,7 +525,7 @@ Named mutation calibration:
 
 ## Acceptance Criteria
 
-- [ ] Plumbing PR #16 is reviewed, merged normally, released, and pinned by
+- [x] Plumbing PR #16 is reviewed, merged normally, released, and pinned by
       git-cas before v6.5.8 publication.
 - [x] Public asset and ordered-bundle batches are explicitly bounded and
       preserve input-order output.
@@ -539,7 +547,7 @@ Named mutation calibration:
       memory, oversized streaming, or semantic fingerprints.
 - [x] `npm test`, `npx eslint .`, integration matrices, declarations, package
       checks, and the current-dependency release verifier pass.
-- [ ] The complete release verifier passes again after git-cas pins the released
+- [x] The complete release verifier passes again after git-cas pins the released
       Plumbing dependency.
 
 ## Validation Plan
@@ -652,7 +660,6 @@ identity, tree validation, direct target inspection, Git-authored commits,
 symbolic-ref containment, or compare-and-swap publication. Removing one now
 would require manual object encoding, weaker existence checks, or a broader
 cross-layer lifetime for a marginal gain. Publication and downstream playback
-remain intentionally open: Plumbing must merge and release normally, git-cas
-must pin that release and pass its full runtime/release matrix, and git-warp
-must adopt semantic bundle waves before the campaign can claim end-to-end
-improvement.
+remain intentionally open: git-cas has pinned the released Plumbing capability
+and passed its complete post-pin runtime/release matrix; git-warp must adopt
+semantic bundle waves before the campaign can claim end-to-end improvement.

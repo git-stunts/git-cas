@@ -1,23 +1,29 @@
 # Bounded Write-Wave Verification
 
-Status: implementation-complete local evidence and current-dependency runtime
-matrices; dependency publication and pinning, released-dependency verification,
-downstream git-warp adoption, review, and release remain open.
+Status: implementation-complete local evidence, published Plumbing v3.3.0
+pinning, clean installed-dependency measurement, and complete post-pin runtime
+verification; downstream git-warp adoption, review, and release remain open.
 
 ## Exact Inputs
 
-| Input                                  | Exact source                                                                           |
-| -------------------------------------- | -------------------------------------------------------------------------------------- |
-| git-cas implementation and public docs | `59c9d1a00ccb5be3de974c8c23c825cbe43ac666`                                             |
-| canonical default-concurrency witness  | [`bounded-write-waves.json`](./bounded-write-waves.json)                               |
-| caller-tuned concurrency witness       | [`bounded-write-waves-concurrency-16.json`](./bounded-write-waves-concurrency-16.json) |
-| Plumbing implementation                | `eee0dfd8d42ccd635b7027d2921b34ece8901455` from `plumbing#16`                          |
-| object formats                         | SHA-1 and SHA-256 temporary bare repositories                                          |
-| host                                   | Node v26.0.0, Git 2.50.1 (Apple Git-155), macOS arm64                                  |
+| Input                                  | Exact source                                                                                 |
+| -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| git-cas implementation and public docs | `59c9d1a00ccb5be3de974c8c23c825cbe43ac666`                                                   |
+| canonical default-concurrency witness  | [`bounded-write-waves.json`](./bounded-write-waves.json)                                     |
+| caller-tuned concurrency witness       | [`bounded-write-waves-concurrency-16.json`](./bounded-write-waves-concurrency-16.json)       |
+| Plumbing implementation                | `eee0dfd8d42ccd635b7027d2921b34ece8901455` from `plumbing#16`                                |
+| released-dependency git-cas commit     | `f34acd0ef6b37e23df4c50542279bad136fbb848`                                                   |
+| released-dependency witness            | [`bounded-write-waves-plumbing-3.3.0.json`](./bounded-write-waves-plumbing-3.3.0.json)       |
+| published Plumbing package             | `@git-stunts/plumbing@3.3.0`, tag `v3.3.0`, merge `b7067988209c63f09b2fe1ff8859aa6f98cdc933` |
+| object formats                         | SHA-1 and SHA-256 temporary bare repositories                                                |
+| host                                   | Node v26.0.0, Git 2.50.1 (Apple Git-155), macOS arm64                                        |
 
-Both committed measurements report `gitCasDirty: false` and
-`plumbingDirty: false`. They identify Plumbing as a workspace source without
-recording a machine-local path. The canonical run used 16 items, five
+All three committed measurements report `gitCasDirty: false`. The first two
+also report `plumbingDirty: false` and identify Plumbing as a workspace source
+without recording a machine-local path. The released-dependency witness reports
+`plumbingSource: installed:@git-stunts/plumbing`; its lockfile integrity is
+`sha512-v/AT3hKgmFKSQ3M+n7n9VgC5Ri7C+NDtZS11Bj1JmT0Xv523hNdjCIaRHSXjAaCpiuXuDKFlj+E8PcBI1+FxbA==`.
+The canonical run used 16 items, five
 counterbalanced samples, four active asset pipelines, 2 KiB assets split into
 1 KiB chunks, and three inline members per bundle. Medians are reported for
 wall time, worker CPU, and worker peak RSS; process and protocol topology had to
@@ -71,6 +77,23 @@ bundles in both formats. Median wall time fell 86.583-87.348% for assets and
 process high-water band for asset batches and fell by roughly 4-4.5 MiB for bundle
 batches; it does not include child-process RSS and is not a heap-residency
 proof.
+
+## Released Plumbing Reproduction
+
+The clean five-sample reproduction at git-cas `f34acd0e` imports the registry
+package selected by the committed lockfile. It preserves the deterministic
+process, interaction, and semantic-identity gates:
+
+| Format / operation        | Git children | Git interactions |  Wall before | Wall batch | Wall reduction | Worker CPU reduction |
+| ------------------------- | -----------: | ---------------: | -----------: | ---------: | -------------: | -------------------: |
+| SHA-1 assets              |      49 -> 2 |         64 -> 19 |   951.716 ms | 122.415 ms |        87.137% |              62.362% |
+| SHA-256 assets            |      49 -> 2 |         64 -> 19 | 1,017.143 ms | 135.550 ms |        86.673% |              60.845% |
+| SHA-1 workspace bundles   |     147 -> 8 |        224 -> 13 | 2,919.628 ms | 261.386 ms |        91.047% |              79.057% |
+| SHA-256 workspace bundles |     147 -> 8 |        224 -> 13 | 2,972.540 ms | 269.605 ms |        90.930% |              78.638% |
+
+Every individual/batch digest matches the earlier canonical witness. The
+wall-time medians are host observations; the stable acceptance evidence is the
+identical object identity and repeated process/interaction topology.
 
 ## Caller-Selected Asset Concurrency
 
@@ -199,6 +222,11 @@ node scripts/diagnostics/measure-bounded-write-waves.js 16 5 4
 GIT_CAS_PLUMBING_REPO=<clean-plumbing-16-worktree> \
 GIT_CAS_BENCHMARK_OUTPUT=docs/design/0059-bounded-write-waves/witness/bounded-write-waves-concurrency-16.json \
 node scripts/diagnostics/measure-bounded-write-waves.js 16 5 16
+pnpm install
+docker compose run --build --rm test-node \
+  npx vitest run test/integration/cache-set.test.js --no-file-parallelism
+GIT_CAS_BENCHMARK_OUTPUT=docs/design/0059-bounded-write-waves/witness/bounded-write-waves-plumbing-3.3.0.json \
+node scripts/diagnostics/measure-bounded-write-waves.js 16 5 4
 ```
 
 The targeted Node Docker integration passed all eight staging-workspace tests.
@@ -208,16 +236,22 @@ Node unit suite. The current-dependency release verifier passed all 14 steps
 with 7,030 observed unit and integration tests: 2,144 Node, 2,143 Bun, 2,134
 Deno, and 203 integrations on each runtime. Lint, examples, public type
 compatibility, build-metadata stamping, npm package dry-run, and JSR publication
-dry-run also passed. This is pre-pin validation, not a release-candidate claim;
-the same verifier must run again after a released Plumbing version replaces the
-published fallback dependency.
+dry-run also passed. This is pre-pin validation, not a release-candidate claim.
+
+The first post-pin verifier run exposed an obsolete integration-test seam: its
+race injector wrapped one-shot `execute()` calls but not the new typed
+`openUpdateRefSession()` path, so the asserted race never occurred. Commit
+`f34acd0e` extends the same injector across session updates. The exact 15-test
+real-Git cache-set file then passed against Plumbing 3.3.0. The corrected
+post-pin verifier passed all 14 stages with 7,030 observed tests: 2,144 Node,
+2,143 Bun, 2,134 Deno, and 203 integrations on each runtime. Lint, examples,
+public type compatibility, build metadata, npm pack, and JSR dry-runs also
+passed.
 
 ## Nonclaims
 
-- Plumbing PR #16 is not yet merged or released.
-- git-cas does not yet pin a released Plumbing version containing these typed
-  batch/session capabilities.
-- No git-cas PR, merge, tag, npm publication, or GitHub release is claimed.
+- git-cas PR #120 is open; no merge, tag, npm publication, or GitHub release is
+  claimed.
 - The downstream 641-cold / 349-incremental git-warp reference run has not yet
   been repeated with these bundle-wave APIs.
 - The measurements do not prove a universal wall-clock ratio, child-process
