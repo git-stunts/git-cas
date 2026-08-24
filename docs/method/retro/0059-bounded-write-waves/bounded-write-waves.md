@@ -20,11 +20,15 @@
   and 16 workspace bundle writes from 147 to eight with equal semantic digests.
 - Implementation PR #120 merged normally as
   `a762a02ca9270b2ace05b98a3d3025c61927de2c`.
+- Release PR #121 merged normally as
+  `57b40553703b71744c11d6c8e8c62e171683e502`; signed tag `v6.5.8`, trusted npm
+  publication with SLSA provenance, and the final GitHub Release all resolve to
+  that reviewed merge.
+- The publication witness records the exact tag object, release workflow,
+  registry integrity, signature audit, and clean-room consumer smoke.
 
 ## What Did Not Yet Ship
 
-- The `v6.5.8` signed tag, npm artifact, provenance, and GitHub Release remain
-  deliberately absent until the reviewed release candidate merges.
 - git-warp and Think remain unpublished. Their adoption follows the required
   Plumbing -> git-cas -> git-warp -> Think package order.
 

@@ -593,6 +593,7 @@ Required artifacts:
 
 - committed git-cas JSON witness plus readable summary;
 - [v6.5.8 release-candidate witness](./witness/release-candidate.md);
+- [v6.5.8 publication witness](./witness/release-publication.md);
 - hosted CI URLs for exact implementation and release heads;
 - git-warp counterbalanced reference JSON and deep-chain result;
 - final Think current-mind semantic digest and process census.
@@ -628,8 +629,8 @@ Required artifacts:
 
 ## Tracker Disposition
 
-- #119 owns the v6.5.8 release-scale outcome and remains open through verified
-  publication evidence.
+- #119 owns the v6.5.8 release-scale outcome and closes through the verified
+  publication-evidence PR.
 - #110 owned the public small-asset batch slice and closed through implementation
   PR #120.
 - New debt or ideas discovered during implementation become GitHub Issues; no
@@ -659,10 +660,11 @@ The remaining child processes each preserve a capability boundary: Git object
 identity, tree validation, direct target inspection, Git-authored commits,
 symbolic-ref containment, or compare-and-swap publication. Removing one now
 would require manual object encoding, weaker existence checks, or a broader
-cross-layer lifetime for a marginal gain. Publication and downstream playback
-remain intentionally open: git-cas has pinned the released Plumbing capability
-and passed its complete post-pin runtime/release matrix; git-warp must adopt
-semantic bundle waves before the campaign can claim end-to-end improvement.
+cross-layer lifetime for a marginal gain. git-cas publication is now closed:
+the signed `v6.5.8` tag, trusted npm artifact, provenance, and final GitHub
+Release all bind to reviewed merge `57b40553`. Downstream playback remains
+intentionally open; git-warp must adopt semantic bundle waves before the
+campaign can claim end-to-end improvement.
 
 Implementation PR [#120](https://github.com/git-stunts/git-cas/pull/120)
 merged normally as `a762a02ca9270b2ace05b98a3d3025c61927de2c`; its second
@@ -671,3 +673,12 @@ parent is the exact reviewed head
 and the declaration finding were fixed with focused tests before merge. The
 exact reviewed head passed GitHub CI and the complete local 14-stage release
 verifier with 7,054 observed tests.
+
+Release PR [#121](https://github.com/git-stunts/git-cas/pull/121) merged normally
+as `57b40553703b71744c11d6c8e8c62e171683e502`. The exact reviewed release
+merge passed all 14 verifier stages with 7,057 observed tests before signed tag
+`v6.5.8` triggered successful release workflow
+[`32690361682`](https://github.com/git-stunts/git-cas/actions/runs/32690361682).
+The immutable registry, provenance, signature, and clean-room install evidence
+is recorded in the
+[publication witness](./witness/release-publication.md).

@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.5.7` (`2026-08-23`)
-**Current release state:** `v6.5.8` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** the versioned `v6.5.8` candidate after implementation merge `a762a02c` passed 14/14 release-verifier stages with 7,057 observed tests across Node, Bun, Deno, and all three real-Git integration suites.
+**Last tagged release:** `v6.5.8` (`2026-08-23`)
+**Current release state:** `v6.5.8` is published to npm and GitHub Releases.
+**Latest verification:** reviewed release merge `57b40553` passed 14/14 release-verifier stages with 7,057 observed tests; signed tag `v6.5.8` peels to that merge, and release workflow `32690361682` published the matching npm artifact plus final GitHub Release.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,20 +18,23 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.5.8 candidate posture** — implementation PR
-  [#120](https://github.com/git-stunts/git-cas/pull/120) merged bounded asset,
-  ordered-bundle, workspace-retention, and Git protocol waves normally as
-  `a762a02c`. npm, JSR, and runtime metadata identify `6.5.8`; the signed tag
-  and registry artifact remain deliberately absent pending release review.
-  The published `@git-stunts/plumbing@3.3.0` dependency is pinned, and the
-  released-dependency witness preserves SHA-1/SHA-256 semantic digests while
-  reducing 16 assets from 49 to two Git children and 16 workspace bundles from
-  147 to eight.
+- **v6.5.8 artifact posture** — implementation PR
+  [#120](https://github.com/git-stunts/git-cas/pull/120) and release PR
+  [#121](https://github.com/git-stunts/git-cas/pull/121) merged normally.
+  Signed tag `v6.5.8` resolves to reviewed release merge `57b40553`; npm reports
+  `@git-stunts/git-cas@6.5.8` as `latest` with publish and SLSA provenance, and
+  release workflow `32690361682` published the final GitHub Release. Bounded
+  asset, ordered-bundle, workspace-retention, and Git protocol waves are
+  shipped against `@git-stunts/plumbing@3.3.0`. The released-dependency witness
+  preserves SHA-1/SHA-256 semantic digests while reducing 16 assets from 49 to
+  two Git children and 16 workspace bundles from 147 to eight. JSR dry-run
+  validation is healthy, but JSR publication is not part of the release
+  workflow.
 - **v6.5.7 artifact posture** — implementation PR
   [#116](https://github.com/git-stunts/git-cas/pull/116) and release PR
   [#117](https://github.com/git-stunts/git-cas/pull/117) merged normally.
-  Signed tag `v6.5.7` resolves to reviewed release merge `eebc6e37`; npm reports
-  `@git-stunts/git-cas@6.5.7` as `latest` with publish and SLSA provenance, and
+  Signed tag `v6.5.7` resolves to reviewed release merge `eebc6e37`; npm retains
+  `@git-stunts/git-cas@6.5.7` with publish and SLSA provenance, and
   release workflow `32637934268` published the final GitHub Release. Bounded
   session-backed small stream reads are shipped. The fixed 10 MiB ceiling is
   independent of `maxBlobSize`, and larger objects remain genuinely streamed.
@@ -164,7 +167,7 @@
 
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
-- Current release goalpost:
+- Latest completed release goalpost:
   [#119 v6.5.8: Batch bounded Git write and retention waves](https://github.com/git-stunts/git-cas/issues/119)
   under the
   [`v6.5.8` milestone](https://github.com/git-stunts/git-cas/milestone/18).
