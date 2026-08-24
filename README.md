@@ -40,7 +40,9 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
   typed Git sessions behind the adapter. On session-capable adapters, streaming
   blob reads at or below a fixed 10 MiB ceiling use one bounded session read;
   larger payloads retain the genuine one-shot streaming path. Explicitly
-  bounded page batches amortize writes without changing content identity.
+  bounded page, asset, and ordered-bundle batches pipeline independent Git
+  writes and retain each successful workspace batch under one exact generation
+  without changing content identity.
 - **Key Lifecycle**: Envelope encryption separates DEKs from KEKs. Rotate passphrases across an entire vault without re-encrypting data blobs. Privacy mode HMAC-hashes slug names to prevent metadata discovery.
 - **Runtime-Adaptive**: A single core supports Node.js 22+, Bun, and Deno through a strict hexagonal port architecture with runtime-specific crypto adapters.
 
@@ -49,7 +51,7 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
 `npm run upgrade` in dry-run mode before restoring old encrypted vault entries.
 For the release overview, see the
-[v6.5.7 Release Notes](./docs/releases/v6.5.7.md).
+[v6.5.8 Release Notes](./docs/releases/v6.5.8.md).
 
 ### 1. CLI Usage
 
@@ -232,6 +234,8 @@ All three runtimes are tested in CI on every push. The hexagonal architecture is
   cockpit ownership and deterministic checked-ref conflict classification.
 - **[v6.5.7 Release Notes](./docs/releases/v6.5.7.md)**: Bounded persistent
   sessions for small streaming blob reads while large payloads remain streamed.
+- **[v6.5.8 Release Notes](./docs/releases/v6.5.8.md)**: Bounded application
+  write waves, one-generation workspace batches, and reusable ref sessions.
 - **[Upgrading](./UPGRADING.md)**: Migration guide for v5 → v6.
 - **[Changelog](./CHANGELOG.md)**: Version history and migration notes.
 

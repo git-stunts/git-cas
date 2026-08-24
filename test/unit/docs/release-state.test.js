@@ -4,6 +4,7 @@ import path from 'node:path';
 
 const repoRoot = process.cwd();
 const v653PublishedMarker = '**v6.5.3 artifact posture**';
+const v658CandidatePath = 'docs/design/0059-bounded-write-waves/witness/release-candidate.md';
 const v657CandidatePath =
   'docs/design/0058-bounded-stream-session-reads/witness/release-candidate.md';
 const v657PublicationPath =
@@ -41,6 +42,29 @@ function read(relPath) {
 
 function v6Heading(changelog) {
   return changelog.match(/^## \[6\.0\.0\] — (.+)$/m)?.[1];
+}
+
+function expectNoV658PublicationEvidence(...documents) {
+  const forbiddenMarkers = [
+    '**Last tagged release:** `v6.5.8`',
+    '**Current release state:** `v6.5.8` is published',
+    '- Signed annotated tag: `v6.5.8`',
+    'https://github.com/git-stunts/git-cas/releases/tag/v6.5.8',
+    '## npm Registry Evidence',
+    /\| Package\s+\| `@git-stunts\/git-cas@6\.5\.8`\s+\|/,
+    /\| Dist-tag\s+\| `latest` -> `6\.5\.8`\s+\|/,
+    'attestations/@git-stunts%2fgit-cas@6.5.8',
+  ];
+
+  for (const document of documents) {
+    for (const marker of forbiddenMarkers) {
+      if (marker instanceof RegExp) {
+        expect(document).not.toMatch(marker);
+      } else {
+        expect(document).not.toContain(marker);
+      }
+    }
+  }
 }
 
 function expectNoV657PublicationEvidence(...documents) {
@@ -302,7 +326,6 @@ function expectV657CandidateEvidence(candidate, releaseNotes) {
 
 function expectV657PublishedEvidence(status, publication) {
   expect(status).toContain('**Last tagged release:** `v6.5.7` (`2026-08-23`)');
-  expect(status).toContain('**Current release state:** `v6.5.7` is published');
   expect(status).toContain('**v6.5.7 artifact posture**');
   expect(status).toContain('eebc6e37');
   expect(status).toContain('32637934268');
@@ -325,6 +348,21 @@ function expectV657PublishedEvidence(status, publication) {
   expect(publication).toContain('2,223,367');
   expect(publication).toContain('attestations/@git-stunts%2fgit-cas@6.5.7');
   expect(publication).toContain('CLI version `6.5.7+eebc6e3`');
+}
+
+function expectV658CandidateEvidence(status, candidate, releaseNotes) {
+  expect(status).toContain('**Last tagged release:** `v6.5.7` (`2026-08-23`)');
+  expect(status).toContain('**Current release state:** `v6.5.8` release candidate');
+  expect(status).toContain('**v6.5.8 candidate posture**');
+  expect(candidate).toContain('# PERF-0059 v6.5.8 Release Candidate Witness');
+  expect(candidate).toContain('Implementation review: #120');
+  expect(candidate).toContain('Release review: #121');
+  expect(candidate).toContain('a762a02ca9270b2ace05b98a3d3025c61927de2c');
+  expect(candidate).toContain('8badb3194d1bed66e79dff1355cfcc765078ca11');
+  expect(candidate).toContain('**PASS: 14/14 gates**');
+  expect(candidate).toContain('**7,057**');
+  expect(candidate).toMatch(/explicitly\s+unpublished\s+candidate/);
+  expectNoV658PublicationEvidence(status, candidate, releaseNotes);
 }
 
 function expectV656PublishedEvidence(status, publication) {
@@ -485,17 +523,26 @@ function expectV657ReleaseDocs(status) {
   expect(releaseNotes).toMatch(/requires no application or stored-data\s+migration/);
 }
 
+function expectV658CandidateDocs(status) {
+  const candidate = read(v658CandidatePath);
+  const releaseNotes = read('docs/releases/v6.5.8.md');
+
+  expectV658CandidateEvidence(status, candidate, releaseNotes);
+  expect(releaseNotes).toContain('14-step verifier with\n7,057 observed tests');
+  expect(releaseNotes).toMatch(/requires no application or stored-data\s+migration/);
+}
+
 function expectCurrentQueue(status) {
-  expect(status).toContain('Latest completed release goalpost:');
+  expect(status).toContain('Current release goalpost:');
   expect(status).toContain('Current queued release goalposts are');
   expect(status).toContain('#39 v6.6.0: Operator TUI');
   expect(status).toContain('#40 v6.6.0: Agent automation follow-through');
-  expect(status).toContain('#115 v6.5.7: Reuse bounded Git sessions');
-  expect(status).toContain('0058-bounded-stream-session-reads');
+  expect(status).toContain('#119 v6.5.8: Batch bounded Git write');
+  expect(status).toContain('0059-bounded-write-waves');
 }
 
 describe('release state docs', () => {
-  it('enforces the v6.5.7 candidate history and publication evidence', () => {
+  it('enforces the v6.5.8 candidate and preserves publication history', () => {
     const status = read('STATUS.md');
     const [v656Candidate, v656Publication] = [v656CandidatePath, v656PublicationPath].map(read);
     const v655Candidate = read(v655CandidatePath);
@@ -516,6 +563,7 @@ describe('release state docs', () => {
     const v650Publication = read(v650PublicationPath);
     const v640Publication = read(v640PublicationPath);
 
+    expectV658CandidateDocs(status);
     expectV657ReleaseDocs(status);
     expectV656CandidateEvidence(v656Candidate);
     expectV656PublishedEvidence(status, v656Publication);

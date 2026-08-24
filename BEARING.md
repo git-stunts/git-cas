@@ -14,7 +14,8 @@ timeline
 
 ## Current State
 
-`v6.5.7` shipped on `2026-08-23`. Application asset, bundle, page, cache,
+`v6.5.7` shipped on `2026-08-23`, and `v6.5.8` is under release review.
+Application asset, bundle, page, cache,
 expiry, witness, and repository-diagnostics APIs sit above mutable root sets
 and the low-level CAS pipeline. Direct bundle-reference reads and bounded
 immutable metadata/page reuse, bounded Git object sessions, page batches, and
@@ -87,6 +88,12 @@ What exists now:
   fixed 10 MiB ceiling through the persistent `cat-file` session and returns one
   bounded chunk. Larger objects are metadata-inspected but enter exactly one
   genuine content stream; no session content read is attempted for them.
+- **Bounded application-write candidate.** v6.5.8 adds input-ordered asset and
+  ordered-bundle batches, mirrors them through scoped workspaces, and anchors
+  each successful workspace batch under one exact generation. Published
+  Plumbing 3.3.0 sessions pipeline independent blob, tree, metadata, and
+  successful checked-ref waves while one-shot and older-capability fallbacks
+  remain intact.
 - **Batched workspace page retention.** v6.5.4 adds
   `workspace.pages.putBatch()` so one bounded ordered page group is written and
   retained under one exact workspace generation instead of rewriting a growing
@@ -157,14 +164,14 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With v6.5.7 shipped, active work
+With v6.5.7 shipped and the v6.5.8 candidate under release review, active work
 is tracked in GitHub Issues and Milestones. Repo docs hold design and evidence
 records, not the active queue.
 
-The completed release design is
-[0058-bounded-stream-session-reads](./docs/design/0058-bounded-stream-session-reads/bounded-stream-session-reads.md).
-Its completed release goalpost is [#115](https://github.com/git-stunts/git-cas/issues/115)
-in the [`v6.5.7` milestone](https://github.com/git-stunts/git-cas/milestone/17).
+The candidate design is
+[0059-bounded-write-waves](./docs/design/0059-bounded-write-waves/bounded-write-waves.md).
+Its release goalpost is [#119](https://github.com/git-stunts/git-cas/issues/119)
+in the [`v6.5.8` milestone](https://github.com/git-stunts/git-cas/milestone/18).
 
 The broader horizon remains:
 
