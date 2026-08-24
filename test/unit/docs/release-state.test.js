@@ -359,7 +359,7 @@ function expectV658CandidateEvidence(status, candidate, releaseNotes) {
   expect(candidate).toContain('Release review: #121');
   expect(candidate).toContain('a762a02ca9270b2ace05b98a3d3025c61927de2c');
   expect(candidate).toContain('8badb3194d1bed66e79dff1355cfcc765078ca11');
-  expect(candidate).toContain('fd5950d5feef58aa49b9ad8c07c78a0f40eb01fd');
+  expect(candidate).toContain('fd5950d5767b7c43cec56e7d5ae2adf99c5e3b30');
   expect(candidate).toContain('**PASS: 14/14 gates**');
   expect(candidate).toContain('**7,057**');
   expect(candidate).toMatch(/explicitly\s+unpublished\s+candidate/);

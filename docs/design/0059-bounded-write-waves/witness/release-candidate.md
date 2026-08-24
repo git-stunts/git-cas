@@ -40,7 +40,7 @@ Implementation review #120 merged normally as
 reviewed head `8badb3194d1bed66e79dff1355cfcc765078ca11`.
 
 The versioned release-candidate tree verified below was committed as
-`fd5950d5feef58aa49b9ad8c07c78a0f40eb01fd`. A following documentation-only
+`fd5950d5767b7c43cec56e7d5ae2adf99c5e3b30`. A following documentation-only
 commit binds that immutable candidate identity into this witness; publication
 still requires verification of the eventual reviewed merge.
 
@@ -76,7 +76,7 @@ object creation as a complete batch result.
 
 The exact reviewed implementation head passed the complete release method with
 7,054 observed tests. The versioned release-candidate tree committed as
-`fd5950d5feef58aa49b9ad8c07c78a0f40eb01fd` then passed the same 14-stage
+`fd5950d5767b7c43cec56e7d5ae2adf99c5e3b30` then passed the same 14-stage
 method with these final candidate counts:
 
 | Gate                       | Result                | Observed tests |
