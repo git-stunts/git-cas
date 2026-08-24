@@ -24,11 +24,15 @@
   `eb8d617620fa8f401fb887f5b1bbc341d4746b0a`; exact reviewed head
   `29ba6e88c787a5e54c95a554e9166fd21aae31c0` passed 14/14 release-verifier
   stages with 7,141 observed tests.
+- Release PR #125 merged normally as
+  `a16e31a9d4b0dff3b538fe8ad9ad2da31b67b275`; signed tag `v6.5.9`, trusted npm
+  publication with SLSA provenance, and the final GitHub Release all resolve to
+  that reviewed merge.
+- The publication witness records the exact tag object, release workflow,
+  registry integrity, signature audit, and clean-room consumer smoke.
 
 ## What Did Not Yet Ship
 
-- v6.5.9 is not tagged or published until the release candidate, reviewed
-  merge, signed-tag workflow, registry artifact, and clean consumer checks pass.
 - git-warp has not yet consumed the registry artifact or rerun its exact
   reference, migrated-v18, process-census, and CPU gates.
 - Think remains unchanged until the ordered Plumbing -> git-cas -> git-warp

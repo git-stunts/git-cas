@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.5.8` (`2026-08-23`)
-**Current release state:** `v6.5.9` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** exact versioned candidate `5512acd4` passed 14/14 release-verifier stages with 7,147 observed tests across Node, Bun, Deno, and all three real-Git integration suites.
+**Last tagged release:** `v6.5.9` (`2026-08-24`)
+**Current release state:** `v6.5.9` is published to npm and GitHub Releases.
+**Latest verification:** reviewed release merge `a16e31a9` passed 14/14 release-verifier stages with 7,147 observed tests; signed tag `v6.5.9` peels to that merge, and release workflow `32766297971` published the matching npm artifact plus final GitHub Release.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,22 +18,22 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.5.9 candidate posture** — implementation PR
-  [#124](https://github.com/git-stunts/git-cas/pull/124) merged normally as
-  `eb8d6176`; release PR [#125](https://github.com/git-stunts/git-cas/pull/125)
-  reviews the versioned candidate. Exact candidate `5512acd4` passed all 14
-  release-verifier stages with 7,147 observed tests. npm, JSR, and runtime
-  metadata identify `6.5.9`, while the signed tag and registry artifact remain
-  deliberately absent pending release review. The SHA-1/SHA-256 compound
-  witness preserves every application-handle digest while reducing a
-  33-operation graph from 200 to 23 Git children and from 33 retained
-  generations to one. The release is additive and requires no application or
-  stored-data migration.
+- **v6.5.9 artifact posture** — implementation PR
+  [#124](https://github.com/git-stunts/git-cas/pull/124) and release PR
+  [#125](https://github.com/git-stunts/git-cas/pull/125) merged normally.
+  Signed tag `v6.5.9` resolves to reviewed release merge `a16e31a9`; npm reports
+  `@git-stunts/git-cas@6.5.9` as `latest` with publish and SLSA provenance, and
+  release workflow `32766297971` published the final GitHub Release. The
+  SHA-1/SHA-256 compound witness preserves every application-handle digest
+  while reducing a 33-operation graph from 200 to 23 Git children and from 33
+  retained generations to one. The release is additive and requires no
+  application or stored-data migration. JSR dry-run validation is healthy, but
+  JSR publication is not part of the release workflow.
 - **v6.5.8 artifact posture** — implementation PR
   [#120](https://github.com/git-stunts/git-cas/pull/120) and release PR
   [#121](https://github.com/git-stunts/git-cas/pull/121) merged normally.
-  Signed tag `v6.5.8` resolves to reviewed release merge `57b40553`; npm reports
-  `@git-stunts/git-cas@6.5.8` as `latest` with publish and SLSA provenance, and
+  Signed tag `v6.5.8` resolves to reviewed release merge `57b40553`; npm retains
+  `@git-stunts/git-cas@6.5.8` with publish and SLSA provenance, and
   release workflow `32690361682` published the final GitHub Release. Bounded
   asset, ordered-bundle, workspace-retention, and Git protocol waves are
   shipped against `@git-stunts/plumbing@3.3.0`. The released-dependency witness
@@ -178,7 +178,7 @@
 
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
-- Current release goalpost:
+- Latest completed release goalpost:
   [#123 v6.5.9: Compound staging-workspace admission](https://github.com/git-stunts/git-cas/issues/123)
   under the
   [`v6.5.9` milestone](https://github.com/git-stunts/git-cas/milestone/19).

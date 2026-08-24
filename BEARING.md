@@ -14,7 +14,7 @@ timeline
 
 ## Current State
 
-`v6.5.8` shipped on `2026-08-23`, and `v6.5.9` is under release review.
+`v6.5.9` shipped on `2026-08-24`.
 Application asset, bundle, page, cache,
 expiry, witness, and repository-diagnostics APIs sit above mutable root sets
 and the low-level CAS pipeline. Direct bundle-reference reads and bounded
@@ -94,7 +94,7 @@ What exists now:
   Plumbing 3.3.0 sessions pipeline independent blob, tree, metadata, and
   successful checked-ref waves while one-shot and older-capability fallbacks
   remain intact.
-- **Compound workspace-admission candidate.** v6.5.9 adds one bounded
+- **Compound workspace admission.** v6.5.9 adds one bounded
   `workspace.batch()` callback for dependency-ordered page and bundle waves.
   One private persistence scope stages every operation and one exact final
   generation retains their union. A 33-operation witness reduced 200 Git
@@ -170,14 +170,14 @@ These were the active tensions from the previous bearing. All resolved.
 
 ## Next Horizon
 
-With v6.5.8 shipped and the v6.5.9 candidate under release review, active work
-is tracked in GitHub Issues and Milestones. Repo docs hold design and evidence
-records, not the active queue.
+With v6.5.9 shipped, active work is tracked in GitHub Issues and Milestones.
+Repo docs hold design and evidence records, not the active queue.
 
-The candidate design is
+The completed release design is
 [0060-compound-workspace-admission](./docs/design/0060-compound-workspace-admission/compound-workspace-admission.md).
-Its release goalpost is [#123](https://github.com/git-stunts/git-cas/issues/123)
-in the [`v6.5.9` milestone](https://github.com/git-stunts/git-cas/milestone/19).
+Its completed release goalpost is
+[#123](https://github.com/git-stunts/git-cas/issues/123) in the
+[`v6.5.9` milestone](https://github.com/git-stunts/git-cas/milestone/19).
 
 The broader horizon remains:
 
