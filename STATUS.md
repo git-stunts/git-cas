@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.5.9` (`2026-08-24`)
-**Current release state:** `v6.5.10` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** exact versioned candidate `2a5be40c` passed 14/14 release-verifier stages with 7,192 observed tests; tag and publication verification remain pending.
+**Last tagged release:** `v6.5.10` (`2026-08-24`)
+**Current release state:** `v6.5.10` is published to npm and GitHub Releases.
+**Latest verification:** reviewed release merge `4316f4ec` passed 14/14 release-verifier stages with 7,192 observed tests; signed tag `v6.5.10` peels to that merge, and release workflow `32782415971` published the matching npm artifact plus final GitHub Release.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,25 +18,25 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
-- **v6.5.10 candidate posture** — implementation PR
-  [#128](https://github.com/git-stunts/git-cas/pull/128) merged normally as
-  `57cd3002`; its exact reviewed head is `67147506`, and exact implementation
-  checkpoint `e663754b` passed all 14 release-verifier stages with 7,186
-  observed tests. Exact versioned candidate `2a5be40c` passed the same 14-stage
-  method with 7,192 observed tests. npm, JSR, and runtime metadata identify
-  `6.5.10`, while the signed tag and registry artifact remain deliberately
-  absent pending release review [#129](https://github.com/git-stunts/git-cas/pull/129).
-  The additive contract admits bounded asset waves into the compound scope and
-  can retain exact selected terminal roots without changing stored formats,
-  handles, refs, or readers. The controlled git-warp prototype cut cold Git
-  commands from 139 to 50 and incremental commands from 149 to 60; those
-  downstream numbers remain provisional until repeated against the public
-  registry artifact. No application or stored-data migration is required.
+- **v6.5.10 artifact posture** — implementation PR
+  [#128](https://github.com/git-stunts/git-cas/pull/128) and release PR
+  [#129](https://github.com/git-stunts/git-cas/pull/129) merged normally.
+  Signed tag `v6.5.10` resolves to reviewed release merge `4316f4ec`; npm
+  reports `@git-stunts/git-cas@6.5.10` as `latest` with publish and SLSA
+  provenance, and release workflow `32782415971` published the final GitHub
+  Release. The additive contract admits bounded asset waves into the compound
+  scope and can retain exact selected terminal roots without changing stored
+  formats, handles, refs, or readers. The controlled git-warp prototype cut
+  cold Git commands from 139 to 50 and incremental commands from 149 to 60;
+  those downstream numbers remain provisional until repeated against this
+  public artifact. No application or stored-data migration is required. JSR
+  dry-run validation is healthy, but JSR publication is not part of the release
+  workflow.
 - **v6.5.9 artifact posture** — implementation PR
   [#124](https://github.com/git-stunts/git-cas/pull/124) and release PR
   [#125](https://github.com/git-stunts/git-cas/pull/125) merged normally.
-  Signed tag `v6.5.9` resolves to reviewed release merge `a16e31a9`; npm reports
-  `@git-stunts/git-cas@6.5.9` as `latest` with publish and SLSA provenance, and
+  Signed tag `v6.5.9` resolves to reviewed release merge `a16e31a9`; npm retains
+  `@git-stunts/git-cas@6.5.9` with publish and SLSA provenance, and
   release workflow `32766297971` published the final GitHub Release. The
   SHA-1/SHA-256 compound witness preserves every application-handle digest
   while reducing a 33-operation graph from 200 to 23 Git children and from 33
@@ -193,10 +193,6 @@
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
 - Latest completed release goalpost:
-  [#123 v6.5.9: Compound staging-workspace admission](https://github.com/git-stunts/git-cas/issues/123)
-  under the
-  [`v6.5.9` milestone](https://github.com/git-stunts/git-cas/milestone/19).
-- Active release goalpost:
   [#127 v6.5.10: Compound workspace assets and exact roots](https://github.com/git-stunts/git-cas/issues/127)
   under the
   [`v6.5.10` milestone](https://github.com/git-stunts/git-cas/milestone/20).

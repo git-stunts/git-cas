@@ -433,7 +433,7 @@ The work is done when:
       without migration.
 - [x] Public docs, architecture, changelog, issue, PR, CI, and local validation
       are complete.
-- [ ] v6.5.10 is publicly installable before downstream results are claimed as
+- [x] v6.5.10 is publicly installable before downstream results are claimed as
       release behavior.
 
 ## Validation Plan
@@ -507,7 +507,20 @@ boundedness hole before review: selector input count is now capped by the exact
 staged-artifact count, preventing duplicate input scanning from exceeding the
 admission's own evidence ledger.
 
+Release PR #129 merged normally as
+`4316f4ec7eeda531c07627d2ad0d15c1fcade2f8`. That exact merge passed all 14
+release-verifier stages with 7,192 observed tests before signed tag `v6.5.10`
+triggered successful release workflow
+[`32782415971`](https://github.com/git-stunts/git-cas/actions/runs/32782415971).
+The registry, provenance, signature, GitHub Release, and clean-room compound
+asset smoke are recorded in the
+[publication witness](./witness/release-publication.md).
+
 The controlled git-warp prototype reduced cold Git commands from 139 to 50 and
 incremental commands from 149 to 60 with equal semantic fingerprints and replay
-counts. That result remains provisional until it is repeated against the
-public v6.5.10 registry artifact.
+counts. The public dependency now exists; that downstream result remains
+provisional until git-warp installs it and repeats the corpus.
+
+Release PR:
+
+- [#129 - Release v6.5.10 compound workspace assets and exact roots](https://github.com/git-stunts/git-cas/pull/129)
