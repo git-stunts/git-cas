@@ -781,10 +781,12 @@ describe('GitPersistenceAdapter tree batch fallback', () => {
   it('uses ordered write() calls when writeMany() is unavailable', async () => {
     const firstOid = 'f'.repeat(40);
     const secondOid = '0'.repeat(40);
+    const firstWrite = deferred();
+    const secondWrite = deferred();
     const mktree = {
       write: vi.fn()
-        .mockResolvedValueOnce('3'.repeat(40))
-        .mockResolvedValueOnce('4'.repeat(40)),
+        .mockReturnValueOnce(firstWrite.promise)
+        .mockReturnValueOnce(secondWrite.promise),
       close: vi.fn().mockResolvedValue(undefined),
       terminate: vi.fn().mockResolvedValue(undefined),
     };
@@ -793,10 +795,19 @@ describe('GitPersistenceAdapter tree batch fallback', () => {
       policy: noPolicy,
     });
 
-    await expect(adapter.writeTrees([
+    const writing = adapter.writeTrees([
       [`100644 blob ${firstOid}\tfirst`],
       [`100644 blob ${secondOid}\tsecond`],
-    ])).resolves.toEqual(['3'.repeat(40), '4'.repeat(40)]);
+    ]);
+    await vi.waitFor(() => expect(mktree.write).toHaveBeenCalledOnce());
+    expect(mktree.write).toHaveBeenCalledWith([
+      { mode: '100644', type: 'blob', oid: firstOid, name: 'first' },
+    ]);
+    firstWrite.resolve('3'.repeat(40));
+    await vi.waitFor(() => expect(mktree.write).toHaveBeenCalledTimes(2));
+    secondWrite.resolve('4'.repeat(40));
+
+    await expect(writing).resolves.toEqual(['3'.repeat(40), '4'.repeat(40)]);
     expect(mktree.write).toHaveBeenCalledTimes(2);
     await adapter.close();
   });
