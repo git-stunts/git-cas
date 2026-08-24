@@ -9,8 +9,11 @@ import MemoryRefAdapter from '../../../helpers/MemoryRefAdapter.js';
 
 const CLOCK = Object.freeze({ now: () => new Date('2026-08-24T17:00:00.000Z') });
 
-function fixture() {
+function fixture({ withWriteScope = true } = {}) {
   const persistence = new MemoryPersistenceAdapter();
+  if (!withWriteScope) {
+    Object.defineProperty(persistence, 'withWriteScope', { value: undefined });
+  }
   const ref = new MemoryRefAdapter();
   const pages = new PageService({ persistence, maxPageSize: 4096, clock: CLOCK });
   const services = {};
@@ -74,6 +77,29 @@ describe('StagingWorkspace compound admission', () => {
     );
     expect(updateRef).toHaveBeenCalledOnce();
     expect(writeScope).toHaveBeenCalledOnce();
+  });
+
+});
+
+describe('StagingWorkspace compound persistence compatibility', () => {
+  it('uses direct persistence when write-scope support is absent', async () => {
+    const { registry } = fixture({ withWriteScope: false });
+    const workspace = await registry.open({
+      namespace: 'git-warp/materializations',
+      ttlMs: 60_000,
+    });
+
+    const admitted = await workspace.batch({
+      operation: async (scope) =>
+        (
+          await scope.pages.putBatch({
+            pages: [{ source: new Uint8Array([1, 2, 3]) }],
+          })
+        )[0],
+    });
+
+    expect(admitted.value.toString()).toMatch(/^git-cas:1:page:/u);
+    expect(admitted.retention.handles).toHaveLength(1);
   });
 });
 

@@ -23,7 +23,7 @@ export default class WorkspaceCompoundAdmission {
         ErrorCodes.INVALID_OPTIONS
       );
     }
-    return await this.#persistence.withWriteScope(async (persistence) => {
+    return await withWriteScope(this.#persistence, async (persistence) => {
       const scope = new WorkspaceCompoundScope({
         pages: this.#pages,
         bundles: this.#bundles,
@@ -38,7 +38,7 @@ export default class WorkspaceCompoundAdmission {
 
   static #assertDependencies({ persistence, pages, bundles }) {
     const missing = [
-      ['persistence.withWriteScope', typeof persistence?.withWriteScope !== 'function'],
+      ['persistence', persistence === null || typeof persistence !== 'object'],
       ['pages.putBatch', typeof pages?.putBatch !== 'function'],
       ['bundles', bundles === null || typeof bundles !== 'object'],
     ]
@@ -52,4 +52,10 @@ export default class WorkspaceCompoundAdmission {
       );
     }
   }
+}
+
+async function withWriteScope(persistence, operation) {
+  return typeof persistence.withWriteScope === 'function'
+    ? await persistence.withWriteScope(operation)
+    : await operation(persistence);
 }
