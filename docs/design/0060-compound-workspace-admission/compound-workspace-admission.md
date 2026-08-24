@@ -49,13 +49,15 @@ This design is primarily:
 
 `StagingWorkspace` will add one bounded compound-admission operation for
 dependency-ordered page and bundle batches. Provisional content-addressed
-handles may be used only inside the compound callback. The outer promise will
-return the callback value plus exact retention evidence only after one checked
-workspace generation anchors every staged target. The operation will reuse one
-git-cas-owned persistence scope, serialize sub-operations in invocation order,
-enforce an explicit operation ceiling, close deterministically, and expose no
-Plumbing or Git session authority. Existing staging APIs and persisted formats
-remain unchanged.
+handles are returned through the scope for private callback composition. The
+outer promise will return the callback value plus exact retention evidence only
+after one checked workspace generation anchors every staged target. The
+callback is trusted code: JavaScript cannot prevent it from leaking a handle by
+side effect, and such leakage carries no retention witness. The operation will
+reuse one git-cas-owned persistence scope, serialize sub-operations in
+invocation order, enforce an explicit operation ceiling, close
+deterministically, and expose no Plumbing or Git session authority. Existing
+staging APIs and persisted formats remain unchanged.
 
 ## Sponsored Human
 
@@ -69,8 +71,8 @@ or changing retained data.
 
 An agent needs a bounded, typed compound surface and exact generation evidence
 so it can build a content-addressed dependency graph efficiently without
-letting an unretained handle escape, inferring session lifetime, or receiving
-raw Git process authority.
+receiving an unretained handle through the outer result, inferring session
+lifetime, or receiving raw Git process authority.
 
 ## Hill
 
@@ -460,38 +462,38 @@ Named mutation calibration:
 
 ## Tests To Write First
 
-- [ ] Two dependent page/bundle calls share one resulting generation and one
+- [x] Two dependent page/bundle calls share one resulting generation and one
       checked update.
-- [ ] The callback receives frozen handle arrays, while the outer result pairs
+- [x] The callback receives frozen handle arrays, while the outer result pairs
       its value with exact retention evidence.
-- [ ] Concurrent scope invocations execute in invocation order.
-- [ ] Invalid, empty, excessive, failed, and escaped operations never move the
+- [x] Concurrent scope invocations execute in invocation order.
+- [x] Invalid, empty, excessive, failed, and escaped operations never move the
       prior workspace generation or expose a partial result.
-- [ ] A callback failure plus a session-close failure preserves both causes.
-- [ ] Existing independently retained APIs remain unchanged.
-- [ ] SHA-1 and SHA-256 compound handles equal sequential handles byte for byte.
-- [ ] Immediate prune after compound success preserves every retained support
+- [x] A callback failure plus a session-close failure preserves both causes.
+- [x] Existing independently retained APIs remain unchanged.
+- [x] SHA-1 and SHA-256 compound handles equal sequential handles byte for byte.
+- [x] Immediate prune after compound success preserves every retained support
       object; release followed by prune reclaims them.
-- [ ] The process witness detects per-wave retention publication and per-wave
+- [x] The process witness detects per-wave retention publication and per-wave
       fast-import reopening mutations.
 
 ## Acceptance Criteria
 
 The work is done when:
 
-- [ ] Public behavior tests prove provisional scope, exact final retention, and
+- [x] Public behavior tests prove provisional scope, exact final retention, and
       one-generation semantics.
-- [ ] Operation count, per-call bytes/items, targets, queues, and session
+- [x] Operation count, per-call bytes/items, targets, queues, and session
       lifetime are explicitly bounded.
-- [ ] Existing page/bundle bytes and handles are identical under sequential and
+- [x] Existing page/bundle bytes and handles are identical under sequential and
       compound modes in SHA-1 and SHA-256 repositories.
-- [ ] Failure tests prove no ref movement and no caller-visible partial result.
-- [ ] Real-Git pruning proves retained success and releasable cleanup.
-- [ ] Machine evidence reports a material process reduction and zero active
+- [x] Failure tests prove no ref movement and no caller-visible partial result.
+- [x] Real-Git pruning proves retained success and releasable cleanup.
+- [x] Machine evidence reports a material process reduction and zero active
       sessions after close.
-- [ ] Existing public APIs, storage readers, v6 workspaces, and release surfaces
+- [x] Existing public APIs, storage readers, v6 workspaces, and release surfaces
       remain compatible with no migration.
-- [ ] Public docs, architecture, changelog, and release notes are accurate.
+- [x] Public docs, architecture, changelog, and release notes are accurate.
 - [ ] Issue and PR are linked; CI and complete local validation are green.
 - [ ] Released v6.5.9 is consumed from the registry by git-warp before any
       downstream performance claim.
@@ -548,6 +550,7 @@ Known risks:
 - target accumulation may approach the existing workspace cap;
 - a pack checkpoint invalidates an already-open mktree object snapshot;
 - reducing generations widens the private unanchored interval.
+- trusted callback code can leak provisional handles through side effects.
 
 Mitigations:
 
@@ -556,14 +559,18 @@ Mitigations:
 - serialize by invocation order and stop queued work after first failure;
 - enforce the existing workspace target ceiling before ref movement;
 - keep the existing mktree retire/reopen rule after new packed objects;
-- permit provisional handles only inside the callback and perform one exact
-  final retention before any value escapes.
+- document callback-side-effect leakage as outside the contract and perform one
+  exact final retention before the outer operation returns any value.
 
 ## Follow-On Debt
 
-None currently. If the released witness shows that singleton assets or a wider
-operation profile would materially improve a real workload, open a separate
-issue with its own bounds and evidence rather than silently widening this API.
+The clean witness leaves 18 `mktree` children in the 33-operation compound
+profile because descriptor packs must become visible before dependent tree
+waves. Measure the released API in git-warp before deciding whether a typed
+tree-writing protocol is justified. If it is, open a separate Plumbing/git-cas
+issue with SHA-1/SHA-256 identity and validation evidence rather than widening
+this compound API. Singleton assets or a wider operation profile require the
+same evidence and separate scope.
 
 ## Tracker Disposition
 
@@ -582,11 +589,16 @@ When this lands, it does not prove:
 - that mktree can safely observe packs created after its ODB snapshot;
 - that manual object encoding or a native Git implementation is justified;
 - any storage migration or change to domain atomicity.
+- a capability sandbox that can prevent trusted callback side effects.
 
 ## Retrospective
 
-Fill this in after implementation.
+The implementation and clean witness are complete. A 33-operation,
+81-handle graph fell from 200 to 23 Git children and from 33 retained
+generations to one in both SHA-1 and SHA-256 repositories. Median wall time
+fell by 80.5% with identical handle digests. The remaining work is hosted
+multi-runtime review, v6.5.9 publication, and released downstream adoption.
 
 PR:
 
-- pending
+- [#124](https://github.com/git-stunts/git-cas/pull/124)

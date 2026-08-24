@@ -202,6 +202,31 @@ no partial result array on failure. Higher `maxBatchAssets` values can reduce
 protocol round trips when the caller can afford more simultaneously live
 source pipelines; the default remains four.
 
+When later bundle waves depend on handles created by earlier waves, keep the
+intermediate handles inside one compound staging-workspace operation:
+
+```js
+const admitted = await workspace.batch({
+  maxOperations: 3,
+  operation: async (scope) => {
+    const pages = await scope.pages.putBatch({ pages: pageRequests });
+    const leaves = await scope.bundles.putOrderedBatch({
+      bundles: leafRequests(pages),
+    });
+    return (await scope.bundles.putOrderedBatch({
+      bundles: [rootRequest(leaves)],
+    }))[0];
+  },
+});
+```
+
+`admitted.value` becomes caller-visible only with `admitted.retention`, after
+one exact workspace generation anchors every staged handle. The default
+operation ceiling is 64 and the hard ceiling is 1,024; each scope call also
+preserves its ordinary page or bundle batch bounds. Use the existing
+independently retained workspace methods when intermediate handles must leave
+the private callback.
+
 Repeated `pages.get()` calls reuse immutable payload reads within the store's
 bounded page cache. The defaults retain at most 128 payloads and 8 MiB; use
 `pageCacheEntries` and `pageCacheBytes` to tune that ceiling. Every result is a

@@ -182,6 +182,15 @@ The facade is orchestration glue. It is not the storage engine itself.
   bundles build deterministic bounded-fanout trees and support targeted member
   traversal without hydrating the complete structure.
 
+- **`StagingWorkspaceRegistry` and `StagingWorkspace`** — own renewable
+  temporary RootSet generations for multi-step application construction.
+  `WorkspaceCompoundAdmission` and `WorkspaceCompoundScope` serialize an
+  explicitly bounded sequence of provisional page and bundle batches through
+  one operation-owned persistence view, then install the union of prior and new
+  targets in one exact generation. Existing workspace methods retain each
+  result independently and remain the boundary when a handle leaves private
+  construction code before later writes begin.
+
 - **`RetentionService` and `PublicationService`** — validate complete handle
   graphs, then either retain them in a RootSet with generation-scoped evidence
   or publish them atomically under an allowlisted application ref.
