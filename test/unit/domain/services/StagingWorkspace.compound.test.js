@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import BundleService from '../../../../src/domain/services/BundleService.js';
+import { ErrorCodes } from '../../../../src/domain/errors/index.js';
 import PageService from '../../../../src/domain/services/PageService.js';
 import StagingWorkspaceRegistry from '../../../../src/domain/services/StagingWorkspaceRegistry.js';
 import parseApplicationHandle from '../../../../src/domain/value-objects/ApplicationHandle.js';
@@ -259,7 +260,7 @@ describe('StagingWorkspace compound failure containment', () => {
           });
         },
       })
-    ).rejects.toBeDefined();
+    ).rejects.toMatchObject({ code: ErrorCodes.HANDLE_KIND_MISMATCH });
     expect(updateRef).not.toHaveBeenCalled();
   });
 });

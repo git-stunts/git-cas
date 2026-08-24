@@ -11,6 +11,7 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import ContentAddressableStore from '../../index.js';
 import { createCountingGitPlumbing } from '../../scripts/diagnostics/createCountingGitPlumbing.js';
+import { ErrorCodes } from '../../src/domain/errors/index.js';
 
 if (process.env.GIT_STUNTS_DOCKER !== '1') {
   throw new Error(
@@ -68,7 +69,7 @@ async function proveFailureContainment(objectFormat) {
           bundles: [{ members: [['invalid', 'not-an-application-handle']] }],
         });
       },
-    })).rejects.toBeDefined();
+    })).rejects.toMatchObject({ code: ErrorCodes.HANDLE_KIND_MISMATCH });
     await expect(cas.workspaces.inspect({ namespace, limit: 10 })).resolves.toMatchObject({
       returned: 0,
     });
