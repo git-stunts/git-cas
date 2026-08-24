@@ -83,27 +83,43 @@ async function proveFailureContainment(objectFormat) {
 
 async function admitGraph(workspace) {
   return await workspace.batch({
-    maxOperations: 3,
+    maxOperations: 4,
     operation: async (scope) => await stageGraph(scope),
+    retain: (terminal) => [terminal],
   });
 }
 
 async function stageGraph(scope) {
+  const [asset] = await scope.assets.putBatch({
+    assets: [
+      {
+        source: singleChunk(Buffer.from('compound asset payload')),
+        slug: 'compound-asset',
+        filename: 'payload.bin',
+      },
+    ],
+  });
   const pages = await scope.pages.putBatch({
     pages: Array.from({ length: 8 }, (_, index) => ({
       source: Buffer.from(`compound-page-${index}`),
     })),
   });
-  const leaves = await scope.bundles.putOrderedBatch({
-    bundles: pages.map((page, index) => ({
-      members: [[`payload/${index}`, page]],
-    })),
+  const supports = await scope.bundles.putOrderedBatch({
+    bundles: [
+      { members: [['payload.bin', asset]] },
+      ...pages.map((page, index) => ({
+        members: [[`payload/${index}`, page]],
+      })),
+    ],
   });
   return (
     await scope.bundles.putOrderedBatch({
       bundles: [
         {
-          members: leaves.map((leaf, index) => [`leaves/${index}`, leaf]),
+          members: [
+            ...supports.slice(1).map((leaf, index) => [`leaves/${index}`, leaf]),
+            ['support/assets', supports[0]],
+          ],
         },
       ],
     })
@@ -111,32 +127,58 @@ async function stageGraph(scope) {
 }
 
 async function assertAdmission({ admitted, cas, counted, repo, workspace }) {
-  const retainedOids = admitted.retention.handles.map((handle) => handle.oid);
   const counts = counted.snapshot();
   expect(count(counts, 'update-ref') + count(counts, 'session:update-ref')).toBe(1);
   expect(count(counts, 'session:fast-import')).toBe(1);
   expect(count(counted.activeSessions(), 'fast-import')).toBe(0);
+  expect(admitted.retention.handles.map((handle) => handle.toString())).toEqual([
+    admitted.value.toString(),
+  ]);
   expect(git(repo, ['rev-parse', admitted.retention.ref])).toBe(admitted.retention.generation);
-  expect(reachableOids(repo, admitted.retention.ref)).toEqual(
-    expect.arrayContaining(admitted.retention.handles.map((handle) => handle.oid))
-  );
+  const reachableBeforeRelease = reachableOids(repo, admitted.retention.ref);
+  expect(reachableBeforeRelease).toEqual(expect.arrayContaining([admitted.value.oid]));
 
   git(repo, ['prune', '--expire=now']);
+  const assetSupport = await cas.bundles.getMemberReference({
+    handle: admitted.value,
+    path: 'support/assets',
+  });
+  const asset = await cas.bundles.getMemberReference({
+    handle: assetSupport.handle,
+    path: 'payload.bin',
+  });
+  expect(
+    Buffer.from(await collect(cas.assets.open({ handle: asset.handle }))).toString('utf8')
+  ).toBe('compound asset payload');
   const firstLeaf = await cas.bundles.getMember({
     handle: admitted.value,
     path: 'leaves/0',
   });
-  await expect(
-    cas.bundles.getMember({
-      handle: firstLeaf.handle,
-      path: 'payload/0',
-    })
-  ).resolves.toMatchObject({ handle: admitted.retention.handles[0] });
+  const firstPage = await cas.bundles.getMember({
+    handle: firstLeaf.handle,
+    path: 'payload/0',
+  });
+  expect(firstPage.handle.kind).toBe('page');
+  expect(Buffer.from(await cas.pages.get({ handle: firstPage.handle })).toString('utf8')).toBe(
+    'compound-page-0'
+  );
 
   await workspace.release();
   git(repo, ['reflog', 'expire', '--expire=now', '--all']);
   git(repo, ['gc', '--prune=now']);
-  expect(retainedOids.every((oid) => !objectExists(repo, oid))).toBe(true);
+  expect(reachableBeforeRelease.every((oid) => !objectExists(repo, oid))).toBe(true);
+}
+
+async function collect(source) {
+  const chunks = [];
+  for await (const chunk of source) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+async function* singleChunk(bytes) {
+  yield bytes;
 }
 
 function initializeRepository(repo, objectFormat) {

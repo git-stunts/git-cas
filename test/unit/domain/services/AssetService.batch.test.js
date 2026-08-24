@@ -104,6 +104,24 @@ async function* laterSource(started) {
   yield Buffer.from('must not start');
 }
 
+describe('AssetService caller-owned write scope', () => {
+  it('joins a caller-owned persistence scope without opening a nested scope', async () => {
+    const { assets, persistence } = fixture();
+    const withWriteScope = vi.spyOn(persistence, 'withWriteScope');
+
+    const batch = await assets.putBatchWithPersistence(
+      {
+        assets: requests(),
+        ...LIMITS,
+      },
+      persistence
+    );
+
+    expect(batch).toHaveLength(requests().length);
+    expect(withWriteScope).not.toHaveBeenCalled();
+  });
+});
+
 describe('AssetService write batches', () => {
   it('preserves single-write handles and uses bounded persistence batches', async () => {
     const singlesFixture = fixture();

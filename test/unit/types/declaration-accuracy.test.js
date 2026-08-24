@@ -131,7 +131,10 @@ describe('Compound workspace declaration accuracy', () => {
 
     expect(declarations).toContain('export interface WorkspaceCompoundScope {');
     expect(declarations).toContain('export interface WorkspaceCompoundResult<T> {');
+    expect(declarations).toContain('readonly assets: {');
+    expect(declarations).toContain('Promise<ReadonlyArray<AssetHandle>>;');
     expect(declarations).toContain('batch<T>(options: {');
+    expect(declarations).toContain('retain?: (value: T) => ReadonlyArray<ApplicationHandleInput>;');
     expect(declarations).toContain('export const DEFAULT_WORKSPACE_COMPOUND_OPERATIONS: 64;');
     expect(declarations).toContain('export const MAX_WORKSPACE_COMPOUND_OPERATIONS: 1024;');
   });

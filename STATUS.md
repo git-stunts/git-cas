@@ -182,6 +182,10 @@
   [#123 v6.5.9: Compound staging-workspace admission](https://github.com/git-stunts/git-cas/issues/123)
   under the
   [`v6.5.9` milestone](https://github.com/git-stunts/git-cas/milestone/19).
+- Active release goalpost:
+  [#127 v6.5.10: Compound workspace assets and exact roots](https://github.com/git-stunts/git-cas/issues/127)
+  under the
+  [`v6.5.10` milestone](https://github.com/git-stunts/git-cas/milestone/20).
 - Current queued release goalposts are
   [#39 v6.6.0: Operator TUI](https://github.com/git-stunts/git-cas/issues/39)
   and
@@ -190,6 +194,8 @@
   [`v6.6.0`](https://github.com/git-stunts/git-cas/milestone/9).
 - The latest landed design record is
   [0060-compound-workspace-admission](./docs/design/0060-compound-workspace-admission/compound-workspace-admission.md).
+- The active design record is
+  [0061-compound-workspace-assets](./docs/design/0061-compound-workspace-assets/compound-workspace-assets.md).
 
 ## Read Next
 

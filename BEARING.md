@@ -171,7 +171,12 @@ These were the active tensions from the previous bearing. All resolved.
 ## Next Horizon
 
 With v6.5.9 shipped, active work is tracked in GitHub Issues and Milestones.
-Repo docs hold design and evidence records, not the active queue.
+Repo docs hold design and evidence records, not the active queue. The immediate
+v6.5.10 goalpost completes compound admission with bounded asset waves and
+exact newly staged terminal-root selection:
+
+- [#127](https://github.com/git-stunts/git-cas/issues/127)
+- [0061-compound-workspace-assets](./docs/design/0061-compound-workspace-assets/compound-workspace-assets.md)
 
 The completed release design is
 [0060-compound-workspace-admission](./docs/design/0060-compound-workspace-admission/compound-workspace-admission.md).

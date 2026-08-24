@@ -13,7 +13,10 @@ function ignoreRejection(promise) {
   void promise.catch(() => undefined);
 }
 
-function fixture({ putPages, putBundles, maxOperations } = {}) {
+function fixture({ putAssets, putPages, putBundles, maxOperations } = {}) {
+  const assets = {
+    putBatchWithPersistence: vi.fn(putAssets ?? (async ({ id }) => [artifact(`asset:${id}`)])),
+  };
   const pages = {
     putBatchWithPersistence: vi.fn(putPages ?? (async ({ id }) => [artifact(`page:${id}`)])),
   };
@@ -23,13 +26,36 @@ function fixture({ putPages, putBundles, maxOperations } = {}) {
     ),
   };
   const scope = new WorkspaceCompoundScope({
+    assets,
     pages,
     bundles,
     persistence: PERSISTENCE,
     maxOperations,
   });
-  return { bundles, pages, scope };
+  return { assets, bundles, pages, scope };
 }
+
+describe('WorkspaceCompoundScope asset admission', () => {
+  it('stages bounded asset waves inside the supplied persistence scope', async () => {
+    const { assets, bundles, scope } = fixture();
+
+    const result = await scope.execute(async (api) => {
+      const [asset] = await api.assets.putBatch({ id: 'payload' });
+      return await api.bundles.putOrderedBatch({ id: asset.toString() });
+    });
+
+    expect(assets.putBatchWithPersistence).toHaveBeenCalledWith({ id: 'payload' }, PERSISTENCE);
+    expect(bundles.putOrderedBatchWithPersistence).toHaveBeenCalledWith(
+      { id: 'asset:payload' },
+      PERSISTENCE
+    );
+    expect(result.operationCount).toBe(2);
+    expect(result.staged.map((entry) => entry.handle.toString())).toEqual([
+      'asset:payload',
+      'bundle:asset:payload',
+    ]);
+  });
+});
 
 describe('WorkspaceCompoundScope ordering', () => {
   it('serializes concurrently started operations by invocation order', async () => {
@@ -61,6 +87,28 @@ describe('WorkspaceCompoundScope ordering', () => {
     expect(pages.putBatchWithPersistence).toHaveBeenCalledTimes(2);
     expect(result.operationCount).toBe(2);
     expect(result.staged).toHaveLength(2);
+  });
+});
+
+describe('WorkspaceCompoundScope asset capability compatibility', () => {
+  it('keeps page waves available when the optional scoped asset hook is absent', async () => {
+    const { bundles, pages } = fixture();
+    const compatibleScope = () =>
+      new WorkspaceCompoundScope({
+        assets: {},
+        pages,
+        bundles,
+        persistence: PERSISTENCE,
+      });
+
+    const result = await compatibleScope().execute(
+      async (api) => await api.pages.putBatch({ id: 'still-supported' })
+    );
+    expect(result.staged).toHaveLength(1);
+
+    await expect(
+      compatibleScope().execute(async (api) => await api.assets.putBatch({ id: 'unsupported' }))
+    ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
   });
 });
 

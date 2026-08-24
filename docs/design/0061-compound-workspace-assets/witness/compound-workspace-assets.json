@@ -1,0 +1,102 @@
+{
+  "schema": "git-cas.compound-workspace-assets/v1",
+  "generatedAt": "2026-08-24T21:19:41Z",
+  "implementation": {
+    "commit": "e663754bf221784f0e5856a41fe071bebfa5befb",
+    "baseCommit": "6d5a43e2853f61b3c12d5000e81ef7832c00b8d2",
+    "pullRequest": "https://github.com/git-stunts/git-cas/pull/128",
+    "worktreeCleanBeforeVerification": true,
+    "plumbingVersion": "3.3.0"
+  },
+  "environment": {
+    "node": "v26.0.0",
+    "git": "git version 2.50.1 (Apple Git-155)",
+    "platform": "darwin",
+    "architecture": "arm64"
+  },
+  "red": {
+    "baseVersion": "6.5.9",
+    "expectedFocusedFailures": 10,
+    "provedMissing": [
+      "compound asset capability",
+      "caller-owned asset persistence scope",
+      "exact selected-root retention",
+      "selector shape and authority validation",
+      "public declaration surface"
+    ]
+  },
+  "verification": {
+    "command": "pnpm run release:verify",
+    "stepsPassed": 14,
+    "stepsTotal": 14,
+    "observedTests": 7186,
+    "steps": {
+      "lint": "PASS",
+      "unitNode": { "status": "PASS", "passed": 2192, "skipped": 2 },
+      "unitBun": { "status": "PASS", "passed": 2191, "skipped": 3 },
+      "unitDeno": { "status": "PASS", "passed": 2182, "skipped": 12 },
+      "publicTypeCompatibility": "PASS",
+      "integrationNode": { "status": "PASS", "passed": 207 },
+      "integrationBun": { "status": "PASS", "passed": 207 },
+      "integrationDeno": { "status": "PASS", "passed": 207 },
+      "examples": "PASS",
+      "buildMetadataStamp": "PASS",
+      "npmPackDryRun": "PASS",
+      "jsrPublishDryRun": "PASS"
+    }
+  },
+  "realGitContract": {
+    "objectFormats": ["sha1", "sha256"],
+    "compoundCases": 4,
+    "checkedRefUpdatesPerAdmission": 1,
+    "fastImportSessionsPerAdmission": 1,
+    "activeFastImportSessionsAfterSettlement": 0,
+    "selectedDirectRootCount": 1,
+    "immediatePruneTransitiveAssetReadback": true,
+    "immediatePruneTransitivePageReadback": true,
+    "releaseAndGcReclaimsReachableGraph": true
+  },
+  "downstreamPrototype": {
+    "authority": "pre-release prototype; rerun against the public registry artifact is required",
+    "gitWarpCommit": "0ab91f34f5bd0116ef8387e8f487b677c67d9eaa",
+    "gitWarpPullRequest": "https://github.com/git-stunts/git-warp/pull/852",
+    "gitCasControlVersion": "6.5.9",
+    "corpus": {
+      "baseNodes": 65,
+      "basePatches": 65,
+      "incrementalPatches": 5,
+      "measuredRuns": 3,
+      "warmupRuns": 1
+    },
+    "control": {
+      "generatedAt": "2026-08-24T19:35:19.385Z",
+      "cold": { "gitCommands": 139, "cpuTotalMs": 545.476, "wallMs": 2822.893416 },
+      "incremental": { "gitCommands": 149, "cpuTotalMs": 555.478, "wallMs": 3039.535959 },
+      "warm": { "gitCommands": 25, "cpuTotalMs": 166.882, "wallMs": 548.19075 }
+    },
+    "compoundAssets": {
+      "generatedAt": "2026-08-24T20:45:47.017Z",
+      "cold": { "gitCommands": 50, "cpuTotalMs": 322.103, "wallMs": 1328.603125 },
+      "incremental": { "gitCommands": 60, "cpuTotalMs": 320.05, "wallMs": 1387.245 },
+      "warm": { "gitCommands": 25, "cpuTotalMs": 176.325, "wallMs": 622.956333 }
+    },
+    "reductionPercent": {
+      "cold": { "gitCommands": 64.029, "cpuTotalMs": 40.95, "wallMs": 52.935 },
+      "incremental": { "gitCommands": 59.732, "cpuTotalMs": 42.383, "wallMs": 54.36 }
+    },
+    "semantic": {
+      "coldFingerprint": "d4a3d26858bddad534c3f5d00e5ed8f7896767ae9e05e972b6005892f85e73e3",
+      "incrementalFingerprint": "d409bceebad0457de14e49fc34fd41af87b1d278d0eb18ff259e9b10088697ca",
+      "replayedPatches": { "cold": 65, "incremental": 5, "warm": 0 },
+      "controlFingerprintsEqual": true,
+      "warmCommandPathChanged": false
+    }
+  },
+  "compatibility": {
+    "migrationRequired": false,
+    "storageFormatChanged": false,
+    "handleIdentityChanged": false,
+    "refLayoutChanged": false,
+    "defaultRetainAllChanged": false
+  }
+}

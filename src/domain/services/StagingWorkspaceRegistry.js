@@ -70,7 +70,7 @@ export default class StagingWorkspaceRegistry {
     this.#crypto = crypto;
     this.#clock = clock;
     this.#descriptorCodec = descriptorCodec;
-    this.#compound = new WorkspaceCompoundAdmission({ persistence, pages, bundles });
+    this.#compound = new WorkspaceCompoundAdmission({ persistence, assets, pages, bundles });
     Object.freeze(this);
   }
 
