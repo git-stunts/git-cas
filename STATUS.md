@@ -1,8 +1,8 @@
 # STATUS
 
 **Last tagged release:** `v6.5.8` (`2026-08-23`)
-**Current release state:** `v6.5.8` is published to npm and GitHub Releases.
-**Latest verification:** reviewed release merge `57b40553` passed 14/14 release-verifier stages with 7,057 observed tests; signed tag `v6.5.8` peels to that merge, and release workflow `32690361682` published the matching npm artifact plus final GitHub Release.
+**Current release state:** `v6.5.9` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
+**Latest verification:** exact versioned candidate `5512acd4` passed 14/14 release-verifier stages with 7,147 observed tests across Node, Bun, Deno, and all three real-Git integration suites.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,6 +18,17 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
+- **v6.5.9 candidate posture** — implementation PR
+  [#124](https://github.com/git-stunts/git-cas/pull/124) merged normally as
+  `eb8d6176`; release PR [#125](https://github.com/git-stunts/git-cas/pull/125)
+  reviews the versioned candidate. Exact candidate `5512acd4` passed all 14
+  release-verifier stages with 7,147 observed tests. npm, JSR, and runtime
+  metadata identify `6.5.9`, while the signed tag and registry artifact remain
+  deliberately absent pending release review. The SHA-1/SHA-256 compound
+  witness preserves every application-handle digest while reducing a
+  33-operation graph from 200 to 23 Git children and from 33 retained
+  generations to one. The release is additive and requires no application or
+  stored-data migration.
 - **v6.5.8 artifact posture** — implementation PR
   [#120](https://github.com/git-stunts/git-cas/pull/120) and release PR
   [#121](https://github.com/git-stunts/git-cas/pull/121) merged normally.
@@ -167,10 +178,10 @@
 
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
-- Latest completed release goalpost:
-  [#119 v6.5.8: Batch bounded Git write and retention waves](https://github.com/git-stunts/git-cas/issues/119)
+- Current release goalpost:
+  [#123 v6.5.9: Compound staging-workspace admission](https://github.com/git-stunts/git-cas/issues/123)
   under the
-  [`v6.5.8` milestone](https://github.com/git-stunts/git-cas/milestone/18).
+  [`v6.5.9` milestone](https://github.com/git-stunts/git-cas/milestone/19).
 - Current queued release goalposts are
   [#39 v6.6.0: Operator TUI](https://github.com/git-stunts/git-cas/issues/39)
   and
@@ -178,7 +189,7 @@
   under
   [`v6.6.0`](https://github.com/git-stunts/git-cas/milestone/9).
 - The latest landed design record is
-  [0059-bounded-write-waves](./docs/design/0059-bounded-write-waves/bounded-write-waves.md).
+  [0060-compound-workspace-admission](./docs/design/0060-compound-workspace-admission/compound-workspace-admission.md).
 
 ## Read Next
 

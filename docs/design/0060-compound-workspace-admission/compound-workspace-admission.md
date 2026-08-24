@@ -7,7 +7,7 @@ release_home: 'v6.5.9'
 issue: 'https://github.com/git-stunts/git-cas/issues/123'
 goalpost_issue: 'https://github.com/git-stunts/git-cas/issues/123'
 tracker_source: 'github'
-status: 'active'
+status: 'landed'
 base_commit: '33738af7ce31f9117e9ced24ea20745a8541eea8'
 owners:
   - '@git-stunts'
@@ -497,7 +497,8 @@ The work is done when:
 - [x] Existing public APIs, storage readers, v6 workspaces, and release surfaces
       remain compatible with no migration.
 - [x] Public docs, architecture, changelog, and release notes are accurate.
-- [ ] Issue and PR are linked; CI and complete local validation are green.
+- [x] Issue and implementation PR are linked; CI and complete implementation
+      validation are green.
 - [ ] Released v6.5.9 is consumed from the registry by git-warp before any
       downstream performance claim.
 
@@ -596,11 +597,14 @@ When this lands, it does not prove:
 
 ## Retrospective
 
-The implementation and clean witness are complete. A 33-operation,
-81-handle graph fell from 200 to 23 Git children and from 33 retained
-generations to one in both SHA-1 and SHA-256 repositories. Median wall time
-fell by 80.5% with identical handle digests. The remaining work is hosted
-multi-runtime review, v6.5.9 publication, and released downstream adoption.
+The implementation and clean witness are complete. A 33-operation, 81-handle
+graph fell from 200 to 23 Git children and from 33 retained generations to one
+in both SHA-1 and SHA-256 repositories. Median wall time fell by 80.5% with
+identical handle digests. Implementation PR #124 merged normally as
+`eb8d617620fa8f401fb887f5b1bbc341d4746b0a`; exact reviewed head
+`29ba6e88c787a5e54c95a554e9166fd21aae31c0` passed 14/14 release-verifier
+stages with 7,141 observed tests. The remaining work is v6.5.9 release review,
+publication, and released downstream adoption.
 
 PR:
 
