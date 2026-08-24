@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import ContentAddressableStore from '../../index.js';
+import ContentAddressableStore, { MAX_WORKSPACE_COMPOUND_OPERATIONS } from '../../index.js';
 import { instrumentGitPlumbing } from './createCountingGitPlumbing.js';
 
 const WORKER = '--worker';
@@ -108,6 +108,14 @@ export function compoundComparison({ left, right }) {
   };
 }
 
+export function compoundOperationCount(items) {
+  const operationCount = items * 2 + 1;
+  if (operationCount > MAX_WORKSPACE_COMPOUND_OPERATIONS) {
+    throw new Error('compound benchmark groups exceed the workspace operation ceiling');
+  }
+  return operationCount;
+}
+
 function comparisonMetrics(left, right) {
   assert.equal(
     left.semanticDigest,
@@ -195,10 +203,7 @@ async function writeWorkspaceBundles(cas, { items, mode }) {
 }
 
 async function writeCompoundWorkspaceGraph(cas, { items, mode }) {
-  const operationCount = items * 2 + 1;
-  if (operationCount > 1_024) {
-    throw new Error('compound benchmark groups exceed the workspace operation ceiling');
-  }
+  const operationCount = compoundOperationCount(items);
   const workspace = await cas.workspaces.open({
     namespace: 'git-warp/compound-materializations',
     ttlMs: 60_000,
