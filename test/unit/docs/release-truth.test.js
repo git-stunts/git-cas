@@ -339,6 +339,23 @@ describe('bounded stream-session release documentation', () => {
   });
 });
 
+describe('bounded application-write release documentation', () => {
+  it('ships and links the v6.5.8 additive batch contract', () => {
+    const readme = read('README.md');
+    const upgrading = read('UPGRADING.md');
+    const releaseNotes = read('docs/releases/v6.5.8.md');
+
+    expect(readme).toContain('[v6.5.8 Release Notes](./docs/releases/v6.5.8.md)');
+    expect(upgrading).toContain('## v6.5.7 To v6.5.8');
+    expect(upgrading).toMatch(/requires no application or\s+stored-data migration/);
+    expect(releaseNotes).toContain('# git-cas v6.5.8 Release Notes');
+    expect(releaseNotes).toContain('49 -> 2');
+    expect(releaseNotes).toContain('147 -> 8');
+    expect(releaseNotes).toMatch(/single-write behavior.*stored-data formats/s);
+    expect(releaseNotes).toMatch(/custom adapters and older Plumbing.*fallback paths/s);
+  });
+});
+
 describe('advanced guide rendering', () => {
   it('keeps the table of contents rendered as Markdown links', () => {
     const advancedGuide = read('ADVANCED_GUIDE.md');

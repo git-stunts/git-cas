@@ -1,8 +1,8 @@
 # STATUS
 
 **Last tagged release:** `v6.5.7` (`2026-08-23`)
-**Current release state:** `v6.5.7` is published to npm and GitHub Releases.
-**Latest verification:** reviewed release merge `eebc6e37` passed 14/14 release-verifier steps with 6,925 observed tests; signed tag `v6.5.7` peels to that merge, and release workflow `32637934268` published the matching npm artifact plus final GitHub Release.
+**Current release state:** `v6.5.8` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
+**Latest verification:** the versioned `v6.5.8` candidate after implementation merge `a762a02c` passed 14/14 release-verifier stages with 7,057 observed tests across Node, Bun, Deno, and all three real-Git integration suites.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,6 +18,15 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
+- **v6.5.8 candidate posture** — implementation PR
+  [#120](https://github.com/git-stunts/git-cas/pull/120) merged bounded asset,
+  ordered-bundle, workspace-retention, and Git protocol waves normally as
+  `a762a02c`. npm, JSR, and runtime metadata identify `6.5.8`; the signed tag
+  and registry artifact remain deliberately absent pending release review.
+  The published `@git-stunts/plumbing@3.3.0` dependency is pinned, and the
+  released-dependency witness preserves SHA-1/SHA-256 semantic digests while
+  reducing 16 assets from 49 to two Git children and 16 workspace bundles from
+  147 to eight.
 - **v6.5.7 artifact posture** — implementation PR
   [#116](https://github.com/git-stunts/git-cas/pull/116) and release PR
   [#117](https://github.com/git-stunts/git-cas/pull/117) merged normally.
@@ -155,10 +164,10 @@
 
 - GitHub Issues are canonical. If this section and GitHub disagree, GitHub
   wins and this section should be corrected.
-- Latest completed release goalpost:
-  [#115 v6.5.7: Reuse bounded Git sessions for small streaming reads](https://github.com/git-stunts/git-cas/issues/115)
+- Current release goalpost:
+  [#119 v6.5.8: Batch bounded Git write and retention waves](https://github.com/git-stunts/git-cas/issues/119)
   under the
-  [`v6.5.7` milestone](https://github.com/git-stunts/git-cas/milestone/17).
+  [`v6.5.8` milestone](https://github.com/git-stunts/git-cas/milestone/18).
 - Current queued release goalposts are
   [#39 v6.6.0: Operator TUI](https://github.com/git-stunts/git-cas/issues/39)
   and
@@ -166,7 +175,7 @@
   under
   [`v6.6.0`](https://github.com/git-stunts/git-cas/milestone/9).
 - The latest landed design record is
-  [0058-bounded-stream-session-reads](./docs/design/0058-bounded-stream-session-reads/bounded-stream-session-reads.md).
+  [0059-bounded-write-waves](./docs/design/0059-bounded-write-waves/bounded-write-waves.md).
 
 ## Read Next
 

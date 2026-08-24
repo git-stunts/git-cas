@@ -1,14 +1,17 @@
 # Bounded Write-Wave Verification
 
-Status: implementation-complete local evidence, published Plumbing v3.3.0
-pinning, clean installed-dependency measurement, and complete post-pin runtime
-verification; downstream git-warp adoption, review, and release remain open.
+Status: implementation reviewed and merged, published Plumbing v3.3.0 pinned,
+clean installed-dependency measurement complete, and exact-head runtime
+verification green; the v6.5.8 tag/publication and downstream git-warp release
+remain open.
 
 ## Exact Inputs
 
 | Input                                  | Exact source                                                                                 |
 | -------------------------------------- | -------------------------------------------------------------------------------------------- |
 | git-cas implementation and public docs | `59c9d1a00ccb5be3de974c8c23c825cbe43ac666`                                                   |
+| exact reviewed git-cas head            | `8badb3194d1bed66e79dff1355cfcc765078ca11`                                                   |
+| normal implementation merge            | `a762a02ca9270b2ace05b98a3d3025c61927de2c`                                                   |
 | canonical default-concurrency witness  | [`bounded-write-waves.json`](./bounded-write-waves.json)                                     |
 | caller-tuned concurrency witness       | [`bounded-write-waves-concurrency-16.json`](./bounded-write-waves-concurrency-16.json)       |
 | Plumbing implementation                | `eee0dfd8d42ccd635b7027d2921b34ece8901455` from `plumbing#16`                                |
@@ -248,10 +251,16 @@ post-pin verifier passed all 14 stages with 7,030 observed tests: 2,144 Node,
 public type compatibility, build metadata, npm pack, and JSR dry-runs also
 passed.
 
+After review fixes through `8badb319`, the exact reviewed head passed the full
+14-stage verifier again with 7,054 observed tests: 2,152 Node, 2,151 Bun, 2,142
+Deno, and 203 integrations on each runtime. GitHub CI passed lint, unit tests,
+and all three Docker runtime matrices. PR #120 then merged normally as
+`a762a02c`.
+
 ## Nonclaims
 
-- git-cas PR #120 is open; no merge, tag, npm publication, or GitHub release is
-  claimed.
+- git-cas PR #120 is merged; no v6.5.8 tag, npm publication, or GitHub Release
+  is claimed by this implementation witness.
 - The downstream 641-cold / 349-incremental git-warp reference run has not yet
   been repeated with these bundle-wave APIs.
 - The measurements do not prove a universal wall-clock ratio, child-process

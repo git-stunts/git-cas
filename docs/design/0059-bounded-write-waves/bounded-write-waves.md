@@ -7,15 +7,14 @@ release_home: 'v6.5.8'
 issue: 'https://github.com/git-stunts/git-cas/issues/119'
 goalpost_issue: 'https://github.com/git-stunts/git-cas/issues/119'
 tracker_source: 'github'
-status: 'active'
+status: 'landed'
 base_commit: 'cc5028a9acb1bfa4d5483a1fb8f7e8a954c3ca9c'
 owners:
   - '@git-stunts'
 sponsors:
   human: 'James'
   agent: 'Codex'
-blocking_issues:
-  - 'https://github.com/git-stunts/plumbing/pull/16'
+blocking_issues: []
 supersedes: []
 superseded_by: null
 created: '2026-08-23'
@@ -35,7 +34,7 @@ updated: '2026-08-23'
 - Goalpost issue: [#119](https://github.com/git-stunts/git-cas/issues/119)
 - Asset-write slice: [#110](https://github.com/git-stunts/git-cas/issues/110)
 - Required substrate: [`plumbing#16`](https://github.com/git-stunts/plumbing/pull/16)
-- Downstream consumer: [`git-warp#847`](https://github.com/git-stunts/git-warp/pull/847)
+- Downstream consumer: [`git-warp#852`](https://github.com/git-stunts/git-warp/pull/852)
 
 ## Design Type
 
@@ -593,6 +592,7 @@ Agent playback questions:
 Required artifacts:
 
 - committed git-cas JSON witness plus readable summary;
+- [v6.5.8 release-candidate witness](./witness/release-candidate.md);
 - hosted CI URLs for exact implementation and release heads;
 - git-warp counterbalanced reference JSON and deep-chain result;
 - final Think current-mind semantic digest and process census.
@@ -629,9 +629,9 @@ Required artifacts:
 ## Tracker Disposition
 
 - #119 owns the v6.5.8 release-scale outcome and remains open through verified
-  publication and downstream checkpoint.
-- #110 owns the public small-asset batch slice and closes only when its specific
-  acceptance criteria and consumer witness are complete.
+  publication evidence.
+- #110 owned the public small-asset batch slice and closed through implementation
+  PR #120.
 - New debt or ideas discovered during implementation become GitHub Issues; no
   repo-local backlog cards will be created.
 
@@ -663,3 +663,11 @@ cross-layer lifetime for a marginal gain. Publication and downstream playback
 remain intentionally open: git-cas has pinned the released Plumbing capability
 and passed its complete post-pin runtime/release matrix; git-warp must adopt
 semantic bundle waves before the campaign can claim end-to-end improvement.
+
+Implementation PR [#120](https://github.com/git-stunts/git-cas/pull/120)
+merged normally as `a762a02ca9270b2ace05b98a3d3025c61927de2c`; its second
+parent is the exact reviewed head
+`8badb3194d1bed66e79dff1355cfcc765078ca11`. All 11 inline review findings
+and the declaration finding were fixed with focused tests before merge. The
+exact reviewed head passed GitHub CI and the complete local 14-stage release
+verifier with 7,054 observed tests.

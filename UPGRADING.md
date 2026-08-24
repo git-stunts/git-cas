@@ -2,6 +2,35 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.5.7 To v6.5.8
+
+v6.5.8 adds bounded application-write batches and requires no application or
+stored-data migration. Existing single-write methods, handles, object bytes,
+refs, retention evidence, and custom persistence fallbacks remain compatible.
+
+Callers with independent assets or ordered bundles can opt into the new
+input-ordered APIs:
+
+```js
+const assets = await cas.assets.putBatch({ assets: assetRequests });
+const bundles = await cas.bundles.putOrderedBatch({ bundles: bundleRequests });
+```
+
+The same methods are available under scoped staging workspaces. Every result
+from a successful workspace batch carries the same exact retained generation.
+Count, planned-object, aggregate-member, and byte bounds reject oversized
+admission before success is returned; partial immutable object creation remains
+possible on failure, as with repeated single writes.
+
+The default asset batch admits four active source pipelines with a 4,096-object
+and 256 MiB envelope. Ordered-bundle batches default to 64 bundles, 8,192
+members, 256 planned objects, and 64 MiB of admitted descriptor material.
+Tune these only when the caller owns the corresponding source and memory
+budget.
+
+See [v6.5.8 Release Notes](./docs/releases/v6.5.8.md) for the exact identity,
+process-topology, fallback, and publication-boundary evidence.
+
 ## v6.5.6 To v6.5.7
 
 v6.5.7 changes no public API, package export, object identity, manifest, ref,
