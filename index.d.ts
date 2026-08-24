@@ -1614,6 +1614,27 @@ export interface WorkspaceCheckpointResult {
   readonly witnesses: ReadonlyArray<RetentionWitness>;
 }
 
+export const DEFAULT_WORKSPACE_COMPOUND_OPERATIONS: 64;
+export const MAX_WORKSPACE_COMPOUND_OPERATIONS: 1024;
+
+export interface WorkspaceCompoundScope {
+  readonly pages: {
+    putBatch(
+      options: Parameters<PageCapability['putBatch']>[0],
+    ): Promise<ReadonlyArray<PageHandle>>;
+  };
+  readonly bundles: {
+    putOrderedBatch(
+      options: Parameters<BundleCapability['putOrderedBatch']>[0],
+    ): Promise<ReadonlyArray<BundleHandle>>;
+  };
+}
+
+export interface WorkspaceCompoundResult<T> {
+  readonly value: T;
+  readonly retention: WorkspaceCheckpointResult;
+}
+
 export interface WorkspaceReleaseResult {
   readonly changed: boolean;
   readonly ref: string;
@@ -1691,6 +1712,10 @@ export declare class StagingWorkspace {
       options: Parameters<BundleCapability['putOrderedBatch']>[0],
     ): Promise<ReadonlyArray<WorkspaceRetainedBundle>>;
   };
+  batch<T>(options: {
+    operation(scope: WorkspaceCompoundScope): T | Promise<T>;
+    maxOperations?: number;
+  }): Promise<Readonly<WorkspaceCompoundResult<T>>>;
   checkpoint(options: { handles: Iterable<ApplicationHandleInput> }): Promise<WorkspaceCheckpointResult>;
   renew(): Promise<WorkspaceCheckpointResult>;
   promoteToCache(options: {

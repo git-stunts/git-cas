@@ -18,6 +18,7 @@ export default class StagingWorkspace {
   #assets;
   #bundles;
   #clock;
+  #compound;
   #descriptorCodec;
   #expiresAt = null;
   #generation = null;
@@ -27,26 +28,30 @@ export default class StagingWorkspace {
   #released = false;
   #resolveHandle;
   #rootSet;
+  #rootSetForPersistence;
   #tail = Promise.resolve();
   #targets = new Map();
   #ttlMs;
   #workspaceRef;
 
-  constructor({ workspaceRef, ttlMs, rootSet, refs, assets, pages, bundles, publications,
-    resolveHandle, descriptorCodec, clock = DEFAULT_CLOCK }) {
+  constructor({ workspaceRef, ttlMs, rootSet, rootSetForPersistence, refs, assets, pages,
+    bundles, publications, resolveHandle, descriptorCodec, compound, clock = DEFAULT_CLOCK }) {
     StagingWorkspace.#assertDependencies({
       rootSet,
+      rootSetForPersistence,
       refs,
       assets,
       pages,
       bundles,
       resolveHandle,
       descriptorCodec,
+      compound,
       clock,
     });
     this.#workspaceRef = WorkspaceRef.from(workspaceRef);
     this.#ttlMs = ttlMs;
     this.#rootSet = rootSet;
+    this.#rootSetForPersistence = rootSetForPersistence;
     this.#refs = refs;
     this.#assets = assets;
     this.#pages = pages;
@@ -54,8 +59,13 @@ export default class StagingWorkspace {
     this.#publications = publications;
     this.#resolveHandle = resolveHandle;
     this.#descriptorCodec = descriptorCodec;
+    this.#compound = compound;
     this.#clock = clock;
+    this.#initializeCapabilities();
+    Object.freeze(this);
+  }
 
+  #initializeCapabilities() {
     this.assets = Object.freeze({
       put: (options) => this.#enqueue(() => this.#stage(this.#assets, 'put', options)),
       putBatch: (options) => (
@@ -76,7 +86,6 @@ export default class StagingWorkspace {
         this.#enqueue(() => this.#stageBatch(this.#bundles, 'putOrderedBatch', options))
       ),
     });
-    Object.freeze(this);
   }
 
   get id() {
@@ -93,6 +102,18 @@ export default class StagingWorkspace {
 
   get expiresAt() {
     return this.#expiresAt;
+  }
+
+  batch(options = {}) {
+    return this.#enqueue(async () => {
+      this.#assertActive();
+      return await this.#compound.admit({
+        ...options,
+        install: async (staged, persistence) => (
+          await this.#retainCompound(staged, persistence)
+        ),
+      });
+    });
   }
 
   checkpoint({ handles }) {
@@ -282,7 +303,31 @@ export default class StagingWorkspace {
     }));
   }
 
-  async #install(targets) {
+  async #retainCompound(staged, persistence) {
+    const targets = new Map(this.#targets);
+    for (const artifact of staged) {
+      const target = stagedTargetOf(artifact) ?? await this.#resolveTarget(artifact.handle);
+      targets.set(target.handle.toString(), target);
+    }
+    try {
+      return await this.#install([...targets.values()], persistence);
+    } catch (error) {
+      if (error?.code === ErrorCodes.WORKSPACE_TTL_INVALID) {
+        throw error;
+      }
+      throw createCasError(
+        'Workspace compound admission could not establish retention',
+        ErrorCodes.WORKSPACE_RETENTION_FAILED,
+        {
+          workspaceId: this.id,
+          stagedCount: staged.length,
+          originalError: error,
+        },
+      );
+    }
+  }
+
+  async #install(targets, persistence = null) {
     if (targets.length > MAX_WORKSPACE_TARGETS) {
       throw createCasError(
         'Workspace target count exceeds the supported maximum',
@@ -292,13 +337,10 @@ export default class StagingWorkspace {
     }
     const observedAt = this.#observedAt();
     const expiresAt = this.#expiryFrom(observedAt);
-    const descriptor = await this.#pages.put({
-      source: this.#descriptorCodec.encode({
-        ref: this.#workspaceRef.toString(),
-        createdAt: this.#workspaceRef.createdAt,
-        expiresAt,
-        targetCount: targets.length,
-      }),
+    const descriptor = await this.#writeDescriptor({
+      expiresAt,
+      targetCount: targets.length,
+      persistence,
     });
     const entries = [
       {
@@ -309,7 +351,10 @@ export default class StagingWorkspace {
       },
       ...targets.map(StagingWorkspace.#targetEntry),
     ];
-    const mutation = await this.#rootSet.replaceExact({
+    const rootSet = persistence === null
+      ? this.#rootSet
+      : this.#rootSetForPersistence(persistence);
+    const mutation = await rootSet.replaceExact({
       entries,
       expectedHeadOid: this.#generation,
     });
@@ -329,6 +374,20 @@ export default class StagingWorkspace {
       handles: Object.freeze(targets.map((target) => target.handle)),
       witnesses: Object.freeze(witnesses),
     });
+  }
+
+  async #writeDescriptor({ expiresAt, targetCount, persistence }) {
+    const options = {
+      source: this.#descriptorCodec.encode({
+        ref: this.#workspaceRef.toString(),
+        createdAt: this.#workspaceRef.createdAt,
+        expiresAt,
+        targetCount,
+      }),
+    };
+    return persistence === null
+      ? await this.#pages.put(options)
+      : await this.#pages.putWithPersistence(options, persistence);
   }
 
   #witness({ target, entries, observedAt }) {
@@ -580,16 +639,18 @@ export default class StagingWorkspace {
     });
   }
 
-  static #assertDependencies({ rootSet, refs, assets, pages, bundles, resolveHandle,
-    descriptorCodec, clock }) {
+  static #assertDependencies({ rootSet, rootSetForPersistence, refs, assets, pages, bundles,
+    resolveHandle, descriptorCodec, compound, clock }) {
     const missing = [
       ['rootSet', StagingWorkspace.#hasMethods(rootSet, ['replaceExact'])],
+      ['rootSetForPersistence', typeof rootSetForPersistence === 'function'],
       ['refs', StagingWorkspace.#hasMethods(refs, ['deleteRef'])],
       ['assets', StagingWorkspace.#hasMethods(assets, ['put', 'adopt'])],
       ['pages', StagingWorkspace.#hasMethods(pages, ['put', 'putBatch'])],
       ['bundles', StagingWorkspace.#hasMethods(bundles, ['put', 'putOrdered'])],
       ['resolveHandle', typeof resolveHandle === 'function'],
       ['descriptorCodec', StagingWorkspace.#hasMethods(descriptorCodec, ['encode'])],
+      ['compound', StagingWorkspace.#hasMethods(compound, ['admit'])],
       ['clock', StagingWorkspace.#hasMethods(clock, ['now'])],
     ].filter(([, valid]) => !valid).map(([name]) => name);
     if (missing.length > 0) {

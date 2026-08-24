@@ -56,10 +56,19 @@ export default class PageService {
    * @returns {Promise<StagedPage>}
    */
   async put({ source, maxBytes }) {
+    return await this.#put({ source, maxBytes }, this.#persistence);
+  }
+
+  /** @internal Stores one page through an operation-owned persistence view. */
+  async putWithPersistence({ source, maxBytes }, persistence) {
+    return await this.#put({ source, maxBytes }, persistence);
+  }
+
+  async #put({ source, maxBytes }, persistence) {
     const limit = this.#effectiveLimit(maxBytes);
     const observedAt = this.#observedAt();
     const bytes = await PageService.#collect(source, limit);
-    const oid = await this.#persistence.writeBlob(bytes);
+    const oid = await persistence.writeBlob(bytes);
     return recordStagedTarget(new StagedPage({
       handle: new PageHandle({ oid }),
       size: bytes.length,

@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import ContentAddressableStore from '../../index.js';
+import ContentAddressableStore, { MAX_WORKSPACE_COMPOUND_OPERATIONS } from '../../index.js';
 import { instrumentGitPlumbing } from './createCountingGitPlumbing.js';
 
 const WORKER = '--worker';
@@ -16,6 +16,7 @@ const DEFAULT_ASSET_CONCURRENCY = 4;
 const ASSET_BYTES = 2 * 1024;
 const ASSET_CHUNK_BYTES = 1024;
 const BUNDLE_MEMBERS = 3;
+const COMPOUND_PAGES_PER_GROUP = 4;
 const CLOCK = Object.freeze({ now: () => new Date('2026-08-23T12:00:00.000Z') });
 const scriptPath = fileURLToPath(import.meta.url);
 const invokedPath = process.argv[1] === undefined ? null : path.resolve(process.argv[1]);
@@ -66,9 +67,15 @@ async function measureObjectFormat(options) {
     right: { ...common, kind: 'workspace-bundles', mode: 'batch' },
     samples: options.samples,
   });
+  const compoundWorkspaceAdmission = await compareModes({
+    left: { ...common, kind: 'workspace-compound', mode: 'per-wave' },
+    right: { ...common, kind: 'workspace-compound', mode: 'compound' },
+    samples: options.samples,
+  });
   return {
     assetWrite: comparison(assetWrite),
     workspaceBundleWrite: comparison(workspaceBundleWrite),
+    compoundWorkspaceAdmission: compoundComparison(compoundWorkspaceAdmission),
   };
 }
 
@@ -86,14 +93,36 @@ async function compareModes({ left, right, samples }) {
 }
 
 export function comparison({ left, right }) {
-  assert.equal(
-    left.semanticDigest,
-    right.semanticDigest,
-    'Benchmark semantic digests differ between individual and batch modes',
-  );
   return {
     individual: left,
     batch: right,
+    ...comparisonMetrics(left, right),
+  };
+}
+
+export function compoundComparison({ left, right }) {
+  return {
+    perWave: left,
+    compound: right,
+    ...comparisonMetrics(left, right),
+  };
+}
+
+export function compoundOperationCount(items) {
+  const operationCount = items * 2 + 1;
+  if (operationCount > MAX_WORKSPACE_COMPOUND_OPERATIONS) {
+    throw new Error('compound benchmark groups exceed the workspace operation ceiling');
+  }
+  return operationCount;
+}
+
+function comparisonMetrics(left, right) {
+  assert.equal(
+    left.semanticDigest,
+    right.semanticDigest,
+    'Benchmark semantic digests differ between compared modes',
+  );
+  return {
     semanticDigestEqual: true,
     processReductionPercent: reduction(left.processCount, right.processCount),
     gitInteractionReductionPercent: reduction(
@@ -131,9 +160,7 @@ async function measureWorker(options) {
     let values;
     const metrics = await timed(async () => {
       try {
-        values = options.kind === 'assets'
-          ? await writeAssets(cas, options)
-          : await writeWorkspaceBundles(cas, options);
+        values = await writeValues(cas, options);
       } finally {
         await cas.close();
       }
@@ -143,6 +170,16 @@ async function measureWorker(options) {
   } finally {
     rmSync(repo, { recursive: true, force: true });
   }
+}
+
+async function writeValues(cas, options) {
+  if (options.kind === 'assets') {
+    return await writeAssets(cas, options);
+  }
+  if (options.kind === 'workspace-bundles') {
+    return await writeWorkspaceBundles(cas, options);
+  }
+  return await writeCompoundWorkspaceGraph(cas, options);
 }
 
 async function writeAssets(cas, { items, mode, assetConcurrency }) {
@@ -163,6 +200,56 @@ async function writeWorkspaceBundles(cas, { items, mode }) {
     ? await workspace.bundles.putOrderedBatch({ bundles: requests })
     : await writeIndividually(requests, (request) => workspace.bundles.putOrdered(request));
   return staged.map((bundle) => bundle.handle.toString());
+}
+
+async function writeCompoundWorkspaceGraph(cas, { items, mode }) {
+  const operationCount = compoundOperationCount(items);
+  const workspace = await cas.workspaces.open({
+    namespace: 'git-warp/compound-materializations',
+    ttlMs: 60_000,
+  });
+  if (mode === 'compound') {
+    const admitted = await workspace.batch({
+      maxOperations: operationCount,
+      operation: async (scope) => await stageCompoundGraph(scope, items),
+    });
+    return admitted.value.map(handleToken);
+  }
+  return (await stageCompoundGraph(workspace, items)).map(handleToken);
+}
+
+async function stageCompoundGraph(scope, groupCount) {
+  const retained = [];
+  const leaves = [];
+  for (let group = 0; group < groupCount; group += 1) {
+    const pages = handlesOf(await scope.pages.putBatch({
+      pages: Array.from({ length: COMPOUND_PAGES_PER_GROUP }, (_, index) => ({
+        source: payload(group * COMPOUND_PAGES_PER_GROUP + index, 64),
+      })),
+    }));
+    retained.push(...pages);
+    const [leaf] = handlesOf(await scope.bundles.putOrderedBatch({
+      bundles: [{ members: pages.map((page, index) => [paddedPath('page', index), page]) }],
+    }));
+    leaves.push(leaf);
+    retained.push(leaf);
+  }
+  const [root] = handlesOf(await scope.bundles.putOrderedBatch({
+    bundles: [{ members: leaves.map((leaf, index) => [paddedPath('leaf', index), leaf]) }],
+  }));
+  return [...retained, root];
+}
+
+function handlesOf(staged) {
+  return staged.map((value) => value.handle ?? value);
+}
+
+function handleToken(handle) {
+  return handle.toString();
+}
+
+function paddedPath(prefix, index) {
+  return `${prefix}/${String(index).padStart(4, '0')}`;
 }
 
 async function writeIndividually(requests, write) {
@@ -263,7 +350,7 @@ function summarize(samples) {
 
 function report({ items, samples, assetConcurrency, plumbingRepo, objectFormats }) {
   return {
-    schema: 'git-cas.bounded-write-waves/v1',
+    schema: 'git-cas.bounded-write-waves/v2',
     generatedAt: new Date().toISOString(),
     environment: {
       node: process.version,
@@ -293,6 +380,7 @@ function report({ items, samples, assetConcurrency, plumbingRepo, objectFormats 
       assetBytes: ASSET_BYTES,
       assetChunkBytes: ASSET_CHUNK_BYTES,
       bundleMembers: BUNDLE_MEMBERS,
+      compoundPagesPerGroup: COMPOUND_PAGES_PER_GROUP,
     },
     objectFormats,
   };

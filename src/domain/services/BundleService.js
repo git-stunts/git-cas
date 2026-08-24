@@ -103,6 +103,14 @@ export default class BundleService {
    * descriptor and tree dependency waves.
    */
   async putOrderedBatch(options = {}) {
+    return await withWriteScope(
+      this.#persistence,
+      async (persistence) => await this.putOrderedBatchWithPersistence(options, persistence),
+    );
+  }
+
+  /** @internal Builds a bounded bundle group through an operation-owned persistence view. */
+  async putOrderedBatchWithPersistence(options = {}, persistence) {
     const batch = BundleService.#batchOptions(options);
     const staging = new StagingEvidence();
     try {
@@ -110,15 +118,7 @@ export default class BundleService {
       if (admitted.length === 0) {
         return Object.freeze([]);
       }
-      return await withWriteScope(
-        this.#persistence,
-        async (persistence) => await this.#writeAdmittedBatch({
-          admitted,
-          batch,
-          persistence,
-          staging,
-        }),
-      );
+      return await this.#writeAdmittedBatch({ admitted, batch, persistence, staging });
     } catch (error) {
       throw augmentError(error, { staging: staging.snapshot() });
     }

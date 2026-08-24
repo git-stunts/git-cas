@@ -490,6 +490,35 @@ describe('GitPersistenceAdapter operation-owned write scopes', () => {
 
 });
 
+describe('GitPersistenceAdapter operation-owned failure evidence', () => {
+  it('preserves operation and session-close failures together', async () => {
+    const operationError = new Error('operation failed');
+    const closeError = new Error('fast-import close failed');
+    const fastImport = {
+      writeBlobs: vi.fn().mockResolvedValue(['a'.repeat(40)]),
+      checkpoint: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockRejectedValue(closeError),
+      abort: vi.fn().mockResolvedValue(undefined),
+    };
+    const adapter = new GitPersistenceAdapter({
+      plumbing: sessionPlumbing({ fastImportSession: fastImport }),
+      policy: noPolicy,
+    });
+
+    const failure = await adapter.withWriteScope(async (persistence) => {
+      await persistence.writeBlob(Buffer.from('staged'));
+      throw operationError;
+    }).catch((error) => error);
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure.errors).toContain(operationError);
+    expect(failure.errors.some((error) => (
+      error === closeError || error?.errors?.includes(closeError)
+    ))).toBe(true);
+    expect(fastImport.abort).toHaveBeenCalledOnce();
+  });
+});
+
 describe('GitPersistenceAdapter operation-owned oversized writes', () => {
   it('keeps an oversized blob on the genuine one-shot write path', async () => {
     const fastImport = {

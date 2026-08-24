@@ -1436,6 +1436,55 @@ await workspace.bundles.putOrdered(options);
 await workspace.bundles.putOrderedBatch(options);
 ```
 
+Dependent page and bundle waves can instead share one bounded compound
+admission:
+
+```javascript
+const admitted = await workspace.batch({
+  maxOperations: 3,
+  operation: async (scope) => {
+    const pages = await scope.pages.putBatch({ pages: pageRequests });
+    const leaves = await scope.bundles.putOrderedBatch({
+      bundles: buildLeafRequests(pages),
+    });
+    return (await scope.bundles.putOrderedBatch({
+      bundles: [buildRootRequest(leaves)],
+    }))[0];
+  },
+});
+
+admitted.value; // BundleHandle returned by the callback
+admitted.retention; // exact WorkspaceCheckpointResult
+```
+
+`batch({ operation, maxOperations })` calls `operation` exactly once. Its scope
+exposes only `pages.putBatch()` and `bundles.putOrderedBatch()`. Both methods
+retain their existing per-call limits and validation, serialize by invocation
+order, and return frozen arrays of provisional handles rather than staged
+result objects. The operation defaults to at most 64 scope calls and rejects a
+limit above the exported hard maximum of 1,024.
+
+Success installs the union of previously retained targets and every compound
+target in one exact workspace generation. The returned `value` is the callback
+value; it becomes caller-visible only after scoped Git resources close and the
+paired `retention` result proves the final generation. The scope closes before
+the outer promise settles. Calling an escaped scope later fails with
+`WORKSPACE_STATE_INVALID`.
+
+The callback is trusted application code, not a JavaScript capability sandbox.
+The API cannot prevent a callback from assigning a provisional handle into
+external state as a side effect. Such a handle has no compound retention
+witness and must not be used outside the callback. Only the settled outer
+result carries the admission guarantee.
+
+An empty operation, invalid bound, callback failure, staged-write failure,
+session-close failure, or final checked-ref failure returns no admitted value.
+Queued work stops after the first failure, the prior workspace generation does
+not move, and distinct callback/write or operation/close failures remain
+available through `AggregateError`. Immutable objects written before refusal
+may remain unreachable for Git's ordinary reclamation. Compound admission is
+not a cross-workspace, cross-ref, or arbitrary application transaction.
+
 Each method returns only after a direct workspace generation reaches the
 returned typed handle. The result is otherwise the ordinary staged result plus
 a workspace `RetentionWitness`. Calls on one workspace serialize their ref

@@ -2,6 +2,45 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.5.8 To v6.5.9
+
+v6.5.9 adds `workspace.batch()` and requires no application or stored-data
+migration. Existing handles, object bytes, workspace descriptors, ref
+namespaces, retention witnesses, read paths, and independently retained
+workspace methods remain compatible. Existing repositories open in place.
+
+Use the new method only when intermediate page and bundle handles remain
+private to one bounded construction:
+
+```js
+const admitted = await workspace.batch({
+  maxOperations: 3,
+  operation: async (scope) => {
+    const pages = await scope.pages.putBatch({ pages: pageRequests });
+    const leaves = await scope.bundles.putOrderedBatch({
+      bundles: buildLeafRequests(pages),
+    });
+    return (await scope.bundles.putOrderedBatch({
+      bundles: [buildRootRequest(leaves)],
+    }))[0];
+  },
+});
+
+admitted.value; // retained root BundleHandle
+admitted.retention; // exact final workspace generation and witnesses
+```
+
+The operation defaults to at most 64 scope calls and cannot exceed 1,024.
+Every page or bundle call retains its existing count, object, member, and byte
+bounds. A callback or staged-write failure publishes no compound generation;
+immutable objects written before failure remain unreachable for Git's normal
+reclamation. Use the existing workspace methods when a handle must become
+independently retained before arbitrary caller code observes it.
+
+The release changes physical admission cost only. It does not introduce a new
+transaction format, migration command, authority cutover, or mixed-version
+rewrite.
+
 ## v6.5.7 To v6.5.8
 
 v6.5.8 adds bounded application-write batches and requires no application or

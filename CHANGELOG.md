@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Compound staging-workspace admission** - `workspace.batch()` runs an
+  explicitly operation-bounded sequence of dependent page and ordered-bundle
+  batches through one private persistence scope, then returns the callback
+  value only after one exact workspace generation retains every staged handle.
+  Scope calls serialize by invocation order, return frozen handle arrays, stop
+  queued work after failure, and preserve the prior generation on refusal.
+
+### Performance
+
+- **One retained generation for dependent write waves** - a clean five-sample
+  SHA-1/SHA-256 witness reduced a 33-operation, 81-handle graph from 200 to 23
+  Git child processes and from 33 workspace commits and checked ref updates to
+  one, with identical application-handle digests. Median wall time fell by
+  80.5% on the measured host. Compound admission changes workspace-ref update
+  frequency, while object bytes, handle identity, ref layout and namespaces,
+  readers, and existing independently retained workspace methods remain
+  compatible.
+
 ## [6.5.8] — 2026-08-23
 
 ### Added

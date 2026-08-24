@@ -110,6 +110,10 @@ export { default as RepositoryInspectionPort } from './src/ports/RepositoryInspe
 export { default as NodeCompressionAdapter } from './src/infrastructure/adapters/NodeCompressionAdapter.js';
 export { default as diffManifests } from './src/domain/services/ManifestDiff.js';
 export { SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT } from './src/domain/encryption/schemes.js';
+export {
+  DEFAULT_WORKSPACE_COMPOUND_OPERATIONS,
+  MAX_WORKSPACE_COMPOUND_OPERATIONS,
+} from './src/domain/services/WorkspaceCompoundScope.js';
 
 /**
  * High-level facade for the Content Addressable Store library.

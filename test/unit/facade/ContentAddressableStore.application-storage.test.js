@@ -5,8 +5,10 @@ import ContentAddressableStore, {
   CacheHit,
   CachePolicy,
   CacheSet,
+  DEFAULT_WORKSPACE_COMPOUND_OPERATIONS,
   ExpiringMarker,
   ExpiringSet,
+  MAX_WORKSPACE_COMPOUND_OPERATIONS,
   PageHandle,
   RetentionWitness,
   StagedAsset,
@@ -70,6 +72,13 @@ describe('ContentAddressableStore application storage capabilities', () => {
     expect(ExpiringMarker).toBeTypeOf('function');
     expect(ExpiringSet).toBeTypeOf('function');
     expect(StagingWorkspace).toBeTypeOf('function');
+  });
+});
+
+describe('ContentAddressableStore compound workspace bounds', () => {
+  it('exports the default and hard operation limits', () => {
+    expect(DEFAULT_WORKSPACE_COMPOUND_OPERATIONS).toBe(64);
+    expect(MAX_WORKSPACE_COMPOUND_OPERATIONS).toBe(1024);
   });
 });
 
