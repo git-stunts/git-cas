@@ -237,3 +237,33 @@ describe('AssetService batch failure containment', () => {
     expect(laterStarted).not.toHaveBeenCalled();
   });
 });
+
+describe('AssetService frozen batch failures', () => {
+  it('wraps frozen persistence failures without losing the original error', async () => {
+    const { assets, persistence } = fixture();
+    const rootCause = Object.freeze(Object.assign(new Error('frozen persistence failure'), {
+      code: 'GIT_ERROR',
+      meta: Object.freeze({ marker: 'frozen' }),
+    }));
+    vi.spyOn(persistence, 'writeBlobs').mockRejectedValue(rootCause);
+    const inputs = ['first', 'second'].map((slug) => ({
+      source: source(Buffer.alloc(0)),
+      slug,
+    }));
+
+    const failure = await assets.putBatch({ assets: inputs, ...LIMITS })
+      .catch((error) => error);
+
+    expect(failure).not.toBe(rootCause);
+    expect(failure).toMatchObject({
+      code: 'GIT_ERROR',
+      message: 'frozen persistence failure',
+      cause: rootCause,
+      meta: {
+        marker: 'frozen',
+        originalError: rootCause,
+        staging: { stagedAssetCount: 0 },
+      },
+    });
+  });
+});

@@ -322,20 +322,42 @@ export default class AssetService {
   }
 
   static #batchFailure(error, persistence, { stagedAssetCount, batchIndex = null }) {
-    const failure =
-      error && typeof error === 'object'
-        ? error
-        : createCasError(String(error), ErrorCodes.GIT_ERROR, { originalError: error });
-    failure.meta = {
-      ...failure.meta,
-      ...(batchIndex === null ? {} : { batchIndex }),
-      staging: {
-        ...persistence.snapshot(),
-        stagedAssetCount,
+    const sourceMeta = batchErrorMeta(error);
+    const failure = createCasError({
+      message: error instanceof Error ? error.message : String(error),
+      code: batchErrorCode(error),
+      documentationUrl: batchErrorDocumentation(error),
+      meta: {
+        ...sourceMeta,
+        originalError: sourceMeta.originalError ?? error,
+        ...(batchIndex === null ? {} : { batchIndex }),
+        staging: {
+          ...persistence.snapshot(),
+          stagedAssetCount,
+        },
       },
-    };
+    });
+    failure.cause = error;
     return failure;
   }
+}
+
+function batchErrorCode(error) {
+  return error && typeof error === 'object' && typeof error.code === 'string'
+    ? error.code
+    : ErrorCodes.GIT_ERROR;
+}
+
+function batchErrorMeta(error) {
+  return error && typeof error === 'object' && error.meta && typeof error.meta === 'object'
+    ? error.meta
+    : {};
+}
+
+function batchErrorDocumentation(error) {
+  return error && typeof error === 'object' && typeof error.documentationUrl === 'string'
+    ? error.documentationUrl
+    : undefined;
 }
 
 function cancelAfterBatchFailure(source, state) {
