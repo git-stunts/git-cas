@@ -1618,6 +1618,11 @@ export const DEFAULT_WORKSPACE_COMPOUND_OPERATIONS: 64;
 export const MAX_WORKSPACE_COMPOUND_OPERATIONS: 1024;
 
 export interface WorkspaceCompoundScope {
+  readonly assets: {
+    putBatch(
+      options: Parameters<AssetCapability['putBatch']>[0],
+    ): Promise<ReadonlyArray<AssetHandle>>;
+  };
   readonly pages: {
     putBatch(
       options: Parameters<PageCapability['putBatch']>[0],
@@ -1715,6 +1720,7 @@ export declare class StagingWorkspace {
   batch<T>(options: {
     operation(scope: WorkspaceCompoundScope): T | Promise<T>;
     maxOperations?: number;
+    retain?: (value: T) => ReadonlyArray<ApplicationHandleInput>;
   }): Promise<Readonly<WorkspaceCompoundResult<T>>>;
   checkpoint(options: { handles: Iterable<ApplicationHandleInput> }): Promise<WorkspaceCheckpointResult>;
   renew(): Promise<WorkspaceCheckpointResult>;

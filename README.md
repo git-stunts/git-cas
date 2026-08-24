@@ -41,8 +41,9 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
   blob reads at or below a fixed 10 MiB ceiling use one bounded session read;
   larger payloads retain the genuine one-shot streaming path. Explicitly
   bounded page, asset, and ordered-bundle batches pipeline independent Git
-  writes. `workspace.batch()` can compose dependent page and bundle waves in
-  one private persistence scope and retain their union under one exact final
+  writes. `workspace.batch()` can compose dependent asset, page, and bundle
+  waves in one private persistence scope and either retain their union or an
+  explicitly selected set of newly staged terminal roots under one exact final
   generation without changing content identity.
 - **Key Lifecycle**: Envelope encryption separates DEKs from KEKs. Rotate passphrases across an entire vault without re-encrypting data blobs. Privacy mode HMAC-hashes slug names to prevent metadata discovery.
 - **Runtime-Adaptive**: A single core supports Node.js 22+, Bun, and Deno through a strict hexagonal port architecture with runtime-specific crypto adapters.
@@ -158,7 +159,8 @@ Core capabilities:
   compare-and-swap refs, and immutable lifecycle evidence.
 - **Scoped staging workspaces**: `workspaces.open()` mirrors application writes
   behind one renewable temporary RootSet, supports one-generation bounded
-  asset/page/bundle batches plus compound dependent page/bundle admission,
+  asset/page/bundle batches plus compound dependent asset/page/bundle admission
+  with exact newly staged terminal-root selection,
   returns only after each public result is anchored, promotes destination-first,
   and exposes bounded age, expiry, logical-content, and direct-root diagnostics
   with opaque cleanup pagination.

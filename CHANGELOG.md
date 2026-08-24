@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Compound asset admission and exact terminal roots** -
+  `workspace.batch()` now exposes bounded `scope.assets.putBatch()` alongside
+  page and ordered-bundle waves. An optional synchronous `retain(value)`
+  selector can retain a nonempty, canonical, deduplicated subset of handles
+  staged by that exact call while preserving every prior workspace root.
+  Malformed, asynchronous, empty, oversized, lookalike, and
+  valid-but-unstaged selections fail before ref movement. Omitting the selector
+  preserves v6.5.9 retain-all behavior.
+
+### Performance
+
+- **One admission for payload-to-terminal graphs** - replay and provenance
+  assets can share the compound persistence scope and final workspace
+  installation with their support bundles, descriptor, and terminal bundle.
+  In the downstream controlled 65-node/65-patch git-warp prototype, cold Git
+  commands fell from 139 to 50 and median wall time from 2.823 s to 1.329 s;
+  incremental commands fell from 149 to 60 and median wall time from 3.040 s to
+  1.387 s. Semantic fingerprints, cache posture, replay counts, storage
+  formats, handles, and the 25-command warm read path remained unchanged.
+
 ## [6.5.9] — 2026-08-24
 
 ### Added

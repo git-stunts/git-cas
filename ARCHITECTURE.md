@@ -185,11 +185,13 @@ The facade is orchestration glue. It is not the storage engine itself.
 - **`StagingWorkspaceRegistry` and `StagingWorkspace`** — own renewable
   temporary RootSet generations for multi-step application construction.
   `WorkspaceCompoundAdmission` and `WorkspaceCompoundScope` serialize an
-  explicitly bounded sequence of provisional page and bundle batches through
-  one operation-owned persistence view, then install the union of prior and new
-  targets in one exact generation. Existing workspace methods retain each
-  result independently and remain the boundary when a handle leaves private
-  construction code before later writes begin.
+  explicitly bounded sequence of provisional asset, page, and bundle batches
+  through one operation-owned persistence view. Compound calls retain all new
+  targets by default or canonically validate an exact nonempty selection of
+  handles staged by that call, then install those selected roots together with
+  every prior workspace target in one exact generation. Existing workspace
+  methods retain each result independently and remain the boundary when a
+  handle leaves private construction code before later writes begin.
 
 - **`RetentionService` and `PublicationService`** — validate complete handle
   graphs, then either retain them in a RootSet with generation-scoped evidence

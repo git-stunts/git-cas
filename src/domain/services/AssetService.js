@@ -48,6 +48,11 @@ export default class AssetService {
     );
   }
 
+  /** Internal batch path that joins an existing persistence write scope. */
+  async putBatchWithPersistence(options = {}, persistence) {
+    return await this.#putBatch(AssetService.#batchOptions(options), persistence);
+  }
+
   async #putBatch(batch, scopedPersistence) {
     const persistence = new BoundedWriteWavePersistence({
       persistence: scopedPersistence,

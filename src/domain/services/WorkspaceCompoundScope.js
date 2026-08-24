@@ -4,9 +4,10 @@ import { ErrorCodes } from '../errors/index.js';
 export const DEFAULT_WORKSPACE_COMPOUND_OPERATIONS = 64;
 export const MAX_WORKSPACE_COMPOUND_OPERATIONS = 1_024;
 
-/** Bounded provisional page and bundle writes owned by one compound admission. */
+/** Bounded provisional asset, page, and bundle writes owned by one compound admission. */
 export default class WorkspaceCompoundScope {
   #active = true;
+  #assets;
   #abortFailure;
   #aborted = false;
   #bundles;
@@ -20,13 +21,18 @@ export default class WorkspaceCompoundScope {
   #staged = [];
   #tail = Promise.resolve();
 
-  constructor({ pages, bundles, persistence, maxOperations }) {
-    WorkspaceCompoundScope.#assertDependencies({ pages, bundles, persistence });
+  constructor({ assets, pages, bundles, persistence, maxOperations }) {
+    WorkspaceCompoundScope.#assertDependencies({ assets, pages, bundles, persistence });
+    this.#assets = assets;
     this.#pages = pages;
     this.#bundles = bundles;
     this.#persistence = persistence;
     this.#maxOperations = WorkspaceCompoundScope.#operationLimit(maxOperations);
     this.api = Object.freeze({
+      assets: Object.freeze({
+        putBatch: (options) =>
+          this.#enqueue('assets.putBatch', async () => await this.#putAssets(options)),
+      }),
       pages: Object.freeze({
         putBatch: (options) =>
           this.#enqueue('pages.putBatch', async () => await this.#putPages(options)),
@@ -137,6 +143,18 @@ export default class WorkspaceCompoundScope {
     }
   }
 
+  async #putAssets(options) {
+    if (typeof this.#assets?.putBatchWithPersistence !== 'function') {
+      throw createCasError(
+        'Workspace compound asset batches are unavailable',
+        ErrorCodes.INVALID_OPTIONS,
+        { method: 'assets.putBatch' }
+      );
+    }
+    const staged = await this.#assets.putBatchWithPersistence(options, this.#persistence);
+    return this.#record(staged, 'asset');
+  }
+
   async #putPages(options) {
     const staged = await this.#pages.putBatchWithPersistence(options, this.#persistence);
     return this.#record(staged, 'page');
@@ -171,8 +189,9 @@ export default class WorkspaceCompoundScope {
     return limit;
   }
 
-  static #assertDependencies({ pages, bundles, persistence }) {
+  static #assertDependencies({ assets, pages, bundles, persistence }) {
     const missing = [
+      ['assets', assets === null || typeof assets !== 'object'],
       ['pages.putBatchWithPersistence', typeof pages?.putBatchWithPersistence !== 'function'],
       [
         'bundles.putOrderedBatchWithPersistence',

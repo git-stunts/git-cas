@@ -207,25 +207,30 @@ intermediate handles inside one compound staging-workspace operation:
 
 ```js
 const admitted = await workspace.batch({
-  maxOperations: 3,
+  maxOperations: 4,
   operation: async (scope) => {
+    const assets = await scope.assets.putBatch({ assets: assetRequests });
     const pages = await scope.pages.putBatch({ pages: pageRequests });
     const leaves = await scope.bundles.putOrderedBatch({
-      bundles: leafRequests(pages),
+      bundles: leafRequests(assets, pages),
     });
     return (await scope.bundles.putOrderedBatch({
       bundles: [rootRequest(leaves)],
     }))[0];
   },
+  retain: (terminal) => [terminal],
 });
 ```
 
 `admitted.value` becomes caller-visible only with `admitted.retention`, after
-one exact workspace generation anchors every staged handle. The default
-operation ceiling is 64 and the hard ceiling is 1,024; each scope call also
-preserves its ordinary page or bundle batch bounds. Use the existing
-independently retained workspace methods when intermediate handles must leave
-the private callback.
+one exact workspace generation anchors the selected terminal plus every root
+retained before the compound call. Omit `retain` to preserve the retain-all
+behavior. A selector must synchronously return at least one canonical handle
+staged by that exact callback; it cannot import another operation's handle or
+remove a prior workspace root. The default operation ceiling is 64 and the hard
+ceiling is 1,024; each scope call also preserves its ordinary asset, page, or
+bundle batch bounds. Use the existing independently retained workspace methods
+when intermediate handles must leave the private callback.
 
 Repeated `pages.get()` calls reuse immutable payload reads within the store's
 bounded page cache. The defaults retain at most 128 payloads and 8 MiB; use

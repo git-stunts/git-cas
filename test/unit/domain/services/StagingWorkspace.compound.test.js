@@ -10,7 +10,7 @@ import MemoryRefAdapter from '../../../helpers/MemoryRefAdapter.js';
 
 const CLOCK = Object.freeze({ now: () => new Date('2026-08-24T17:00:00.000Z') });
 
-function fixture({ withWriteScope = true } = {}) {
+function fixture({ withWriteScope = true, putAssets = vi.fn() } = {}) {
   const persistence = new MemoryPersistenceAdapter();
   if (!withWriteScope) {
     Object.defineProperty(persistence, 'withWriteScope', { value: undefined });
@@ -35,7 +35,12 @@ function fixture({ withWriteScope = true } = {}) {
   const registry = new StagingWorkspaceRegistry({
     persistence,
     ref,
-    assets: { put: vi.fn(), putBatch: vi.fn(), adopt: vi.fn() },
+    assets: {
+      put: vi.fn(),
+      putBatch: vi.fn(),
+      putBatchWithPersistence: putAssets,
+      adopt: vi.fn(),
+    },
     pages,
     bundles: services.bundles,
     resolveHandle,
@@ -101,6 +106,98 @@ describe('StagingWorkspace compound persistence compatibility', () => {
 
     expect(admitted.value.toString()).toMatch(/^git-cas:1:page:/u);
     expect(admitted.retention.handles).toHaveLength(1);
+  });
+});
+
+describe('StagingWorkspace compound exact retention selection', () => {
+  it('retains only selected new roots while preserving prior workspace roots', async () => {
+    const { registry } = fixture();
+    const workspace = await registry.open({
+      namespace: 'git-warp/materializations',
+      ttlMs: 60_000,
+    });
+    const prior = await workspace.pages.put({ source: new Uint8Array([0]) });
+
+    const admitted = await workspace.batch({
+      operation: async (scope) => {
+        const pages = await scope.pages.putBatch({
+          pages: [{ source: new Uint8Array([1]) }, { source: new Uint8Array([2]) }],
+        });
+        return pages[1];
+      },
+      retain: (terminal) => [terminal, terminal.toString()],
+    });
+
+    expect(admitted.retention.handles.map((handle) => handle.toString())).toEqual([
+      prior.handle.toString(),
+      admitted.value.toString(),
+    ]);
+  });
+});
+
+describe('StagingWorkspace compound selector shape', () => {
+  it.each([
+    ['a non-function', 'terminal'],
+    ['a non-array result', () => new Set()],
+    ['an asynchronous result', async (terminal) => [terminal]],
+    ['an empty result', () => []],
+    ['more inputs than staged handles', (terminal) => [terminal, terminal]],
+    ['a malformed handle', () => ['not-an-application-handle']],
+  ])('rejects %s retention selector without moving the workspace ref', async (_, retain) => {
+    const { ref, registry } = fixture();
+    const updateRef = vi.spyOn(ref, 'updateRef');
+    const workspace = await registry.open({
+      namespace: 'git-warp/materializations',
+      ttlMs: 60_000,
+    });
+
+    await expect(
+      workspace.batch({
+        operation: async (scope) =>
+          (await scope.pages.putBatch({ pages: [{ source: new Uint8Array([1]) }] }))[0],
+        retain,
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+    expect(updateRef).not.toHaveBeenCalled();
+  });
+});
+
+describe('StagingWorkspace compound selector authority', () => {
+  it('rejects a canonical handle that was not staged by this compound call', async () => {
+    const { ref, registry } = fixture();
+    const updateRef = vi.spyOn(ref, 'updateRef');
+    const workspace = await registry.open({
+      namespace: 'git-warp/materializations',
+      ttlMs: 60_000,
+    });
+    const prior = await workspace.pages.put({ source: new Uint8Array([0]) });
+
+    await expect(
+      workspace.batch({
+        operation: async (scope) =>
+          (await scope.pages.putBatch({ pages: [{ source: new Uint8Array([1]) }] }))[0],
+        retain: () => [prior.handle],
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+    expect(updateRef).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a string-like handle impostor without moving the workspace ref', async () => {
+    const { ref, registry } = fixture();
+    const updateRef = vi.spyOn(ref, 'updateRef');
+    const workspace = await registry.open({
+      namespace: 'git-warp/materializations',
+      ttlMs: 60_000,
+    });
+
+    await expect(
+      workspace.batch({
+        operation: async (scope) =>
+          (await scope.pages.putBatch({ pages: [{ source: new Uint8Array([1]) }] }))[0],
+        retain: (terminal) => [{ toString: () => terminal.toString() }],
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+    expect(updateRef).not.toHaveBeenCalled();
   });
 });
 
@@ -261,6 +358,27 @@ describe('StagingWorkspace compound failure containment', () => {
         },
       })
     ).rejects.toMatchObject({ code: ErrorCodes.HANDLE_KIND_MISMATCH });
+    expect(updateRef).not.toHaveBeenCalled();
+  });
+});
+
+describe('StagingWorkspace compound asset failure containment', () => {
+  it('does not move the ref when a scoped asset batch fails', async () => {
+    const assetFailure = new Error('asset batch failed');
+    const { ref, registry } = fixture({
+      putAssets: vi.fn().mockRejectedValue(assetFailure),
+    });
+    const updateRef = vi.spyOn(ref, 'updateRef');
+    const workspace = await registry.open({
+      namespace: 'git-warp/materializations',
+      ttlMs: 60_000,
+    });
+
+    await expect(
+      workspace.batch({
+        operation: async (scope) => await scope.assets.putBatch({ assets: [] }),
+      })
+    ).rejects.toBe(assetFailure);
     expect(updateRef).not.toHaveBeenCalled();
   });
 });
