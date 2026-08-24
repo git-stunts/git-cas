@@ -989,7 +989,10 @@ may have been written before failure. `maxBatchAssets` is a resource/performance
 choice: raising it can reduce protocol rounds while increasing the number of
 simultaneously live caller streams.
 
-**Returns:** `Promise<StagedAsset>`
+**`assets.put()` returns:** `Promise<StagedAsset>`
+
+**`assets.putBatch()` returns:** `Promise<ReadonlyArray<StagedAsset>>`, ordered
+one-for-one with the input `assets` array.
 
 ```javascript
 {
