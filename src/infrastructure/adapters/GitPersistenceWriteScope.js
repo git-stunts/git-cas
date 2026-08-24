@@ -71,9 +71,20 @@ export default class GitPersistenceWriteScope extends GitPersistencePort {
     if (!this.#sessions.supports('fastImport')) {
       return await this.#adapter.writeBlobs(replayable);
     }
-    const oids = await this.#sessions.writeBlobs(replayable, this.#execute);
-    await this.#retireMktree();
-    return [...oids];
+    const { eligible, oversized } = partitionFastImportBlobs(replayable);
+    const results = new Array(replayable.length);
+    if (eligible.length > 0) {
+      const oids = await this.#sessions.writeBlobs(
+        eligible.map(({ content }) => content),
+        this.#execute,
+      );
+      eligible.forEach(({ index }, offset) => { results[index] = oids[offset]; });
+      await this.#retireMktree();
+    }
+    for (const { content, index } of oversized) {
+      results[index] = await this.#adapter.writeBlob(content);
+    }
+    return results;
   }
 
   async writeTree(entries) {
@@ -128,4 +139,16 @@ function contentBytes(content) {
   return typeof content === 'string'
     ? UTF8_ENCODER.encode(content).byteLength
     : Number.MAX_SAFE_INTEGER;
+}
+
+function partitionFastImportBlobs(contents) {
+  const eligible = [];
+  const oversized = [];
+  contents.forEach((content, index) => {
+    const target = contentBytes(content) > MAX_FAST_IMPORT_BLOB_BYTES
+      ? oversized
+      : eligible;
+    target.push({ content, index });
+  });
+  return { eligible, oversized };
 }

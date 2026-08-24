@@ -512,6 +512,30 @@ describe('GitPersistenceAdapter operation-owned oversized writes', () => {
     expect(plumbing.openFastImportSession).not.toHaveBeenCalled();
     await adapter.close();
   });
+
+  it('splits oversized elements out of a scoped blob batch without reordering', async () => {
+    const fastImport = {
+      writeBlobs: vi.fn().mockResolvedValue(['a'.repeat(40), 'c'.repeat(40)]),
+      checkpoint: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+      abort: vi.fn().mockResolvedValue(undefined),
+    };
+    const plumbing = sessionPlumbing({ fastImportSession: fastImport });
+    plumbing.execute.mockResolvedValue('b'.repeat(40));
+    const adapter = new GitPersistenceAdapter({ plumbing, policy: noPolicy });
+    const first = Buffer.from('first');
+    const oversized = Buffer.alloc(64 * 1024 * 1024 + 1);
+    const third = Buffer.from('third');
+
+    await expect(adapter.withWriteScope((persistence) => (
+      persistence.writeBlobs([first, oversized, third])
+    ))).resolves.toEqual(['a'.repeat(40), 'b'.repeat(40), 'c'.repeat(40)]);
+
+    expect(fastImport.writeBlobs).toHaveBeenCalledWith([first, third]);
+    expect(plumbing.execute).toHaveBeenCalledOnce();
+    expect(plumbing.execute.mock.calls[0][0].input).toBe(oversized);
+    await adapter.close();
+  });
 });
 
 describe('GitPersistenceAdapter persistent write sessions', () => {
