@@ -39,6 +39,11 @@ Implementation review #120 merged normally as
 `a762a02ca9270b2ace05b98a3d3025c61927de2c`. Its second parent is the exact
 reviewed head `8badb3194d1bed66e79dff1355cfcc765078ca11`.
 
+The versioned release-candidate tree verified below was committed as
+`fd5950d5feef58aa49b9ad8c07c78a0f40eb01fd`. A following documentation-only
+commit binds that immutable candidate identity into this witness; publication
+still requires verification of the eventual reviewed merge.
+
 ## Semantic and Process Witness
 
 The released-Plumbing witness compares repeated singles with bounded batches
@@ -70,8 +75,9 @@ object creation as a complete batch result.
 ## Verification
 
 The exact reviewed implementation head passed the complete release method with
-7,054 observed tests. The versioned release candidate then passed the same
-14-stage method with these final candidate counts:
+7,054 observed tests. The versioned release-candidate tree committed as
+`fd5950d5feef58aa49b9ad8c07c78a0f40eb01fd` then passed the same 14-stage
+method with these final candidate counts:
 
 | Gate                       | Result                | Observed tests |
 | -------------------------- | --------------------- | -------------: |
