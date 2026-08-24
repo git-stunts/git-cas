@@ -6,7 +6,7 @@ Issue: #123
 
 Implementation review: #124
 
-Release review: pending
+Release review: #125
 
 ## Scope
 
@@ -46,8 +46,27 @@ That exact implementation head passed the complete release method:
 | npm and JSR dry-runs       | PASS                  |              - |
 | **Release method summary** | **PASS: 14/14 gates** |      **7,141** |
 
-Versioned candidate verification: pending. The committed versioned tree must
-pass the same method before this release review can become ready.
+The versioned release-candidate tree verified below was committed as
+`5512acd477bc5e5a11339d6027a03631d1a3544a`. This following
+documentation-only commit binds that immutable candidate identity into the
+witness; publication still requires verification of the eventual reviewed
+merge.
+
+The versioned candidate passed the same complete release method:
+
+| Gate                       | Result                | Observed tests |
+| -------------------------- | --------------------- | -------------: |
+| Lint                       | PASS                  |              - |
+| Unit tests (Node)          | PASS                  |          2,179 |
+| Unit tests (Bun)           | PASS                  |          2,178 |
+| Unit tests (Deno)          | PASS                  |          2,169 |
+| Public type compatibility  | PASS                  |              - |
+| Integration tests (Node)   | PASS                  |            207 |
+| Integration tests (Bun)    | PASS                  |            207 |
+| Integration tests (Deno)   | PASS                  |            207 |
+| Examples and build stamp   | PASS                  |              - |
+| npm and JSR dry-runs       | PASS                  |              - |
+| **Release method summary** | **PASS: 14/14 gates** |      **7,147** |
 
 ## Semantic and Process Witness
 
@@ -70,7 +89,7 @@ The release is additive and migration-free. Existing application handles,
 stored object bytes, descriptor schemas, ref namespaces, workspace methods,
 readers, and repositories remain compatible without rewriting or cutover.
 
-Publication remains blocked until the versioned candidate passes the full
-release method, the release PR passes hosted CI and review, the exact reviewed
-merge passes verification, a signed annotated `v6.5.9` tag peels to that merge,
-and the release workflow publishes npm plus the final GitHub Release.
+Publication remains blocked until release PR #125 passes hosted CI and review,
+the exact reviewed merge passes verification, a signed annotated `v6.5.9` tag
+peels to that merge, and the release workflow publishes npm plus the final
+GitHub Release.

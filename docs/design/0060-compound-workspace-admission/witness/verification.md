@@ -123,6 +123,8 @@ Implementation PR [#124](https://github.com/git-stunts/git-cas/pull/124)
 merged normally as `eb8d617620fa8f401fb887f5b1bbc341d4746b0a`. Its exact
 reviewed head `29ba6e88c787a5e54c95a554e9166fd21aae31c0` passed the full
 14-stage release verifier with 7,141 observed tests. The versioned v6.5.9
-candidate, reviewed merge, signed tag, registry artifact, and GitHub Release
-remain separate gates recorded by the
-[release-candidate witness](./release-candidate.md).
+candidate `5512acd477bc5e5a11339d6027a03631d1a3544a` then passed the same
+14-stage method with 7,147 observed tests. The reviewed merge, signed tag,
+registry artifact, and GitHub Release remain separate gates recorded by the
+[release-candidate witness](./release-candidate.md) and release PR
+[#125](https://github.com/git-stunts/git-cas/pull/125).

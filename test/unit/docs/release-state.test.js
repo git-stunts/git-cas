@@ -419,12 +419,13 @@ function expectV659CandidateEvidence(status, candidate, releaseNotes) {
   expect(status).toContain('**v6.5.9 candidate posture**');
   expect(candidate).toContain('# PERF-0060 v6.5.9 Release Candidate Witness');
   expect(candidate).toContain('Implementation review: #124');
-  expect(candidate).toContain('Release review: pending');
+  expect(candidate).toContain('Release review: #125');
   expect(candidate).toContain('eb8d617620fa8f401fb887f5b1bbc341d4746b0a');
   expect(candidate).toContain('29ba6e88c787a5e54c95a554e9166fd21aae31c0');
+  expect(candidate).toContain('5512acd477bc5e5a11339d6027a03631d1a3544a');
   expect(candidate).toContain('**PASS: 14/14 gates**');
   expect(candidate).toContain('**7,141**');
-  expect(candidate).toContain('Versioned candidate verification: pending');
+  expect(candidate).toContain('**7,147**');
   expect(candidate).toMatch(/explicitly\s+unpublished\s+candidate/);
   expect(releaseNotes).toMatch(/requires no application or stored-data migration/);
   expectNoV659PublicationEvidence(status, candidate, releaseNotes);

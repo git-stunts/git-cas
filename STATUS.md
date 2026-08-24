@@ -2,7 +2,7 @@
 
 **Last tagged release:** `v6.5.8` (`2026-08-23`)
 **Current release state:** `v6.5.9` release candidate; tag, npm publication, and GitHub Release remain pending the reviewed tag workflow.
-**Latest verification:** exact reviewed implementation head `29ba6e88` passed 14/14 release-verifier stages with 7,141 observed tests; exact versioned-candidate verification remains pending.
+**Latest verification:** exact versioned candidate `5512acd4` passed 14/14 release-verifier stages with 7,147 observed tests across Node, Bun, Deno, and all three real-Git integration suites.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -20,13 +20,15 @@
   portability are still partial.
 - **v6.5.9 candidate posture** — implementation PR
   [#124](https://github.com/git-stunts/git-cas/pull/124) merged normally as
-  `eb8d6176`; its exact reviewed head `29ba6e88` passed all 14 release-verifier
-  stages with 7,141 observed tests. npm, JSR, and runtime metadata identify
-  `6.5.9`, while the signed tag and registry artifact remain deliberately
-  absent pending release review. The SHA-1/SHA-256 compound witness preserves
-  every application-handle digest while reducing a 33-operation graph from 200
-  to 23 Git children and from 33 retained generations to one. The release is
-  additive and requires no application or stored-data migration.
+  `eb8d6176`; release PR [#125](https://github.com/git-stunts/git-cas/pull/125)
+  reviews the versioned candidate. Exact candidate `5512acd4` passed all 14
+  release-verifier stages with 7,147 observed tests. npm, JSR, and runtime
+  metadata identify `6.5.9`, while the signed tag and registry artifact remain
+  deliberately absent pending release review. The SHA-1/SHA-256 compound
+  witness preserves every application-handle digest while reducing a
+  33-operation graph from 200 to 23 Git children and from 33 retained
+  generations to one. The release is additive and requires no application or
+  stored-data migration.
 - **v6.5.8 artifact posture** — implementation PR
   [#120](https://github.com/git-stunts/git-cas/pull/120) and release PR
   [#121](https://github.com/git-stunts/git-cas/pull/121) merged normally.
