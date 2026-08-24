@@ -47,7 +47,7 @@ That exact implementation head passed the complete release method:
 | **Release method summary** | **PASS: 14/14 gates** |      **7,141** |
 
 The versioned release-candidate tree verified below was committed as
-`5512acd477bc5e5a11339d6027a03631d1a3544a`. This following
+`5512acd477bc5e5a11339d6027a03631d1a3544a`. The following
 documentation-only commit binds that immutable candidate identity into the
 witness; publication still requires verification of the eventual reviewed
 merge.
