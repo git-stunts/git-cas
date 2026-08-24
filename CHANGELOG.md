@@ -22,8 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SHA-1/SHA-256 witness reduced a 33-operation, 81-handle graph from 200 to 23
   Git child processes and from 33 workspace commits and checked ref updates to
   one, with identical application-handle digests. Median wall time fell by
-  80.5% on the measured host. Object bytes, handle identity, refs, readers, and
-  existing independently retained workspace methods remain unchanged.
+  80.5% on the measured host. Compound admission changes workspace-ref update
+  frequency, while object bytes, handle identity, ref layout and namespaces,
+  readers, and existing independently retained workspace methods remain
+  compatible.
 
 ## [6.5.8] — 2026-08-23
 

@@ -271,15 +271,15 @@ count, command/session topology, and closure state are the hard gates.
 
 ## Compatibility / Migration Posture
 
-| Concern                    | Decision                                                                                 |
-| -------------------------- | ---------------------------------------------------------------------------------------- |
-| Public API compatibility   | Additive method; all existing methods retain their contracts.                            |
-| Package export changes     | Add declarations for compound scope/result and limits.                                   |
-| Storage/read compatibility | No serialized bytes, refs, or readers change.                                            |
-| Legacy behavior retained   | Singleton and independently retained batch calls remain available and tested.            |
-| Deprecation behavior       | None.                                                                                    |
-| Migration path             | None required.                                                                           |
-| Release note impact        | State explicitly that v6.5.9 is migration-free and changes physical admission cost only. |
+| Concern                    | Decision                                                                                                                                |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Public API compatibility   | Additive method; all existing methods retain their contracts.                                                                           |
+| Package export changes     | Add declarations for compound scope/result and limits.                                                                                  |
+| Storage/read compatibility | No serialized bytes, ref layout or namespaces, or readers change; successful compound admission reduces workspace-ref update frequency. |
+| Legacy behavior retained   | Singleton and independently retained batch calls remain available and tested.                                                           |
+| Deprecation behavior       | None.                                                                                                                                   |
+| Migration path             | None required.                                                                                                                          |
+| Release note impact        | State explicitly that v6.5.9 is migration-free and changes physical admission cost only.                                                |
 
 ## Error Contract
 
