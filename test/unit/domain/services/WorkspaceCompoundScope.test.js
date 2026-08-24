@@ -13,7 +13,7 @@ function ignoreRejection(promise) {
   void promise.catch(() => undefined);
 }
 
-function fixture({ putPages, putBundles } = {}) {
+function fixture({ putPages, putBundles, maxOperations } = {}) {
   const pages = {
     putBatchWithPersistence: vi.fn(putPages ?? (async ({ id }) => [artifact(`page:${id}`)])),
   };
@@ -26,6 +26,7 @@ function fixture({ putPages, putBundles } = {}) {
     pages,
     bundles,
     persistence: PERSISTENCE,
+    maxOperations,
   });
   return { bundles, pages, scope };
 }
@@ -60,6 +61,50 @@ describe('WorkspaceCompoundScope ordering', () => {
     expect(pages.putBatchWithPersistence).toHaveBeenCalledTimes(2);
     expect(result.operationCount).toBe(2);
     expect(result.staged).toHaveLength(2);
+  });
+});
+
+describe('WorkspaceCompoundScope operation bounds', () => {
+  it('refuses calls after overflow without extending the bounded queue', async () => {
+    let releaseFirst;
+    const firstGate = new Promise((resolve) => {
+      releaseFirst = resolve;
+    });
+    const { bundles, pages, scope } = fixture({
+      maxOperations: 1,
+      putPages: async () => {
+        await firstGate;
+        return [artifact('page:first')];
+      },
+    });
+
+    const execution = scope.execute(async (api) => {
+      const first = api.pages.putBatch({ id: 'first' });
+      const overflow = api.pages.putBatch({ id: 'overflow' });
+      const afterOverflow = api.bundles.putOrderedBatch({ id: 'after-overflow' });
+      const settled = Promise.allSettled([first, overflow, afterOverflow]);
+      const refused = afterOverflow.then(
+        () => ({ status: 'fulfilled' }),
+        (error) => ({ status: 'rejected', error }),
+      );
+      try {
+        const outcome = await Promise.race([
+          refused,
+          new Promise((resolve) => setTimeout(() => resolve({ status: 'pending' }), 0)),
+        ]);
+        expect(outcome).toMatchObject({
+          status: 'rejected',
+          error: { code: 'INVALID_OPTIONS' },
+        });
+      } finally {
+        releaseFirst();
+      }
+      await settled;
+    });
+
+    await expect(execution).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+    expect(pages.putBatchWithPersistence).not.toHaveBeenCalled();
+    expect(bundles.putOrderedBatchWithPersistence).not.toHaveBeenCalled();
   });
 });
 

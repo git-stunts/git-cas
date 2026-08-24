@@ -184,7 +184,9 @@ Contract laws:
 
 1. `operation` is required and called exactly once.
 2. `maxOperations` is a positive safe integer no larger than the exported hard
-   ceiling; each scope method invocation consumes one operation.
+   ceiling; each scope method invocation consumes one operation. The first
+   invocation past that ceiling poisons the admission immediately, and later
+   calls reuse that refusal without extending the bounded execution queue.
 3. Scope methods are serialized by invocation order even if the callback starts
    them concurrently.
 4. Scope page and bundle methods preserve the existing per-call batch bounds,

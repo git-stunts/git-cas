@@ -14,6 +14,7 @@ export default class WorkspaceCompoundScope {
   #failure;
   #maxOperations;
   #operationCount = 0;
+  #overflowFailure = null;
   #pages;
   #persistence;
   #staged = [];
@@ -91,29 +92,29 @@ export default class WorkspaceCompoundScope {
         })
       );
     }
+    if (this.#overflowFailure !== null) {
+      return Promise.reject(this.#overflowFailure);
+    }
     this.#operationCount += 1;
-    const limitError =
-      this.#operationCount > this.#maxOperations
-        ? createCasError(
-            'Workspace compound operation count exceeds the configured maximum',
-            ErrorCodes.INVALID_OPTIONS,
-            {
-              operationCount: this.#operationCount,
-              maxOperations: this.#maxOperations,
-              method,
-            }
-          )
-        : null;
+    if (this.#operationCount > this.#maxOperations) {
+      this.#overflowFailure = createCasError(
+        'Workspace compound operation count exceeds the configured maximum',
+        ErrorCodes.INVALID_OPTIONS,
+        {
+          operationCount: this.#operationCount,
+          maxOperations: this.#maxOperations,
+          method,
+        }
+      );
+      this.#recordFailure(this.#overflowFailure);
+      return Promise.reject(this.#overflowFailure);
+    }
     const result = this.#tail.then(async () => {
       if (this.#failed) {
         throw this.#failure;
       }
       if (this.#aborted) {
         throw this.#abortFailure;
-      }
-      if (limitError !== null) {
-        this.#recordFailure(limitError);
-        throw limitError;
       }
       try {
         return await operation();
