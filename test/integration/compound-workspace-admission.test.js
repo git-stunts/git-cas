@@ -25,6 +25,10 @@ describe.each(['sha1', 'sha256'])('real-Git %s compound workspace admission', (o
   it('retains dependent waves through one checked ref publication', async () => {
     await proveCompoundAdmission(objectFormat);
   });
+
+  it('publishes no generation when a dependent wave fails', async () => {
+    await proveFailureContainment(objectFormat);
+  });
 });
 
 async function proveCompoundAdmission(objectFormat) {
@@ -38,7 +42,38 @@ async function proveCompoundAdmission(objectFormat) {
       ttlMs: 60_000,
     });
     const admitted = await admitGraph(workspace);
-    await assertAdmission({ admitted, cas, counted, repo });
+    await assertAdmission({ admitted, cas, counted, repo, workspace });
+  } finally {
+    await cas.close();
+    rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+async function proveFailureContainment(objectFormat) {
+  const repo = mkdtempSync(path.join(os.tmpdir(), `cas-compound-failure-${objectFormat}-`));
+  initializeRepository(repo, objectFormat);
+  const cas = new ContentAddressableStore({
+    plumbing: (await createCountingGitPlumbing({ cwd: repo })).plumbing,
+  });
+  try {
+    const namespace = `integration/compound-failure-${objectFormat}`;
+    const workspace = await cas.workspaces.open({ namespace, ttlMs: 60_000 });
+    let provisional;
+    await expect(workspace.batch({
+      operation: async (scope) => {
+        [provisional] = await scope.pages.putBatch({
+          pages: [{ source: Buffer.from('unretained after failure') }],
+        });
+        await scope.bundles.putOrderedBatch({
+          bundles: [{ members: [['invalid', 'not-an-application-handle']] }],
+        });
+      },
+    })).rejects.toBeDefined();
+    await expect(cas.workspaces.inspect({ namespace, limit: 10 })).resolves.toMatchObject({
+      returned: 0,
+    });
+    git(repo, ['prune', '--expire=now']);
+    expect(objectExists(repo, provisional.oid)).toBe(false);
   } finally {
     await cas.close();
     rmSync(repo, { recursive: true, force: true });
@@ -74,7 +109,8 @@ async function stageGraph(scope) {
   )[0];
 }
 
-async function assertAdmission({ admitted, cas, counted, repo }) {
+async function assertAdmission({ admitted, cas, counted, repo, workspace }) {
+  const retainedOids = admitted.retention.handles.map((handle) => handle.oid);
   const counts = counted.snapshot();
   expect(count(counts, 'update-ref') + count(counts, 'session:update-ref')).toBe(1);
   expect(count(counts, 'session:fast-import')).toBe(1);
@@ -95,6 +131,11 @@ async function assertAdmission({ admitted, cas, counted, repo }) {
       path: 'payload/0',
     })
   ).resolves.toMatchObject({ handle: admitted.retention.handles[0] });
+
+  await workspace.release();
+  git(repo, ['reflog', 'expire', '--expire=now', '--all']);
+  git(repo, ['gc', '--prune=now']);
+  expect(retainedOids.every((oid) => !objectExists(repo, oid))).toBe(true);
 }
 
 function initializeRepository(repo, objectFormat) {
@@ -118,6 +159,10 @@ function reachableOids(repo, ref) {
     .split('\n')
     .filter(Boolean)
     .map((line) => line.split(' ')[0]);
+}
+
+function objectExists(repo, oid) {
+  return spawnSync('git', ['cat-file', '-e', oid], { cwd: repo }).status === 0;
 }
 
 function count(counts, operation) {

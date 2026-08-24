@@ -57,9 +57,12 @@ describe('StagingWorkspace compound admission', () => {
         const pages = await scope.pages.putBatch({
           pages: [{ source: new Uint8Array([1, 2, 3]) }],
         });
+        expect(Object.isFrozen(scope)).toBe(true);
+        expect(Object.isFrozen(pages)).toBe(true);
         const bundles = await scope.bundles.putOrderedBatch({
           bundles: [{ members: [['leaf/data', pages[0]]] }],
         });
+        expect(Object.isFrozen(bundles)).toBe(true);
         return bundles[0];
       },
     });
