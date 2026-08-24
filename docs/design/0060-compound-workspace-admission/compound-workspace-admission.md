@@ -541,7 +541,8 @@ Required artifacts:
 - readable verification summary with residual process floor;
 - real-Git prune test output;
 - exact-head hosted CI URLs;
-- v6.5.9 candidate and publication identity evidence;
+- [v6.5.9 release-candidate witness](./witness/release-candidate.md);
+- [v6.5.9 publication witness](./witness/release-publication.md);
 - downstream git-warp exact-head benchmark and migrated-v18 read gate.
 
 ## Risks
@@ -578,10 +579,10 @@ same evidence and separate scope.
 
 ## Tracker Disposition
 
-| Issue                                                             | Role                | Expected disposition             |
-| ----------------------------------------------------------------- | ------------------- | -------------------------------- |
-| [git-cas#123](https://github.com/git-stunts/git-cas/issues/123)   | primary goalpost    | close after publication evidence |
-| [git-warp#851](https://github.com/git-stunts/git-warp/issues/851) | downstream consumer | update after released adoption   |
+| Issue                                                             | Role                | Expected disposition           |
+| ----------------------------------------------------------------- | ------------------- | ------------------------------ |
+| [git-cas#123](https://github.com/git-stunts/git-cas/issues/123)   | primary goalpost    | close through publication PR   |
+| [git-warp#851](https://github.com/git-stunts/git-warp/issues/851) | downstream consumer | update after released adoption |
 
 ## Done Does Not Mean
 
@@ -603,9 +604,17 @@ in both SHA-1 and SHA-256 repositories. Median wall time fell by 80.5% with
 identical handle digests. Implementation PR #124 merged normally as
 `eb8d617620fa8f401fb887f5b1bbc341d4746b0a`; exact reviewed head
 `29ba6e88c787a5e54c95a554e9166fd21aae31c0` passed 14/14 release-verifier
-stages with 7,141 observed tests. The remaining work is v6.5.9 release review,
-publication, and released downstream adoption.
+stages with 7,141 observed tests. Release PR #125 merged normally as
+`a16e31a9d4b0dff3b538fe8ad9ad2da31b67b275`; that exact merge passed all 14
+release-verifier stages with 7,147 observed tests before signed tag `v6.5.9`
+triggered successful release workflow
+[`32766297971`](https://github.com/git-stunts/git-cas/actions/runs/32766297971).
+The registry, provenance, signature, GitHub Release, and clean-room install
+evidence is recorded in the
+[publication witness](./witness/release-publication.md). The remaining work is
+released downstream git-warp adoption and measurement.
 
 PR:
 
 - [#124](https://github.com/git-stunts/git-cas/pull/124)
+- [#125](https://github.com/git-stunts/git-cas/pull/125)
