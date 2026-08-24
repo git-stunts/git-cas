@@ -11,7 +11,6 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Active METHOD Cycles
 
-- [0061-compound-workspace-assets - compound-workspace-assets](./0061-compound-workspace-assets/compound-workspace-assets.md)
 - [0054-batched-page-retention - batched-page-retention](./0054-batched-page-retention/batched-page-retention.md)
 - [0050-lazy-bundle-reference-reads - lazy-bundle-reference-reads](./0050-lazy-bundle-reference-reads/lazy-bundle-reference-reads.md)
 - [0049-scoped-staging-workspaces — scoped-staging-workspaces](./0049-scoped-staging-workspaces/scoped-staging-workspaces.md)
@@ -45,6 +44,7 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Landed METHOD Cycles
 
+- [0061-compound-workspace-assets - compound-workspace-assets](./0061-compound-workspace-assets/compound-workspace-assets.md)
 - [0060-compound-workspace-admission - compound-workspace-admission](./0060-compound-workspace-admission/compound-workspace-admission.md)
 - [0059-bounded-write-waves - bounded-write-waves](./0059-bounded-write-waves/bounded-write-waves.md)
 - [0058-bounded-stream-session-reads - bounded-stream-session-reads](./0058-bounded-stream-session-reads/bounded-stream-session-reads.md)

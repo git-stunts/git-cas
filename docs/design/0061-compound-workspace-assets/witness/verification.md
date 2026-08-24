@@ -4,6 +4,8 @@
 
 - implementation commit: `e663754bf221784f0e5856a41fe071bebfa5befb`
 - implementation PR: [#128](https://github.com/git-stunts/git-cas/pull/128)
+- exact reviewed head: `6714750620aa2310ad0279f957414be65898a66a`
+- normal merge: `57cd300294a94660d2afb644c653a3be78c15d53`
 - base commit: `6d5a43e2853f61b3c12d5000e81ef7832c00b8d2`
 - installed Plumbing: `@git-stunts/plumbing@3.3.0`
 - Node.js: `v26.0.0`
@@ -14,7 +16,8 @@
 
 The implementation worktree was clean when the complete release verifier
 started and after it completed. The verifier's build stamp named the same
-implementation commit.
+implementation commit. PR #128 then added only this verification record and
+merged normally; the merge's second parent is the exact reviewed head above.
 
 ## Red to green
 
@@ -86,12 +89,12 @@ run used the exact API implemented here through a local prototype.
 
 | Scenario    | Git commands | Median CPU ms | Median wall ms |
 | ----------- | -----------: | ------------: | -------------: |
-| Cold before |          139 |       545.476 |       2,822.893 |
-| Cold after  |           50 |       322.103 |       1,328.603 |
-| Incr before |          149 |       555.478 |       3,039.536 |
-| Incr after  |           60 |       320.050 |       1,387.245 |
-| Warm before |           25 |       166.882 |         548.191 |
-| Warm after  |           25 |       176.325 |         622.956 |
+| Cold before |          139 |       545.476 |      2,822.893 |
+| Cold after  |           50 |       322.103 |      1,328.603 |
+| Incr before |          149 |       555.478 |      3,039.536 |
+| Incr after  |           60 |       320.050 |      1,387.245 |
+| Warm before |           25 |       166.882 |        548.191 |
+| Warm after  |           25 |       176.325 |        622.956 |
 
 The cold path used 64.029% fewer Git commands, 40.950% less Node CPU, and
 52.935% less wall time. The incremental path used 59.732% fewer Git commands,
@@ -116,8 +119,7 @@ authority cutover.
 ## Publication boundary
 
 The implementation is not a published v6.5.10 release merely because this
-witness and local verification are green. Publication still requires hosted
-review and CI on the exact PR head, a normal reviewed merge, a separately
-reviewed versioned release candidate, a signed annotated tag that peels to the
-reviewed release merge, successful registry publication, and an external
-consumer installation check.
+witness, hosted implementation CI, and local verification are green.
+Publication still requires a separately reviewed versioned release candidate,
+a normal release merge, a signed annotated tag that peels to that merge,
+successful registry publication, and an external consumer installation check.

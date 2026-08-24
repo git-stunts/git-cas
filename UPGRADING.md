@@ -2,6 +2,42 @@
 
 v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
 
+## v6.5.9 To v6.5.10
+
+v6.5.10 adds compound asset admission and exact terminal-root selection and
+requires no application or stored-data migration. Existing object bytes,
+handles, descriptors, workspace generations, ref layouts, readers, and
+retain-all compound calls remain compatible. Existing repositories open in
+place.
+
+Compound callbacks may now stage bounded asset batches alongside pages and
+ordered bundles. An optional synchronous selector can retain only terminal
+handles staged by that exact callback:
+
+```js
+const admitted = await workspace.batch({
+  maxOperations: 4,
+  operation: async (scope) => {
+    const assets = await scope.assets.putBatch({ assets: assetRequests });
+    const pages = await scope.pages.putBatch({ pages: pageRequests });
+    const leaves = await scope.bundles.putOrderedBatch({
+      bundles: leafRequests(assets, pages),
+    });
+    return (
+      await scope.bundles.putOrderedBatch({
+        bundles: [rootRequest(leaves)],
+      })
+    )[0];
+  },
+  retain: (terminal) => [terminal],
+});
+```
+
+The selector must return a nonempty array of canonical handles staged by the
+same admission. It is bounded by that admission's staged-artifact count,
+deduplicates repeated handles in stable order, and cannot remove roots retained
+before the call. Omit `retain` to preserve v6.5.9 retain-all behavior.
+
 ## v6.5.8 To v6.5.9
 
 v6.5.9 adds `workspace.batch()` and requires no application or stored-data
@@ -20,9 +56,11 @@ const admitted = await workspace.batch({
     const leaves = await scope.bundles.putOrderedBatch({
       bundles: buildLeafRequests(pages),
     });
-    return (await scope.bundles.putOrderedBatch({
-      bundles: [buildRootRequest(leaves)],
-    }))[0];
+    return (
+      await scope.bundles.putOrderedBatch({
+        bundles: [buildRootRequest(leaves)],
+      })
+    )[0];
   },
 });
 
