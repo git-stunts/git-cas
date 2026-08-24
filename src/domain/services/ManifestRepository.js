@@ -49,25 +49,8 @@ export default class ManifestRepository {
    * @returns {Promise<string>}
    */
   async createTree({ manifest, merkleThreshold }) {
-    const chunks = manifest.chunks;
-    const effectiveThreshold = merkleThreshold ?? this.#merkleThreshold;
-    if (chunks.length > effectiveThreshold) {
-      return await this.#createMerkleTree({ manifest, merkleThreshold: effectiveThreshold });
-    }
-
-    const manifestData = manifest.toJSON();
-    const hashableBytes = encodeForHash(manifestData, this.#codec);
-    manifestData.manifestHash = await this.#crypto.sha256(hashableBytes);
-    const serializedManifest = normalizeCodecBytes(this.#codec.encode(manifestData));
-    const manifestOid = await this.#persistence.writeBlob(serializedManifest);
-
-    const treeEntries = buildFlatManifestTreeEntries({
-      manifestOid,
-      chunks,
-      extension: this.#codec.extension,
-    });
-
-    return await this.#persistence.writeTree(treeEntries);
+    const roots = await this.createTrees([{ manifest, merkleThreshold }]);
+    return roots[0];
   }
 
   /**
@@ -143,45 +126,6 @@ export default class ManifestRepository {
     }
     const original = originalSchemeMap.get(manifest);
     return original === undefined || isLegacyNoAad(original);
-  }
-
-  async #createMerkleTree({ manifest, merkleThreshold }) {
-    const chunks = [...manifest.chunks];
-    const subManifestRefs = [];
-
-    for (let i = 0; i < chunks.length; i += merkleThreshold) {
-      const group = chunks.slice(i, i + merkleThreshold);
-      const subManifestData = { chunks: group.map((c) => ({ index: c.index, size: c.size, digest: c.digest, blob: c.blob })) };
-      const serialized = normalizeCodecBytes(this.#codec.encode(subManifestData));
-      const oid = await this.#persistence.writeBlob(serialized);
-
-      subManifestRefs.push({
-        oid,
-        chunkCount: group.length,
-        startIndex: i,
-      });
-    }
-
-    const rootManifestData = {
-      ...manifest.toJSON(),
-      version: 2,
-      chunks: [],
-      subManifests: subManifestRefs,
-    };
-    const rootHashableBytes = encodeForHash(rootManifestData, this.#codec);
-    rootManifestData.manifestHash = await this.#crypto.sha256(rootHashableBytes);
-
-    const serializedRoot = normalizeCodecBytes(this.#codec.encode(rootManifestData));
-    const rootManifestOid = await this.#persistence.writeBlob(serializedRoot);
-
-    const treeEntries = buildMerkleTreeEntries({
-      rootManifestOid,
-      subManifests: subManifestRefs,
-      chunks,
-      extension: this.#codec.extension,
-    });
-
-    return await this.#persistence.writeTree(treeEntries);
   }
 
   async #planTree({ manifest, merkleThreshold }) {

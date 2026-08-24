@@ -78,3 +78,30 @@ describe('ManifestRepository batch persistence', () => {
     expect(writeTree).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('ManifestRepository single-write planning', () => {
+  it('executes createTree through the shared batch planner', async () => {
+    const writeBlobs = vi.fn().mockResolvedValue(['a'.repeat(40)]);
+    const writeTrees = vi.fn().mockResolvedValue(['b'.repeat(40)]);
+    const repository = new ManifestRepository({
+      codec: {
+        extension: 'json',
+        encode: (value) => utf8Encode(JSON.stringify(value)),
+      },
+      crypto: { sha256: vi.fn().mockResolvedValue('c'.repeat(64)) },
+      legacyMode: false,
+      merkleThreshold: 10,
+      persistence: {
+        writeBlob: vi.fn().mockRejectedValue(new Error('singleton blob path used')),
+        writeBlobs,
+        writeTree: vi.fn().mockRejectedValue(new Error('singleton tree path used')),
+        writeTrees,
+      },
+    });
+    const manifest = new Manifest({ slug: 'asset', filename: 'a.bin', size: 0, chunks: [] });
+
+    await expect(repository.createTree({ manifest })).resolves.toBe('b'.repeat(40));
+    expect(writeBlobs).toHaveBeenCalledOnce();
+    expect(writeTrees).toHaveBeenCalledOnce();
+  });
+});
