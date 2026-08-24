@@ -128,4 +128,25 @@ describe('BoundedWriteWavePersistence cardinality failures', () => {
     expect(later).toBe(admitted[0].reason);
     expect(persistence.writeBlobs).toHaveBeenCalledOnce();
   });
+
+  it('rejects every waiter and poisons later writes on surplus batch results', async () => {
+    const { persistence, waves } = fixture({
+      writeBlobs: vi.fn(async () => ['first', 'second', 'surplus']),
+    });
+
+    const admitted = await Promise.allSettled([
+      waves.writeBlob(Uint8Array.of(1)),
+      waves.writeBlob(Uint8Array.of(2)),
+    ]);
+    const later = await waves.writeBlob(Uint8Array.of(3)).catch((error) => error);
+
+    expect(admitted.map((result) => result.status)).toEqual(['rejected', 'rejected']);
+    expect(admitted[0].reason).toBe(admitted[1].reason);
+    expect(admitted[0].reason).toMatchObject({
+      code: 'GIT_ERROR',
+      meta: { expected: 2, actual: 3 },
+    });
+    expect(later).toBe(admitted[0].reason);
+    expect(persistence.writeBlobs).toHaveBeenCalledOnce();
+  });
 });
