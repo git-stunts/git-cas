@@ -18,10 +18,11 @@ const ASSET_CHUNK_BYTES = 1024;
 const BUNDLE_MEMBERS = 3;
 const CLOCK = Object.freeze({ now: () => new Date('2026-08-23T12:00:00.000Z') });
 const scriptPath = fileURLToPath(import.meta.url);
+const invokedPath = process.argv[1] === undefined ? null : path.resolve(process.argv[1]);
 
-if (process.argv[2] === WORKER) {
+if (invokedPath === scriptPath && process.argv[2] === WORKER) {
   await emitWorkerResult(JSON.parse(process.argv[3]));
-} else {
+} else if (invokedPath === scriptPath) {
   await runController();
 }
 
@@ -84,11 +85,16 @@ async function compareModes({ left, right, samples }) {
   return { left: summarize(results.left), right: summarize(results.right) };
 }
 
-function comparison({ left, right }) {
+export function comparison({ left, right }) {
+  assert.equal(
+    left.semanticDigest,
+    right.semanticDigest,
+    'Benchmark semantic digests differ between individual and batch modes',
+  );
   return {
     individual: left,
     batch: right,
-    semanticDigestEqual: left.semanticDigest === right.semanticDigest,
+    semanticDigestEqual: true,
     processReductionPercent: reduction(left.processCount, right.processCount),
     gitInteractionReductionPercent: reduction(
       left.gitInteractionCount,
