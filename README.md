@@ -53,9 +53,9 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
 `npm run upgrade` in dry-run mode before restoring old encrypted vault entries.
 For the release overview, see the
-[v6.5.10 Release Notes](./docs/releases/v6.5.10.md).
+[v6.5.11 Release Notes](./docs/releases/v6.5.11.md).
 
-The v6.5.11 candidate adopts published Plumbing 3.3.2 for bounded recovery from closed mktree transports after external Git GC. It preserves producer error identity and existing object formats; see [v6.5.11 Release Notes](./docs/releases/v6.5.11.md). Registry publication is pending release verification and merge.
+Published v6.5.11 adopts published Plumbing 3.3.2 for bounded recovery from closed mktree transports after external Git GC. It preserves producer error identity and existing object formats; see [v6.5.11 Release Notes](./docs/releases/v6.5.11.md). Publication and independent registry-consumer evidence are recorded in the [release record](https://github.com/git-stunts/git-cas/pull/132).
 
 ### 1. CLI Usage
 

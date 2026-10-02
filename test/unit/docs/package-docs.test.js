@@ -106,6 +106,7 @@ function publicPackagedMarkdownFiles(files) {
     'docs/releases/v6.5.8.md',
     'docs/releases/v6.5.9.md',
     'docs/releases/v6.5.10.md',
+    'docs/releases/v6.5.11.md',
     'docs/THREAT_MODEL.md',
     'docs/WALKTHROUGH.md',
   ].filter((file) => files.has(file));
