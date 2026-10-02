@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.5.10` (`2026-08-24`)
-**Current release state:** `v6.5.10` is published to npm and GitHub Releases.
-**Latest verification:** reviewed release merge `4316f4ec` passed 14/14 release-verifier stages with 7,192 observed tests; signed tag `v6.5.10` peels to that merge, and release workflow `32782415971` published the matching npm artifact plus final GitHub Release.
+**Last tagged release:** `v6.5.11` (`2026-10-02`)
+**Current release state:** `v6.5.11` is published to npm and GitHub Releases.
+**Latest verification:** reviewed merge `1bcd6311` passed 14/14 release gates with 7,224 observations across runtimes. Signed tag `v6.5.11`, npm gitHead and release workflow `37008258240` agree; a fresh registry consumer passed six recovery checks, store/restore and CLI verification.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
@@ -18,11 +18,12 @@
 - The machine-facing `git cas agent` surface exists and now supports
   OS-keychain passphrase sources for vault-derived key flows, but parity and
   portability are still partial.
+- **v6.5.11 artifact posture** — published Plumbing 3.3.2 supplies bounded mktree transport recovery through the existing CAS retry. [Publication evidence](docs/design/0062-mktree-transport-recovery/witness/release-publication.md) pins the merged source, tag, registry integrity and Docker consumer proof. No stored format, handle, mutable-ref retry or application migration changes. Git-warp attachment adoption remains separate.
 - **v6.5.10 artifact posture** — implementation PR
   [#128](https://github.com/git-stunts/git-cas/pull/128) and release PR
   [#129](https://github.com/git-stunts/git-cas/pull/129) merged normally.
   Signed tag `v6.5.10` resolves to reviewed release merge `4316f4ec`; npm
-  reports `@git-stunts/git-cas@6.5.10` as `latest` with publish and SLSA
+  retains `@git-stunts/git-cas@6.5.10` with publish and SLSA
   provenance, and release workflow `32782415971` published the final GitHub
   Release. The additive contract admits bounded asset waves into the compound
   scope and can retain exact selected terminal roots without changing stored

@@ -136,7 +136,7 @@ This dependency repair does not restore git-warp Runtime/Lane node/edge attachme
 
 ## Retrospective
 
-Record after merge and publication, with PR and release receipts.
+See the [post-release retrospective](../../method/retro/0062-mktree-transport-recovery/mktree-transport-recovery.md) and [publication witness](witness/release-publication.md).
 
 ## Data / State Model
 

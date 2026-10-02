@@ -14,7 +14,7 @@ timeline
 
 ## Current State
 
-`v6.5.10` shipped on `2026-08-24`.
+`v6.5.11` shipped on `2026-10-02`. Published Plumbing 3.3.2 now classifies closed mktree transport input for the existing bounded immutable-object retry; producer errors and mutable-ref semantics are unchanged.
 Application asset, bundle, page, cache,
 expiry, witness, and repository-diagnostics APIs sit above mutable root sets
 and the low-level CAS pipeline. Direct bundle-reference reads and bounded

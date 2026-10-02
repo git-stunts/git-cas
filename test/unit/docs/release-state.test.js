@@ -474,7 +474,6 @@ function expectV6510CandidateEvidence(candidate, releaseNotes) {
 }
 
 function expectV6510PublishedEvidence(status, publication) {
-  expect(status).toContain('**Last tagged release:** `v6.5.10` (`2026-08-24`)');
   expect(status).toContain('**v6.5.10 artifact posture**');
   expect(status).toContain('4316f4ec');
   expect(status).toContain('32782415971');
@@ -845,5 +844,19 @@ describe('historical v6 release evidence', () => {
     expect(releaseCard).not.toContain('119 files, 1344 passed');
     expect(releaseCard).not.toContain('tarball has 102 files');
     expect(releaseCard).not.toContain('Push the final pre-tag `main` commit');
+  });
+});
+
+
+describe('current publication identity', () => {
+  it('distinguishes the latest published release from retained historical evidence', () => {
+    const status = read('STATUS.md');
+    const receipt = JSON.parse(read('docs/design/0062-mktree-transport-recovery/witness/publication.json'));
+    expect(status).toContain(`**Last tagged release:** \`${receipt.tag}\``);
+    expect(receipt.version).toBe(JSON.parse(read('package.json')).version);
+    expect(receipt.sourceCommit).toBe('1bcd6311e93ca9782e2f4a25af106af0651813fb');
+    expect(receipt.releaseVerification.stagesPassed).toBe(14);
+    expect(receipt.publicConsumer.cliVersion).toBe('6.5.11+1bcd631');
+    expect(status).toContain('**v6.5.10 artifact posture**');
   });
 });

@@ -1,0 +1,33 @@
+{
+  "version": "6.5.11",
+  "sourceCommit": "1bcd6311e93ca9782e2f4a25af106af0651813fb",
+  "tag": "v6.5.11",
+  "tagObject": "a77ebbdff9b5e2bbce73f90e8d51a5d0cd71b98d",
+  "releaseRun": 37008258240,
+  "registry": {
+    "integrity": "sha512-C6coWmKmOeRZ+X5nP5Ek7spwYpA5q6mgif09u9dDO0ISQQ+Hz4KVxAXrOPRRhNJzLEP74Ndbra55fxX5Cms5gw==",
+    "shasum": "184c18fce40629afd28a897cbf3672cb4cc0d43e",
+    "tarball": "https://registry.npmjs.org/@git-stunts/git-cas/-/git-cas-6.5.11.tgz",
+    "attestations": {
+      "url": "https://registry.npmjs.org/-/npm/v1/attestations/@git-stunts%2fgit-cas@6.5.11",
+      "provenance": {
+        "predicateType": "https://slsa.dev/provenance/v1"
+      }
+    }
+  },
+  "plumbingVersion": "3.3.2",
+  "releaseVerification": {
+    "stagesPassed": 14,
+    "stagesSkipped": 0,
+    "observedTests": 7224,
+    "rawLogSha256": "cdefc3ed121de8e861b984c31cf5ee48d73aea05eca0632d1de3972864e71e09"
+  },
+  "publicConsumer": {
+    "recoveryTestsPassed": 6,
+    "storeRestore": "passed",
+    "cliVersion": "6.5.11+1bcd631",
+    "verifiedSignatures": 63,
+    "verifiedAttestations": 31,
+    "rawLogSha256": "42d7195c11774f9c2cc0aff0b55d72372383f30a24e98774548acb732c3c81c2"
+  }
+}
