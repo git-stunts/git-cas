@@ -4,10 +4,10 @@ cycle: "0062"
 task_id: "monorepo-workspace"
 legend: "INFRA"
 release_home: "v7.0.0"
-issue: "pending"
-goalpost_issue: "pending"
+issue: "https://github.com/git-stunts/git-cas/issues/133"
+goalpost_issue: "https://github.com/git-stunts/git-cas/issues/133"
 tracker_source: "github"
-status: "draft"
+status: "active"
 base_commit: "c02c87ee0d7a72b0371762e5239223adb3ac4781"
 owners:
   - "@git-stunts"
@@ -40,17 +40,28 @@ Issue (see [Tracker Disposition](#tracker-disposition)).
 
 ## Linked Issue
 
-- pending — no issue exists yet. Proposed: one `type:goalpost` issue
-  "v7.0.0: Monorepo workspace and package split", with one `type:slice`
-  sub-issue per row of [Implementation Slices](#implementation-slices).
+- https://github.com/git-stunts/git-cas/issues/133 — goalpost
+  "v7.0.0 Cleave: Monorepo workspace and package split", with one
+  `type:slice` sub-issue per row of
+  [Implementation Slices](#implementation-slices).
 
 ## Linked Tracker
 
-- Milestone: `v7.0.0` (currently titled "Protocol break only if audit
-  evidence requires it"; see [Decision](#decision) for the proposed
-  retitling)
-- Goalpost issue: pending
-- Slice issues: pending
+- Milestone: `v7.0.0` — **Cleave** (retitled from the protocol-audit
+  placeholder on 2026-10-02; the audit response moved to `v8.0.0` — **Day
+  Zero**)
+- Goalpost issue: https://github.com/git-stunts/git-cas/issues/133
+- Slice issues: [#134](https://github.com/git-stunts/git-cas/issues/134)
+  slice 0 · [#135](https://github.com/git-stunts/git-cas/issues/135) slice 1 ·
+  [#136](https://github.com/git-stunts/git-cas/issues/136) slice 2 ·
+  [#137](https://github.com/git-stunts/git-cas/issues/137) slice 3 ·
+  [#138](https://github.com/git-stunts/git-cas/issues/138) slice 4 ·
+  [#139](https://github.com/git-stunts/git-cas/issues/139) slice 5 ·
+  [#140](https://github.com/git-stunts/git-cas/issues/140) slice 6 ·
+  [#141](https://github.com/git-stunts/git-cas/issues/141) slice 7 ·
+  [#142](https://github.com/git-stunts/git-cas/issues/142) slice 8 ·
+  [#143](https://github.com/git-stunts/git-cas/issues/143) slice 9 ·
+  [#144](https://github.com/git-stunts/git-cas/issues/144) slice 10
 - Related open issues: [#39](https://github.com/git-stunts/git-cas/issues/39),
   [#40](https://github.com/git-stunts/git-cas/issues/40),
   [#79](https://github.com/git-stunts/git-cas/issues/79),
@@ -663,28 +674,33 @@ a manual global install of the CLI tarball on macOS.
 
 ## Tracker Disposition
 
-Nothing below has been created. These are proposals for James to approve.
+Filed on 2026-10-02 after James approved the codenames. Release codenames
+follow the v5 tradition (`Locksmith`, `Carousel`, `Prism`): the milestone
+title stays the bare version string, the codename leads the description and
+the `CHANGELOG.md` heading.
 
 **Milestones**
 
-| Milestone | Action |
-| --- | --- |
-| `v6.5.11` | unchanged; #131 ships from the current layout and must not wait for the split. Plumbing 3.3.2 is still unpublished (npm shows 3.3.1 on 2026-10-02) |
-| `v6.4.1` | stale. #38 ("v6.1.0: Bounded Residency", needs-design) and #46 (docs and release evidence) describe work whose evidence already lives in `docs/design/0045-v6-1-bounded-residency` and `docs/releases/`; propose closing both with a pointer, or moving them to `v7.0.0` if James wants the closeout. Move #79 to `v7.0.0` |
-| `v6.6.0` | retitle to `v7.1.0 — Operator`; keep #39, #40, #107, #108 |
-| `v6.7.0` | renumber to `v7.3.0 — Edge`; keep #41 |
-| `v7.0.0` | retitle to "Monorepo workspace and package split"; new goalpost issue from this doc; slice issues 0–10 |
-| new `v7.2.0 — Derive` | #86, #98 (if not already shipped in 6.5.x) |
-| new `v8.0.0 (conditional)` | move #42 here with its current description |
+| Milestone | Codename | Done |
+| --- | --- | --- |
+| `v6.5.11` | **Plumbing** | #131 ships from the current layout; description updated |
+| `v7.0.0` | **Cleave** | retitled from the protocol-audit placeholder; goalpost #133 and slices #134–#144 filed; #79 moved here |
+| `v7.1.0` | **Bridge** | renumbered from `v6.6.0`; #39, #40, #107, #108 keep their home |
+| `v7.2.0` | **Scion** | created; #86 and #98 moved here |
+| `v7.3.0` | **Glimpse** | renumbered from `v6.7.0`; #41 keeps its home |
+| `v8.0.0` | **Day Zero** | created; #42 moved here with its evidence-gated description |
+| `v6.4.1` | — | left as is. #38 and #46 look complete (evidence in `docs/design/0045-v6-1-bounded-residency` and `docs/releases/`); closing them is a separate triage call for James |
 
-**Issues to create**
+**Issues**
 
-- `type:goalpost` "v7.0.0: Monorepo workspace and package split" linking
-  this doc.
-- `type:slice` × 11, one per row of Implementation Slices.
-- `type:debt` "Remove unused @flyingrobots/bijou-tui-app dependency" (or fold
-  into slice 0 after approval).
-- `type:idea` × 12 from Cool Ideas below, labelled `lane:cool-ideas`.
+- Goalpost #133 `type:goalpost` with eleven `type:slice` sub-issues
+  (#134–#144), one per row of Implementation Slices, each carrying its RED
+  tests.
+- The unused `@flyingrobots/bijou-tui-app` removal is folded into slice 0
+  (#134).
+- The twelve Cool Ideas below are deliberately **not** filed yet; James
+  wants to skim them first. They become `type:idea` + `lane:cool-ideas`
+  issues on request.
 
 Global agent instructions say cool ideas go under
 `docs/method/backlog/cool-ideas/`; this repository's `docs/method/process.md`
