@@ -1,0 +1,137 @@
+/* =====================================================================
+   git-cas explainer — design tokens
+   Layout concept: a pinned drawing board on the right, the lesson
+   scrolls past it on the left; one running example from top to bottom.
+
+   Token graph (Design Book style): each hue family declares four base
+   colors per polarity (--d-* dark, --l-* light). The active mode maps
+   them onto semantic roles; everything else is derived with color-mix so
+   hover, lines, muted ink and raised surfaces follow any family.
+   Every text pair below was audited at WCAG AA (contrast-audit.mjs).
+   ===================================================================== */
+
+/* ---- Reference tokens: hue families (dark + light) ---------------- */
+:root {
+  --d-surface: #252c2c; --d-ink: #f2ece2; --d-accent: #6b8f9c; --d-accent-text: #9fc1cc; --d-accent-ink: #10181a; --d-accent-2: #d5d4cb;
+  --l-surface: #fcf4eb; --l-ink: #252c2c; --l-accent: #4f727e; --l-accent-text: #3b5861; --l-accent-ink: #fcf4eb; --l-accent-2: #6b8f9c;
+}
+:root[data-scheme="ember"] {
+  --d-surface: #2a1830; --d-ink: #fbf3e3; --d-accent: #ea954d; --d-accent-text: #f3b47c; --d-accent-ink: #2a1830; --d-accent-2: #fbed87;
+  --l-surface: #fdf3e2; --l-ink: #311b37; --l-accent: #b5571c; --l-accent-text: #8a4214; --l-accent-ink: #fff7ec; --l-accent-2: #c0672a;
+}
+:root[data-scheme="moss"] {
+  --d-surface: #262b25; --d-ink: #e9ecd5; --d-accent: #acc28c; --d-accent-text: #c3d4a8; --d-accent-ink: #1d221c; --d-accent-2: #d6d8ab;
+  --l-surface: #e6e8c9; --l-ink: #232821; --l-accent: #5a665a; --l-accent-text: #3f4a3e; --l-accent-ink: #eef0d9; --l-accent-2: #6f8656;
+}
+:root[data-scheme="plum"] {
+  --d-surface: #2d2430; --d-ink: #f5edf4; --d-accent: #ce97cf; --d-accent-text: #dcb0dc; --d-accent-ink: #2d2430; --d-accent-2: #9a6d84;
+  --l-surface: #f7eef6; --l-ink: #2c2330; --l-accent: #8a5c88; --l-accent-text: #6e4a6d; --l-accent-ink: #fbf4fa; --l-accent-2: #9f6089;
+}
+:root[data-scheme="ice"] {
+  --d-surface: #1a2021; --d-ink: #e8f2f2; --d-accent: #8fc0c6; --d-accent-text: #a9d3d8; --d-accent-ink: #121819; --d-accent-2: #cde6e5;
+  --l-surface: #f4f9f9; --l-ink: #242626; --l-accent: #54777e; --l-accent-text: #3f5f66; --l-accent-ink: #f4f9f9; --l-accent-2: #689097;
+}
+:root[data-scheme="honey"] {
+  --d-surface: #2b2321; --d-ink: #faf2b8; --d-accent: #f5db5c; --d-accent-text: #f5db5c; --d-accent-ink: #2b2321; --d-accent-2: #e2961e;
+  --l-surface: #f5f1d2; --l-ink: #3d2b2d; --l-accent: #9a6007; --l-accent-text: #7d4f25; --l-accent-ink: #fff9e6; --l-accent-2: #b06d08;
+}
+:root[data-scheme="clay"] {
+  --d-surface: #2a211f; --d-ink: #fadec8; --d-accent: #ee8a5f; --d-accent-text: #f3a67f; --d-accent-ink: #2a211f; --d-accent-2: #f7c8ac;
+  --l-surface: #fbe7d8; --l-ink: #30221f; --l-accent: #bf4c1d; --l-accent-text: #7e3e29; --l-accent-ink: #fff3ea; --l-accent-2: #c25c30;
+}
+:root[data-scheme="neon"] {
+  --d-surface: #070a2e; --d-ink: #eef4ff; --d-accent: #85ecfe; --d-accent-text: #85ecfe; --d-accent-ink: #070a2e; --d-accent-2: #3588fc;
+  --l-surface: #eef4ff; --l-ink: #0a1046; --l-accent: #0a4bf8; --l-accent-text: #0b3fc6; --l-accent-ink: #ffffff; --l-accent-2: #2007a9;
+}
+
+/* ---- Semantic tokens: mode mapping (dark-first) -------------------- */
+:root {
+  color-scheme: dark;
+  --surface: var(--d-surface);
+  --ink: var(--d-ink);
+  --accent: var(--d-accent);
+  --accent-text: var(--d-accent-text);
+  --accent-ink: var(--d-accent-ink);
+  --accent-2: var(--d-accent-2);
+  --good: #9fd1a8;
+  --warn: #e7c470;
+  --danger: #f0988b;
+  --viz-l: 74%;   /* lightness for hash-derived diagram hues */
+  --viz-c: 0.11;
+  --glow-alpha: 0.35;
+  --shadow: 0 24px 60px -30px rgb(0 0 0 / 0.7);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --surface: var(--l-surface);
+    --ink: var(--l-ink);
+    --accent: var(--l-accent);
+    --accent-text: var(--l-accent-text);
+    --accent-ink: var(--l-accent-ink);
+    --accent-2: var(--l-accent-2);
+    --good: #2f6b3b;
+    --warn: #8a5a00;
+    --danger: #a23a2a;
+    --viz-l: 52%;
+    --viz-c: 0.12;
+    --glow-alpha: 0.18;
+    --shadow: 0 24px 60px -30px rgb(40 30 20 / 0.35);
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --surface: var(--l-surface);
+  --ink: var(--l-ink);
+  --accent: var(--l-accent);
+  --accent-text: var(--l-accent-text);
+  --accent-ink: var(--l-accent-ink);
+  --accent-2: var(--l-accent-2);
+  --good: #2f6b3b;
+  --warn: #8a5a00;
+  --danger: #a23a2a;
+  --viz-l: 52%;
+  --viz-c: 0.12;
+  --glow-alpha: 0.18;
+  --shadow: 0 24px 60px -30px rgb(40 30 20 / 0.35);
+}
+
+/* ---- Derived tokens (decisions, not values) ------------------------ */
+:root {
+  /* shade(surface): always moves toward ink, so it is visible on either polarity */
+  --surface-raised: color-mix(in oklab, var(--surface) 90%, var(--ink));
+  --surface-sunken: color-mix(in oklab, var(--surface) 96%, var(--ink));
+  --surface-overlay: color-mix(in oklab, var(--surface) 82%, var(--ink));
+  --ink-muted: color-mix(in oklab, var(--ink) 72%, var(--surface));
+  --ink-faint: color-mix(in oklab, var(--ink) 45%, var(--surface));
+  --line: color-mix(in oklab, var(--ink) 16%, transparent);
+  --line-strong: color-mix(in oklab, var(--ink) 32%, transparent);
+  --accent-soft: color-mix(in oklab, var(--accent) 18%, var(--surface));
+  --accent-hover: color-mix(in oklab, var(--accent) 86%, var(--ink));
+  --accent-2-soft: color-mix(in oklab, var(--accent-2) 22%, var(--surface));
+  --good-soft: color-mix(in oklab, var(--good) 20%, var(--surface));
+  --warn-soft: color-mix(in oklab, var(--warn) 22%, var(--surface));
+  --danger-soft: color-mix(in oklab, var(--danger) 22%, var(--surface));
+  --glow: color-mix(in oklab, var(--accent) 100%, transparent);
+  --focus: 0 0 0 3px color-mix(in oklab, var(--accent) 55%, transparent);
+
+  /* type */
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-body: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  --step--1: clamp(0.82rem, 0.8rem + 0.15vw, 0.9rem);
+  --step-0: clamp(1rem, 0.96rem + 0.25vw, 1.125rem);
+  --step-1: clamp(1.2rem, 1.1rem + 0.5vw, 1.45rem);
+  --step-2: clamp(1.5rem, 1.3rem + 1vw, 2rem);
+  --step-3: clamp(2rem, 1.6rem + 2vw, 3rem);
+  --step-4: clamp(2.6rem, 1.8rem + 4vw, 5rem);
+  --step-5: clamp(3.4rem, 2rem + 7vw, 8rem);
+
+  /* rhythm */
+  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem; --space-4: 1rem;
+  --space-5: 1.5rem; --space-6: 2rem; --space-7: 3rem; --space-8: 5rem; --space-9: 8rem;
+  --radius-1: 4px; --radius-2: 10px; --radius-3: 18px;
+  --gutter: clamp(16px, 4vw, 48px);
+  --measure: 62ch;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}

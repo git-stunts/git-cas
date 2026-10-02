@@ -608,6 +608,14 @@ a manual global install of the CLI tarball on macOS.
 
 ## Playback / Witness
 
+- [`site/index.html`](./site/index.html) is a static, scroll-driven explainer
+  of this design for a reader with no prior knowledge of git-cas: twenty
+  chapters, thirteen interactive d3 diagrams, GSAP ScrollSmoother and
+  ScrollTrigger, eight color families each with a light and a dark palette
+  (hues taken from `docs/git-cas-*-loop.svg`, every text pair audited at
+  WCAG AA), and a Light / Dark / System mode switch. Open the file directly in
+  a browser; it loads d3 7.9.0 and GSAP 3.13.0 from cdnjs and has no build
+  step.
 - `docs/design/0062-monorepo-workspace/witness/` will hold: the pre-slice-1
   export snapshot, the verifier report from the slice 10 branch, the
   packed-consumer test output, and the git-warp suite run against the packed
