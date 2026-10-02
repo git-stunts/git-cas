@@ -55,6 +55,8 @@ Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
 For the release overview, see the
 [v6.5.10 Release Notes](./docs/releases/v6.5.10.md).
 
+The v6.5.11 candidate adopts published Plumbing 3.3.2 for bounded recovery from closed mktree transports after external Git GC. It preserves producer error identity and existing object formats; see [v6.5.11 Release Notes](./docs/releases/v6.5.11.md). Registry publication is pending release verification and merge.
+
 ### 1. CLI Usage
 
 Initialize a vault and store your first asset.

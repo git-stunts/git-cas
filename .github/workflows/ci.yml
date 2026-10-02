@@ -33,7 +33,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test
+      - run: docker compose run --build --rm test-node
 
   test-docker:
     runs-on: ubuntu-latest

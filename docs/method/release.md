@@ -10,7 +10,7 @@ All of the following must pass on the release candidate. Prefer
 `npm run release:verify` so the release record comes from one command.
 
 1. `npx eslint .`
-2. `npm test`
+2. `docker compose run --build --rm test-node`
 3. `docker compose run --build --rm test-node npx vitest run test/integration`
 4. `docker compose run --build --rm test-bun bunx vitest run test/unit`
 5. `docker compose run --build --rm test-bun bunx vitest run test/integration`

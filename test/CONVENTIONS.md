@@ -66,11 +66,9 @@ sorted output semantics instead of assuming first-seen insertion order.
 If insertion order matters, assert it at the lower-level boundary that builds
 the tree entries before they are handed to Git.
 
-## Integration Runtime Policy
+## Test Runtime Policy
 
-**Integration suites are Docker-only.** The integration tests intentionally
-refuse to run on the host and require `GIT_STUNTS_DOCKER=1` so Git, Bun, and
-Deno run in a consistent environment.
+**All tests and benchmarks are Docker-only.** Vitest setup uses `@git-stunts/docker-guard` with a physical Docker marker before test modules load. Environment flags do not authorize host execution. Use COPY-based Docker Compose services without repository or Git-directory mounts. `npm test` routes to the Node service; `test:local` is an in-container command.
 
 **Integration files run with `fileParallelism: false`.** These tests spawn real
 Git and CLI subprocesses, so the integration workspace is intentionally kept to

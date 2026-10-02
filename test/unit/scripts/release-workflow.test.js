@@ -53,3 +53,28 @@ describe('release workflow publishing', () => {
     }
   });
 });
+
+
+describe('release test isolation', () => {
+  it('runs the Node unit gate through COPY-based Docker in CI and publication', () => {
+    for (const file of ['.github/workflows/ci.yml', '.github/workflows/release.yml']) {
+      const source = read(file);
+      expect(source).not.toMatch(/^\s+- run: pnpm test$/mu);
+      expect(source).toContain('docker compose run --build --rm test-node');
+    }
+    expect(read('docker-compose.yml')).not.toMatch(/^\s+volumes:/mu);
+  });
+});
+
+
+describe('platform test isolation', () => {
+  it('dispatches platform checks directly to copied containers without a host test runner', () => {
+    const command = JSON.parse(read('package.json')).scripts['test:platforms'];
+    expect(command).not.toMatch(/\bbats\b/u);
+    const commands = command.split(' && ');
+    expect(commands).toHaveLength(3);
+    for (const runtime of ['node', 'bun', 'deno']) {
+      expect(commands).toContain(`docker compose run --build --rm test-${runtime}`);
+    }
+  });
+});

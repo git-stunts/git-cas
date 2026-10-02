@@ -188,10 +188,10 @@ describe('release verify step definitions', () => {
       .map((file) => path.posix.join('examples', file))
       .sort();
     const exampleSteps = RELEASE_STEPS.filter((step) => step.id.startsWith('example-'));
-    const examplePaths = exampleSteps.map((step) => step.args[0]).sort();
+    const examplePaths = exampleSteps.map((step) => step.args.at(-1)).sort();
 
     expect(examplePaths).toEqual(expectedExamplePaths);
-    expect(exampleSteps.every((step) => step.command === 'node')).toBe(true);
+    expect(exampleSteps.every((step) => step.command === 'docker' && step.args.includes('test-node') && step.args.includes('node'))).toBe(true);
   });
 
   it('serializes Bun unit files to avoid CPU-heavy test starvation', () => {
@@ -298,5 +298,14 @@ describe('release verify package assertions', () => {
       passed: false,
       errorMessage: "Package dry-run missing required file(s): build-info.json (run 'pnpm run stamp' to generate build-info.json)",
     });
+  });
+});
+
+
+describe('release verification isolation', () => {
+  it('runs the Node unit gate in a copied Docker image', () => {
+    const step = RELEASE_STEPS.find((entry) => entry.id === 'unit-node');
+    expect(step).toMatchObject({ command: 'docker' });
+    expect(step.args).toEqual(expect.arrayContaining(['compose', 'run', '--build', '--rm', 'test-node']));
   });
 });

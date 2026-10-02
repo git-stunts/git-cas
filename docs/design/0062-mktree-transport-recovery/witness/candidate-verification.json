@@ -1,0 +1,261 @@
+{
+  "version": "6.5.11",
+  "results": [
+    {
+      "id": "lint",
+      "label": "Lint",
+      "command": "pnpm",
+      "args": [
+        "run",
+        "lint"
+      ],
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": null,
+      "errorMessage": null
+    },
+    {
+      "id": "unit-node",
+      "label": "Unit Tests (Node)",
+      "command": "docker",
+      "args": [
+        "compose",
+        "run",
+        "--build",
+        "--rm",
+        "test-node"
+      ],
+      "testCount": true,
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": 2203,
+      "errorMessage": null
+    },
+    {
+      "id": "example-store-and-restore",
+      "label": "Example: store-and-restore",
+      "command": "docker",
+      "args": [
+        "compose",
+        "run",
+        "--build",
+        "--rm",
+        "test-node",
+        "node",
+        "examples/store-and-restore.js"
+      ],
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": null,
+      "errorMessage": null
+    },
+    {
+      "id": "example-encrypted-workflow",
+      "label": "Example: encrypted-workflow",
+      "command": "docker",
+      "args": [
+        "compose",
+        "run",
+        "--build",
+        "--rm",
+        "test-node",
+        "node",
+        "examples/encrypted-workflow.js"
+      ],
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": null,
+      "errorMessage": null
+    },
+    {
+      "id": "example-progress-tracking",
+      "label": "Example: progress-tracking",
+      "command": "docker",
+      "args": [
+        "compose",
+        "run",
+        "--build",
+        "--rm",
+        "test-node",
+        "node",
+        "examples/progress-tracking.js"
+      ],
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": null,
+      "errorMessage": null
+    },
+    {
+      "id": "unit-bun",
+      "label": "Unit Tests (Bun)",
+      "command": "docker",
+      "args": [
+        "compose",
+        "run",
+        "--build",
+        "--rm",
+        "test-bun",
+        "bunx",
+        "vitest",
+        "run",
+        "test/unit",
+        "--no-file-parallelism"
+      ],
+      "testCount": true,
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": 2203,
+      "errorMessage": null
+    },
+    {
+      "id": "unit-deno",
+      "label": "Unit Tests (Deno)",
+      "command": "docker",
+      "args": [
+        "compose",
+        "run",
+        "--build",
+        "--rm",
+        "test-deno",
+        "deno",
+        "run",
+        "-A",
+        "npm:vitest",
+        "run",
+        "test/unit"
+      ],
+      "testCount": true,
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": 2194,
+      "errorMessage": null
+    },
+    {
+      "id": "types-public",
+      "label": "Public type compatibility",
+      "command": "docker",
+      "args": [
+        "compose",
+        "run",
+        "--rm",
+        "test-deno",
+        "deno",
+        "check",
+        "--config",
+        "test/types/deno.json",
+        "test/types/public-api-compatibility.ts"
+      ],
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": null,
+      "errorMessage": null
+    },
+    {
+      "id": "integration-node",
+      "label": "Integration Tests (Node)",
+      "command": "pnpm",
+      "args": [
+        "run",
+        "test:integration:node"
+      ],
+      "testCount": true,
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": 207,
+      "errorMessage": null
+    },
+    {
+      "id": "integration-bun",
+      "label": "Integration Tests (Bun)",
+      "command": "pnpm",
+      "args": [
+        "run",
+        "test:integration:bun"
+      ],
+      "testCount": true,
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": 207,
+      "errorMessage": null
+    },
+    {
+      "id": "integration-deno",
+      "label": "Integration Tests (Deno)",
+      "command": "pnpm",
+      "args": [
+        "run",
+        "test:integration:deno"
+      ],
+      "testCount": true,
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": 207,
+      "errorMessage": null
+    },
+    {
+      "id": "stamp-build",
+      "label": "Build metadata stamp",
+      "command": "pnpm",
+      "args": [
+        "run",
+        "stamp"
+      ],
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": null,
+      "errorMessage": null
+    },
+    {
+      "id": "npm-pack",
+      "label": "npm pack dry-run",
+      "command": "npm",
+      "args": [
+        "pack",
+        "--dry-run",
+        "--json"
+      ],
+      "requiredFiles": [
+        "build-info.json"
+      ],
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": null,
+      "errorMessage": null
+    },
+    {
+      "id": "jsr-publish",
+      "label": "JSR publish dry-run",
+      "command": "npx",
+      "args": [
+        "jsr",
+        "publish",
+        "--dry-run",
+        "--allow-dirty"
+      ],
+      "code": 0,
+      "signal": null,
+      "passed": true,
+      "tests": null,
+      "errorMessage": null
+    }
+  ],
+  "totalTests": 7221,
+  "skippedSteps": [],
+  "summary": "## Release Verification Summary\n\n- Version: `6.5.11`\n- Steps passed: 14/14\n- Total tests observed: 7221\n\n| Step | Status | Tests |\n| --- | --- | ---: |\n| Lint | PASS | \u2014 |\n| Unit Tests (Node) | PASS | 2203 |\n| Example: store-and-restore | PASS | \u2014 |\n| Example: encrypted-workflow | PASS | \u2014 |\n| Example: progress-tracking | PASS | \u2014 |\n| Unit Tests (Bun) | PASS | 2203 |\n| Unit Tests (Deno) | PASS | 2194 |\n| Public type compatibility | PASS | \u2014 |\n| Integration Tests (Node) | PASS | 207 |\n| Integration Tests (Bun) | PASS | 207 |\n| Integration Tests (Deno) | PASS | 207 |\n| Build metadata stamp | PASS | \u2014 |\n| npm pack dry-run | PASS | \u2014 |\n| JSR publish dry-run | PASS | \u2014 |\n",
+  "sourceCommit": "1dfd7d6e4d3344e561d70a791c5bd68eb7a28ee9",
+  "execution": "All executable checks in COPY-based Docker; no host repository or Git mounts. Canonical verifier used an isolation runner: Compose steps use a clean git archive; other commands use a persistent copied container to retain stamped build metadata.",
+  "rawLogSha256": "2daffd082f58371e106ee2a1726ae8063c3053674bd37f6e89346512b4e45ebd"
+}

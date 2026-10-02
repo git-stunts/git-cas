@@ -62,7 +62,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
-      - run: pnpm test
+      - run: docker compose run --build --rm test-node
 
       - name: Integration tests (Node)
         run: docker compose run --build --rm test-node pnpm vitest run test/integration --no-file-parallelism
