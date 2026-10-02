@@ -610,12 +610,16 @@ a manual global install of the CLI tarball on macOS.
 
 - [`site/index.html`](./site/index.html) is a static, scroll-driven explainer
   of this design for a reader with no prior knowledge of git-cas: twenty
-  chapters, thirteen interactive d3 diagrams, GSAP ScrollSmoother and
-  ScrollTrigger, eight color families each with a light and a dark palette
-  (hues taken from `docs/git-cas-*-loop.svg`, every text pair audited at
-  WCAG AA), and a Light / Dark / System mode switch. Open the file directly in
-  a browser; it loads d3 7.9.0 and GSAP 3.13.0 from cdnjs and has no build
-  step.
+  chapters, thirteen full-viewport d3 scenes driven by GSAP (ScrollSmoother,
+  ScrollTrigger, SplitText, DrawSVG, MotionPath), eight color families each
+  with a light and a dark palette (hues taken from `docs/git-cas-*-loop.svg`,
+  every text pair audited at WCAG AA), and a Light / Dark / System mode
+  switch. Where WebGPU is available, `site/vault.js` adds a 3D layer: the
+  12,582,912-byte example file as 3,072 voxels, a SHA-256 ring, and a compute
+  pass that runs the exact Buzhash / FastCDC boundary math from
+  `src/infrastructure/chunkers/CdcChunker.js` over the whole file next to
+  fixed 256 KiB cuts. Without WebGPU the SVG site stands alone. Serve the
+  directory with any static server (scripts load from cdnjs; no build step).
 - `docs/design/0062-monorepo-workspace/witness/` will hold: the pre-slice-1
   export snapshot, the verifier report from the slice 10 branch, the
   packed-consumer test output, and the git-warp suite run against the packed

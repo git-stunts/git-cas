@@ -13,11 +13,20 @@
 </head>
 <body>
 
+<!-- layer 0: the WebGPU vault (progressive enhancement; see vault.js) -->
+<canvas id="vault" aria-hidden="true"></canvas>
+
+<!-- layer 1: scene objects behind the text -->
+<svg id="stage" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="stormGrad" x1="0" x2="1"><stop offset="0" stop-color="var(--danger)" stop-opacity="0"/><stop offset="0.5" stop-color="var(--danger)" stop-opacity="0.22"/><stop offset="1" stop-color="var(--danger)" stop-opacity="0"/></linearGradient>
+  </defs>
+</svg>
+
 <header class="topbar">
   <div class="brand">git-cas <small>explained, one scroll</small></div>
-  <div style="display:flex; gap: var(--space-2); align-items:center">
-    <button class="btn" id="themeToggle" aria-expanded="false" aria-controls="themePanel"><span class="swatch-dot" aria-hidden="true"></span> Theme</button>
-  </div>
+  <button class="btn" id="themeToggle" aria-expanded="false" aria-controls="themePanel"><span class="swatch-dot" aria-hidden="true"></span> Theme</button>
   <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
 </header>
 
@@ -40,28 +49,27 @@
 
 <nav class="rail" id="rail" aria-label="Chapters"></nav>
 
+<!-- layer 2: the lesson -->
 <div id="smooth-wrapper"><div id="smooth-content">
 <main>
 
 <!-- ============================================================ HERO -->
 <section class="hero" id="hero">
-  <div>
+  <div class="hero-copy">
     <p class="eyebrow">A guided tour, from zero</p>
     <h1>Binaries that travel <em>with</em> the repository.</h1>
     <p class="lede">git-cas stores large files inside Git's own object database, chunked, verified and optionally encrypted. This page teaches how it works, how it is built, and the plan to split it into a workspace of packages.</p>
     <div class="meta">
-      <span>20 chapters</span><span>about 25 minutes</span><span>v6.5.10 → v7.0.0</span>
+      <span>20 chapters</span><span>about 25 minutes</span><span>v6.5.10 → v7.0.0</span><span id="gpuBadge">WebGPU vault: unavailable, SVG only</span>
     </div>
     <p class="scroll-hint"><svg viewBox="0 0 14 22" aria-hidden="true"><rect x="1" y="1" width="12" height="20" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle id="scrollDot" cx="7" cy="7" r="1.6" fill="currentColor"/></svg> scroll to begin</p>
   </div>
   <svg class="hero-art" id="heroArt" viewBox="0 0 600 420" role="img" aria-label="A file is cut into chunks that flow into a Git repository">
-    <defs>
-      <linearGradient id="heroGlow" x1="0" x2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0.25"/><stop offset="1" stop-color="var(--accent-2)" stop-opacity="0.08"/></linearGradient>
-    </defs>
+    <defs><linearGradient id="heroGlow" x1="0" x2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0.25"/><stop offset="1" stop-color="var(--accent-2)" stop-opacity="0.08"/></linearGradient></defs>
     <g class="ha-file">
       <rect x="40" y="90" width="190" height="240" rx="14" fill="var(--surface-raised)" stroke="var(--line-strong)"/>
       <path d="M190 90 v40 h40" fill="none" stroke="var(--line-strong)"/>
-      <text x="56" y="120" class="mono" fill="var(--ink-muted)" font-size="12" font-family="JetBrains Mono, monospace">hero.psd</text>
+      <text x="56" y="120" fill="var(--ink-muted)" font-size="12" font-family="JetBrains Mono, monospace">hero.psd</text>
       <text x="56" y="138" fill="var(--ink-faint)" font-size="10" font-family="JetBrains Mono, monospace">12,582,912 bytes</text>
     </g>
     <g class="ha-vault">
@@ -82,61 +90,35 @@
     <h2>The whole idea, compressed</h2>
     <p class="lede">Git already has a world-class, replicated, content-addressed blob store: its object database. <strong>git-cas uses it to hold big files</strong>, so artifacts replicate wherever the repository does. Stop here and you have the gist; keep going and you will be able to explain every box below.</p>
   </div>
-  <figure>
-    <div class="wide-board">
-      <svg id="orientStrip" viewBox="0 0 980 170" role="img" aria-label="Pipeline: a file is chunked, each chunk is hashed, chunks are stored as Git blobs, a manifest records the order, and any clone can restore the file">
-        <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="var(--line-strong)"/></marker></defs>
-        <g class="os-item">
-          <rect x="20" y="40" width="150" height="90" rx="10" class="node-box" fill="var(--surface-raised)" stroke="var(--line-strong)"/>
-          <text x="95" y="80" text-anchor="middle" class="title" font-size="12" font-weight="600" fill="var(--ink)">a file</text>
-          <text x="95" y="100" text-anchor="middle" font-size="10" fill="var(--ink-muted)">hero.psd · 12 MiB</text>
-        </g>
-        <line x1="172" y1="85" x2="208" y2="85" stroke="var(--line-strong)" marker-end="url(#arr)"/>
-        <g class="os-item">
-          <rect x="212" y="40" width="150" height="90" rx="10" fill="var(--surface-raised)" stroke="var(--line-strong)"/>
-          <text x="287" y="80" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">cut into chunks</text>
-          <text x="287" y="100" text-anchor="middle" font-size="10" fill="var(--ink-muted)">boundaries follow content</text>
-        </g>
-        <line x1="364" y1="85" x2="400" y2="85" stroke="var(--line-strong)" marker-end="url(#arr)"/>
-        <g class="os-item">
-          <rect x="404" y="40" width="150" height="90" rx="10" fill="var(--surface-raised)" stroke="var(--line-strong)"/>
-          <text x="479" y="80" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">named by hash</text>
-          <text x="479" y="100" text-anchor="middle" font-size="10" fill="var(--ink-muted)">SHA-256 of the bytes</text>
-        </g>
-        <line x1="556" y1="85" x2="592" y2="85" stroke="var(--line-strong)" marker-end="url(#arr)"/>
-        <g class="os-item">
-          <rect x="596" y="40" width="150" height="90" rx="10" fill="var(--surface-raised)" stroke="var(--accent)"/>
-          <text x="671" y="80" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">stored as Git blobs</text>
-          <text x="671" y="100" text-anchor="middle" font-size="10" fill="var(--ink-muted)">+ a manifest recipe</text>
-        </g>
-        <line x1="748" y1="85" x2="784" y2="85" stroke="var(--line-strong)" marker-end="url(#arr)"/>
-        <g class="os-item">
-          <rect x="788" y="40" width="170" height="90" rx="10" fill="var(--surface-raised)" stroke="var(--line-strong)"/>
-          <text x="873" y="80" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">restored anywhere</text>
-          <text x="873" y="100" text-anchor="middle" font-size="10" fill="var(--ink-muted)">any clone, verified byte by byte</text>
-        </g>
-        <text x="490" y="158" text-anchor="middle" font-size="10" fill="var(--ink-faint)">no servers, no plugins on the remote: plain Git objects and refs</text>
-      </svg>
-    </div>
-    <figcaption><b>Figure 1.</b> The pipeline every later chapter zooms into. Hold onto the shape: file → chunks → hashes → blobs + manifest → restore.</figcaption>
-  </figure>
+  <div class="wide-board">
+    <svg id="orientStrip" viewBox="0 0 980 170" role="img" aria-label="Pipeline: a file is chunked, each chunk is hashed, chunks are stored as Git blobs, a manifest records the order, and any clone can restore the file">
+      <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="var(--line-strong)"/></marker></defs>
+      <g class="os-item"><rect x="20" y="40" width="150" height="90" rx="10" fill="var(--surface-raised)" stroke="var(--line-strong)"/><text x="95" y="80" text-anchor="middle" class="title">a file</text><text x="95" y="100" text-anchor="middle" class="small">hero.psd · 12 MiB</text></g>
+      <line x1="172" y1="85" x2="208" y2="85" stroke="var(--line-strong)" stroke-width="1.5" marker-end="url(#arr)"/>
+      <g class="os-item"><rect x="212" y="40" width="150" height="90" rx="10" fill="var(--surface-raised)" stroke="var(--line-strong)"/><text x="287" y="80" text-anchor="middle" class="title">cut into chunks</text><text x="287" y="100" text-anchor="middle" class="small">boundaries follow content</text></g>
+      <line x1="364" y1="85" x2="400" y2="85" stroke="var(--line-strong)" stroke-width="1.5" marker-end="url(#arr)"/>
+      <g class="os-item"><rect x="404" y="40" width="150" height="90" rx="10" fill="var(--surface-raised)" stroke="var(--line-strong)"/><text x="479" y="80" text-anchor="middle" class="title">named by hash</text><text x="479" y="100" text-anchor="middle" class="small">SHA-256 of the bytes</text></g>
+      <line x1="556" y1="85" x2="592" y2="85" stroke="var(--line-strong)" stroke-width="1.5" marker-end="url(#arr)"/>
+      <g class="os-item"><rect x="596" y="40" width="150" height="90" rx="10" fill="var(--surface-raised)" stroke="var(--accent)"/><text x="671" y="80" text-anchor="middle" class="title">stored as Git blobs</text><text x="671" y="100" text-anchor="middle" class="small">+ a manifest recipe</text></g>
+      <line x1="748" y1="85" x2="784" y2="85" stroke="var(--line-strong)" stroke-width="1.5" marker-end="url(#arr)"/>
+      <g class="os-item"><rect x="788" y="40" width="170" height="90" rx="10" fill="var(--surface-raised)" stroke="var(--line-strong)"/><text x="873" y="80" text-anchor="middle" class="title">restored anywhere</text><text x="873" y="100" text-anchor="middle" class="small">any clone, verified byte by byte</text></g>
+      <text x="490" y="158" text-anchor="middle" class="small">no servers, no plugins on the remote: plain Git objects and refs</text>
+    </svg>
+  </div>
 </section>
 
 <!-- ============================================================ 2 PROBLEM -->
-<section class="chapter" id="c-problem" data-label="Problem" data-diagram="problem">
+<section class="chapter" id="c-problem" data-label="Problem" data-scene="problem">
   <span class="chapter-num" aria-hidden="true">2</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 2 · The problem</p>
     <h2>Source code is everywhere. The binaries are not.</h2>
     <p class="lede">Every clone of a repository is a full copy of its history. That replication is why Git survives outages and censorship. <strong>Large artifacts break the pattern</strong>: they sit on one hosting endpoint, and a repository full of mirrors still depends on a single server for its binaries.</p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3>Code replicates by default</h3><p>Six machines hold the <code>brand-kit</code> repository: Ada's laptop, the origin, two mirrors, a CI runner, an offline archive. Any of them can rebuild the full history for the others. Delete any one and nothing is lost.</p></div>
-      <div class="step" data-step="1"><h3>Binaries live somewhere else</h3><p>The 12 MiB <code>hero.psd</code> is too big for comfortable Git history, so the team parks it on an artifact host and commits a pointer. Every machine now has a dashed dependency on one endpoint that is not part of the repository at all.</p></div>
-      <div class="step" data-step="2"><h3>The endpoint goes away</h3><p>Blocked network, expired bucket, vendor shutdown. The code still replicates, but every pointer dangles. The mirrors are complete and useless at the same time.</p><div class="callout"><span class="eyebrow">Intuition to carry forward</span>If the artifact were made of ordinary Git objects, it would already be on all six machines.</div></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-problem"></div><figcaption id="cap-problem"><b>Figure 2.</b> Six replicas of the repository and one external artifact host.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>Code replicates by default</h3><p>Six machines hold the <code>brand-kit</code> repository: Ada's laptop, the origin, two mirrors, a CI runner, an offline archive. Any of them can rebuild the full history for the others. Delete any one and nothing is lost.</p></div>
+    <div class="step" data-step="1"><h3>Binaries live somewhere else</h3><p>The 12 MiB <code>hero.psd</code> is too big for comfortable Git history, so the team parks it on an artifact host and commits a pointer. Every machine now has a dashed dependency on one endpoint that is not part of the repository at all.</p></div>
+    <div class="step" data-step="2"><h3>The endpoint goes away</h3><p>Blocked network, expired bucket, vendor shutdown. The code still replicates, but every pointer dangles. The mirrors are complete and useless at the same time.</p><div class="callout"><span class="eyebrow">Intuition to carry forward</span>If the artifact were made of ordinary Git objects, it would already be on all six machines.</div></div>
   </div>
 </section>
 
@@ -166,251 +148,190 @@
 </section>
 
 <!-- ============================================================ 4 HASH -->
-<section class="chapter" id="c-hash" data-label="Hashing" data-diagram="hash">
+<section class="chapter" id="c-hash" data-label="Hashing" data-scene="hash">
   <span class="chapter-num" aria-hidden="true">4</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 4 · Content addressing</p>
     <h2>Name things by what they contain</h2>
     <p class="lede">A hash function turns any bytes into a fixed-size fingerprint. SHA-256 produces 32 bytes, and changing a single input bit changes the fingerprint beyond recognition. <strong>Content-addressed storage uses the fingerprint as the name.</strong> Same bytes, same name. Different bytes, different name. Git has worked this way since 2005.</p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3>Try it</h3><p>The board computes a real SHA-256 in your browser (<code>crypto.subtle.digest</code>). The 32 bytes are drawn as a grid of 32 tiles, each colored by its value, and printed as 64 hex characters. Edit the text and watch the whole grid churn.</p></div>
-      <div class="step" data-step="1"><h3>One byte, every tile</h3><p>This step appends one character to the sample. Not one tile survives. That avalanche is what makes a hash safe to use as a name: you cannot find two different files that share one, so the name is a proof of the content.</p></div>
-      <div class="step" data-step="2"><h3>Git already does this</h3><p>Every Git blob is named by a hash of its bytes (SHA-1 in most repositories today, SHA-256 in newer ones). git-cas leans on that for storage, and additionally records a SHA-256 <code>digest</code> of every chunk in its own manifest, so integrity does not depend on which hash the repository happens to use.</p><div class="callout"><span class="eyebrow">Intuition to carry forward</span>A hash-named object can be verified by anyone who holds it. No trust in the sender is required.</div></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-hash"><div class="html-layer hash-lab">
-      <label class="eyebrow" for="hashInput">input bytes (utf-8)</label>
-      <textarea id="hashInput" spellcheck="false">hero.psd, export 14: tweaked the sky gradient</textarea>
-      <div class="hash-out" id="hashGrid" aria-hidden="true"></div>
-      <p class="hash-hex" id="hashHex">computing…</p>
-      <p class="muted" id="hashNote" style="font-size: var(--step--1)"></p>
-    </div></div><figcaption><b>Figure 3.</b> A live SHA-256. Tiles are the 32 output bytes; bold hex marks bytes that changed since the previous input.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>Try it</h3><p>The pane on the right computes a real SHA-256 in your browser (<code>crypto.subtle.digest</code>). The 64 glyphs orbiting the page are the hex digits of the digest. Edit the text and watch the whole ring re-roll.</p></div>
+    <div class="step" data-step="1"><h3>One byte, every glyph</h3><p>This step appends one character to the sample. Not one glyph survives. That avalanche is what makes a hash safe to use as a name: you cannot find two different files that share one, so the name is a proof of the content.</p></div>
+    <div class="step" data-step="2"><h3>Git already does this</h3><p>Every Git blob is named by a hash of its bytes (SHA-1 in most repositories today, SHA-256 in newer ones). git-cas leans on that for storage, and additionally records a SHA-256 <code>digest</code> of every chunk in its own manifest, so integrity does not depend on which hash the repository happens to use.</p><div class="callout"><span class="eyebrow">Intuition to carry forward</span>A hash-named object can be verified by anyone who holds it. No trust in the sender is required.</div></div>
   </div>
 </section>
 
 <!-- ============================================================ 5 CHUNKING -->
-<section class="chapter" id="c-chunk" data-label="Chunking" data-diagram="chunk">
+<section class="chapter" id="c-chunk" data-label="Chunking" data-scene="chunk">
   <span class="chapter-num" aria-hidden="true">5</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 5 · Chunking</p>
     <h2>Cut the file so that small edits stay small</h2>
     <p class="lede">Storing <code>hero.psd</code> as one 12 MiB object means every edit stores another 12 MiB. Cutting it into pieces lets unchanged pieces be reused. <strong>Where you cut decides how much gets reused.</strong> git-cas offers fixed-size cuts (predictable) and content-defined cuts (shift-resistant), and defaults to a 256 KiB target.</p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3>Fixed-size chunks</h3><p>Cut every 256 KiB. The top track shows the file as a strip; each colored segment is a chunk, and its color comes from a hash of its contents. Simple, and fine when edits replace bytes in place.</p></div>
-      <div class="step" data-step="1"><h3>Insert a few bytes at the front</h3><p>Ada's export adds a metadata header. Drag the slider on the board. With fixed cuts, everything after the insertion shifts, so every boundary lands on different bytes and <em>every chunk</em> gets a new hash. One small edit, a whole new file in storage.</p><div class="controls"><label for="chunkInsert" class="muted" style="font-size: var(--step--1)">bytes inserted at the front</label><input class="range" type="range" id="chunkInsert" min="0" max="40" value="0" step="1"></div></div>
-      <div class="step" data-step="2"><h3>Content-defined chunking</h3><p>The bottom track cuts where a rolling hash of the last few bytes hits a pattern (git-cas uses Buzhash with FastCDC-style normalization: a strict mask below the target size, a looser one above it). Boundaries are properties of the bytes themselves, so they move with the content. Only the first chunk changes; the rest keep their names.</p><div class="callout"><span class="eyebrow">Intuition to carry forward</span>Content-defined boundaries make deduplication survive insertions. That is what makes versioned binaries cheap.</div></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-chunk"></div><figcaption><b>Figure 4.</b> Simulation: 1,200 units stand in for bytes and a simplified rolling hash picks the boundaries. Colors come from each chunk's content hash; hatched chunks are new.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>Fixed-size chunks</h3><p>Cut every 256 KiB. The upper path draws the file as a strip; each coloured segment is a chunk, its colour from a hash of its contents. Simple, and fine when edits replace bytes in place.</p></div>
+    <div class="step" data-step="1"><h3>Insert a few bytes at the front</h3><p>Ada's export adds a metadata header. Drag the slider. With fixed cuts, everything after the insertion shifts, so every boundary lands on different bytes and <em>every chunk</em> gets a new hash. One small edit, a whole new file in storage.</p><div class="controls"><label for="chunkInsert" class="muted" style="font-size: var(--step--1)">bytes inserted at the front</label><input class="range" type="range" id="chunkInsert" min="0" max="40" value="0" step="1"></div></div>
+    <div class="step" data-step="2"><h3>Content-defined chunking</h3><p>The lower path cuts where a rolling hash of the last 64 bytes hits a pattern. git-cas uses Buzhash with FastCDC-style normalization: a strict mask below the 256 KiB target, a looser one above it, so chunk sizes cluster around the target. Boundaries are properties of the bytes, so they move with the content. Only the first chunk changes; the rest keep their names.</p><div class="callout"><span class="eyebrow">Intuition to carry forward</span>Content-defined boundaries make deduplication survive insertions. That is what makes versioned binaries cheap.</div></div>
   </div>
 </section>
 
 <!-- ============================================================ 6 DEDUP -->
-<section class="chapter" id="c-dedup" data-label="Dedup" data-diagram="dedup">
+<section class="chapter" id="c-dedup" data-label="Dedup" data-scene="dedup">
   <span class="chapter-num" aria-hidden="true">6</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 6 · Chunks become blobs</p>
     <h2>Two versions, one pool of blobs</h2>
     <p class="lede">Each chunk is written to Git as a blob object, which Git names by hash. If a chunk already exists, Git simply does not write it again. <strong>Deduplication is not a feature git-cas adds; it falls out of using a content-addressed store.</strong></p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3>Version 1 is stored</h3><p>The top row is the first twelve chunks of <code>hero.psd</code> as Ada first exported it. Each points at a blob in the object database below. Twelve chunks, twelve blobs.</p></div>
-      <div class="step" data-step="1"><h3>Version 2 arrives</h3><p>Ada changes the sky gradient. With content-defined chunking, only chunk 6 has different bytes. The bottom row is version 2: eleven chunks have the same hash as before, one is new.</p></div>
-      <div class="step" data-step="2"><h3>Same hash, same blob</h3><p>Version 2's chunks resolve to the blobs that already exist. Git writes exactly one new object. Both manifests are complete, both files can be restored, and the shared blobs are stored once.</p></div>
-      <div class="step" data-step="3"><h3>The accounting</h3><p>Two 3 MiB prefixes, 6 MiB of logical content, 3.25 MiB stored. Across the full 12 MiB file and a week of exports, the ratio is what keeps the repository small. Later, encryption will threaten this property and <em>convergent</em> mode will rescue it.</p></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-dedup"></div><figcaption><b>Figure 5.</b> Two manifests pointing into one blob pool. The first twelve chunks of each version; chunk 6 differs.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>Version 1 is stored</h3><p>Across the top: the first twelve chunks of <code>hero.psd</code> as Ada first exported it. Each points at a blob in the object database through the middle. Twelve chunks, twelve blobs.</p></div>
+    <div class="step" data-step="1"><h3>Version 2 arrives</h3><p>Ada changes the sky gradient. With content-defined chunking, only chunk 5 has different bytes. Along the bottom is version 2: eleven chunks have the same hash as before, one is new.</p></div>
+    <div class="step" data-step="2"><h3>Same hash, same blob</h3><p>Watch the tokens ride up from version 2: they land on blobs that already exist. Git writes exactly one new object. Both manifests are complete, both files can be restored, and the shared blobs are stored once.</p></div>
+    <div class="step" data-step="3"><h3>The accounting</h3><p>Two 3 MiB prefixes, 6 MiB of logical content, 3.25 MiB stored. Across the full 12 MiB file and a week of exports, the ratio is what keeps the repository small. Later, encryption will threaten this property and <em>convergent</em> mode will rescue it.</p></div>
   </div>
 </section>
 
 <!-- ============================================================ 7 MANIFEST -->
-<section class="chapter" id="c-manifest" data-label="Manifest" data-diagram="manifest">
+<section class="chapter" id="c-manifest" data-label="Manifest" data-scene="manifest">
   <span class="chapter-num" aria-hidden="true">7</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 7 · The manifest</p>
     <h2>The recipe that rebuilds the file</h2>
     <p class="lede">Blobs alone are a bag of pieces. The manifest is the ordered list that says which pieces, in which order, with which fingerprints. <strong>It is itself stored as a Git blob</strong>, so it gets the same replication and the same hash-derived name as everything else.</p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3>Ordered chunk entries</h3><p>Each entry carries its position (<code>index</code>), <code>size</code>, SHA-256 <code>digest</code> and the Git object id of the <code>blob</code> that holds it. The <code>chunking</code> block records how the cuts were made so a reader can reason about them later.</p></div>
-      <div class="step" data-step="1"><h3>A fingerprint of the recipe</h3><p>The manifest carries its own integrity hash and the version of the format that wrote it. A tampered or truncated manifest is detected before any chunk is fetched. Field names on the board are abridged; the real schema lives in <code>ManifestSchema.js</code> and is exported as <code>@git-stunts/git-cas/schema</code>.</p></div>
-      <div class="step" data-step="2"><h3>When the list gets long</h3><p>Above 1,000 chunks (the <code>merkleThreshold</code>) the flat list becomes a tree: sub-manifests, each a blob, referenced by object id. Readers walk the tree and fetch only the branches they need. The same trick Git plays with trees of trees.</p></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-manifest"><div class="html-layer" style="display:grid; gap: var(--space-4); align-content:start">
-      <pre class="code-block" id="manifestCode"><code>{
-  <span data-hl="1">"formatVersion": "6.5.10",</span>
-  "size": 12582912,
-  <span data-hl="1">"digest": "9f2c6b0e1a7d44c3…8e51",</span>
-  <span data-hl="0">"chunking": { "strategy": "cdc",
-                "params": { "target": 262144, "min": 65536,
-                            "max": 1048576, "normalized": true } },</span>
-  <span data-hl="0">"chunks": [
-    { "index": 0, "size": 261902,
-      "digest": "a7d3…", "blob": "4e1fb0…" },
-    { "index": 1, "size": 258114,
-      "digest": "0c91…", "blob": "9ab27c…" },
-    <span class="cm">… 46 more entries …</span>
-  ],</span>
-  <span data-hl="2">"subManifests": [ { "oid": "77c0e1…" }, { "oid": "d2a9f4…" } ]</span>  <span class="cm">// only above 1,000 chunks</span>
-  "encryption": null
-}</code></pre>
-      <svg id="d-merkle" viewBox="0 0 520 150" role="img" aria-label="A root manifest referencing sub-manifests, each referencing chunk entries" style="width:100%; height:auto"></svg>
-    </div></div><figcaption><b>Figure 6.</b> An abridged manifest for <code>hero.psd</code>. Highlights follow the lesson: entries, integrity, then the Merkle shape.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>Ordered chunk entries</h3><p>Each entry carries its position (<code>index</code>), <code>size</code>, SHA-256 <code>digest</code> and the Git object id of the <code>blob</code> that holds it. The <code>chunking</code> block records how the cuts were made so a reader can reason about them later.</p></div>
+    <div class="step" data-step="1"><h3>A fingerprint of the recipe</h3><p>The manifest carries its own integrity hash and the version of the format that wrote it. A tampered or truncated manifest is detected before any chunk is fetched. Field names on the pane are abridged; the real schema lives in <code>ManifestSchema.js</code> and is exported as <code>@git-stunts/git-cas/schema</code>.</p></div>
+    <div class="step" data-step="2"><h3>When the list gets long</h3><p>Above 1,000 chunks (the <code>merkleThreshold</code>) the flat list becomes a tree: sub-manifests, each a blob, referenced by object id. Readers walk the tree and fetch only the branches they need. The same trick Git plays with trees of trees.</p></div>
   </div>
 </section>
 
 <!-- ============================================================ 8 RESTORE -->
-<section class="chapter" id="c-restore" data-label="Restore" data-diagram="restore">
+<section class="chapter" id="c-restore" data-label="Restore" data-scene="restore">
   <span class="chapter-num" aria-hidden="true">8</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 8 · Restore and verify</p>
     <h2>Rebuild the bytes, trust nothing</h2>
     <p class="lede">Restoring is the manifest read in reverse: fetch each blob, check its SHA-256 against the recorded digest, append it to the output. <strong>A chunk that fails verification stops the restore</strong> with an <code>INTEGRITY_ERROR</code>; there is no option to skip it. Chunks are fetched in parallel through a bounded window so large files stream without buffering everything.</p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3>Read the recipe</h3><p>The manifest on the left lists twelve entries. Nothing has been fetched yet; the restore knows exactly what it needs and how big the result will be.</p></div>
-      <div class="step" data-step="1"><h3>Fetch through a window</h3><p>A prefetch window keeps four fetches in flight (<code>PrefetchWindow</code>). Blobs arrive out of order; the window hands them to the writer in manifest order. Memory stays bounded by the window, not by the file.</p></div>
-      <div class="step" data-step="2"><h3>Verify every chunk</h3><p>Each blob is hashed and compared with the manifest's digest. Press <b>Corrupt blob 7</b> on the board to flip one byte in storage, then scroll back and forth. The restore halts at the bad chunk and names it.</p><div class="controls"><button class="btn" id="restoreCorrupt">Corrupt blob 7</button><button class="btn" id="restoreReset">Reset</button></div></div>
-      <div class="step" data-step="3"><h3>Assembled</h3><p>Twelve verified chunks written in order reproduce <code>hero.psd</code> byte for byte. The whole-file digest in the manifest is checked last. Only then does the restore report success.</p><div class="callout"><span class="eyebrow">The second foil</span>A corrupted blob is the thing that must <em>not</em> restore. The failure is loud by design.</div></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-restore"></div><figcaption id="cap-restore"><b>Figure 7.</b> Manifest entries on the left, a four-slot fetch window in the middle, the assembled file on the right.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>Read the recipe</h3><p>The manifest lists twelve entries. Nothing has been fetched yet; the restore knows exactly what it needs and how big the result will be.</p></div>
+    <div class="step" data-step="1"><h3>Fetch through a window</h3><p>A prefetch window keeps four fetches in flight (<code>PrefetchWindow</code>). Blobs ride four lanes and arrive out of order; the window hands them to the writer in manifest order. Memory stays bounded by the window, not by the file.</p></div>
+    <div class="step" data-step="2"><h3>Verify every chunk</h3><p>Each blob is hashed at the end of its lane and compared with the manifest's digest. Press <b>Corrupt blob 7</b> to flip one byte in storage, then scroll back and forth. The restore halts at the bad chunk and names it.</p><div class="controls"><button class="btn" id="restoreCorrupt">Corrupt blob 7</button><button class="btn" id="restoreReset">Reset</button></div></div>
+    <div class="step" data-step="3"><h3>Assembled</h3><p>Twelve verified chunks written in order reproduce <code>hero.psd</code> byte for byte. The whole-file digest in the manifest is checked last. Only then does the restore report success.</p><div class="callout"><span class="eyebrow">The second foil</span>A corrupted blob is the thing that must <em>not</em> restore. The failure is loud by design.</div></div>
   </div>
 </section>
 
 <!-- ============================================================ 9 ENCRYPTION -->
-<section class="chapter" id="c-crypto" data-label="Encryption" data-diagram="envelope">
+<section class="chapter" id="c-crypto" data-label="Encryption" data-scene="envelope">
   <span class="chapter-num" aria-hidden="true">9</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 9 · Encryption</p>
     <h2>Envelopes, recipients and a trick to keep dedup</h2>
     <p class="lede">Anyone who can read the repository can read its blobs. For secrets, git-cas encrypts chunks with AES-256-GCM. <strong>The data key never touches the repository in the clear</strong>; it is wrapped once per recipient, so a team can share one asset without sharing one passphrase.</p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3>One data key</h3><p>A random 256-bit data encryption key (DEK) encrypts the chunks. Each ciphertext also binds the asset's slug as authenticated data, so a blob cannot be swapped into a different manifest without the check failing.</p></div>
-      <div class="step" data-step="1"><h3>Recipients wrap the key</h3><p>Ada's passphrase goes through scrypt to produce a key-encryption key (KEK), and the DEK is encrypted under it. The CI runner has a key file; same wrap, different KEK. The manifest stores one <code>wrappedDek</code> per recipient, each 32 bytes plus a nonce and tag. Press <b>Add recipient</b> to let Bo in.</p><div class="controls"><button class="btn" id="envAdd">Add recipient</button></div></div>
-      <div class="step" data-step="2"><h3>Rotate without re-encrypting</h3><p>Ada changes her passphrase. Only her wrapped copy of the DEK is rewritten; the blobs are untouched. Press <b>Rotate Ada's passphrase</b> and watch what flashes and what does not. A vault-wide rotation is the same operation across every manifest.</p><div class="controls"><button class="btn" id="envRotate">Rotate Ada's passphrase</button></div></div>
-      <div class="step" data-step="3"><h3>Convergent mode</h3><p>Random keys destroy deduplication: the same plaintext chunk encrypts to different bytes each time. In <code>convergent</code> mode the per-chunk key and nonce are derived from the chunk's own content hash under the master key. Identical plaintext gives identical ciphertext, so Git deduplicates encrypted chunks too. The cost is well known: an attacker who already holds a plaintext chunk can confirm you stored it. <code>framed</code> and <code>whole</code> modes avoid that at the price of dedup.</p></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-envelope"></div><figcaption id="cap-envelope"><b>Figure 8.</b> Recipients on the left each hold a wrapped copy of the one data key that encrypts the blobs on the right.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>One data key</h3><p>A random 256-bit data encryption key (DEK) encrypts the chunks. Each ciphertext also binds the asset's slug as authenticated data, so a blob cannot be swapped into a different manifest without the check failing.</p></div>
+    <div class="step" data-step="1"><h3>Recipients wrap the key</h3><p>Ada's passphrase goes through scrypt to produce a key-encryption key (KEK), and the DEK is encrypted under it. The CI runner has a key file; same wrap, different KEK. The manifest stores one <code>wrappedDek</code> per recipient, each 32 bytes plus a nonce and tag. Press <b>Add recipient</b> to let Bo in.</p><div class="controls"><button class="btn" id="envAdd">Add recipient</button></div></div>
+    <div class="step" data-step="2"><h3>Rotate without re-encrypting</h3><p>Ada changes her passphrase. Only her wrapped copy of the DEK is rewritten; the blobs are untouched. Press <b>Rotate Ada's passphrase</b> and watch what moves and what does not. A vault-wide rotation is the same operation across every manifest.</p><div class="controls"><button class="btn" id="envRotate">Rotate Ada's passphrase</button></div></div>
+    <div class="step" data-step="3"><h3>Convergent mode</h3><p>Random keys destroy deduplication: the same plaintext chunk encrypts to different bytes each time. In <code>convergent</code> mode the per-chunk key and nonce are derived from the chunk's own content hash under the master key. Identical plaintext gives identical ciphertext, so Git deduplicates encrypted chunks too. The cost is well known: an attacker who already holds a plaintext chunk can confirm you stored it. <code>framed</code> and <code>whole</code> modes avoid that at the price of dedup.</p></div>
   </div>
 </section>
 
 <!-- ============================================================ 10 GC -->
-<section class="chapter" id="c-gc" data-label="Reachability" data-diagram="gc">
+<section class="chapter" id="c-gc" data-label="Reachability" data-scene="gc">
   <span class="chapter-num" aria-hidden="true">10</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 10 · Keeping things alive</p>
     <h2>Git deletes what nothing points to</h2>
     <p class="lede">Git's garbage collector keeps an object only if some ref leads to it. Blobs written by git-cas are no exception. <strong>So git-cas never relies on loose objects</strong>: every manifest and chunk is anchored under a ref, and lifecycles are expressed as which refs point where.</p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3>Unreachable means gone</h3><p>Here are the objects for <code>hero.psd</code> and <code>logo.svg</code>: manifests and chunk blobs. Nothing points at them. On the next <code>git gc</code> they are swept. This is correct Git behavior and the reason a naive "just write blobs" approach loses data.</p></div>
-      <div class="step" data-step="1"><h3>The vault ref</h3><p>git-cas keeps a named index at <code>refs/cas/vault</code>: a commit whose tree maps slugs like <code>brand/hero</code> to manifests. Now every chunk is reachable through ref → commit → tree → manifest → blob, and GC leaves it alone.</p></div>
-      <div class="step" data-step="2"><h3>Remove an entry</h3><p>Press <b>Remove hero.psd</b>. The vault tree no longer references its manifest, so the manifest and the blobs only it used become collectible. The blob shared with <code>logo.svg</code> stays, because something still reaches it. Reachability does the bookkeeping for us.</p><div class="controls"><button class="btn" id="gcToggle" aria-pressed="false">Remove hero.psd from the vault</button></div></div>
-      <div class="step" data-step="3"><h3>Root sets: retention without history</h3><p>The vault keeps history, which is right for named assets and wrong for caches. <code>refs/cas/rootsets/*</code> point at <em>parentless</em> commits replaced with compare-and-swap. Remove an entry and its objects become collectible immediately; no old generation keeps them alive. Caches, expiring sets and workspaces are all built on this.</p><div class="callout"><span class="eyebrow">Intuition to carry forward</span>In git-cas, "retained" means "reachable from a ref we manage". Every higher-level feature is a policy about refs.</div></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-gc"></div><figcaption id="cap-gc"><b>Figure 9.</b> Reachability from <code>refs/cas/vault</code>. Dashed objects are collectible.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>Unreachable means gone</h3><p>Here are the objects for <code>hero.psd</code> and <code>logo.svg</code>: manifests and chunk blobs. Nothing points at them. The storm sweeping the page is <code>git gc</code>; anything not lit by a ref does not survive it. This is correct Git behavior and the reason a naive "just write blobs" approach loses data.</p></div>
+    <div class="step" data-step="1"><h3>The vault ref</h3><p>git-cas keeps a named index at <code>refs/cas/vault</code>: a commit whose tree maps slugs like <code>brand/hero</code> to manifests. Now every chunk is reachable through ref → commit → tree → manifest → blob, and GC leaves it alone.</p></div>
+    <div class="step" data-step="2"><h3>Remove an entry</h3><p>Press <b>Remove hero.psd</b>. The vault tree no longer references its manifest, so the manifest and the blobs only it used become collectible. The blob shared with <code>logo.svg</code> stays, because something still reaches it. Reachability does the bookkeeping for us.</p><div class="controls"><button class="btn" id="gcToggle" aria-pressed="false">Remove hero.psd from the vault</button></div></div>
+    <div class="step" data-step="3"><h3>Root sets: retention without history</h3><p>The vault keeps history, which is right for named assets and wrong for caches. <code>refs/cas/rootsets/*</code> point at <em>parentless</em> commits replaced with compare-and-swap. Remove an entry and its objects become collectible immediately; no old generation keeps them alive. Caches, expiring sets and workspaces are all built on this.</p><div class="callout"><span class="eyebrow">Intuition to carry forward</span>In git-cas, "retained" means "reachable from a ref we manage". Every higher-level feature is a policy about refs.</div></div>
   </div>
 </section>
 
 <!-- ============================================================ 11 LAYERS -->
-<section class="chapter" id="c-layers" data-label="Layers" data-diagram="layers">
+<section class="chapter" id="c-layers" data-label="Layers" data-scene="layers">
   <span class="chapter-num" aria-hidden="true">11</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 11 · Above the core</p>
-    <h2>Six ref namespaces, six lifecycles</h2>
-    <p class="lede">Everything so far is the storage core. Applications need more than "store a file": they need named assets, caches that expire, replay markers that cannot be shortened, and structured bundles retained atomically. <strong>git-cas expresses each as its own ref namespace</strong> with its own rules. The downstream consumer that drove most of them is git-warp, a graph database that keeps its materializations in git-cas.</p>
+    <h2>Six ref namespaces, five floors</h2>
+    <p class="lede">Everything so far is the storage core. Applications need more than "store a file": they need named assets, caches that expire, replay markers that cannot be shortened, and structured bundles retained atomically. <strong>git-cas expresses each as its own ref namespace</strong> with its own rules. The downstream consumer that drove most of them is git-warp, a graph database that keeps its materializations in git-cas. Ride the lift.</p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3><code>refs/cas/vault</code></h3><p>Named, versioned assets. Slug → manifest, with history, optional privacy mode that HMAC-masks slug names, and passphrase rotation across the whole vault. This is what the CLI's <code>store --slug</code> and <code>restore</code> talk to.</p></div>
-      <div class="step" data-step="1"><h3><code>refs/cas/rootsets/*</code></h3><p>The retention kernel from the last chapter. A root set is a mutable set of entries anchored by a parentless commit. It exists so the three namespaces below do not each invent their own GC story.</p></div>
-      <div class="step" data-step="2"><h3><code>refs/cas/caches/*</code></h3><p>Managed cache sets: TTL, entry and byte limits, approximate LRU eviction, repair. A cache hit can be <em>acquired</em>, which pins its generation under <code>refs/cas/cache-acquisitions/*</code> while the caller uses it, then released.</p></div>
-      <div class="step" data-step="3"><h3><code>refs/cas/expiring/*</code></h3><p>Replay markers for security-sensitive flows: add-if-absent, digest-only metadata, and release only by expiry. There is deliberately no remove, no capacity limit, nothing that could shorten a marker's life.</p></div>
-      <div class="step" data-step="4"><h3><code>refs/cas/workspaces/*</code> and application handles</h3><p>Assets, immutable pages and ordered bundles are addressed by opaque handles rather than raw object ids. A staging workspace admits a batch of dependent writes and retains the result under one exact generation, so a consumer never sees half of a structure.</p></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-layers"></div><figcaption id="cap-layers"><b>Figure 10.</b> The ref namespaces git-cas manages, and the package that will own each one after the split.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>Ground floor · <code>refs/cas/vault</code></h3><p>Named, versioned assets. Slug → manifest, with history, optional privacy mode that HMAC-masks slug names, and passphrase rotation across the whole vault. This is what the CLI's <code>store --slug</code> and <code>restore</code> talk to.</p></div>
+    <div class="step" data-step="1"><h3><code>refs/cas/rootsets/*</code></h3><p>The retention kernel from the last chapter. A root set is a mutable set of entries anchored by a parentless commit. It exists so the floors above do not each invent their own GC story.</p></div>
+    <div class="step" data-step="2"><h3><code>refs/cas/caches/*</code></h3><p>Managed cache sets: TTL, entry and byte limits, approximate LRU eviction, repair. A cache hit can be <em>acquired</em>, which pins its generation under <code>refs/cas/cache-acquisitions/*</code> while the caller uses it, then released.</p></div>
+    <div class="step" data-step="3"><h3><code>refs/cas/expiring/*</code></h3><p>Replay markers for security-sensitive flows: add-if-absent, digest-only metadata, and release only by expiry. There is deliberately no remove, no capacity limit, nothing that could shorten a marker's life. The floor has no doors.</p></div>
+    <div class="step" data-step="4"><h3>Top floor · <code>refs/cas/workspaces/*</code> and handles</h3><p>Assets, immutable pages and ordered bundles are addressed by opaque handles rather than raw object ids. A staging workspace admits a batch of dependent writes and retains the result under one exact generation, so a consumer never sees half of a structure.</p></div>
   </div>
 </section>
 
 <!-- ============================================================ 12 TRAVEL -->
-<section class="chapter" id="c-travel" data-label="Replication" data-diagram="travel">
+<section class="chapter" id="c-travel" data-label="Replication" data-scene="travel">
   <span class="chapter-num" aria-hidden="true">12</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 12 · Replication</p>
     <h2>Back to the six machines</h2>
     <p class="lede">Because everything is Git objects under Git refs, the ordinary verbs move it: <code>push</code>, <code>fetch</code>, <code>clone</code>, <code>bundle</code>. <strong>No server-side plugin, no second protocol.</strong> This chapter replays the problem from Chapter 2 with <code>hero.psd</code> stored the git-cas way.</p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3>Ada pushes</h3><p>Her laptop pushes <code>refs/cas/vault</code> along with the branches. The manifest and 48 chunk blobs ride in the same pack as her commits.</p></div>
-      <div class="step" data-step="1"><h3>Mirrors fetch</h3><p>The EU mirror, the CI runner and the offline archive fetch as they always did. Each now holds every byte of <code>hero.psd</code>, verified by Git's own object hashing on the way in.</p></div>
-      <div class="step" data-step="2"><h3>The origin disappears</h3><p>Same outage as before. This time the dashed dependency has nothing to break. CI restores from the EU mirror; the archive restores with no network at all.</p></div>
-      <div class="step" data-step="3"><h3>What changed</h3><p>Not the network, not the hosts. Only where the bytes live. That is the whole thesis of the project, and the rest of this page is about keeping the code that delivers it healthy.</p></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-travel"></div><figcaption id="cap-travel"><b>Figure 11.</b> The same six machines as Figure 2. The artifact now replicates with the repository.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>Ada pushes</h3><p>Her laptop pushes <code>refs/cas/vault</code> along with the branches. The manifest and 48 chunk blobs ride in the same pack as her commits.</p></div>
+    <div class="step" data-step="1"><h3>Mirrors fetch</h3><p>The EU mirror, the CI runner and the offline archive fetch as they always did. Each now holds every byte of <code>hero.psd</code>, verified by Git's own object hashing on the way in.</p></div>
+    <div class="step" data-step="2"><h3>The origin disappears</h3><p>Same outage as before. This time the dashed dependency has nothing to break. CI restores from the EU mirror; the archive restores with no network at all.</p></div>
+    <div class="step" data-step="3"><h3>What changed</h3><p>Not the network, not the hosts. Only where the bytes live. That is the whole thesis of the project, and the rest of this page is about keeping the code that delivers it healthy.</p></div>
   </div>
 </section>
 
 <!-- ============================================================ 13 HEXAGONAL -->
-<section class="chapter" id="c-hex" data-label="Architecture" data-diagram="hex">
+<section class="chapter" id="c-hex" data-label="Architecture" data-scene="hex">
   <span class="chapter-num" aria-hidden="true">13</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 13 · How it is built</p>
     <h2>A core that has never heard of Node</h2>
     <p class="lede">git-cas runs on Node.js 22+, Bun and Deno from one codebase. It manages that with a hexagonal architecture: <strong>the domain speaks only to abstract ports, and runtime-specific adapters plug into them.</strong> A test guards it: no file under <code>src/domain</code> may import <code>node:</code>, touch <code>Buffer</code> or <code>process</code>, or use Node streams. The grep for domain-to-infrastructure imports returns nothing.</p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3>The domain</h3><p><code>CasService</code> orchestrates store and restore strategies, the chunk repository, manifests, key resolution and integrity checks. It works on <code>Uint8Array</code> and async iterables, nothing platform-specific. 10,900 lines including the ports and adapters that ship with it.</p></div>
-      <div class="step" data-step="1"><h3>The ports</h3><p>Six contracts: <code>CryptoPort</code>, <code>GitPersistencePort</code>, <code>GitRefPort</code>, <code>CodecPort</code>, <code>ChunkingPort</code>, <code>CompressionPort</code>, plus <code>ObservabilityPort</code> for logs and metrics. The domain depends on these interfaces and nothing else.</p></div>
-      <div class="step" data-step="2"><h3>The adapters</h3><p>Pick a runtime on the board. Node uses <code>node:crypto</code>; Bun has its own adapter; Deno gets WebCrypto. Git itself is reached through <code>@git-stunts/plumbing</code>, which shells out to the <code>git</code> binary and keeps long-lived <code>cat-file</code> and <code>mktree</code> sessions open. The domain does not change when you switch.</p><div class="controls"><button class="btn" data-runtime="node" aria-pressed="true">Node.js</button><button class="btn" data-runtime="bun" aria-pressed="false">Bun</button><button class="btn" data-runtime="deno" aria-pressed="false">Deno</button></div></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-hex"></div><figcaption id="cap-hex"><b>Figure 12.</b> Domain in the center, ports on the ring, adapters outside. Dependencies point inward.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>The domain</h3><p><code>CasService</code> orchestrates store and restore strategies, the chunk repository, manifests, key resolution and integrity checks. It works on <code>Uint8Array</code> and async iterables, nothing platform-specific. 10,900 lines including the ports and adapters that ship with it.</p></div>
+    <div class="step" data-step="1"><h3>The ports</h3><p>Six contracts: <code>CryptoPort</code>, <code>GitPersistencePort</code>, <code>GitRefPort</code>, <code>CodecPort</code>, <code>ChunkingPort</code>, <code>CompressionPort</code>, plus <code>ObservabilityPort</code> for logs and metrics. The domain depends on these interfaces and nothing else.</p></div>
+    <div class="step" data-step="2"><h3>The adapters</h3><p>Pick a runtime. Node uses <code>node:crypto</code>; Bun has its own adapter; Deno gets WebCrypto. Git itself is reached through <code>@git-stunts/plumbing</code>, which shells out to the <code>git</code> binary and keeps long-lived <code>cat-file</code> and <code>mktree</code> sessions open. The domain does not change when you switch.</p><div class="controls"><button class="btn" data-runtime="node" aria-pressed="true">Node.js</button><button class="btn" data-runtime="bun" aria-pressed="false">Bun</button><button class="btn" data-runtime="deno" aria-pressed="false">Deno</button></div></div>
   </div>
 </section>
 
 <!-- ============================================================ 14 SHAPE -->
-<section class="chapter" id="c-shape" data-label="Today" data-diagram="shape">
+<section class="chapter" id="c-shape" data-label="Today" data-scene="shape">
   <span class="chapter-num" aria-hidden="true">14</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 14 · Today's shape</p>
-    <h2>One package, 38,808 lines, four surprises in the dependency tree</h2>
+    <h2>One package, 38,808 lines, four surprises in orbit</h2>
     <p class="lede">All of this ships as a single npm package, <code>@git-stunts/git-cas@6.5.10</code>. The library is 26,479 lines; the <code>bin/</code> directory adds 12,329 more for a human CLI, a machine-facing agent CLI and a full-screen terminal dashboard. <strong>The problem is what rides along.</strong></p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3>Everything in one circle</h3><p>Each bubble is a cluster of source files, sized by line count. The clusters are already clean: the import graph between them has no cycles and only two edges that point sideways. The boundaries exist in the code; they just do not exist in the package.</p></div>
-      <div class="step" data-step="1"><h3>A third of it is terminal UI and CLI</h3><p>The dashboard alone is 6,238 lines. It shares a package, a test runner, a release cadence and a <code>files</code> list with the storage engine. Changing a keybinding and changing the restore pipeline are the same kind of release.</p></div>
-      <div class="step" data-step="2"><h3>The library ships a TUI framework</h3><p>Four <code>@flyingrobots/bijou*</code> packages are runtime dependencies. Anyone who installs <code>@git-stunts/git-cas</code> to store files also installs a terminal rendering stack they never call. One of the four, <code>bijou-tui-app</code>, is declared and never imported anywhere.</p><div class="callout"><span class="eyebrow">Intuition to carry forward</span>The code already has seams. The split moves package boundaries onto seams that exist.</div></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-shape"></div><figcaption id="cap-shape"><b>Figure 13.</b> Source clusters sized by lines at commit <code>c02c87ee</code>. Dependencies drawn to the right are not sized.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>Everything in one crate</h3><p>Each bubble is a cluster of source files, sized by line count; the dependencies orbit it. The clusters are already clean: the import graph between them has no cycles and only two edges that point sideways. The boundaries exist in the code; they just do not exist in the package.</p></div>
+    <div class="step" data-step="1"><h3>A third of it is terminal UI and CLI</h3><p>The dashboard alone is 6,238 lines. It shares a package, a test runner, a release cadence and a <code>files</code> list with the storage engine. Changing a keybinding and changing the restore pipeline are the same kind of release.</p></div>
+    <div class="step" data-step="2"><h3>The library ships a TUI framework</h3><p>Four <code>@flyingrobots/bijou*</code> packages are runtime dependencies. Anyone who installs <code>@git-stunts/git-cas</code> to store files also installs a terminal rendering stack they never call. One of the four, <code>bijou-tui-app</code>, is declared and never imported anywhere.</p><div class="callout"><span class="eyebrow">Intuition to carry forward</span>The code already has seams. The split moves package boundaries onto seams that exist.</div></div>
   </div>
 </section>
 
 <!-- ============================================================ 15 PLAN -->
-<section class="chapter" id="c-plan" data-label="The plan" data-diagram="dag">
+<section class="chapter" id="c-plan" data-label="The plan" data-scene="dag">
   <span class="chapter-num" aria-hidden="true">15</span>
   <div class="chapter-head">
     <p class="eyebrow">Chapter 15 · The plan</p>
     <h2>A workspace of fifteen packages, one version</h2>
-    <p class="lede">Turn the repository into a pnpm workspace. Thirteen published packages and two private ones, all sharing one version number, one tag, one changelog and one release job. <strong>The umbrella package keeps today's API</strong>, so existing consumers change a version range and nothing else. Hover a node to see what moves into it; click one to see what it depends on.</p>
+    <p class="lede">Turn the repository into a pnpm workspace. Thirteen published packages and two private ones, all sharing one version number, one tag, one changelog and one release job. <strong>The umbrella package keeps today's API</strong>, so existing consumers change a version range and nothing else. Hover a node to see what moves into it; click one to light what it depends on.</p>
   </div>
-  <div class="scrolly">
-    <div class="copy">
-      <div class="step" data-step="0"><h3>Layer 0: the core</h3><p><code>git-cas-core</code> is Chapters 4 through 9: chunking, manifests, strategies, encryption, the ports, and the adapters for Git, crypto and codecs. It depends on <code>@git-stunts/plumbing</code> and nothing from the rest of the workspace.</p></div>
-      <div class="step" data-step="1"><h3>Layers 1 to 3: the lifecycles</h3><p>Chapters 10 and 11 become packages: <code>vault</code> and <code>rootsets</code> directly on core; <code>bundles</code> on rootsets; <code>cache</code>, <code>expire</code> and <code>workspaces</code> on bundles; <code>doctor</code> on all of them. The graph is a DAG, and pnpm's isolated <code>node_modules</code> turns any undeclared edge into a runtime error.</p></div>
-      <div class="step" data-step="2"><h3>Layer 4: the umbrella</h3><p><code>@git-stunts/git-cas</code> shrinks to a composition root and a re-export list, about 400 lines. Its three entrypoints are unchanged. git-warp imports it in 105 places and needs no edit beyond <code>^7.0.0</code>.</p></div>
-      <div class="step" data-step="3"><h3>The apps, and lock step</h3><p><code>agent</code> is the headless command executor; <code>cli</code>, <code>tui</code> and a new <code>mcp</code> server are three transports over it. The binary moves out of the library, which is the one breaking change and the reason this is v7.0.0. Watch the version badges: they move together, always.</p><div class="controls"><button class="btn" data-closure="git-cas">What a library consumer installs</button><button class="btn" data-closure="git-cas-cli">What an operator installs</button><button class="btn" data-closure="">Clear</button></div></div>
-    </div>
-    <div class="stage"><figure><div class="board" id="b-dag"><div class="tooltip" id="dagTip" role="status"></div></div><figcaption id="cap-dag"><b>Figure 14.</b> Package dependency graph. Edges point at what a package depends on; grey nodes are private.</figcaption></figure></div>
+  <div class="copy">
+    <div class="step" data-step="0"><h3>Layer 0: the core</h3><p><code>git-cas-core</code> is Chapters 4 through 9: chunking, manifests, strategies, encryption, the ports, and the adapters for Git, crypto and codecs. It depends on <code>@git-stunts/plumbing</code> and nothing from the rest of the workspace.</p></div>
+    <div class="step" data-step="1"><h3>Layers 1 to 3: the lifecycles</h3><p>Chapters 10 and 11 become packages: <code>vault</code> and <code>rootsets</code> directly on core; <code>bundles</code> on rootsets; <code>cache</code>, <code>expire</code> and <code>workspaces</code> on bundles; <code>doctor</code> on all of them. The graph is a DAG, and pnpm's isolated <code>node_modules</code> turns any undeclared edge into a runtime error.</p></div>
+    <div class="step" data-step="2"><h3>Layer 4: the umbrella</h3><p><code>@git-stunts/git-cas</code> shrinks to a composition root and a re-export list, about 400 lines. Its three entrypoints are unchanged. git-warp imports it in 105 places and needs no edit beyond <code>^7.0.0</code>.</p></div>
+    <div class="step" data-step="3"><h3>The apps, and lock step</h3><p><code>agent</code> is the headless command executor; <code>cli</code>, <code>tui</code> and a new <code>mcp</code> server are three transports over it. The binary moves out of the library, which is the one breaking change and the reason this is v7.0.0. Watch the version badges: they move together, always.</p><div class="controls"><button class="btn" data-closure="git-cas">What a library consumer installs</button><button class="btn" data-closure="git-cas-cli">What an operator installs</button><button class="btn" data-closure="">Clear</button></div></div>
   </div>
 </section>
 
@@ -562,16 +483,60 @@ $ pnpm add -g @git-stunts/git-cas-cli@7.0.0   <span class="ok">git-cas vault das
   <p>Written for the <code>git-cas</code> design cycle INFRA-0062, 2026-10-02. The full design doc lives in the repository at <code>docs/design/0062-monorepo-workspace/monorepo-workspace.md</code>. Repository: <a href="https://github.com/git-stunts/git-cas">github.com/git-stunts/git-cas</a>.</p>
   <div class="evidence">
     <span>base commit c02c87ee · 180 source files · 26,479 lines + 12,329 in bin/ · 2,194 unit tests in 13.3 s · 0 lint errors</span>
-    <span>palettes audited at WCAG AA with contrast-audit.mjs · hues from docs/git-cas-*-loop.svg · d3 7.9.0 · GSAP 3.13.0</span>
+    <span>palettes audited at WCAG AA with contrast-audit.mjs · hues from docs/git-cas-*-loop.svg · d3 7.9.0 · GSAP 3.13.0 · WebGPU where available</span>
   </div>
 </footer>
 </div></div>
 
+<!-- layer 3: scene objects in front of the text -->
+<svg id="stageFront" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"></svg>
+
+<!-- layer 4: HUD -->
+<div id="hud">
+  <div class="hud-readout" id="hudReadout" aria-live="polite"></div>
+  <div class="hud-gpu" id="gpuChunkReadout"></div>
+  <div class="hud-caption" id="hudCaption" aria-live="polite"></div>
+  <div class="hud-pane" data-for="hash">
+    <div class="hash-lab">
+      <label class="eyebrow" for="hashInput">input bytes (utf-8)</label>
+      <textarea id="hashInput" spellcheck="false">hero.psd, export 14: tweaked the sky gradient</textarea>
+      <div class="hash-out" id="hashGrid" aria-hidden="true"></div>
+      <p class="hash-hex" id="hashHex">computing…</p>
+      <p class="muted" id="hashNote" style="font-size: var(--step--1)"></p>
+    </div>
+  </div>
+  <div class="hud-pane" data-for="manifest" id="paneManifest">
+    <pre class="code-block" id="manifestCode"><code>{
+  <span data-hl="1">"formatVersion": "6.5.10",</span>
+  "size": 12582912,
+  <span data-hl="1">"digest": "9f2c6b0e1a7d44c3…8e51",</span>
+  <span data-hl="0">"chunking": { "strategy": "cdc",
+                "params": { "target": 262144, "min": 65536,
+                            "max": 1048576, "normalized": true } },</span>
+  <span data-hl="0">"chunks": [
+    { "index": 0, "size": 261902,
+      "digest": "a7d3…", "blob": "4e1fb0…" },
+    { "index": 1, "size": 258114,
+      "digest": "0c91…", "blob": "9ab27c…" },
+    <span class="cm">… 46 more entries …</span>
+  ],</span>
+  <span data-hl="2">"subManifests": [ { "oid": "77c0e1…" }, { "oid": "d2a9f4…" } ]</span>  <span class="cm">// only above 1,000 chunks</span>
+  "encryption": null
+}</code></pre>
+  </div>
+  <div class="tooltip" id="dagTip" role="status"></div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollSmoother.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/SplitText.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/DrawSVGPlugin.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/MotionPathPlugin.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrambleTextPlugin.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="diagrams.js"></script>
 <script src="main.js"></script>
+<script src="vault.js"></script>
 </body>
 </html>
