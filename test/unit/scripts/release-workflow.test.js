@@ -65,3 +65,16 @@ describe('release test isolation', () => {
     expect(read('docker-compose.yml')).not.toMatch(/^\s+volumes:/mu);
   });
 });
+
+
+describe('platform test isolation', () => {
+  it('dispatches platform checks directly to copied containers without a host test runner', () => {
+    const command = JSON.parse(read('package.json')).scripts['test:platforms'];
+    expect(command).not.toMatch(/\bbats\b/u);
+    const commands = command.split(' && ');
+    expect(commands).toHaveLength(3);
+    for (const runtime of ['node', 'bun', 'deno']) {
+      expect(commands).toContain(`docker compose run --build --rm test-${runtime}`);
+    }
+  });
+});

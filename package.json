@@ -96,7 +96,7 @@
     "test:integration:node": "docker compose run --build --rm test-node npx vitest run test/integration --no-file-parallelism",
     "test:integration:bun": "docker compose run --build --rm test-bun bunx vitest run test/integration --no-file-parallelism",
     "test:integration:deno": "docker compose run --build --rm test-deno deno run -A npm:vitest run test/integration --no-file-parallelism",
-    "test:platforms": "bats --jobs 3 test/platform/runtimes.bats",
+    "test:platforms": "docker compose run --build --rm test-node && docker compose run --build --rm test-bun && docker compose run --build --rm test-deno",
     "benchmark": "docker compose run --build --rm test-node pnpm vitest bench test/benchmark",
     "benchmark:local": "vitest bench test/benchmark",
     "release:verify": "node scripts/release/verify.js",
