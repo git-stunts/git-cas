@@ -725,3 +725,7 @@ The manifest blob was corrupted or tampered with after storage. The original dat
 ### Constructor throws "chunker is required"
 
 You're using `CasService` directly. Either switch to the `ContentAddressableStore` facade (recommended) or inject a `chunker` and `compressionAdapter` manually. See [API Changes](#casservice-constructor-library-users).
+
+## v6.5.10 To v6.5.11
+
+Update the package normally. The Plumbing minimum becomes 3.3.2 to recover closed mktree transports with the existing one-retry bound. No stored-data or application migration is required; unrelated and producer errors remain unchanged.

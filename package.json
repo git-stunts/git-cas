@@ -1,6 +1,6 @@
 {
   "name": "@git-stunts/git-cas",
-  "version": "6.5.10",
+  "version": "6.5.11",
   "description": "Content-addressed storage backed by Git's object database, with optional encryption and pluggable codecs",
   "type": "module",
   "main": "index.js",
@@ -55,7 +55,8 @@
     "test/CONVENTIONS.md",
     "test/cycles/README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "docs/releases/v6.5.11.md"
   ],
   "engines": {
     "node": ">=22.0.0"
