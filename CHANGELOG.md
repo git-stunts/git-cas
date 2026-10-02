@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Require published Plumbing 3.3.2 so stale mktree transports after external Git GC enter the existing single fresh-process retry for single and batch tree writes. Producer and unrelated transport errors retain their identity; retry remains bounded at two attempts.
+
 - CI and release Node unit checks and examples run through COPY-based Docker. Tests and benchmarks refuse host execution before loading test modules, including forged Docker and CI environment flags.
 
 ## [6.5.10] — 2026-08-24

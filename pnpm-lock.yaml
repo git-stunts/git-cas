@@ -24,8 +24,8 @@ importers:
         specifier: ^0.10.0
         version: 0.10.0
       '@git-stunts/plumbing':
-        specifier: ^3.3.0
-        version: 3.3.0
+        specifier: ^3.3.2
+        version: 3.3.2
       '@git-stunts/vault':
         specifier: ^1.0.1
         version: 1.0.1
@@ -303,8 +303,8 @@ packages:
   '@git-stunts/docker-guard@0.1.0':
     resolution: {integrity: sha512-9h2kzMlidbWeoj62VybBzwEMeMySqN/p3vP03rg5enklElkde68KhwfHB3pfaSR/Cx50tnUT27Vfcb7RMcdZkA==}
 
-  '@git-stunts/plumbing@3.3.0':
-    resolution: {integrity: sha512-v/AT3hKgmFKSQ3M+n7n9VgC5Ri7C+NDtZS11Bj1JmT0Xv523hNdjCIaRHSXjAaCpiuXuDKFlj+E8PcBI1+FxbA==}
+  '@git-stunts/plumbing@3.3.2':
+    resolution: {integrity: sha512-yGhABF9e+o+Gc2b8L8LkXJgE0ACrJI0MbytxRyhZcHKLJfZFv9LAs8RNxv4KtIXLxQHj2StlW7T14wDk0bXWPw==}
     engines: {bun: '>=1.3.5', deno: '>=2.0.0', node: '>=20.0.0'}
 
   '@git-stunts/vault@1.0.1':
@@ -1170,7 +1170,7 @@ snapshots:
 
   '@git-stunts/docker-guard@0.1.0': {}
 
-  '@git-stunts/plumbing@3.3.0':
+  '@git-stunts/plumbing@3.3.2':
     dependencies:
       zod: 3.25.76
 
