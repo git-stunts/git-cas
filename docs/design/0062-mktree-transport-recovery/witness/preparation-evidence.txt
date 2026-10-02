@@ -1,0 +1,55 @@
+Release isolation RED
+ FAIL |unit|  test/unit/scripts/release-verify.test.js > release verify step definitions > executes maintained examples as release-gate steps
+AssertionError: expected false to be true // Object.is equality
+ FAIL |unit|  test/unit/scripts/release-verify.test.js > release verification isolation > runs the Node unit gate in a copied Docker image
+AssertionError: expected { id: 'unit-node', …(4) } to match object { command: 'docker' }
+ FAIL |unit|  test/unit/scripts/release-workflow.test.js > release test isolation > runs the Node unit gate through COPY-based Docker in CI and publication
+AssertionError: expected 'name: CI\n\non:\n  push:\n    branche…' not to match /^\s+- run: pnpm test$/mu
+ Test Files  2 failed (2)
+      Tests  3 failed | 17 passed (20)
+   Start at  10:27:23
+   Duration  235ms (transform 52ms, setup 0ms, collect 88ms, tests 20ms, environment 0ms, prepare 80ms)
+
+Recovery RED against locked Plumbing 3.3.0
+ FAIL |unit|  test/unit/infrastructure/adapters/GitPersistenceAdapter.mktree-recovery.test.js > mktree transport recovery > reopens the process once for a broken pipe writing one tree
+ FAIL |unit|  test/unit/infrastructure/adapters/GitPersistenceAdapter.mktree-recovery.test.js > mktree transport recovery > reopens the process once for a broken pipe writing tree batch
+ FAIL |unit|  test/unit/infrastructure/adapters/GitPersistenceAdapter.mktree-recovery.test.js > mktree transport recovery > also recovers when process completion wins the race with the next write
+AssertionError: promise rejected "GitPlumbingError: input closed { …(2) }" instead of resolving
+ FAIL |unit|  test/unit/infrastructure/adapters/GitPersistenceAdapter.mktree-recovery.test.js > mktree transport recovery > reports a typed failure after two broken processes, without an unbounded retry
+AssertionError: expected Error: broken pipe { code: 'EPIPE' } to be an instance of GitProtocolError
+ Test Files  1 failed (1)
+      Tests  4 failed | 2 passed (6)
+   Start at  10:26:44
+   Duration  420ms (transform 171ms, setup 0ms, collect 299ms, tests 7ms, environment 0ms, prepare 35ms)
+
+Recovery GREEN against packed 3.3.2 candidate
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  10:34:34
+   Duration  450ms (transform 185ms, setup 6ms, collect 317ms, tests 7ms, environment 0ms, prepare 36ms)
+
+Node preparation unit and lint
+ Test Files  233 passed | 1 skipped (234)
+      Tests  2197 passed | 3 skipped (2200)
+   Start at  10:31:15
+   Duration  6.35s (transform 3.39s, setup 2.36s, collect 25.61s, tests 21.50s, environment 20ms, prepare 8.07s)
+> @git-stunts/git-cas@6.5.10 lint <container-workspace>
+> eslint .
+
+Bun preparation unit
+ Test Files  233 passed | 1 skipped (234)
+      Tests  2197 passed | 3 skipped (2200)
+   Start at  10:34:05
+   Duration  37.11s (transform 625ms, setup 476ms, collect 4.88s, tests 16.66s, environment 14ms, prepare 4.46s)
+
+Deno preparation unit
+ Test Files  233 passed | 1 skipped (234)
+      Tests  2188 passed | 12 skipped (2200)
+   Start at  10:34:43
+   Duration  4.77s (transform 1.98s, setup 3.66s, collect 35.97s, tests 18.37s, environment 23ms, prepare 5.01s)
+
+Node candidate integration
+ Test Files  14 passed (14)
+      Tests  207 passed (207)
+   Start at  10:35:10
+   Duration  22.71s (transform 233ms, setup 32ms, collect 1.35s, tests 20.38s, environment 1ms, prepare 277ms)
