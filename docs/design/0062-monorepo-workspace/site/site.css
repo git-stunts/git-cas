@@ -83,13 +83,14 @@ html.has-gpu #vault { display: block; }
 .dag-node:hover rect { stroke: var(--accent); }
 
 /* ---- HUD ---------------------------------------------------------- */
-.hud-caption { position: absolute; right: var(--gutter); bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px)); max-width: 30rem; padding: var(--space-3) var(--space-4); border-radius: var(--radius-2); background: color-mix(in oklab, var(--surface) 70%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--line); font-size: var(--step--1); color: var(--ink-muted); line-height: 1.5; opacity: 0; }
+.hud-caption { position: absolute; right: var(--gutter); bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px)); max-width: 30rem; text-align: right; font-size: var(--step--1); color: var(--ink-muted); line-height: 1.5; opacity: 0; text-shadow: 0 1px 2px var(--surface), 0 0 14px var(--surface); }
 .hud-caption b { color: var(--ink); font-weight: 600; }
 .hud-readout { position: absolute; right: var(--gutter); top: calc(4.2rem + env(safe-area-inset-top, 0px)); display: grid; gap: 2px; text-align: right; font-family: var(--font-mono); font-size: var(--step--1); color: var(--ink-muted); opacity: 0; }
 .hud-readout b { color: var(--ink); font-weight: 600; }
 .hud-gpu { position: absolute; right: var(--gutter); bottom: calc(8rem + env(safe-area-inset-bottom, 0px)); display: grid; gap: 2px; text-align: right; font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-text); }
 .hud-gpu:empty, #hud:not([data-scene="chunk"]) .hud-gpu { display: none; }
-.hud-pane { position: absolute; right: var(--gutter); top: 50%; transform: translateY(-50%); width: min(34rem, calc(100vw - 2 * var(--gutter))); padding: var(--space-5); border-radius: var(--radius-3); background: color-mix(in oklab, var(--surface) 74%, transparent); backdrop-filter: blur(16px) saturate(1.1); -webkit-backdrop-filter: blur(16px) saturate(1.1); border: 1px solid var(--line); box-shadow: var(--shadow); opacity: 0; pointer-events: none; }
+.hud-pane { position: absolute; right: var(--gutter); top: 50%; transform: translateY(-50%); width: min(34rem, calc(100vw - 2 * var(--gutter))); opacity: 0; pointer-events: none; text-shadow: 0 1px 2px var(--surface), 0 0 14px var(--surface); }
+.hud-pane .code-block { background: none; border: 0; padding: 0; }
 .tooltip { position: fixed; z-index: 5; pointer-events: none; max-width: 18rem; padding: var(--space-3) var(--space-4); border-radius: var(--radius-2); background: var(--surface-overlay); border: 1px solid var(--line-strong); font-size: var(--step--1); line-height: 1.45; box-shadow: var(--shadow); opacity: 0; transition: opacity 120ms; }
 .tooltip.is-visible { opacity: 1; }
 .tooltip b { display: block; font-family: var(--font-mono); margin-bottom: 2px; }
@@ -150,13 +151,16 @@ html.has-gpu .hero-art { visibility: hidden; }
 .chapter-head .lede { font-size: var(--step-1); line-height: 1.45; color: var(--ink-muted); }
 .chapter-head .lede strong { color: var(--ink); font-weight: 600; }
 .chapter-num { font-family: var(--font-display); font-variation-settings: "opsz" 144, "WONK" 1; font-size: var(--step-5); color: var(--line-strong); line-height: 1; position: absolute; right: 0; top: var(--space-6); user-select: none; opacity: 0.7; }
-.copy { position: relative; display: grid; gap: 38vh; padding-block: 6vh 42vh; max-width: 34rem; }
-.step { padding: var(--space-5) var(--space-6); border-radius: var(--radius-3); background: color-mix(in oklab, var(--surface) 68%, transparent); backdrop-filter: blur(14px) saturate(1.1); -webkit-backdrop-filter: blur(14px) saturate(1.1); border: 1px solid var(--line); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out), border-color 400ms; opacity: 0.38; transform: translateY(8px) scale(0.985); transform-origin: left center; }
-.step.is-active { opacity: 1; transform: none; border-color: color-mix(in oklab, var(--accent) 55%, transparent); }
-.step h3 { margin-bottom: var(--space-3); }
+.copy { position: relative; display: grid; gap: 38vh; padding-block: 6vh 42vh; max-width: 42rem; }
+/* No card. Text reads over the scene through a soft halo in the surface color. */
+.step { transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); opacity: 0.3; transform: translateY(8px); text-shadow: 0 1px 2px var(--surface), 0 0 14px var(--surface), 0 0 28px var(--surface); }
+.step.is-active { opacity: 1; transform: none; }
+.step h3 { margin-bottom: var(--space-3); font-size: var(--step-2); }
+.step p { font-size: var(--step-0); max-width: 58ch; }
+.chapter-head { text-shadow: 0 1px 2px var(--surface), 0 0 14px var(--surface), 0 0 28px var(--surface); }
 .step p + p { margin-top: var(--space-3); }
 .step .controls { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); align-items: center; }
-.callout { border-left: 3px solid var(--accent); padding: var(--space-3) var(--space-5); background: var(--accent-soft); border-radius: 0 var(--radius-2) var(--radius-2) 0; margin-top: var(--space-5); }
+.callout { border-left: 3px solid var(--accent); padding: var(--space-2) var(--space-5); margin-top: var(--space-5); }
 .callout .eyebrow { display: block; margin-bottom: var(--space-1); }
 .range { width: 100%; accent-color: var(--accent); }
 
