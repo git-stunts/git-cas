@@ -8,7 +8,7 @@ issue: "https://github.com/git-stunts/git-cas/issues/131"
 goalpost_issue: "none"
 tracker_source: "github"
 status: "active"
-base_commit: "c02c87e"
+base_commit: "c02c87ee0d7a72b0371762e5239223adb3ac4781"
 owners: ["@git-stunts"]
 sponsors:
   human: "James"

@@ -42,6 +42,9 @@ importers:
       '@eslint/js':
         specifier: ^9.17.0
         version: 9.39.2
+      '@git-stunts/docker-guard':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@types/node':
         specifier: ^25.3.2
         version: 25.3.2
@@ -296,6 +299,9 @@ packages:
   '@git-stunts/alfred@0.10.0':
     resolution: {integrity: sha512-0DPhJdKhYTcsPuoOnYIIyvlwaIM7yIx4fQM4Q48abe/VDLTfZef1ubeT1pYio+ZTp1lKXtSG663973ewBbi/yw==}
     engines: {node: '>=20.0.0'}
+
+  '@git-stunts/docker-guard@0.1.0':
+    resolution: {integrity: sha512-9h2kzMlidbWeoj62VybBzwEMeMySqN/p3vP03rg5enklElkde68KhwfHB3pfaSR/Cx50tnUT27Vfcb7RMcdZkA==}
 
   '@git-stunts/plumbing@3.3.0':
     resolution: {integrity: sha512-v/AT3hKgmFKSQ3M+n7n9VgC5Ri7C+NDtZS11Bj1JmT0Xv523hNdjCIaRHSXjAaCpiuXuDKFlj+E8PcBI1+FxbA==}
@@ -626,6 +632,7 @@ packages:
   eslint@9.39.2:
     resolution: {integrity: sha512-LEyamqS7W5HB3ujJyvi0HQK/dtVINZvd5mAAp9eT5S/ujByGjiZLCzPcHVzuXbpJDJF/cxwHlfceVUDZ2lnSTw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -1160,6 +1167,8 @@ snapshots:
   '@flyingrobots/bijou@7.2.0': {}
 
   '@git-stunts/alfred@0.10.0': {}
+
+  '@git-stunts/docker-guard@0.1.0': {}
 
   '@git-stunts/plumbing@3.3.0':
     dependencies:

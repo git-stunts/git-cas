@@ -11,6 +11,8 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Active METHOD Cycles
 
+- [0062-mktree-transport-recovery - mktree-transport-recovery](./0062-mktree-transport-recovery/mktree-transport-recovery.md)
+
 - [0054-batched-page-retention - batched-page-retention](./0054-batched-page-retention/batched-page-retention.md)
 - [0050-lazy-bundle-reference-reads - lazy-bundle-reference-reads](./0050-lazy-bundle-reference-reads/lazy-bundle-reference-reads.md)
 - [0049-scoped-staging-workspaces — scoped-staging-workspaces](./0049-scoped-staging-workspaces/scoped-staging-workspaces.md)

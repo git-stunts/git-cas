@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- CI and release Node unit checks and examples run through COPY-based Docker. Tests and benchmarks refuse host execution before loading test modules, including forged Docker and CI environment flags.
+
 ## [6.5.10] — 2026-08-24
 
 ### Added

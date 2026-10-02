@@ -86,17 +86,17 @@
     "provenance": true
   },
   "scripts": {
-    "test": "vitest run test/unit",
+    "test": "docker compose run --build --rm test-node",
     "test:local": "vitest run test/unit",
     "test:node": "docker compose run --build --rm test-node",
     "test:bun": "docker compose run --build --rm test-bun",
     "test:deno": "docker compose run --build --rm test-deno",
-    "test:integration": "vitest run test/integration --no-file-parallelism",
+    "test:integration": "docker compose run --build --rm test-node pnpm vitest run test/integration --no-file-parallelism",
     "test:integration:node": "docker compose run --build --rm test-node npx vitest run test/integration --no-file-parallelism",
     "test:integration:bun": "docker compose run --build --rm test-bun bunx vitest run test/integration --no-file-parallelism",
     "test:integration:deno": "docker compose run --build --rm test-deno deno run -A npm:vitest run test/integration --no-file-parallelism",
     "test:platforms": "bats --jobs 3 test/platform/runtimes.bats",
-    "benchmark": "vitest bench test/benchmark",
+    "benchmark": "docker compose run --build --rm test-node pnpm vitest bench test/benchmark",
     "benchmark:local": "vitest bench test/benchmark",
     "release:verify": "node scripts/release/verify.js",
     "stamp": "node scripts/stamp-build.js",
@@ -131,6 +131,7 @@
     "fast-check": "^4.6.0",
     "jsr": "^0.14.2",
     "prettier": "^3.4.2",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "@git-stunts/docker-guard": "^0.1.0"
   }
 }
