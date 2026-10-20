@@ -33,6 +33,19 @@ function mockPersistence(overrides = {}) {
   };
 }
 
+function blobInfos(oids, treeOid = null) {
+  return oids.map((oid) => ({ oid, type: oid === treeOid ? 'tree' : 'blob', size: 1 }));
+}
+
+function blobEntries(count) {
+  return Array.from({ length: count }, (_, index) => ({
+    name: `target-${String(index).padStart(5, '0')}`,
+    oid: index.toString(16).padStart(40, '0'),
+    type: 'blob',
+    retention: 'pinned',
+  }));
+}
+
 function mockRef(overrides = {}) {
   return {
     resolveRef: vi.fn(),
@@ -186,6 +199,46 @@ describe('RootSetPersistence target metadata batches', () => {
       TREE_ENTRY.oid,
     ]);
     expect(persistence.readObjectType).not.toHaveBeenCalled();
+  });
+
+});
+
+describe('RootSetPersistence bounded target admission', () => {
+  it('validates large target sets through bounded admission windows', async () => {
+    const entries = blobEntries(2500);
+    const persistence = mockPersistence({
+      readObjectInfos: vi.fn(async (oids) => blobInfos(oids)),
+      writeBlob: vi.fn().mockResolvedValue('c'.repeat(40)),
+      writeTree: vi.fn().mockResolvedValue('d'.repeat(40)),
+    });
+    const ref = mockRef({
+      createCommit: vi.fn().mockResolvedValue('e'.repeat(40)),
+      updateRef: vi.fn().mockResolvedValue(undefined),
+    });
+    const rootSet = new RootSetPersistence({ rootSetRef: REF, persistence, ref });
+
+    await rootSet.write({ entries, expectedHeadOid: null });
+
+    const windows = persistence.readObjectInfos.mock.calls.map(([oids]) => oids);
+    expect(windows.map((oids) => oids.length)).toEqual([1000, 1000, 500]);
+    expect(windows.flat()).toEqual(entries.map((entry) => entry.oid));
+  });
+
+  it('publishes nothing when a later admission window reports a mismatch', async () => {
+    const entries = blobEntries(1500);
+    const mismatched = entries[1200].oid;
+    const persistence = mockPersistence({
+      readObjectInfos: vi.fn(async (oids) => blobInfos(oids, mismatched)),
+    });
+    const ref = mockRef();
+    const rootSet = new RootSetPersistence({ rootSetRef: REF, persistence, ref });
+
+    await expect(rootSet.write({ entries, expectedHeadOid: null })).rejects.toMatchObject({
+      code: ErrorCodes.ROOT_SET_TARGET_TYPE_MISMATCH,
+      meta: expect.objectContaining({ oid: mismatched }),
+    });
+    expect(persistence.writeBlob).not.toHaveBeenCalled();
+    expect(ref.createCommit).not.toHaveBeenCalled();
   });
 });
 
