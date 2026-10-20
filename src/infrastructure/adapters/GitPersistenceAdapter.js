@@ -8,6 +8,7 @@ import { CasError, createCasError, ErrorCodes } from '../../domain/errors/index.
 import BoundedPromiseCache from '../../helpers/boundedPromiseCache.js';
 import GitTreeObjectCodec from '../codecs/GitTreeObjectCodec.js';
 import GitObjectSessionPool from './GitObjectSessionPool.js';
+import { metadataRequestWindows } from './GitMetadataRequestWindows.js';
 import GitPersistenceWriteScope from './GitPersistenceWriteScope.js';
 
 /**
@@ -31,6 +32,7 @@ const MIN_METADATA_CACHE_ENTRIES = 1;
 const MAX_BLOB_SIZE_LIMIT = Number.MAX_SAFE_INTEGER;
 const OBJECT_INFO_ARGUMENT = '--batch-check=%(objectname) %(objecttype) %(objectsize)';
 const GIT_OBJECT_TYPES = new Set(['blob', 'tree', 'commit', 'tag']);
+const SETTLED = () => undefined;
 
 /**
  * {@link GitPersistencePort} implementation backed by `@git-stunts/plumbing`.
@@ -475,18 +477,24 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
     });
   }
 
+  /**
+   * Caches uncached metadata as bounded request windows. Windows run one at a
+   * time so a large target set never holds more than one backend request; a
+   * failed window rejects only its own targets.
+   */
   #cacheObjectInfoBatch(objectNames) {
     const byOid = new Map();
-    if (objectNames.length === 0) {
-      return byOid;
-    }
-    const batch = this.#readObjectInfosUncached(objectNames);
-    for (let index = 0; index < objectNames.length; index += 1) {
-      const oid = objectNames[index];
-      byOid.set(
-        oid,
-        this.#metadataCache.getOrCreate(`object\0${oid}`, async () => (await batch)[index])
-      );
+    let previous = Promise.resolve();
+    for (const window of metadataRequestWindows(objectNames)) {
+      const batch = previous.then(() => this.#readObjectInfosUncached(window));
+      previous = batch.then(SETTLED, SETTLED);
+      for (let index = 0; index < window.length; index += 1) {
+        const oid = window[index];
+        byOid.set(
+          oid,
+          this.#metadataCache.getOrCreate(`object\0${oid}`, async () => (await batch)[index])
+        );
+      }
     }
     return byOid;
   }

@@ -13,6 +13,8 @@ const UPDATE_REF_CONFLICT_MARKERS = Object.freeze({
 });
 const GIT_REPOSITORY_LOCKED = 'GIT_REPOSITORY_LOCKED';
 const GIT_FATAL_EXIT_CODE = 128;
+/** Targets validated per metadata request; bounds buffered admission evidence. */
+const TARGET_ADMISSION_WINDOW = 1000;
 
 function hasExactUpdateRefArgs(err, {
   rootSetRef,
@@ -395,7 +397,19 @@ export default class RootSetPersistence {
     }
   }
 
+  /**
+   * Validates targets in bounded admission windows, in entry order, before
+   * any root-set object is written. Only one window of metadata is buffered
+   * at a time; a window that reports a missing object is re-inspected per
+   * target so the first failing entry is named exactly.
+   */
   async #assertTargets(entries) {
+    for (let start = 0; start < entries.length; start += TARGET_ADMISSION_WINDOW) {
+      await this.#assertTargetWindow(entries.slice(start, start + TARGET_ADMISSION_WINDOW));
+    }
+  }
+
+  async #assertTargetWindow(entries) {
     if (typeof this.persistence.readObjectInfos === 'function') {
       try {
         const infos = await this.persistence.readObjectInfos(entries.map((entry) => entry.oid));
