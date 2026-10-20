@@ -23,7 +23,9 @@ if (process.env.GIT_STUNTS_DOCKER !== '1') {
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const ROOT_SET_REF = 'refs/cas/rootsets/integration/metadata-windows';
+const HASH_CHUNK = 500;
 const scratchDirs = [];
+const openStores = [];
 
 function gitAt(cwd, args, input) {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8', input });
@@ -50,7 +52,13 @@ function writeBlobs(repo, count) {
     writeFileSync(payloadPath, `retained payload ${index}\n`);
     paths.push(payloadPath);
   }
-  return gitAt(repo, ['hash-object', '-w', '--stdin-paths'], `${paths.join('\n')}\n`).split('\n');
+  const oids = [];
+  // Small chunks keep each synchronous child's stdout below Deno's spawnSync limits.
+  for (let start = 0; start < paths.length; start += HASH_CHUNK) {
+    const chunk = paths.slice(start, start + HASH_CHUNK);
+    oids.push(...gitAt(repo, ['hash-object', '-w', '--stdin-paths'], `${chunk.join('\n')}\n`).split('\n'));
+  }
+  return oids;
 }
 
 async function openRootSet(objectFormat) {
@@ -58,6 +66,7 @@ async function openRootSet(objectFormat) {
   gitAt(repo, ['init', '--bare', `--object-format=${objectFormat}`]);
   const plumbing = await createGitPlumbing({ cwd: repo });
   const cas = new ContentAddressableStore({ plumbing });
+  openStores.push(cas);
   return { repo, rootSet: await cas.rootSets.open({ ref: ROOT_SET_REF }) };
 }
 
@@ -70,7 +79,10 @@ function entriesFor(oids) {
   }));
 }
 
-afterEach(() => {
+afterEach(async () => {
+  for (const cas of openStores.splice(0)) {
+    await cas.close();
+  }
   for (const dir of scratchDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
