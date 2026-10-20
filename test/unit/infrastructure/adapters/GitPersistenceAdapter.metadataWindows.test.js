@@ -165,6 +165,20 @@ describe('GitPersistenceAdapter metadata window failures and fallback', () => {
     expect(windows).toEqual([[missingOid]]);
   });
 
+  it('settles every window inside the operation when an early window fails', async () => {
+    const requested = oids(2500);
+    const { session, windows } = boundedCatSession({ missing: new Set([requested[10]]) });
+    const adapter = adapterFor(session);
+
+    await expect(adapter.readObjectInfos(requested)).rejects.toMatchObject({
+      code: 'GIT_OBJECT_NOT_FOUND',
+    });
+
+    expect(windows.map((window) => window.length)).toEqual([1000, 1000, 500]);
+    await adapter.close();
+    expect(session.infoMany).toHaveBeenCalledTimes(3);
+  });
+
   it('bounds the command fallback input when no cat-file session exists', async () => {
     const inputs = [];
     const plumbing = {

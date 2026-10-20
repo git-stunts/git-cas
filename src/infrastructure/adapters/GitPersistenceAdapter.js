@@ -469,18 +469,22 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
           missing.push(oid);
         }
       }
-      const byOid = this.#cacheObjectInfoBatch(missing);
+      const { byOid, settled } = this.#cacheObjectInfoBatch(missing);
       for (let index = 0; index < objectNames.length; index += 1) {
         pending[index] ??= byOid.get(objectNames[index]);
       }
-      return await Promise.all(pending);
+      const results = Promise.all(pending);
+      results.catch(SETTLED);
+      await settled;
+      return await results;
     });
   }
 
   /**
    * Caches uncached metadata as bounded request windows. Windows run one at a
    * time so a large target set never holds more than one backend request; a
-   * failed window rejects only its own targets.
+   * failed window rejects only its own targets. `settled` resolves once every
+   * window has finished, so no request outlives the owning operation.
    */
   #cacheObjectInfoBatch(objectNames) {
     const byOid = new Map();
@@ -496,7 +500,7 @@ export default class GitPersistenceAdapter extends GitPersistencePort {
         );
       }
     }
-    return byOid;
+    return { byOid, settled: previous };
   }
 
   async #readObjectInfosUncached(objectNames) {
