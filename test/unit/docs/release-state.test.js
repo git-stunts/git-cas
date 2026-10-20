@@ -45,6 +45,17 @@ const v650PublicationPath =
 const v640PublicationPath =
   'docs/design/0049-scoped-staging-workspaces/witness/release-publication.md';
 
+function compareVersions(left, right) {
+  const leftParts = left.split('.').map(Number);
+  const rightParts = right.split('.').map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    if (leftParts[index] !== rightParts[index]) {
+      return leftParts[index] - rightParts[index];
+    }
+  }
+  return 0;
+}
+
 function read(relPath) {
   return readFileSync(path.join(repoRoot, relPath), 'utf8');
 }
@@ -855,8 +866,9 @@ describe('current publication identity', () => {
     expect(status).toContain(`**Last tagged release:** \`${receipt.tag}\``);
     const packageVersion = JSON.parse(read('package.json')).version;
     if (receipt.version !== packageVersion) {
-      // A release candidate may advance package metadata before publication;
-      // its notes must then disclaim any published artifact.
+      // A release candidate may advance package metadata past the latest
+      // publication; its notes must then disclaim any published artifact.
+      expect(compareVersions(receipt.version, packageVersion)).toBeLessThan(0);
       expect(read(`docs/releases/v${packageVersion}.md`)).toContain(
         `claims no published ${packageVersion} artifact`,
       );

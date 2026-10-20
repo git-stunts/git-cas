@@ -18,6 +18,30 @@ function infoFor(oid) {
   return { oid, type: 'blob', size: oid.length };
 }
 
+function deferred() {
+  let resolve;
+  const promise = new Promise((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+  return { promise, resolve };
+}
+
+/** Observes a promise's state without consuming its rejection. */
+function settlement(promise) {
+  const observed = { state: 'pending', promise };
+  promise.then(
+    () => { observed.state = 'fulfilled'; },
+    () => { observed.state = 'rejected'; },
+  );
+  return observed;
+}
+
+async function flushMicrotasks() {
+  for (let turn = 0; turn < 20; turn += 1) {
+    await Promise.resolve();
+  }
+}
+
 function infosFor(objectNames) {
   return objectNames.map(infoFor);
 }
@@ -168,18 +192,31 @@ describe('GitPersistenceAdapter metadata window failures and fallback', () => {
 });
 
 describe('GitPersistenceAdapter metadata window operation scope', () => {
-  it('settles every window inside the operation when an early window fails', async () => {
+  it('keeps the operation and close() pending until the final window settles', async () => {
     const requested = oids(2500);
     const { session, windows } = boundedCatSession({ missing: new Set([requested[10]]) });
+    const finalWindow = deferred();
+    const answer = session.infoMany.getMockImplementation();
+    session.infoMany.mockImplementation(async (objectNames) => {
+      const infos = await answer(objectNames);
+      if (windows.length === 3) {
+        await finalWindow.promise;
+      }
+      return infos;
+    });
     const adapter = adapterFor(session);
 
-    await expect(adapter.readObjectInfos(requested)).rejects.toMatchObject({
-      code: 'GIT_OBJECT_NOT_FOUND',
-    });
+    const read = settlement(adapter.readObjectInfos(requested));
+    await vi.waitFor(() => expect(windows).toHaveLength(3));
+    const closed = settlement(adapter.close());
+    await flushMicrotasks();
 
+    expect(read.state).toBe('pending');
+    expect(closed.state).toBe('pending');
+    finalWindow.resolve();
+    await expect(read.promise).rejects.toMatchObject({ code: 'GIT_OBJECT_NOT_FOUND' });
+    await expect(closed.promise).resolves.toBeUndefined();
     expect(windows.map((window) => window.length)).toEqual([1000, 1000, 500]);
-    await adapter.close();
-    expect(session.infoMany).toHaveBeenCalledTimes(3);
   });
 
   it('bounds the command fallback input when no cat-file session exists', async () => {
