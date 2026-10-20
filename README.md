@@ -53,9 +53,9 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
 `npm run upgrade` in dry-run mode before restoring old encrypted vault entries.
 For the release overview, see the
-[v6.5.11 Release Notes](./docs/releases/v6.5.11.md).
+[v6.5.12 Release Notes](./docs/releases/v6.5.12.md).
 
-Published v6.5.11 adopts published Plumbing 3.3.2 for bounded recovery from closed mktree transports after external Git GC. It preserves producer error identity and existing object formats; see [v6.5.11 Release Notes](./docs/releases/v6.5.11.md). Publication and independent registry-consumer evidence are recorded in the [release record](https://github.com/git-stunts/git-cas/pull/132).
+The v6.5.12 candidate bounds object-metadata requests so root sets with more than 1000 targets (936 for SHA-256) validate within Plumbing's cat-file request limits. Admission still rejects missing and mismatched targets before publication; see [v6.5.12 Release Notes](./docs/releases/v6.5.12.md). Registry publication is pending release verification and merge.
 
 ### 1. CLI Usage
 

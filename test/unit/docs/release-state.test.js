@@ -853,7 +853,14 @@ describe('current publication identity', () => {
     const status = read('STATUS.md');
     const receipt = JSON.parse(read('docs/design/0062-mktree-transport-recovery/witness/publication.json'));
     expect(status).toContain(`**Last tagged release:** \`${receipt.tag}\``);
-    expect(receipt.version).toBe(JSON.parse(read('package.json')).version);
+    const packageVersion = JSON.parse(read('package.json')).version;
+    if (receipt.version !== packageVersion) {
+      // A release candidate may advance package metadata before publication;
+      // its notes must then disclaim any published artifact.
+      expect(read(`docs/releases/v${packageVersion}.md`)).toContain(
+        `claims no published ${packageVersion} artifact`,
+      );
+    }
     expect(receipt.sourceCommit).toBe('1bcd6311e93ca9782e2f4a25af106af0651813fb');
     expect(receipt.releaseVerification.stagesPassed).toBe(14);
     expect(receipt.publicConsumer.cliVersion).toBe('6.5.11+1bcd631');

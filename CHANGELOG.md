@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.5.12] — 2026-10-20
+
 ### Fixed
 
 - Object-metadata reads split uncached targets into ordered request windows of at most 1000 objects and 64 KiB of encoded cat-file commands, including SHA-256 object names. Root-set admission validates targets in bounded windows before writing. Root sets with more than 1000 targets (or more than 936 SHA-256 targets) no longer fail with `ROOT_SET_TARGET_UNREADABLE` caused by the Plumbing batch limit. Request order, duplicate results, cached entries, and per-target failures are preserved; a missing or mismatched target in any window still blocks publication.

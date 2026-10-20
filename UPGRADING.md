@@ -729,3 +729,7 @@ You're using `CasService` directly. Either switch to the `ContentAddressableStor
 ## v6.5.10 To v6.5.11
 
 Update the package normally. The Plumbing minimum becomes 3.3.2 to recover closed mktree transports with the existing one-retry bound. No stored-data or application migration is required; unrelated and producer errors remain unchanged.
+
+## v6.5.11 To v6.5.12
+
+Update the package normally. Object-metadata reads and root-set admission now run in bounded request windows, so large root sets no longer fail with `ROOT_SET_TARGET_UNREADABLE`. No API, stored-data, or application migration is required; missing and mismatched targets fail exactly as before.
