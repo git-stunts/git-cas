@@ -165,6 +165,9 @@ describe('GitPersistenceAdapter metadata window failures and fallback', () => {
     expect(windows).toEqual([[missingOid]]);
   });
 
+});
+
+describe('GitPersistenceAdapter metadata window operation scope', () => {
   it('settles every window inside the operation when an early window fails', async () => {
     const requested = oids(2500);
     const { session, windows } = boundedCatSession({ missing: new Set([requested[10]]) });
