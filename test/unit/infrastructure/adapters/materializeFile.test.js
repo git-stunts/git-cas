@@ -1,0 +1,135 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { mkdtemp, readFile, readdir, rm, writeFile, mkdir, symlink } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import os from 'node:os';
+import path from 'node:path';
+import { materializeFile } from '@git-stunts/git-cas/files';
+
+let base;
+beforeEach(async () => { base = await mkdtemp(path.join(os.tmpdir(), 'cas-materialize-')); });
+afterEach(async () => { await rm(base, { recursive: true, force: true }); });
+
+async function* source(text = 'complete') { yield Buffer.from(text); }
+const options = (extra = {}) => ({ source: source(), baseDirectory: base, outputPath: 'doc.md', ...extra });
+const read = () => readFile(path.join(base, 'doc.md'), 'utf8');
+const entries = () => readdir(base);
+function gate() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+describe('optional file materialization', () => {
+  it('keeps the destination unchanged until the source finishes', async () => {
+    await writeFile(path.join(base, 'doc.md'), 'original');
+    const entered = gate();
+    const finish = gate();
+    async function* slow() {
+      yield Buffer.from('first');
+      entered.resolve();
+      await finish.promise;
+      yield Buffer.from('last');
+    }
+    const pending = materializeFile(options({ source: slow() }));
+    await entered.promise;
+    expect(await read()).toBe('original');
+    finish.resolve();
+    expect(await pending).toEqual({ bytesWritten: 9 });
+    expect(await read()).toBe('firstlast');
+    expect(await entries()).toEqual(['doc.md']);
+  });
+
+  it.each([false, true])('preserves destination on late source failure, existing=%s', async (existing) => {
+    if (existing) { await writeFile(path.join(base, 'doc.md'), 'original'); }
+    const failure = new Error('late authentication failure');
+    async function* broken() { yield Buffer.from('partial'); throw failure; }
+    await expect(materializeFile(options({ source: broken() }))).rejects.toBe(failure);
+    if (existing) { expect(await read()).toBe('original'); }
+    expect(await entries()).toEqual(existing ? ['doc.md'] : []);
+  });
+
+  it('publishes an empty file', async () => {
+    expect(await materializeFile(options({ source: source('') }))).toEqual({ bytesWritten: 0 });
+    expect(await read()).toBe('');
+  });
+
+  it('optionally verifies the full plaintext SHA-256 before publication', async () => {
+    const expectedSha256 = createHash('sha256').update('complete').digest('hex').toUpperCase();
+    await expect(materializeFile(options({ expectedSha256 }))).resolves.toEqual({ bytesWritten: 8 });
+    expect(await read()).toBe('complete');
+    await expect(materializeFile(options({ expectedSha256: '0'.repeat(64) })))
+      .rejects.toMatchObject({ code: 'INTEGRITY_ERROR' });
+    expect(await read()).toBe('complete');
+    expect(await entries()).toEqual(['doc.md']);
+  });
+
+});
+
+describe('file materialization failure cleanup', () => {
+  it('cleans up after the destination refuses rename', async () => {
+    await mkdir(path.join(base, 'doc.md'));
+    await expect(materializeFile(options())).rejects.toBeDefined();
+    expect(await entries()).toEqual(['doc.md']);
+    expect(await readdir(path.join(base, 'doc.md'))).toEqual([]);
+  });
+
+  it('cleans up and preserves the original after cancellation', async () => {
+    const controller = new globalThis.AbortController();
+    const entered = gate();
+    const finish = gate();
+    await writeFile(path.join(base, 'doc.md'), 'original');
+    async function* slow() {
+      yield Buffer.from('partial');
+      entered.resolve();
+      await finish.promise;
+    }
+    const pending = materializeFile(options({ source: slow(), signal: controller.signal }));
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    await entered.promise;
+    controller.abort();
+    finish.resolve();
+    await rejected;
+    expect(await read()).toBe('original');
+    expect(await entries()).toEqual(['doc.md']);
+  });
+
+  it('does not pull a source that was already cancelled', async () => {
+    const controller = new globalThis.AbortController();
+    controller.abort();
+    let pulled = false;
+    async function* untouched() { pulled = true; yield Buffer.from('no'); }
+    await expect(materializeFile(options({ source: untouched(), signal: controller.signal })))
+      .rejects.toMatchObject({ name: 'AbortError' });
+    expect(pulled).toBe(false);
+    expect(await entries()).toEqual([]);
+  });
+
+});
+
+describe('file materialization input boundary', () => {
+  it.each([
+    { baseDirectory: undefined }, { outputPath: undefined }, { outputPath: '' },
+    { source: null }, { expectedSha256: 'wrong' },
+  ])('rejects invalid options before creating output: %j', async (invalid) => {
+    await expect(materializeFile(options(invalid))).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+    expect(await entries()).toEqual([]);
+  });
+
+  it('rejects lexical escape', async () => {
+    await expect(materializeFile(options({ outputPath: '../escape.md' })))
+      .rejects.toMatchObject({ code: 'SECURITY_BOUNDARY_VIOLATION' });
+    expect(await entries()).toEqual([]);
+  });
+
+  it('rejects a symlink escape without consuming the source', async () => {
+    const inner = path.join(base, 'inner');
+    await mkdir(inner);
+    await symlink(base, path.join(inner, 'escape'));
+    let pulled = false;
+    async function* untouched() { pulled = true; yield Buffer.from('no'); }
+    await expect(materializeFile({ source: untouched(), baseDirectory: inner, outputPath: 'escape/doc.md' }))
+      .rejects.toMatchObject({ code: 'SECURITY_BOUNDARY_VIOLATION' });
+    expect(pulled).toBe(false);
+    expect(await readdir(inner)).toEqual(['escape']);
+  });
+});

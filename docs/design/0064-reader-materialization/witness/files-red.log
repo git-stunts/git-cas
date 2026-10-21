@@ -1,0 +1,29 @@
+
+ RUN  v2.1.9 /work/code
+
+ ❯ |unit| test/unit/infrastructure/adapters/materializeFile.test.js (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL |unit|  test/unit/infrastructure/adapters/materializeFile.test.js [ test/unit/infrastructure/adapters/materializeFile.test.js ]
+Error: Missing "./files" specifier in "@git-stunts/git-cas" package
+  Plugin: vite:import-analysis
+  File: /work/code/test/unit/infrastructure/adapters/materializeFile.test.js
+ ❯ e ../../app/node_modules/.pnpm/vite@5.4.21_@types+node@25.3.2/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:46042:25
+ ❯ n ../../app/node_modules/.pnpm/vite@5.4.21_@types+node@25.3.2/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:46042:627
+ ❯ o ../../app/node_modules/.pnpm/vite@5.4.21_@types+node@25.3.2/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:46042:1297
+ ❯ resolveExportsOrImports ../../app/node_modules/.pnpm/vite@5.4.21_@types+node@25.3.2/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:46663:18
+ ❯ resolveDeepImport ../../app/node_modules/.pnpm/vite@5.4.21_@types+node@25.3.2/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:46686:25
+ ❯ tryNodeResolve ../../app/node_modules/.pnpm/vite@5.4.21_@types+node@25.3.2/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:46451:16
+ ❯ ResolveIdContext.resolveId ../../app/node_modules/.pnpm/vite@5.4.21_@types+node@25.3.2/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:46201:19
+ ❯ PluginContainer.resolveId ../../app/node_modules/.pnpm/vite@5.4.21_@types+node@25.3.2/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49018:17
+ ❯ TransformPluginContext.resolve ../../app/node_modules/.pnpm/vite@5.4.21_@types+node@25.3.2/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:49178:15
+ ❯ normalizeUrl ../../app/node_modules/.pnpm/vite@5.4.21_@types+node@25.3.2/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:64300:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  10:01:27
+   Duration  88ms (transform 5ms, setup 4ms, collect 0ms, tests 0ms, environment 0ms, prepare 21ms)
+

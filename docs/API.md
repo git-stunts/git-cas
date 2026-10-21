@@ -1035,6 +1035,59 @@ Encrypted restore behavior follows the existing streaming matrix; explicit
 Missing transferred objects fail with `HANDLE_TARGET_MISSING`. A handle created
 for a different manifest codec fails with `HANDLE_CODEC_MISMATCH`.
 
+### Optional file materialization (`@git-stunts/git-cas/files`)
+
+```javascript
+import { materializeFile } from '@git-stunts/git-cas/files';
+
+const result = await materializeFile({
+  source: cas.assets.open({ handle, encryptionKey }),
+  baseDirectory: '/existing/cache',
+  outputPath: 'document.md',
+  // Optional extra whole-plaintext verification, for example from a catalog:
+  expectedSha256: catalog.sha256,
+  signal: controller.signal,
+});
+// result: { bytesWritten }
+```
+
+This opt-in filesystem helper consumes an `AsyncIterable<Uint8Array>` with
+backpressure. It works with `assets.open()` and `restoreStream()` or another
+byte source. `assets.open()`, `restoreStream()`, `restore()` and the existing
+`restoreFile()` keep their contracts. No caller is switched to file output.
+
+`source`, `baseDirectory` and `outputPath` are required. The base and output
+parent must exist. Absolute output paths must remain inside the base. Existing
+symlink prefixes are resolved using the same path boundary as `restoreFile()`.
+Parent directories are trusted local application directories; this check does
+not make concurrent hostile path replacement safe.
+
+The helper writes a private, uniquely named sibling temporary file, waits for
+the source and write pipeline to complete, optionally compares the plaintext
+SHA-256, checks cancellation, then renames into place. It does not collect the
+whole file. Encryption authentication and existing buffering limits belong to
+the source: whole-object `assets.open()` retains its existing buffer limits.
+Without `expectedSha256`, there is no additional whole-file digest check beyond
+what the source provides. Digest hex is case-insensitive.
+
+Source, authentication, write, digest and cancellation failures before rename
+leave an existing destination untouched. Temporary output is removed on normal
+success and failure. The final file has permissions no broader than `0600`.
+Concurrent successful publishers use last-rename-wins behavior. Rename is the
+publication point; a later temporary-directory cleanup error can be reported
+after publication. A crash can leave a private temporary directory, which the
+application may reclaim after establishing that no active writer owns it.
+
+This guarantees atomic visibility of one file on filesystems supporting atomic
+same-filesystem rename. It does not fsync, provide power-loss durability,
+create parents, transfer retention, change Git refs, enforce cache quotas,
+manage eviction, or transact a whole directory. Applications own those policies.
+
+Errors: malformed options or digest syntax use `INVALID_OPTIONS`; an escaping
+path uses `SECURITY_BOUNDARY_VIOLATION`; a full-file digest mismatch uses
+`INTEGRITY_ERROR`. Source errors are propagated; cancellation and filesystem
+errors retain their underlying runtime error forms.
+
 ### `assets.adopt()`
 
 ```javascript

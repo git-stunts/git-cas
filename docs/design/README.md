@@ -11,6 +11,8 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Active METHOD Cycles
 
+- [0064-reader-materialization — reader-materialization](./0064-reader-materialization/reader-materialization.md) — draft, revision 1, Reader librarian, 2026-10-21; SHA-256 `82a686a6c1d58272f814243cc4326d7a46c3fd52fd9d4a536bffceb7138b2724`.
+
 - [0062-mktree-transport-recovery - mktree-transport-recovery](./0062-mktree-transport-recovery/mktree-transport-recovery.md)
 
 - [0054-batched-page-retention - batched-page-retention](./0054-batched-page-retention/batched-page-retention.md)
@@ -84,3 +86,7 @@ process in [docs/method/process.md](../method/process.md).
 ## Archived Or Retired Cycle Docs
 
 - [docs/archive/design](../archive/design/README.md)
+
+## Local implementation evidence
+
+- [0064 implementation witness](./0064-reader-materialization/witness/WITNESS.md) — Reader librarian, revision 1, 2026-10-21; SHA-256 `7604ac699dbd3db15cd214ae2b5a947f6fd54fc88ca8a114a3722d5c409e7d2a`.

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Optional `@git-stunts/git-cas/files` helper `materializeFile()` streams an async byte source to a private sibling file, then renames on success. It supports cancellation and optional whole-plaintext SHA-256 verification, reuses restore path confinement, and leaves core byte-stream/buffer APIs and legacy `restoreFile()` behavior unchanged.
+
 ### Performance
 
 - The default JSON façade uses a runtime adapter for native UTF-8 decoding; the exported portable JsonCodec stays unchanged. Malformed-byte fallback, BOM handling, JSON parsing, validation and stored encoding remain compatible.
