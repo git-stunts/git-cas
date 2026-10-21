@@ -69,4 +69,3 @@ function isInsideBaseDirectory(resolvedPath, resolvedBase) {
 function isNotFoundError(err) {
   return Boolean(err && typeof err === 'object' && err.code === FILE_NOT_FOUND_CODE);
 }
-
