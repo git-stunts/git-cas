@@ -30,6 +30,7 @@ import createCryptoAdapter from './src/infrastructure/adapters/createCryptoAdapt
 import { createGitPlumbing } from './src/infrastructure/createGitPlumbing.js';
 import { storeFile, restoreFile } from './src/infrastructure/adapters/FileIOHelper.js';
 import JsonCodec from './src/infrastructure/codecs/JsonCodec.js';
+import RuntimeJsonCodec from './src/infrastructure/adapters/RuntimeJsonCodec.js';
 import CborCodec from './src/infrastructure/codecs/CborCodec.js';
 import SilentObserver from './src/infrastructure/adapters/SilentObserver.js';
 import resolveChunker from './src/infrastructure/chunkers/resolveChunker.js';
@@ -306,7 +307,7 @@ export default class ContentAddressableStore {
     this.service = new CasService({
       persistence,
       chunkSize,
-      codec: cfg.codec || new JsonCodec(),
+      codec: cfg.codec || new RuntimeJsonCodec(),
       crypto,
       observability: cfg.observability || new SilentObserver(),
       merkleThreshold: cfg.merkleThreshold,
@@ -715,7 +716,7 @@ export default class ContentAddressableStore {
    * @returns {ContentAddressableStore}
    */
   static createJson({ plumbing, ...options }) {
-    return new ContentAddressableStore({ ...options, plumbing, codec: new JsonCodec() });
+    return new ContentAddressableStore({ ...options, plumbing, codec: new RuntimeJsonCodec() });
   }
 
   /**
