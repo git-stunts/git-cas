@@ -5,6 +5,7 @@ import path from 'node:path';
 import { types } from 'node:util';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { setImmediate as nextMacrotask } from 'node:timers/promises';
 import CasError from '../../domain/errors/CasError.js';
 import { ErrorCodes } from '../../domain/errors/index.js';
 import { resolveSafeRestorePath } from './RestorePath.js';
@@ -121,7 +122,10 @@ async function* byteChunks(source, signal, onSourceFailure) {
       }
       // Copied before the next pull: streams queue references, and a producer may reuse its buffer.
       // The typed-array constructor reads the bytes directly; Buffer.from(chunk) would honour valueOf().
-      yield Buffer.from(new Uint8Array(chunk).buffer);
+      const bytes = Buffer.from(new Uint8Array(chunk).buffer);
+      // Empty chunks never fill a stream buffer, so yield to the event loop for cancellation and I/O.
+      if (bytes.length === 0) { await nextMacrotask(); }
+      yield bytes;
     }
   } catch (error) {
     if (!signal.aborted) { onSourceFailure(error); }

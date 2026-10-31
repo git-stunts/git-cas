@@ -377,3 +377,17 @@ describe('file materialization option snapshot', () => {
     expect(reads).toBe(1);
   });
 });
+
+describe('file materialization empty chunks', () => {
+  it('lets the event loop run after an empty chunk, so cancellation can be scheduled', async () => {
+    let macrotaskRan = false;
+    let observed = null;
+    async function* empties() {
+      globalThis.setImmediate(() => { macrotaskRan = true; });
+      yield new Uint8Array();
+      observed = macrotaskRan;
+    }
+    await expect(materializeFile(options({ source: empties() }))).resolves.toEqual({ bytesWritten: 0 });
+    expect(observed).toBe(true);
+  });
+});
