@@ -77,8 +77,14 @@ function validateOptions(options) {
   validateDigest(options.expectedSha256);
 }
 
+const readAborted = Object.getOwnPropertyDescriptor(globalThis.AbortSignal.prototype, 'aborted').get;
+
+/** A brand check: the platform getter rejects objects that only inherit from AbortSignal. */
 function validateSignal(signal) {
-  if (signal !== undefined && !(signal instanceof globalThis.AbortSignal)) {
+  if (signal === undefined) { return; }
+  try {
+    readAborted.call(signal);
+  } catch {
     throw new CasError('signal must be an AbortSignal', ErrorCodes.INVALID_OPTIONS);
   }
 }

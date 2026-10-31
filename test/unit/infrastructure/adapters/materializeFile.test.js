@@ -106,6 +106,14 @@ describe('file materialization chunk copy', () => {
   });
 });
 
+describe('file materialization signal brand', () => {
+  it('rejects an object that only inherits from AbortSignal.prototype', async () => {
+    const signal = Object.create(globalThis.AbortSignal.prototype);
+    await expect(materializeFile(options({ signal }))).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+    expect(await entries()).toEqual([]);
+  });
+});
+
 describe('file materialization failure cleanup', () => {
   it('cleans up after the destination refuses rename', async () => {
     await mkdir(path.join(base, 'doc.md'));
