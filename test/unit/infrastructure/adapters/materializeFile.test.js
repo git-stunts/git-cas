@@ -239,6 +239,21 @@ describe('file materialization source iteration edges', () => {
     expect(await entries()).toEqual([]);
   });
 
+  it('validates the same chunk value that it publishes', async () => {
+    let pulls = 0;
+    let reads = 0;
+    const changing = {
+      [Symbol.asyncIterator]() { return this; },
+      async next() {
+        if (pulls++) { return { done: true }; }
+        return { done: false, get value() { reads += 1; return reads === 1 ? Uint8Array.of(65) : 'unchecked text'; } };
+      },
+    };
+    await materializeFile(options({ source: changing }));
+    expect(await read()).toBe('A');
+    expect(reads).toBe(1);
+  });
+
   it('accepts Uint8Array chunks created in another realm', async () => {
     async function* foreign() { yield runInNewContext('new Uint8Array([65])'); }
     await expect(materializeFile(options({ source: foreign() }))).resolves.toEqual({ bytesWritten: 1 });

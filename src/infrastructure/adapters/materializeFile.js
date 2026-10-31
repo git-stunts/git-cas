@@ -92,11 +92,13 @@ async function* byteChunks(source, signal) {
     while (true) {
       const step = await nextChunk(iterator, signal);
       if (step.done) { finished = true; return; }
+      // Read once, so a getter cannot pass validation and then yield something else.
+      const chunk = step.value;
       // Realm-independent: a Uint8Array from another context is still bytes.
-      if (!types.isUint8Array(step.value)) {
+      if (!types.isUint8Array(chunk)) {
         throw new CasError('source must yield Uint8Array chunks', ErrorCodes.INVALID_OPTIONS);
       }
-      yield step.value;
+      yield chunk;
     }
   } finally {
     // Deferred, so a return() that throws synchronously cannot replace the pull's error.
