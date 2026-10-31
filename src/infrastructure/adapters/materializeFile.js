@@ -95,7 +95,8 @@ async function* byteChunks(source, signal) {
       yield step.value;
     }
   } finally {
-    if (!finished) { Promise.resolve(iterator.return?.()).catch(() => {}); }
+    // Deferred, so a return() that throws synchronously cannot replace the pull's error.
+    if (!finished) { Promise.resolve().then(() => iterator.return?.()).catch(() => {}); }
   }
 }
 

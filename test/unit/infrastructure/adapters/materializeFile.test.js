@@ -213,6 +213,17 @@ describe('file materialization cancellation and cleanup errors', () => {
 });
 
 describe('file materialization source iteration edges', () => {
+  it('reports a next failure when the source return throws synchronously', async () => {
+    const failure = new Error('authentication failed');
+    const throwing = {
+      [Symbol.asyncIterator]() { return this; },
+      next() { return Promise.reject(failure); },
+      return() { throw new Error('cleanup failed'); },
+    };
+    await expect(materializeFile(options({ source: throwing }))).rejects.toBe(failure);
+    expect(await entries()).toEqual([]);
+  });
+
   it.skipIf(typeof v8.queryObjects !== 'function')(
     'does not retain promises in proportion to chunks when a signal is supplied', async () => {
       const controller = new globalThis.AbortController();
