@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import JsonCodec from '../../../../src/infrastructure/codecs/JsonCodec.js';
 import RuntimeJsonCodec from '../../../../src/infrastructure/adapters/RuntimeJsonCodec.js';
 import { utf8Decode, utf8Encode } from '../../../../src/domain/encoding/utf8.js';
@@ -62,5 +62,16 @@ describe('JSON metadata decoding compatibility', () => {
       const wrapped = Uint8Array.from([0x22, ...bytes, 0x22]);
       expect(result(wrapped)).toEqual(legacyResult(wrapped));
     }
+  });
+});
+
+describe('JSON metadata decoding without a fatal UTF-8 decoder', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
+
+  it('loads and decodes when TextDecoder rejects the fatal option', async () => {
+    vi.stubGlobal('TextDecoder', class { constructor() { throw new TypeError('ERR_NO_ICU'); } });
+    vi.resetModules();
+    const { default: Fallback } = await import('../../../../src/infrastructure/adapters/RuntimeJsonCodec.js');
+    expect(new Fallback().decode(utf8Encode('{"path":"café"}'))).toEqual({ path: 'café' });
   });
 });

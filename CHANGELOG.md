@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
-- The default JSON façade uses a runtime adapter for native UTF-8 decoding; the exported portable JsonCodec stays unchanged. Malformed-byte fallback, BOM handling, JSON parsing, validation and stored encoding remain compatible.
+- The default JSON façade uses a runtime adapter for native UTF-8 decoding; the exported portable JsonCodec stays unchanged. Runtimes whose `TextDecoder` rejects the `fatal` option, such as Node builds without ICU, use the portable decoder. Malformed-byte fallback, BOM handling, JSON parsing, validation and stored encoding remain compatible.
 
 ## [6.5.12] — 2026-10-20
 
