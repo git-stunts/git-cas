@@ -1,0 +1,70 @@
+{"event":"claimed","job":"agent-F99779D4-C557-47E0-8875-4CE640841A6B","holder":"baker-moriarty","note":"baker-street moriarty probe 152","claimed":1793485023,"expires":1793485923,"paths":["host/docker/git-cas-test-node/"],"record":"4d8f7f688a2ad36039e96b67f68e373924d3a8ca","acquisition":"1793485023-35882-0223921881"}
+== checks.js 95-121
+L1+94	                // payload.issues.push({
+L2+94	                //   expected: def.format,
+L3+94	                //   format: def.format,
+L4+94	                //   code: "invalid_format",
+L5+94	                //   input,
+L6+94	                //   inst,
+L7+94	                // });
+L8+94	                // invalid_type issue
+L9+94	                payload.issues.push({
+L10+94	                    expected: origin,
+L11+94	                    format: def.format,
+L12+94	                    code: "invalid_type",
+L13+94	                    continue: false,
+L14+94	                    input,
+L15+94	                    inst,
+L16+94	                });
+L17+94	                return;
+L18+94	                // not_multiple_of issue
+L19+94	                // payload.issues.push({
+L20+94	                //   code: "not_multiple_of",
+L21+94	                //   origin: "number",
+L22+94	                //   input,
+L23+94	                //   inst,
+L24+94	                //   divisor: 1,
+L25+94	                // });
+L26+94	            }
+L27+94	            if (!Number.isSafeInteger(input)) {
+== util.js aborted
+520:export function aborted(x, startIndex = 0) {
+521-    if (x.aborted === true)
+522-        return true;
+523-    for (let i = startIndex; i < x.issues.length; i++) {
+524-        if (x.issues[i]?.continue !== true) {
+525-            return true;
+526-        }
+527-    }
+528-    return false;
+== z3 union dirty
+2314:            let dirty = undefined;
+2340:            if (dirty) {
+== z3 int check
+1087:            if (check.kind === "int") {
+1088-                if (!util.isInteger(input.data)) {
+1089-                    ctx = this._getOrReturnCtx(input, ctx);
+1090-                    addIssueToContext(ctx, {
+1091-                        code: ZodIssueCode.invalid_type,
+1092-                        expected: "integer",
+1093-                        received: "float",
+1094-                        message: check.message,
+1095-                    });
+1096-                    status.dirty();
+1097-                }
+== registries
+    return new $ZodRegistry();
+}
+(_a = globalThis).__zod_globalRegistry ?? (_a.__zod_globalRegistry = registry());
+export const globalRegistry = globalThis.__zod_globalRegistry;
+== core 133-141
+    }
+}
+(_a = globalThis).__zod_globalConfig ?? (_a.__zod_globalConfig = {});
+export const globalConfig = globalThis.__zod_globalConfig;
+export function config(newConfig) {
+    if (newConfig)
+        Object.assign(globalConfig, newConfig);
+    return globalConfig;
+}
+{"event":"released","job":"agent-F99779D4-C557-47E0-8875-4CE640841A6B","paths":1}

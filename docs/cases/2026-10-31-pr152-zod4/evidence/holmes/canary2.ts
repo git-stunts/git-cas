@@ -1,0 +1,10 @@
+import type { KdfSchema, ManifestSchema, ChunkingSchema } from '../../src/domain/schemas/ManifestSchema.d.ts';
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type IsAny<T> = 0 extends 1 & T ? true : false;
+type Out<S> = S extends { parse: (x: unknown) => infer R } ? R : 'NOPARSE';
+const a1: IsAny<typeof ManifestSchema> = false;
+const a2: IsAny<Out<typeof ManifestSchema>> = false;
+const a3: Equal<Out<typeof KdfSchema>['algorithm'], 'pbkdf2' | 'scrypt'> = true;
+const a4: Equal<Out<typeof ChunkingSchema>['strategy'], 'fixed' | 'cdc'> = true;
+const a5: IsAny<Out<typeof ManifestSchema>['version']> = false;
+void a1; void a2; void a3; void a4; void a5;

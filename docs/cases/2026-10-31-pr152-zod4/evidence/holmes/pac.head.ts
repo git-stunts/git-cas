@@ -1,0 +1,194 @@
+import type { z } from 'zod';
+import type {
+  ChunkingSchema,
+  CompressionSchema,
+  EncryptionSchema,
+  KdfSchema,
+  ManifestSchema,
+} from '../../src/domain/schemas/ManifestSchema.d.ts';
+import type {
+  GitPersistencePortBase,
+  GitRefPortBase,
+  RepositoryDiagnosticLimitation,
+  RepositoryDoctorReport,
+  RepositoryInspectionPort,
+  RetentionRootKind,
+} from '../../index.d.ts';
+
+class LegacyGitPersistenceAdapter {
+  async writeBlob(_content: Uint8Array): Promise<string> {
+    return 'a'.repeat(40);
+  }
+
+  async writeTree(_entries: string[]): Promise<string> {
+    return 'b'.repeat(40);
+  }
+
+  async readBlob(_oid: string, _maxBytes?: number): Promise<Uint8Array> {
+    return new Uint8Array();
+  }
+
+  async readBlobStream(_oid: string): Promise<AsyncIterable<Uint8Array>> {
+    return (async function* emptyStream() {})();
+  }
+
+  async readTree(_treeOid: string) {
+    return [];
+  }
+
+  async readTreeEntry(_treeOid: string, _treePath: string) {
+    return null;
+  }
+
+  async *iterateTree(_treeOid: string) {}
+
+  async readObjectType(_oid: string): Promise<string> {
+    return 'blob';
+  }
+
+  async readObjectSize(_oid: string): Promise<number> {
+    return 0;
+  }
+}
+
+const legacyPersistence: GitPersistencePortBase = new LegacyGitPersistenceAdapter();
+void legacyPersistence;
+
+class LegacyGitRefAdapter {
+  async resolveRef(_ref: string): Promise<string> {
+    return 'a'.repeat(40);
+  }
+
+  async resolveTree(_commitOid: string): Promise<string> {
+    return 'b'.repeat(40);
+  }
+
+  async resolveParents(_commitOid: string): Promise<string[]> {
+    return [];
+  }
+
+  async createCommit(_options: {
+    treeOid: string;
+    parentOid?: string | null;
+    parentOids?: string[];
+    message: string;
+  }): Promise<string> {
+    return 'c'.repeat(40);
+  }
+
+  async updateRef(_options: {
+    ref: string;
+    newOid: string;
+    expectedOldOid?: string | null;
+  }): Promise<void> {}
+}
+
+const legacyAdapter: GitRefPortBase = new LegacyGitRefAdapter();
+void legacyAdapter;
+
+class LegacyRepositoryInspectionAdapter {
+  async *iterateObjects() {
+    yield {
+      oid: 'a'.repeat(40),
+      type: 'blob' as const,
+      logicalBytes: 1,
+      physicalBytes: 1,
+    };
+  }
+
+  async *iterateReachableObjectIds() {
+    yield 'a'.repeat(40);
+  }
+
+  async *iteratePrunableObjects(_options: { expiresBefore: string }) {
+    yield { oid: 'a'.repeat(40), type: 'blob' as const };
+  }
+
+  async *iterateRefs(_options?: { prefix?: string }) {
+    yield { ref: 'refs/heads/main', oid: 'a'.repeat(40) };
+  }
+
+  async reachablePhysicalBytes(): Promise<number> {
+    return 1;
+  }
+}
+
+const legacyInspection: RepositoryInspectionPort = new LegacyRepositoryInspectionAdapter();
+void legacyInspection;
+
+function describeLegacyRootKind(kind: RetentionRootKind): string {
+  switch (kind) {
+    case 'root-set':
+    case 'publication':
+    case 'cache-set':
+    case 'expiring-set':
+      return kind;
+    default: {
+      const exhaustive: never = kind;
+      return exhaustive;
+    }
+  }
+}
+
+void describeLegacyRootKind;
+
+function describeLegacyDiagnosticKind(
+  kind: NonNullable<RepositoryDiagnosticLimitation['kind']>,
+): string {
+  switch (kind) {
+    case 'caches':
+    case 'rootSets':
+    case 'expiringSets':
+      return kind;
+    default: {
+      const exhaustive: never = kind;
+      return exhaustive;
+    }
+  }
+}
+
+void describeLegacyDiagnosticKind;
+
+type AcquisitionsRemainAdditive = {} extends Pick<
+  RepositoryDoctorReport['usage'],
+  'acquisitions'
+> ? true : false;
+
+const acquisitionsRemainAdditive: AcquisitionsRemainAdditive = true;
+void acquisitionsRemainAdditive;
+
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2)
+    ? true
+    : false;
+
+const kdfAlgorithmsInfer: Equal<
+  z.infer<typeof KdfSchema>['algorithm'],
+  'pbkdf2' | 'scrypt'
+> = true;
+const kdfKeyLengthDefaults: Equal<
+  z.input<typeof KdfSchema>['keyLength'],
+  number | undefined
+> = true;
+const compressionAlgorithmsInfer: Equal<
+  z.infer<typeof CompressionSchema>['algorithm'],
+  'gzip'
+> = true;
+const chunkingStrategiesInfer: Equal<
+  z.infer<typeof ChunkingSchema>['strategy'],
+  'fixed' | 'cdc'
+> = true;
+const encryptionSchemesInfer: Equal<
+  z.infer<typeof EncryptionSchema>['scheme'],
+  'whole' | 'framed' | 'convergent'
+> = true;
+const manifestVersionIsNumber: Equal<
+  z.infer<typeof ManifestSchema>['version'],
+  number
+> = true;
+void kdfAlgorithmsInfer;
+void kdfKeyLengthDefaults;
+void compressionAlgorithmsInfer;
+void chunkingStrategiesInfer;
+void encryptionSchemesInfer;
+void manifestVersionIsNumber;

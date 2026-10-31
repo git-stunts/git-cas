@@ -1,0 +1,55 @@
+{"event":"claimed","job":"agent-BFD74CED-BE5C-4E3E-BE4F-18EEBFF7B76B","holder":"baker-holmes","note":"baker-street holmes probe 152","claimed":1793484902,"expires":1793485802,"paths":["host/docker/git-cas-test-deno/"],"record":"8cef08fd3e6c0caa431c3c2417fcf82cb331108c","acquisition":"1793484902-32525-0701429918"}
+=== canary2 head config, head decls
+Check test/types/canary2.ts
+exit=0
+=== canary2 base config, head decls
+Check test/types/canary2.ts
+exit=0
+=== only.ts skipLibCheck=false head config head decls
+Check test/types/only.ts
+exit=0
+=== only.ts skipLibCheck=false BASE config head decls
+Check test/types/only.ts
+exit=0
+=== deno info base
+local: /app/test/types/only.ts
+type: TypeScript
+dependencies: 1 unique
+size: 4.09KB
+
+file:///app/test/types/only.ts (123B)
+└── file:///app/src/domain/schemas/ManifestSchema.d.ts (3.97KB)
+=== deno info head
+local: /app/test/types/only.ts
+type: TypeScript
+dependencies: 2 unique
+size: 4.09KB
+
+file:///app/test/types/only.ts (123B)
+└─┬ file:///app/src/domain/schemas/ManifestSchema.d.ts (3.97KB)
+  └── file:///app/node_modules/.deno/zod@4.6.7/node_modules/zod/index.d.cts (unknown)
+=== canary2 base config, zod3 decls (main reality)
+Check test/types/canary2.ts
+TS2339 [ERROR]: Property 'algorithm' does not exist on type 'unknown'.
+    at file:///app/test/types/canary2.ts:7:39
+TS2339 [ERROR]: Property 'strategy' does not exist on type 'unknown'.
+    at file:///app/test/types/canary2.ts:8:44
+TS2339 [ERROR]: Property 'version' does not exist on type 'unknown'.
+    at file:///app/test/types/canary2.ts:9:44
+Found 3 errors.
+exit=1
+=== only.ts skipLibCheck=false head config zod3 decls
+Check test/types/only.ts
+TS2344 [ERROR]: Type '["pbkdf2", "scrypt"]' does not satisfy the constraint 'Readonly<Record<string, EnumValue>>'.
+    at file:///app/src/domain/schemas/ManifestSchema.d.ts:18:24
+TS2344 [ERROR]: Type '["gzip"]' does not satisfy the constraint 'Readonly<Record<string, EnumValue>>'.
+    at file:///app/src/domain/schemas/ManifestSchema.d.ts:78:24
+TS2344 [ERROR]: Type 'string' does not satisfy the constraint 'readonly SomeType[]'.
+    at file:///app/src/domain/schemas/ManifestSchema.d.ts:102:3
+TS2344 [ERROR]: Type '{ version: ZodDefault<ZodNumber>; formatVersion: ZodOptional<ZodString>; manifestHash: ZodOptional<ZodString>; ... 7 more ...; subManifests: ZodOptional<...>; }' does not satisfy the constraint 'Readonly<{ [k: string]: $ZodType<unknown, unknown, $ZodTypeInternals<unknown, unknown>>; }>'.
+    at file:///app/src/domain/schemas/ManifestSchema.d.ts:114:50
+TS2344 [ERROR]: Type 'ZodDiscriminatedUnion<"strategy", [ZodObject<{ strategy: ZodLiteral<"fixed">; params: ZodObject<{ chunkSize: ZodNumber; }, $strip>; }, $strip>, ZodObject<...>]>' does not satisfy the constraint 'SomeType'.
+    at file:///app/src/domain/schemas/ManifestSchema.d.ts:124:27
+Found 5 errors.
+exit=1
+{"event":"released","job":"agent-BFD74CED-BE5C-4E3E-BE4F-18EEBFF7B76B","paths":1}

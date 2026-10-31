@@ -1,0 +1,172 @@
+{"event":"claimed","job":"agent-C0D1FE9A-D14A-42EC-9B37-29C7A2FD2EB0","holder":"baker-holmes","note":"baker-street holmes probe 152","claimed":1793484797,"expires":1793485697,"paths":["host/docker/git-cas-test-node/"],"record":"273ee731076f52f531c4d415b626811c8ddf83d5","acquisition":"1793484797-30274-2953331999"}
+== version
+  "version": "4.6.7",
+== index
+     1	import * as z from "./v4/classic/external.js";
+     2	export * from "./v4/classic/external.js";
+     3	// Aliasing the binding, instead of `export default z`, keeps the default export a
+     4	// re-export of `z` rather than a fresh namespace value. Rollup and Webpack can then
+     5	// shake `import z from "zod"` as they already shake `import { z } from "zod"` — without
+     6	// this they pull in every locale. See #6050.
+     7	export { z, z as default };
+LICENSE
+README.md
+compile.cjs
+compile.d.cts
+compile.d.ts
+compile.js
+index.cjs
+index.d.cts
+index.d.ts
+index.js
+locales
+mini
+package.json
+src
+v3
+v4
+v4-mini
+== v4/index
+     1	import * as z4 from "./classic/external.js";
+     2	export * from "./classic/index.js";
+     3	// See the note in `src/index.ts` — aliasing keeps the default export shakable. Aliased from the namespace, not from `./classic/index.js`'s default, so both the tsc and Babel CJS outputs stay a plain `exports.default =` rather than a getter.
+     4	export { z4 as default };
+== classic external default?
+3:// See the note in `src/index.ts` — aliasing keeps the default export shakable.
+4:export { z, z as default };
+== union handle
+1223:function handleUnionResults(results, final, inst, ctx) {
+1224-    for (const result of results) {
+1225-        if (result.issues.length === 0) {
+1226-            final.value = result.value;
+1227-            return final;
+1228-        }
+1229-    }
+1230-    const nonaborted = results.filter((r) => !util.aborted(r));
+1231-    if (nonaborted.length === 1) {
+1232-        final.value = nonaborted[0].value;
+1233-        return nonaborted[0];
+1234-    }
+1235-    final.issues.push({
+1236-        code: "invalid_union",
+1237-        input: final.value,
+1238-        inst,
+1239-        errors: results.map((result) => result.issues.map((iss) => util.finalizeIssue(iss, ctx, core.config()))),
+1240-    });
+1241-    return final;
+1242-}
+1243-export const $ZodUnion = /*@__PURE__*/ core.$constructor("$ZodUnion", (inst, def) => {
+1244-    $ZodType.init(inst, def);
+1245-    util.defineLazyInternal(inst, "optin", (zod) => zod.def.options.some((o) => o._zod.optin === "defaulted")
+1246-        ? "defaulted"
+1247-        : zod.def.options.some((o) => o._zod.optin !== undefined)
+1248-            ? "optional"
+== disc
+1032:                // An omittable slot reads back as undefined at a discriminator lookup, so it has to claim undefined: two options that can both omit the key are not discriminable on it.
+1355:/** Returns the option whose discriminator claims `value`, or throws if ambiguous. */
+1360:        map = discriminatorMap(internals.def);
+1365:        throw new Error(`Ambiguous discriminator value "${String(value)}"`);
+1368:function discriminatorMap(def) {
+1371:        const values = option._zod.propValues?.[def.discriminator];
+1377:                    throw new Error(`Duplicate discriminator value "${String(value)}"`);
+1401:            if (pv[zod.def.discriminator]?.has(undefined))
+1413:            propValues[zod.def.discriminator]?.delete(undefined);
+1416:    // Checked now rather than in the lookup map below, so an option that lacks the discriminator fails at the `discriminatedUnion` call instead of on the first object parsed. Options whose shape cannot be enumerated without resolving it — pipes and lazies — are left to the map.
+1419:        if (propShape && !Object.prototype.hasOwnProperty.call(propShape, def.discriminator)) {
+1423:    const disc = util.cached(() => discriminatorMap(def));
+1435:        const value = input?.[def.discriminator];
+1441:        // Fall back to union matching when the fast discriminator path fails:
+1443:        // - during backward direction (encode), since codec-based discriminators have different values in forward vs backward directions
+1447:        // no matching discriminator
+1451:            note: "No matching discriminator",
+1452:            discriminator: def.discriminator,
+1455:            path: [def.discriminator],
+== int
+v4/core/checks.js:127:                        maximum: Number.MAX_SAFE_INTEGER,
+v4/core/util.js:402:    safeint: [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+== d.ts generics
+432:export interface ZodUndefined extends _ZodType<core.$ZodUndefinedInternals> {
+471:export interface ZodArray<T extends core.SomeType = core.$ZodType> extends _ZodType<core.$ZodArrayInternals<T>>, core.$ZodArray<T> {
+486:export interface ZodObject<
+533:export interface ZodUnion<T extends readonly core.SomeType[] = readonly core.$ZodType[]> extends _ZodType<core.$ZodUnionInternals<T>>, core.$ZodUnion<T> {
+548:export interface ZodDiscriminatedUnion<Options extends readonly core.SomeType[] = readonly core.$ZodType[], Disc extends string = string> extends ZodUnion<Options>, core.$ZodDiscriminatedUnion<Options, Disc> {
+600:export interface ZodEnum<
+621:export interface ZodLiteral<T extends util.Literal = util.Literal> extends _ZodType<core.$ZodLiteralInternals<T>>, core.$ZodLiteral<T> {
+643:export interface ZodOptional<T extends core.SomeType = core.$ZodType> extends _ZodType<core.$ZodOptionalInternals<T>>, core.$ZodOptional<T> {
+662:export interface ZodDefault<T extends core.SomeType = core.$ZodType> extends _ZodType<core.$ZodDefaultInternals<T>>, core.$ZodDefault<T> {
+== disc fn
+530:export declare function object<T extends core.$ZodLooseShape = Partial<Record<never, core.SomeType>>>(shape?: T, params?: string | core.$ZodObjectParams): ZodObject<util.Writeable<T>, core.$strip>;
+531-export declare function strictObject<T extends core.$ZodLooseShape>(shape: T, params?: string | core.$ZodObjectParams): ZodObject<util.Writeable<T>, core.$strict>;
+532-export declare function looseObject<T extends core.$ZodLooseShape>(shape: T, params?: string | core.$ZodObjectParams): ZodObject<util.Writeable<T>, core.$loose>;
+--
+538:export declare function union<const T extends readonly core.SomeType[]>(options: T, params?: string | core.$ZodUnionParams): ZodUnion<T>;
+539-export interface ZodXor<T extends readonly core.SomeType[] = readonly core.$ZodType[]> extends _ZodType<core.$ZodXorInternals<T>>, core.$ZodXor<T> {
+540-    "~standard": ZodStandardSchemaWithJSON<this>;
+--
+554:export declare function discriminatedUnion<Types extends readonly [core.$ZodTypeDiscriminable, ...core.$ZodTypeDiscriminable[]], Disc extends string>(discriminator: Disc, options: Types, params?: string | core.$ZodDiscriminatedUnionParams): ZodDiscriminatedUnion<Types, Disc>;
+555-export interface ZodIntersection<A extends core.SomeType = core.$ZodType, B extends core.SomeType = core.$ZodType> extends _ZodType<core.$ZodIntersectionInternals<A, B>>, core.$ZodIntersection<A, B> {
+556-    "~standard": ZodStandardSchemaWithJSON<this>;
+== ZodError
+2:import { $ZodError } from "../core/index.js";
+28:    $ZodError.init(inst, issues);
+29:    inst.name = "ZodError";
+52:export const ZodError = /*@__PURE__*/ core.$constructor("ZodError", initializer);
+53:export const ZodRealError = /*@__PURE__*/ core.$constructor("ZodError", initializer, undefined, {
+3:/* Computing the message eagerly is expensive (pretty-printed JSON of all
+6: * cheap; the computed message is cached on the internals object. The
+8: * overwrite `message`. */
+11:    internals.message ?? (internals.message = JSON.stringify(internals.def, util.jsonStringifyReplacer, 2));
+12:    return internals.message;
+15:    this._zod.message = value;
+17:const _messageDesc = {
+28:const initializer = (inst, def) => {
+35:    Object.defineProperty(inst, "message", _messageDesc);
+46:                const value = () => this.message;
+56:export const $ZodError = $constructor("$ZodError", initializer);
+57:export const $ZodRealError = $constructor("$ZodError", initializer, undefined, {
+74:export function flattenError(error, mapper = (issue) => issue.message) {
+87:export function formatError(error, mapper = (issue) => issue.message) {
+146:export function treeifyError(error, mapper = (issue) => issue.message) {
+216: *       message: 'Invalid input: expected string'
+222: *       message: 'Invalid input: expected number'
+261:        lines.push(`✖ ${issue.message}`);
+== zod3 dist
+3:  "version": "3.25.76",
+== zod3 int
+1087:            if (check.kind === "int") {
+1088-                if (!util.isInteger(input.data)) {
+1089-                    ctx = this._getOrReturnCtx(input, ctx);
+1090-                    addIssueToContext(ctx, {
+1091-                        code: ZodIssueCode.invalid_type,
+1092-                        expected: "integer",
+1093-                        received: "float",
+1094-                        message: check.message,
+1095-                    });
+1096-                    status.dirty();
+1097-                }
+--
+1273:        return !!this._def.checks.find((ch) => ch.kind === "int" || (ch.kind === "multipleOf" && util.isInteger(ch.value)));
+1274-    }
+== zod3 union
+13:2279-                if (result.result.status === "dirty") {
+14:2280-                    // add issues from dirty option
+20:2286-            const unionErrors = results.map((result) => new ZodError(result.ctx.common.issues));
+22:2288-                code: ZodIssueCode.invalid_union,
+23:2289-                unionErrors,
+48:2314-            let dirty = undefined;
+== who depends on zod
+zod@3.25.76
+zod@4.6.7
+@git-stunts+plumbing@3.3.2
+@git-stunts+vault@1.0.1
+/app/node_modules/.pnpm/@git-stunts+alfred@0.10.0/node_modules/@git-stunts/alfred
+3:  "version": "0.10.0",
+/app/node_modules/.pnpm/@git-stunts+docker-guard@0.1.0/node_modules/@git-stunts/docker-guard
+3:  "version": "0.1.0",
+/app/node_modules/.pnpm/@git-stunts+plumbing@3.3.2/node_modules/@git-stunts/plumbing
+3:  "version": "3.3.2",
+36:    "zod": "^3.24.1"
+/app/node_modules/.pnpm/@git-stunts+vault@1.0.1/node_modules/@git-stunts/vault
+3:  "version": "1.0.1",
+38:    "zod": "^4.3.5"
+{"event":"released","job":"agent-C0D1FE9A-D14A-42EC-9B37-29C7A2FD2EB0","paths":1}

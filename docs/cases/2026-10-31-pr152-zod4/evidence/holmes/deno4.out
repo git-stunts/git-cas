@@ -1,0 +1,22 @@
+{"event":"claimed","job":"agent-6FA18B66-5EC1-450E-97F4-C69FDC6FE2D4","holder":"baker-holmes","note":"baker-street holmes probe 152","claimed":1793484958,"expires":1793485858,"paths":["host/docker/git-cas-test-deno/"],"record":"cff5859ddb1d81172e7d1d5e4d4f187cacb4527e","acquisition":"1793484958-34024-0821401389"}
+=== FRESH canary2 base config, head decls
+Check test/types/canary2.ts
+TS2339 [ERROR]: Property 'algorithm' does not exist on type 'unknown'.
+const a3: Equal<Out<typeof KdfSchema>['algorithm'], 'pbkdf2' | 'scrypt'> = true;
+    at file:///app/test/types/canary2.ts:7:39
+TS2339 [ERROR]: Property 'strategy' does not exist on type 'unknown'.
+const a4: Equal<Out<typeof ChunkingSchema>['strategy'], 'fixed' | 'cdc'> = true;
+    at file:///app/test/types/canary2.ts:8:44
+TS2339 [ERROR]: Property 'version' does not exist on type 'unknown'.
+const a5: IsAny<Out<typeof ManifestSchema>['version']> = false;
+    at file:///app/test/types/canary2.ts:9:44
+Found 3 errors.
+exit=1
+=== FRESH canary2 head config, head decls
+Check test/types/canary2.ts
+exit=0
+=== canary2 base config again (after head run)
+Check test/types/canary2.ts
+exit=0
+=== missing_dependency
+{"event":"released","job":"agent-6FA18B66-5EC1-450E-97F4-C69FDC6FE2D4","paths":1}

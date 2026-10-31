@@ -1,0 +1,15 @@
+{"event":"claimed","job":"agent-74748170-B8A7-4092-B594-B3959F1F6A0C","holder":"baker-moriarty","note":"baker-street moriarty probe 152","claimed":1793485000,"expires":1793485900,"paths":["host/docker/git-cas-test-deno/"],"record":"70b51406edfd296c24d5a31c9f79be959cf8d651","acquisition":"1793485000-35226-0365509690"}
+deno.lock
+  "version": "4.6.7",
+/app/node_modules/.deno/zod@4.6.7/node_modules/zod
+zod@3.25.76
+zod@4.6.7
+.git
+node_modules
+npm-debug.log
+.gitignore
+.DS_Store
+coverage
+.vscode
+.idea
+{"event":"released","job":"agent-74748170-B8A7-4092-B594-B3959F1F6A0C","paths":1}

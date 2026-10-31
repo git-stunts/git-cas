@@ -1,0 +1,157 @@
+{"event":"claimed","job":"agent-5AB69CD0-96B2-436D-9779-E8D72011C1E0","holder":"baker-holmes","note":"baker-street holmes probe 152","claimed":1793484836,"expires":1793485736,"paths":["host/docker/git-cas-test-node/"],"record":"b1048b181708a8ed445d4c85c8e896480255b1ca","acquisition":"1793484836-31006-0084604969"}
+zod4 default export has object(): function version { major: 4, minor: 6, patch: 7 }
+
+### valid_min SAME
+ z3: {"ok":true,"out":{"version":1,"slug":"s","filename":"f","size":10,"chunks":[{"index":0,"size":10,"digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}}
+ Manifest(z4): OK
+
+### valid_whole_kdf SAME
+ z3: {"ok":true,"out":{"version":1,"slug":"s","filename":"f","size":10,"chunks":[{"index":0,"size":10,"digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"encryption":{"scheme":"whole","algorithm":"aes-256-gcm","encrypted":true,"kdf":{"algorithm":"pbkdf2","salt":"BwcHBwcHBwcHBwcHBwcHBw==","iterations":1000,"keyLength":32},"nonce":"BwcHBwcHBwcHBwcH","tag":"BwcHBwcHBwcHBwcHBwcHBw=="}},"keys":["scheme","algorithm","encrypted","kdf","nonce","tag"]}
+ Manifest(z4): OK
+
+### valid_framed SAME
+ z3: {"ok":true,"out":{"version":1,"slug":"s","filename":"f","size":10,"chunks":[{"index":0,"size":10,"digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"encryption":{"scheme":"framed","algorithm":"aes-256-gcm","encrypted":true,"frameBytes":65536}},"keys":["scheme","algorithm","encrypted","frameBytes"]}
+ Manifest(z4): OK
+
+### framed_explicit_undefined_nonce SAME
+ z3: {"ok":true,"out":{"version":1,"slug":"s","filename":"f","size":10,"chunks":[{"index":0,"size":10,"digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"encryption":{"scheme":"framed","algorithm":"aes-256-gcm","encrypted":true,"frameBytes":65536}},"keys":["scheme","algorithm","encrypted","frameBytes","nonce"]}
+ Manifest(z4): OK
+
+### whole_explicit_undefined_frameBytes SAME
+ z3: {"ok":true,"out":{"version":1,"slug":"s","filename":"f","size":10,"chunks":[{"index":0,"size":10,"digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"encryption":{"scheme":"whole","algorithm":"aes-256-gcm","encrypted":true,"nonce":"BwcHBwcHBwcHBwcH","tag":"BwcHBwcHBwcHBwcHBwcHBw=="}},"keys":["scheme","algorithm","encrypted","nonce","tag","frameBytes"]}
+ Manifest(z4): OK
+
+### unknown_keys SAME
+ z3: {"ok":true,"out":{"version":1,"slug":"s","filename":"f","size":10,"chunks":[{"index":0,"size":10,"digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"encryption":{"scheme":"whole","algorithm":"aes-256-gcm","encrypted":true,"nonce":"BwcHBwcHBwcHBwcH","tag":"BwcHBwcHBwcHBwcHBwcHBw=="}},"keys":["scheme","algorithm","encrypted","nonce","tag"]}
+ Manifest(z4): OK
+
+### size_string DIFF
+ z3: {"ok":false,"msgs":["Expected number, received string"],"codes":["invalid_type@size"]}
+ z4: {"ok":false,"msgs":["Invalid input: expected number, received string"],"codes":["invalid_type@size"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input: expected number, received string
+
+### size_2p60 DIFF
+ z3: {"ok":true,"out":{"version":1,"slug":"s","filename":"f","size":1152921504606847000,"chunks":[{"index":0,"size":10,"digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}}
+ z4: {"ok":false,"msgs":["Too big: expected int to be <=9007199254740991"],"codes":["too_big@size"]}
+ Manifest(z4): Error: Invalid manifest data: Too big: expected int to be <=9007199254740991
+
+### size_max_safe SAME
+ z3: {"ok":true,"out":{"version":1,"slug":"s","filename":"f","size":9007199254740991,"chunks":[{"index":0,"size":10,"digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}}
+ Manifest(z4): OK
+
+### size_float DIFF
+ z3: {"ok":false,"msgs":["Expected integer, received float"],"codes":["invalid_type@size"]}
+ z4: {"ok":false,"msgs":["Invalid input: expected int, received number"],"codes":["invalid_type@size"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input: expected int, received number
+
+### size_infinity DIFF
+ z3: {"ok":false,"msgs":["Expected integer, received float"],"codes":["invalid_type@size"]}
+ z4: {"ok":false,"msgs":["Invalid input: expected number, received Infinity"],"codes":["invalid_type@size"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input: expected number, received Infinity
+
+### size_NaN DIFF
+ z3: {"ok":false,"msgs":["Expected number, received nan"],"codes":["invalid_type@size"]}
+ z4: {"ok":false,"msgs":["Invalid input: expected number, received NaN"],"codes":["invalid_type@size"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input: expected number, received NaN
+
+### version_3 DIFF
+ z3: {"ok":false,"msgs":["Number must be less than or equal to 2"],"codes":["too_big@version"]}
+ z4: {"ok":false,"msgs":["Too big: expected number to be <=2"],"codes":["too_big@version"]}
+ Manifest(z4): Error: Invalid manifest data: Too big: expected number to be <=2
+
+### version_undefined_explicit SAME
+ z3: {"ok":true,"out":{"version":1,"slug":"s","filename":"f","size":10,"chunks":[{"index":0,"size":10,"digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}}
+ Manifest(z4): OK
+
+### enc_no_scheme SAME
+ z3: {"ok":false,"msgs":["Invalid input"],"codes":["invalid_union@encryption"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input
+
+### enc_bad_scheme SAME
+ z3: {"ok":false,"msgs":["Invalid input"],"codes":["invalid_union@encryption"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input
+
+### enc_whole_missing_nonce SAME
+ z3: {"ok":false,"msgs":["Invalid input"],"codes":["invalid_union@encryption"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input
+
+### enc_whole_noncanonical_nonce SAME
+ z3: {"ok":false,"msgs":["nonce must decode to 12 bytes"],"codes":["custom@encryption.nonce"]}
+ Manifest(z4): Error: Invalid manifest data: nonce must decode to 12 bytes
+
+### enc_whole_float_keyVersion DIFF
+ z3: {"ok":false,"msgs":["Expected integer, received float"],"codes":["invalid_type@encryption.keyVersion"]}
+ z4: {"ok":false,"msgs":["Invalid input"],"codes":["invalid_union@encryption"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input
+
+### enc_framed_with_nonce SAME
+ z3: {"ok":false,"msgs":["Invalid input"],"codes":["invalid_union@encryption"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input
+
+### enc_framed_float_frameBytes DIFF
+ z3: {"ok":false,"msgs":["Expected integer, received float"],"codes":["invalid_type@encryption.frameBytes"]}
+ z4: {"ok":false,"msgs":["Invalid input"],"codes":["invalid_union@encryption"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input
+
+### enc_encrypted_false SAME
+ z3: {"ok":false,"msgs":["Invalid input"],"codes":["invalid_union@encryption"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input
+
+### enc_recipients_empty DIFF
+ z3: {"ok":false,"msgs":["Array must contain at least 1 element(s)"],"codes":["too_small@encryption.recipients"]}
+ z4: {"ok":false,"msgs":["Too small: expected array to have >=1 items"],"codes":["too_small@encryption.recipients"]}
+ Manifest(z4): Error: Invalid manifest data: Too small: expected array to have >=1 items
+
+### enc_kdf_bad_alg SAME
+ z3: {"ok":false,"msgs":["Invalid input"],"codes":["invalid_union@encryption"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input
+
+### chunking_missing_strategy DIFF
+ z3: {"ok":false,"msgs":["Invalid discriminator value. Expected 'fixed' | 'cdc'"],"codes":["invalid_union_discriminator@chunking.strategy"]}
+ z4: {"ok":false,"msgs":["Invalid discriminator value. Expected 'fixed' | 'cdc'"],"codes":["invalid_union@chunking.strategy"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid discriminator value. Expected 'fixed' | 'cdc'
+
+### chunking_bad_strategy DIFF
+ z3: {"ok":false,"msgs":["Invalid discriminator value. Expected 'fixed' | 'cdc'"],"codes":["invalid_union_discriminator@chunking.strategy"]}
+ z4: {"ok":false,"msgs":["Invalid discriminator value. Expected 'fixed' | 'cdc'"],"codes":["invalid_union@chunking.strategy"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid discriminator value. Expected 'fixed' | 'cdc'
+
+### chunking_fixed_bad_param DIFF
+ z3: {"ok":false,"msgs":["Number must be greater than 0"],"codes":["too_small@chunking.params.chunkSize"]}
+ z4: {"ok":false,"msgs":["Too small: expected number to be >0"],"codes":["too_small@chunking.params.chunkSize"]}
+ Manifest(z4): Error: Invalid manifest data: Too small: expected number to be >0
+
+### compression_bad DIFF
+ z3: {"ok":false,"msgs":["Invalid enum value. Expected 'gzip', received 'zstd'"],"codes":["invalid_enum_value@compression.algorithm"]}
+ z4: {"ok":false,"msgs":["Invalid input: expected \"gzip\""],"codes":["invalid_value@compression.algorithm"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input: expected "gzip"
+
+### digest_bad DIFF
+ z3: {"ok":false,"msgs":["digest must be a 64-character lowercase hex string"],"codes":["invalid_string@chunks.0.digest"]}
+ z4: {"ok":false,"msgs":["digest must be a 64-character lowercase hex string"],"codes":["invalid_format@chunks.0.digest"]}
+ Manifest(z4): Error: Invalid manifest data: digest must be a 64-character lowercase hex string
+
+### slug_missing DIFF
+ z3: {"ok":false,"msgs":["Required"],"codes":["invalid_type@slug"]}
+ z4: {"ok":false,"msgs":["Invalid input: expected string, received undefined"],"codes":["invalid_type@slug"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input: expected string, received undefined
+
+### formatVersion_bad DIFF
+ z3: {"ok":false,"msgs":["Invalid"],"codes":["invalid_string@formatVersion"]}
+ z4: {"ok":false,"msgs":["Invalid string: must match pattern /^\\d+\\.\\d+\\.\\d+$/"],"codes":["invalid_format@formatVersion"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid string: must match pattern /^\d+\.\d+\.\d+$/
+
+### null_input DIFF
+ z3: {"ok":false,"msgs":["Expected object, received null"],"codes":["invalid_type@"]}
+ z4: {"ok":false,"msgs":["Invalid input: expected object, received null"],"codes":["invalid_type@"]}
+ Manifest(z4): Error: Invalid manifest data: Invalid input: expected object, received null
+
+Chunk(z4): Invalid chunk data: Invalid input: expected number, received string, digest must be a 64-character lowercase hex string, must be a 40- or 64-character lowercase hex Git OID
+raw ZodError.message z3: "[\n  {\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"type\": \"number\",\n    \"inclusive\": false,\n    \"exact\": false,\n    \"message\": \"Number must be greater than 0\",\n    \"path\": [\n      \"size\"\n    ]\n  }\n]"
+raw ZodError.message z4: "[\n  {\n    \"origin\": \"number\",\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"inclusive\": false,\n    \"path\": [\n      \"size\"\n    ],\n    \"message\": \"Too small: expected number to be >0\"\n  }\n]"
+z3.object({x: S4.ChunkSchema}) THROWS TypeError keyValidator._parse is not a function
+z4.object({x: S4.ChunkSchema}) -> {"x":{"index":0,"size":10,"digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
+S4.ChunkSchema.extend -> {"index":0,"size":10,"digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","blob":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","y":"q"}
+
+kdf keyLength z3 32 z4 32
+{"event":"released","job":"agent-5AB69CD0-96B2-436D-9779-E8D72011C1E0","paths":1}

@@ -1,0 +1,43 @@
+{"event":"claimed","job":"agent-FC0684CF-EC2F-4862-9702-0F2FC6B68A97","holder":"baker-moriarty","note":"baker-street moriarty probe 152","claimed":1793484999,"expires":1793485899,"paths":["host/docker/git-cas-test-node/"],"record":"56be6884a06b59ad4455e5081fb13fac73d94f5f","acquisition":"1793484999-35051-2487803362"}
+baseline           : Invalid manifest data: Invalid input: expected number, received string
+distinct module    : false
+after host de()    : Invalid manifest data: Ungültige Eingabe: erwartet Zahl, erhalten string
+after customError  : Invalid manifest data: HOST-SAYS-NO
+custom msg w/ host : Invalid manifest data: digest must be a 64-character lowercase hex string
+__zod_globalConfig : [ 'localeError', 'memoizer', 'customError' ]
+core.js 100-110:
+100:                 fn();
+101:             }
+102:             // Released: initializers run once, and the list would otherwise be retained for the schema's lifetime.
+103:             inst._zod.deferred = undefined;
+104:         }
+105:         // Global post-processor hook. Internal: installed by `import "zod/compile"` to enable AOT compilation for every constructed schema. Runs last, once the instance is fully built, because it hands the instance to compile(). The post-processor is expected to be reentrancy-guarded by its own implementation.
+106:         const pp = globalThis.__zod_globalConfig?.postProcessor;
+107:         if (pp)
+108:             pp(inst);
+109:         return inst;
+110:     }
+checks.js 115-135:
+115:                 //   origin: "number",
+116:                 //   input,
+117:                 //   inst,
+118:                 //   divisor: 1,
+119:                 // });
+120:             }
+121:             if (!Number.isSafeInteger(input)) {
+122:                 if (input > 0) {
+123:                     // too_big
+124:                     payload.issues.push({
+125:                         input,
+126:                         code: "too_big",
+127:                         maximum: Number.MAX_SAFE_INTEGER,
+128:                         note: "Integers must be within the safe integer range.",
+129:                         inst,
+130:                         origin,
+131:                         inclusive: true,
+132:                         continue: !def.abort,
+133:                     });
+134:                 }
+135:                 else {
+base (zod3) w/ host config: Expected number, received string
+{"event":"released","job":"agent-FC0684CF-EC2F-4862-9702-0F2FC6B68A97","paths":1}

@@ -1,0 +1,121 @@
+{"event":"claimed","job":"agent-1A829B25-5CFD-43E7-A33E-9BF44C98E94B","holder":"baker-moriarty","note":"baker-street moriarty probe 152","claimed":1793484941,"expires":1793485841,"paths":["host/docker/git-cas-test-node/"],"record":"148e7953360d3fe3e4952877060e203dd6f94e67","acquisition":"1793484941-33315-0696414788"}
+== zod copies
+node_modules/.pnpm/zod@3.25.76
+node_modules/.pnpm/zod@4.6.7
+== realpaths
+/app/node_modules/.pnpm/zod@4.6.7/node_modules/zod
+/app/node_modules/.pnpm/zod@4.6.7/node_modules/zod
+/app/node_modules/.pnpm/zod@3.25.76/node_modules/zod
+== globalConfig / globalThis in zod core
+106:        const pp = globalThis.__zod_globalConfig?.postProcessor;
+135:(_a = globalThis).__zod_globalConfig ?? (_a.__zod_globalConfig = {});
+136:export const globalConfig = globalThis.__zod_globalConfig;
+139:        Object.assign(globalConfig, newConfig);
+140:    return globalConfig;
+50:(_a = globalThis).__zod_globalRegistry ?? (_a.__zod_globalRegistry = registry());
+51:export const globalRegistry = globalThis.__zod_globalRegistry;
+== eval usage
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/util.js:218:export const allowsEval = /* @__PURE__*/ cached(() => {
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/util.js:219:    // Skip the probe under `jitless`: strict CSPs report the caught `new Function` as a `securitypolicyviolation` even though the throw is swallowed.
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/util.js:229:        new F("");
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/schemas.js:1195:    const allowsEval = util.allowsEval;
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/schemas.js:1196:    const fastEnabled = jit && allowsEval.value; // && !def.catchall;
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/schemas.js:2556:            return new F({
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/schemas.js:2566:        return new F({
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/schemas.js:2574:        return new F({
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/doc.js:35:        const factory = new F(...Object.keys(this.closed), `return function (${this.args.join(", ")}) {\n${content.join("\n")}\n};`);
+1194:    const jit = !core.globalConfig.jitless;
+1211:        if (jit && fastEnabled && ctx?.async === false && ctx.jitless !== true) {
+== handleUnionResults
+1223:function handleUnionResults(results, final, inst, ctx) {
+1224-    for (const result of results) {
+1225-        if (result.issues.length === 0) {
+1226-            final.value = result.value;
+1227-            return final;
+1228-        }
+1229-    }
+1230-    const nonaborted = results.filter((r) => !util.aborted(r));
+1231-    if (nonaborted.length === 1) {
+1232-        final.value = nonaborted[0].value;
+1233-        return nonaborted[0];
+1234-    }
+1235-    final.issues.push({
+1236-        code: "invalid_union",
+1237-        input: final.value,
+1238-        inst,
+1239-        errors: results.map((result) => result.issues.map((iss) => util.finalizeIssue(iss, ctx, core.config()))),
+1240-    });
+1241-    return final;
+1242-}
+1243-export const $ZodUnion = /*@__PURE__*/ core.$constructor("$ZodUnion", (inst, def) => {
+1244-    $ZodType.init(inst, def);
+1245-    util.defineLazyInternal(inst, "optin", (zod) => zod.def.options.some((o) => o._zod.optin === "defaulted")
+== int check
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/checks.js:121:            if (!Number.isSafeInteger(input)) {
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/checks.js:127:                        maximum: Number.MAX_SAFE_INTEGER,
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/compile.js:415:            doc.write(`if (!Number.isSafeInteger(${accessor})) return INVALID;`);
+node_modules/.pnpm/zod@4.6.7/node_modules/zod/v4/core/util.js:402:    safeint: [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+== vault z.config / locale / registry
+== plumbing zod usage
+/app/node_modules/.pnpm/@git-stunts+plumbing@3.3.2/node_modules/@git-stunts/plumbing/src/domain/schemas/GitBlobSchema.js
+/app/node_modules/.pnpm/@git-stunts+plumbing@3.3.2/node_modules/@git-stunts/plumbing/src/domain/schemas/GitCommitSchema.js
+/app/node_modules/.pnpm/@git-stunts+plumbing@3.3.2/node_modules/@git-stunts/plumbing/src/domain/schemas/GitFileModeSchema.js
+/app/node_modules/.pnpm/@git-stunts+plumbing@3.3.2/node_modules/@git-stunts/plumbing/src/domain/schemas/GitObjectTypeSchema.js
+/app/node_modules/.pnpm/@git-stunts+plumbing@3.3.2/node_modules/@git-stunts/plumbing/src/domain/schemas/GitRefSchema.js
+/app/node_modules/.pnpm/@git-stunts+plumbing@3.3.2/node_modules/@git-stunts/plumbing/src/domain/schemas/GitShaSchema.js
+/app/node_modules/.pnpm/@git-stunts+plumbing@3.3.2/node_modules/@git-stunts/plumbing/src/domain/schemas/GitSignatureSchema.js
+/app/node_modules/.pnpm/@git-stunts+plumbing@3.3.2/node_modules/@git-stunts/plumbing/src/domain/schemas/GitTreeEntrySchema.js
+/app/node_modules/.pnpm/@git-stunts+plumbing@3.3.2/node_modules/@git-stunts/plumbing/src/domain/schemas/GitTreeSchema.js
+/app/node_modules/.pnpm/@git-stunts+plumbing@3.3.2/node_modules/@git-stunts/plumbing/src/ports/RunnerOptionsSchema.js
+== who imports plumbing in src
+src/infrastructure/adapters/GitObjectSessionPool.js
+src/infrastructure/adapters/GitPersistenceAdapter.js
+src/infrastructure/adapters/GitPlumbingFactoryAdapter.js
+src/infrastructure/adapters/GitRefAdapter.js
+src/infrastructure/createGitPlumbing.js
+src/types/ambient.d.ts
+index.js
+== getter read count
+z3 reads 1 success true out size 7
+z4 reads 1 success true out size 7
+iterations 1.5 z3 ["Expected integer, received float@kdf.iterations"]
+iterations 1.5 z4 ["Invalid input@"]
+iterations -1 z3 ["Number must be greater than 0@kdf.iterations"]
+iterations -1 z4 ["Too small: expected number to be >0@kdf.iterations"]
+iterations 0 z3 ["Number must be greater than 0@kdf.iterations"]
+iterations 0 z4 ["Too small: expected number to be >0@kdf.iterations"]
+iterations "1" z3 ["Invalid input@"]
+iterations "1" z4 ["Invalid input@"]
+iterations null z3 ["Invalid input@"]
+iterations null z4 ["Invalid input@"]
+== import cost (ms, fresh process x5)
+z3 import 3.8
+z4 import 16.8
+z3 import 3.7
+z4 import 15.9
+z3 import 3.6
+z4 import 17.6
+z3 import 3.6
+z4 import 17.0
+z3 import 3.6
+z4 import 17.0
+== schema module load (incl first parse)
+v3 load 5.5 first parse 0.42
+v4 load 22.7 first parse 1.14
+v3 load 5.4 first parse 0.39
+v4 load 20.9 first parse 1.13
+v3 load 5.3 first parse 0.39
+v4 load 20.1 first parse 1.10
+== package sizes
+5.1M	node_modules/.pnpm/zod@3.25.76/node_modules/zod
+8.1M	node_modules/.pnpm/zod@4.6.7/node_modules/zod
+== deno nodeModulesDir: is node_modules part of image? test/types
+deno.json
+public-api-compatibility.ts
+{
+  "nodeModulesDir": "manual",
+  "compilerOptions": {
+    "skipLibCheck": true
+  }
+}
+{"event":"released","job":"agent-1A829B25-5CFD-43E7-A33E-9BF44C98E94B","paths":1}

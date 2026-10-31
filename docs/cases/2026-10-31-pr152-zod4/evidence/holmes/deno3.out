@@ -1,0 +1,27 @@
+{"event":"claimed","job":"agent-189E2E75-5092-4608-B91E-A99594BC6CB7","holder":"baker-holmes","note":"baker-street holmes probe 152","claimed":1793484941,"expires":1793485841,"paths":["host/docker/git-cas-test-deno/"],"record":"469bfd6ec7a1384fb95d7021066fa44010484e6d","acquisition":"1793484941-33184-1328512470"}
+=== canary3 base config
+Check test/types/canary3.ts
+TS2339 [ERROR]: Property 'algorithm' does not exist on type 'unknown'.
+const neg: Equal<Out<typeof KdfSchema>['algorithm'], 'nope'> = true;
+    at file:///app/test/types/canary3.ts:5:40
+exit=1
+=== canary3 head config
+Check test/types/canary3.ts
+TS2322 [ERROR]: Type 'true' is not assignable to type 'false'.
+const neg: Equal<Out<typeof KdfSchema>['algorithm'], 'nope'> = true;
+    at file:///app/test/types/canary3.ts:5:7
+exit=1
+=== DENO env / node_modules layout
+@eslint
+@flyingrobots
+@git-stunts
+@types
+cbor-x
+zod@3.25.76
+zod@4.6.7
+/app/node_modules/.deno/zod@4.6.7/node_modules/zod
+lrwxrwxrwx 1 gitstunts gitstunts 32 Oct 31 21:47 node_modules/zod -> .deno/zod@4.6.7/node_modules/zod
+=== deno check -L debug base (zod mentions)
+DEBUG TS -   specifiers: zod
+DEBUG RS - deno::tsc:1059 - Resolved zod from file:///app/src/domain/schemas/ManifestSchema.d.ts to ("internal:///missing_dependency.d.ts", Some(".d.ts"))
+{"event":"released","job":"agent-189E2E75-5092-4608-B91E-A99594BC6CB7","paths":1}

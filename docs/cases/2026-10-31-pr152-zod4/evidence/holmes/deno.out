@@ -1,0 +1,142 @@
+{"event":"claimed","job":"agent-340401A4-8075-4927-929F-26CDA854C068","holder":"baker-holmes","note":"baker-street holmes probe 152","claimed":1793484868,"expires":1793485768,"paths":["host/docker/git-cas-test-deno/"],"record":"b2490efdfa3edc1ea8867d84c32c8b1935b60043","acquisition":"1793484868-31849-0441519092"}
+deno 2.7.1 (stable, release, aarch64-unknown-linux-gnu)
+=== D head config + head fixture (GREEN)
+[0m[32mCheck[0m test/types/pac.head.ts
+exit=0
+=== B base config + base fixture (main state)
+[0m[32mCheck[0m test/types/pac.base.ts
+exit=0
+=== A base config + head fixture
+[0m[32mCheck[0m test/types/pac.head.ts
+[0m[1mTS2307 [0m[ERROR]: Import "zod" not a dependency
+  [0m[36mhint:[0m If you want to use the npm package, try running `deno add npm:zod`
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m1[0m:[0m[33m24[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const kdfAlgorithmsInfer: Equal<
+[0m[31m      ~~~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m165[0m:[0m[33m7[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const kdfKeyLengthDefaults: Equal<
+[0m[31m      ~~~~~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m169[0m:[0m[33m7[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const compressionAlgorithmsInfer: Equal<
+[0m[31m      ~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m173[0m:[0m[33m7[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const chunkingStrategiesInfer: Equal<
+[0m[31m      ~~~~~~~~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m177[0m:[0m[33m7[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const encryptionSchemesInfer: Equal<
+[0m[31m      ~~~~~~~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m181[0m:[0m[33m7[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+exit=1
+=== canary head config
+[0m[32mCheck[0m test/types/canary.ts
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const wrong1: Equal<z.infer<typeof KdfSchema>['algorithm'], 'nope'> = true;
+[0m[31m      ~~~~~~[0m
+    at [0m[36mfile:///app/test/types/canary.ts[0m:[0m[33m4[0m:[0m[33m7[0m
+[0m[1m[31merror[0m: Type checking failed.
+exit=1
+=== canary base config
+[0m[32mCheck[0m test/types/canary.ts
+[0m[1mTS2307 [0m[ERROR]: Import "zod" not a dependency
+  [0m[36mhint:[0m If you want to use the npm package, try running `deno add npm:zod`
+    at [0m[36mfile:///app/test/types/canary.ts[0m:[0m[33m1[0m:[0m[33m24[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const wrong1: Equal<z.infer<typeof KdfSchema>['algorithm'], 'nope'> = true;
+[0m[31m      ~~~~~~[0m
+    at [0m[36mfile:///app/test/types/canary.ts[0m:[0m[33m4[0m:[0m[33m7[0m
+Found 2 errors.
+[0m[1m[31merror[0m: Type checking failed.
+exit=1
+=== C head config + head fixture + zod3 decls (RED)
+[0m[32mCheck[0m test/types/pac.head.ts
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const kdfAlgorithmsInfer: Equal<
+[0m[31m      ~~~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m165[0m:[0m[33m7[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const compressionAlgorithmsInfer: Equal<
+[0m[31m      ~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m173[0m:[0m[33m7[0m
+[0m[1mTS2339 [0m[ERROR]: Property 'strategy' does not exist on type 'unknown'.
+  z.infer<typeof ChunkingSchema>['strategy'],
+[0m[31m                                 ~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m178[0m:[0m[33m34[0m
+Found 3 errors.
+[0m[1m[31merror[0m: Type checking failed.
+exit=1
+=== C2 base config + head fixture + zod3 decls
+[0m[32mCheck[0m test/types/pac.head.ts
+[0m[1mTS2307 [0m[ERROR]: Import "zod" not a dependency
+  [0m[36mhint:[0m If you want to use the npm package, try running `deno add npm:zod`
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m1[0m:[0m[33m24[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const kdfAlgorithmsInfer: Equal<
+[0m[31m      ~~~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m165[0m:[0m[33m7[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const kdfKeyLengthDefaults: Equal<
+[0m[31m      ~~~~~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m169[0m:[0m[33m7[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const compressionAlgorithmsInfer: Equal<
+[0m[31m      ~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m173[0m:[0m[33m7[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const chunkingStrategiesInfer: Equal<
+[0m[31m      ~~~~~~~~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m177[0m:[0m[33m7[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+const encryptionSchemesInfer: Equal<
+[0m[31m      ~~~~~~~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/test/types/pac.head.ts[0m:[0m[33m181[0m:[0m[33m7[0m
+[0m[1mTS2322 [0m[ERROR]: Type 'true' is not assignable to type 'false'.
+exit=1
+=== E skipLibCheck false head
+[0m[32mCheck[0m test/types/pac.head.ts
+[0m[1mTS2614 [0m[ERROR]: Module '"file:///app/src/domain/value-objects/Manifest.js"' has no exported member 'EncryptionMeta'. Did you mean to use 'import EncryptionMeta from "file:///app/src/domain/value-objects/Manifest.js"' instead?
+  EncryptionMeta,
+[0m[31m  ~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/index.d.ts[0m:[0m[33m8[0m:[0m[33m3[0m
+[0m[1mTS2614 [0m[ERROR]: Module '"file:///app/src/domain/value-objects/Manifest.js"' has no exported member 'ManifestData'. Did you mean to use 'import ManifestData from "file:///app/src/domain/value-objects/Manifest.js"' instead?
+  ManifestData,
+[0m[31m  ~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/index.d.ts[0m:[0m[33m9[0m:[0m[33m3[0m
+[0m[1mTS2614 [0m[ERROR]: Module '"file:///app/src/domain/value-objects/Manifest.js"' has no exported member 'CompressionMeta'. Did you mean to use 'import CompressionMeta from "file:///app/src/domain/value-objects/Manifest.js"' instead?
+  CompressionMeta,
+[0m[31m  ~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/index.d.ts[0m:[0m[33m10[0m:[0m[33m3[0m
+[0m[1mTS2614 [0m[ERROR]: Module '"file:///app/src/domain/value-objects/Manifest.js"' has no exported member 'KdfParams'. Did you mean to use 'import KdfParams from "file:///app/src/domain/value-objects/Manifest.js"' instead?
+  KdfParams,
+[0m[31m  ~~~~~~~~~[0m
+    at [0m[36mfile:///app/index.d.ts[0m:[0m[33m11[0m:[0m[33m3[0m
+[0m[1mTS2614 [0m[ERROR]: Module '"file:///app/src/domain/value-objects/Manifest.js"' has no exported member 'SubManifestRef'. Did you mean to use 'import SubManifestRef from "file:///app/src/domain/value-objects/Manifest.js"' instead?
+  SubManifestRef,
+[0m[31m  ~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/index.d.ts[0m:[0m[33m12[0m:[0m[33m3[0m
+[0m[1mTS2614 [0m[ERROR]: Module '"file:///app/src/domain/value-objects/Manifest.js"' has no exported member 'RecipientEntry'. Did you mean to use 'import RecipientEntry from "file:///app/src/domain/value-objects/Manifest.js"' instead?
+  RecipientEntry,
+[0m[31m  ~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/index.d.ts[0m:[0m[33m13[0m:[0m[33m3[0m
+[0m[1mTS2614 [0m[ERROR]: Module '"file:///app/src/domain/value-objects/Manifest.js"' has no exported member 'EncryptionScheme'. Did you mean to use 'import EncryptionScheme from "file:///app/src/domain/value-objects/Manifest.js"' instead?
+  EncryptionScheme,
+[0m[31m  ~~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/index.d.ts[0m:[0m[33m14[0m:[0m[33m3[0m
+[0m[1mTS2614 [0m[ERROR]: Module '"file:///app/src/domain/value-objects/Manifest.js"' has no exported member 'EncryptionMeta'. Did you mean to use 'import EncryptionMeta from "file:///app/src/domain/value-objects/Manifest.js"' instead?
+  type EncryptionMeta,
+[0m[31m       ~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/src/domain/services/CasService.d.ts[0m:[0m[33m7[0m:[0m[33m8[0m
+[0m[1mTS2614 [0m[ERROR]: Module '"file:///app/src/domain/value-objects/Manifest.js"' has no exported member 'CompressionMeta'. Did you mean to use 'import CompressionMeta from "file:///app/src/domain/value-objects/Manifest.js"' instead?
+  type CompressionMeta,
+[0m[31m       ~~~~~~~~~~~~~~~[0m
+    at [0m[36mfile:///app/src/domain/services/CasService.d.ts[0m:[0m[33m8[0m:[0m[33m8[0m
+[0m[1mTS2614 [0m[ERROR]: Module '"file:///app/src/domain/value-objects/Manifest.js"' has no exported member 'KdfParams'. Did you mean to use 'import KdfParams from "file:///app/src/domain/value-objects/Manifest.js"' instead?
+  type KdfParams,
+[0m[31m       ~~~~~~~~~[0m
+exit=1
+{"event":"released","job":"agent-340401A4-8075-4927-929F-26CDA854C068","paths":1}

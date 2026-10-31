@@ -1,0 +1,11 @@
+{"event":"claimed","job":"agent-D8AF988D-EFF2-472A-803F-14825293DF77","holder":"baker-holmes","note":"baker-street holmes probe 152","claimed":1793485004,"expires":1793485904,"paths":["host/docker/git-cas-test-deno/"],"record":"b91a978284f35125f77bdb41fb91c3370488e8bb","acquisition":"1793485004-35439-2812919463"}
+Check test/types/mirror.ts
+TS2322 [ERROR]: Type 'true' is not assignable to type 'false'.
+const s3: Equal<typeof EncryptionSchema, typeof D.EncryptionSchema> = true;
+    at file:///app/test/types/mirror.ts:160:7
+TS2322 [ERROR]: Type 'true' is not assignable to type 'false'.
+const s4: Equal<typeof ManifestSchema, typeof D.ManifestSchema> = true;
+    at file:///app/test/types/mirror.ts:161:7
+Found 2 errors.
+exit=1
+{"event":"released","job":"agent-D8AF988D-EFF2-472A-803F-14825293DF77","paths":1}

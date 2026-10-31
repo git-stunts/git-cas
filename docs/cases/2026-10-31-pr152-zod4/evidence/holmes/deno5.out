@@ -1,0 +1,15 @@
+{"event":"claimed","job":"agent-AE4006A8-0A47-4098-89DE-E816DE3830AB","holder":"baker-holmes","note":"baker-street holmes probe 152","claimed":1793484990,"expires":1793485890,"paths":["host/docker/git-cas-test-deno/"],"record":"616c897ad69da07e003409f8b1ca2d62a4e1b3fd","acquisition":"1793484990-34776-2600202836"}
+Check test/types/mirror.ts
+TS7006 [ERROR]: Parameter 'field' implicitly has an 'any' type.
+    at file:///app/test/types/mirror.ts:5:28
+TS7006 [ERROR]: Parameter 'byteLength' implicitly has an 'any' type.
+    at file:///app/test/types/mirror.ts:5:35
+TS2322 [ERROR]: Type 'true' is not assignable to type 'false'.
+const s3: Equal<typeof EncryptionSchema, typeof D.EncryptionSchema> = true;
+    at file:///app/test/types/mirror.ts:160:7
+TS2322 [ERROR]: Type 'true' is not assignable to type 'false'.
+const s4: Equal<typeof ManifestSchema, typeof D.ManifestSchema> = true;
+    at file:///app/test/types/mirror.ts:161:7
+Found 4 errors.
+exit=1
+{"event":"released","job":"agent-AE4006A8-0A47-4098-89DE-E816DE3830AB","paths":1}
