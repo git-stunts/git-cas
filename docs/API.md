@@ -1070,9 +1070,9 @@ SHA-256, checks cancellation, then renames into place. It does not collect the
 whole file. Encryption authentication and existing buffering limits belong to
 the source: whole-object `assets.open()` retains its existing buffer limits.
 Without `expectedSha256`, there is no additional whole-file digest check beyond
-what the source provides. Digest hex is case-insensitive. With `expectedSha256`, each chunk is copied before
-it is hashed, so the published file holds exactly the verified bytes even if the
-source reuses a buffer after yielding it.
+what the source provides. Digest hex is case-insensitive. Each chunk is copied when it is pulled, so the
+published file, and any digest check, hold exactly the bytes the source yielded,
+even if the source reuses a buffer after yielding it.
 
 Source, authentication, write, digest and cancellation failures before rename
 leave an existing destination untouched. Cancellation and write failures settle

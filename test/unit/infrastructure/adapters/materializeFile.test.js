@@ -80,6 +80,22 @@ describe('file materialization digest verification', () => {
   });
 });
 
+describe('file materialization buffer reuse under backpressure', () => {
+  it.each([false, true])('publishes every yielded chunk when the producer reuses one buffer, digest=%s', async (verify) => {
+    const expected = Buffer.concat(Array.from({ length: 32 }, (_, index) => Buffer.alloc(32_768, index)));
+    async function* reused() {
+      const chunk = Buffer.alloc(32_768);
+      for (let index = 0; index < 32; index++) {
+        chunk.fill(index);
+        yield chunk;
+      }
+    }
+    const expectedSha256 = verify ? createHash('sha256').update(expected).digest('hex') : undefined;
+    await materializeFile(options({ source: reused(), expectedSha256 }));
+    expect((await readFile(path.join(base, 'doc.md'))).equals(expected)).toBe(true);
+  });
+});
+
 describe('file materialization failure cleanup', () => {
   it('cleans up after the destination refuses rename', async () => {
     await mkdir(path.join(base, 'doc.md'));

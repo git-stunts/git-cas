@@ -25,11 +25,9 @@ export async function materializeFile(options = {}) {
   let bytesWritten = 0;
   const counter = new Transform({
     transform(chunk, _encoding, done) {
-      // A verified file must contain the hashed bytes, even if the producer reuses its buffer.
-      const bytes = hash ? Buffer.from(chunk) : chunk;
-      bytesWritten += bytes.length;
-      hash?.update(bytes);
-      done(null, bytes);
+      bytesWritten += chunk.length;
+      hash?.update(chunk);
+      done(null, chunk);
     },
   });
   try {
@@ -104,7 +102,8 @@ async function* byteChunks(source, signal, onSourceFailure) {
       if (!types.isUint8Array(chunk)) {
         throw new CasError('source must yield Uint8Array chunks', ErrorCodes.INVALID_OPTIONS);
       }
-      yield chunk;
+      // Copied before the next pull: streams queue references, and a producer may reuse its buffer.
+      yield Buffer.from(chunk);
     }
   } catch (error) {
     if (!signal.aborted) { onSourceFailure(error); }
