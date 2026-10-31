@@ -11,8 +11,7 @@ import { resolveSafeRestorePath } from './RestorePath.js';
 
 /** @param {import('../../../files.js').MaterializeFileOptions} options */
 export async function materializeFile(options = {}) {
-  const source = validateOptions(options);
-  const { baseDirectory, outputPath, expectedSha256, signal } = options;
+  const { source, baseDirectory, outputPath, expectedSha256, signal } = validateOptions(options);
   signal?.throwIfAborted();
   const destination = await resolveSafeRestorePath({ baseDirectory, outputPath });
   if (destination === await realpath(path.resolve(baseDirectory))) {
@@ -68,17 +67,22 @@ async function writeStaged({ source, staged, counter, signal }) {
   }
 }
 
-/** Returns the source bound to the iterator method read here, so it is read once, as for await does. */
+/**
+ * Reads each option once and returns that snapshot, so a getter cannot pass validation
+ * and then change. The source is bound to the iterator method read here, as for await does.
+ */
 function validateOptions(options) {
-  const source = options?.source;
+  const { source, baseDirectory, outputPath, expectedSha256, signal } = options ?? {};
   const iteratorMethod = source?.[Symbol.asyncIterator];
-  if (!options || !isPath(options.baseDirectory) || !isPath(options.outputPath)
-    || typeof iteratorMethod !== 'function') {
+  if (!options || !isPath(baseDirectory) || !isPath(outputPath) || typeof iteratorMethod !== 'function') {
     throw new CasError('source, baseDirectory and outputPath are required', ErrorCodes.INVALID_OPTIONS);
   }
-  validateSignal(options.signal);
-  validateDigest(options.expectedSha256);
-  return { [Symbol.asyncIterator]: () => Reflect.apply(iteratorMethod, source, []) };
+  validateSignal(signal);
+  validateDigest(expectedSha256);
+  return {
+    source: { [Symbol.asyncIterator]: () => Reflect.apply(iteratorMethod, source, []) },
+    baseDirectory, outputPath, expectedSha256, signal,
+  };
 }
 
 const readAborted = Object.getOwnPropertyDescriptor(globalThis.AbortSignal.prototype, 'aborted').get;

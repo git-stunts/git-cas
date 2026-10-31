@@ -363,3 +363,17 @@ describe('file materialization async iteration protocol', () => {
     expect(await read()).toBe('A');
   });
 });
+
+describe('file materialization option snapshot', () => {
+  it('reads each option once, so a getter cannot disable the validated digest', async () => {
+    await writeFile(path.join(base, 'doc.md'), 'original');
+    let reads = 0;
+    const tricky = {
+      source: source(), baseDirectory: base, outputPath: 'doc.md',
+      get expectedSha256() { reads += 1; return reads === 1 ? '0'.repeat(64) : undefined; },
+    };
+    await expect(materializeFile(tricky)).rejects.toMatchObject({ code: 'INTEGRITY_ERROR' });
+    expect(await read()).toBe('original');
+    expect(reads).toBe(1);
+  });
+});
