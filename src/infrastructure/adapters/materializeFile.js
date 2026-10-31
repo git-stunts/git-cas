@@ -30,10 +30,7 @@ export async function materializeFile(options = {}) {
     },
   });
   try {
-    await pipeline(
-      Readable.from(byteChunks(source, signal), { objectMode: false }), counter,
-      createWriteStream(staged, { flags: 'wx', mode: 0o600 }), { signal }
-    );
+    await writeStaged({ source, staged, counter, signal });
     if (hash && hash.digest('hex') !== expectedSha256.toLowerCase()) {
       throw new CasError('Materialized file SHA-256 does not match expectedSha256', ErrorCodes.INTEGRITY_ERROR);
     }
@@ -46,6 +43,23 @@ export async function materializeFile(options = {}) {
   }
   await rm(temporary, { recursive: true, force: true });
   return { bytesWritten };
+}
+
+/**
+ * Pulls stop when the caller aborts or the file fails, so neither has to wait
+ * for a blocked producer before the pipeline can settle.
+ */
+async function writeStaged({ source, staged, counter, signal }) {
+  const pulls = new globalThis.AbortController();
+  const forward = () => pulls.abort(signal.reason);
+  signal?.addEventListener('abort', forward, { once: true });
+  const file = createWriteStream(staged, { flags: 'wx', mode: 0o600 });
+  file.once('error', (error) => pulls.abort(error));
+  try {
+    await pipeline(Readable.from(byteChunks(source, pulls.signal), { objectMode: false }), counter, file, { signal });
+  } finally {
+    signal?.removeEventListener('abort', forward);
+  }
 }
 
 function validateOptions(options) {
