@@ -111,17 +111,23 @@ objects, updates refs, or changes retention.
 ### Optional atomic file output
 
 Byte streaming remains the default. Applications that want a complete file
-published only after streaming succeeds can opt into a separate helper
-inside an open CAS session:
+published only after streaming succeeds can opt into a separate helper.
+The CAS session must stay open until the helper finishes:
 
 ```js
+import ContentAddressableStore from '@git-stunts/git-cas';
 import { materializeFile } from '@git-stunts/git-cas/files';
 
-await materializeFile({
-  source: cas.assets.open({ handle: staged.handle }),
-  baseDirectory: '/existing/cache',
-  outputPath: 'asset.bin',
-});
+const cas = await ContentAddressableStore.open({ cwd: '.' });
+try {
+  await materializeFile({
+    source: cas.assets.open({ handle }),
+    baseDirectory: '/existing/cache',
+    outputPath: 'asset.bin',
+  });
+} finally {
+  await cas.close();
+}
 ```
 
 The helper stages beside the destination and renames on success. See the
