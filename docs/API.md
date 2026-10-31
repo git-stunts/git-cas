@@ -1079,7 +1079,8 @@ the source to return, without waiting for it to resume. Temporary output is remo
 success and failure. The final file has permissions no broader than `0600`.
 Concurrent successful publishers use last-rename-wins behavior. Rename is the
 publication point; a later temporary-directory cleanup error can be reported
-after publication. A crash can leave a private temporary directory, which the
+after publication. If cleanup also fails after an earlier failure, the earlier
+failure is reported and the private temporary directory can remain. A crash can leave a private temporary directory, which the
 application may reclaim after establishing that no active writer owns it.
 
 This guarantees atomic visibility of one file on filesystems supporting atomic

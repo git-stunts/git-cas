@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtemp, readFile, readdir, rm, writeFile, mkdir, symlink } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, readdir, rm, writeFile, mkdir, symlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
@@ -194,5 +194,19 @@ describe('file materialization cancellation and cleanup errors', () => {
     blocked.resolve();
     expect(await read()).toBe('original');
     expect(await entries()).toEqual(['doc.md']);
+  });
+
+  it('reports the source failure when temporary cleanup also fails', async () => {
+    const failure = new Error('source authentication failed');
+    async function* broken() {
+      yield Buffer.from('partial');
+      await chmod(base, 0o500);
+      throw failure;
+    }
+    try {
+      await expect(materializeFile(options({ source: broken() }))).rejects.toBe(failure);
+    } finally {
+      await chmod(base, 0o700);
+    }
   });
 });

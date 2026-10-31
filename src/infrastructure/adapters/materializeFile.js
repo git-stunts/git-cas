@@ -39,10 +39,13 @@ export async function materializeFile(options = {}) {
     }
     signal?.throwIfAborted();
     await rename(staged, destination);
-    return { bytesWritten };
-  } finally {
-    await rm(temporary, { recursive: true, force: true });
+  } catch (error) {
+    // The original failure is the diagnosis; a leftover private directory is documented.
+    await rm(temporary, { recursive: true, force: true }).catch(() => {});
+    throw error;
   }
+  await rm(temporary, { recursive: true, force: true });
+  return { bytesWritten };
 }
 
 function validateOptions(options) {
