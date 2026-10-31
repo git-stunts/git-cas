@@ -1,0 +1,30 @@
+{"event":"claimed","job":"agent-307078E6-F627-470E-B400-98514F19D519","holder":"baker-moriarty","note":"baker-street moriarty probe","claimed":1793481542,"expires":1793482442,"paths":["host/docker/git-cas-test-node/"],"record":"156311488470df30640409d60d3d550a1ae502a4","acquisition":"1793481542-82584-1678100385"}
+runtime v22.23.4 bun? none
+P1 leaf-symlink OK {"bytesWritten":3}
+P1 current.bin isSymlink= true link-> versions/v1.bin
+P1 versions/v1.bin now = "NEW"
+P2 trailing-slash outputPath OK {"bytesWritten":1}
+P2 entries [ 'a.bin', 'dir-intended' ]
+P2 trailing-slash existing file OK {"bytesWritten":1}
+P2 a.bin = Y
+P2 destination is directory THREW Error EISDIR EISDIR: illegal operation on a directory, rename '/tmp/m2-2rJheZ/.git-cas-materialize-C1Xkqi/content' -> '/tmp/m2-2rJheZ/existing-dir'
+P2 NUL in outputPath THREW TypeError ERR_INVALID_ARG_VALUE The argument 'path' must be a string, Uint8Array, or URL without null bytes. Received '/tmp/m2-2rJheZ/a\x00b'
+P2 missing base THREW Error ENOENT ENOENT: no such file or directory, realpath '/tmp/m2-2rJheZ/nope'
+P2 leftovers []
+P3 abort THREW AbortError ABORT_ERR The operation was aborted
+P3 events [
+ "source: blocked in pull",
+ "caller: materializeFile settled -> README finally { cas.close() } runs now",
+ "source: resumed and touches the (closed) session",
+ "source: finally ran"
+]
+P4 OK {"bytesWritten":12}
+P4 seen-by-concurrent-scan [{"n":".git-cas-materialize-OBsQxK","mode":"700","inner":["content"]}]
+P5 bom SAME ERR SyntaxError ERR SyntaxError
+P5 loneSurrogateWTF8 SAME "\ud800" "\ud800"
+P5 nonchar SAME "￿" "￿"
+P5 escapedLone SAME "\ud800" "\ud800"
+P5 overlongNul SAME "�" "�"
+P5 ms/decode good: runtime 0.218 legacy 0.931
+P5 ms/decode lone-surrogate: runtime 0.214 legacy 0.962
+{"event":"released","job":"agent-307078E6-F627-470E-B400-98514F19D519","paths":1}

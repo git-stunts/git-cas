@@ -1,0 +1,17 @@
+{"event":"claimed","job":"agent-6AE5D415-B181-4B92-A0DA-A70FB6212E74","holder":"baker-holmes","note":"baker-street holmes focused count","claimed":1793481458,"expires":1793482358,"paths":["host/docker/git-cas-test-node/"],"record":"987e990aabd32a108edc17e66e2de04f3df07027","acquisition":"1793481458-81322-1233006687"}
+4f8cd3ff00def1a18645fe1f8d76a4ea3b0d786f68cb9e4085eab11204697b70  src/infrastructure/adapters/materializeFile.js
+
+ RUN  v2.1.9 /app
+
+ ✓ |unit| test/unit/infrastructure/adapters/materializeFile.test.js (47 tests) 64ms
+ ✓ |unit| test/unit/infrastructure/adapters/FileIOHelper.test.js (12 tests) 23ms
+ ✓ |integration| test/integration/file-materialization.test.js (8 tests) 267ms
+ ✓ |unit| test/unit/infrastructure/codecs/JsonCodec.test.js (18 tests) 157ms
+ ✓ |unit| test/unit/infrastructure/adapters/materializeFile.write-failure.test.js (1 test) 5ms
+
+ Test Files  5 passed (5)
+      Tests  86 passed (86)
+   Start at  21:17:39
+   Duration  1.41s (transform 280ms, setup 15ms, collect 506ms, tests 516ms, environment 1ms, prepare 108ms)
+
+{"event":"released","job":"agent-6AE5D415-B181-4B92-A0DA-A70FB6212E74","paths":1}
