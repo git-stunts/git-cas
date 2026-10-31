@@ -1,9 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chmod, mkdtemp, readFile, readdir, rm, writeFile, mkdir, symlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import { runInNewContext } from 'node:vm';
-import * as v8 from 'node:v8';
 import path from 'node:path';
 import { materializeFile } from '@git-stunts/git-cas/files';
 
@@ -259,23 +258,6 @@ describe('file materialization source iteration edges', () => {
     await expect(materializeFile(options({ source: foreign() }))).resolves.toEqual({ bytesWritten: 1 });
     expect(await read()).toBe('A');
   });
-
-  it.skipIf(typeof v8.queryObjects !== 'function')(
-    'does not retain promises in proportion to chunks when a signal is supplied', async () => {
-      const controller = new globalThis.AbortController();
-      let early = 0;
-      let late = 0;
-      async function* many() {
-        for (let index = 0; index < 10_000; index++) {
-          if (index === 100) { early = v8.queryObjects(Promise); }
-          yield Uint8Array.of(65);
-        }
-        late = v8.queryObjects(Promise);
-      }
-      await materializeFile(options({ source: many(), signal: controller.signal }));
-      expect(late - early).toBeLessThan(1_000);
-    }
-  );
 });
 
 describe('file materialization source failure values', () => {
@@ -292,5 +274,29 @@ describe('file materialization source failure values', () => {
     const refusing = { [Symbol.asyncIterator]() { throw 0; } };
     await expect(materializeFile(options({ source: refusing }))).rejects.toBe(0);
     expect(await entries()).toEqual([]);
+  });
+});
+
+describe('file materialization abort race retention', () => {
+  it('races a fresh abort promise for every pull, so completed pulls retain nothing', async () => {
+    const controller = new globalThis.AbortController();
+    const raced = new Set();
+    let repeats = 0;
+    const race = Promise.race.bind(Promise);
+    const spy = vi.spyOn(Promise, 'race').mockImplementation((contenders) => {
+      for (const contender of contenders) {
+        if (raced.has(contender)) { repeats += 1; }
+        raced.add(contender);
+      }
+      return race(contenders);
+    });
+    async function* many() { for (let index = 0; index < 100; index++) { yield Uint8Array.of(65); } }
+    try {
+      await materializeFile(options({ source: many(), signal: controller.signal }));
+    } finally {
+      spy.mockRestore();
+    }
+    expect(raced.size).toBeGreaterThanOrEqual(200);
+    expect(repeats).toBe(0);
   });
 });
