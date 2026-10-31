@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Optional `@git-stunts/git-cas/files` helper `materializeFile()` streams an async byte source to a private sibling file, then renames on success. It supports cancellation and optional whole-plaintext SHA-256 verification, reuses restore path confinement, rejects an output path that resolves to the base directory before reading the source, rejects source chunks that are not `Uint8Array` with `INVALID_OPTIONS`, and leaves core byte-stream/buffer APIs and legacy `restoreFile()` behavior unchanged.
+- Optional `@git-stunts/git-cas/files` helper `materializeFile()` streams an async byte source to a private sibling file, then renames on success. It supports cancellation and optional whole-plaintext SHA-256 verification, reuses restore path confinement, rejects an output path that resolves to the base directory before reading the source, rejects source chunks that are not `Uint8Array` with `INVALID_OPTIONS`, and leaves the core byte-stream and buffer APIs unchanged. `restoreFile()` changes only by the path fix listed under Fixed.
 
 ### Performance
 
