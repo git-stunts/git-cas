@@ -174,3 +174,25 @@ describe('file materialization source contract', () => {
     }
   );
 });
+
+describe('file materialization cancellation and cleanup errors', () => {
+  it('settles on cancellation while the producer is blocked', async () => {
+    await writeFile(path.join(base, 'doc.md'), 'original');
+    const controller = new globalThis.AbortController();
+    const entered = gate();
+    const blocked = gate();
+    async function* stalled() {
+      yield Buffer.from('partial');
+      entered.resolve();
+      await blocked.promise;
+      yield Buffer.from('late');
+    }
+    const pending = materializeFile(options({ source: stalled(), signal: controller.signal }));
+    await entered.promise;
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    blocked.resolve();
+    expect(await read()).toBe('original');
+    expect(await entries()).toEqual(['doc.md']);
+  });
+});

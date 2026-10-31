@@ -31,7 +31,7 @@ export async function materializeFile(options = {}) {
   });
   try {
     await pipeline(
-      Readable.from(byteChunks(source), { objectMode: false }), counter,
+      Readable.from(byteChunks(source, signal), { objectMode: false }), counter,
       createWriteStream(staged, { flags: 'wx', mode: 0o600 }), { signal }
     );
     if (hash && hash.digest('hex') !== expectedSha256.toLowerCase()) {
@@ -60,14 +60,40 @@ function validateSignal(signal) {
   }
 }
 
-/** Rejects anything but byte chunks, so a misbehaving source cannot publish text. */
-async function* byteChunks(source) {
-  for await (const chunk of source) {
-    if (!(chunk instanceof Uint8Array)) {
-      throw new CasError('source must yield Uint8Array chunks', ErrorCodes.INVALID_OPTIONS);
+/**
+ * Rejects anything but byte chunks, so a misbehaving source cannot publish text.
+ * Each pull races the abort signal: cancellation settles even while the producer
+ * is blocked. The source is then asked to return without waiting for it.
+ */
+async function* byteChunks(source, signal) {
+  const iterator = source[Symbol.asyncIterator]();
+  const abort = abortRejection(signal);
+  let finished = false;
+  try {
+    while (true) {
+      const step = await (abort ? Promise.race([iterator.next(), abort.promise]) : iterator.next());
+      if (step.done) { finished = true; return; }
+      if (!(step.value instanceof Uint8Array)) {
+        throw new CasError('source must yield Uint8Array chunks', ErrorCodes.INVALID_OPTIONS);
+      }
+      yield step.value;
     }
-    yield chunk;
+  } finally {
+    abort?.dispose();
+    if (!finished) { Promise.resolve(iterator.return?.()).catch(() => {}); }
   }
+}
+
+/** A rejection that follows `signal`, marked handled so a late abort is not reported. */
+function abortRejection(signal) {
+  if (!signal) { return null; }
+  let onAbort;
+  const promise = new Promise((_resolve, reject) => {
+    onAbort = () => reject(signal.reason);
+    if (signal.aborted) { onAbort(); } else { signal.addEventListener('abort', onAbort, { once: true }); }
+  });
+  promise.catch(() => {});
+  return { promise, dispose: () => signal.removeEventListener('abort', onAbort) };
 }
 
 function isPath(value) { return typeof value === 'string' && value.length > 0; }

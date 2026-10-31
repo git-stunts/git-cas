@@ -1073,7 +1073,9 @@ Without `expectedSha256`, there is no additional whole-file digest check beyond
 what the source provides. Digest hex is case-insensitive.
 
 Source, authentication, write, digest and cancellation failures before rename
-leave an existing destination untouched. Temporary output is removed on normal
+leave an existing destination untouched. Cancellation settles the call even
+while the source is waiting to produce its next chunk; the helper then asks
+the source to return, without waiting for it to resume. Temporary output is removed on normal
 success and failure. The final file has permissions no broader than `0600`.
 Concurrent successful publishers use last-rename-wins behavior. Rename is the
 publication point; a later temporary-directory cleanup error can be reported
