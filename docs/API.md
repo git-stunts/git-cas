@@ -1085,7 +1085,8 @@ same-filesystem rename. It does not fsync, provide power-loss durability,
 create parents, transfer retention, change Git refs, enforce cache quotas,
 manage eviction, or transact a whole directory. Applications own those policies.
 
-Errors: malformed options or digest syntax use `INVALID_OPTIONS`; an escaping
+Errors: malformed options, digest syntax or a source chunk that is not a
+`Uint8Array` use `INVALID_OPTIONS`; an escaping
 path or an output path that resolves to the base directory uses
 `SECURITY_BOUNDARY_VIOLATION`; a full-file digest mismatch uses
 `INTEGRITY_ERROR`. Source errors are propagated; cancellation and filesystem

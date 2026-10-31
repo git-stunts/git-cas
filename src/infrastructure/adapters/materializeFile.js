@@ -31,7 +31,7 @@ export async function materializeFile(options = {}) {
   });
   try {
     await pipeline(
-      Readable.from(source, { objectMode: false }), counter,
+      Readable.from(byteChunks(source), { objectMode: false }), counter,
       createWriteStream(staged, { flags: 'wx', mode: 0o600 }), { signal }
     );
     if (hash && hash.digest('hex') !== expectedSha256.toLowerCase()) {
@@ -51,6 +51,16 @@ function validateOptions(options) {
     throw new CasError('source, baseDirectory and outputPath are required', ErrorCodes.INVALID_OPTIONS);
   }
   validateDigest(options.expectedSha256);
+}
+
+/** Rejects anything but byte chunks, so a misbehaving source cannot publish text. */
+async function* byteChunks(source) {
+  for await (const chunk of source) {
+    if (!(chunk instanceof Uint8Array)) {
+      throw new CasError('source must yield Uint8Array chunks', ErrorCodes.INVALID_OPTIONS);
+    }
+    yield chunk;
+  }
 }
 
 function isPath(value) { return typeof value === 'string' && value.length > 0; }

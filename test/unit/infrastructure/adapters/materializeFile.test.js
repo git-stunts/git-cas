@@ -153,3 +153,16 @@ describe('file materialization input boundary', () => {
     }
   );
 });
+
+describe('file materialization source contract', () => {
+  it.each([['a string', 'not bytes'], ['undefined', undefined], ['a number', 42]])(
+    'rejects a source chunk that is %s and keeps the destination', async (_label, chunk) => {
+      await writeFile(path.join(base, 'doc.md'), 'original');
+      async function* invalid() { yield chunk; }
+      await expect(materializeFile(options({ source: invalid() })))
+        .rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+      expect(await read()).toBe('original');
+      expect(await entries()).toEqual(['doc.md']);
+    }
+  );
+});
