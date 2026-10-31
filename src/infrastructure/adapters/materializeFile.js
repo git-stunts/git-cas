@@ -103,7 +103,8 @@ async function* byteChunks(source, signal, onSourceFailure) {
         throw new CasError('source must yield Uint8Array chunks', ErrorCodes.INVALID_OPTIONS);
       }
       // Copied before the next pull: streams queue references, and a producer may reuse its buffer.
-      yield Buffer.from(chunk);
+      // The typed-array constructor reads the bytes directly; Buffer.from(chunk) would honour valueOf().
+      yield Buffer.from(new Uint8Array(chunk).buffer);
     }
   } catch (error) {
     if (!signal.aborted) { onSourceFailure(error); }

@@ -96,6 +96,16 @@ describe('file materialization buffer reuse under backpressure', () => {
   });
 });
 
+describe('file materialization chunk copy', () => {
+  it('copies the bytes of a Uint8Array without calling its valueOf', async () => {
+    const chunk = Uint8Array.of(65);
+    chunk.valueOf = () => 'B';
+    async function* overridden() { yield chunk; }
+    await materializeFile(options({ source: overridden() }));
+    expect(await read()).toBe('A');
+  });
+});
+
 describe('file materialization failure cleanup', () => {
   it('cleans up after the destination refuses rename', async () => {
     await mkdir(path.join(base, 'doc.md'));
