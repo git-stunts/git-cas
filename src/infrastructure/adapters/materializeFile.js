@@ -58,8 +58,13 @@ async function writeStaged({ source, staged, counter, signal }) {
   signal?.addEventListener('abort', forward, { once: true });
   const file = createWriteStream(staged, { flags: 'wx', mode: 0o600 });
   file.once('error', (error) => pulls.abort(error));
+  let sourceFailure = null;
+  const chunks = byteChunks(source, pulls.signal, (error) => { sourceFailure = { error }; });
   try {
-    await pipeline(Readable.from(byteChunks(source, pulls.signal), { objectMode: false }), counter, file, { signal });
+    await pipeline(Readable.from(chunks, { objectMode: false }), counter, file, { signal });
+  } catch (error) {
+    // Streams report a falsy error as a premature close; keep the value the source threw.
+    throw sourceFailure ? sourceFailure.error : error;
   } finally {
     signal?.removeEventListener('abort', forward);
   }
@@ -85,10 +90,11 @@ function validateSignal(signal) {
  * Each pull races the abort signal: cancellation settles even while the producer
  * is blocked. The source is then asked to return without waiting for it.
  */
-async function* byteChunks(source, signal) {
-  const iterator = source[Symbol.asyncIterator]();
+async function* byteChunks(source, signal, onSourceFailure) {
+  let iterator;
   let finished = false;
   try {
+    iterator = source[Symbol.asyncIterator]();
     while (true) {
       const step = await nextChunk(iterator, signal);
       if (step.done) { finished = true; return; }
@@ -100,9 +106,12 @@ async function* byteChunks(source, signal) {
       }
       yield chunk;
     }
+  } catch (error) {
+    if (!signal.aborted) { onSourceFailure(error); }
+    throw error;
   } finally {
     // Deferred, so a return() that throws synchronously cannot replace the pull's error.
-    if (!finished) { Promise.resolve().then(() => iterator.return?.()).catch(() => {}); }
+    if (!finished) { Promise.resolve().then(() => iterator?.return?.()).catch(() => {}); }
   }
 }
 

@@ -1095,7 +1095,7 @@ Errors: malformed options, digest syntax, a `signal` that is not an
 `INVALID_OPTIONS`; an escaping
 path or an output path that resolves to the base directory uses
 `SECURITY_BOUNDARY_VIOLATION`; a full-file digest mismatch uses
-`INTEGRITY_ERROR`. Source errors are propagated; cancellation and filesystem
+`INTEGRITY_ERROR`. Source errors are propagated unchanged, including falsy rejection values; cancellation and filesystem
 errors retain their underlying runtime error forms.
 
 ### `assets.adopt()`

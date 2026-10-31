@@ -277,3 +277,20 @@ describe('file materialization source iteration edges', () => {
     }
   );
 });
+
+describe('file materialization source failure values', () => {
+  it.each([[null], [undefined], [false], [0], ['']])('propagates a source rejection of %j unchanged', async (failure) => {
+    async function* broken() {
+      yield Uint8Array.of(65);
+      throw failure;
+    }
+    await expect(materializeFile(options({ source: broken() }))).rejects.toBe(failure);
+    expect(await entries()).toEqual([]);
+  });
+
+  it('propagates a falsy failure from the source iterator factory unchanged', async () => {
+    const refusing = { [Symbol.asyncIterator]() { throw 0; } };
+    await expect(materializeFile(options({ source: refusing }))).rejects.toBe(0);
+    expect(await entries()).toEqual([]);
+  });
+});
