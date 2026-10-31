@@ -115,6 +115,11 @@ describe('file materialization input boundary', () => {
     expect(await entries()).toEqual([]);
   });
 
+  it('accepts a file name that begins with two dots', async () => {
+    await expect(materializeFile(options({ outputPath: '..cache' }))).resolves.toEqual({ bytesWritten: 8 });
+    expect(await readFile(path.join(base, '..cache'), 'utf8')).toBe('complete');
+  });
+
   it('rejects lexical escape', async () => {
     await expect(materializeFile(options({ outputPath: '../escape.md' })))
       .rejects.toMatchObject({ code: 'SECURITY_BOUNDARY_VIOLATION' });

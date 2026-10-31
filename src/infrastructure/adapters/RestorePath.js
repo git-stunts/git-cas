@@ -59,7 +59,8 @@ async function canonicalizeTargetPath(targetPath) {
  */
 function isInsideBaseDirectory(resolvedPath, resolvedBase) {
   const relativePath = path.relative(resolvedBase, resolvedPath);
-  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+  const escapes = relativePath === '..' || relativePath.startsWith(`..${path.sep}`);
+  return !escapes && !path.isAbsolute(relativePath);
 }
 
 /**
