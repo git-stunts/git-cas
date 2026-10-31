@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs';
-import { mkdtemp, rename, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rename, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
@@ -14,6 +14,10 @@ export async function materializeFile(options = {}) {
   const { source, baseDirectory, outputPath, expectedSha256, signal } = options;
   signal?.throwIfAborted();
   const destination = await resolveSafeRestorePath({ baseDirectory, outputPath });
+  if (destination === await realpath(path.resolve(baseDirectory))) {
+    throw new CasError(`Materialization path "${outputPath}" names base directory "${baseDirectory}"`,
+      ErrorCodes.SECURITY_BOUNDARY_VIOLATION, { outputPath, baseDirectory });
+  }
   const temporary = await mkdtemp(path.join(path.dirname(destination), '.git-cas-materialize-'));
   const staged = path.join(temporary, 'content');
   const hash = expectedSha256 ? createHash('sha256') : null;

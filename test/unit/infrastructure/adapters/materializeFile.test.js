@@ -132,4 +132,19 @@ describe('file materialization input boundary', () => {
     expect(pulled).toBe(false);
     expect(await readdir(inner)).toEqual(['escape']);
   });
+
+  it.each([['.', []], ['self', ['self']]])(
+    'rejects %j resolving to the base directory without consuming the source', async (outputPath, listing) => {
+      const inner = path.join(base, 'inner');
+      await mkdir(inner);
+      if (outputPath === 'self') { await symlink(inner, path.join(inner, 'self')); }
+      let pulled = false;
+      async function* untouched() { pulled = true; yield Buffer.from('no'); }
+      await expect(materializeFile({ source: untouched(), baseDirectory: inner, outputPath }))
+        .rejects.toMatchObject({ code: 'SECURITY_BOUNDARY_VIOLATION' });
+      expect(pulled).toBe(false);
+      expect(await readdir(base)).toEqual(['inner']);
+      expect(await readdir(inner)).toEqual(listing);
+    }
+  );
 });

@@ -1057,7 +1057,9 @@ byte source. `assets.open()`, `restoreStream()`, `restore()` and the existing
 `restoreFile()` keep their contracts. No caller is switched to file output.
 
 `source`, `baseDirectory` and `outputPath` are required. The base and output
-parent must exist. Absolute output paths must remain inside the base. Existing
+parent must exist. Absolute output paths must remain inside the base. The
+output path must name a file inside the base, not the base directory itself;
+that path is rejected before the source is read. Existing
 symlink prefixes are resolved using the same path boundary as `restoreFile()`.
 Parent directories are trusted local application directories; this check does
 not make concurrent hostile path replacement safe.
@@ -1084,7 +1086,8 @@ create parents, transfer retention, change Git refs, enforce cache quotas,
 manage eviction, or transact a whole directory. Applications own those policies.
 
 Errors: malformed options or digest syntax use `INVALID_OPTIONS`; an escaping
-path uses `SECURITY_BOUNDARY_VIOLATION`; a full-file digest mismatch uses
+path or an output path that resolves to the base directory uses
+`SECURITY_BOUNDARY_VIOLATION`; a full-file digest mismatch uses
 `INTEGRITY_ERROR`. Source errors are propagated; cancellation and filesystem
 errors retain their underlying runtime error forms.
 
