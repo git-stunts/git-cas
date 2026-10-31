@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { chmod, mkdtemp, readFile, readdir, rm, writeFile, mkdir, symlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
+import { runInNewContext } from 'node:vm';
 import * as v8 from 'node:v8';
 import path from 'node:path';
 import { materializeFile } from '@git-stunts/git-cas/files';
@@ -222,6 +223,12 @@ describe('file materialization source iteration edges', () => {
     };
     await expect(materializeFile(options({ source: throwing }))).rejects.toBe(failure);
     expect(await entries()).toEqual([]);
+  });
+
+  it('accepts Uint8Array chunks created in another realm', async () => {
+    async function* foreign() { yield runInNewContext('new Uint8Array([65])'); }
+    await expect(materializeFile(options({ source: foreign() }))).resolves.toEqual({ bytesWritten: 1 });
+    expect(await read()).toBe('A');
   });
 
   it.skipIf(typeof v8.queryObjects !== 'function')(

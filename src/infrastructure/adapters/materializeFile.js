@@ -2,6 +2,7 @@ import { createWriteStream } from 'node:fs';
 import { mkdtemp, realpath, rename, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import { types } from 'node:util';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import CasError from '../../domain/errors/CasError.js';
@@ -89,7 +90,8 @@ async function* byteChunks(source, signal) {
     while (true) {
       const step = await nextChunk(iterator, signal);
       if (step.done) { finished = true; return; }
-      if (!(step.value instanceof Uint8Array)) {
+      // Realm-independent: a Uint8Array from another context is still bytes.
+      if (!types.isUint8Array(step.value)) {
         throw new CasError('source must yield Uint8Array chunks', ErrorCodes.INVALID_OPTIONS);
       }
       yield step.value;
