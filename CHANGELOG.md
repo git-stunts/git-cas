@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Upgrade `zod` from 3 to 4 (`^4.6.7`). Manifest and chunk validation keep their schemas and custom messages. Integer fields now reject values above `Number.MAX_SAFE_INTEGER`, which zod 3 accepted. Where a schema sets no message, `Invalid manifest data:` and `Invalid chunk data:` errors use zod 4 wording (for example, `Invalid input: expected number, received string`), and a value that matches no encryption scheme reports only `Invalid input`.
+- The `@git-stunts/git-cas/schema` subpath exports zod 4 schemas, and its type declarations use zod 4 generics. Compose these schemas with zod 4; zod 3 schemas cannot contain them.
+- The Deno public-type check resolves npm dependencies from `node_modules` and asserts the inferred schema types, so declaration drift from the installed `zod` fails CI.
+
 ## [6.5.12] — 2026-10-20
 
 ### Fixed

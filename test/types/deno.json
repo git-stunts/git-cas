@@ -1,4 +1,5 @@
 {
+  "nodeModulesDir": "manual",
   "compilerOptions": {
     "skipLibCheck": true
   }

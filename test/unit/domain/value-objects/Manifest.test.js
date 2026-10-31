@@ -342,3 +342,29 @@ describe('Manifest – chunking value object', () => {
     expect(json.chunking).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Integer bounds
+// ---------------------------------------------------------------------------
+describe('Manifest – integer bounds', () => {
+  it('accepts a size of Number.MAX_SAFE_INTEGER', () => {
+    const data = { ...validManifestData(), size: Number.MAX_SAFE_INTEGER };
+
+    expect(new Manifest(data).size).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it('rejects a size above Number.MAX_SAFE_INTEGER', () => {
+    const data = { ...validManifestData(), size: 2 ** 60 };
+
+    expect(() => new Manifest(data)).toThrow(/Invalid manifest data/);
+  });
+
+  it('rejects a chunk size above Number.MAX_SAFE_INTEGER', () => {
+    const data = {
+      ...validManifestData(),
+      chunks: [{ ...validChunk(0), size: 2 ** 60 }],
+    };
+
+    expect(() => new Manifest(data)).toThrow(/Invalid manifest data/);
+  });
+});

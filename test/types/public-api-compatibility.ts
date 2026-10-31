@@ -1,3 +1,11 @@
+import type { z } from 'zod';
+import type {
+  ChunkingSchema,
+  CompressionSchema,
+  EncryptionSchema,
+  KdfSchema,
+  ManifestSchema,
+} from '../../src/domain/schemas/ManifestSchema.d.ts';
 import type {
   GitPersistencePortBase,
   GitRefPortBase,
@@ -148,3 +156,39 @@ type AcquisitionsRemainAdditive = {} extends Pick<
 
 const acquisitionsRemainAdditive: AcquisitionsRemainAdditive = true;
 void acquisitionsRemainAdditive;
+
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2)
+    ? true
+    : false;
+
+const kdfAlgorithmsInfer: Equal<
+  z.infer<typeof KdfSchema>['algorithm'],
+  'pbkdf2' | 'scrypt'
+> = true;
+const kdfKeyLengthDefaults: Equal<
+  z.input<typeof KdfSchema>['keyLength'],
+  number | undefined
+> = true;
+const compressionAlgorithmsInfer: Equal<
+  z.infer<typeof CompressionSchema>['algorithm'],
+  'gzip'
+> = true;
+const chunkingStrategiesInfer: Equal<
+  z.infer<typeof ChunkingSchema>['strategy'],
+  'fixed' | 'cdc'
+> = true;
+const encryptionSchemesInfer: Equal<
+  z.infer<typeof EncryptionSchema>['scheme'],
+  'whole' | 'framed' | 'convergent'
+> = true;
+const manifestVersionIsNumber: Equal<
+  z.infer<typeof ManifestSchema>['version'],
+  number
+> = true;
+void kdfAlgorithmsInfer;
+void kdfKeyLengthDefaults;
+void compressionAlgorithmsInfer;
+void chunkingStrategiesInfer;
+void encryptionSchemesInfer;
+void manifestVersionIsNumber;
