@@ -349,4 +349,17 @@ describe('file materialization async iteration protocol', () => {
     await materializeFile(options({ source: replacing }));
     expect(await read()).toBe('A');
   });
+
+  it('reads the source Symbol.asyncIterator method once, as for await does', async () => {
+    let reads = 0;
+    const once = {
+      get [Symbol.asyncIterator]() {
+        reads += 1;
+        if (reads > 1) { throw new Error('iterator method read twice'); }
+        return async function* single() { yield Uint8Array.of(65); };
+      },
+    };
+    await materializeFile(options({ source: once }));
+    expect(await read()).toBe('A');
+  });
 });

@@ -11,8 +11,8 @@ import { resolveSafeRestorePath } from './RestorePath.js';
 
 /** @param {import('../../../files.js').MaterializeFileOptions} options */
 export async function materializeFile(options = {}) {
-  validateOptions(options);
-  const { source, baseDirectory, outputPath, expectedSha256, signal } = options;
+  const source = validateOptions(options);
+  const { baseDirectory, outputPath, expectedSha256, signal } = options;
   signal?.throwIfAborted();
   const destination = await resolveSafeRestorePath({ baseDirectory, outputPath });
   if (destination === await realpath(path.resolve(baseDirectory))) {
@@ -68,13 +68,17 @@ async function writeStaged({ source, staged, counter, signal }) {
   }
 }
 
+/** Returns the source bound to the iterator method read here, so it is read once, as for await does. */
 function validateOptions(options) {
+  const source = options?.source;
+  const iteratorMethod = source?.[Symbol.asyncIterator];
   if (!options || !isPath(options.baseDirectory) || !isPath(options.outputPath)
-    || typeof options.source?.[Symbol.asyncIterator] !== 'function') {
+    || typeof iteratorMethod !== 'function') {
     throw new CasError('source, baseDirectory and outputPath are required', ErrorCodes.INVALID_OPTIONS);
   }
   validateSignal(options.signal);
   validateDigest(options.expectedSha256);
+  return { [Symbol.asyncIterator]: () => Reflect.apply(iteratorMethod, source, []) };
 }
 
 const readAborted = Object.getOwnPropertyDescriptor(globalThis.AbortSignal.prototype, 'aborted').get;
