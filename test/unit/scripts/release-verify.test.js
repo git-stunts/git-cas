@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 import {
@@ -307,5 +307,13 @@ describe('release verification isolation', () => {
     const step = RELEASE_STEPS.find((entry) => entry.id === 'unit-node');
     expect(step).toMatchObject({ command: 'docker' });
     expect(step.args).toEqual(expect.arrayContaining(['compose', 'run', '--build', '--rm', 'test-node']));
+  });
+});
+
+describe('release verification type fixtures', () => {
+  it('checks the file materialization declaration fixture in release and CI', () => {
+    const fixture = 'test/types/file-materialization.ts';
+    expect(RELEASE_STEPS.find((step) => step.id === 'types-public').args).toContain(fixture);
+    expect(readFileSync('.github/workflows/ci.yml', 'utf8')).toContain(fixture);
   });
 });
