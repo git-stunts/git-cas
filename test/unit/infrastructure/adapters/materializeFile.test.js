@@ -67,6 +67,20 @@ describe('optional file materialization', () => {
 
 });
 
+describe('file materialization digest verification', () => {
+  it('publishes the bytes whose digest was verified when the producer reuses its buffer', async () => {
+    async function* reused() {
+      const chunk = Uint8Array.of(65);
+      yield chunk;
+      chunk[0] = 66;
+      yield chunk;
+    }
+    const expectedSha256 = createHash('sha256').update('AB').digest('hex');
+    await materializeFile(options({ source: reused(), expectedSha256 }));
+    expect(await read()).toBe('AB');
+  });
+});
+
 describe('file materialization failure cleanup', () => {
   it('cleans up after the destination refuses rename', async () => {
     await mkdir(path.join(base, 'doc.md'));

@@ -25,9 +25,11 @@ export async function materializeFile(options = {}) {
   let bytesWritten = 0;
   const counter = new Transform({
     transform(chunk, _encoding, done) {
-      bytesWritten += chunk.length;
-      hash?.update(chunk);
-      done(null, chunk);
+      // A verified file must contain the hashed bytes, even if the producer reuses its buffer.
+      const bytes = hash ? Buffer.from(chunk) : chunk;
+      bytesWritten += bytes.length;
+      hash?.update(bytes);
+      done(null, bytes);
     },
   });
   try {
