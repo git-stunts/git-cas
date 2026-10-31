@@ -9,12 +9,18 @@
   },
   "exports": {
     ".": "./index.js",
+    "./files": {
+      "types": "./files.d.ts",
+      "import": "./files.js"
+    },
     "./service": "./src/domain/services/CasService.js",
     "./schema": "./src/domain/schemas/ManifestSchema.js"
   },
   "files": [
     "index.js",
     "index.d.ts",
+    "files.js",
+    "files.d.ts",
     "build-info.json",
     "bin/",
     "src/",

@@ -1,0 +1,43 @@
+
+ RUN  v2.1.9 /work/code
+
+ ✓ |unit| test/unit/infrastructure/adapters/FileIOHelper.test.js (11 tests) 47ms
+ ✓ |unit| test/unit/infrastructure/adapters/materializeFile.test.js (15 tests) 31ms
+ ✓ |integration| test/integration/file-materialization.test.js (8 tests) 161ms
+ ✓ |unit| test/unit/infrastructure/codecs/JsonCodec.test.js (17 tests) 194ms
+
+ Test Files  4 passed (4)
+      Tests  51 passed (51)
+   Start at  10:18:32
+   Duration  992ms (transform 178ms, setup 11ms, collect 353ms, tests 433ms, environment 0ms, prepare 58ms)
+
+[0m[1m[31merror[0m: unexpected argument '--cached-only' found
+
+  tip: a similar argument exists: '--doc-only'
+
+Usage: deno check --doc-only [file]...
+
+node:child_process:955
+    throw err;
+    ^
+
+Error: Command failed: deno check --cached-only --config test/types/deno.json test/types/public-api-compatibility.ts test/types/file-materialization.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at [eval]:1:413
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:446:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:444:60)
+    at evalFunction (node:internal/process/execution:279:30) {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 319,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.23.3

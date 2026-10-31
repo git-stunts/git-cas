@@ -108,6 +108,35 @@ retention witness identifies the exact Git generation and tree edge that made
 the asset reachable. `close()` releases local resources only; it never deletes
 objects, updates refs, or changes retention.
 
+### Optional atomic file output
+
+Byte streaming remains the default. Applications that want a complete file
+published only after streaming succeeds can opt into a separate helper.
+The CAS session must stay open until the helper finishes:
+
+```js
+import ContentAddressableStore from '@git-stunts/git-cas';
+import { materializeFile } from '@git-stunts/git-cas/files';
+
+// `handle` is the content locator returned by an earlier cas.assets.put().
+async function materializeAsset(handle) {
+  const cas = await ContentAddressableStore.open({ cwd: '.' });
+  try {
+    await materializeFile({
+      source: cas.assets.open({ handle }),
+      baseDirectory: '/existing/cache',
+      outputPath: 'asset.bin',
+    });
+  } finally {
+    await cas.close();
+  }
+}
+```
+
+The helper stages beside the destination and renames on success. See the
+[contract, cancellation and optional SHA-256 check](./docs/API.md#optional-file-materialization-git-stuntsgit-casfiles).
+The application owns cache policy and durability requirements.
+
 ## Capability Map
 
 The README is the front door. Detailed mechanics live in the guide set:

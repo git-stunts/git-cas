@@ -1,0 +1,52 @@
+{
+  "node-final": {
+    "exit_code": 0,
+    "failure": null,
+    "seconds": 62.20553654199466,
+    "peak_data_bytes": 3681198080,
+    "reserve": 360710144,
+    "host_free_bytes": 637890801664,
+    "worker_stopped": true,
+    "retained_repositories": true
+  },
+  "bun-check": {
+    "exit_code": 0,
+    "failure": null,
+    "seconds": 4.75994233309757,
+    "peak_data_bytes": 3681226752,
+    "reserve": 360710144,
+    "host_free_bytes": 637878267904,
+    "worker_stopped": true,
+    "retained_repositories": true
+  },
+  "deno-types": {
+    "exit_code": 0,
+    "failure": null,
+    "seconds": 3.8605722499778494,
+    "peak_data_bytes": 3681275904,
+    "reserve": 360710144,
+    "host_free_bytes": 637876813824,
+    "worker_stopped": true,
+    "retained_repositories": true
+  },
+  "performance": {
+    "exit_code": 0,
+    "failure": null,
+    "seconds": 59.82325179199688,
+    "peak_data_bytes": 3990355968,
+    "reserve": 159383552,
+    "host_free_bytes": 636801019904,
+    "worker_stopped": true,
+    "retained_repositories": true
+  },
+  "package-check": {
+    "exit_code": 0,
+    "failure": null,
+    "seconds": 4.1812360000330955,
+    "peak_data_bytes": 3681439744,
+    "reserve": 360710144,
+    "host_free_bytes": 636785270784,
+    "worker_stopped": true,
+    "retained_repositories": true
+  }
+}

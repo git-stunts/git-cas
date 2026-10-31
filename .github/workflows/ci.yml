@@ -61,5 +61,6 @@ jobs:
           docker compose run --rm test-deno
           deno check --config test/types/deno.json
           test/types/public-api-compatibility.ts
+          test/types/file-materialization.ts
       - name: Integration tests (${{ matrix.runtime }})
         run: docker compose run --rm test-${{ matrix.runtime }} ${{ matrix.integration_cmd }}

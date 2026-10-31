@@ -1,0 +1,3504 @@
+{
+  "corpus_files": 8536,
+  "corpus_bytes": 286780723,
+  "file_hash_checks": 102432,
+  "source_base": "25609d6643c3db344d9e2c61f8e72219c255c9a5",
+  "native_decoder_commit": "0e2717c",
+  "summary": {
+    "raw": {
+      "trials": 3,
+      "median_seconds": 2.4597941130000005,
+      "median_with_startup_seconds": 2.620159753,
+      "minimum_seconds": 2.4280620699999997,
+      "maximum_seconds": 2.737079483
+    },
+    "atomic": {
+      "trials": 3,
+      "median_seconds": 3.295129359,
+      "median_with_startup_seconds": 3.453014616,
+      "minimum_seconds": 3.2463884359999997,
+      "maximum_seconds": 3.307304599
+    },
+    "atomic-sha": {
+      "trials": 3,
+      "median_seconds": 3.3155704130000005,
+      "median_with_startup_seconds": 3.479162895,
+      "minimum_seconds": 3.199410018,
+      "maximum_seconds": 3.529960907
+    },
+    "native": {
+      "trials": 3,
+      "median_seconds": 1.4904773820000001,
+      "median_with_startup_seconds": 1.490478423,
+      "minimum_seconds": 1.467808196,
+      "maximum_seconds": 1.560837071
+    }
+  },
+  "trials": [
+    {
+      "id": "implementation-v1-atomic-r0",
+      "label": "implementation-atomic",
+      "cpus": 18,
+      "processes": 18,
+      "fileConcurrency": 2,
+      "chunkConcurrency": 1,
+      "count": 8536,
+      "mode": "cas-files",
+      "repetition": 0,
+      "diagnostic": false,
+      "atomic": true,
+      "digest": false,
+      "seconds": 3.295129359,
+      "end_to_end_seconds": 3.453014616,
+      "startup_seconds": 0.157879591,
+      "files_verified": 8536,
+      "output_bytes": 286780723,
+      "timed_cpu": {
+        "usage_usec": 47323777,
+        "user_usec": 38876615,
+        "system_usec": 8447161,
+        "nice_usec": 0,
+        "nr_periods": 33,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "end_to_end_cpu": {
+        "usage_usec": 49305800,
+        "user_usec": 40633446,
+        "system_usec": 8672354,
+        "nice_usec": 0,
+        "nr_periods": 34,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "effective_cpu_cores": 14.361735714788974,
+      "cpu_max": "1800000 100000",
+      "peak_sampled_cgroup_memory_bytes": 2558513152,
+      "workers": [
+        {
+          "type": "done",
+          "worker": 14,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2067912,
+            "system": 469987
+          },
+          "event_loop": {
+            "idle": 333.35064700000004,
+            "active": 2563.351389976814,
+            "utilization": 0.884920629479756
+          },
+          "max_rss_bytes": 148209664,
+          "resolve_milliseconds": 2567.84662,
+          "stream_write_milliseconds": 3216.919959999999,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 11,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2017376,
+            "system": 462313
+          },
+          "event_loop": {
+            "idle": 335.92737999999997,
+            "active": 2580.8122950450133,
+            "utilization": 0.8848277812126597
+          },
+          "max_rss_bytes": 142233600,
+          "resolve_milliseconds": 2550.2278560000004,
+          "stream_write_milliseconds": 3273.3477360000015,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 16,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2072286,
+            "system": 453889
+          },
+          "event_loop": {
+            "idle": 371.458529,
+            "active": 2575.437726016327,
+            "utilization": 0.873949234430059
+          },
+          "max_rss_bytes": 142815232,
+          "resolve_milliseconds": 2426.237676999995,
+          "stream_write_milliseconds": 3459.517304000002,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 6,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2053108,
+            "system": 451031
+          },
+          "event_loop": {
+            "idle": 437.466811,
+            "active": 2522.2664790762556,
+            "utilization": 0.8521938404156919
+          },
+          "max_rss_bytes": 145170432,
+          "resolve_milliseconds": 2617.9181850000014,
+          "stream_write_milliseconds": 3294.460443999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 13,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2074626,
+            "system": 422583
+          },
+          "event_loop": {
+            "idle": 461.182515,
+            "active": 2619.8045590175243,
+            "utilization": 0.8503133885600401
+          },
+          "max_rss_bytes": 141066240,
+          "resolve_milliseconds": 2754.5524850000015,
+          "stream_write_milliseconds": 3398.397708999999,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 15,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2113138,
+            "system": 427082
+          },
+          "event_loop": {
+            "idle": 450.52650900000003,
+            "active": 2638.3767949808275,
+            "utilization": 0.8541467748701025
+          },
+          "max_rss_bytes": 141258752,
+          "resolve_milliseconds": 2629.3122349999962,
+          "stream_write_milliseconds": 3540.1569699999986,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 0,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2106621,
+            "system": 444770
+          },
+          "event_loop": {
+            "idle": 448.95555,
+            "active": 2653.704040959549,
+            "utilization": 0.8552997720703375
+          },
+          "max_rss_bytes": 168173568,
+          "resolve_milliseconds": 2614.2329969999987,
+          "stream_write_milliseconds": 3585.082042000003,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 12,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2101755,
+            "system": 431706
+          },
+          "event_loop": {
+            "idle": 473.115253,
+            "active": 2637.028524012825,
+            "utilization": 0.8478799415972952
+          },
+          "max_rss_bytes": 139689984,
+          "resolve_milliseconds": 2452.6213060000027,
+          "stream_write_milliseconds": 3760.9585179999976,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 9,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2170712,
+            "system": 418511
+          },
+          "event_loop": {
+            "idle": 449.695132,
+            "active": 2662.2286919526746,
+            "utilization": 0.8554928856102878
+          },
+          "max_rss_bytes": 149979136,
+          "resolve_milliseconds": 2575.0828799999977,
+          "stream_write_milliseconds": 3640.3910649999934,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 2,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2019294,
+            "system": 444919
+          },
+          "event_loop": {
+            "idle": 489.42527300000006,
+            "active": 2627.6777729403993,
+            "utilization": 0.8429871371633321
+          },
+          "max_rss_bytes": 138833920,
+          "resolve_milliseconds": 2562.1107250000036,
+          "stream_write_milliseconds": 3666.341140999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 5,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2079090,
+            "system": 485916
+          },
+          "event_loop": {
+            "idle": 470.06769299999996,
+            "active": 2653.175662035782,
+            "utilization": 0.8494937346966309
+          },
+          "max_rss_bytes": 142249984,
+          "resolve_milliseconds": 2676.069947000002,
+          "stream_write_milliseconds": 3561.0409389999995,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 8,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2090267,
+            "system": 422632
+          },
+          "event_loop": {
+            "idle": 496.038128,
+            "active": 2633.5776599829405,
+            "utilization": 0.8415019089868216
+          },
+          "max_rss_bytes": 143466496,
+          "resolve_milliseconds": 2611.7392569999993,
+          "stream_write_milliseconds": 3640.631164999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 3,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2130182,
+            "system": 460891
+          },
+          "event_loop": {
+            "idle": 437.86114699999996,
+            "active": 2694.6930660470275,
+            "utilization": 0.8602223242693401
+          },
+          "max_rss_bytes": 160759808,
+          "resolve_milliseconds": 2414.11807,
+          "stream_write_milliseconds": 3843.243491000001,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 1,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2166309,
+            "system": 428952
+          },
+          "event_loop": {
+            "idle": 493.746291,
+            "active": 2662.684986036667,
+            "utilization": 0.8435745157538989
+          },
+          "max_rss_bytes": 197185536,
+          "resolve_milliseconds": 2577.205441,
+          "stream_write_milliseconds": 3728.8051790000013,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 4,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2071484,
+            "system": 470082
+          },
+          "event_loop": {
+            "idle": 474.04916,
+            "active": 2698.234577063408,
+            "utilization": 0.8505653342223326
+          },
+          "max_rss_bytes": 177790976,
+          "resolve_milliseconds": 2612.175600000002,
+          "stream_write_milliseconds": 3724.337412999999,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 10,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2122950,
+            "system": 481729
+          },
+          "event_loop": {
+            "idle": 489.09349699999996,
+            "active": 2692.261014022568,
+            "utilization": 0.84626249752883
+          },
+          "max_rss_bytes": 170889216,
+          "resolve_milliseconds": 2722.171247000002,
+          "stream_write_milliseconds": 3618.0033759999983,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 7,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2011611,
+            "system": 408605
+          },
+          "event_loop": {
+            "idle": 449.874083,
+            "active": 2792.8630090181277,
+            "utilization": 0.8612671733063566
+          },
+          "max_rss_bytes": 142716928,
+          "resolve_milliseconds": 2850.8185380000027,
+          "stream_write_milliseconds": 3629.836588,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 17,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2126582,
+            "system": 404726
+          },
+          "event_loop": {
+            "idle": 535.516347,
+            "active": 2753.6097029954226,
+            "utilization": 0.8371858241794214
+          },
+          "max_rss_bytes": 171872256,
+          "resolve_milliseconds": 2887.597589999996,
+          "stream_write_milliseconds": 3684.972494999997,
+          "methods": {}
+        }
+      ]
+    },
+    {
+      "id": "implementation-v1-atomic-r1",
+      "label": "implementation-atomic",
+      "cpus": 18,
+      "processes": 18,
+      "fileConcurrency": 2,
+      "chunkConcurrency": 1,
+      "count": 8536,
+      "mode": "cas-files",
+      "repetition": 1,
+      "diagnostic": false,
+      "atomic": true,
+      "digest": false,
+      "seconds": 3.2463884359999997,
+      "end_to_end_seconds": 3.411540213,
+      "startup_seconds": 0.16514715200000002,
+      "files_verified": 8536,
+      "output_bytes": 286780723,
+      "timed_cpu": {
+        "usage_usec": 46854212,
+        "user_usec": 38680992,
+        "system_usec": 8173220,
+        "nice_usec": 0,
+        "nr_periods": 33,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "end_to_end_cpu": {
+        "usage_usec": 48697308,
+        "user_usec": 40315187,
+        "system_usec": 8382120,
+        "nice_usec": 0,
+        "nr_periods": 34,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "effective_cpu_cores": 14.432718981013522,
+      "cpu_max": "1800000 100000",
+      "peak_sampled_cgroup_memory_bytes": 2643968000,
+      "workers": [
+        {
+          "type": "done",
+          "worker": 2,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2036835,
+            "system": 409803
+          },
+          "event_loop": {
+            "idle": 421.337147,
+            "active": 2521.16088807328,
+            "utilization": 0.8568097099886399
+          },
+          "max_rss_bytes": 141533184,
+          "resolve_milliseconds": 2533.624593,
+          "stream_write_milliseconds": 3345.2015729999953,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 8,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2014055,
+            "system": 453186
+          },
+          "event_loop": {
+            "idle": 478.726669,
+            "active": 2493.0254870192107,
+            "utilization": 0.8389076060631937
+          },
+          "max_rss_bytes": 145227776,
+          "resolve_milliseconds": 2448.257634999999,
+          "stream_write_milliseconds": 3483.0099390000037,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 6,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2055240,
+            "system": 436343
+          },
+          "event_loop": {
+            "idle": 499.19542500000006,
+            "active": 2503.5831889249803,
+            "utilization": 0.8337555014262296
+          },
+          "max_rss_bytes": 142503936,
+          "resolve_milliseconds": 2574.4680040000044,
+          "stream_write_milliseconds": 3420.332855,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 13,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2014715,
+            "system": 443414
+          },
+          "event_loop": {
+            "idle": 458.451775,
+            "active": 2545.8250090623856,
+            "utilization": 0.8474002870068179
+          },
+          "max_rss_bytes": 141123584,
+          "resolve_milliseconds": 2423.1265549999976,
+          "stream_write_milliseconds": 3579.6293379999975,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 9,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2062159,
+            "system": 435501
+          },
+          "event_loop": {
+            "idle": 440.903155,
+            "active": 2583.805101006241,
+            "utilization": 0.8542328324973203
+          },
+          "max_rss_bytes": 150843392,
+          "resolve_milliseconds": 2684.822760000001,
+          "stream_write_milliseconds": 3356.952713999998,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 15,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2013884,
+            "system": 425625
+          },
+          "event_loop": {
+            "idle": 483.40357300000005,
+            "active": 2557.905769980385,
+            "utilization": 0.8410541255476892
+          },
+          "max_rss_bytes": 140984320,
+          "resolve_milliseconds": 2506.9129210000037,
+          "stream_write_milliseconds": 3564.229584000001,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 7,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2102571,
+            "system": 395777
+          },
+          "event_loop": {
+            "idle": 523.143373,
+            "active": 2561.6249619847795,
+            "utilization": 0.8304108068450524
+          },
+          "max_rss_bytes": 144908288,
+          "resolve_milliseconds": 2570.543374999996,
+          "stream_write_milliseconds": 3593.0361689999986,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 11,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2047943,
+            "system": 401920
+          },
+          "event_loop": {
+            "idle": 523.218277,
+            "active": 2565.4309010281067,
+            "utilization": 0.8305996418362932
+          },
+          "max_rss_bytes": 141225984,
+          "resolve_milliseconds": 2509.538411999989,
+          "stream_write_milliseconds": 3662.2998819999993,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 3,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2096866,
+            "system": 450035
+          },
+          "event_loop": {
+            "idle": 500.05793100000005,
+            "active": 2599.4405270278394,
+            "utilization": 0.8386648879579766
+          },
+          "max_rss_bytes": 156827648,
+          "resolve_milliseconds": 2520.725693999999,
+          "stream_write_milliseconds": 3672.4582800000003,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 14,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2116762,
+            "system": 430399
+          },
+          "event_loop": {
+            "idle": 470.812769,
+            "active": 2629.6811079340514,
+            "utilization": 0.8481491053723457
+          },
+          "max_rss_bytes": 146599936,
+          "resolve_milliseconds": 2590.7845959999977,
+          "stream_write_milliseconds": 3601.419436999993,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 10,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2146040,
+            "system": 455062
+          },
+          "event_loop": {
+            "idle": 465.29892,
+            "active": 2665.3727050181196,
+            "utilization": 0.8513740897379146
+          },
+          "max_rss_bytes": 176394240,
+          "resolve_milliseconds": 2593.815169000003,
+          "stream_write_milliseconds": 3646.092504,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 5,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2069875,
+            "system": 428761
+          },
+          "event_loop": {
+            "idle": 555.773956,
+            "active": 2590.029041946739,
+            "utilization": 0.8233284295415979
+          },
+          "max_rss_bytes": 145182720,
+          "resolve_milliseconds": 2519.983099999999,
+          "stream_write_milliseconds": 3762.177252999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 17,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2122839,
+            "system": 428620
+          },
+          "event_loop": {
+            "idle": 404.305404,
+            "active": 2744.5345609858473,
+            "utilization": 0.871601793518961
+          },
+          "max_rss_bytes": 177274880,
+          "resolve_milliseconds": 2551.007233,
+          "stream_write_milliseconds": 3739.858084999999,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 4,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2104206,
+            "system": 419401
+          },
+          "event_loop": {
+            "idle": 503.06670499999996,
+            "active": 2673.903835046692,
+            "utilization": 0.8416520711606579
+          },
+          "max_rss_bytes": 176537600,
+          "resolve_milliseconds": 2735.4097199999965,
+          "stream_write_milliseconds": 3612.246716999998,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 0,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2105908,
+            "system": 475316
+          },
+          "event_loop": {
+            "idle": 492.01240599999994,
+            "active": 2692.073737016815,
+            "utilization": 0.8454776711744882
+          },
+          "max_rss_bytes": 168517632,
+          "resolve_milliseconds": 2609.282058999994,
+          "stream_write_milliseconds": 3752.627091999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 16,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2111587,
+            "system": 401893
+          },
+          "event_loop": {
+            "idle": 480.572432,
+            "active": 2721.7060510331803,
+            "utilization": 0.8499279701792817
+          },
+          "max_rss_bytes": 142458880,
+          "resolve_milliseconds": 2743.6714910000055,
+          "stream_write_milliseconds": 3656.245468999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 1,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2173737,
+            "system": 422399
+          },
+          "event_loop": {
+            "idle": 571.7548830000001,
+            "active": 2651.887324980156,
+            "utilization": 0.8226369906732777
+          },
+          "max_rss_bytes": 193957888,
+          "resolve_milliseconds": 2590.2595139999994,
+          "stream_write_milliseconds": 3851.2932579999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 12,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1977224,
+            "system": 446940
+          },
+          "event_loop": {
+            "idle": 520.7563190000001,
+            "active": 2716.752258942848,
+            "utilization": 0.8391490535197609
+          },
+          "max_rss_bytes": 140324864,
+          "resolve_milliseconds": 2891.450393999997,
+          "stream_write_milliseconds": 3578.352361000002,
+          "methods": {}
+        }
+      ]
+    },
+    {
+      "id": "implementation-v1-atomic-r2",
+      "label": "implementation-atomic",
+      "cpus": 18,
+      "processes": 18,
+      "fileConcurrency": 2,
+      "chunkConcurrency": 1,
+      "count": 8536,
+      "mode": "cas-files",
+      "repetition": 2,
+      "diagnostic": false,
+      "atomic": true,
+      "digest": false,
+      "seconds": 3.307304599,
+      "end_to_end_seconds": 3.460787138,
+      "startup_seconds": 0.15347683,
+      "files_verified": 8536,
+      "output_bytes": 286780723,
+      "timed_cpu": {
+        "usage_usec": 46700659,
+        "user_usec": 38573169,
+        "system_usec": 8127491,
+        "nice_usec": 0,
+        "nr_periods": 33,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "end_to_end_cpu": {
+        "usage_usec": 48529878,
+        "user_usec": 40183243,
+        "system_usec": 8346636,
+        "nice_usec": 0,
+        "nr_periods": 34,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "effective_cpu_cores": 14.120459002814696,
+      "cpu_max": "1800000 100000",
+      "peak_sampled_cgroup_memory_bytes": 2637373440,
+      "workers": [
+        {
+          "type": "done",
+          "worker": 11,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2037668,
+            "system": 419854
+          },
+          "event_loop": {
+            "idle": 429.90932499999997,
+            "active": 2525.596287015724,
+            "utilization": 0.8545394996875706
+          },
+          "max_rss_bytes": 143507456,
+          "resolve_milliseconds": 2440.101773000001,
+          "stream_write_milliseconds": 3459.339001999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 8,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2013953,
+            "system": 441162
+          },
+          "event_loop": {
+            "idle": 430.97435,
+            "active": 2558.635603045845,
+            "utilization": 0.8558426160038306
+          },
+          "max_rss_bytes": 143724544,
+          "resolve_milliseconds": 2481.231759999996,
+          "stream_write_milliseconds": 3490.552877,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 9,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2080909,
+            "system": 396583
+          },
+          "event_loop": {
+            "idle": 489.800393,
+            "active": 2531.473895892746,
+            "utilization": 0.8378828447318813
+          },
+          "max_rss_bytes": 148803584,
+          "resolve_milliseconds": 2622.665721000004,
+          "stream_write_milliseconds": 3409.3204049999986,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 2,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2030403,
+            "system": 432477
+          },
+          "event_loop": {
+            "idle": 479.48655299999996,
+            "active": 2573.3963210119937,
+            "utilization": 0.8429397481699404
+          },
+          "max_rss_bytes": 139997184,
+          "resolve_milliseconds": 2638.4909709999993,
+          "stream_write_milliseconds": 3454.6489530000035,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 13,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2067870,
+            "system": 436214
+          },
+          "event_loop": {
+            "idle": 469.603745,
+            "active": 2584.233381016617,
+            "utilization": 0.8462250193373788
+          },
+          "max_rss_bytes": 139231232,
+          "resolve_milliseconds": 2547.252012999997,
+          "stream_write_milliseconds": 3554.1729580000006,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 12,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2008353,
+            "system": 439895
+          },
+          "event_loop": {
+            "idle": 518.125094,
+            "active": 2530.6562269295273,
+            "utilization": 0.8300550156079967
+          },
+          "max_rss_bytes": 138899456,
+          "resolve_milliseconds": 2450.540212000008,
+          "stream_write_milliseconds": 3638.499278999996,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 16,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2053463,
+            "system": 428563
+          },
+          "event_loop": {
+            "idle": 498.847283,
+            "active": 2562.4604880866927,
+            "utilization": 0.8370476540413573
+          },
+          "max_rss_bytes": 143519744,
+          "resolve_milliseconds": 2611.999402999998,
+          "stream_write_milliseconds": 3504.739216,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 5,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2040451,
+            "system": 439453
+          },
+          "event_loop": {
+            "idle": 455.739041,
+            "active": 2627.84666499556,
+            "utilization": 0.8522048405809234
+          },
+          "max_rss_bytes": 145215488,
+          "resolve_milliseconds": 2595.2403430000027,
+          "stream_write_milliseconds": 3564.5207549999996,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 7,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2035600,
+            "system": 418887
+          },
+          "event_loop": {
+            "idle": 530.40844,
+            "active": 2557.9861130653003,
+            "utilization": 0.828257552302196
+          },
+          "max_rss_bytes": 145850368,
+          "resolve_milliseconds": 2619.222281999998,
+          "stream_write_milliseconds": 3548.568502999999,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 14,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2078462,
+            "system": 436504
+          },
+          "event_loop": {
+            "idle": 522.745479,
+            "active": 2575.2877670403445,
+            "utilization": 0.8312653746798453
+          },
+          "max_rss_bytes": 148414464,
+          "resolve_milliseconds": 2580.8529390000035,
+          "stream_write_milliseconds": 3609.4139069999987,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 10,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2113647,
+            "system": 446466
+          },
+          "event_loop": {
+            "idle": 460.882677,
+            "active": 2668.0970270224075,
+            "utilization": 0.8527051241631514
+          },
+          "max_rss_bytes": 173223936,
+          "resolve_milliseconds": 2587.4756520000014,
+          "stream_write_milliseconds": 3640.6490729999973,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 6,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2085232,
+            "system": 402128
+          },
+          "event_loop": {
+            "idle": 527.376221,
+            "active": 2613.7792229067845,
+            "utilization": 0.8321075698361236
+          },
+          "max_rss_bytes": 142753792,
+          "resolve_milliseconds": 2610.650899000004,
+          "stream_write_milliseconds": 3664.509674999999,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 3,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2120947,
+            "system": 426751
+          },
+          "event_loop": {
+            "idle": 585.3899489999999,
+            "active": 2587.4171220897447,
+            "utilization": 0.8154977797629089
+          },
+          "max_rss_bytes": 157147136,
+          "resolve_milliseconds": 2617.336996000007,
+          "stream_write_milliseconds": 3722.211331999998,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 17,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2135117,
+            "system": 433514
+          },
+          "event_loop": {
+            "idle": 563.5911990000001,
+            "active": 2623.933202903152,
+            "utilization": 0.8231884284043439
+          },
+          "max_rss_bytes": 173281280,
+          "resolve_milliseconds": 2646.864026000004,
+          "stream_write_milliseconds": 3721.7603860000036,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 1,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2161781,
+            "system": 448172
+          },
+          "event_loop": {
+            "idle": 498.38907600000005,
+            "active": 2692.307751054024,
+            "utilization": 0.8437993005872126
+          },
+          "max_rss_bytes": 196190208,
+          "resolve_milliseconds": 2688.8339749999996,
+          "stream_write_milliseconds": 3686.688488,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 4,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2105507,
+            "system": 432743
+          },
+          "event_loop": {
+            "idle": 539.667248,
+            "active": 2679.158905039932,
+            "utilization": 0.8323403556634066
+          },
+          "max_rss_bytes": 169660416,
+          "resolve_milliseconds": 2584.229774000003,
+          "stream_write_milliseconds": 3847.8318600000007,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 15,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2084684,
+            "system": 397631
+          },
+          "event_loop": {
+            "idle": 517.491911,
+            "active": 2753.342256957306,
+            "utilization": 0.8417859529322507
+          },
+          "max_rss_bytes": 141611008,
+          "resolve_milliseconds": 2627.396850000003,
+          "stream_write_milliseconds": 3908.954560999994,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 0,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2018985,
+            "system": 412017
+          },
+          "event_loop": {
+            "idle": 600.52548,
+            "active": 2702.348064931412,
+            "utilization": 0.818180904648449
+          },
+          "max_rss_bytes": 169394176,
+          "resolve_milliseconds": 2772.4987430000037,
+          "stream_write_milliseconds": 3827.4133390000006,
+          "methods": {}
+        }
+      ]
+    },
+    {
+      "id": "implementation-v1-atomic-sha-r0",
+      "label": "implementation-atomic-sha",
+      "cpus": 18,
+      "processes": 18,
+      "fileConcurrency": 2,
+      "chunkConcurrency": 1,
+      "count": 8536,
+      "mode": "cas-files",
+      "repetition": 0,
+      "diagnostic": false,
+      "atomic": true,
+      "digest": true,
+      "seconds": 3.3155704130000005,
+      "end_to_end_seconds": 3.479162895,
+      "startup_seconds": 0.163588523,
+      "files_verified": 8536,
+      "output_bytes": 286780723,
+      "timed_cpu": {
+        "usage_usec": 47615532,
+        "user_usec": 39304081,
+        "system_usec": 8311451,
+        "nice_usec": 0,
+        "nr_periods": 33,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "end_to_end_cpu": {
+        "usage_usec": 49457066,
+        "user_usec": 40921783,
+        "system_usec": 8535283,
+        "nice_usec": 0,
+        "nr_periods": 34,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "effective_cpu_cores": 14.361188594669727,
+      "cpu_max": "1800000 100000",
+      "peak_sampled_cgroup_memory_bytes": 2537213952,
+      "workers": [
+        {
+          "type": "done",
+          "worker": 13,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2069575,
+            "system": 436305
+          },
+          "event_loop": {
+            "idle": 365.369628,
+            "active": 2573.5753150704118,
+            "utilization": 0.875680002491545
+          },
+          "max_rss_bytes": 142602240,
+          "resolve_milliseconds": 2508.38724,
+          "stream_write_milliseconds": 3357.9683159999963,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 2,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2120212,
+            "system": 410618
+          },
+          "event_loop": {
+            "idle": 420.02581799999996,
+            "active": 2558.5833979748077,
+            "utilization": 0.8589859268052595
+          },
+          "max_rss_bytes": 140840960,
+          "resolve_milliseconds": 2466.5593809999978,
+          "stream_write_milliseconds": 3478.094078,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 6,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2008487,
+            "system": 479666
+          },
+          "event_loop": {
+            "idle": 424.97147500000005,
+            "active": 2552.2997369817735,
+            "utilization": 0.8572614166657917
+          },
+          "max_rss_bytes": 143896576,
+          "resolve_milliseconds": 2587.4858400000076,
+          "stream_write_milliseconds": 3358.902244,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 7,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2084105,
+            "system": 423596
+          },
+          "event_loop": {
+            "idle": 409.587049,
+            "active": 2581.163199074532,
+            "utilization": 0.8630487285711352
+          },
+          "max_rss_bytes": 143568896,
+          "resolve_milliseconds": 2570.1963719999985,
+          "stream_write_milliseconds": 3401.9831370000015,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 16,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2119366,
+            "system": 425006
+          },
+          "event_loop": {
+            "idle": 386.70865200000003,
+            "active": 2616.9859639601214,
+            "utilization": 0.8712556696192667
+          },
+          "max_rss_bytes": 146415616,
+          "resolve_milliseconds": 2616.276613000004,
+          "stream_write_milliseconds": 3379.1358319999977,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 12,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2058730,
+            "system": 458422
+          },
+          "event_loop": {
+            "idle": 457.30873099999997,
+            "active": 2573.996000965065,
+            "utilization": 0.8491379879503086
+          },
+          "max_rss_bytes": 140943360,
+          "resolve_milliseconds": 2412.1195629999975,
+          "stream_write_milliseconds": 3643.413798000003,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 14,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2056680,
+            "system": 444571
+          },
+          "event_loop": {
+            "idle": 457.73359300000004,
+            "active": 2612.285161005432,
+            "utilization": 0.8509020205812104
+          },
+          "max_rss_bytes": 145403904,
+          "resolve_milliseconds": 2726.932633999998,
+          "stream_write_milliseconds": 3406.179858000004,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 3,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2131652,
+            "system": 437269
+          },
+          "event_loop": {
+            "idle": 442.682772,
+            "active": 2633.1436210082325,
+            "utilization": 0.8560768016666098
+          },
+          "max_rss_bytes": 161206272,
+          "resolve_milliseconds": 2616.7771189999985,
+          "stream_write_milliseconds": 3525.2648850000005,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 15,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2032827,
+            "system": 481070
+          },
+          "event_loop": {
+            "idle": 478.64088599999997,
+            "active": 2606.366241046585,
+            "utilization": 0.8448493419014482
+          },
+          "max_rss_bytes": 138371072,
+          "resolve_milliseconds": 2632.6863579999995,
+          "stream_write_milliseconds": 3529.019540000002,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 11,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2077750,
+            "system": 432134
+          },
+          "event_loop": {
+            "idle": 429.505407,
+            "active": 2668.3818369861297,
+            "utilization": 0.8613553776581795
+          },
+          "max_rss_bytes": 140992512,
+          "resolve_milliseconds": 2579.008508999998,
+          "stream_write_milliseconds": 3608.9605749999973,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 0,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2095212,
+            "system": 436860
+          },
+          "event_loop": {
+            "idle": 462.74162099999995,
+            "active": 2638.739507931046,
+            "utilization": 0.850799794755002
+          },
+          "max_rss_bytes": 170573824,
+          "resolve_milliseconds": 2646.6697080000035,
+          "stream_write_milliseconds": 3545.7516809999975,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 8,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2138883,
+            "system": 404621
+          },
+          "event_loop": {
+            "idle": 501.824066,
+            "active": 2645.329936070427,
+            "utilization": 0.8405467080194157
+          },
+          "max_rss_bytes": 142802944,
+          "resolve_milliseconds": 2614.748358000003,
+          "stream_write_milliseconds": 3674.296336999995,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 17,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2186594,
+            "system": 445835
+          },
+          "event_loop": {
+            "idle": 400.664835,
+            "active": 2770.4430650234603,
+            "utilization": 0.8736514657867568
+          },
+          "max_rss_bytes": 170905600,
+          "resolve_milliseconds": 2624.9024389999936,
+          "stream_write_milliseconds": 3709.0723889999986,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 10,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2142104,
+            "system": 444198
+          },
+          "event_loop": {
+            "idle": 455.469427,
+            "active": 2727.07054494767,
+            "utilization": 0.8568849312138382
+          },
+          "max_rss_bytes": 174469120,
+          "resolve_milliseconds": 2637.8847659999988,
+          "stream_write_milliseconds": 3700.5785349999946,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 9,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2073001,
+            "system": 409580
+          },
+          "event_loop": {
+            "idle": 411.79582899999997,
+            "active": 2794.8152080159152,
+            "utilization": 0.8715791144462538
+          },
+          "max_rss_bytes": 151347200,
+          "resolve_milliseconds": 2878.1442840000022,
+          "stream_write_milliseconds": 3528.8241849999995,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 4,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2140659,
+            "system": 440801
+          },
+          "event_loop": {
+            "idle": 522.053865,
+            "active": 2696.3720789706804,
+            "utilization": 0.8377921772666533
+          },
+          "max_rss_bytes": 177586176,
+          "resolve_milliseconds": 2775.9980810000056,
+          "stream_write_milliseconds": 3655.800284000002,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 5,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2068213,
+            "system": 414279
+          },
+          "event_loop": {
+            "idle": 486.760055,
+            "active": 2785.7719510253146,
+            "utilization": 0.8512588863596176
+          },
+          "max_rss_bytes": 146096128,
+          "resolve_milliseconds": 2771.735211000001,
+          "stream_write_milliseconds": 3768.2254119999975,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 1,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2358353,
+            "system": 441360
+          },
+          "event_loop": {
+            "idle": 469.59134,
+            "active": 2841.563602989349,
+            "utilization": 0.8581789894809189
+          },
+          "max_rss_bytes": 197509120,
+          "resolve_milliseconds": 2743.373673999995,
+          "stream_write_milliseconds": 3873.987662999995,
+          "methods": {}
+        }
+      ]
+    },
+    {
+      "id": "implementation-v1-atomic-sha-r1",
+      "label": "implementation-atomic-sha",
+      "cpus": 18,
+      "processes": 18,
+      "fileConcurrency": 2,
+      "chunkConcurrency": 1,
+      "count": 8536,
+      "mode": "cas-files",
+      "repetition": 1,
+      "diagnostic": false,
+      "atomic": true,
+      "digest": true,
+      "seconds": 3.199410018,
+      "end_to_end_seconds": 3.363343167,
+      "startup_seconds": 0.163929024,
+      "files_verified": 8536,
+      "output_bytes": 286780723,
+      "timed_cpu": {
+        "usage_usec": 46514963,
+        "user_usec": 38322461,
+        "system_usec": 8192502,
+        "nice_usec": 0,
+        "nr_periods": 32,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "end_to_end_cpu": {
+        "usage_usec": 48384969,
+        "user_usec": 39984288,
+        "system_usec": 8400681,
+        "nice_usec": 0,
+        "nr_periods": 34,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "effective_cpu_cores": 14.538606411277419,
+      "cpu_max": "1800000 100000",
+      "peak_sampled_cgroup_memory_bytes": 2663354368,
+      "workers": [
+        {
+          "type": "done",
+          "worker": 11,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1975921,
+            "system": 434837
+          },
+          "event_loop": {
+            "idle": 387.59016199999996,
+            "active": 2487.81773404187,
+            "utilization": 0.8652051548813178
+          },
+          "max_rss_bytes": 142733312,
+          "resolve_milliseconds": 2404.582264000003,
+          "stream_write_milliseconds": 3335.635208999996,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 7,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2036136,
+            "system": 419309
+          },
+          "event_loop": {
+            "idle": 404.496774,
+            "active": 2525.4345609723814,
+            "utilization": 0.861943258133108
+          },
+          "max_rss_bytes": 147230720,
+          "resolve_milliseconds": 2567.4946900000004,
+          "stream_write_milliseconds": 3282.6406209999977,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 6,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1999794,
+            "system": 463868
+          },
+          "event_loop": {
+            "idle": 390.306862,
+            "active": 2552.3804661002046,
+            "utilization": 0.8673638010151824
+          },
+          "max_rss_bytes": 142598144,
+          "resolve_milliseconds": 2511.8399140000006,
+          "stream_write_milliseconds": 3356.734192999999,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 13,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2057594,
+            "system": 455063
+          },
+          "event_loop": {
+            "idle": 397.247248,
+            "active": 2551.0943860351103,
+            "utilization": 0.8652641731154045
+          },
+          "max_rss_bytes": 141426688,
+          "resolve_milliseconds": 2442.791484999999,
+          "stream_write_milliseconds": 3445.232870999995,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 15,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2042573,
+            "system": 417155
+          },
+          "event_loop": {
+            "idle": 399.78279699999996,
+            "active": 2554.8958970097806,
+            "utilization": 0.8646950012498799
+          },
+          "max_rss_bytes": 140513280,
+          "resolve_milliseconds": 2601.9237169999974,
+          "stream_write_milliseconds": 3300.331501,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 8,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2037594,
+            "system": 429399
+          },
+          "event_loop": {
+            "idle": 409.938064,
+            "active": 2548.620681026588,
+            "utilization": 0.8614399444698821
+          },
+          "max_rss_bytes": 144740352,
+          "resolve_milliseconds": 2550.8760989999987,
+          "stream_write_milliseconds": 3355.3266940000003,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 12,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2020779,
+            "system": 438297
+          },
+          "event_loop": {
+            "idle": 400.27007699999996,
+            "active": 2560.4407160183414,
+            "utilization": 0.8648060871247952
+          },
+          "max_rss_bytes": 137609216,
+          "resolve_milliseconds": 2654.8823109999958,
+          "stream_write_milliseconds": 3259.4924619999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 2,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2031264,
+            "system": 417920
+          },
+          "event_loop": {
+            "idle": 407.77229900000003,
+            "active": 2570.568374089027,
+            "utilization": 0.8630874222400242
+          },
+          "max_rss_bytes": 140922880,
+          "resolve_milliseconds": 2482.3341299999975,
+          "stream_write_milliseconds": 3466.492273,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 5,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2075186,
+            "system": 418012
+          },
+          "event_loop": {
+            "idle": 455.58200999999997,
+            "active": 2576.711265952339,
+            "utilization": 0.8497566137111466
+          },
+          "max_rss_bytes": 144424960,
+          "resolve_milliseconds": 2669.937290999997,
+          "stream_write_milliseconds": 3387.085446999996,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 14,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2002077,
+            "system": 441129
+          },
+          "event_loop": {
+            "idle": 456.110684,
+            "active": 2578.128806032196,
+            "utilization": 0.8496787463552653
+          },
+          "max_rss_bytes": 148013056,
+          "resolve_milliseconds": 2600.0249929999986,
+          "stream_write_milliseconds": 3459.7847630000015,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 3,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2089768,
+            "system": 435473
+          },
+          "event_loop": {
+            "idle": 454.68975300000005,
+            "active": 2613.55478697612,
+            "utilization": 0.8518078506860021
+          },
+          "max_rss_bytes": 167948288,
+          "resolve_milliseconds": 2501.685802999999,
+          "stream_write_milliseconds": 3627.7395370000004,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 0,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2089806,
+            "system": 423409
+          },
+          "event_loop": {
+            "idle": 455.613183,
+            "active": 2621.0273800111695,
+            "utilization": 0.8519121185368231
+          },
+          "max_rss_bytes": 170999808,
+          "resolve_milliseconds": 2539.3467720000026,
+          "stream_write_milliseconds": 3605.885857999998,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 17,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2109090,
+            "system": 453133
+          },
+          "event_loop": {
+            "idle": 448.275752,
+            "active": 2641.7793470104675,
+            "utilization": 0.8549295279092104
+          },
+          "max_rss_bytes": 172683264,
+          "resolve_milliseconds": 2557.328496999997,
+          "stream_write_milliseconds": 3616.459727999998,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 4,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2075550,
+            "system": 460243
+          },
+          "event_loop": {
+            "idle": 431.84144,
+            "active": 2680.606219015656,
+            "utilization": 0.8612534290338638
+          },
+          "max_rss_bytes": 170622976,
+          "resolve_milliseconds": 2666.0302920000017,
+          "stream_write_milliseconds": 3553.697254,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 1,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2174333,
+            "system": 445837
+          },
+          "event_loop": {
+            "idle": 424.73118900000003,
+            "active": 2722.5306049710616,
+            "utilization": 0.8650473914138248
+          },
+          "max_rss_bytes": 190070784,
+          "resolve_milliseconds": 2539.4597620000027,
+          "stream_write_milliseconds": 3748.9600099999925,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 9,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2077053,
+            "system": 402322
+          },
+          "event_loop": {
+            "idle": 494.35531,
+            "active": 2694.735097013893,
+            "utilization": 0.8449854827217363
+          },
+          "max_rss_bytes": 148672512,
+          "resolve_milliseconds": 2810.5754709999965,
+          "stream_write_milliseconds": 3563.2519500000003,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 10,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2112242,
+            "system": 424362
+          },
+          "event_loop": {
+            "idle": 509.484179,
+            "active": 2683.7856559952697,
+            "utilization": 0.8404506335742358
+          },
+          "max_rss_bytes": 174612480,
+          "resolve_milliseconds": 2575.0819130000027,
+          "stream_write_milliseconds": 3785.8881390000042,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 16,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2047258,
+            "system": 387748
+          },
+          "event_loop": {
+            "idle": 423.520075,
+            "active": 2771.4676810138703,
+            "utilization": 0.8674423480331606
+          },
+          "max_rss_bytes": 140468224,
+          "resolve_milliseconds": 2735.229477000003,
+          "stream_write_milliseconds": 3650.0191739999964,
+          "methods": {}
+        }
+      ]
+    },
+    {
+      "id": "implementation-v1-atomic-sha-r2",
+      "label": "implementation-atomic-sha",
+      "cpus": 18,
+      "processes": 18,
+      "fileConcurrency": 2,
+      "chunkConcurrency": 1,
+      "count": 8536,
+      "mode": "cas-files",
+      "repetition": 2,
+      "diagnostic": false,
+      "atomic": true,
+      "digest": true,
+      "seconds": 3.529960907,
+      "end_to_end_seconds": 3.7029311629999997,
+      "startup_seconds": 0.172960756,
+      "files_verified": 8536,
+      "output_bytes": 286780723,
+      "timed_cpu": {
+        "usage_usec": 49921403,
+        "user_usec": 40999262,
+        "system_usec": 8922141,
+        "nice_usec": 0,
+        "nr_periods": 35,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "end_to_end_cpu": {
+        "usage_usec": 51784730,
+        "user_usec": 42607580,
+        "system_usec": 9177150,
+        "nice_usec": 0,
+        "nr_periods": 37,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "effective_cpu_cores": 14.1421971277372,
+      "cpu_max": "1800000 100000",
+      "peak_sampled_cgroup_memory_bytes": 2659057664,
+      "workers": [
+        {
+          "type": "done",
+          "worker": 11,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2136937,
+            "system": 498549
+          },
+          "event_loop": {
+            "idle": 594.788194,
+            "active": 2623.954999984032,
+            "utilization": 0.8152110441393137
+          },
+          "max_rss_bytes": 141033472,
+          "resolve_milliseconds": 2641.0606030000017,
+          "stream_write_milliseconds": 3780.387073,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 5,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2206817,
+            "system": 481676
+          },
+          "event_loop": {
+            "idle": 588.735902,
+            "active": 2649.6891370529634,
+            "utilization": 0.8182030169294366
+          },
+          "max_rss_bytes": 148451328,
+          "resolve_milliseconds": 2535.178327999998,
+          "stream_write_milliseconds": 3931.802387999996,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 12,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2183422,
+            "system": 475629
+          },
+          "event_loop": {
+            "idle": 614.200791,
+            "active": 2628.400801063904,
+            "utilization": 0.8105839482398258
+          },
+          "max_rss_bytes": 140832768,
+          "resolve_milliseconds": 2629.1993099999954,
+          "stream_write_milliseconds": 3842.908887000001,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 2,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2153673,
+            "system": 477110
+          },
+          "event_loop": {
+            "idle": 580.670655,
+            "active": 2703.244381916733,
+            "utilization": 0.823177320828254
+          },
+          "max_rss_bytes": 141328384,
+          "resolve_milliseconds": 2739.2653520000035,
+          "stream_write_milliseconds": 3817.584225000004,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 7,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2154207,
+            "system": 475187
+          },
+          "event_loop": {
+            "idle": 569.0496469999999,
+            "active": 2715.7198919986035,
+            "utilization": 0.8267611653591136
+          },
+          "max_rss_bytes": 145424384,
+          "resolve_milliseconds": 2730.888759000001,
+          "stream_write_milliseconds": 3828.9739930000032,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 16,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2133293,
+            "system": 467057
+          },
+          "event_loop": {
+            "idle": 644.005684,
+            "active": 2671.017394083992,
+            "utilization": 0.8057311611923315
+          },
+          "max_rss_bytes": 142495744,
+          "resolve_milliseconds": 2863.3169720000005,
+          "stream_write_milliseconds": 3754.4041349999948,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 13,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2142269,
+            "system": 433512
+          },
+          "event_loop": {
+            "idle": 595.0087470000001,
+            "active": 2725.2335959489133,
+            "utilization": 0.8207935790399155
+          },
+          "max_rss_bytes": 141041664,
+          "resolve_milliseconds": 2721.8633569999965,
+          "stream_write_milliseconds": 3905.8919590000005,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 9,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2192841,
+            "system": 476140
+          },
+          "event_loop": {
+            "idle": 620.4557570000001,
+            "active": 2707.3492720346144,
+            "utilization": 0.8135540539224462
+          },
+          "max_rss_bytes": 148942848,
+          "resolve_milliseconds": 2758.389367000001,
+          "stream_write_milliseconds": 3889.044918999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 14,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2219833,
+            "system": 450620
+          },
+          "event_loop": {
+            "idle": 653.792463,
+            "active": 2701.157805983841,
+            "utilization": 0.8051260344917057
+          },
+          "max_rss_bytes": 145178624,
+          "resolve_milliseconds": 2646.770448999993,
+          "stream_write_milliseconds": 4055.0664730000035,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 6,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2205393,
+            "system": 436811
+          },
+          "event_loop": {
+            "idle": 599.751601,
+            "active": 2756.830131034683,
+            "utilization": 0.8213207218295726
+          },
+          "max_rss_bytes": 142577664,
+          "resolve_milliseconds": 2909.6161590000015,
+          "stream_write_milliseconds": 3794.9053180000055,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 4,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2226698,
+            "system": 483198
+          },
+          "event_loop": {
+            "idle": 631.308853,
+            "active": 2759.34917894046,
+            "utilization": 0.8138093411211085
+          },
+          "max_rss_bytes": 174837760,
+          "resolve_milliseconds": 2779.2096149999998,
+          "stream_write_milliseconds": 3994.2327429999973,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 0,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2237331,
+            "system": 452960
+          },
+          "event_loop": {
+            "idle": 624.587812,
+            "active": 2787.641444987572,
+            "utilization": 0.8169560820917975
+          },
+          "max_rss_bytes": 168615936,
+          "resolve_milliseconds": 2765.3119879999986,
+          "stream_write_milliseconds": 4048.8655529999996,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 3,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2273255,
+            "system": 451081
+          },
+          "event_loop": {
+            "idle": 636.372204,
+            "active": 2787.7641260085065,
+            "utilization": 0.8141510317731948
+          },
+          "max_rss_bytes": 157851648,
+          "resolve_milliseconds": 2653.951424000002,
+          "stream_write_milliseconds": 4179.610447000003,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 10,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2312600,
+            "system": 499669
+          },
+          "event_loop": {
+            "idle": 626.5451069999999,
+            "active": 2797.5578060220414,
+            "utilization": 0.8170191951248847
+          },
+          "max_rss_bytes": 175464448,
+          "resolve_milliseconds": 2788.598863999999,
+          "stream_write_milliseconds": 4026.3203740000054,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 15,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2185384,
+            "system": 453020
+          },
+          "event_loop": {
+            "idle": 651.907991,
+            "active": 2805.349511913475,
+            "utilization": 0.8114378259500112
+          },
+          "max_rss_bytes": 141955072,
+          "resolve_milliseconds": 2883.0854629999953,
+          "stream_write_milliseconds": 4024.215775,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 1,
+          "completed": 475,
+          "node_cpu": {
+            "user": 2248128,
+            "system": 494901
+          },
+          "event_loop": {
+            "idle": 617.6466439999999,
+            "active": 2844.731997009331,
+            "utilization": 0.821612045348123
+          },
+          "max_rss_bytes": 199237632,
+          "resolve_milliseconds": 2673.219199,
+          "stream_write_milliseconds": 4244.935281000002,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 17,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2276526,
+            "system": 473152
+          },
+          "event_loop": {
+            "idle": 691.453727,
+            "active": 2791.7885540792927,
+            "utilization": 0.801491348805702
+          },
+          "max_rss_bytes": 175108096,
+          "resolve_milliseconds": 2759.845873,
+          "stream_write_milliseconds": 4200.948589000005,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 8,
+          "completed": 474,
+          "node_cpu": {
+            "user": 2211092,
+            "system": 441396
+          },
+          "event_loop": {
+            "idle": 615.8362139999999,
+            "active": 2909.419596022354,
+            "utilization": 0.8253073685463709
+          },
+          "max_rss_bytes": 142934016,
+          "resolve_milliseconds": 3049.110652999999,
+          "stream_write_milliseconds": 3994.844691999998,
+          "methods": {}
+        }
+      ]
+    },
+    {
+      "id": "implementation-v1-native-r0",
+      "label": "implementation-native",
+      "cpus": 18,
+      "processes": 1,
+      "fileConcurrency": 1,
+      "chunkConcurrency": 1,
+      "count": 8536,
+      "mode": "ordinary-git-objects",
+      "repetition": 0,
+      "diagnostic": false,
+      "atomic": false,
+      "digest": false,
+      "seconds": 1.560837071,
+      "end_to_end_seconds": 1.5608381550000001,
+      "startup_seconds": 0,
+      "files_verified": 8536,
+      "output_bytes": 286780723,
+      "timed_cpu": {
+        "usage_usec": 1808540,
+        "user_usec": 557305,
+        "system_usec": 1251235,
+        "nice_usec": 0,
+        "nr_periods": 16,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "end_to_end_cpu": {
+        "usage_usec": 1808540,
+        "user_usec": 557305,
+        "system_usec": 1251235,
+        "nice_usec": 0,
+        "nr_periods": 16,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "effective_cpu_cores": 1.158698773627475,
+      "cpu_max": "1800000 100000",
+      "peak_sampled_cgroup_memory_bytes": 785666048,
+      "workers": []
+    },
+    {
+      "id": "implementation-v1-native-r1",
+      "label": "implementation-native",
+      "cpus": 18,
+      "processes": 1,
+      "fileConcurrency": 1,
+      "chunkConcurrency": 1,
+      "count": 8536,
+      "mode": "ordinary-git-objects",
+      "repetition": 1,
+      "diagnostic": false,
+      "atomic": false,
+      "digest": false,
+      "seconds": 1.4904773820000001,
+      "end_to_end_seconds": 1.490478423,
+      "startup_seconds": 0,
+      "files_verified": 8536,
+      "output_bytes": 286780723,
+      "timed_cpu": {
+        "usage_usec": 1728411,
+        "user_usec": 584151,
+        "system_usec": 1144259,
+        "nice_usec": 0,
+        "nr_periods": 15,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "end_to_end_cpu": {
+        "usage_usec": 1728411,
+        "user_usec": 584151,
+        "system_usec": 1144259,
+        "nice_usec": 0,
+        "nr_periods": 15,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "effective_cpu_cores": 1.1596358461211456,
+      "cpu_max": "1800000 100000",
+      "peak_sampled_cgroup_memory_bytes": 803307520,
+      "workers": []
+    },
+    {
+      "id": "implementation-v1-native-r2",
+      "label": "implementation-native",
+      "cpus": 18,
+      "processes": 1,
+      "fileConcurrency": 1,
+      "chunkConcurrency": 1,
+      "count": 8536,
+      "mode": "ordinary-git-objects",
+      "repetition": 2,
+      "diagnostic": false,
+      "atomic": false,
+      "digest": false,
+      "seconds": 1.467808196,
+      "end_to_end_seconds": 1.4678093210000003,
+      "startup_seconds": 0,
+      "files_verified": 8536,
+      "output_bytes": 286780723,
+      "timed_cpu": {
+        "usage_usec": 1713631,
+        "user_usec": 568349,
+        "system_usec": 1145282,
+        "nice_usec": 0,
+        "nr_periods": 15,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "end_to_end_cpu": {
+        "usage_usec": 1713631,
+        "user_usec": 568349,
+        "system_usec": 1145282,
+        "nice_usec": 0,
+        "nr_periods": 15,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "effective_cpu_cores": 1.1674761080295806,
+      "cpu_max": "1800000 100000",
+      "peak_sampled_cgroup_memory_bytes": 806227968,
+      "workers": []
+    },
+    {
+      "id": "implementation-v1-raw-r0",
+      "label": "implementation-raw",
+      "cpus": 18,
+      "processes": 18,
+      "fileConcurrency": 2,
+      "chunkConcurrency": 1,
+      "count": 8536,
+      "mode": "cas-files",
+      "repetition": 0,
+      "diagnostic": false,
+      "atomic": false,
+      "digest": false,
+      "seconds": 2.737079483,
+      "end_to_end_seconds": 2.8843971290000003,
+      "startup_seconds": 0.147313188,
+      "files_verified": 8536,
+      "output_bytes": 286780723,
+      "timed_cpu": {
+        "usage_usec": 40601547,
+        "user_usec": 35115621,
+        "system_usec": 5485926,
+        "nice_usec": 0,
+        "nr_periods": 27,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "end_to_end_cpu": {
+        "usage_usec": 42666789,
+        "user_usec": 36845183,
+        "system_usec": 5821605,
+        "nice_usec": 0,
+        "nr_periods": 28,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "effective_cpu_cores": 14.83389402908326,
+      "cpu_max": "1800000 100000",
+      "peak_sampled_cgroup_memory_bytes": 2488483840,
+      "workers": [
+        {
+          "type": "done",
+          "worker": 7,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1841404,
+            "system": 226614
+          },
+          "event_loop": {
+            "idle": 177.417014,
+            "active": 2096.0326809911116,
+            "utilization": 0.9219613196672497
+          },
+          "max_rss_bytes": 144695296,
+          "resolve_milliseconds": 2769.616623,
+          "stream_write_milliseconds": 1768.3577079999975,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 15,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1832472,
+            "system": 209244
+          },
+          "event_loop": {
+            "idle": 190.916855,
+            "active": 2099.521594025154,
+            "utilization": 0.9166461534553539
+          },
+          "max_rss_bytes": 137183232,
+          "resolve_milliseconds": 2783.1073110000016,
+          "stream_write_milliseconds": 1791.8560530000025,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 2,
+          "completed": 475,
+          "node_cpu": {
+            "user": 1814178,
+            "system": 229642
+          },
+          "event_loop": {
+            "idle": 192.814412,
+            "active": 2102.9463020541075,
+            "utilization": 0.9160128445357412
+          },
+          "max_rss_bytes": 138088448,
+          "resolve_milliseconds": 2568.9792480000015,
+          "stream_write_milliseconds": 2014.4351589999949,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 6,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1899653,
+            "system": 221106
+          },
+          "event_loop": {
+            "idle": 148.113598,
+            "active": 2152.7974209676286,
+            "utilization": 0.9356282808074623
+          },
+          "max_rss_bytes": 139132928,
+          "resolve_milliseconds": 2612.832400999999,
+          "stream_write_milliseconds": 1983.1745460000034,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 16,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1817504,
+            "system": 246844
+          },
+          "event_loop": {
+            "idle": 187.023537,
+            "active": 2115.341526905716,
+            "utilization": 0.918768947665174
+          },
+          "max_rss_bytes": 140369920,
+          "resolve_milliseconds": 2789.9117659999984,
+          "stream_write_milliseconds": 1807.5503140000048,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 8,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1896375,
+            "system": 213012
+          },
+          "event_loop": {
+            "idle": 178.38356000000002,
+            "active": 2151.447995008888,
+            "utilization": 0.9234349969994635
+          },
+          "max_rss_bytes": 140242944,
+          "resolve_milliseconds": 2756.419533999998,
+          "stream_write_milliseconds": 1895.3984729999984,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 12,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1847843,
+            "system": 239085
+          },
+          "event_loop": {
+            "idle": 171.913088,
+            "active": 2161.237850987732,
+            "utilization": 0.926317202574735
+          },
+          "max_rss_bytes": 136552448,
+          "resolve_milliseconds": 2719.7113200000003,
+          "stream_write_milliseconds": 1936.5817459999996,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 14,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1899797,
+            "system": 233331
+          },
+          "event_loop": {
+            "idle": 163.599813,
+            "active": 2174.8868069493406,
+            "utilization": 0.9300403040135659
+          },
+          "max_rss_bytes": 143482880,
+          "resolve_milliseconds": 2615.465355999995,
+          "stream_write_milliseconds": 2052.040430999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 13,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1860506,
+            "system": 228901
+          },
+          "event_loop": {
+            "idle": 147.42426099999997,
+            "active": 2215.4785910584105,
+            "utilization": 0.9376088353054491
+          },
+          "max_rss_bytes": 136572928,
+          "resolve_milliseconds": 2812.8540870000043,
+          "stream_write_milliseconds": 1907.3284390000003,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 9,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1893468,
+            "system": 240194
+          },
+          "event_loop": {
+            "idle": 186.503217,
+            "active": 2188.514000993736,
+            "utilization": 0.9214728989806877
+          },
+          "max_rss_bytes": 144994304,
+          "resolve_milliseconds": 2661.520653000001,
+          "stream_write_milliseconds": 2081.7514220000016,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 5,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1841604,
+            "system": 223122
+          },
+          "event_loop": {
+            "idle": 194.711758,
+            "active": 2187.9376889642635,
+            "utilization": 0.9182793095106448
+          },
+          "max_rss_bytes": 143253504,
+          "resolve_milliseconds": 2928.489542999999,
+          "stream_write_milliseconds": 1830.3196600000003,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 0,
+          "completed": 475,
+          "node_cpu": {
+            "user": 1915759,
+            "system": 237523
+          },
+          "event_loop": {
+            "idle": 296.972593,
+            "active": 2208.027099082405,
+            "utilization": 0.8814480520941195
+          },
+          "max_rss_bytes": 164917248,
+          "resolve_milliseconds": 2799.008686000004,
+          "stream_write_milliseconds": 2203.623798999999,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 4,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1913733,
+            "system": 240975
+          },
+          "event_loop": {
+            "idle": 327.35418300000003,
+            "active": 2234.5045378986283,
+            "utilization": 0.872220048541485
+          },
+          "max_rss_bytes": 167243776,
+          "resolve_milliseconds": 2821.5418059999956,
+          "stream_write_milliseconds": 2294.843630000002,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 17,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1908027,
+            "system": 250047
+          },
+          "event_loop": {
+            "idle": 297.351683,
+            "active": 2298.9005470481798,
+            "utilization": 0.885468877192074
+          },
+          "max_rss_bytes": 170405888,
+          "resolve_milliseconds": 2908.699190000003,
+          "stream_write_milliseconds": 2278.5508410000007,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 3,
+          "completed": 475,
+          "node_cpu": {
+            "user": 1887336,
+            "system": 216432
+          },
+          "event_loop": {
+            "idle": 270.245079,
+            "active": 2362.2190399575197,
+            "utilization": 0.8973414007606609
+          },
+          "max_rss_bytes": 161239040,
+          "resolve_milliseconds": 2809.167972999997,
+          "stream_write_milliseconds": 2450.919471000002,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 11,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1782998,
+            "system": 197397
+          },
+          "event_loop": {
+            "idle": 160.092036,
+            "active": 2477.623596915497,
+            "utilization": 0.9393065598117382
+          },
+          "max_rss_bytes": 139366400,
+          "resolve_milliseconds": 3291.820951999997,
+          "stream_write_milliseconds": 1979.1401489999973,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 10,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1977690,
+            "system": 214582
+          },
+          "event_loop": {
+            "idle": 311.832224,
+            "active": 2356.8774079198606,
+            "utilization": 0.8831524343187276
+          },
+          "max_rss_bytes": 170606592,
+          "resolve_milliseconds": 2901.8635099999974,
+          "stream_write_milliseconds": 2405.1228919999976,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 1,
+          "completed": 475,
+          "node_cpu": {
+            "user": 1863746,
+            "system": 264831
+          },
+          "event_loop": {
+            "idle": 362.193183,
+            "active": 2369.868828003494,
+            "utilization": 0.8674286375853653
+          },
+          "max_rss_bytes": 185384960,
+          "resolve_milliseconds": 3060.1173429999967,
+          "stream_write_milliseconds": 2398.9746580000005,
+          "methods": {}
+        }
+      ]
+    },
+    {
+      "id": "implementation-v1-raw-r1",
+      "label": "implementation-raw",
+      "cpus": 18,
+      "processes": 18,
+      "fileConcurrency": 2,
+      "chunkConcurrency": 1,
+      "count": 8536,
+      "mode": "cas-files",
+      "repetition": 1,
+      "diagnostic": false,
+      "atomic": false,
+      "digest": false,
+      "seconds": 2.4280620699999997,
+      "end_to_end_seconds": 2.5910449239999997,
+      "startup_seconds": 0.16297693800000002,
+      "files_verified": 8536,
+      "output_bytes": 286780723,
+      "timed_cpu": {
+        "usage_usec": 35477355,
+        "user_usec": 31728699,
+        "system_usec": 3748657,
+        "nice_usec": 0,
+        "nr_periods": 24,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "end_to_end_cpu": {
+        "usage_usec": 37311472,
+        "user_usec": 33349157,
+        "system_usec": 3962316,
+        "nice_usec": 0,
+        "nr_periods": 26,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "effective_cpu_cores": 14.611387179241264,
+      "cpu_max": "1800000 100000",
+      "peak_sampled_cgroup_memory_bytes": 2539393024,
+      "workers": [
+        {
+          "type": "done",
+          "worker": 13,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1608798,
+            "system": 195132
+          },
+          "event_loop": {
+            "idle": 109.941163,
+            "active": 1898.9209039841767,
+            "utilization": 0.9452719204534286
+          },
+          "max_rss_bytes": 137814016,
+          "resolve_milliseconds": 2199.9704880000004,
+          "stream_write_milliseconds": 1811.574340999996,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 14,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1649589,
+            "system": 184853
+          },
+          "event_loop": {
+            "idle": 80.474147,
+            "active": 1925.8502050259858,
+            "utilization": 0.9598897621320615
+          },
+          "max_rss_bytes": 141045760,
+          "resolve_milliseconds": 2375.191795999999,
+          "stream_write_milliseconds": 1631.8104740000044,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 11,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1610860,
+            "system": 206805
+          },
+          "event_loop": {
+            "idle": 120.299961,
+            "active": 1890.1385680145875,
+            "utilization": 0.9401623281369539
+          },
+          "max_rss_bytes": 136785920,
+          "resolve_milliseconds": 2369.7638810000008,
+          "stream_write_milliseconds": 1638.5936800000034,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 12,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1637748,
+            "system": 191734
+          },
+          "event_loop": {
+            "idle": 164.55081199999998,
+            "active": 1878.3136799395447,
+            "utilization": 0.9194509412399785
+          },
+          "max_rss_bytes": 137646080,
+          "resolve_milliseconds": 2363.603643999998,
+          "stream_write_milliseconds": 1717.0627729999985,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 5,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1666755,
+            "system": 197089
+          },
+          "event_loop": {
+            "idle": 135.477427,
+            "active": 1913.5672900734405,
+            "utilization": 0.9338826401048502
+          },
+          "max_rss_bytes": 142118912,
+          "resolve_milliseconds": 2358.6260420000003,
+          "stream_write_milliseconds": 1731.3176799999983,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 9,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1709411,
+            "system": 186013
+          },
+          "event_loop": {
+            "idle": 118.47710599999999,
+            "active": 1937.5182540168228,
+            "utilization": 0.9423748183950033
+          },
+          "max_rss_bytes": 147595264,
+          "resolve_milliseconds": 2384.4844780000017,
+          "stream_write_milliseconds": 1721.1362469999995,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 16,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1677103,
+            "system": 192042
+          },
+          "event_loop": {
+            "idle": 144.007567,
+            "active": 1941.0522460226136,
+            "utilization": 0.9309336038704622
+          },
+          "max_rss_bytes": 138080256,
+          "resolve_milliseconds": 2421.096597000004,
+          "stream_write_milliseconds": 1740.6635260000012,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 7,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1687096,
+            "system": 181762
+          },
+          "event_loop": {
+            "idle": 144.75537000000003,
+            "active": 1945.8870840281295,
+            "utilization": 0.9307603412907387
+          },
+          "max_rss_bytes": 140607488,
+          "resolve_milliseconds": 2390.710578000001,
+          "stream_write_milliseconds": 1784.7317660000037,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 8,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1696851,
+            "system": 166901
+          },
+          "event_loop": {
+            "idle": 173.334507,
+            "active": 1927.7400998954467,
+            "utilization": 0.9175019742606287
+          },
+          "max_rss_bytes": 141963264,
+          "resolve_milliseconds": 2422.994686000004,
+          "stream_write_milliseconds": 1773.6988729999994,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 6,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1716775,
+            "system": 188619
+          },
+          "event_loop": {
+            "idle": 180.490597,
+            "active": 1938.007889995697,
+            "utilization": 0.9148025839489936
+          },
+          "max_rss_bytes": 140775424,
+          "resolve_milliseconds": 2433.463014000002,
+          "stream_write_milliseconds": 1797.046175000001,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 4,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1754779,
+            "system": 206298
+          },
+          "event_loop": {
+            "idle": 126.207904,
+            "active": 2017.1747749855956,
+            "utilization": 0.9411174190976803
+          },
+          "max_rss_bytes": 168218624,
+          "resolve_milliseconds": 2402.887915000004,
+          "stream_write_milliseconds": 1876.9448240000013,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 0,
+          "completed": 475,
+          "node_cpu": {
+            "user": 1781747,
+            "system": 207972
+          },
+          "event_loop": {
+            "idle": 125.004547,
+            "active": 2026.0338189601212,
+            "utilization": 0.9418864168216712
+          },
+          "max_rss_bytes": 155033600,
+          "resolve_milliseconds": 2411.2736570000015,
+          "stream_write_milliseconds": 1885.3889959999983,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 1,
+          "completed": 475,
+          "node_cpu": {
+            "user": 1756979,
+            "system": 217102
+          },
+          "event_loop": {
+            "idle": 139.66817799999998,
+            "active": 2022.736551962349,
+            "utilization": 0.9354107137924954
+          },
+          "max_rss_bytes": 183619584,
+          "resolve_milliseconds": 2408.6851900000006,
+          "stream_write_milliseconds": 1906.4492059999961,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 17,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1793605,
+            "system": 204327
+          },
+          "event_loop": {
+            "idle": 151.432365,
+            "active": 2032.1081719997026,
+            "utilization": 0.9306482465362994
+          },
+          "max_rss_bytes": 165613568,
+          "resolve_milliseconds": 2449.4303720000007,
+          "stream_write_milliseconds": 1912.3654779999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 10,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1768434,
+            "system": 210406
+          },
+          "event_loop": {
+            "idle": 146.90894,
+            "active": 2049.0744219594576,
+            "utilization": 0.9331010687308149
+          },
+          "max_rss_bytes": 167571456,
+          "resolve_milliseconds": 2478.6142170000003,
+          "stream_write_milliseconds": 1884.377529999996,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 3,
+          "completed": 475,
+          "node_cpu": {
+            "user": 1775178,
+            "system": 192627
+          },
+          "event_loop": {
+            "idle": 178.921952,
+            "active": 2043.5446900221327,
+            "utilization": 0.9194939763697842
+          },
+          "max_rss_bytes": 156516352,
+          "resolve_milliseconds": 2361.6907519999954,
+          "stream_write_milliseconds": 2078.1920160000013,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 2,
+          "completed": 475,
+          "node_cpu": {
+            "user": 1618928,
+            "system": 144914
+          },
+          "event_loop": {
+            "idle": 139.029461,
+            "active": 2283.4855100178374,
+            "utilization": 0.9426094522992418
+          },
+          "max_rss_bytes": 140107776,
+          "resolve_milliseconds": 3117.9214790000024,
+          "stream_write_milliseconds": 1721.418616,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 15,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1606389,
+            "system": 169058
+          },
+          "event_loop": {
+            "idle": 143.57111,
+            "active": 2280.432531009331,
+            "utilization": 0.9407710831901975
+          },
+          "max_rss_bytes": 138137600,
+          "resolve_milliseconds": 3013.4312999999993,
+          "stream_write_milliseconds": 1829.8408900000027,
+          "methods": {}
+        }
+      ]
+    },
+    {
+      "id": "implementation-v1-raw-r2",
+      "label": "implementation-raw",
+      "cpus": 18,
+      "processes": 18,
+      "fileConcurrency": 2,
+      "chunkConcurrency": 1,
+      "count": 8536,
+      "mode": "cas-files",
+      "repetition": 2,
+      "diagnostic": false,
+      "atomic": false,
+      "digest": false,
+      "seconds": 2.4597941130000005,
+      "end_to_end_seconds": 2.620159753,
+      "startup_seconds": 0.16035951499999998,
+      "files_verified": 8536,
+      "output_bytes": 286780723,
+      "timed_cpu": {
+        "usage_usec": 34894027,
+        "user_usec": 31393962,
+        "system_usec": 3500066,
+        "nice_usec": 0,
+        "nr_periods": 25,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "end_to_end_cpu": {
+        "usage_usec": 36765700,
+        "user_usec": 33042161,
+        "system_usec": 3723540,
+        "nice_usec": 0,
+        "nr_periods": 26,
+        "nr_throttled": 0,
+        "throttled_usec": 0,
+        "nr_bursts": 0,
+        "burst_usec": 0
+      },
+      "effective_cpu_cores": 14.185751082005291,
+      "cpu_max": "1800000 100000",
+      "peak_sampled_cgroup_memory_bytes": 2571366400,
+      "workers": [
+        {
+          "type": "done",
+          "worker": 13,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1648916,
+            "system": 176191
+          },
+          "event_loop": {
+            "idle": 57.860066999999994,
+            "active": 1850.0086460212785,
+            "utilization": 0.9696729305297043
+          },
+          "max_rss_bytes": 140660736,
+          "resolve_milliseconds": 2348.221316999998,
+          "stream_write_milliseconds": 1461.0993390000015,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 15,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1609789,
+            "system": 177744
+          },
+          "event_loop": {
+            "idle": 72.393104,
+            "active": 1843.7027139235458,
+            "utilization": 0.9622184322293174
+          },
+          "max_rss_bytes": 137052160,
+          "resolve_milliseconds": 2388.6603109999933,
+          "stream_write_milliseconds": 1437.9133700000002,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 2,
+          "completed": 475,
+          "node_cpu": {
+            "user": 1633771,
+            "system": 174863
+          },
+          "event_loop": {
+            "idle": 45.186619,
+            "active": 1873.25524704023,
+            "utilization": 0.9764461880237905
+          },
+          "max_rss_bytes": 137297920,
+          "resolve_milliseconds": 2392.4358789999987,
+          "stream_write_milliseconds": 1436.4134480000005,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 16,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1639377,
+            "system": 176790
+          },
+          "event_loop": {
+            "idle": 87.839405,
+            "active": 1851.2964330317689,
+            "utilization": 0.9547017783503206
+          },
+          "max_rss_bytes": 138883072,
+          "resolve_milliseconds": 2308.837914999998,
+          "stream_write_milliseconds": 1557.485772000004,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 11,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1621381,
+            "system": 186768
+          },
+          "event_loop": {
+            "idle": 97.988012,
+            "active": 1864.0842630425338,
+            "utilization": 0.9500589181925646
+          },
+          "max_rss_bytes": 137027584,
+          "resolve_milliseconds": 2252.849307999999,
+          "stream_write_milliseconds": 1664.246139000002,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 0,
+          "completed": 475,
+          "node_cpu": {
+            "user": 1690273,
+            "system": 175285
+          },
+          "event_loop": {
+            "idle": 71.03869499999999,
+            "active": 1944.9777250067518,
+            "utilization": 0.9647628390845339
+          },
+          "max_rss_bytes": 164827136,
+          "resolve_milliseconds": 2324.087883000007,
+          "stream_write_milliseconds": 1699.772484000004,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 14,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1680005,
+            "system": 179274
+          },
+          "event_loop": {
+            "idle": 113.99543500000001,
+            "active": 1903.5480719799423,
+            "utilization": 0.9434979049494503
+          },
+          "max_rss_bytes": 146714624,
+          "resolve_milliseconds": 2479.1406149999993,
+          "stream_write_milliseconds": 1549.8385489999991,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 9,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1704211,
+            "system": 175435
+          },
+          "event_loop": {
+            "idle": 94.201636,
+            "active": 1926.274128989853,
+            "utilization": 0.9533765078342956
+          },
+          "max_rss_bytes": 148799488,
+          "resolve_milliseconds": 2392.6758779999986,
+          "stream_write_milliseconds": 1640.6816669999987,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 8,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1682896,
+            "system": 185197
+          },
+          "event_loop": {
+            "idle": 128.608374,
+            "active": 1908.1104350085984,
+            "utilization": 0.936855115477329
+          },
+          "max_rss_bytes": 141815808,
+          "resolve_milliseconds": 2459.156692999998,
+          "stream_write_milliseconds": 1605.5986639999985,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 5,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1686237,
+            "system": 180024
+          },
+          "event_loop": {
+            "idle": 86.63159999999999,
+            "active": 1956.5265599712372,
+            "utilization": 0.9575991708829729
+          },
+          "max_rss_bytes": 140587008,
+          "resolve_milliseconds": 2357.623839000002,
+          "stream_write_milliseconds": 1722.8887299999997,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 6,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1660572,
+            "system": 175698
+          },
+          "event_loop": {
+            "idle": 124.71432299999998,
+            "active": 1933.8883359870454,
+            "utilization": 0.9394179724506103
+          },
+          "max_rss_bytes": 141504512,
+          "resolve_milliseconds": 2390.8748390000023,
+          "stream_write_milliseconds": 1721.5749319999993,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 17,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1766754,
+            "system": 176379
+          },
+          "event_loop": {
+            "idle": 60.166577000000004,
+            "active": 2020.487807970665,
+            "utilization": 0.9710828586263027
+          },
+          "max_rss_bytes": 166379520,
+          "resolve_milliseconds": 2361.784985999999,
+          "stream_write_milliseconds": 1793.8311490000008,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 7,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1680604,
+            "system": 182905
+          },
+          "event_loop": {
+            "idle": 147.457011,
+            "active": 1969.169720991768,
+            "utilization": 0.9303339560200861
+          },
+          "max_rss_bytes": 141299712,
+          "resolve_milliseconds": 2535.0307740000017,
+          "stream_write_milliseconds": 1693.219280000001,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 10,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1760531,
+            "system": 180462
+          },
+          "event_loop": {
+            "idle": 131.286229,
+            "active": 1990.030306949707,
+            "utilization": 0.9381109670456496
+          },
+          "max_rss_bytes": 168169472,
+          "resolve_milliseconds": 2484.9386229999996,
+          "stream_write_milliseconds": 1734.3663489999992,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 1,
+          "completed": 475,
+          "node_cpu": {
+            "user": 1753760,
+            "system": 209416
+          },
+          "event_loop": {
+            "idle": 131.555265,
+            "active": 2036.129479000435,
+            "utilization": 0.9393107021839272
+          },
+          "max_rss_bytes": 187002880,
+          "resolve_milliseconds": 2283.499357,
+          "stream_write_milliseconds": 2046.003290000002,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 12,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1637309,
+            "system": 154397
+          },
+          "event_loop": {
+            "idle": 151.789683,
+            "active": 2076.688516005127,
+            "utilization": 0.9318863953581578
+          },
+          "max_rss_bytes": 137273344,
+          "resolve_milliseconds": 2624.317182000001,
+          "stream_write_milliseconds": 1827.8989219999971,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 4,
+          "completed": 474,
+          "node_cpu": {
+            "user": 1686564,
+            "system": 186204
+          },
+          "event_loop": {
+            "idle": 266.632841,
+            "active": 2090.6751630216445,
+            "utilization": 0.8868909618322613
+          },
+          "max_rss_bytes": 169443328,
+          "resolve_milliseconds": 2599.854069,
+          "stream_write_milliseconds": 2109.129402000003,
+          "methods": {}
+        },
+        {
+          "type": "done",
+          "worker": 3,
+          "completed": 475,
+          "node_cpu": {
+            "user": 1626228,
+            "system": 169077
+          },
+          "event_loop": {
+            "idle": 193.271924,
+            "active": 2261.2938829849018,
+            "utilization": 0.921260239407715
+          },
+          "max_rss_bytes": 158412800,
+          "resolve_milliseconds": 2952.3373049999977,
+          "stream_write_milliseconds": 1951.786279999997,
+          "methods": {}
+        }
+      ]
+    }
+  ]
+}

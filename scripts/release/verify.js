@@ -84,6 +84,7 @@ export const RELEASE_STEPS = [
       'compose', 'run', '--rm', 'test-deno',
       'deno', 'check', '--config', 'test/types/deno.json',
       'test/types/public-api-compatibility.ts',
+      'test/types/file-materialization.ts',
     ],
   },
   {

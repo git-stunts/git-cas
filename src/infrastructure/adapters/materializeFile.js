@@ -1,0 +1,168 @@
+import { createWriteStream } from 'node:fs';
+import { mkdtemp, realpath, rename, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+import { types } from 'node:util';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { setImmediate as nextMacrotask } from 'node:timers/promises';
+import CasError from '../../domain/errors/CasError.js';
+import { ErrorCodes } from '../../domain/errors/index.js';
+import { resolveSafeRestorePath } from './RestorePath.js';
+
+/** @param {import('../../../files.js').MaterializeFileOptions} options */
+export async function materializeFile(options = {}) {
+  const { source, baseDirectory, outputPath, expectedSha256, signal } = validateOptions(options);
+  signal?.throwIfAborted();
+  const destination = await resolveSafeRestorePath({ baseDirectory, outputPath });
+  if (destination === await realpath(path.resolve(baseDirectory))) {
+    throw new CasError(`Materialization path "${outputPath}" names base directory "${baseDirectory}"`,
+      ErrorCodes.SECURITY_BOUNDARY_VIOLATION, { outputPath, baseDirectory });
+  }
+  const temporary = await mkdtemp(path.join(path.dirname(destination), '.git-cas-materialize-'));
+  const staged = path.join(temporary, 'content');
+  const hash = expectedSha256 ? createHash('sha256') : null;
+  let bytesWritten = 0;
+  const counter = new Transform({
+    transform(chunk, _encoding, done) {
+      bytesWritten += chunk.length;
+      hash?.update(chunk);
+      done(null, chunk);
+    },
+  });
+  try {
+    await writeStaged({ source, staged, counter, signal });
+    if (hash && hash.digest('hex') !== expectedSha256.toLowerCase()) {
+      throw new CasError('Materialized file SHA-256 does not match expectedSha256', ErrorCodes.INTEGRITY_ERROR);
+    }
+    signal?.throwIfAborted();
+    await rename(staged, destination);
+  } catch (error) {
+    // The original failure is the diagnosis; a leftover private directory is documented.
+    await rm(temporary, { recursive: true, force: true }).catch(() => {});
+    throw error;
+  }
+  await rm(temporary, { recursive: true, force: true });
+  return { bytesWritten };
+}
+
+/**
+ * Pulls stop when the caller aborts or the file fails, so neither has to wait
+ * for a blocked producer before the pipeline can settle.
+ */
+async function writeStaged({ source, staged, counter, signal }) {
+  const pulls = new globalThis.AbortController();
+  const forward = () => pulls.abort(signal.reason);
+  signal?.addEventListener('abort', forward, { once: true });
+  const file = createWriteStream(staged, { flags: 'wx', mode: 0o600 });
+  file.once('error', (error) => pulls.abort(error));
+  let sourceFailure = null;
+  const chunks = byteChunks(source, pulls.signal, (error) => { sourceFailure = { error }; });
+  try {
+    await pipeline(Readable.from(chunks, { objectMode: false }), counter, file, { signal });
+  } catch (error) {
+    // Streams report a falsy error as a premature close; keep the value the source threw.
+    throw sourceFailure ? sourceFailure.error : error;
+  } finally {
+    signal?.removeEventListener('abort', forward);
+  }
+}
+
+/**
+ * Reads each option once and returns that snapshot, so a getter cannot pass validation
+ * and then change. The source is bound to the iterator method read here, as for await does.
+ */
+function validateOptions(options) {
+  const { source, baseDirectory, outputPath, expectedSha256, signal } = options ?? {};
+  const iteratorMethod = source?.[Symbol.asyncIterator];
+  if (!options || !isPath(baseDirectory) || !isPath(outputPath) || typeof iteratorMethod !== 'function') {
+    throw new CasError('source, baseDirectory and outputPath are required', ErrorCodes.INVALID_OPTIONS);
+  }
+  validateSignal(signal);
+  validateDigest(expectedSha256);
+  return {
+    source: { [Symbol.asyncIterator]: () => Reflect.apply(iteratorMethod, source, []) },
+    baseDirectory, outputPath, expectedSha256, signal,
+  };
+}
+
+const readAborted = Object.getOwnPropertyDescriptor(globalThis.AbortSignal.prototype, 'aborted').get;
+
+/** A brand check: the platform getter rejects objects that only inherit from AbortSignal. */
+function validateSignal(signal) {
+  if (signal === undefined) { return; }
+  try {
+    readAborted.call(signal);
+  } catch {
+    throw new CasError('signal must be an AbortSignal', ErrorCodes.INVALID_OPTIONS);
+  }
+}
+
+/**
+ * Rejects anything but byte chunks, so a misbehaving source cannot publish text.
+ * Each pull races the abort signal: cancellation settles even while the producer
+ * is blocked. The source is then asked to return without waiting for it.
+ */
+async function* byteChunks(source, signal, onSourceFailure) {
+  let iterator;
+  let finished = false;
+  try {
+    iterator = source[Symbol.asyncIterator]();
+    // Captured once, as for await does, so the iterator may replace its own next.
+    const next = iterator.next;
+    const pull = () => Reflect.apply(next, iterator, []);
+    while (true) {
+      const step = await nextChunk(pull, signal);
+      if (step.done) { finished = true; return; }
+      // Read once, so a getter cannot pass validation and then yield something else.
+      const chunk = step.value;
+      // Realm-independent: a Uint8Array from another context is still bytes.
+      if (!types.isUint8Array(chunk)) {
+        throw new CasError('source must yield Uint8Array chunks', ErrorCodes.INVALID_OPTIONS);
+      }
+      // Copied before the next pull: streams queue references, and a producer may reuse its buffer.
+      // The typed-array constructor reads the bytes directly; Buffer.from(chunk) would honour valueOf().
+      const bytes = Buffer.from(new Uint8Array(chunk).buffer);
+      // Empty chunks never fill a stream buffer, so yield to the event loop for cancellation and I/O.
+      if (bytes.length === 0) { await nextMacrotask(); }
+      yield bytes;
+    }
+  } catch (error) {
+    if (!signal.aborted) { onSourceFailure(error); }
+    throw error;
+  } finally {
+    // Deferred, so a return() that throws synchronously cannot replace the pull's error.
+    if (!finished) { Promise.resolve().then(() => iterator?.return?.()).catch(() => {}); }
+  }
+}
+
+/** One abort race per pull, so completed pulls leave no reactions on a long-lived promise. */
+async function nextChunk(pull, signal) {
+  const abort = abortRejection(signal);
+  try {
+    return await (abort ? Promise.race([pull(), abort.promise]) : pull());
+  } finally {
+    abort?.dispose();
+  }
+}
+
+/** A rejection that follows `signal`, marked handled so a late abort is not reported. */
+function abortRejection(signal) {
+  if (!signal) { return null; }
+  let onAbort;
+  const promise = new Promise((_resolve, reject) => {
+    onAbort = () => reject(signal.reason);
+    if (signal.aborted) { onAbort(); } else { signal.addEventListener('abort', onAbort, { once: true }); }
+  });
+  promise.catch(() => {});
+  return { promise, dispose: () => signal.removeEventListener('abort', onAbort) };
+}
+
+function isPath(value) { return typeof value === 'string' && value.length > 0; }
+
+function validateDigest(expectedSha256) {
+  if (expectedSha256 !== undefined
+    && (typeof expectedSha256 !== 'string' || !/^[a-f0-9]{64}$/iu.test(expectedSha256))) {
+    throw new CasError('expectedSha256 must be a 64-digit hexadecimal digest', ErrorCodes.INVALID_OPTIONS);
+  }
+}

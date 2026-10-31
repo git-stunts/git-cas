@@ -1,0 +1,12 @@
+
+ RUN  v2.1.9 /work/code
+
+ ✓ |unit| test/unit/infrastructure/adapters/FileIOHelper.test.js (11 tests) 20ms
+ ✓ |unit| test/unit/infrastructure/adapters/materializeFile.test.js (15 tests) 16ms
+ ✓ |unit| test/unit/infrastructure/codecs/JsonCodec.test.js (16 tests) 141ms
+
+ Test Files  3 passed (3)
+      Tests  42 passed (42)
+   Start at  10:02:54
+   Duration  493ms (transform 61ms, setup 8ms, collect 109ms, tests 177ms, environment 0ms, prepare 57ms)
+

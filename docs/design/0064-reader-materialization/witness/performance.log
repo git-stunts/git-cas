@@ -1,0 +1,13 @@
+{"id":"implementation-v1-raw-r0","seconds":2.737079483,"cores":14.83389402908326,"verified":8536}
+{"id":"implementation-v1-atomic-r0","seconds":3.295129359,"cores":14.361735714788974,"verified":8536}
+{"id":"implementation-v1-atomic-sha-r0","seconds":3.3155704130000005,"cores":14.361188594669727,"verified":8536}
+{"id":"implementation-v1-native-r0","seconds":1.560837071,"cores":1.158698773627475,"verified":8536}
+{"id":"implementation-v1-native-r1","seconds":1.4904773820000001,"cores":1.1596358461211456,"verified":8536}
+{"id":"implementation-v1-atomic-sha-r1","seconds":3.199410018,"cores":14.538606411277419,"verified":8536}
+{"id":"implementation-v1-atomic-r1","seconds":3.2463884359999997,"cores":14.432718981013522,"verified":8536}
+{"id":"implementation-v1-raw-r1","seconds":2.4280620699999997,"cores":14.611387179241264,"verified":8536}
+{"id":"implementation-v1-raw-r2","seconds":2.4597941130000005,"cores":14.185751082005291,"verified":8536}
+{"id":"implementation-v1-atomic-r2","seconds":3.307304599,"cores":14.120459002814696,"verified":8536}
+{"id":"implementation-v1-atomic-sha-r2","seconds":3.529960907,"cores":14.1421971277372,"verified":8536}
+{"id":"implementation-v1-native-r2","seconds":1.467808196,"cores":1.1674761080295806,"verified":8536}
+{"package_files_verified":true,"tarball":"git-stunts-git-cas-6.5.12.tgz","bytes":821796}

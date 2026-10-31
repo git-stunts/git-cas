@@ -264,6 +264,17 @@ describe('FileIOHelper – restoreFile path boundary', () => {
       code: 'SECURITY_BOUNDARY_VIOLATION',
     });
   });
+
+  it('accepts a file name inside the base directory that begins with two dots', async () => {
+    const tmpDir = getTmpDir();
+    const outputPath = path.join(tmpDir, '..cache');
+    await expect(restoreFile(createStreamRestoreService(Buffer.from('kept')), {
+      manifest: {},
+      outputPath,
+      baseDirectory: tmpDir,
+    })).resolves.toEqual({ bytesWritten: 4 });
+    expect(readFileSync(outputPath, 'utf8')).toBe('kept');
+  });
 });
 
 describe('FileIOHelper – restoreFile symlink boundary', () => {
