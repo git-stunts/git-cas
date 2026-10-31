@@ -118,15 +118,18 @@ The CAS session must stay open until the helper finishes:
 import ContentAddressableStore from '@git-stunts/git-cas';
 import { materializeFile } from '@git-stunts/git-cas/files';
 
-const cas = await ContentAddressableStore.open({ cwd: '.' });
-try {
-  await materializeFile({
-    source: cas.assets.open({ handle }),
-    baseDirectory: '/existing/cache',
-    outputPath: 'asset.bin',
-  });
-} finally {
-  await cas.close();
+// `handle` is the content locator returned by an earlier cas.assets.put().
+async function materializeAsset(handle) {
+  const cas = await ContentAddressableStore.open({ cwd: '.' });
+  try {
+    await materializeFile({
+      source: cas.assets.open({ handle }),
+      baseDirectory: '/existing/cache',
+      outputPath: 'asset.bin',
+    });
+  } finally {
+    await cas.close();
+  }
 }
 ```
 
