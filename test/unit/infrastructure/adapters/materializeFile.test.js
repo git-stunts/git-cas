@@ -334,3 +334,19 @@ describe('file materialization abort race retention', () => {
     expect(repeats).toBe(0);
   });
 });
+
+describe('file materialization async iteration protocol', () => {
+  it('uses the next method captured when the iterator is acquired, as for await does', async () => {
+    let pulls = 0;
+    const replacing = {
+      [Symbol.asyncIterator]() { return this; },
+      next() {
+        this.next = () => { throw new Error('next must be captured once'); };
+        pulls += 1;
+        return Promise.resolve(pulls > 1 ? { done: true } : { done: false, value: Uint8Array.of(65) });
+      },
+    };
+    await materializeFile(options({ source: replacing }));
+    expect(await read()).toBe('A');
+  });
+});

@@ -99,8 +99,11 @@ async function* byteChunks(source, signal, onSourceFailure) {
   let finished = false;
   try {
     iterator = source[Symbol.asyncIterator]();
+    // Captured once, as for await does, so the iterator may replace its own next.
+    const next = iterator.next;
+    const pull = () => Reflect.apply(next, iterator, []);
     while (true) {
-      const step = await nextChunk(iterator, signal);
+      const step = await nextChunk(pull, signal);
       if (step.done) { finished = true; return; }
       // Read once, so a getter cannot pass validation and then yield something else.
       const chunk = step.value;
@@ -122,10 +125,10 @@ async function* byteChunks(source, signal, onSourceFailure) {
 }
 
 /** One abort race per pull, so completed pulls leave no reactions on a long-lived promise. */
-async function nextChunk(iterator, signal) {
+async function nextChunk(pull, signal) {
   const abort = abortRejection(signal);
   try {
-    return await (abort ? Promise.race([iterator.next(), abort.promise]) : iterator.next());
+    return await (abort ? Promise.race([pull(), abort.promise]) : pull());
   } finally {
     abort?.dispose();
   }
