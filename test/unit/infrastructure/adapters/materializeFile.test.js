@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { chmod, mkdtemp, readFile, readdir, rm, writeFile, mkdir, symlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
+import * as v8 from 'node:v8';
 import path from 'node:path';
 import { materializeFile } from '@git-stunts/git-cas/files';
 
@@ -209,4 +210,23 @@ describe('file materialization cancellation and cleanup errors', () => {
       await chmod(base, 0o700);
     }
   });
+});
+
+describe('file materialization source iteration edges', () => {
+  it.skipIf(typeof v8.queryObjects !== 'function')(
+    'does not retain promises in proportion to chunks when a signal is supplied', async () => {
+      const controller = new globalThis.AbortController();
+      let early = 0;
+      let late = 0;
+      async function* many() {
+        for (let index = 0; index < 10_000; index++) {
+          if (index === 100) { early = v8.queryObjects(Promise); }
+          yield Uint8Array.of(65);
+        }
+        late = v8.queryObjects(Promise);
+      }
+      await materializeFile(options({ source: many(), signal: controller.signal }));
+      expect(late - early).toBeLessThan(1_000);
+    }
+  );
 });

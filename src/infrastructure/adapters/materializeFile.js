@@ -70,11 +70,10 @@ function validateSignal(signal) {
  */
 async function* byteChunks(source, signal) {
   const iterator = source[Symbol.asyncIterator]();
-  const abort = abortRejection(signal);
   let finished = false;
   try {
     while (true) {
-      const step = await (abort ? Promise.race([iterator.next(), abort.promise]) : iterator.next());
+      const step = await nextChunk(iterator, signal);
       if (step.done) { finished = true; return; }
       if (!(step.value instanceof Uint8Array)) {
         throw new CasError('source must yield Uint8Array chunks', ErrorCodes.INVALID_OPTIONS);
@@ -82,8 +81,17 @@ async function* byteChunks(source, signal) {
       yield step.value;
     }
   } finally {
-    abort?.dispose();
     if (!finished) { Promise.resolve(iterator.return?.()).catch(() => {}); }
+  }
+}
+
+/** One abort race per pull, so completed pulls leave no reactions on a long-lived promise. */
+async function nextChunk(iterator, signal) {
+  const abort = abortRejection(signal);
+  try {
+    return await (abort ? Promise.race([iterator.next(), abort.promise]) : iterator.next());
+  } finally {
+    abort?.dispose();
   }
 }
 
