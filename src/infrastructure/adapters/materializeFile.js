@@ -50,7 +50,14 @@ function validateOptions(options) {
     || typeof options.source?.[Symbol.asyncIterator] !== 'function') {
     throw new CasError('source, baseDirectory and outputPath are required', ErrorCodes.INVALID_OPTIONS);
   }
+  validateSignal(options.signal);
   validateDigest(options.expectedSha256);
+}
+
+function validateSignal(signal) {
+  if (signal !== undefined && !(signal instanceof globalThis.AbortSignal)) {
+    throw new CasError('signal must be an AbortSignal', ErrorCodes.INVALID_OPTIONS);
+  }
 }
 
 /** Rejects anything but byte chunks, so a misbehaving source cannot publish text. */

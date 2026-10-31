@@ -165,4 +165,12 @@ describe('file materialization source contract', () => {
       expect(await entries()).toEqual(['doc.md']);
     }
   );
+
+  it.each([[null], [false], [0], [{}], [{ throwIfAborted() {} }]])(
+    'rejects signal %j before creating output', async (signal) => {
+      await expect(materializeFile(options({ signal })))
+        .rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+      expect(await entries()).toEqual([]);
+    }
+  );
 });
