@@ -1,6 +1,62 @@
 # Upgrading git-cas
 
-v6.0.0 is a major release that simplifies the encryption model, hardens security defaults, and cleans up the architecture. This guide covers every breaking change and what you need to do.
+This guide covers breaking changes and migration steps for git-cas releases.
+
+## From v6.5.12: Zod 4 migration (unreleased)
+
+The release version is pending. Treat this as a breaking migration because the
+public schema objects and their generic types change, accepted integer values
+narrow, and validation diagnostics change.
+
+| Your usage | What to check or change |
+| --- | --- |
+| Main API, without importing schemas | No Zod composition change is needed. Check stored metadata and error-message handling as described below. |
+| `./schema` with `.parse()` or `.safeParse()` only | The methods remain available. Check integer values, diagnostics, and any code inspecting Zod error details. |
+| Compose exported schemas into your own schemas | Use Zod 4 in your application. Zod 3 schemas cannot contain these Zod 4 objects. |
+| Annotate schema types with Zod generic classes | Update Zod 3 annotations. `ZodEnum` takes an object map; `ZodDiscriminatedUnion` takes options before its discriminator. |
+
+### Stored integer metadata
+
+Zod 4 integer checks reject values above `Number.MAX_SAFE_INTEGER`
+(9,007,199,254,740,991). Existing positivity and field-specific bounds still
+apply. Check these fields in stored or externally supplied metadata:
+
+- Manifest `size`; chunk `index` and `size`.
+- Chunking `params.chunkSize`, `target`, `min`, and `max`.
+- Encryption `frameBytes` and `keyVersion`; recipient `keyVersion`.
+- KDF `iterations`, `cost`, `blockSize`, `parallelization`, and `keyLength`.
+- Sub-manifest `chunkCount` and `startIndex`.
+
+Manifest `version` remains restricted to 1 or 2. Metadata that was accepted
+under Zod 3 but exceeds the new safe-integer bound is rejected on read as well
+as write. There is no legacy parsing fallback or automatic migration. Audit
+existing data before upgrading; do not round a size, index, or cryptographic
+parameter merely to make validation pass.
+
+### Validation diagnostics
+
+Custom schema messages and the `Invalid manifest data:` / `Invalid chunk data:`
+prefixes remain. Uncustomized messages use Zod 4 wording, for example
+`Invalid input: expected number, received string`.
+
+For a matching encryption scheme, a fractional or infinite integer field such
+as `frameBytes` can now collapse the union error to `Invalid input`. Previously
+it could preserve a specific integer diagnostic. An unmatched scheme already
+produced `Invalid input`; that is not a new failure mode. The value-object error
+text already omitted field paths before this upgrade.
+
+Code that branches on exact error strings or inspects Zod issue structures
+needs review. Application calls to `z.config(...)` can change default messages
+when they configure the same Zod 4 instance used by git-cas. Git-cas does not
+isolate that global configuration; explicit schema messages still take priority.
+
+### Dependency boundary
+
+Zod is a regular dependency. Applications that compose the public schemas
+should declare their own Zod 4 dependency. Plumbing 3.3.2 still depends on Zod 3,
+so both majors remain in this dependency tree until the existing
+[Plumbing migration](https://github.com/git-stunts/plumbing/pull/22) is released
+and adopted. This PR does not claim to clear the complete transitive audit.
 
 ## v6.5.9 To v6.5.10
 
