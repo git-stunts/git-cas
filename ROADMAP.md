@@ -48,9 +48,18 @@ GitHub wins and this file should be corrected.
 | [`v6.5.8`](https://github.com/git-stunts/git-cas/milestone/18)  | Bounded application write and retention waves               | [#119](https://github.com/git-stunts/git-cas/issues/119)                                                                                                                                                                       |
 | [`v6.5.9`](https://github.com/git-stunts/git-cas/milestone/19)  | Compound staging-workspace admission                        | [#123](https://github.com/git-stunts/git-cas/issues/123)                                                                                                                                                                       |
 | [`v6.5.10`](https://github.com/git-stunts/git-cas/milestone/20) | Compound workspace assets and exact roots                   | [#127](https://github.com/git-stunts/git-cas/issues/127)                                                                                                                                                                       |
-| [`v6.6.0`](https://github.com/git-stunts/git-cas/milestone/9)   | Operator TUI and agent automation follow-through            | [#39](https://github.com/git-stunts/git-cas/issues/39), [#40](https://github.com/git-stunts/git-cas/issues/40)                                                                                                                 |
-| [`v6.7.0`](https://github.com/git-stunts/git-cas/milestone/10)  | Browser and edge read-path exploration                      | [#41](https://github.com/git-stunts/git-cas/issues/41)                                                                                                                                                                         |
-| [`v7.0.0`](https://github.com/git-stunts/git-cas/milestone/6)   | Protocol break only if audit requires it                    | [#42](https://github.com/git-stunts/git-cas/issues/42), only when justified                                                                                                                                                    |
+| [`v7.0.0`](https://github.com/git-stunts/git-cas/milestone/24) | Public Zod 4 schemas and dependency security release | [#151](https://github.com/git-stunts/git-cas/issues/151), [#154](https://github.com/git-stunts/git-cas/issues/154) |
+| [`v8.0.0`](https://github.com/git-stunts/git-cas/milestone/6) | Cleave: workspace and package split | [#133](https://github.com/git-stunts/git-cas/issues/133) and its slices |
+| [`v8.1.0`](https://github.com/git-stunts/git-cas/milestone/9) | Bridge: operator TUI and agent automation parity | [#39](https://github.com/git-stunts/git-cas/issues/39), [#40](https://github.com/git-stunts/git-cas/issues/40), [#107](https://github.com/git-stunts/git-cas/issues/107), [#108](https://github.com/git-stunts/git-cas/issues/108) |
+| [`v8.2.0`](https://github.com/git-stunts/git-cas/milestone/22) | Scion: shared bundle derivation and transport follow-through | [#86](https://github.com/git-stunts/git-cas/issues/86), [#98](https://github.com/git-stunts/git-cas/issues/98) |
+| [`v8.3.0`](https://github.com/git-stunts/git-cas/milestone/10) | Glimpse: browser and edge read paths | [#41](https://github.com/git-stunts/git-cas/issues/41) |
+| [`v9.0.0`](https://github.com/git-stunts/git-cas/milestone/23) | Day Zero: protocol break only if audit requires it | [#42](https://github.com/git-stunts/git-cas/issues/42), only when justified |
+
+The focused Zod security migration occupies v7.0.0. Cleave and its follow-through
+retain their existing issue and milestone identities under v8; the conditional
+protocol-audit response moves to v9. Historical design packets may retain their
+original version labels. Current targets and prerequisites belong to the linked
+GitHub issues and milestones.
 
 ## Latest Landed Design
 
