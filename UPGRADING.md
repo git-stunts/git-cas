@@ -2,9 +2,9 @@
 
 This guide covers breaking changes and migration steps for git-cas releases.
 
-## From v6.5.12: Zod 4 migration (unreleased)
+## v6.5.12 To v7.0.0 (candidate)
 
-The release version is pending. Treat this as a breaking migration because the
+This is a breaking migration because the
 public schema objects and their generic types change, accepted integer values
 narrow, and validation diagnostics change.
 

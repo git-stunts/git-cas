@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.0.0] — Unreleased
+
 ### Breaking Changes
 
 - Upgrade `zod` from 3 to 4 (`^4.6.7`). The public
