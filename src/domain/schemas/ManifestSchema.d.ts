@@ -15,7 +15,7 @@ export declare const ChunkSchema: z.ZodObject<{
 
 /** Validates KDF parameters stored alongside encryption metadata. */
 export declare const KdfSchema: z.ZodObject<{
-  algorithm: z.ZodEnum<["pbkdf2", "scrypt"]>;
+  algorithm: z.ZodEnum<{ pbkdf2: "pbkdf2"; scrypt: "scrypt" }>;
   salt: z.ZodString;
   iterations: z.ZodOptional<z.ZodNumber>;
   cost: z.ZodOptional<z.ZodNumber>;
@@ -75,7 +75,7 @@ export declare const EncryptionSchema: z.ZodUnion<
 
 /** Validates compression metadata. */
 export declare const CompressionSchema: z.ZodObject<{
-  algorithm: z.ZodEnum<["gzip"]>;
+  algorithm: z.ZodEnum<{ gzip: "gzip" }>;
 }>;
 
 /** Validates fixed-size chunking parameters. */
@@ -99,8 +99,8 @@ export declare const CdcChunkingSchema: z.ZodObject<{
 
 /** Validates chunking metadata (fixed or CDC). */
 export declare const ChunkingSchema: z.ZodDiscriminatedUnion<
-  "strategy",
-  [typeof FixedChunkingSchema, typeof CdcChunkingSchema]
+  [typeof FixedChunkingSchema, typeof CdcChunkingSchema],
+  "strategy"
 >;
 
 /** Validates a sub-manifest reference in a v2 Merkle manifest. */

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- Upgrade `zod` from 3 to 4 (`^4.6.7`). The public
+  `@git-stunts/git-cas/schema` exports now use Zod 4 objects and generic types.
+  Consumers composing these schemas must use Zod 4 and update annotations that
+  depend on Zod 3 generics. Parse-only callers do not need to compose schemas.
+- Integer validation now rejects values above `Number.MAX_SAFE_INTEGER`,
+  including manifest/chunk sizes, indices, chunking and KDF parameters, key
+  versions, frame sizes, and sub-manifest counts and offsets. Existing stored
+  metadata outside that bound can no longer be read; there is no fallback.
+  See [UPGRADING.md](UPGRADING.md) for affected callers and fields.
+- Validation text changes where no custom message is set. The
+  `Invalid manifest data:` and `Invalid chunk data:` prefixes remain, but a
+  matching encryption scheme with a fractional or infinite integer field can
+  now report `Invalid input` instead of a specific integer diagnostic.
+  Unmatched schemes already reported `Invalid input` with Zod 3.
+
+### Changed
+
+- Schema source rules and custom messages are unchanged. Default validation
+  messages now follow Zod 4 and any application configuration of the shared
+  Zod 4 instance, such as `z.config(...)` locale or error customization.
+- Plumbing 3.3.2 still brings Zod 3 transitively. This migration alone does not
+  remove that dependency; the upstream migration is tracked in
+  [plumbing #22](https://github.com/git-stunts/plumbing/pull/22).
+
 ## [6.5.12] — 2026-10-20
 
 ### Fixed
