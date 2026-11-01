@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [7.0.0] — Unreleased
+## [7.0.0] — 2026-11-01
 
 ### Breaking Changes
 
@@ -31,9 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Schema source rules and custom messages are unchanged. Default validation
   messages now follow Zod 4 and any application configuration of the shared
   Zod 4 instance, such as `z.config(...)` locale or error customization.
-- Plumbing 3.3.2 still brings Zod 3 transitively. This migration alone does not
-  remove that dependency; the upstream migration is tracked in
-  [plumbing #22](https://github.com/git-stunts/plumbing/pull/22).
+- Require published Plumbing `^3.3.3`, which also uses Zod 4. The locked
+  production dependency tree no longer contains Zod 3.
 
 ## [6.5.12] — 2026-10-20
 

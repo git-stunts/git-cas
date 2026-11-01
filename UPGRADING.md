@@ -53,10 +53,10 @@ isolate that global configuration; explicit schema messages still take priority.
 ### Dependency boundary
 
 Zod is a regular dependency. Applications that compose the public schemas
-should declare their own Zod 4 dependency. Plumbing 3.3.2 still depends on Zod 3,
-so both majors remain in this dependency tree until the existing
-[Plumbing migration](https://github.com/git-stunts/plumbing/pull/22) is released
-and adopted. This PR does not claim to clear the complete transitive audit.
+should declare their own Zod 4 dependency. This release requires published
+Plumbing `^3.3.3`; the locked production tree uses Zod 4 throughout. The
+production audit has zero findings. This does not claim a clean developer
+dependency audit.
 
 ## v6.5.9 To v6.5.10
 

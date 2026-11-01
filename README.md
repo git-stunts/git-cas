@@ -54,8 +54,8 @@ Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
 `npm run upgrade` in dry-run mode before restoring old encrypted vault entries.
 The v7.0.0 security candidate changes the public schema dependency to Zod 4.
 Before upgrading, read the [migration guidance](./UPGRADING.md#v6512-to-v700-candidate)
-and [candidate release notes](./docs/releases/v7.0.0.md). Publication and the
-Plumbing 3.3.3 dependency update remain pending in
+and [candidate release notes](./docs/releases/v7.0.0.md). This candidate requires
+published Plumbing 3.3.3. Publication and registry verification remain tracked in
 [#154](https://github.com/git-stunts/git-cas/issues/154).
 
 The published v6.5.12 release bounds object-metadata requests so root sets with more than 1000 targets (936 for SHA-256) validate within Plumbing's cat-file request limits. Admission still rejects missing and mismatched targets before publication; see [v6.5.12 Release Notes](./docs/releases/v6.5.12.md).
