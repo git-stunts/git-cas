@@ -486,7 +486,14 @@ Repair cannot recover objects that Git already pruned. Verify
 `(await rootSet.doctor()).healthy` before garbage collection. Existing vault
 entries and ordinary branch/tag references need no change.
 
-## Quick Start
+## v5.x To v6.0.0
+
+The following quick start, breaking changes, API changes, and troubleshooting
+apply to the v5-to-v6.0.0 upgrade. The encrypted-vault migration converts legacy
+v5 encryption metadata. An installation already on v6.5.12 does not need to run
+these commands for the Zod 4 upgrade.
+
+### Quick Start
 
 If you have an existing vault with encrypted assets:
 
@@ -502,9 +509,9 @@ If you only use the library API (no vault), skip to [API Changes](#api-changes).
 
 ---
 
-## Critical Breaking Changes
+### Critical Breaking Changes
 
-### `restoreFile()` Requires `baseDirectory`
+#### `restoreFile()` Requires `baseDirectory`
 
 `restoreFile()` now requires an explicit directory boundary. This prevents a
 repository-controlled output path from writing outside the directory your
@@ -532,9 +539,9 @@ for example a job workspace or tenant-scoped artifact directory.
 
 ---
 
-## Encryption Scheme Simplification
+### Encryption Scheme Simplification
 
-### What Changed
+#### What Changed
 
 v5 had 5 encryption scheme identifiers. v6 has 3:
 
@@ -546,11 +553,11 @@ v5 had 5 encryption scheme identifiers. v6 has 3:
 | `framed-v2`     | `framed`     | Rename only (already had AAD)              |
 | `convergent-v1` | `convergent` | Rename only                                |
 
-### Why
+#### Why
 
 Version suffixes on scheme names were compatibility cruft. AAD (Additional Authenticated Data) binding is now unconditional — every `whole` and `framed` manifest binds the slug to the ciphertext, preventing cross-manifest blob substitution attacks.
 
-### What Happens if You Don't Migrate
+#### What Happens if You Don't Migrate
 
 Any call to `readManifest()`, `restore()`, `restoreFile()`, or `restoreStream()` on a v5 manifest will throw:
 
@@ -560,7 +567,7 @@ Run scripts/migrate-encryption.js to upgrade this manifest.
 [code: LEGACY_SCHEME]
 ```
 
-### How to Migrate
+#### How to Migrate
 
 ```bash
 # Dry-run: see what needs migration
@@ -599,7 +606,7 @@ recipient key.
 
 Original blobs are never deleted — Git's garbage collection only removes unreferenced objects after `git gc`.
 
-### Vault Passphrase Verifier Migration
+#### Vault Passphrase Verifier Migration
 
 New encrypted vaults write `encryption.verifier` into `.vault.json`. The
 verifier lets `git-cas` reject a wrong vault passphrase even when the encrypted
@@ -621,9 +628,9 @@ verifier and the next keyed vault write will add it.
 
 ---
 
-## Default Scheme Changes
+### Default Scheme Changes
 
-### What Changed
+#### What Changed
 
 | Scenario                    | v5 Default  | v6 Default   |
 | --------------------------- | ----------- | ------------ |
@@ -631,7 +638,7 @@ verifier and the next keyed vault write will add it.
 | Fixed chunking + encryption | `framed-v1` | `framed`     |
 | Explicit `whole`            | `whole-v1`  | `whole`      |
 
-### What This Means
+#### What This Means
 
 - **Convergent encryption** is now the default when using CDC chunking with encryption. This means deduplication works even with encrypted content — identical plaintext chunks produce identical ciphertext.
 - If you were explicitly passing `encryption: { scheme: 'framed-v1' }`, change to `encryption: { scheme: 'framed' }`.
@@ -639,9 +646,9 @@ verifier and the next keyed vault write will add it.
 
 ---
 
-## API Changes
+### API Changes
 
-### Byte Types
+#### Byte Types
 
 Public byte-oriented APIs now use `Uint8Array` instead of Node-specific
 `Buffer` types:
@@ -657,7 +664,7 @@ Node callers can still pass `Buffer` values because `Buffer` is a
 should compare with `Buffer.from(buffer).equals(...)` or use a runtime-neutral
 byte comparison helper.
 
-### CasService Constructor (Library Users)
+#### CasService Constructor (Library Users)
 
 **If you use `ContentAddressableStore` (the facade):** No changes needed. The facade handles all defaults.
 
@@ -679,7 +686,7 @@ byte comparison helper.
 
 `chunker` and `compressionAdapter` are now **required**. They were previously optional with internal defaults — the defaults moved to the facade layer to keep the domain service free of infrastructure imports.
 
-### New CryptoPort Methods
+#### New CryptoPort Methods
 
 If you implement a custom `CryptoPort`, you must add these methods:
 
@@ -694,16 +701,16 @@ decryptBufferWithNonceTag(buffer, key, nonce, tag) { /* return Uint8Array */ }
 
 The shipped adapters (`NodeCryptoAdapter`, `BunCryptoAdapter`, `WebCryptoAdapter`) already implement these.
 
-### Encryption Metadata Schema
+#### Encryption Metadata Schema
 
 Encrypted manifests now **require** the `scheme` field. Pre-v5.2 manifests that omitted `scheme` will fail schema validation. The migration script handles this.
 
-### New Manifest Fields
+#### New Manifest Fields
 
 - **`formatVersion`**: Semver string (e.g., `"6.0.0"`) stamped into new manifests. Identifies which library version wrote the manifest. Optional on read — old manifests without it still parse.
 - **`manifestHash`**: SHA-256 of the codec-encoded manifest content. Verified on read. Catches corruption. Optional on read.
 
-### New Exports
+#### New Exports
 
 ```js
 // Standalone manifest diffing
@@ -720,7 +727,7 @@ import { CompressionPort, NodeCompressionAdapter } from '@git-stunts/git-cas';
 import { SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT } from '@git-stunts/git-cas';
 ```
 
-### Behavioral Changes
+#### Behavioral Changes
 
 | Change                                   | Impact                                                                                |
 | ---------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -733,7 +740,7 @@ import { SCHEME_WHOLE, SCHEME_FRAMED, SCHEME_CONVERGENT } from '@git-stunts/git-
 
 ---
 
-## New Features (Non-Breaking)
+### New Features (Non-Breaking)
 
 These are new capabilities that don't require migration:
 
@@ -750,9 +757,9 @@ These are new capabilities that don't require migration:
 
 ---
 
-## Troubleshooting
+### Troubleshooting
 
-### `LEGACY_SCHEME` error on restore
+#### `LEGACY_SCHEME` error on restore
 
 ```
 CasError: Legacy encryption scheme "whole-v1" is no longer supported.
@@ -762,7 +769,7 @@ Run `printf '%s\n' '<pass>' | npm run upgrade -- --execute --passphrase-file -`
 or
 `npm run upgrade -- --execute --key-file <path>` to migrate.
 
-### `KDF_POLICY_VIOLATION` on deriveKey
+#### `KDF_POLICY_VIOLATION` on deriveKey
 
 ```
 CasError: deriveKey KDF field "iterations" must be between 100000 and 2000000
@@ -770,7 +777,7 @@ CasError: deriveKey KDF field "iterations" must be between 100000 and 2000000
 
 v6 enforces minimum KDF parameters. Increase iterations to at least 100,000 (PBKDF2) or cost to at least 16,384 (scrypt).
 
-### `MANIFEST_INTEGRITY_ERROR` on readManifest
+#### `MANIFEST_INTEGRITY_ERROR` on readManifest
 
 ```
 CasError: Manifest integrity check failed: hash mismatch
@@ -778,7 +785,7 @@ CasError: Manifest integrity check failed: hash mismatch
 
 The manifest blob was corrupted or tampered with after storage. The original data may still be recoverable from Git's object database if the corruption was in the tree, not the blob.
 
-### Constructor throws "chunker is required"
+#### Constructor throws "chunker is required"
 
 You're using `CasService` directly. Either switch to the `ContentAddressableStore` facade (recommended) or inject a `chunker` and `compressionAdapter` manually. See [API Changes](#casservice-constructor-library-users).
 
