@@ -42,6 +42,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before/after faults at every durable ref boundary cover both object formats.
   The public facade now composes this protocol without a second lifecycle.
 
+### Fixed
+
+- Install the Deno CI image from the existing frozen pnpm dependency graph and
+  run Deno in manual `node_modules` mode across CI and release verification.
+  Fresh Deno resolution no longer selects
+  unrelated newer transitive releases before the runtime tests can start (#159).
+
 ## [7.0.0] — 2026-11-01
 
 ### Breaking Changes

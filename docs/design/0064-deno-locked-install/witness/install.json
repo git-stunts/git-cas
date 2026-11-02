@@ -1,0 +1,177 @@
+{
+  "issue": 159,
+  "base": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+  "scope": "Clean install command rehearsal and actual Deno/Node checks in existing image; hosted CI must verify the Dockerfile build",
+  "worker": "git-cas-tests",
+  "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+  "workstation_key": "host/docker/git-cas-tests/",
+  "phases": [
+    {
+      "name": "deno-install-red-01",
+      "source_base": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+      "receipt_sha256": "99ba8eec350873f7bee155a2e57751ec787c2543ca51d620f05c15c1d21cd7a4",
+      "log_sha256": "6da37420d1859a76f032c0c650eb6ee4221431ce7451593c9da80565ec38b376",
+      "result": {
+        "exit": 0,
+        "duration_seconds": 6.161080334102735,
+        "log_bytes": 36799,
+        "tmpfs_usage_kib": "101548\t/data\n0\t/tmp\n0\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 601845702656
+      },
+      "host_free_before": 601838559232,
+      "vm_free_before": 572236591104,
+      "input_hashes": {
+        "Dockerfile": "2abec997a088a95caffce0be952df1a1e960605000ef444f3e29a2751501b7fc",
+        ".github/workflows/ci.yml": "051e14c941cb34f5955bf67e907105b27d5b52a45c356007bdc2cf6576d24e46",
+        "package.json": "c85701be6ee637c23236c7739fa397598411a1e23c3e71d59e71e9d2f9b7bf5b",
+        "pnpm-lock.yaml": "d59bd297deb426c9e9471555d2d189e8f662da5e3c20d15b90a36b9c23aa811f",
+        "test/types/deno.json": "2d560c4891d86c48fc0fffbc0492104acfcfa02f0b6b9ddcec48f1024a369056",
+        "test/types/deno.schema.json": "d83f05fef3e0949c6bed27b823a28df98ae6123994534b8a2ee5cd07bf234645"
+      },
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "188c6caa683a75ee44c687f18156cb332f36e1bfade4f1ca6aed0d4622f82ab6",
+        "file_count": 953,
+        "base_commit": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+        "base_tree": "13e7e7968b87d6e9319c96ffc19cc0f83041a417",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {},
+        "removed_files": []
+      }
+    },
+    {
+      "name": "deno-lock-drift-red-01",
+      "source_base": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+      "receipt_sha256": "5603cb0a45f169575690f15c0d399bf703efd4d8fbd90c4bb46bf9a78685e571",
+      "log_sha256": "7a6733323e3706bd71d16c2a3e19abf69774df3e7bc0f46a6f7570ddb14971a1",
+      "result": {
+        "exit": 1,
+        "duration_seconds": 5.47127787489444,
+        "log_bytes": 37114,
+        "tmpfs_usage_kib": "101452\t/data\n0\t/tmp\n0\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 601851850752
+      },
+      "host_free_before": 601844740096,
+      "vm_free_before": 572169478144,
+      "input_hashes": {
+        "Dockerfile": "2abec997a088a95caffce0be952df1a1e960605000ef444f3e29a2751501b7fc",
+        ".github/workflows/ci.yml": "051e14c941cb34f5955bf67e907105b27d5b52a45c356007bdc2cf6576d24e46",
+        "package.json": "c85701be6ee637c23236c7739fa397598411a1e23c3e71d59e71e9d2f9b7bf5b",
+        "pnpm-lock.yaml": "d59bd297deb426c9e9471555d2d189e8f662da5e3c20d15b90a36b9c23aa811f",
+        "test/types/deno.json": "2d560c4891d86c48fc0fffbc0492104acfcfa02f0b6b9ddcec48f1024a369056",
+        "test/types/deno.schema.json": "d83f05fef3e0949c6bed27b823a28df98ae6123994534b8a2ee5cd07bf234645"
+      },
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "188c6caa683a75ee44c687f18156cb332f36e1bfade4f1ca6aed0d4622f82ab6",
+        "file_count": 953,
+        "base_commit": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+        "base_tree": "13e7e7968b87d6e9319c96ffc19cc0f83041a417",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {},
+        "removed_files": []
+      }
+    },
+    {
+      "name": "deno-install-green-01",
+      "source_base": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+      "receipt_sha256": "97dc571fc506916be0144ff215b34413b80303d5a135651835a4f07415a5d1fc",
+      "log_sha256": "dca63f1dd249f8e477d556ca623ecffac5ac6faa87ddff7841d370833c2ce1ea",
+      "result": {
+        "exit": 0,
+        "duration_seconds": 54.62822191696614,
+        "log_bytes": 44355,
+        "tmpfs_usage_kib": "126852\t/data\n0\t/tmp\n1624\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 601842339840
+      },
+      "host_free_before": 601835323392,
+      "vm_free_before": 572169482240,
+      "input_hashes": {
+        "Dockerfile": "10718ef17296ab1a303d151d08ddfd23088bbf35a9a1fdd4a94e2dee3ebc46b8",
+        ".github/workflows/ci.yml": "51b7bb793e0504a573a9b173c36f533e49af3fc5443216476f75b38ef6718d1d",
+        "package.json": "db2add6296b3408be6ca0d9799574b587d20585f82f2200fd1567fa4f22a04a3",
+        "pnpm-lock.yaml": "d59bd297deb426c9e9471555d2d189e8f662da5e3c20d15b90a36b9c23aa811f",
+        "test/types/deno.json": "2d560c4891d86c48fc0fffbc0492104acfcfa02f0b6b9ddcec48f1024a369056",
+        "test/types/deno.schema.json": "d83f05fef3e0949c6bed27b823a28df98ae6123994534b8a2ee5cd07bf234645"
+      },
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "1bc3db9a3fe9a15efd3bd08e398ed1874ef2b2751b422245c612992c6a7115cc",
+        "file_count": 954,
+        "base_commit": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+        "base_tree": "13e7e7968b87d6e9319c96ffc19cc0f83041a417",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {
+          ".github/workflows/ci.yml": "51b7bb793e0504a573a9b173c36f533e49af3fc5443216476f75b38ef6718d1d",
+          "CHANGELOG.md": "3720b50d736895b053d35e05bc3723a096e398c263c2ff64098e07ffa572063b",
+          "CONTRIBUTING.md": "cd85c83e88686df936ae0e25d9284e66433c239fc058778870110addb251d250",
+          "Dockerfile": "10718ef17296ab1a303d151d08ddfd23088bbf35a9a1fdd4a94e2dee3ebc46b8",
+          "docs/design/0064-deno-locked-install/deno-locked-install.md": "ec6e0cc97505bfbf76b8f5d993b98fff49a9bca2f4c44ca31d740e6f0c11a077",
+          "docs/design/README.md": "8769e9b14f4c308daf9b84d761327167c5bf793123e2ab7a0fd3b5b7e3b289a6",
+          "package.json": "db2add6296b3408be6ca0d9799574b587d20585f82f2200fd1567fa4f22a04a3"
+        },
+        "removed_files": []
+      }
+    }
+  ],
+  "historical_ci": {
+    "run": 41456162064,
+    "job": 125314087172,
+    "head": "5427d774899d10c010565300ba88fd1b09248090",
+    "error": "Missing @cbor-extract/cbor-extract-win32-x64@2.2.3 before test execution",
+    "log_sha256": "9fa21a1c8b1b0aeaafcfec22688ee4f81a0fb950df6d7bfd5cf01116b1dec6a0"
+  },
+  "registry_observation": {
+    "observed_at": "2026-11-02T14:06:34.382156+00:00",
+    "registry": "https://registry.npmjs.org",
+    "packages": [
+      {
+        "name": "cbor-extract",
+        "latest": "2.2.3",
+        "has_2_2_3": true,
+        "published_2_2_3": "2026-11-02T02:27:21.776Z",
+        "optional_2_2_3": {
+          "@cbor-extract/cbor-extract-linux-arm": "2.2.3",
+          "@cbor-extract/cbor-extract-linux-x64": "2.2.3",
+          "@cbor-extract/cbor-extract-win32-x64": "2.2.3",
+          "@cbor-extract/cbor-extract-darwin-x64": "2.2.3",
+          "@cbor-extract/cbor-extract-linux-arm64": "2.2.3",
+          "@cbor-extract/cbor-extract-darwin-arm64": "2.2.3"
+        }
+      },
+      {
+        "name": "@cbor-extract/cbor-extract-win32-x64",
+        "latest": "2.2.3",
+        "has_2_2_3": true,
+        "published_2_2_3": "2026-11-02T13:57:25.342Z",
+        "optional_2_2_3": null
+      }
+    ]
+  },
+  "counts": {
+    "deno_unit": {
+      "passed": 2214,
+      "skipped": 12
+    },
+    "deno_integration": {
+      "passed": 219
+    },
+    "node_unit": {
+      "passed": 2223,
+      "skipped": 3
+    }
+  },
+  "declarations": [
+    "public-api-compatibility.ts",
+    "schema-compatibility.ts"
+  ],
+  "limitations": [
+    "Local image was reused, not rebuilt",
+    "End tmpfs measurements are not peaks",
+    "Baseline install phase exited0 after upstream publication; separate assertion exposed graph drift"
+  ],
+  "counts_source": {
+    "phase": "deno-install-green-01",
+    "copied_snapshot_sha256": "1bc3db9a3fe9a15efd3bd08e398ed1874ef2b2751b422245c612992c6a7115cc"
+  }
+}

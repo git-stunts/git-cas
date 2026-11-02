@@ -1,0 +1,69 @@
+{
+  "kind": "explicit-deno-release-paths",
+  "phases": [
+    {
+      "phase": "deno-release-red-01",
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "23b570422bee8b512a6b4ef6868e7b03310b1643450c5f511573c7e206a8c482",
+        "file_count": 957,
+        "base_commit": "1ac6c278340c63d478a80aa974a3be8c47488bbb",
+        "base_tree": "02a4504bfecdd2a91d9e724835b1e6924e52c247",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {
+          "test/unit/scripts/release-verify.test.js": "77c693fb7cd1ca8a61b24f471daa5649b27a8c86bc5331eb2ee20ef91f6a3182"
+        },
+        "removed_files": []
+      },
+      "receipt_sha256": "b0da72504867bb4a50fce47a0673478924da4afabbc90534bc609037db19bfe8",
+      "log_sha256": "0ddacc4fa526357aaf1579740521c0791271b97982b46aa8296dc2a1ff7a9154",
+      "script_sha256": "1c5a42df5fb439d5985aec702c991cd5993969cf1cec8334fe8fb02d98710e06",
+      "result": {
+        "exit": 1,
+        "duration_seconds": 3.601367542,
+        "log_bytes": 3589,
+        "tmpfs_usage_kib": "116616\t/data\n0\t/tmp\n4\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 601844228096
+      }
+    },
+    {
+      "phase": "deno-release-green-01",
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "c4b54a6c1bf1b91a29e31c3337cd59df2ba250d6e5f03893bf951e2f74148769",
+        "file_count": 957,
+        "base_commit": "1ac6c278340c63d478a80aa974a3be8c47488bbb",
+        "base_tree": "02a4504bfecdd2a91d9e724835b1e6924e52c247",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {
+          ".github/workflows/release.yml": "b20cbc22f5771b2be9ab2cdf1517d1e4dd28e117d2f7276ca3075823da74bf49",
+          "CHANGELOG.md": "285daf306f0a3bfb48eda1bb513fba0c088ca7059682aaa085e71f0d6338fb88",
+          "docs/method/release.md": "f16bda95e8896126543226ca1affbfe67bce8381d6269f3afe0dfd063e65dbf7",
+          "scripts/release/verify.js": "90ae1705437d7c1fb4648188283dbfa2ee68063558b3ef1266b0b88b0002f0c9",
+          "test/unit/scripts/release-verify.test.js": "77c693fb7cd1ca8a61b24f471daa5649b27a8c86bc5331eb2ee20ef91f6a3182"
+        },
+        "removed_files": []
+      },
+      "receipt_sha256": "25ea46cb2ef4f906be3050e84379dd5188e9617826292f45881192c8f706c71d",
+      "log_sha256": "107ebc235f77fc41106a7864f807f34a03a11af7e479df72d4f4587fd5a0b712",
+      "script_sha256": "eb4cc1a3d3f815e6888929604dfb59edd287598a999896bdc05b0240cf41a99c",
+      "result": {
+        "exit": 0,
+        "duration_seconds": 53.588172832999994,
+        "log_bytes": 43851,
+        "tmpfs_usage_kib": "123192\t/data\n0\t/tmp\n1624\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 601854894080
+      }
+    }
+  ],
+  "checks": {
+    "red": "15 existing tests pass; new runner argument assertion fails",
+    "node_unit_passed": 2224,
+    "node_unit_skipped": 3,
+    "deno_release_unit_passed": 2215,
+    "deno_release_unit_skipped": 12,
+    "deno_integration_passed": 219,
+    "lint": "passed"
+  },
+  "limits": "Same existing COPY-only worker and bounded launch contract as original install witness. Runtime usage is final usage, not peak. Hosted release publication workflow was not executed."
+}

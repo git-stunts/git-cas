@@ -73,7 +73,7 @@ export const RELEASE_STEPS = [
     id: 'unit-deno',
     label: 'Unit Tests (Deno)',
     command: 'docker',
-    args: ['compose', 'run', '--build', '--rm', 'test-deno', 'deno', 'run', '-A', 'npm:vitest', 'run', 'test/unit'],
+    args: ['compose', 'run', '--build', '--rm', 'test-deno', 'deno', 'run', '--node-modules-dir=manual', '-A', 'npm:vitest', 'run', 'test/unit'],
     testCount: true,
   },
   {

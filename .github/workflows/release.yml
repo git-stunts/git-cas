@@ -69,7 +69,7 @@ jobs:
       - name: Integration tests (Bun)
         run: docker compose run --build --rm test-bun bunx vitest run test/integration --no-file-parallelism
       - name: Integration tests (Deno)
-        run: docker compose run --build --rm test-deno deno run -A npm:vitest run test/integration --no-file-parallelism
+        run: docker compose run --build --rm test-deno deno run --node-modules-dir=manual -A npm:vitest run test/integration --no-file-parallelism
 
   publish-npm:
     needs: [validate, test]
