@@ -1,0 +1,21 @@
+{
+  "phase": "deno-optional-fallback-01",
+  "source_base": "402e4e58ccdab70bb224c22150f4ee92f2821f56",
+  "receipt_sha256": "2dfd0904a23eff7e1f64e3efd2a369ee7eb6e283863f718b14ca6b80df344222",
+  "log_sha256": "a563691e0e26cbaad8a01eb440f8ba73a8f75891996e4835e335614535c6fbf7",
+  "script_sha256": "2009a4249a2370ca7aad19f5cd229fc2446f01ed580beaec80dcfd60e00b9bc5",
+  "result": {
+    "exit": 0,
+    "duration_seconds": 5.154979583,
+    "log_bytes": 3175,
+    "tmpfs_usage_kib": "120176\t/data\n0\t/tmp\n4\t/home/gitstunts\n0\t/dev/shm\n",
+    "host_free": 601865736192
+  },
+  "checks": {
+    "node_tests_passed": 41,
+    "deno_tests_passed": 41,
+    "lint": "passed",
+    "native_acceleration": "false in both runtime probes"
+  },
+  "scope": "Controlled absence of cbor-extract after a successful frozen install; not an induced installer fetch/build failure"
+}

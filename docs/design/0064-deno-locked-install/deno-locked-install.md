@@ -87,7 +87,8 @@ and concrete clean-install/runtime evidence.
 ## Non-Goals
 
 No reservation implementation, dependency range change, package API change,
-runtime upgrade, Bun lock migration or skipped test/install error.
+runtime upgrade, Bun lock migration or ignored nonzero installer/test status.
+No change to pnpm's optional-dependency policy or mandatory native acceleration.
 
 ## Runtime / API Contract
 
@@ -99,7 +100,7 @@ Source and lock changes are reviewed together through normal pull requests.
 ## Architecture / Anti-SLUDGE Posture
 
 No domain, port or adapter change. Installation and runtime remain explicit
-tooling boundaries; no errors are converted into success.
+tooling boundaries; no nonzero installer status is converted into success.
 
 ## Compatibility / Migration Posture
 
@@ -109,9 +110,18 @@ its application execution and type checking continue under Deno.
 
 ## Error Contract
 
-Missing packages, integrity failures, stale locks, install script failures and
-runtime failures propagate a nonzero exit. Update the manifest and lock through
-an intentional dependency change; never regenerate the graph silently in CI.
+Nonzero pnpm installation and runtime exit statuses propagate to Docker/CI.
+The frozen install rejects a stale manifest/lock pair. Update the manifest and
+lock through an intentional dependency change; never regenerate the graph
+silently in CI.
+
+pnpm retains its existing optional-dependency semantics: an optional package can
+be absent after a platform skip or a fetch/build failure without failing the
+install. In particular, cbor-x's native cbor-extract accelerator is optional;
+its JavaScript implementation remains available. A successful install therefore
+does not prove that native acceleration loaded. The runtime gates must pass
+against the installed graph. This contract does not promote an optional
+accelerator into a required dependency.
 
 ## Accessibility Posture
 
@@ -137,8 +147,9 @@ remain failures; one coherent issue/PR.
 ## Design Alternatives Considered
 
 A second Deno lock adds another graph to maintain. Pinning one broken optional
-package only treats today's symptom. Skipping optional resolution errors would
-conceal failure. The existing lock already describes a working graph.
+package only treats today's symptom. Ignoring a nonzero installer exit would
+conceal a failed installation. The existing lock already describes a working
+graph, including optional packages with their existing fallback semantics.
 
 ## Decision
 

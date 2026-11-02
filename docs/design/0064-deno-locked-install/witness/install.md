@@ -33,7 +33,9 @@ package and lock bytes are unchanged before and after the entire phase.
 
 A separate fixture changes the declared commander version from 14.0.3 to 14.0.2
 while retaining the original lock. The same frozen installation refuses with
-`ERR_PNPM_OUTDATED_LOCKFILE`. No install error is ignored in the repaired image.
+`ERR_PNPM_OUTDATED_LOCKFILE`. No nonzero installer exit is ignored in the repaired
+image. pnpm can still omit optional packages; installation success alone is not
+evidence that the optional native accelerator loaded.
 
 Executed with Deno 2.7.1, V8 14.5.201.2-rusty, TypeScript 5.9.2, Node 22.23.4,
 Vitest 2.1.9, on Linux aarch64:
@@ -80,3 +82,20 @@ links and adds this cycle to the design index; issue/milestone remain canonical.
 This evidence does not establish a deterministic whole image, release readiness
 for reservations, or a fresh registry consumer installation. Existing image tags
 and pnpm major selection remain separate toolchain inputs.
+
+## Optional acceleration is a separate condition
+
+Review identified an overbroad error contract: pnpm can omit optional dependencies
+without returning a failing status. The image propagates nonzero installer exits;
+it does not redefine pnpm's optional-dependency policy. The pinned
+[cbor-x source](https://github.com/kriszyp/cbor-x/blob/v1.6.0/node-index.js)
+explicitly catches a missing native extractor and retains its JavaScript codec.
+
+The `deno-optional-fallback-01` phase performs a fresh frozen install, then removes
+only the disposable installed cbor-extract package. A fresh Node process and a
+fresh Deno process both observe `isNativeAccelerationEnabled === false`. Each
+runtime passes all 41 cases in BundleService, CasService.codec and
+CasService.readManifest; lint also passes. [Phase receipt](optional-fallback.json)
+records the exact result. This is a controlled missing-accelerator check, not a
+claim to have induced every possible pnpm fetch or build failure. Production
+installation still attempts optional packages normally.

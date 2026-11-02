@@ -257,7 +257,10 @@ Node and Deno test images install the project graph from `pnpm-lock.yaml` with
 manual `node_modules` mode; the unit, integration and declaration checks still
 run under Deno. Update `package.json` and the pnpm lock together for intentional
 dependency changes. Do not add an unlocked `deno install` step or suppress an
-installation failure. The Bun image retains its existing Bun installation path.
+nonzero installer status. pnpm retains its optional-dependency semantics;
+successful installation does not guarantee that the optional cbor-extract native
+accelerator is present. The runtime checks still have to pass. The Bun image
+retains its existing Bun installation path.
 
 ## Human Surface Guardrails
 
