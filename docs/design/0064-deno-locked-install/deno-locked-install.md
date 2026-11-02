@@ -219,8 +219,9 @@ that upstream tarballs will remain downloadable forever.
 
 ## Follow-On Debt
 
-None currently. A new independent finding requires a tracker issue rather than
-an unrelated repair hidden in this one.
+[#161](https://github.com/git-stunts/git-cas/issues/161) tracks the pre-existing
+unlocked Bun test-image installation. It is an independent follow-up, not a
+prerequisite for this Deno repair. No current Bun runtime failure is claimed.
 
 ## Tracker Disposition
 
