@@ -99,3 +99,18 @@ CasService.readManifest; lint also passes. [Phase receipt](optional-fallback.jso
 records the exact result. This is a controlled missing-accelerator check, not a
 claim to have induced every possible pnpm fetch or build failure. Production
 installation still attempts optional packages normally.
+
+## Complete copied-source identities
+
+Each phase now carries a `copied_snapshot` identity derived from the complete
+`source_hashes` map in its original raw receipt. It is a content/path manifest
+hash, not a Git commit or tree hash. The baseline phases each match all 953 files
+of their recorded base exactly. The green phase contains 954 files: that base
+plus the seven listed changed/added files. No file is removed. The green test
+counts explicitly reference that snapshot identity.
+
+The receipt defines the digest algorithm and records a base commit/tree plus
+every changed, added and removed file. Reconstructing each manifest from those
+coordinates was checked against the entire original receipt map. The optional
+fallback phase has the same complete identity treatment. This records historical
+tested bytes without claiming that later documentation edits were in those runs.

@@ -27,6 +27,16 @@
         "pnpm-lock.yaml": "d59bd297deb426c9e9471555d2d189e8f662da5e3c20d15b90a36b9c23aa811f",
         "test/types/deno.json": "2d560c4891d86c48fc0fffbc0492104acfcfa02f0b6b9ddcec48f1024a369056",
         "test/types/deno.schema.json": "d83f05fef3e0949c6bed27b823a28df98ae6123994534b8a2ee5cd07bf234645"
+      },
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "188c6caa683a75ee44c687f18156cb332f36e1bfade4f1ca6aed0d4622f82ab6",
+        "file_count": 953,
+        "base_commit": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+        "base_tree": "13e7e7968b87d6e9319c96ffc19cc0f83041a417",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {},
+        "removed_files": []
       }
     },
     {
@@ -50,6 +60,16 @@
         "pnpm-lock.yaml": "d59bd297deb426c9e9471555d2d189e8f662da5e3c20d15b90a36b9c23aa811f",
         "test/types/deno.json": "2d560c4891d86c48fc0fffbc0492104acfcfa02f0b6b9ddcec48f1024a369056",
         "test/types/deno.schema.json": "d83f05fef3e0949c6bed27b823a28df98ae6123994534b8a2ee5cd07bf234645"
+      },
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "188c6caa683a75ee44c687f18156cb332f36e1bfade4f1ca6aed0d4622f82ab6",
+        "file_count": 953,
+        "base_commit": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+        "base_tree": "13e7e7968b87d6e9319c96ffc19cc0f83041a417",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {},
+        "removed_files": []
       }
     },
     {
@@ -73,6 +93,24 @@
         "pnpm-lock.yaml": "d59bd297deb426c9e9471555d2d189e8f662da5e3c20d15b90a36b9c23aa811f",
         "test/types/deno.json": "2d560c4891d86c48fc0fffbc0492104acfcfa02f0b6b9ddcec48f1024a369056",
         "test/types/deno.schema.json": "d83f05fef3e0949c6bed27b823a28df98ae6123994534b8a2ee5cd07bf234645"
+      },
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "1bc3db9a3fe9a15efd3bd08e398ed1874ef2b2751b422245c612992c6a7115cc",
+        "file_count": 954,
+        "base_commit": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+        "base_tree": "13e7e7968b87d6e9319c96ffc19cc0f83041a417",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {
+          ".github/workflows/ci.yml": "51b7bb793e0504a573a9b173c36f533e49af3fc5443216476f75b38ef6718d1d",
+          "CHANGELOG.md": "3720b50d736895b053d35e05bc3723a096e398c263c2ff64098e07ffa572063b",
+          "CONTRIBUTING.md": "cd85c83e88686df936ae0e25d9284e66433c239fc058778870110addb251d250",
+          "Dockerfile": "10718ef17296ab1a303d151d08ddfd23088bbf35a9a1fdd4a94e2dee3ebc46b8",
+          "docs/design/0064-deno-locked-install/deno-locked-install.md": "ec6e0cc97505bfbf76b8f5d993b98fff49a9bca2f4c44ca31d740e6f0c11a077",
+          "docs/design/README.md": "8769e9b14f4c308daf9b84d761327167c5bf793123e2ab7a0fd3b5b7e3b289a6",
+          "package.json": "db2add6296b3408be6ca0d9799574b587d20585f82f2200fd1567fa4f22a04a3"
+        },
+        "removed_files": []
       }
     }
   ],
@@ -131,5 +169,9 @@
     "Local image was reused, not rebuilt",
     "End tmpfs measurements are not peaks",
     "Baseline install phase exited0 after upstream publication; separate assertion exposed graph drift"
-  ]
+  ],
+  "counts_source": {
+    "phase": "deno-install-green-01",
+    "copied_snapshot_sha256": "1bc3db9a3fe9a15efd3bd08e398ed1874ef2b2751b422245c612992c6a7115cc"
+  }
 }

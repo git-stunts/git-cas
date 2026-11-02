@@ -17,5 +17,19 @@
     "lint": "passed",
     "native_acceleration": "false in both runtime probes"
   },
-  "scope": "Controlled absence of cbor-extract after a successful frozen install; not an induced installer fetch/build failure"
+  "scope": "Controlled absence of cbor-extract after a successful frozen install; not an induced installer fetch/build failure",
+  "copied_snapshot": {
+    "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+    "sha256": "5174038109ec49a1751fc95a2292a49df5a7d1ad053189f658651618a71e6e4b",
+    "file_count": 956,
+    "base_commit": "402e4e58ccdab70bb224c22150f4ee92f2821f56",
+    "base_tree": "a3bd06491ebca6ec4801be1591f51ab53be7f5a4",
+    "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+    "changed_or_added_files": {
+      "CONTRIBUTING.md": "f1889a95929a2ee26a241f9705fdab25b0a5ddef9505927a574f11569d24a8bb",
+      "docs/design/0064-deno-locked-install/deno-locked-install.md": "4512678a60af51060dd42f5af9d94fd9e130d579efe7f5f3f9f0a196fba841b1",
+      "docs/design/0064-deno-locked-install/witness/install.md": "4710ff0a622fa3be35851e84293d3925505eaedd2ff248c130f51c7fed50ae4d"
+    },
+    "removed_files": []
+  }
 }
