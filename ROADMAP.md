@@ -49,7 +49,7 @@ GitHub wins and this file should be corrected.
 | [`v6.5.9`](https://github.com/git-stunts/git-cas/milestone/19)  | Compound staging-workspace admission                        | [#123](https://github.com/git-stunts/git-cas/issues/123)                                                                                                                                                                       |
 | [`v6.5.10`](https://github.com/git-stunts/git-cas/milestone/20) | Compound workspace assets and exact roots                   | [#127](https://github.com/git-stunts/git-cas/issues/127)                                                                                                                                                                       |
 | [`v7.0.0`](https://github.com/git-stunts/git-cas/milestone/24) | Public Zod 4 schemas and dependency security release | [#151](https://github.com/git-stunts/git-cas/issues/151), [#154](https://github.com/git-stunts/git-cas/issues/154) |
-| [`v7.1.0`](https://github.com/git-stunts/git-cas/milestone/25) | Durable record-slot reservations and pinned settlement | [#157](https://github.com/git-stunts/git-cas/issues/157) |
+| [`v7.1.0`](https://github.com/git-stunts/git-cas/milestone/25) | Durable record-slot reservations and pinned settlement | [#157](https://github.com/git-stunts/git-cas/issues/157), [#162](https://github.com/git-stunts/git-cas/issues/162) |
 | [`v8.0.0`](https://github.com/git-stunts/git-cas/milestone/6) | Cleave: workspace and package split | [#133](https://github.com/git-stunts/git-cas/issues/133) and its slices |
 | [`v8.1.0`](https://github.com/git-stunts/git-cas/milestone/9) | Bridge: operator TUI and agent automation parity | [#39](https://github.com/git-stunts/git-cas/issues/39), [#40](https://github.com/git-stunts/git-cas/issues/40), [#107](https://github.com/git-stunts/git-cas/issues/107), [#108](https://github.com/git-stunts/git-cas/issues/108) |
 | [`v8.2.0`](https://github.com/git-stunts/git-cas/milestone/22) | Scion: shared bundle derivation and transport follow-through | [#86](https://github.com/git-stunts/git-cas/issues/86), [#98](https://github.com/git-stunts/git-cas/issues/98) |
@@ -66,10 +66,10 @@ GitHub issues and milestones.
 
 The latest landed design record is:
 
-- [0061-compound-workspace-assets](./docs/design/0061-compound-workspace-assets/compound-workspace-assets.md)
+- [0063-durable-reservations](./docs/design/0063-durable-reservations/durable-reservations.md)
 
-Its GitHub goalpost issue,
-[#127](https://github.com/git-stunts/git-cas/issues/127), owns the release
+Its implementation issue is [#157](https://github.com/git-stunts/git-cas/issues/157);
+[#162](https://github.com/git-stunts/git-cas/issues/162) owns v7.1.0 publication
 evidence. The design doc is the durable contract; GitHub records completion.
 
 The `v6.2.0` slice record is:

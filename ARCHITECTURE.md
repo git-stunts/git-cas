@@ -487,8 +487,8 @@ Its cursor is a position, not a pin: GC may make an older snapshot unavailable.
 Point inspection observes ledger and custody separately; it makes no multi-ref
 snapshot claim. See the [public contract](docs/API.md#durable-reservations)
 and [cycle0063 design](https://github.com/git-stunts/git-cas/blob/4782052214269c72acc95f63191e89897059bb56/docs/design/0063-durable-reservations/durable-reservations.md).
-The implementation is merged; [#162](https://github.com/git-stunts/git-cas/issues/162)
-tracks release publication separately.
+The capability is published in v7.1.0; [#162](https://github.com/git-stunts/git-cas/issues/162)
+retains release and registry-consumer evidence.
 
 High-level retention, CacheSet, cache acquisition, ExpiringSet, and application
 publication operations return generation-scoped retention evidence. Replacing
