@@ -1,0 +1,110 @@
+{
+  "kind": "public-reservation-native-cost-and-residency",
+  "phases": [
+    {
+      "phase": "native-cost-pilot-01",
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "a50ad3aec0ed5297435abc44b40bbd3ce26cb449e4ad7e5028531dee9df95ae7",
+        "file_count": 1042,
+        "base_commit": "3afb7f364544b6926ff6f3a35c187b43b46e5a73",
+        "base_tree": "7cf36e1de8d7235d372a49cc14f16515b493c1d6",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {
+          "scripts/diagnostics/ReservationMeasurementScenario.js": "eed26ca8cedc12dfd1be371e2aee9a512fd4602220443beb5015a785035ad3eb",
+          "scripts/diagnostics/measure-reservations.js": "0299cf4807ed6316e8effa8e22b57ee3a0c3d64a8acda42a414b175e2b7c5e7c"
+        },
+        "removed_files": []
+      },
+      "receipt_sha256": "950334e503b6f18720be2a5250033b89fb8a2efa041b2f0f033477b8a9ccec82",
+      "log_sha256": "901159973752d550c5b71908e79891351df145db2b1834eb1d53313ff065d9ed",
+      "runner_sha256": "ee2d1df057f29c8e5e66f3d57010e7b6580544e5b1a19b0876a2c1df7b8bedab",
+      "script_sha256": "082f480b002a72479bb64637030ebc66bebad91c2ebccb4fc9777bcf8c063567",
+      "result": {
+        "exit": 1,
+        "duration_seconds": 4.812488333089277,
+        "log_bytes": 2978,
+        "container_memory_peak_bytes": 607862784,
+        "container_memory_peak_scope": "kernel cgroup high-water for the complete phase including tmpfs, dependencies, controller, workers and Git; not an operation RSS",
+        "tmpfs_usage_kib": "118920\t/data\n0\t/tmp\n4\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 600760877056
+      }
+    },
+    {
+      "phase": "native-cost-pilot-02",
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "7c708e194d55ad280d1ecbc74fe68d292021332c9e7940c5ae91ebbff3b7745d",
+        "file_count": 1042,
+        "base_commit": "3afb7f364544b6926ff6f3a35c187b43b46e5a73",
+        "base_tree": "7cf36e1de8d7235d372a49cc14f16515b493c1d6",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {
+          "scripts/diagnostics/ReservationMeasurementScenario.js": "eed26ca8cedc12dfd1be371e2aee9a512fd4602220443beb5015a785035ad3eb",
+          "scripts/diagnostics/measure-reservations.js": "d422d3810c1a671036b08fe73d96d14bc32092db1de26d5617d86cae51428869"
+        },
+        "removed_files": []
+      },
+      "receipt_sha256": "1bcbac1e2216ee0a6e4253d06f03dd49400e58df0d7b8b1829d4cce65b3bd09e",
+      "log_sha256": "9fe4e0a511d871546868b9419052a62b1ca04b002e761178b9f3cbbecddedd1d",
+      "runner_sha256": "ee2d1df057f29c8e5e66f3d57010e7b6580544e5b1a19b0876a2c1df7b8bedab",
+      "script_sha256": "082f480b002a72479bb64637030ebc66bebad91c2ebccb4fc9777bcf8c063567",
+      "result": {
+        "exit": 0,
+        "duration_seconds": 7.264293208019808,
+        "log_bytes": 28740,
+        "container_memory_peak_bytes": 410611712,
+        "container_memory_peak_scope": "kernel cgroup high-water for the complete phase including tmpfs, dependencies, controller, workers and Git; not an operation RSS",
+        "tmpfs_usage_kib": "118948\t/data\n0\t/tmp\n4\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 600757911552
+      }
+    },
+    {
+      "phase": "native-cost-full-01",
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "37cabf7ff3a493a07317d13403b00cae2a459c81970bfdb95eaf5d1f600be585",
+        "file_count": 1042,
+        "base_commit": "3afb7f364544b6926ff6f3a35c187b43b46e5a73",
+        "base_tree": "7cf36e1de8d7235d372a49cc14f16515b493c1d6",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {
+          "scripts/diagnostics/ReservationMeasurementScenario.js": "eed26ca8cedc12dfd1be371e2aee9a512fd4602220443beb5015a785035ad3eb",
+          "scripts/diagnostics/measure-reservations.js": "6b1982c421a913188cad0c51a91287bb4b4377c47d913b97d6d5217206e843f7"
+        },
+        "removed_files": []
+      },
+      "receipt_sha256": "f24cfc28c76d05f9f061e92606483c2cb4e6516bc5577751327ddd3f11379a07",
+      "log_sha256": "6d706a4d044ec060a9c67d5547ac2f64ac8239d521e9dd3635015065db43d8d8",
+      "runner_sha256": "ee2d1df057f29c8e5e66f3d57010e7b6580544e5b1a19b0876a2c1df7b8bedab",
+      "script_sha256": "7cbf816a7a950e374496dd7561555df8049e514af0df9538a661e2f1de837883",
+      "result": {
+        "exit": 0,
+        "duration_seconds": 52.37580533302389,
+        "log_bytes": 100928,
+        "container_memory_peak_bytes": 888233984,
+        "container_memory_peak_scope": "kernel cgroup high-water for the complete phase including tmpfs, dependencies, controller, workers and Git; not an operation RSS",
+        "tmpfs_usage_kib": "119044\t/data\n0\t/tmp\n840\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 600765353984
+      }
+    }
+  ],
+  "checks": {
+    "native_measurements_passed": 60,
+    "node_unit_passed": 2406,
+    "node_unit_skipped": 3,
+    "lint": "passed"
+  },
+  "results_sha256": "db617fd45da435692d727b0b6f49bd263fcc2ae1fbdc1b03c4acbfde5abc6e9b",
+  "results_derivation": "JSON report parsed from full phase stdout after its schema marker; full stdout hash retained above. Original raw receipts and logs remain unchanged.",
+  "limits": {
+    "scope": "Finite sequential Node native public-facade witness, 1/17/129 settled records, 4096-byte original and final pages, both Git formats; one fresh process sample per operation. No maximum-page, contention, arbitrary-cardinality or full supported-runtime cost claim.",
+    "native_starts_per_sample": 40,
+    "session_content_reads_per_operation": 132,
+    "session_tree_writes_per_operation": 67,
+    "worker_rss_bytes": 536870912,
+    "container_data_quota_bytes": 3271557120,
+    "container_memory_limit_bytes": 8589934592,
+    "container_cpu_limit": 4
+  }
+}

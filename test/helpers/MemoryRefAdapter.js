@@ -21,6 +21,10 @@ export default class MemoryRefAdapter extends GitRefPort {
   #commits = new Map();
   #refs = new Map();
 
+  async inspectRef(ref) {
+    return Object.freeze({ oid: this.#refs.get(ref) ?? null, symref: null });
+  }
+
   async resolveRef(ref) {
     const oid = this.#refs.get(ref);
     if (!oid) {

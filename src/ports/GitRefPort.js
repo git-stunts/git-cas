@@ -1,11 +1,22 @@
 import createCasError from '../domain/errors/createCasError.js';
 import { ErrorCodes } from '../domain/errors/index.js';
+import PortNotImplementedError from '../domain/errors/PortNotImplementedError.js';
 
 /**
  * Abstract port for Git ref and commit operations.
  * @abstract
  */
 export default class GitRefPort {
+  /**
+   * Inspects one canonical ref without trusting symbolic dereferencing.
+   * A dangling symbolic ref is present, not an absent direct ref.
+   * @param {string} _ref
+   * @returns {Promise<{oid: string|null, symref: string|null}>}
+   */
+  async inspectRef(_ref) {
+    throw new PortNotImplementedError('Exact ref inspection is not implemented');
+  }
+
   /**
    * Resolves a Git ref to its commit OID.
    * @param {string} _ref - Git ref (e.g. 'refs/cas/vault').

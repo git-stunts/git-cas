@@ -1,0 +1,61 @@
+{
+  "kind": "public-corruption-acceptance",
+  "phases": [
+    {
+      "phase": "public-corruption-01",
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "e4e20ddb6fe81c91a7cd53d666da06bda30020f5e5d6cf9604470116643ddd34",
+        "file_count": 1038,
+        "base_commit": "a0bad97aeae193ad9f49dd8f2d23710a249e03b7",
+        "base_tree": "91bd0d758d879384e5d1e8099cbbf7d6f91c9d2d",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {
+          "test/integration/reservation-public-corruption.test.js": "d01de2ff4c73fe7a1c88d8e2894286813fb4b868cff412dd935996f52f02b16a"
+        },
+        "removed_files": []
+      },
+      "receipt_sha256": "03612282e08c51494a6a0b0bc023afca6b99c1c1749e3e5723612f7d8ec947df",
+      "log_sha256": "b6a2837882edfe2260814947ca309e5c26b852541db6f01efcdbcf5409adf3da",
+      "result": {
+        "exit": 0,
+        "duration_seconds": 6.986252792,
+        "log_bytes": 2797,
+        "tmpfs_usage_kib": "120976\t/data\n0\t/tmp\n4\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 601820545024
+      }
+    },
+    {
+      "phase": "public-corruption-unit-01",
+      "copied_snapshot": {
+        "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+        "sha256": "e4e20ddb6fe81c91a7cd53d666da06bda30020f5e5d6cf9604470116643ddd34",
+        "file_count": 1038,
+        "base_commit": "a0bad97aeae193ad9f49dd8f2d23710a249e03b7",
+        "base_tree": "91bd0d758d879384e5d1e8099cbbf7d6f91c9d2d",
+        "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+        "changed_or_added_files": {
+          "test/integration/reservation-public-corruption.test.js": "d01de2ff4c73fe7a1c88d8e2894286813fb4b868cff412dd935996f52f02b16a"
+        },
+        "removed_files": []
+      },
+      "receipt_sha256": "b3357e3aeac8dce0f548b3fc9a484e1c2004e10eea95fb17ce915ec0e1a3d5aa",
+      "log_sha256": "ad600ced7f6d5474686a2bc8d82c88bced42cacf36be7bf914c37823297d8528",
+      "result": {
+        "exit": 0,
+        "duration_seconds": 24.126427792,
+        "log_bytes": 23339,
+        "tmpfs_usage_kib": "118944\t/data\n0\t/tmp\n840\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 601851883520
+      }
+    }
+  ],
+  "checks": {
+    "node_corruption_passed": 14,
+    "deno_corruption_passed": 14,
+    "node_unit_passed": 2406,
+    "node_unit_skipped": 3,
+    "lint": "passed"
+  },
+  "scope": "Detection of selected malformed installed authority and missing/corrupt evidence, not a whole-store audit or protection against arbitrary raw-ref writers"
+}

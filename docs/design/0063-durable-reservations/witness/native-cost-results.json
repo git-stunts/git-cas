@@ -1,0 +1,2674 @@
+{
+  "schema": "git-cas.reservation-native-measurement/v1",
+  "environment": {
+    "node": "v22.23.4",
+    "git": "git version 2.43.0",
+    "platform": "linux",
+    "architecture": "arm64"
+  },
+  "scope": {
+    "sampling": "One fresh Node process per operation; one sample per size and object format.",
+    "nativeGitStarts": "Git TRACE2 start events including facade initialization, namespace open, operation and close; excludes seeding and GC.",
+    "operationProcessOpenCalls": "Existing Plumbing wrapper calls after namespace open; not object count and not an assertion about retries.",
+    "operationSessionRequests": "Existing Plumbing session method calls after namespace open; a batch method can represent several objects.",
+    "workerPeakRssBytes": "Kernel process-lifetime high-water RSS for the fresh Node worker, including imports/open/operation/close; excludes Git child RSS, parent and fixture builder.",
+    "wallMs": "Operation only, after namespace open; one sample is not a latency distribution.",
+    "limits": "Finite fixture, no contention or retries injected, 4096-byte pages; neither an asymptotic proof nor a physical disk quota."
+  },
+  "scenarios": [
+    {
+      "format": "sha1",
+      "settledRecordsBeforeMeasurement": 1,
+      "capacity": 2,
+      "storeKiBAfterMeasurement": 120,
+      "measurements": [
+        {
+          "operation": "inspect-oldest",
+          "status": "inspected",
+          "reason": null,
+          "wallMs": 13.418748000000008,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "rev-list": 3,
+            "rev-parse": 3
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 71
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "session:cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 73
+          },
+          "workerPeakRssBytes": 78020608,
+          "pageBytes": 4096,
+          "nativeGitStarts": 15,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4
+          }
+        },
+        {
+          "operation": "read-original",
+          "status": "read",
+          "reason": null,
+          "wallMs": 19.41380699999999,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "rev-list": 6,
+            "rev-parse": 6
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 75
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 77
+          },
+          "workerPeakRssBytes": 78667776,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          }
+        },
+        {
+          "operation": "filtered-list",
+          "status": "page",
+          "visitedNodes": 65,
+          "hasContinuation": false,
+          "wallMs": 7.581564,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 1,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 64,
+            "cat-file:read": 66
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 68,
+            "cat-file:read": 68
+          },
+          "workerPeakRssBytes": 77561856,
+          "pageBytes": 4096,
+          "nativeGitStarts": 9,
+          "nativeGitCommands": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          }
+        },
+        {
+          "operation": "reserve",
+          "status": "admitted",
+          "reason": null,
+          "wallMs": 12.450786999999991,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:read": 2,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 4,
+            "cat-file:read": 4,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "workerPeakRssBytes": 77787136,
+          "pageBytes": 4096,
+          "nativeGitStarts": 15,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 2,
+            "mktree": 1,
+            "commit-tree": 1,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "prepare",
+          "status": "prepared",
+          "reason": null,
+          "wallMs": 24.818449,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 5,
+            "for-each-ref": 3,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 70,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 72,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "workerPeakRssBytes": 80379904,
+          "pageBytes": 4096,
+          "nativeGitStarts": 25,
+          "nativeGitCommands": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 4,
+            "mktree": 1,
+            "commit-tree": 2,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "arm",
+          "status": "armed",
+          "reason": null,
+          "wallMs": 23.28706899999999,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 3,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 71,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 5,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 73,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "workerPeakRssBytes": 80683008,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 5,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4,
+            "hash-object": 2,
+            "mktree": 1,
+            "commit-tree": 1,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "retry-arm",
+          "status": "refused",
+          "reason": "already-armed",
+          "wallMs": 11.622368000000009,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 69
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "session:cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 71
+          },
+          "workerPeakRssBytes": 78331904,
+          "pageBytes": 4096,
+          "nativeGitStarts": 13,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3
+          }
+        },
+        {
+          "operation": "settle",
+          "status": "settled",
+          "reason": null,
+          "wallMs": 31.656802,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "rev-list": 5,
+            "rev-parse": 5,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 74,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 7,
+            "for-each-ref": 5,
+            "session:cat-file": 1,
+            "rev-list": 6,
+            "rev-parse": 6,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 76,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "workerPeakRssBytes": 79790080,
+          "pageBytes": 4096,
+          "nativeGitStarts": 33,
+          "nativeGitCommands": {
+            "symbolic-ref": 7,
+            "for-each-ref": 5,
+            "cat-file": 1,
+            "rev-list": 6,
+            "rev-parse": 6,
+            "hash-object": 4,
+            "mktree": 1,
+            "commit-tree": 2,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "capacity-refusal",
+          "status": "refused",
+          "reason": "capacity-full",
+          "wallMs": 3.9885950000000037,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 1,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:read": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 4,
+            "cat-file:read": 4
+          },
+          "workerPeakRssBytes": 79130624,
+          "pageBytes": 4096,
+          "nativeGitStarts": 9,
+          "nativeGitCommands": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          }
+        },
+        {
+          "operation": "read-final-after-gc",
+          "status": "read",
+          "reason": null,
+          "wallMs": 19.318973999999997,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "rev-list": 6,
+            "rev-parse": 6
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 75
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 77
+          },
+          "workerPeakRssBytes": 78327808,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          }
+        }
+      ]
+    },
+    {
+      "format": "sha1",
+      "settledRecordsBeforeMeasurement": 17,
+      "capacity": 18,
+      "storeKiBAfterMeasurement": 212,
+      "measurements": [
+        {
+          "operation": "inspect-oldest",
+          "status": "inspected",
+          "reason": null,
+          "wallMs": 13.214123,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "rev-list": 3,
+            "rev-parse": 3
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 71
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "session:cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 73
+          },
+          "workerPeakRssBytes": 78254080,
+          "pageBytes": 4096,
+          "nativeGitStarts": 15,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4
+          }
+        },
+        {
+          "operation": "read-original",
+          "status": "read",
+          "reason": null,
+          "wallMs": 19.238722999999993,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "rev-list": 6,
+            "rev-parse": 6
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 75
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 77
+          },
+          "workerPeakRssBytes": 78389248,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          }
+        },
+        {
+          "operation": "filtered-list",
+          "status": "page",
+          "visitedNodes": 129,
+          "hasContinuation": true,
+          "wallMs": 11.549784000000002,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 1,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 128,
+            "cat-file:read": 130
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 132,
+            "cat-file:read": 132
+          },
+          "workerPeakRssBytes": 80703488,
+          "pageBytes": 4096,
+          "nativeGitStarts": 9,
+          "nativeGitCommands": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          }
+        },
+        {
+          "operation": "reserve",
+          "status": "admitted",
+          "reason": null,
+          "wallMs": 13.381288999999995,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 1,
+            "cat-file:read": 3,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 5,
+            "cat-file:read": 5,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "workerPeakRssBytes": 77266944,
+          "pageBytes": 4096,
+          "nativeGitStarts": 15,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 2,
+            "mktree": 1,
+            "commit-tree": 1,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "prepare",
+          "status": "prepared",
+          "reason": null,
+          "wallMs": 26.060660999999996,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 5,
+            "for-each-ref": 3,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 70,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 72,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "workerPeakRssBytes": 80420864,
+          "pageBytes": 4096,
+          "nativeGitStarts": 25,
+          "nativeGitCommands": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 4,
+            "mktree": 1,
+            "commit-tree": 2,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "arm",
+          "status": "armed",
+          "reason": null,
+          "wallMs": 24.263322000000002,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 3,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 71,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 5,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 73,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "workerPeakRssBytes": 79929344,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 5,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4,
+            "hash-object": 2,
+            "mktree": 1,
+            "commit-tree": 1,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "retry-arm",
+          "status": "refused",
+          "reason": "already-armed",
+          "wallMs": 11.790159000000003,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 69
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "session:cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 71
+          },
+          "workerPeakRssBytes": 78544896,
+          "pageBytes": 4096,
+          "nativeGitStarts": 13,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3
+          }
+        },
+        {
+          "operation": "settle",
+          "status": "settled",
+          "reason": null,
+          "wallMs": 31.280884,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "rev-list": 5,
+            "rev-parse": 5,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 74,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 7,
+            "for-each-ref": 5,
+            "session:cat-file": 1,
+            "rev-list": 6,
+            "rev-parse": 6,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 76,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "workerPeakRssBytes": 79585280,
+          "pageBytes": 4096,
+          "nativeGitStarts": 33,
+          "nativeGitCommands": {
+            "symbolic-ref": 7,
+            "for-each-ref": 5,
+            "cat-file": 1,
+            "rev-list": 6,
+            "rev-parse": 6,
+            "hash-object": 4,
+            "mktree": 1,
+            "commit-tree": 2,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "capacity-refusal",
+          "status": "refused",
+          "reason": "capacity-full",
+          "wallMs": 4.0561369999999926,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 1,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 1,
+            "cat-file:read": 3
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 5,
+            "cat-file:read": 5
+          },
+          "workerPeakRssBytes": 78389248,
+          "pageBytes": 4096,
+          "nativeGitStarts": 9,
+          "nativeGitCommands": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          }
+        },
+        {
+          "operation": "read-final-after-gc",
+          "status": "read",
+          "reason": null,
+          "wallMs": 19.475099999999998,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "rev-list": 6,
+            "rev-parse": 6
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 75
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 77
+          },
+          "workerPeakRssBytes": 79360000,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          }
+        }
+      ]
+    },
+    {
+      "format": "sha1",
+      "settledRecordsBeforeMeasurement": 129,
+      "capacity": 130,
+      "storeKiBAfterMeasurement": 912,
+      "measurements": [
+        {
+          "operation": "inspect-oldest",
+          "status": "inspected",
+          "reason": null,
+          "wallMs": 12.818647999999996,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "rev-list": 3,
+            "rev-parse": 3
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 71
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "session:cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 73
+          },
+          "workerPeakRssBytes": 78508032,
+          "pageBytes": 4096,
+          "nativeGitStarts": 15,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4
+          }
+        },
+        {
+          "operation": "read-original",
+          "status": "read",
+          "reason": null,
+          "wallMs": 19.22268000000001,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "rev-list": 6,
+            "rev-parse": 6
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 75
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 77
+          },
+          "workerPeakRssBytes": 78499840,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          }
+        },
+        {
+          "operation": "filtered-list",
+          "status": "page",
+          "visitedNodes": 129,
+          "hasContinuation": true,
+          "wallMs": 13.328525999999997,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 1,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 128,
+            "cat-file:read": 130
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 132,
+            "cat-file:read": 132
+          },
+          "workerPeakRssBytes": 80531456,
+          "pageBytes": 4096,
+          "nativeGitStarts": 9,
+          "nativeGitCommands": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          }
+        },
+        {
+          "operation": "reserve",
+          "status": "admitted",
+          "reason": null,
+          "wallMs": 14.170863000000011,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 1,
+            "cat-file:read": 3,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 5,
+            "cat-file:read": 5,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "workerPeakRssBytes": 78008320,
+          "pageBytes": 4096,
+          "nativeGitStarts": 15,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 2,
+            "mktree": 1,
+            "commit-tree": 1,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "prepare",
+          "status": "prepared",
+          "reason": null,
+          "wallMs": 25.713003999999998,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 5,
+            "for-each-ref": 3,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 70,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 72,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "workerPeakRssBytes": 80576512,
+          "pageBytes": 4096,
+          "nativeGitStarts": 25,
+          "nativeGitCommands": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 4,
+            "mktree": 1,
+            "commit-tree": 2,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "arm",
+          "status": "armed",
+          "reason": null,
+          "wallMs": 24.289455000000004,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 3,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 71,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 5,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 73,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "workerPeakRssBytes": 79908864,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 5,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4,
+            "hash-object": 2,
+            "mktree": 1,
+            "commit-tree": 1,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "retry-arm",
+          "status": "refused",
+          "reason": "already-armed",
+          "wallMs": 12.247770000000003,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 69
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "session:cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 71
+          },
+          "workerPeakRssBytes": 78741504,
+          "pageBytes": 4096,
+          "nativeGitStarts": 13,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3
+          }
+        },
+        {
+          "operation": "settle",
+          "status": "settled",
+          "reason": null,
+          "wallMs": 31.883826999999997,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "rev-list": 5,
+            "rev-parse": 5,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 74,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 7,
+            "for-each-ref": 5,
+            "session:cat-file": 1,
+            "rev-list": 6,
+            "rev-parse": 6,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 76,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "workerPeakRssBytes": 80252928,
+          "pageBytes": 4096,
+          "nativeGitStarts": 33,
+          "nativeGitCommands": {
+            "symbolic-ref": 7,
+            "for-each-ref": 5,
+            "cat-file": 1,
+            "rev-list": 6,
+            "rev-parse": 6,
+            "hash-object": 4,
+            "mktree": 1,
+            "commit-tree": 2,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "capacity-refusal",
+          "status": "refused",
+          "reason": "capacity-full",
+          "wallMs": 4.1939800000000105,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 1,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 1,
+            "cat-file:read": 3
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 5,
+            "cat-file:read": 5
+          },
+          "workerPeakRssBytes": 77037568,
+          "pageBytes": 4096,
+          "nativeGitStarts": 9,
+          "nativeGitCommands": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          }
+        },
+        {
+          "operation": "read-final-after-gc",
+          "status": "read",
+          "reason": null,
+          "wallMs": 19.206680000000006,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "rev-list": 6,
+            "rev-parse": 6
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 75
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 77
+          },
+          "workerPeakRssBytes": 78880768,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          }
+        }
+      ]
+    },
+    {
+      "format": "sha256",
+      "settledRecordsBeforeMeasurement": 1,
+      "capacity": 2,
+      "storeKiBAfterMeasurement": 124,
+      "measurements": [
+        {
+          "operation": "inspect-oldest",
+          "status": "inspected",
+          "reason": null,
+          "wallMs": 13.245691999999991,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "rev-list": 3,
+            "rev-parse": 3
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 71
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "session:cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 73
+          },
+          "workerPeakRssBytes": 79028224,
+          "pageBytes": 4096,
+          "nativeGitStarts": 15,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4
+          }
+        },
+        {
+          "operation": "read-original",
+          "status": "read",
+          "reason": null,
+          "wallMs": 19.040596000000008,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "rev-list": 6,
+            "rev-parse": 6
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 75
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 77
+          },
+          "workerPeakRssBytes": 78721024,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          }
+        },
+        {
+          "operation": "filtered-list",
+          "status": "page",
+          "visitedNodes": 65,
+          "hasContinuation": false,
+          "wallMs": 8.135249000000002,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 1,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 64,
+            "cat-file:read": 66
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 68,
+            "cat-file:read": 68
+          },
+          "workerPeakRssBytes": 78258176,
+          "pageBytes": 4096,
+          "nativeGitStarts": 9,
+          "nativeGitCommands": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          }
+        },
+        {
+          "operation": "reserve",
+          "status": "admitted",
+          "reason": null,
+          "wallMs": 12.699646999999999,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:read": 2,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 4,
+            "cat-file:read": 4,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "workerPeakRssBytes": 77361152,
+          "pageBytes": 4096,
+          "nativeGitStarts": 15,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 2,
+            "mktree": 1,
+            "commit-tree": 1,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "prepare",
+          "status": "prepared",
+          "reason": null,
+          "wallMs": 25.538087000000004,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 5,
+            "for-each-ref": 3,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 70,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 72,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "workerPeakRssBytes": 80506880,
+          "pageBytes": 4096,
+          "nativeGitStarts": 25,
+          "nativeGitCommands": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 4,
+            "mktree": 1,
+            "commit-tree": 2,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "arm",
+          "status": "armed",
+          "reason": null,
+          "wallMs": 24.446288999999993,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 3,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 71,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 5,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 73,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "workerPeakRssBytes": 80707584,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 5,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4,
+            "hash-object": 2,
+            "mktree": 1,
+            "commit-tree": 1,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "retry-arm",
+          "status": "refused",
+          "reason": "already-armed",
+          "wallMs": 12.106310999999991,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 69
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "session:cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 71
+          },
+          "workerPeakRssBytes": 78143488,
+          "pageBytes": 4096,
+          "nativeGitStarts": 13,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3
+          }
+        },
+        {
+          "operation": "settle",
+          "status": "settled",
+          "reason": null,
+          "wallMs": 31.13653199999999,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "rev-list": 5,
+            "rev-parse": 5,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 74,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 7,
+            "for-each-ref": 5,
+            "session:cat-file": 1,
+            "rev-list": 6,
+            "rev-parse": 6,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 76,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "workerPeakRssBytes": 80814080,
+          "pageBytes": 4096,
+          "nativeGitStarts": 33,
+          "nativeGitCommands": {
+            "symbolic-ref": 7,
+            "for-each-ref": 5,
+            "cat-file": 1,
+            "rev-list": 6,
+            "rev-parse": 6,
+            "hash-object": 4,
+            "mktree": 1,
+            "commit-tree": 2,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "capacity-refusal",
+          "status": "refused",
+          "reason": "capacity-full",
+          "wallMs": 3.819226999999998,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 1,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:read": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 4,
+            "cat-file:read": 4
+          },
+          "workerPeakRssBytes": 77926400,
+          "pageBytes": 4096,
+          "nativeGitStarts": 9,
+          "nativeGitCommands": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          }
+        },
+        {
+          "operation": "read-final-after-gc",
+          "status": "read",
+          "reason": null,
+          "wallMs": 19.168013000000002,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "rev-list": 6,
+            "rev-parse": 6
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 75
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 77
+          },
+          "workerPeakRssBytes": 78340096,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          }
+        }
+      ]
+    },
+    {
+      "format": "sha256",
+      "settledRecordsBeforeMeasurement": 17,
+      "capacity": 18,
+      "storeKiBAfterMeasurement": 248,
+      "measurements": [
+        {
+          "operation": "inspect-oldest",
+          "status": "inspected",
+          "reason": null,
+          "wallMs": 13.082691000000011,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "rev-list": 3,
+            "rev-parse": 3
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 71
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "session:cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 73
+          },
+          "workerPeakRssBytes": 78151680,
+          "pageBytes": 4096,
+          "nativeGitStarts": 15,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4
+          }
+        },
+        {
+          "operation": "read-original",
+          "status": "read",
+          "reason": null,
+          "wallMs": 21.982527000000005,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "rev-list": 6,
+            "rev-parse": 6
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 75
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 77
+          },
+          "workerPeakRssBytes": 78172160,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          }
+        },
+        {
+          "operation": "filtered-list",
+          "status": "page",
+          "visitedNodes": 129,
+          "hasContinuation": true,
+          "wallMs": 11.909143,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 1,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 128,
+            "cat-file:read": 130
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 132,
+            "cat-file:read": 132
+          },
+          "workerPeakRssBytes": 80285696,
+          "pageBytes": 4096,
+          "nativeGitStarts": 9,
+          "nativeGitCommands": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          }
+        },
+        {
+          "operation": "reserve",
+          "status": "admitted",
+          "reason": null,
+          "wallMs": 12.892147999999992,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 1,
+            "cat-file:read": 3,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 5,
+            "cat-file:read": 5,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "workerPeakRssBytes": 77799424,
+          "pageBytes": 4096,
+          "nativeGitStarts": 15,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 2,
+            "mktree": 1,
+            "commit-tree": 1,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "prepare",
+          "status": "prepared",
+          "reason": null,
+          "wallMs": 26.30154900000001,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 5,
+            "for-each-ref": 3,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 70,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 72,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "workerPeakRssBytes": 80228352,
+          "pageBytes": 4096,
+          "nativeGitStarts": 25,
+          "nativeGitCommands": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 4,
+            "mktree": 1,
+            "commit-tree": 2,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "arm",
+          "status": "armed",
+          "reason": null,
+          "wallMs": 24.120579000000006,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 3,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 71,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 5,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 73,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "workerPeakRssBytes": 80207872,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 5,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4,
+            "hash-object": 2,
+            "mktree": 1,
+            "commit-tree": 1,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "retry-arm",
+          "status": "refused",
+          "reason": "already-armed",
+          "wallMs": 12.409728999999999,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 69
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "session:cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 71
+          },
+          "workerPeakRssBytes": 77225984,
+          "pageBytes": 4096,
+          "nativeGitStarts": 13,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3
+          }
+        },
+        {
+          "operation": "settle",
+          "status": "settled",
+          "reason": null,
+          "wallMs": 31.649158999999997,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "rev-list": 5,
+            "rev-parse": 5,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 74,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 7,
+            "for-each-ref": 5,
+            "session:cat-file": 1,
+            "rev-list": 6,
+            "rev-parse": 6,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 76,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "workerPeakRssBytes": 79855616,
+          "pageBytes": 4096,
+          "nativeGitStarts": 33,
+          "nativeGitCommands": {
+            "symbolic-ref": 7,
+            "for-each-ref": 5,
+            "cat-file": 1,
+            "rev-list": 6,
+            "rev-parse": 6,
+            "hash-object": 4,
+            "mktree": 1,
+            "commit-tree": 2,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "capacity-refusal",
+          "status": "refused",
+          "reason": "capacity-full",
+          "wallMs": 4.121229,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 1,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 1,
+            "cat-file:read": 3
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 5,
+            "cat-file:read": 5
+          },
+          "workerPeakRssBytes": 78217216,
+          "pageBytes": 4096,
+          "nativeGitStarts": 9,
+          "nativeGitCommands": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          }
+        },
+        {
+          "operation": "read-final-after-gc",
+          "status": "read",
+          "reason": null,
+          "wallMs": 18.924220000000005,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "rev-list": 6,
+            "rev-parse": 6
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 75
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 77
+          },
+          "workerPeakRssBytes": 78516224,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          }
+        }
+      ]
+    },
+    {
+      "format": "sha256",
+      "settledRecordsBeforeMeasurement": 129,
+      "capacity": 130,
+      "storeKiBAfterMeasurement": 1160,
+      "measurements": [
+        {
+          "operation": "inspect-oldest",
+          "status": "inspected",
+          "reason": null,
+          "wallMs": 13.561902000000003,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "rev-list": 3,
+            "rev-parse": 3
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 71
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "session:cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 73
+          },
+          "workerPeakRssBytes": 77893632,
+          "pageBytes": 4096,
+          "nativeGitStarts": 15,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4
+          }
+        },
+        {
+          "operation": "read-original",
+          "status": "read",
+          "reason": null,
+          "wallMs": 19.35151400000001,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "rev-list": 6,
+            "rev-parse": 6
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 75
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 77
+          },
+          "workerPeakRssBytes": 79593472,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          }
+        },
+        {
+          "operation": "filtered-list",
+          "status": "page",
+          "visitedNodes": 129,
+          "hasContinuation": true,
+          "wallMs": 11.863601000000003,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 1,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 128,
+            "cat-file:read": 130
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 132,
+            "cat-file:read": 132
+          },
+          "workerPeakRssBytes": 80560128,
+          "pageBytes": 4096,
+          "nativeGitStarts": 9,
+          "nativeGitCommands": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          }
+        },
+        {
+          "operation": "reserve",
+          "status": "admitted",
+          "reason": null,
+          "wallMs": 13.725443999999996,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 1,
+            "cat-file:read": 3,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 5,
+            "cat-file:read": 5,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "workerPeakRssBytes": 77574144,
+          "pageBytes": 4096,
+          "nativeGitStarts": 15,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 2,
+            "mktree": 1,
+            "commit-tree": 1,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "prepare",
+          "status": "prepared",
+          "reason": null,
+          "wallMs": 26.146255999999994,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 5,
+            "for-each-ref": 3,
+            "rev-list": 2,
+            "rev-parse": 2,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 70,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 72,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "workerPeakRssBytes": 80351232,
+          "pageBytes": 4096,
+          "nativeGitStarts": 25,
+          "nativeGitCommands": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 4,
+            "mktree": 1,
+            "commit-tree": 2,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "arm",
+          "status": "armed",
+          "reason": null,
+          "wallMs": 24.307456000000002,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 3,
+            "rev-list": 3,
+            "rev-parse": 3,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 71,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 5,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4,
+            "hash-object": 2,
+            "session:mktree": 1,
+            "commit-tree": 1,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 73,
+            "mktree:write": 65,
+            "update-ref:update": 1
+          },
+          "workerPeakRssBytes": 79941632,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 5,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 4,
+            "rev-parse": 4,
+            "hash-object": 2,
+            "mktree": 1,
+            "commit-tree": 1,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "retry-arm",
+          "status": "refused",
+          "reason": "already-armed",
+          "wallMs": 13.530568000000002,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 69,
+            "cat-file:read": 69
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "session:cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 71
+          },
+          "workerPeakRssBytes": 78479360,
+          "pageBytes": 4096,
+          "nativeGitStarts": 13,
+          "nativeGitCommands": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "cat-file": 1,
+            "rev-list": 3,
+            "rev-parse": 3
+          }
+        },
+        {
+          "operation": "settle",
+          "status": "settled",
+          "reason": null,
+          "wallMs": 32.200162000000006,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 6,
+            "for-each-ref": 4,
+            "rev-list": 5,
+            "rev-parse": 5,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 74,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 7,
+            "for-each-ref": 5,
+            "session:cat-file": 1,
+            "rev-list": 6,
+            "rev-parse": 6,
+            "hash-object": 4,
+            "session:mktree": 1,
+            "commit-tree": 2,
+            "session:update-ref": 1
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 76,
+            "mktree:write": 67,
+            "update-ref:update": 2
+          },
+          "workerPeakRssBytes": 80482304,
+          "pageBytes": 4096,
+          "nativeGitStarts": 33,
+          "nativeGitCommands": {
+            "symbolic-ref": 7,
+            "for-each-ref": 5,
+            "cat-file": 1,
+            "rev-list": 6,
+            "rev-parse": 6,
+            "hash-object": 4,
+            "mktree": 1,
+            "commit-tree": 2,
+            "update-ref": 1
+          }
+        },
+        {
+          "operation": "capacity-refusal",
+          "status": "refused",
+          "reason": "capacity-full",
+          "wallMs": 4.182521000000008,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 1,
+            "for-each-ref": 1,
+            "rev-list": 1,
+            "rev-parse": 1
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 1,
+            "cat-file:read": 3
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "session:cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 5,
+            "cat-file:read": 5
+          },
+          "workerPeakRssBytes": 77504512,
+          "pageBytes": 4096,
+          "nativeGitStarts": 9,
+          "nativeGitCommands": {
+            "symbolic-ref": 2,
+            "for-each-ref": 2,
+            "cat-file": 1,
+            "rev-list": 2,
+            "rev-parse": 2
+          }
+        },
+        {
+          "operation": "read-final-after-gc",
+          "status": "read",
+          "reason": null,
+          "wallMs": 20.079892,
+          "operationProcessOpenCalls": {
+            "symbolic-ref": 3,
+            "for-each-ref": 3,
+            "rev-list": 6,
+            "rev-parse": 6
+          },
+          "operationSessionRequests": {
+            "cat-file:info": 73,
+            "cat-file:read": 75
+          },
+          "totalProcessOpenCalls": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "session:cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          },
+          "totalSessionRequests": {
+            "cat-file:info": 77,
+            "cat-file:read": 77
+          },
+          "workerPeakRssBytes": 79110144,
+          "pageBytes": 4096,
+          "nativeGitStarts": 23,
+          "nativeGitCommands": {
+            "symbolic-ref": 4,
+            "for-each-ref": 4,
+            "cat-file": 1,
+            "rev-list": 7,
+            "rev-parse": 7
+          }
+        }
+      ]
+    }
+  ]
+}

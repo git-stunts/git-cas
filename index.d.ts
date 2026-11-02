@@ -16,6 +16,17 @@ import type {
 import Chunk from './src/domain/value-objects/Chunk.js';
 import CasService from './src/domain/services/CasService.js';
 import CasError from './src/domain/errors/CasError.js';
+import type { ReservationCapability } from './src/domain/services/ReservationNamespace.js';
+export { default as ReservationNamespace } from './src/domain/services/ReservationNamespace.js';
+export { default as ReservationCursor } from './src/domain/value-objects/ReservationCursor.js';
+export type {
+  ReservationPhase, ReservationIdentity, ReservationCapacity, ReservationPolicy,
+  ReservationRecordView, ReservationEvidenceInput, ReservationRoots, ReservationCustodyView,
+  ReservationRefusalReason, ReservationRefused, ReservationIndeterminate, ReservationAcknowledgement, ReservationAcknowledgedStatus,
+  ReservationOutcome, ReservationInspection, ReservationEvidenceRead, ReservationCursorData,
+  ReservationListOptions, ReservationPage, ReservationListUnavailable, ReservationOpenRefusal,
+  ReservationOpenIndeterminate, ReservationOpenOutcome, ReservationCapability,
+} from './src/domain/services/ReservationNamespace.js';
 import type {
   CryptoPort,
   CodecPort,
@@ -543,6 +554,8 @@ export declare class GitPersistencePortBase {
 
 /** Abstract port for Git ref and commit operations. */
 export declare class GitRefPortBase {
+  /** Exact direct/symbolic posture; a dangling symbolic ref is not absent. */
+  inspectRef?(ref: string): Promise<{ oid: string | null; symref: string | null }>;
   resolveRef(ref: string): Promise<string>;
   resolveTree(commitOid: string): Promise<string>;
   resolveParents(commitOid: string): Promise<string[]>;
@@ -600,6 +613,7 @@ export declare class GitPersistenceAdapter extends GitPersistencePortBase {
 /** Git-backed implementation of the ref port. */
 export declare class GitRefAdapter extends GitRefPortBase {
   constructor(options: { plumbing: unknown; policy?: unknown });
+  inspectRef(ref: string): Promise<{ oid: string | null; symref: string | null }>;
   anchorRef(options: {
     sourceRef: string;
     expectedSourceOid: string;
@@ -1804,6 +1818,7 @@ export default class ContentAddressableStore {
   };
 
   readonly caches: CacheCapability;
+  readonly reservations: ReservationCapability;
   readonly expiringSets: ExpiringSetCapability;
   readonly workspaces: WorkspaceCapability;
   readonly diagnostics: DiagnosticsCapability;

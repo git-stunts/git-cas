@@ -11,7 +11,7 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Active METHOD Cycles
 
-- [0064-deno-locked-install - deno-locked-install](./0064-deno-locked-install/deno-locked-install.md)
+- [0063-durable-reservations - durable-reservations](./0063-durable-reservations/durable-reservations.md)
 
 - [0062-mktree-transport-recovery - mktree-transport-recovery](./0062-mktree-transport-recovery/mktree-transport-recovery.md)
 
@@ -47,6 +47,8 @@ process in [docs/method/process.md](../method/process.md).
 - [0045-v6-1-bounded-residency — bounded-residency](./0045-v6-1-bounded-residency/bounded-residency.md)
 
 ## Landed METHOD Cycles
+
+- [0064-deno-locked-install - deno-locked-install](./0064-deno-locked-install/deno-locked-install.md)
 
 - [0061-compound-workspace-assets - compound-workspace-assets](./0061-compound-workspace-assets/compound-workspace-assets.md)
 - [0060-compound-workspace-admission - compound-workspace-admission](./0060-compound-workspace-admission/compound-workspace-admission.md)

@@ -68,6 +68,13 @@ export default class GitRefAdapter extends GitRefPort {
     }
   }
 
+  /** @override */
+  async inspectRef(ref) {
+    this.#assertOpen();
+    assertRefName(ref);
+    return await this.#inspectRefPosture(ref);
+  }
+
   /**
    * @override
    * @param {string} commitOid - Git commit OID.

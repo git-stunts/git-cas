@@ -1,0 +1,135 @@
+{
+  "schema": 1,
+  "scope": "private durable admission; no custody/public API/release proof",
+  "base_commit": "8c593bb9b6e89bc987f25a144279794d64cb08e9",
+  "source_hashes": {
+    "index.d.ts": "b011e2997c0cc4772076906da2a4c1f6d1b5570b9e7077af8cac55bda2de781e",
+    "src/domain/services/ReservationLedger.js": "8ec2c13ed76b961a3cabccec58fe70802572858aaf53706dc5b3672b484e0c85",
+    "src/domain/services/ReservationLedgerStore.js": "dd7c03bc77068ca3d872474d27e7b109c431a168189e0367e174889f5c7b5c40",
+    "src/domain/value-objects/ReservationAdmission.js": "d96b4c928e7c435dadfc613f35b8778f5a1e08d6af50bb25014b0e30f509c207",
+    "src/domain/value-objects/ReservationIndeterminate.js": "807324c1bed215b0f165cdb7f1cab40cc9873b4990e69695af41f8b2c725fd8c",
+    "src/domain/value-objects/ReservationLedgerHeader.js": "93f382fdd9f327a3f224a5b4dc20cc41a2085bb6aad7159d55cf2aa81a9577e5",
+    "src/domain/value-objects/ReservationLedgerRefusal.js": "3834655b892b94fb0fda1ad1c54de1c14da0c5d18961c6b39b2f8ac2440c9e41",
+    "src/domain/value-objects/ReservationLedgerSnapshot.js": "d0dcf6dbfc6c657e851907021130d524caa6cb2ec54788dba08e27663c244b82",
+    "src/domain/value-objects/ReservationPolicy.js": "193dad2e1da45c2617eee196d87e1a5f637947debc39b1f70439bf96d9fd0e42",
+    "src/infrastructure/adapters/GitRefAdapter.js": "d89be22fcfe7aecc081089ef11200988d7e6a339207636841fc344fab555b841",
+    "src/infrastructure/codecs/ReservationLedgerCodec.js": "fdd4e93999b6d7e74987e497563c7430581a7e4d71e13ed638f1035985b28913",
+    "src/ports/GitRefPort.js": "429dcf4b4ac6f13bb51240943b1493689abaef8e7423bcdd0491fc17cb70da70",
+    "src/ports/ReservationLedgerCodecPort.js": "1843cd711740e39242f9f2d49ba3d3356eb73e4f85c32e48933b114549fe4fdb",
+    "test/fixtures/reservation-ledger-worker.js": "1c151c9cf163c9c32a05a1b5c47df2d94526d639560327c0aa5e621b1260c545",
+    "test/helpers/MemoryRefAdapter.js": "4f6247fd698a6d2a2cdc9e78540e28b1a11c79407d79af4b44465a81a1ba2614",
+    "test/helpers/reservation-ledger-processes.js": "8316e18bc805721c56ab146d56c553c3f92a4531b0a39d713a899b35f3f0662a",
+    "test/helpers/reservation-ledger.js": "b275ff9a0a8ed007ea7c276bb85ffd6571b124277938dda1dd34216f15951d87",
+    "test/integration/reservation-ledger.test.js": "63afea130006d2e6ba210d5c7ca9dac9f0af8dffffbfca496f6e48559eb33a4b",
+    "test/unit/domain/services/ReservationLedger.test.js": "eda0f48412d9487022ed765a80ea2cc47ec13e9dc95713f9fbba6f228ed7ee62",
+    "test/unit/domain/services/ReservationLedgerStore.test.js": "bb6126bf6350227dbc62dac75e88370d33ca29f4b579fa70bc7843e33c0637a1",
+    "test/unit/infrastructure/codecs/ReservationLedgerCodec.test.js": "1e0617f8a9d1307de15ccd887835f86199eb86538de86f39397dc890edd5def1"
+  },
+  "phases": [
+    {
+      "phase": "ledger-red-01",
+      "receipt_sha256": "3dff824f138657d74fb75c418d0c38d33d80c2469d877bd962977b4474977a0d",
+      "log_sha256": "7f9ee6df721386bce14fd857a7c45ede67bc0ff293679a242bbdde594f06ef57",
+      "launch": {
+        "phase": "ledger-red-01",
+        "worker": "git-cas-tests",
+        "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+        "source_head": "8c593bb9b6e89bc987f25a144279794d64cb08e9",
+        "source_bytes": 6342054,
+        "host_free": 602953760768,
+        "host_evidence_bytes": 15510625,
+        "build_bytes": 0,
+        "data_limit_bytes": 3271557120,
+        "host_log_limit_bytes": 8388608,
+        "aggregate_log_limit_bytes": 134217728,
+        "deadline_seconds": 900,
+        "cpu": 4,
+        "memory_bytes": 8589934592,
+        "lock": "host/docker/git-cas-tests/",
+        "coordination": "required outer workstation acquisition plus dedicated worker",
+        "guard": "readonly root plus bounded tmpfs; host log cap, space and timeout monitor stop whole worker",
+        "vm_free": 573243187200
+      },
+      "result": {
+        "exit": 1,
+        "duration_seconds": 0.8278020829893649,
+        "log_bytes": 1573,
+        "tmpfs_usage_kib": "97428\t/data\n0\t/tmp\n0\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 602961158144
+      }
+    },
+    {
+      "phase": "ledger-green-01",
+      "receipt_sha256": "8c61dfbf8836014a784aa8f0d89c6cf1db5144118019c9c84a6dd4511182b41f",
+      "log_sha256": "8ad06fb25f4ef8b730d481104fcf0ff4ffb6c21f375f3eb393de22af74405359",
+      "launch": {
+        "phase": "ledger-green-01",
+        "worker": "git-cas-tests",
+        "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+        "source_head": "8c593bb9b6e89bc987f25a144279794d64cb08e9",
+        "source_bytes": 6361979,
+        "host_free": 602953015296,
+        "host_evidence_bytes": 15680305,
+        "build_bytes": 0,
+        "data_limit_bytes": 3271557120,
+        "host_log_limit_bytes": 8388608,
+        "aggregate_log_limit_bytes": 134217728,
+        "deadline_seconds": 900,
+        "cpu": 4,
+        "memory_bytes": 8589934592,
+        "lock": "host/docker/git-cas-tests/",
+        "coordination": "required outer workstation acquisition plus dedicated worker",
+        "guard": "readonly root plus bounded tmpfs; host log cap, space and timeout monitor stop whole worker",
+        "vm_free": 573243166720
+      },
+      "result": {
+        "exit": 1,
+        "duration_seconds": 4.77768675,
+        "log_bytes": 2771,
+        "tmpfs_usage_kib": "118536\t/data\n0\t/tmp\n4\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 602960363520
+      }
+    },
+    {
+      "phase": "ledger-native-green-01",
+      "receipt_sha256": "1399ca971356396422bf9f11b7fa0222b84629afa73dab0d9db78baaca562e1e",
+      "log_sha256": "88352e08745f2225d94b5761f89dcf8e562e80b7aeb139cf5756cc89c8a1634f",
+      "launch": {
+        "phase": "ledger-native-green-01",
+        "worker": "git-cas-tests",
+        "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+        "source_head": "8c593bb9b6e89bc987f25a144279794d64cb08e9",
+        "source_bytes": 6379919,
+        "host_free": 602954592256,
+        "host_evidence_bytes": 15844575,
+        "build_bytes": 0,
+        "data_limit_bytes": 3271557120,
+        "host_log_limit_bytes": 8388608,
+        "aggregate_log_limit_bytes": 134217728,
+        "deadline_seconds": 900,
+        "cpu": 4,
+        "memory_bytes": 8589934592,
+        "lock": "host/docker/git-cas-tests/",
+        "coordination": "required outer workstation acquisition plus dedicated worker",
+        "guard": "readonly root plus bounded tmpfs; host log cap, space and timeout monitor stop whole worker",
+        "vm_free": 573243166720
+      },
+      "result": {
+        "exit": 0,
+        "duration_seconds": 25.36070575,
+        "log_bytes": 23862,
+        "tmpfs_usage_kib": "118604\t/data\n0\t/tmp\n824\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 602961776640
+      }
+    }
+  ],
+  "final_checks": {
+    "focused_passed": 130,
+    "native_admission_passed": 8,
+    "native_index_passed": 2,
+    "lint": "passed",
+    "unit_passed": 2353,
+    "unit_skipped": 3
+  },
+  "coordination": "workstation authority; exclusive host/docker/git-cas-tests/; each recorded acquisition released; worker stopped"
+}

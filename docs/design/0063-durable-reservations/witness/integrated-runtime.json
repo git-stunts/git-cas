@@ -1,0 +1,45 @@
+{
+  "kind": "integrated-reservation-runtime-and-packed-consumer",
+  "phase": "integrated-reservations-01",
+  "copied_snapshot": {
+    "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+    "sha256": "a1fdd18228435254863bb4f0cecefff50273846a290b80a3b0595b4d350accfb",
+    "file_count": 1052,
+    "base_commit": "7fad342a8c6154e7eda23d86d8824c0b65613478",
+    "base_tree": "9ff5f37d8c692b3d1d112e027a22d610ba22af72",
+    "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+    "changed_or_added_files": {},
+    "removed_files": []
+  },
+  "receipt_sha256": "c18c0cf4f03cb62e87db3477f6f23ec10fc86665770927ed5324009d77ecf514",
+  "log_sha256": "23402132ea362818251b723e669842ae54d5d1ba657aab28c950e4381a074ac0",
+  "runner_sha256": "ee2d1df057f29c8e5e66f3d57010e7b6580544e5b1a19b0876a2c1df7b8bedab",
+  "script_sha256": "b293ca03408d30e7619c9d666b8fdb02e43f050322ae7a1ad0621e0612969f80",
+  "result": {
+    "exit": 0,
+    "duration_seconds": 128.132728041,
+    "log_bytes": 55586,
+    "container_memory_peak_bytes": 993820672,
+    "container_memory_peak_scope": "kernel cgroup high-water for the complete phase including tmpfs, dependencies, controller, workers and Git; not an operation RSS",
+    "tmpfs_usage_kib": "161580\t/data\n0\t/tmp\n2520\t/home/gitstunts\n0\t/dev/shm\n",
+    "host_free": 600748384256
+  },
+  "checks": {
+    "node_unit_passed": 2407,
+    "node_unit_skipped": 3,
+    "node_integration_passed": 351,
+    "deno_unit_passed": 2398,
+    "deno_unit_skipped": 12,
+    "deno_integration_passed": 351,
+    "declaration_fixtures": [
+      "test/types/reservations.ts",
+      "test/types/public-api-compatibility.ts"
+    ],
+    "packed_consumer_formats": [
+      "sha1",
+      "sha256"
+    ],
+    "lint": "passed"
+  },
+  "scope": "COPY-only existing Docker worker; frozen pnpm project graph; candidate npm pack installed into a separate consumer directory. Candidate retains unreleased package version 7.0.0. No registry publication or fresh public-registry reservation consumer is claimed. Bun execution is hosted CI evidence, not this local phase. Tarball hash was not retained; copied-source identity and successful pack/install/consumer execution are recorded."
+}

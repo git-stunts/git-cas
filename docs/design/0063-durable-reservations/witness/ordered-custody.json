@@ -1,0 +1,249 @@
+{
+  "schema": 1,
+  "scope": "private ordered custody and lifecycle; not public package or release acceptance",
+  "base_commit": "1dbc48baa45350c2ded02893bd52be656b282208",
+  "source_hashes": {
+    "src/domain/services/ReservationCustodyObjects.js": "0699b77d9372974683a9c85646e8e1d4ea178454908ca80caa4bb80771f2ca7e",
+    "src/domain/services/ReservationCustodyStore.js": "3eba0c421498292c1ed7a565ad8fcd48ca04006bda854cd7274e1c4f00a325ba",
+    "src/domain/services/ReservationLedger.js": "f70d11e5bfb4eb1feaed633846a95adb0a94128edbf99ef15471cc9b740869db",
+    "src/domain/value-objects/ReservationCustodyDescriptor.js": "749972c6d45168b57a4f648a0b15ed4a2c8afdab3bc135b55807f689fdd2899f",
+    "src/domain/value-objects/ReservationCustodySnapshot.js": "86a365b684b7904da36d6a5d95a4a89621778043bb474015df12755622c53aac",
+    "src/domain/value-objects/ReservationEvidence.js": "23a74fcf7426080fb00647306f6dc987de4c0ff8c2ec93db5eeae66d8c8b6d07",
+    "src/domain/value-objects/ReservationEvidenceRoots.js": "a66ee90fca0495c86651f26ea2ee27a733722303125dc27c28f5a0f40453b57c",
+    "src/domain/value-objects/ReservationLedgerRefusal.js": "10b1f795165623b4ea79a5cd4f113ae74b2ebb74ccb2a0f9572c2e3483428152",
+    "src/domain/value-objects/ReservationResult.js": "aa7410c6197f9e0856453f92873716654d66d50644f526be2949d22b7f8b9a42",
+    "src/domain/value-objects/ReservationSupport.js": "a959f907a82cbf79b1ad9b56f738032a1587a80f5510d266f6ffaabaed3f9bf2",
+    "src/infrastructure/codecs/ReservationCustodyCodec.js": "d446af8e15614f451e605761b98d3ca32bbf0a301d4b5244ad4ad36e3aa6427a",
+    "src/ports/ReservationCustodyCodecPort.js": "5bd83d7ef88e3b7a7f3182c72f269570d21d36119859b5adb38a303586908467",
+    "test/fixtures/reservation-ledger-worker.js": "61133dbcd93a4f167a1eb704eac609d702c821230f17a8c5d2ffd4a519db27a0",
+    "test/helpers/NativeReservationFaultRefs.js": "abd27f3352bb6976b806ab3ff1aabab51d17c79d3aacf29325e9df77cd4fbc7c",
+    "test/helpers/NativeReservationHarness.js": "009bffae08e259ed425b8f241d38f8716b8926e0c8382fa37cfdb3cc64019f2e",
+    "test/helpers/reservation-custody.js": "138d5ceac783b9d1e6f4a8aea0aff73b463e9696253fb39a246428ff880773ef",
+    "test/helpers/reservation-ledger-processes.js": "3f6af9803357245590fea8adf5ce94d1ef590ad6bfb0d01c02715c9ab80fb505",
+    "test/helpers/reservation-ledger.js": "92f08a9c8755ba319b3d6ecf977c614a53b5f9f8723b796871d1b6299049d33f",
+    "test/integration/reservation-custody-faults.test.js": "f153526697747c3e986919bc465b74b815485a199f96d775501e1f43ba06097c",
+    "test/integration/reservation-custody.test.js": "c154d184dad2d6496d7ddae4b92fff7b32a81aaa6c2bd7185f86baa5ac80f7b1",
+    "test/integration/reservation-ledger.test.js": "0230e4f85fb2a0469813b77c48a81d525404a2a37d9a305dadc6206b68e2c230",
+    "test/unit/domain/services/ReservationCustodyObjects.test.js": "fcd7ecc5c33fa9222416ddc278322a40dfe26820eba439cb87581446ab6cfcd2",
+    "test/unit/domain/services/ReservationCustodyProtocol.test.js": "c2e503513289e2dd47c1ab7d3caa0267b2873a91aa40cf2fc30eeeea38b75228",
+    "test/unit/domain/services/ReservationLedger.test.js": "886a907eb30f1fc8518ca6cd489f4eec441a394ccd79c64137210209e101f7b5",
+    "test/unit/infrastructure/codecs/ReservationCustodyCodec.test.js": "fb0f398e02a6534d5cf057040cae5016cfb78a43e2c32956d97dfc19a0a76e66"
+  },
+  "deleted_paths": [
+    "src/domain/value-objects/ReservationAdmission.js"
+  ],
+  "behavioral_red": {
+    "phase": "custody-recovery-red-01",
+    "baseline_commit": "1dbc48baa45350c2ded02893bd52be656b282208",
+    "overridden_sources": {
+      "src/domain/services/ReservationLedger.js": "8ec2c13ed76b961a3cabccec58fe70802572858aaf53706dc5b3672b484e0c85",
+      "src/domain/value-objects/ReservationAdmission.js": "d96b4c928e7c435dadfc613f35b8778f5a1e08d6af50bb25014b0e30f509c207"
+    },
+    "override_script_sha256": "3c08f6a881b7d1cbaaa9c5cf7ef65f86af181e942bfd491ff908aa9edbe4bc15",
+    "test": "does not recover an armed claim without its required custody",
+    "expected": "indeterminate",
+    "observed": "recovered"
+  },
+  "phases": [
+    {
+      "phase": "custody-recovery-red-01",
+      "receipt_sha256": "85c2b002393e85038403ae04e3d5115d46f47ceb39908b47fb92cb78eaeb13aa",
+      "log_sha256": "95c0c27143c8c49a80d82eba8fa1ca73190147820387c0db35d0615a3e64fe02",
+      "launch": {
+        "phase": "custody-recovery-red-01",
+        "worker": "git-cas-tests",
+        "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+        "source_head": "1dbc48baa45350c2ded02893bd52be656b282208",
+        "source_bytes": 6440158,
+        "host_free": 602953134080,
+        "host_evidence_bytes": 16184625,
+        "build_bytes": 0,
+        "data_limit_bytes": 3271557120,
+        "host_log_limit_bytes": 8388608,
+        "aggregate_log_limit_bytes": 134217728,
+        "deadline_seconds": 900,
+        "cpu": 4,
+        "memory_bytes": 8589934592,
+        "lock": "host/docker/git-cas-tests/",
+        "coordination": "required outer workstation acquisition plus dedicated worker",
+        "guard": "readonly root plus bounded tmpfs; host log cap, space and timeout monitor stop whole worker",
+        "vm_free": 573243277312
+      },
+      "result": {
+        "exit": 1,
+        "duration_seconds": 0.93434325,
+        "log_bytes": 1333,
+        "tmpfs_usage_kib": "97608\t/data\n0\t/tmp\n0\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 602960572416
+      }
+    },
+    {
+      "phase": "custody-focused-green-01",
+      "receipt_sha256": "ee1e4b944688daf95929558e39041b9df10a664abb155a6e7854089ea5f05d9a",
+      "log_sha256": "e6d9504756668f8ad7d660da751908d2f2d3548cbdb5be80468ac478162b3972",
+      "launch": {
+        "phase": "custody-focused-green-01",
+        "worker": "git-cas-tests",
+        "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+        "source_head": "1dbc48baa45350c2ded02893bd52be656b282208",
+        "source_bytes": 6440158,
+        "host_free": 602951999488,
+        "host_evidence_bytes": 16316143,
+        "build_bytes": 0,
+        "data_limit_bytes": 3271557120,
+        "host_log_limit_bytes": 8388608,
+        "aggregate_log_limit_bytes": 134217728,
+        "deadline_seconds": 900,
+        "cpu": 4,
+        "memory_bytes": 8589934592,
+        "lock": "host/docker/git-cas-tests/",
+        "coordination": "required outer workstation acquisition plus dedicated worker",
+        "guard": "readonly root plus bounded tmpfs; host log cap, space and timeout monitor stop whole worker",
+        "vm_free": 573243260928
+      },
+      "result": {
+        "exit": 1,
+        "duration_seconds": 3.488899875,
+        "log_bytes": 7631,
+        "tmpfs_usage_kib": "116892\t/data\n0\t/tmp\n4\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 602960228352
+      }
+    },
+    {
+      "phase": "custody-focused-green-02",
+      "receipt_sha256": "64232745488efdbad31d4396bb29f951f63057c1811956431e765bf6e6746f58",
+      "log_sha256": "96f2a1ccb13042761c57cb8b6aac1ee439c8edad28ca8e7ae2fb886e366b73c8",
+      "launch": {
+        "phase": "custody-focused-green-02",
+        "worker": "git-cas-tests",
+        "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+        "source_head": "1dbc48baa45350c2ded02893bd52be656b282208",
+        "source_bytes": 6451330,
+        "host_free": 602965364736,
+        "host_evidence_bytes": 16470509,
+        "build_bytes": 0,
+        "data_limit_bytes": 3271557120,
+        "host_log_limit_bytes": 8388608,
+        "aggregate_log_limit_bytes": 134217728,
+        "deadline_seconds": 900,
+        "cpu": 4,
+        "memory_bytes": 8589934592,
+        "lock": "host/docker/git-cas-tests/",
+        "coordination": "required outer workstation acquisition plus dedicated worker",
+        "guard": "readonly root plus bounded tmpfs; host log cap, space and timeout monitor stop whole worker",
+        "vm_free": 573243260928
+      },
+      "result": {
+        "exit": 1,
+        "duration_seconds": 4.727966959000001,
+        "log_bytes": 2944,
+        "tmpfs_usage_kib": "118664\t/data\n0\t/tmp\n4\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 602972721152
+      }
+    },
+    {
+      "phase": "custody-native-green-01",
+      "receipt_sha256": "eb33f2aa227d9469fb1ec6c8b9b83398b3cb8d075a5bd23935c2d6c42673eab2",
+      "log_sha256": "2f3b0985128f4dd9b461ce11532efed58d201455833e3a6959b22007d6245f9d",
+      "launch": {
+        "phase": "custody-native-green-01",
+        "worker": "git-cas-tests",
+        "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+        "source_head": "1dbc48baa45350c2ded02893bd52be656b282208",
+        "source_bytes": 6457178,
+        "host_free": 602962362368,
+        "host_evidence_bytes": 16617467,
+        "build_bytes": 0,
+        "data_limit_bytes": 3271557120,
+        "host_log_limit_bytes": 8388608,
+        "aggregate_log_limit_bytes": 134217728,
+        "deadline_seconds": 900,
+        "cpu": 4,
+        "memory_bytes": 8589934592,
+        "lock": "host/docker/git-cas-tests/",
+        "coordination": "required outer workstation acquisition plus dedicated worker",
+        "guard": "readonly root plus bounded tmpfs; host log cap, space and timeout monitor stop whole worker",
+        "vm_free": 573243256832
+      },
+      "result": {
+        "exit": 1,
+        "duration_seconds": 8.221858334,
+        "log_bytes": 3887,
+        "tmpfs_usage_kib": "118672\t/data\n0\t/tmp\n4\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 602969997312
+      }
+    },
+    {
+      "phase": "custody-native-green-02",
+      "receipt_sha256": "6d812b5524141826820930403d6edfa6b79ea9b03b89c487450571edd9cd3f8e",
+      "log_sha256": "af092390d6426f5034d5481ef0d6a7c19635e4c3441d0188628e445830819517",
+      "launch": {
+        "phase": "custody-native-green-02",
+        "worker": "git-cas-tests",
+        "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+        "source_head": "1dbc48baa45350c2ded02893bd52be656b282208",
+        "source_bytes": 6463276,
+        "host_free": 602962214912,
+        "host_evidence_bytes": 16765401,
+        "build_bytes": 0,
+        "data_limit_bytes": 3271557120,
+        "host_log_limit_bytes": 8388608,
+        "aggregate_log_limit_bytes": 134217728,
+        "deadline_seconds": 900,
+        "cpu": 4,
+        "memory_bytes": 8589934592,
+        "lock": "host/docker/git-cas-tests/",
+        "coordination": "required outer workstation acquisition plus dedicated worker",
+        "guard": "readonly root plus bounded tmpfs; host log cap, space and timeout monitor stop whole worker",
+        "vm_free": 573243256832
+      },
+      "result": {
+        "exit": 0,
+        "duration_seconds": 30.355994833,
+        "log_bytes": 24567,
+        "tmpfs_usage_kib": "118728\t/data\n0\t/tmp\n832\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 602968223744
+      }
+    },
+    {
+      "phase": "custody-native-green-03",
+      "receipt_sha256": "6197e3a35f54df15492ddb4b89f669b84bfbf25a47a120ce0414d20ab306b583",
+      "log_sha256": "c25f46bdf112b08b2be5974dae98d5c9d991bad18c5907cf499693bdf1fd2f89",
+      "launch": {
+        "phase": "custody-native-green-03",
+        "worker": "git-cas-tests",
+        "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+        "source_head": "1dbc48baa45350c2ded02893bd52be656b282208",
+        "source_bytes": 6467462,
+        "host_free": 602962178048,
+        "host_evidence_bytes": 16936320,
+        "build_bytes": 0,
+        "data_limit_bytes": 3271557120,
+        "host_log_limit_bytes": 8388608,
+        "aggregate_log_limit_bytes": 134217728,
+        "deadline_seconds": 900,
+        "cpu": 4,
+        "memory_bytes": 8589934592,
+        "lock": "host/docker/git-cas-tests/",
+        "coordination": "required outer workstation acquisition plus dedicated worker",
+        "guard": "readonly root plus bounded tmpfs; host log cap, space and timeout monitor stop whole worker",
+        "vm_free": 573243252736
+      },
+      "result": {
+        "exit": 0,
+        "duration_seconds": 31.096283166,
+        "log_bytes": 24626,
+        "tmpfs_usage_kib": "118732\t/data\n0\t/tmp\n832\t/home/gitstunts\n0\t/dev/shm\n",
+        "host_free": 602971185152
+      }
+    }
+  ],
+  "final_checks": {
+    "focused_passed": 167,
+    "native_passed": 56,
+    "lint": "passed",
+    "unit_passed": 2390,
+    "unit_skipped": 3
+  },
+  "coordination": "existing worker; exclusive workstation host/docker/git-cas-tests/; acquisitions released; worker stopped"
+}

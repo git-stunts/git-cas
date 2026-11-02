@@ -1,0 +1,175 @@
+{
+  "kind": "reservation-public-surface-checkpoint",
+  "base_commit": "bdc4d626fd47392ad1ff1faab362258d2472b94b",
+  "runtime_and_test_sources": {
+    "index.d.ts": "fa67159255fca5df049848f0f325f3364544afd6ea91cf31dc6272adc51ab45f",
+    "index.js": "70124fc5e01f7b8a90baed43e2e4cdab9a87f2dfdadcd5fbad35f297f1cdb23e",
+    "src/domain/services/ReservationCustodyObjects.js": "b634d86683e60e0d1e176f0f107b2952a6073d5400cc567ce220810f39366d57",
+    "src/domain/services/ReservationCustodyStore.js": "2bde342ef0e12d4ad3f9d6056d27eb1b1c162a9690dcaecb9f59300c11f30aab",
+    "src/domain/services/ReservationIndex.js": "f51e66dbb4a6c65d2f62b0a174e506c0ee5bc978655c08f43e76e1156799d5ed",
+    "src/domain/services/ReservationIndexNode.js": "39805aa367dbff3f67dfcfb3feb0b70b06df5a02805f32d387c3470426b0978d",
+    "src/domain/services/ReservationLedger.js": "1115dd09389875733c2257be4779ccbd7c88b0edc9e1a413bf3951ba57788766",
+    "src/domain/services/ReservationLedgerStore.js": "f73c30b62d60b08e0b0a364df01c73b696c5311ec5bb40f34e6c745c3d11dca8",
+    "src/domain/services/ReservationListing.js": "80e9a3f56adb2b0fc81886b5133567efe7fc6d40a214a4e5ad3064ab83524ef7",
+    "src/domain/services/ReservationNamespace.d.ts": "832d465613bdbca3c311779fdbb7d56c112984331fd968142b13cf2a5ba827f9",
+    "src/domain/services/ReservationNamespace.js": "d7d94ef37175d35c8b38f7d8a114559b2807f79bc003cf0bc1c0b391463c53e0",
+    "src/domain/services/ReservationNamespaceRegistry.js": "462eb7b5b2581ea6b010c8a894f748647f5c686d2d85cf5ac3fe767ec59fff09",
+    "src/domain/services/ReservationRecord.js": "6e51d54e2d97409f2d9938d0cd4a6c32ae17ab25319773f32b2f5a6807fc88a1",
+    "src/domain/services/ReservationScan.js": "4684069bb7b31fef7a9a22e684ebc0f1a12e926cf07a46d42d5357122bcf8b88",
+    "src/domain/value-objects/ReservationCursor.d.ts": "11d277b3196b6dcb24d463f5616a76bbea626fecef2fb9ef193d359db902c9fd",
+    "src/domain/value-objects/ReservationCursor.js": "0fae6b8ac1a37a20b50252c1c2e3437c6aae4e4757592660638414e4170a3b8f",
+    "src/domain/value-objects/ReservationEvidence.js": "39249717f0acd32d8d130d323ea55db627933f6841674e55fe5f3d8c2f6cb263",
+    "src/domain/value-objects/ReservationEvidenceRead.js": "2a145ed269929692f29a1516efc7490daef75cbd8fed48779e47d1b8cf382dd9",
+    "src/domain/value-objects/ReservationIndeterminate.js": "8947f738b0c822cc2dbcc2429ce1719bb004a3b20e21e5e1e44efd3d52348988",
+    "src/domain/value-objects/ReservationInspection.js": "89e15eb83d4b2cb8f785693597c658c5fd2e518c4a5fd3806752b00d6541cf74",
+    "src/domain/value-objects/ReservationLedgerRefusal.js": "8f16463a15f34717ab6587cbaff0761f8c8a85afe088c8245d61fb939440807f",
+    "src/domain/value-objects/ReservationListRequest.js": "11eb1a6e59958f7aad98b7392d78ac027a000d22500fbb177986c6b95b4379f7",
+    "src/domain/value-objects/ReservationListUnavailable.js": "a79cec3cbfe45f4e4ae5d0e0076916cc885f490913be8cc7536646832fb46ca7",
+    "src/domain/value-objects/ReservationOpenIndeterminate.js": "2161736d3c0dff9bebacf165e83d6cece6dce2a06333419968d2a4c10667adf2",
+    "src/domain/value-objects/ReservationOpenRefusal.js": "a5cfc979540fd09096a2807356e22420cc86ad5417b3a9331ffe7693a9d8b71e",
+    "src/domain/value-objects/ReservationPage.js": "4d684766263d972d7c635144ddcc321b199dcae995ba4ac8e6e8e2c2573c4af8",
+    "src/domain/value-objects/ReservationPolicy.js": "3a9af504ad73fe07790c476720df944c308671f0cd32824fa633d4d131103459",
+    "test/fixtures/reservation-package-consumer.js": "e043f73311609937c1fb0e151a900b2d9f0be2c6f7730892cf4753ec27048aa3",
+    "test/helpers/NativeReservationHarness.js": "626e2193a131dc12c9a00c65b5d4062ed4dcc97b9b5cf8dcb4150a49461b98df",
+    "test/helpers/reservation-ledger.js": "fc5db9e0fbcb0778ce4a90bf9fac8f4861867ba468b5cd1a2158a5be712790f2",
+    "test/helpers/reservation-namespace.js": "7b65fb8a6a7f09cb7b952ae7b3ef9c23e0def75604a3f5c2eeaf64a1360fe5f2",
+    "test/integration/reservation-public.test.js": "1e2cea3a9c73516a89419c27a8692352d1844c432c1dc6b0d7319b7030f5e846",
+    "test/types/reservations.ts": "b913c7a317e54e72a439f510dfcc45dc12a6952914c48561861c3d541959beac",
+    "test/unit/domain/services/ReservationListing.test.js": "91400a3aebd84bdfddf93e5da9a534c45e6356539baff1e2d9304ddd4563f7f7",
+    "test/unit/domain/services/ReservationNamespace.test.js": "753a92cceb5fd0aeb30b95f6437d7f9ee524fe1f563ec10392923579b38bebed",
+    "test/unit/facade/ContentAddressableStore.reservations.test.js": "d70e24c6bb9010b6b16f437e5a5de500e4b8f8bef993167e95af722a5650a6f6"
+  },
+  "phases": [
+    {
+      "phase": "public-red-01",
+      "receipt_sha256": "323f66b0eecb1aa7c9fad19fa91d679ee47810bb55719dad54eb8499c74cc0ef",
+      "log_sha256": "7b56683b771bc59c51dacb4e730ea19d9c7902ede002df44102fb8dbe911c4d4",
+      "exit": 1,
+      "duration_seconds": 3.4296142499999998,
+      "log_bytes": 3450,
+      "test_summaries": [
+        " Test Files  1 failed (1)",
+        "      Tests  1 failed (1)"
+      ]
+    },
+    {
+      "phase": "public-focused-01",
+      "receipt_sha256": "273425a8e7e2bf8b6afb7f8e20cc31cd0ac4da895cf1571fecc66d660f0103d9",
+      "log_sha256": "d6ebbaecbc11aa179a887bcf70cd8a2f28b1a33dd08cc75ef7cd9236ff0bdb6f",
+      "exit": 1,
+      "duration_seconds": 5.104997083,
+      "log_bytes": 3390,
+      "test_summaries": [
+        " Test Files  3 passed (3)",
+        "      Tests  14 passed (14)"
+      ]
+    },
+    {
+      "phase": "public-native-green-01",
+      "receipt_sha256": "3d5f2fca5bbd4c66a245238d79676d6448b67384a84e5db9d310fa3388ea4a95",
+      "log_sha256": "364b506b4aab5516bff72d16720e7cf5edc0d95d66c4b2bc6e3ef7394a3f22f3",
+      "exit": 1,
+      "duration_seconds": 35.218713416,
+      "log_bytes": 26565,
+      "test_summaries": [
+        " Test Files  12 passed (12)",
+        "      Tests  181 passed (181)",
+        " Test Files  5 passed (5)",
+        "      Tests  64 passed (64)",
+        " Test Files  247 passed | 1 skipped (248)",
+        "      Tests  2404 passed | 3 skipped (2407)"
+      ]
+    },
+    {
+      "phase": "public-package-green-01",
+      "receipt_sha256": "9a87057364405505044c3ac956757edd434ce4f6b15aaea2456d7e8f5693dcff",
+      "log_sha256": "5455b91697da78471e23f92c0df17759273629d4d0fd099541c4140a15cbba45",
+      "exit": 0,
+      "duration_seconds": 7.038758584,
+      "log_bytes": 2598,
+      "test_summaries": [
+        "PUBLIC_PACKAGE_PASS"
+      ]
+    },
+    {
+      "phase": "public-native-green-02",
+      "receipt_sha256": "530c14922867485220b07a76254e50fe1204eb09c947927fa4fb80646e3a5d8b",
+      "log_sha256": "bff91eafab82a784298f5126fac5bf458f31acfdef3d0b2572bd29ad6af4fba9",
+      "exit": 1,
+      "duration_seconds": 34.706356750000005,
+      "log_bytes": 26411,
+      "test_summaries": [
+        " Test Files  12 passed (12)",
+        "      Tests  183 passed (183)",
+        " Test Files  5 passed (5)",
+        "      Tests  64 passed (64)",
+        " Test Files  1 failed | 246 passed | 1 skipped (248)",
+        "      Tests  1 failed | 2405 passed | 3 skipped (2409)"
+      ]
+    },
+    {
+      "phase": "public-closeout-green-01",
+      "receipt_sha256": "a428d9ba3a6154ce99fa4a5287700420cbb9a5d780dc162cbbaa234e1129c217",
+      "log_sha256": "7c3835cfedb38154059f5f8ab799f22216c1bd372c7fc576305b407ade087d44",
+      "exit": 0,
+      "duration_seconds": 8.070423583,
+      "log_bytes": 3101,
+      "test_summaries": [
+        " Test Files  1 passed (1)",
+        "      Tests  4 passed (4)",
+        "PUBLIC_PACKAGE_PASS"
+      ]
+    }
+  ],
+  "validation": {
+    "focused": 183,
+    "native_total": 64,
+    "native_public": 8,
+    "native_public_object_formats": [
+      "sha1",
+      "sha256"
+    ],
+    "native_listing_records_per_format": 72,
+    "unit_suite": {
+      "passed": 2405,
+      "failed": 1,
+      "skipped": 3,
+      "failure": "packaged ARCHITECTURE link to an excluded design file; corrected to the GitHub draft design",
+      "focused_recheck": {
+        "file": "test/unit/docs/package-docs.test.js",
+        "passed": 4
+      }
+    },
+    "source_and_installed_types": "Deno check with negative assertions; all directives used",
+    "installed_consumer": "npm pack then fresh npm install; public root only; lifecycle, reopen, GC, capacity and readback in both formats",
+    "package_identity": "Unreleased candidate packed with existing 7.0.0 metadata; not a registry release",
+    "lint": "passed"
+  },
+  "resources": {
+    "worker": "git-cas-tests",
+    "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+    "workstation_key": "host/docker/git-cas-tests/",
+    "cpu": 4,
+    "memory_bytes": 8589934592,
+    "data_tmpfs_bytes": 3221225472,
+    "other_tmpfs_bytes_each": 16777216,
+    "host_evidence_limit_bytes": 125829120,
+    "per_phase_log_limit_bytes": 8388608,
+    "timeout_seconds": 900,
+    "host_free_bytes": 601887158272,
+    "vm_free_before_bytes": 572236726272,
+    "end_usage_kib": {
+      "data": 156376,
+      "tmp": 0,
+      "home/gitstunts": 1688,
+      "dev/shm": 0
+    }
+  },
+  "limits": [
+    "No current-head independent review or release claim",
+    "Complete public API fault and independent-process race coverage remains",
+    "Native operation-count and peak-residency acceptance remains",
+    "Deno dependency installation issue159 remains; declaration checking does not waive runtime gates",
+    "No application effect, full subtree audit, snapshot pin or cross-ref atomicity is claimed"
+  ]
+}

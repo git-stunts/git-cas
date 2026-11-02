@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add the draft `cas.reservations.open()` capability with durable record-slot
+  policy, lifecycle operations, exact original/final page retrieval and bounded
+  snapshot listing. Reconciliation finishes installed storage phases or cleans
+  cancelled residue; it never arms or executes an application effect. Cursors
+  bind namespace, snapshot and phase filter; unavailable snapshots do not
+  silently restart. Native fault/race/GC and finite cost/residency witnesses
+  accompany the draft. This capability is not yet released; current-head
+  review and release verification/publication remain.
+
+### Internal
+
+- Define the durable retention reservation protocol for #157. The private
+  transition core and its tests were the first implementation checkpoint.
+- Add the private reservation point index and canonical record codec. Lookups
+  and updates follow one bounded 64-digit path; corrupt tree names cannot
+  masquerade as absent attempts. Native SHA-1/SHA-256 fixtures verify tree
+  persistence through reopen and GC under explicit harness roots.
+- Add private durable record-slot admission: immutable namespace policy and
+  charged count publish with the attempt index through one checked parentless
+  ledger ref. Exact retries recover at capacity; response loss stays uncertain
+  unless the same attempt is observed installed. Add exact direct/symbolic ref
+  inspection to the ref port and native adapter. Separate native processes
+  verify capacity-one contention, exact retries, lost acknowledgements and
+  reopen/GC in both object formats.
+- Add private ordered evidence custody and lifecycle publication. Preparation
+  pins actual page/support/history edges before its ledger acknowledgement;
+  settlement retains preparation as a commit parent. Only a freshly
+  acknowledged armed transition permits an external effect. Cancellation
+  first publishes its terminal tombstone and refund, then deletes its exact
+  pin; failed cleanup leaves retryable residue. Recovery verifies required
+  custody rather than trusting an armed record alone. Native races, GC and
+  before/after faults at every durable ref boundary cover both object formats.
+  The public facade now composes this protocol without a second lifecycle.
+
 ### Fixed
 
 - Install the Deno CI image from the existing frozen pnpm dependency graph and

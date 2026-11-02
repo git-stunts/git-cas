@@ -1,0 +1,256 @@
+{
+  "recorded_at": "2026-11-02T11:56:41.958248+00:00",
+  "scope": "Private immutable point index and codec only; native test roots supplied by harness. No ledger admission, custody, public API or release proof.",
+  "source_hashes": {
+    "src/domain/errors/Codes.js": "c49e235540365c47d75987cebf22ff06ead18acbc9d8018c75e8d1b3c372658f",
+    "src/domain/errors/ReservationStorageError.js": "b1e9f4b6cdec0300c0b0d044e7b27a5eb1baadda5689e712ebbf4088c986cdd5",
+    "src/domain/services/ReservationRecord.js": "86096869a3d8308973624aa9745769201a0c7d1e5dde272965896ecea13a7167",
+    "src/domain/services/ReservationIndex.js": "82c9dfc56b82e208c1d380a5a94b5831c8fdfe598f20e4a80f63fa2c1773af60",
+    "src/domain/services/ReservationIndexNode.js": "ac30e6157ffad42e5e86175cee412841df021e2cd13f004e4855d085ee1d9aca",
+    "src/domain/value-objects/ReservationKey.js": "ee6617548be29606363df9d92bf04b43de640838a151a8d91422714c7a42d1d2",
+    "src/ports/ReservationRecordCodecPort.js": "67e0a1832586864b3b7ccf52727c2436c75d86b5454316475fe9c7d230ab2646",
+    "src/infrastructure/codecs/ReservationRecordCodec.js": "272f6f430de4d5e36ee55ce9310dcfc0ac5e52da545bea97d5b199d9b2ad615a",
+    "test/unit/domain/services/ReservationIndex.test.js": "7f56cfcace2cc4757ff0094689e8ae6553e5cb811fe06c62f6b4b08112c09bb4",
+    "test/unit/infrastructure/codecs/ReservationRecordCodec.test.js": "1c4f087aab9091922f6ffa5a27a86ebb78f6ee09de82f9cfa396451afe962fc5",
+    "test/integration/reservation-index.test.js": "d730d12f3d1f8fa0889bae52cf6a4e8bdf77d8efe9c021ca971d02f303c5bc4f"
+  },
+  "phases": [
+    {
+      "phase": "index-red-01",
+      "source_base": "24ad750587ade2a6931ed596e42cb67892b34764",
+      "source_manifest_sha256": "dbff8f67a49464e6b452b45eab78d31758d6082e23577bb5a29cc8f989dbc6df",
+      "result": {
+        "exit": 1,
+        "duration_seconds": 0.8326505420263857,
+        "log_bytes": 1568,
+        "tmpfs_usage_kib": "97360\t/data\n0\t/tmp\n0\t<CONTAINER_HOME>\n0\t/dev/shm\n",
+        "host_free": 602955878400
+      },
+      "log_sha256": "e0738a28d1cdc9b537c7a31f745b42d8a1249ba2b90904cbf190a57deb635457",
+      "coordination": [
+        {
+          "event": "claimed",
+          "job": "cas157-index-red-A606AE7F-E6B1-424B-868B-1678ACEEB1A9",
+          "holder": "Codex git-warp recovery",
+          "note": "Bounded reservation index missing-surface RED",
+          "claimed": 1793619910,
+          "expires": 1793621710,
+          "paths": [
+            "host/docker/git-cas-tests/"
+          ],
+          "record": "109bf29ab53e50d68bbf9db19d324934562709d9",
+          "acquisition": "1793619910-69225-2627928410"
+        },
+        {
+          "event": "released",
+          "job": "cas157-index-red-A606AE7F-E6B1-424B-868B-1678ACEEB1A9",
+          "paths": 1
+        }
+      ]
+    },
+    {
+      "phase": "index-green-01",
+      "source_base": "24ad750587ade2a6931ed596e42cb67892b34764",
+      "source_manifest_sha256": "8771b3c7908df5a17bff10c285309a859adf6af41039e1c53c71996876af1faa",
+      "result": {
+        "exit": 0,
+        "duration_seconds": 23.597163958009332,
+        "log_bytes": 23037,
+        "tmpfs_usage_kib": "118480\t/data\n0\t/tmp\n820\t<CONTAINER_HOME>\n0\t/dev/shm\n",
+        "host_free": 602954022912
+      },
+      "log_sha256": "9a263af8ed8cd4b82ff0423934e66f1c9584490f2dc8a33425a038b77b043197",
+      "coordination": [
+        {
+          "event": "claimed",
+          "job": "cas157-index-green-2DBE220B-C0AF-4A01-91FB-458974CD3D11",
+          "holder": "Codex git-warp recovery",
+          "note": "Validate bounded reservation index and record codec",
+          "claimed": 1793620024,
+          "expires": 1793621824,
+          "paths": [
+            "host/docker/git-cas-tests/"
+          ],
+          "record": "4a739844f5b5801ff027fd2e7f94c113342f4885",
+          "acquisition": "1793620024-69895-2030622727"
+        },
+        {
+          "event": "released",
+          "job": "cas157-index-green-2DBE220B-C0AF-4A01-91FB-458974CD3D11",
+          "paths": 1
+        }
+      ]
+    },
+    {
+      "phase": "index-native-green-01",
+      "source_base": "24ad750587ade2a6931ed596e42cb67892b34764",
+      "source_manifest_sha256": "0184075990df7eea3024709c9606c58924efc68fb8e5bf95972e875753e7712b",
+      "result": {
+        "exit": 0,
+        "duration_seconds": 24.437589791137725,
+        "log_bytes": 23267,
+        "tmpfs_usage_kib": "118484\t/data\n0\t/tmp\n820\t<CONTAINER_HOME>\n0\t/dev/shm\n",
+        "host_free": 602956087296
+      },
+      "log_sha256": "c2885b70b8b94e30d09f05ba4155eda9a340569a115d1625b272ac4f77bc81c8",
+      "coordination": [
+        {
+          "event": "claimed",
+          "job": "cas157-index-native-EA6D8B3B-B653-4787-BCE0-5F5141190F3F",
+          "holder": "Codex git-warp recovery",
+          "note": "Native two-format reservation index, reopen and GC",
+          "claimed": 1793620164,
+          "expires": 1793621964,
+          "paths": [
+            "host/docker/git-cas-tests/"
+          ],
+          "record": "3b2f565a62898ca1fd615618054e52c46830069c",
+          "acquisition": "1793620164-70773-0799024452"
+        },
+        {
+          "event": "released",
+          "job": "cas157-index-native-EA6D8B3B-B653-4787-BCE0-5F5141190F3F",
+          "paths": 1
+        }
+      ]
+    },
+    {
+      "phase": "index-entry-red-01",
+      "source_base": "24ad750587ade2a6931ed596e42cb67892b34764",
+      "source_manifest_sha256": "76c9fbbeb5b892af38181f4f0d12385d7dc62334e9493bea1e29a42107dc4cda",
+      "result": {
+        "exit": 1,
+        "duration_seconds": 3.1654404159635305,
+        "log_bytes": 3394,
+        "tmpfs_usage_kib": "116684\t/data\n0\t/tmp\n4\t<CONTAINER_HOME>\n0\t/dev/shm\n",
+        "host_free": 602954715136
+      },
+      "log_sha256": "6651cd8445adf89ffb7ec83dd3a8ca3980809cc9fce8a02d7b325218eb9f6cda",
+      "coordination": [
+        {
+          "event": "claimed",
+          "job": "cas157-entry-red-CADD206C-3DD1-495A-B09A-B8538F221DBA",
+          "holder": "Codex git-warp recovery",
+          "note": "Behavioral RED for numeric tree name hiding a reservation",
+          "claimed": 1793620235,
+          "expires": 1793622035,
+          "paths": [
+            "host/docker/git-cas-tests/"
+          ],
+          "record": "7f2f7c63a29577378ad13fc40de1ab7a486553b2",
+          "acquisition": "1793620235-71265-1267421683"
+        },
+        {
+          "event": "released",
+          "job": "cas157-entry-red-CADD206C-3DD1-495A-B09A-B8538F221DBA",
+          "paths": 1
+        }
+      ]
+    },
+    {
+      "phase": "index-native-green-02",
+      "source_base": "24ad750587ade2a6931ed596e42cb67892b34764",
+      "source_manifest_sha256": "6a368008b7ad79f8a792077963a5afb1700556e12859f7abe102fdec88ea01c0",
+      "result": {
+        "exit": 1,
+        "duration_seconds": 5.402859665919095,
+        "log_bytes": 3129,
+        "tmpfs_usage_kib": "118444\t/data\n0\t/tmp\n4\t<CONTAINER_HOME>\n0\t/dev/shm\n",
+        "host_free": 602953134080
+      },
+      "log_sha256": "d539b45f19befd8632471cf23e518bf755630c5a057752fd24a39987fb0de1ad",
+      "coordination": [
+        {
+          "event": "claimed",
+          "job": "cas157-index-green2-9C1264D5-DC61-45AD-8F23-A77BA27089AB",
+          "holder": "Codex git-warp recovery",
+          "note": "Verify numeric-name refusal and native reservation index",
+          "claimed": 1793620304,
+          "expires": 1793622104,
+          "paths": [
+            "host/docker/git-cas-tests/"
+          ],
+          "record": "513aa3982b73626c7f3c5368bda2f612aa55a01d",
+          "acquisition": "1793620304-71767-0686924573"
+        },
+        {
+          "event": "released",
+          "job": "cas157-index-green2-9C1264D5-DC61-45AD-8F23-A77BA27089AB",
+          "paths": 1
+        }
+      ]
+    },
+    {
+      "phase": "index-native-green-03",
+      "source_base": "24ad750587ade2a6931ed596e42cb67892b34764",
+      "source_manifest_sha256": "7cd7854b92557f99543b0d731eb8ebfd16495febc9225370956a6be8cdd51656",
+      "result": {
+        "exit": 0,
+        "duration_seconds": 24.410664041992277,
+        "log_bytes": 23118,
+        "tmpfs_usage_kib": "118488\t/data\n0\t/tmp\n820\t<CONTAINER_HOME>\n0\t/dev/shm\n",
+        "host_free": 602951745536
+      },
+      "log_sha256": "9449395802e460a15854917c067ad12dd57297d2bf42bc2f1d9e293c53d38a84",
+      "coordination": [
+        {
+          "event": "claimed",
+          "job": "cas157-index-green3-A60FE193-D919-4C20-A562-C7BEF7B52988",
+          "holder": "Codex git-warp recovery",
+          "note": "Final bounded index validation after runtime-name refusal fix",
+          "claimed": 1793620419,
+          "expires": 1793622219,
+          "paths": [
+            "host/docker/git-cas-tests/"
+          ],
+          "record": "659812fb7f78054ee5a504f8172864cf680e2dce",
+          "acquisition": "1793620419-72474-2976005549"
+        },
+        {
+          "event": "released",
+          "job": "cas157-index-green3-A60FE193-D919-4C20-A562-C7BEF7B52988",
+          "paths": 1
+        }
+      ]
+    }
+  ],
+  "final": {
+    "focused_pass": 84,
+    "native_pass": 2,
+    "native_formats": [
+      "sha1",
+      "sha256"
+    ],
+    "native_records_per_format": 17,
+    "unit_pass": 2307,
+    "unit_skip": 3,
+    "lint": "pass"
+  },
+  "red_scope": {
+    "index-red-01": "Missing modules; zero executed tests.",
+    "index-entry-red-01": "Executed regression: numeric tree-entry name incorrectly returned null instead of rejecting corrupt storage."
+  },
+  "resources": {
+    "worker": "git-cas-tests",
+    "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+    "cpu": 4,
+    "memory_bytes": 8589934592,
+    "data_limit_bytes": 3271557120,
+    "host_log_limit_bytes": 8388608,
+    "aggregate_log_limit_bytes": 134217728,
+    "host_evidence_bytes": 15237331,
+    "host_free": 602944655360,
+    "vm_free": 573243187200,
+    "deadline_seconds": 900,
+    "lock": "host/docker/git-cas-tests/",
+    "guard": "readonly root plus bounded tmpfs; host log cap, space and timeout monitor stop whole worker"
+  },
+  "ssjs": {
+    "runtime_concepts": "Validated frozen key, record and node; typed CAS errors.",
+    "boundaries": "JSON remains in codec; byte/type/shape checks precede claims.",
+    "ownership": "Index owns bounded path copying; ledger capacity and public results still pending.",
+    "no_message_branching": true,
+    "no_ambient_domain_time_or_entropy": true,
+    "no_fake_shape_trust": "Port identity checked; injected numeric tree name rejected by a behavioral regression."
+  }
+}

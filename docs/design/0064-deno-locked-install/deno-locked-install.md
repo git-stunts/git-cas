@@ -240,5 +240,6 @@ No new release, registry consumer result or complete reservation acceptance.
 
 ## Retrospective
 
-Write after merge under the METHOD retrospective path; preserve actual failures
-and repairs in the witness rather than rewriting them as an all-green run.
+[Post-merge retrospective](../../method/retro/0064-deno-locked-install/deno-locked-install.md)
+records PR #160, the drift check and evidence corrections. The merge is not a
+registry release; historical failed and successful phases remain distinct.
