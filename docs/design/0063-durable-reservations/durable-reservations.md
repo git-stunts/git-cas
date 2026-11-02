@@ -406,6 +406,15 @@ tests exercise private services, not the public facade or prepared/settled
 custody. Namespace initialization without a first admission, lifecycle
 publication, evidence pins and operator pagination remain ahead.
 
+The [ordered custody checkpoint](witness/ordered-custody.md) subsequently
+implements private preparation, fresh arming, settlement, cancellation and
+point inspection. Actual page/support/history edges are pinned and verified;
+cancelled tombstones permit only checked pin cleanup. Native two-process races,
+maximum root counts and before/after ref fault cases pass in both formats.
+Public namespace open, operator pagination/reconciliation, facade/declarations
+and installed-package acceptance remain ahead. Private evidence is not promoted
+to a released public capability.
+
 ## Risks
 
 An armed charge can remain unresolved forever; that is deliberate when no safe

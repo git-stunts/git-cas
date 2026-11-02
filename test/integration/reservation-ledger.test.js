@@ -14,6 +14,7 @@ import ReservationRecordCodec from '../../src/infrastructure/codecs/ReservationR
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 import { getTestCryptoAdapter } from '../helpers/crypto-adapter.js';
 import { runReservationProcesses } from '../helpers/reservation-ledger-processes.js';
+import { createReservationCustody } from '../helpers/reservation-custody.js';
 
 if (process.env.GIT_STUNTS_DOCKER !== '1') {
   throw new Error('Reservation ledger integration must run in Docker');
@@ -46,10 +47,12 @@ async function open(repo) {
   const persistence = new GitPersistenceAdapter({ plumbing });
   const refs = new GitRefAdapter({ plumbing });
   adapters.push(refs, persistence);
-  const index = new ReservationIndex({ persistence, crypto: await getTestCryptoAdapter(), codec: new ReservationRecordCodec() });
+  const crypto = await getTestCryptoAdapter();
+  const index = new ReservationIndex({ persistence, crypto, codec: new ReservationRecordCodec() });
   const store = new ReservationLedgerStore({ persistence, refs, codec: new ReservationLedgerCodec() });
   const policy = new ReservationPolicy({ namespace: NAMESPACE, capacity: { unit: 'record-slot', limit: 1 } });
-  return { store, refs, ledger: new ReservationLedger({ policy, index, store }) };
+  const { custody } = createReservationCustody({ namespace: NAMESPACE, persistence, refs, crypto });
+  return { store, refs, ledger: new ReservationLedger({ policy, index, store, custody }) };
 }
 
 async function closeAdapters() {
@@ -96,7 +99,7 @@ describe.each(['sha1', 'sha256'])('native %s ledger contention and restart', (fo
 describe.each(['sha1', 'sha256'])('native %s ledger uncertain acknowledgement', (format) => {
   it('recovers an installed mutation after response loss and a later process restart', async () => {
     const repo = repository(format);
-    const first = await runReservationProcesses(repo, ['same'], 'lost-ack');
+    const first = await runReservationProcesses(repo, ['same'], { fault: 'lost-ack' });
     expect(first.results[0]).toMatchObject({ status: 'recovered', key: 'same', phase: 'reserved' });
     git(repo, ['gc', '--prune=now']);
     const restarted = await runReservationProcesses(repo, ['same']);

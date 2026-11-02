@@ -152,14 +152,14 @@ describe('ReservationLedger terminal identity', () => {
     expect((await open().reserve({ key: 'new', binding: BINDING })).status).toBe('admitted');
   });
 
-  it('recovers an armed record without a fresh execution permission', async () => {
+  it('does not recover an armed claim without its required custody', async () => {
     const { open, store, index } = fixture();
     await open().reserve(ATTEMPT);
     const before = await store.read('test/admission');
     const armed = new ReservationRecord({ ...ATTEMPT, phase: 'reserved' }).prepare('b'.repeat(40)).arm();
     await store.write({ before, header: before.header, indexRoot: await index.put(before.indexRoot, armed) });
     const result = await open().reserve(ATTEMPT);
-    expect(result.status).toBe('recovered');
-    expect(result.record.phase).toBe('armed');
+    expect(result.status).toBe('indeterminate');
+    expect(result.cause.code).toBe('RESERVATION_CORRUPT');
   });
 });

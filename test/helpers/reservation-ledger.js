@@ -9,6 +9,7 @@ import { CasError, ErrorCodes } from '../../src/domain/errors/index.js';
 import CryptoPort from '../../src/ports/CryptoPort.js';
 import MemoryPersistenceAdapter from './MemoryPersistenceAdapter.js';
 import MemoryRefAdapter from './MemoryRefAdapter.js';
+import { createReservationCustody } from './reservation-custody.js';
 
 class RouteCrypto extends CryptoPort {
   async sha256(bytes) {
@@ -64,11 +65,13 @@ export function reservationLedgerFixture() {
   const commits = new Map();
   const persistence = new LedgerPersistence(commits);
   const refs = new CheckedRefs(commits);
-  const index = new ReservationIndex({ persistence, crypto: new RouteCrypto(), codec: new ReservationRecordCodec() });
+  const crypto = new RouteCrypto();
+  const index = new ReservationIndex({ persistence, crypto, codec: new ReservationRecordCodec() });
   const store = new ReservationLedgerStore({ persistence, refs, codec: new ReservationLedgerCodec() });
+  const { custody, objects } = createReservationCustody({ namespace: 'test/admission', persistence, refs, crypto });
   const open = (limit = 1) => new ReservationLedger({
     policy: new ReservationPolicy({ namespace: 'test/admission', capacity: { unit: 'record-slot', limit } }),
-    index, store,
+    index, store, custody,
   });
-  return { persistence, refs, index, store, open };
+  return { persistence, refs, index, store, custody, objects, open };
 }

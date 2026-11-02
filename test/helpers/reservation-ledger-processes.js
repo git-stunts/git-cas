@@ -6,8 +6,9 @@ const PROCESS_TIMEOUT_MS = 30_000;
 const STDERR_LIMIT = 64 * 1024;
 
 /** Forces independent processes to finish their first read before either CAS. */
-export async function runReservationProcesses(repo, keys, fault = 'none') {
-  const workers = keys.map((key) => launch({ repo, key, fault }));
+export async function runReservationProcesses(repo, keys, options = {}) {
+  const workers = keys.map((key, i) => launch({ repo, key,
+    fault: options.fault ?? 'none', operation: options.operations?.[i] ?? 'reserve' }));
   try {
     const observed = await Promise.all(workers.map((worker) => worker.observed));
     for (const worker of workers) {
@@ -23,8 +24,8 @@ export async function runReservationProcesses(repo, keys, fault = 'none') {
   }
 }
 
-function launch({ repo, key, fault }) {
-  const child = fork(WORKER, [repo, key, fault], { detached: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+function launch({ repo, key, fault, operation }) {
+  const child = fork(WORKER, [repo, key, fault, operation], { detached: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
   const stop = () => terminate(child);
   const timer = setTimeout(stop, PROCESS_TIMEOUT_MS);
   let observedResolve;

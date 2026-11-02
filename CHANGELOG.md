@@ -22,8 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unless the same attempt is observed installed. Add exact direct/symbolic ref
   inspection to the ref port and native adapter. Separate native processes
   verify capacity-one contention, exact retries, lost acknowledgements and
-  reopen/GC in both object formats. Custody, bounded operator inspection and
-  the public reservation facade remain unimplemented.
+  reopen/GC in both object formats.
+- Add private ordered evidence custody and lifecycle publication. Preparation
+  pins actual page/support/history edges before its ledger acknowledgement;
+  settlement retains preparation as a commit parent. Only a freshly
+  acknowledged armed transition permits an external effect. Cancellation
+  first publishes its terminal tombstone and refund, then deletes its exact
+  pin; failed cleanup leaves retryable residue. Recovery verifies required
+  custody rather than trusting an armed record alone. Native races, GC and
+  before/after faults at every durable ref boundary cover both object formats.
+  Public namespace open, bounded operator listing/reconciliation and the
+  reservation facade remain unimplemented.
 
 ## [7.0.0] — 2026-11-01
 

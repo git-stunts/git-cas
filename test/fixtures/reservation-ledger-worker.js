@@ -9,6 +9,9 @@ import ReservationRecordCodec from '../../src/infrastructure/codecs/ReservationR
 import { CasError, ErrorCodes } from '../../src/domain/errors/index.js';
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 import { getTestCryptoAdapter } from '../helpers/crypto-adapter.js';
+import { createReservationCustody } from '../helpers/reservation-custody.js';
+import ReservationEvidence from '../../src/domain/value-objects/ReservationEvidence.js';
+import { utf8Encode } from '../../src/domain/encoding/utf8.js';
 
 if (process.env.GIT_STUNTS_DOCKER !== '1' || !process.send) {
   throw new Error('Reservation ledger worker requires Docker and a parent IPC harness');
@@ -42,15 +45,23 @@ class LostAcknowledgementRefs extends GitRefAdapter {
 }
 
 async function run() {
-  const [repo, key, fault] = process.argv.slice(2);
+  const [repo, key, fault, operation] = process.argv.slice(2);
+  if (!['reserve', 'arm', 'cancel', 'settle'].includes(operation)) {
+    throw new Error('Unsupported reservation worker operation');
+  }
   const plumbing = await createGitPlumbing({ cwd: repo });
   const persistence = new GitPersistenceAdapter({ plumbing });
   const refs = fault === 'lost-ack' ? new LostAcknowledgementRefs({ plumbing }) : new GitRefAdapter({ plumbing });
   try {
     const store = new BarrierStore({ persistence, refs, codec: new ReservationLedgerCodec() });
-    const index = new ReservationIndex({ persistence, crypto: await getTestCryptoAdapter(), codec: new ReservationRecordCodec() });
+    const crypto = await getTestCryptoAdapter();
+    const index = new ReservationIndex({ persistence, crypto, codec: new ReservationRecordCodec() });
     const policy = new ReservationPolicy({ namespace: 'test/admission', capacity: { unit: 'record-slot', limit: 1 } });
-    const result = await new ReservationLedger({ policy, index, store }).reserve({ key, binding: 'a'.repeat(64) });
+    const { custody } = createReservationCustody({ namespace: policy.namespace, persistence, refs, crypto });
+    const ledger = new ReservationLedger({ policy, index, store, custody });
+    const identity = { key, binding: 'a'.repeat(64) };
+    const input = operation === 'settle' ? { ...identity, evidence: new ReservationEvidence({ record: utf8Encode('native-final') }) } : identity;
+    const result = await ledger[operation](input);
     process.send({ event: 'result', status: result.status, reason: result.reason,
       revision: result.revision, phase: result.record?.phase, key: result.record?.key ?? result.key });
   } finally {
