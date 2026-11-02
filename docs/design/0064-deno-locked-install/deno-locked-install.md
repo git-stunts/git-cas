@@ -58,8 +58,12 @@ pass with dependencies selected by `pnpm-lock.yaml`.
 
 ## Current Truth
 
-The Deno stage in `Dockerfile` copies only `package.json`, attempts an ignored
-`deno install --allow-scripts`, copies source, then repeats that unlocked install.
+The repaired Deno stage in `Dockerfile` installs `pnpm@10`, copies `package.json`
+and `pnpm-lock.yaml`, and runs `pnpm install --frozen-lockfile` before copying
+source. Deno runs the installed graph with explicit manual node_modules mode.
+
+The baseline stage copied only `package.json`, attempted an ignored
+`deno install --allow-scripts`, copied source, then repeated that unlocked install.
 The [CI job at 13:50 UTC](https://github.com/git-stunts/git-cas/actions/runs/41456162064/job/125314087172)
 failed before tests because `@cbor-extract/cbor-extract-win32-x64@2.2.3` was absent.
 The committed pnpm graph selects `cbor-extract@2.2.0`. Node already installs that
@@ -75,9 +79,9 @@ missing after publication.
 
 ## Problem
 
-The Deno build resolves a different dependency graph on every fresh install and
-can fail before evaluating any CAS code. Its first ignored install also conceals
-an error that the second command then repeats.
+The baseline Deno build could resolve a different dependency graph on a fresh
+install and fail before evaluating any CAS code. Its first ignored install also
+concealed an error that the second command then repeated.
 
 ## Scope
 
