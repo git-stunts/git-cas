@@ -446,6 +446,12 @@ High contention needs a finite retry budget. Caller binding mistakes are not
 detectable application-semantic errors. Arbitrary raw-ref tampering is outside
 the guarantee. Never hide any of these behind a success receipt.
 
+The [public recovery checkpoint](witness/public-recovery.md) adds 32 native
+public write-fault cases and 22 independent-process cases across both formats,
+including process-group death around arming. Node and Deno run the new cases;
+complete native cost/residency, supported-runtime, review and release gates
+remain open.
+
 ## Follow-On Debt
 
 The [public surface checkpoint](witness/public-surface.md) now records durable

@@ -2,18 +2,25 @@ import { fork } from 'node:child_process';
 import { fileURLToPath, URL } from 'node:url';
 
 const WORKER = fileURLToPath(new URL('../fixtures/reservation-ledger-worker.js', import.meta.url));
+const PUBLIC_WORKER = fileURLToPath(new URL('../fixtures/reservation-public-worker.js', import.meta.url));
 const PROCESS_TIMEOUT_MS = 30_000;
 const STDERR_LIMIT = 64 * 1024;
 
 /** Forces independent processes to finish their first read before either CAS. */
 export async function runReservationProcesses(repo, keys, options = {}) {
-  const workers = keys.map((key, i) => launch({ repo, key,
+  return await runProcesses({ fixture: WORKER, repo, keys }, options);
+}
+
+export async function runPublicReservationProcesses(repo, keys, options = {}) {
+  return await runProcesses({ fixture: PUBLIC_WORKER, repo, keys }, options);
+}
+
+async function runProcesses({ fixture, repo, keys }, options) {
+  const workers = keys.map((key, i) => launch({ fixture, repo, key,
     fault: options.fault ?? 'none', operation: options.operations?.[i] ?? 'reserve' }));
   try {
     const observed = await Promise.all(workers.map((worker) => worker.observed));
-    for (const worker of workers) {
-      worker.child.send({ event: 'publish' });
-    }
+    await releaseWorkers(workers, options);
     const results = await Promise.all(workers.map((worker) => worker.finished));
     return { observed, results };
   } finally {
@@ -24,8 +31,25 @@ export async function runReservationProcesses(repo, keys, options = {}) {
   }
 }
 
-function launch({ repo, key, fault, operation }) {
-  const child = fork(WORKER, [repo, key, fault, operation], { detached: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+async function releaseWorkers(workers, options) {
+  if (options.first !== undefined) {
+    const first = workers[options.first];
+    if (!first) {
+      throw new Error('First reservation worker index is outside the fixture');
+    }
+    first.child.send({ event: 'publish' });
+    await first.finished;
+    await options.afterFirst?.();
+  }
+  for (let i = 0; i < workers.length; i++) {
+    if (i !== options.first) {
+      workers[i].child.send({ event: 'publish' });
+    }
+  }
+}
+
+function launch({ fixture, repo, key, fault, operation }) {
+  const child = fork(fixture, [repo, key, fault, operation], { detached: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
   const stop = () => terminate(child);
   const timer = setTimeout(stop, PROCESS_TIMEOUT_MS);
   let observedResolve;
@@ -58,11 +82,15 @@ function collect(child, observed, stop) {
         result = message;
       } else if (message.event === 'error') {
         failure = new Error(message.message);
+      } else if (message.event === 'crash-boundary') {
+        result = { status: 'terminated', boundary: message.boundary };
+        stop();
       }
     });
     child.once('error', (error) => { failure = error; stop(); });
-    child.once('close', (code) => {
-      if (code !== 0 || !result || failure) {
+    child.once('close', (code, signal) => {
+      const expectedTermination = result?.status === 'terminated' && signal === 'SIGKILL';
+      if ((!expectedTermination && code !== 0) || !result || failure) {
         const error = failure ?? new Error(`Reservation worker exited ${code}: ${stderr}`);
         observed.reject(error);
         reject(error);

@@ -1,0 +1,79 @@
+{
+  "kind": "reservation-public-recovery-checkpoint",
+  "phase": "public-recovery-01",
+  "copied_snapshot": {
+    "algorithm": "SHA-256 of UTF-8 lines sorted by repository-relative path: lowercase file SHA-256, two spaces, path, LF; regular-file content only, not modes",
+    "sha256": "a8511c18f6e67415b88c6f9fec2378eb43b3ef3686075fa1951aa1a0b9aee3ab",
+    "file_count": 1035,
+    "base_commit": "5427d774899d10c010565300ba88fd1b09248090",
+    "base_tree": "d2ae3707afcabf4a6d377b4b21824c3b72b9e89d",
+    "reconstruction": "Start with SHA-256 of every regular file in git archive base_commit; remove removed_files and overlay changed_or_added_files. Verified equal to the complete original raw receipt source_hashes.",
+    "changed_or_added_files": {
+      "test/fixtures/reservation-public-worker.js": "a50bc8b9e14aabdafcffdb646e89c1dbc61752179c9fb7dce2c1ec74351b368f",
+      "test/helpers/NativeReservationPublicFault.js": "31a92c1a7bf01df6eb18c93eeba548a8c7291334480123bf6ce1f6fc01a5b516",
+      "test/helpers/reservation-ledger-processes.js": "b1f1e3580c08be33f4268572530683cdb27dea32f928c9ce6533a596eb656536",
+      "test/integration/reservation-public-faults.test.js": "67458ae1fe6b0f61f5f525f8fc97a865fe7c5ee41e310c4501d19a8d1353f241",
+      "test/integration/reservation-public-processes.test.js": "0231dcfc1738b0e1e730caf795c46898be3682bdad1f085a5254915920a2ae36"
+    },
+    "removed_files": []
+  },
+  "raw_receipt_sha256": "6830c0a4cc150b6fc8ac912771f2e0fe82fa4af9baa42c10cb26f23bf468d075",
+  "raw_log_sha256": "16ab492e04300eb760ce10063669c93e5338182ec791a9ddf8d1092c32830ae1",
+  "command_script_sha256": "46b1f7623cb3ea37b344e4a521ca9df1f1faed9680ac4b124dad5ed037f0bbbf",
+  "result": {
+    "exit": 0,
+    "duration_seconds": 63.983709833999995,
+    "log_bytes": 30402,
+    "tmpfs_usage_kib": "121896\t/data\n0\t/tmp\n840\t/home/gitstunts\n0\t/dev/shm\n",
+    "host_free": 601856499712
+  },
+  "checks": {
+    "node_reservation_integration": {
+      "files": 7,
+      "passed": 118
+    },
+    "node_unit": {
+      "passed": 2406,
+      "skipped": 3
+    },
+    "deno_public_fault_and_process": {
+      "files": 2,
+      "passed": 54
+    },
+    "lint": "passed"
+  },
+  "fault_matrix": {
+    "formats": [
+      "sha1",
+      "sha256"
+    ],
+    "durable_boundaries": 8,
+    "sides": [
+      "before",
+      "after"
+    ],
+    "cases": 32
+  },
+  "public_process_cases": 22,
+  "worker": "git-cas-tests",
+  "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+  "host_free_before": 601829269504,
+  "vm_free_before": 572169474048,
+  "limits": {
+    "data_limit_bytes": 3271557120,
+    "host_log_limit_bytes": 8388608,
+    "aggregate_log_limit_bytes": 134217728,
+    "deadline_seconds": 900,
+    "cpu": 4,
+    "memory_bytes": 8589934592,
+    "lock": "host/docker/git-cas-tests/",
+    "guard": "readonly root plus bounded tmpfs; host log cap, space and timeout monitor stop whole worker"
+  },
+  "limitations": [
+    "Exception injection is distinct from process-group SIGKILL",
+    "No physical power-loss guarantee",
+    "Runtime usage is a final measurement, not peak residency",
+    "Public source API checked; this phase does not prove a published registry consumer",
+    "Full acceptance, native cost/residency, review and release remain open"
+  ]
+}
