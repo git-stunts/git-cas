@@ -58,12 +58,11 @@ and [release notes](./docs/releases/v7.0.0.md). This release requires
 published Plumbing 3.3.3. [Release and registry evidence](https://github.com/git-stunts/git-cas/issues/154)
 records its publication.
 
-The v7.1.0 release candidate adds [durable reservations](./docs/API.md#durable-reservations):
+Published v7.1.0 adds [durable reservations](./docs/API.md#durable-reservations):
 hard record-slot admission before an application effect, pinned evidence and
-bounded recovery/inspection. It is not in the published v7.0.0 package.
-The implementation is merged; [release notes](./docs/releases/v7.1.0.md) describe
-the contract and [#162](https://github.com/git-stunts/git-cas/issues/162)
-tracks publication and fresh registry-consumer verification.
+bounded recovery/inspection. See the [release notes](./docs/releases/v7.1.0.md)
+and [publication and fresh registry-consumer evidence](https://github.com/git-stunts/git-cas/issues/162).
+The signed tag, npm gitHead and successful release workflow agree on `18f87dd`.
 
 The published v6.5.12 release bounds object-metadata requests so root sets with more than 1000 targets (936 for SHA-256) validate within Plumbing's cat-file request limits. Admission still rejects missing and mismatched targets before publication; see [v6.5.12 Release Notes](./docs/releases/v6.5.12.md).
 

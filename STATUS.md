@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v7.0.0` (`2026-11-01`)
-**Current release state:** `v7.0.0` is published; `v7.1.0` is a release candidate.
-**Verification:** [#154](https://github.com/git-stunts/git-cas/issues/154) retains v7.0.0 publication evidence. Reservations merged at `4782052` with all five hosted validation jobs passing at the PR head and an explicit maintainer review-gate override. [#162](https://github.com/git-stunts/git-cas/issues/162) owns v7.1.0 release verification and publication; no v7.1.0 artifact is claimed yet.
+**Last tagged release:** `v7.1.0` (`2026-11-02`)
+**Current release state:** `v7.1.0` is published to npm and GitHub Releases.
+**Verification:** Signed tag `v7.1.0`, npm gitHead and release workflow `41483019826` agree on `18f87dd`. All 14 release steps passed on merged main across isolated runtime phases: 8,265 passing test observations and 18 existing skips. A fresh registry consumer passed the reservation lifecycle/refusal/reopen/GC checks in both Git formats; [#162](https://github.com/git-stunts/git-cas/issues/162) retains artifact identities, evidence and the explicit maintainer review-gate override.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)

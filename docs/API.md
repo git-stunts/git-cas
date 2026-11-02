@@ -3649,9 +3649,9 @@ Different error codes include different metadata:
 
 ## Durable Reservations
 
-This API is part of the merged v7.1.0 release candidate. It is absent from
-published v7.0.0. [Issue #162](https://github.com/git-stunts/git-cas/issues/162)
-tracks publication and fresh registry-consumer verification.
+This API is available in published v7.1.0 and is absent from v7.0.0.
+[Issue #162](https://github.com/git-stunts/git-cas/issues/162) retains publication
+and fresh registry-consumer verification.
 
 `cas.reservations.open({ namespace, capacity: { unit: 'record-slot', limit } })`
 installs or verifies an immutable namespace policy, including an empty ledger

@@ -9,8 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [7.1.0] — 2026-11-02
 
-Release candidate: publication is tracked in [#162](https://github.com/git-stunts/git-cas/issues/162).
-
 ### Added
 
 - Add the `cas.reservations.open()` capability with durable record-slot

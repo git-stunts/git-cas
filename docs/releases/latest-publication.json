@@ -1,14 +1,43 @@
 {
   "schemaVersion": 1,
   "package": "@git-stunts/git-cas",
-  "version": "7.0.0",
-  "tag": "v7.0.0",
-  "sourceCommit": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
-  "githubRelease": "https://github.com/git-stunts/git-cas/releases/tag/v7.0.0",
-  "publishedAt": "2026-11-01T23:22:30Z",
-  "registry": "https://registry.npmjs.org/@git-stunts%2fgit-cas/7.0.0",
-  "distIntegrity": "sha512-BnuKezsHgEY59WIGLWh5viQ0XZ4MPQM0OhAr6KpgvHV8g0qSxPsC12XLKE4gW/oq1dT0GJyBPzgOUd/faLQPDA==",
-  "distShasum": "0835d7c8e9649d36f1095ccc0956e78508a8c1a3",
-  "verifiedAt": "2026-11-02T16:17:14.089865+00:00",
-  "scope": "Registry metadata, local tag target and GitHub Release identity agree; prior consumer and release gate evidence is retained in issue #154."
+  "version": "7.1.0",
+  "tag": "v7.1.0",
+  "sourceCommit": "18f87ddb08857209d9e2e6ff30337515c0eaee4d",
+  "githubRelease": "https://github.com/git-stunts/git-cas/releases/tag/v7.1.0",
+  "publishedAt": "2026-11-02T16:46:01Z",
+  "registry": "https://registry.npmjs.org/@git-stunts%2fgit-cas/7.1.0",
+  "distIntegrity": "sha512-k2TG1n09Fy1KWdSnb5hqo6ZeLygasAnHhgVecvohnLnNInLsot7bAwfPkREG0WdQpujeRe+nPQroCJOnt69JdQ==",
+  "distShasum": "2d6f1d235c045b83e0666f94713626764fa3da4e",
+  "verifiedAt": "2026-11-02T16:50:13.155985+00:00",
+  "workflow": {
+    "conclusion": "success",
+    "databaseId": 41483019826,
+    "headSha": "18f87ddb08857209d9e2e6ff30337515c0eaee4d",
+    "status": "completed",
+    "url": "https://github.com/git-stunts/git-cas/actions/runs/41483019826"
+  },
+  "consumer": {
+    "objectFormats": [
+      "sha1",
+      "sha256"
+    ],
+    "checks": [
+      "reserve",
+      "prepare",
+      "fresh arm",
+      "reconcile",
+      "arm replay refusal",
+      "settle",
+      "close",
+      "real git gc prune now",
+      "reopen",
+      "original evidence",
+      "final evidence",
+      "capacity refusal",
+      "charged count"
+    ],
+    "result": "passed"
+  },
+  "scope": "Signed tag, registry metadata, downloaded artifact, isolated installed consumer and GitHub Release verified; original observations retained in issue #162."
 }
