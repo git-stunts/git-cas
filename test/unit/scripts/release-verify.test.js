@@ -216,6 +216,16 @@ describe('release verify step definitions', () => {
 });
 
 describe('release verify execution', () => {
+  it('passes explicit local dependency mode to the Deno release runner', async () => {
+    const runner = makeSuccessRunner();
+    await runReleaseVerify({ runner, logger: QUIET_LOGGER });
+    const deno = runner.mock.calls.map(([step]) => step).find((step) => step.id === 'unit-deno');
+    expect(deno.command).toBe('docker');
+    expect(deno.args.slice(deno.args.indexOf('deno'))).toEqual([
+      'deno', 'run', '--node-modules-dir=manual', '-A', 'npm:vitest', 'run', 'test/unit',
+    ]);
+  });
+
   it('runs the release steps in order and aggregates test counts', async () => {
     const runner = makeSuccessRunner();
 

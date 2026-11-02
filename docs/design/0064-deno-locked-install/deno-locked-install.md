@@ -95,6 +95,8 @@ No change to pnpm's optional-dependency policy or mandatory native acceleration.
 `pnpm-lock.yaml` owns installed versions and integrity for Node and Deno CI.
 `pnpm install --frozen-lockfile` must fail on manifest/lock drift. Deno executes
 the installed `npm:vitest` and package code using manual node_modules mode.
+CI, the release runner, the release workflow and operator commands specify that
+mode explicitly.
 Source and lock changes are reviewed together through normal pull requests.
 
 ## Architecture / Anti-SLUDGE Posture
@@ -204,7 +206,9 @@ Raw local logs remain separate from a portable committed summary and hashes.
 
 [Executed witness](witness/install.md) and [machine receipt](witness/install.json)
 record the successful local rehearsal, the historical install failure and the
-separate graph-drift regression. Hosted Dockerfile validation remains a PR gate.
+separate graph-drift regression. Hosted Dockerfile validation remains a PR gate. The
+[release-path follow-up](witness/release-paths.md) records the missing explicit
+mode in release commands, its regression assertion and corrected runtime checks.
 
 ## Risks
 
