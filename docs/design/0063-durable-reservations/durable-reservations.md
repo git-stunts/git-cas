@@ -456,6 +456,13 @@ The [public corruption checkpoint](witness/public-corruption.md) adds 14
 selected malformed-ledger and missing/symbolic/malformed-custody cases through
 the public facade, passing under Node and Deno without changing production code.
 
+The [native cost and residency checkpoint](witness/native-cost.md) records 60
+public-facade measurements at 1, 17 and 129 settled records in both Git formats.
+Native starts agree with Git tracing; fresh Node process high-water RSS is
+measured separately from whole-phase cgroup memory and end disk usage. This
+finite Node corpus does not replace supported-runtime, package, review or
+release gates.
+
 ## Follow-On Debt
 
 The [public surface checkpoint](witness/public-surface.md) now records durable
