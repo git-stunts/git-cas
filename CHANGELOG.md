@@ -15,8 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add the private reservation point index and canonical record codec. Lookups
   and updates follow one bounded 64-digit path; corrupt tree names cannot
   masquerade as absent attempts. Native SHA-1/SHA-256 fixtures verify tree
-  persistence through reopen and GC under explicit harness roots. Capacity
-  accounting, custody operations and the public facade remain unimplemented.
+  persistence through reopen and GC under explicit harness roots.
+- Add private durable record-slot admission: immutable namespace policy and
+  charged count publish with the attempt index through one checked parentless
+  ledger ref. Exact retries recover at capacity; response loss stays uncertain
+  unless the same attempt is observed installed. Add exact direct/symbolic ref
+  inspection to the ref port and native adapter. Separate native processes
+  verify capacity-one contention, exact retries, lost acknowledgements and
+  reopen/GC in both object formats. Custody, bounded operator inspection and
+  the public reservation facade remain unimplemented.
 
 ## [7.0.0] — 2026-11-01
 

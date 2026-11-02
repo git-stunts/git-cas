@@ -543,6 +543,8 @@ export declare class GitPersistencePortBase {
 
 /** Abstract port for Git ref and commit operations. */
 export declare class GitRefPortBase {
+  /** Exact direct/symbolic posture; a dangling symbolic ref is not absent. */
+  inspectRef?(ref: string): Promise<{ oid: string | null; symref: string | null }>;
   resolveRef(ref: string): Promise<string>;
   resolveTree(commitOid: string): Promise<string>;
   resolveParents(commitOid: string): Promise<string[]>;
@@ -600,6 +602,7 @@ export declare class GitPersistenceAdapter extends GitPersistencePortBase {
 /** Git-backed implementation of the ref port. */
 export declare class GitRefAdapter extends GitRefPortBase {
   constructor(options: { plumbing: unknown; policy?: unknown });
+  inspectRef(ref: string): Promise<{ oid: string | null; symref: string | null }>;
   anchorRef(options: {
     sourceRef: string;
     expectedSourceOid: string;

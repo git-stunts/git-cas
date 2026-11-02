@@ -398,6 +398,14 @@ in both Git object formats. The test harness supplies its roots; it does not
 establish the reservation ledger, admission, custody or a public API. Bounded
 operator pagination remains work to implement.
 
+The [private admission checkpoint](witness/ledger-admission.md) subsequently
+implements the policy/header, atomic record-and-count publication and exact-key
+recovery. Independent native processes race at capacity one in both object
+formats; response-loss, symbolic-ref, restart and ledger GC cases pass. These
+tests exercise private services, not the public facade or prepared/settled
+custody. Namespace initialization without a first admission, lifecycle
+publication, evidence pins and operator pagination remain ahead.
+
 ## Risks
 
 An armed charge can remain unresolved forever; that is deliberate when no safe
