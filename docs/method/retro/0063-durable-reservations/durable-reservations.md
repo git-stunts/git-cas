@@ -10,11 +10,11 @@ The useful proof crossed the public boundary: separate processes, actual process
 
 The fixed-depth index bounded history-dependent lookup work, but native process and memory measurements still mattered. The 60-sample diagnostic found 9–33 native Git starts across its ten measured operations. Fresh Node worker peak RSS was 73.47–77.07 MiB, excluding Git children; whole-phase cgroup memory was reported separately. Those are finite observations, not maximum-page or arbitrary-history guarantees.
 
-## Drift and remaining work
+## Historical checkpoint — before v7.1.0 publication
 
-README, API, architecture and status now distinguish merged implementation from published v7.0.0 and the v7.1.0 candidate. The older status header still named v6.5.11 and has been corrected during release preparation. Historical witness bytes remain unchanged. The Deno installer repair is integrated; #161 owns the independent Bun installer follow-up.
+At release preparation, README, API, architecture and status distinguished merged implementation from published v7.0.0 and the v7.1.0 candidate. The older status header had still named v6.5.11 and was corrected during that preparation. Historical witness bytes were preserved. The Deno installer repair was integrated; #161 retained the independent Bun installer follow-up.
 
-The prior packed consumer did not retain the tarball hash. #162 therefore requires exact release artifact identities and a fresh registry consumer, in addition to full release checks. Publication and downstream WARP adoption remain unfinished. No stored format migration, byte-quota guarantee, automatic expiry or application-effect executor was added.
+The prior packed consumer had not retained the tarball hash. #162 therefore required exact release artifact identities and a fresh registry consumer, in addition to full release checks. Publication and downstream WARP adoption were unfinished at this checkpoint; the publication outcome is recorded below. No stored format migration, byte-quota guarantee, automatic expiry or application-effect executor was added.
 
 ## Publication closeout — 2026-11-02
 
