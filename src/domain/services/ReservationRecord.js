@@ -2,8 +2,8 @@ import CasError from '../errors/CasError.js';
 import { ErrorCodes } from '../errors/index.js';
 import Oid from '../value-objects/Oid.js';
 import ReservationRefusal from '../value-objects/ReservationRefusal.js';
+import ReservationKey from '../value-objects/ReservationKey.js';
 
-const KEY_PATTERN = /^[!-~]{1,128}$/u;
 const BINDING_PATTERN = /^[0-9a-f]{64}$/u;
 const PHASES = new Set(['reserved', 'prepared', 'armed', 'settled', 'cancelled']);
 
@@ -112,9 +112,7 @@ function assertRecordInput(value) {
 }
 
 function assertIdentity(key, binding) {
-  if (typeof key !== 'string' || !KEY_PATTERN.test(key)) {
-    throw invalid('Reservation key must be 1 to 128 printable ASCII bytes without spaces');
-  }
+  new ReservationKey(key);
   if (typeof binding !== 'string' || !BINDING_PATTERN.test(binding)) {
     throw invalid('Reservation binding must be a canonical SHA-256 digest');
   }

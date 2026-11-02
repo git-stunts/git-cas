@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Define the durable retention reservation protocol for #157. The private
   transition core and its tests are preparatory work; no public reservation
   capability or complete custody guarantee is advertised until integration.
+- Add the private reservation point index and canonical record codec. Lookups
+  and updates follow one bounded 64-digit path; corrupt tree names cannot
+  masquerade as absent attempts. Native SHA-1/SHA-256 fixtures verify tree
+  persistence through reopen and GC under explicit harness roots. Capacity
+  accounting, custody operations and the public facade remain unimplemented.
 
 ## [7.0.0] — 2026-11-01
 

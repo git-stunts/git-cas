@@ -1,5 +1,9 @@
 # Private reservation transition core
 
+This initial checkpoint was committed at `24ad750587ade2a6931ed596e42cb67892b34764`.
+See the later [point-index checkpoint](point-index.md) for subsequent code and
+native persistence evidence. The original hashes below remain historical.
+
 The [design](../durable-reservations.md) is being implemented under [#157](https://github.com/git-stunts/git-cas/issues/157). This checkpoint covers only immutable local attempt records and expected transition refusals. It is not evidence of a public reservation API or storage durability.
 
 The [receipt](transition-core.json) binds exact source hashes, four phase outcomes, original log hashes, coordinator acquisitions/releases and enforced resource limits. Final validation in the existing COPY-only worker passed 46 focused tests, repository lint and 2,269 unit tests (three existing skips; 236 files passed, one skipped). The skips are existing runtime-conditional KDF and blob-write cases, plus the Markdown link check that requires a Git checkout (the COPY-only worker excludes `.git`). No skips were added by this work.

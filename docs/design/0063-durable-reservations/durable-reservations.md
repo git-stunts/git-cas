@@ -392,6 +392,12 @@ The [private transition-core checkpoint](witness/README.md) records the first
 local lifecycle tests and their exact source hashes. It supplies no persistence,
 concurrency, restart or public API evidence.
 
+The subsequent [point-index checkpoint](witness/point-index.md) verifies bounded
+immutable lookup/update, canonical record parsing and native tree persistence
+in both Git object formats. The test harness supplies its roots; it does not
+establish the reservation ledger, admission, custody or a public API. Bounded
+operator pagination remains work to implement.
+
 ## Risks
 
 An armed charge can remain unresolved forever; that is deliberate when no safe
