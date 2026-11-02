@@ -11,6 +11,8 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Active METHOD Cycles
 
+- [0064-deno-locked-install - deno-locked-install](./0064-deno-locked-install/deno-locked-install.md)
+
 - [0062-mktree-transport-recovery - mktree-transport-recovery](./0062-mktree-transport-recovery/mktree-transport-recovery.md)
 
 - [0054-batched-page-retention - batched-page-retention](./0054-batched-page-retention/batched-page-retention.md)

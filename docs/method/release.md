@@ -14,8 +14,8 @@ All of the following must pass on the release candidate. Prefer
 3. `docker compose run --build --rm test-node npx vitest run test/integration`
 4. `docker compose run --build --rm test-bun bunx vitest run test/unit`
 5. `docker compose run --build --rm test-bun bunx vitest run test/integration`
-6. `docker compose run --build --rm test-deno deno run -A npm:vitest run test/unit`
-7. `docker compose run --build --rm test-deno deno run -A npm:vitest run test/integration`
+6. `docker compose run --build --rm test-deno deno run --node-modules-dir=manual -A npm:vitest run test/unit`
+7. `docker compose run --build --rm test-deno deno run --node-modules-dir=manual -A npm:vitest run test/integration`
 8. `npm pack --dry-run`
 9. `npx jsr publish --dry-run --allow-dirty`
 

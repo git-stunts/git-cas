@@ -50,13 +50,13 @@ CMD ["bunx", "vitest", "run", "test/unit"]
 FROM ubuntu-base AS deno
 COPY --from=deno-runtime /usr/bin/deno /usr/local/bin/deno
 COPY --from=node-runtime /usr/local/ /usr/local/
+RUN npm install -g pnpm@10
 WORKDIR /app
-COPY package.json ./
-RUN deno install --allow-scripts || true
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY . .
-RUN deno install --allow-scripts
 RUN chown -R gitstunts:gitstunts /app
 ENV GIT_STUNTS_DOCKER=1
 ENV HOME=/home/gitstunts
 USER gitstunts
-CMD ["deno", "run", "-A", "npm:vitest", "run", "test/unit"]
+CMD ["deno", "run", "--node-modules-dir=manual", "-A", "npm:vitest", "run", "test/unit"]
