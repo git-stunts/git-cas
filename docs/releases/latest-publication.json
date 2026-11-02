@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "package": "@git-stunts/git-cas",
+  "version": "7.0.0",
+  "tag": "v7.0.0",
+  "sourceCommit": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+  "githubRelease": "https://github.com/git-stunts/git-cas/releases/tag/v7.0.0",
+  "publishedAt": "2026-11-01T23:22:30Z",
+  "registry": "https://registry.npmjs.org/@git-stunts%2fgit-cas/7.0.0",
+  "distIntegrity": "sha512-BnuKezsHgEY59WIGLWh5viQ0XZ4MPQM0OhAr6KpgvHV8g0qSxPsC12XLKE4gW/oq1dT0GJyBPzgOUd/faLQPDA==",
+  "distShasum": "0835d7c8e9649d36f1095ccc0956e78508a8c1a3",
+  "verifiedAt": "2026-11-02T16:17:14.089865+00:00",
+  "scope": "Registry metadata, local tag target and GitHub Release identity agree; prior consumer and release gate evidence is retained in issue #154."
+}

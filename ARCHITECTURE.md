@@ -486,7 +486,7 @@ one immutable ledger with a bounded index-node budget, independent of admission.
 Its cursor is a position, not a pin: GC may make an older snapshot unavailable.
 Point inspection observes ledger and custody separately; it makes no multi-ref
 snapshot claim. See the [public contract](docs/API.md#durable-reservations)
-and [cycle0063 design](docs/design/0063-durable-reservations/durable-reservations.md).
+and [cycle0063 design](https://github.com/git-stunts/git-cas/blob/4782052214269c72acc95f63191e89897059bb56/docs/design/0063-durable-reservations/durable-reservations.md).
 The implementation is merged; [#162](https://github.com/git-stunts/git-cas/issues/162)
 tracks release publication separately.
 
