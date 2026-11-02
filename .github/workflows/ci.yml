@@ -48,7 +48,7 @@ jobs:
           - runtime: bun
             integration_cmd: bunx vitest run test/integration --no-file-parallelism
           - runtime: deno
-            integration_cmd: deno run -A npm:vitest run test/integration --no-file-parallelism
+            integration_cmd: deno run --node-modules-dir=manual -A npm:vitest run test/integration --no-file-parallelism
     steps:
       - uses: actions/checkout@v6
       - name: Build test-${{ matrix.runtime }}

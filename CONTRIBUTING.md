@@ -252,6 +252,13 @@ Local testing policy:
 - `npm run release:verify` is the release truth source
 - install hooks with `bash scripts/install-hooks.sh`
 
+Node and Deno test images install the project graph from `pnpm-lock.yaml` with
+`pnpm install --frozen-lockfile`. Deno then executes the installed packages in
+manual `node_modules` mode; the unit, integration and declaration checks still
+run under Deno. Update `package.json` and the pnpm lock together for intentional
+dependency changes. Do not add an unlocked `deno install` step or suppress an
+installation failure. The Bun image retains its existing Bun installation path.
+
 ## Human Surface Guardrails
 
 Do not introduce any of the following into the normal operator path unless
