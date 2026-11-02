@@ -7,7 +7,7 @@ release_home: 'v7.1.0'
 issue: 'https://github.com/git-stunts/git-cas/issues/157'
 goalpost_issue: 'none'
 tracker_source: 'github'
-status: 'active'
+status: 'landed'
 base_commit: 'ae3a81cddf5f45a54a676c62bdb0335db77da5a0'
 owners: ['@git-stunts']
 sponsors:
@@ -26,6 +26,11 @@ updated: '2026-11-02'
 
 [#157](https://github.com/git-stunts/git-cas/issues/157) owns this complete
 capability. This design does not establish its implementation or release.
+
+Implementation PR #158 merged at `4782052214269c72acc95f63191e89897059bb56`
+on 2026-11-02. The [retrospective](../../method/retro/0063-durable-reservations/durable-reservations.md)
+records validation and the explicit maintainer review-gate override.
+[#162](https://github.com/git-stunts/git-cas/issues/162) owns publication.
 
 ## Linked Tracker
 

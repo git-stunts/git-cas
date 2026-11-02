@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v6.5.11` (`2026-10-02`)
-**Current release state:** `v6.5.11` is published to npm and GitHub Releases.
-**Latest verification:** reviewed merge `1bcd6311` passed 14/14 release gates with 7,224 observations across runtimes. Signed tag `v6.5.11`, npm gitHead and release workflow `37008258240` agree; a fresh registry consumer passed six recovery checks, store/restore and CLI verification.
+**Last tagged release:** `v7.0.0` (`2026-11-01`)
+**Current release state:** `v7.0.0` is published; `v7.1.0` is a release candidate.
+**Verification:** [#154](https://github.com/git-stunts/git-cas/issues/154) retains v7.0.0 publication evidence. Reservations merged at `4782052` with all five hosted validation jobs passing at the PR head and an explicit maintainer review-gate override. [#162](https://github.com/git-stunts/git-cas/issues/162) owns v7.1.0 release verification and publication; no v7.1.0 artifact is claimed yet.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
