@@ -463,6 +463,11 @@ measured separately from whole-phase cgroup memory and end disk usage. This
 finite Node corpus does not replace supported-runtime, package, review or
 release gates.
 
+The [integrated runtime/package checkpoint](witness/integrated-runtime.md)
+records the normal merge of installer repair #160, full Node/Deno suites,
+both declaration fixtures and fresh packed-consumer lifecycle/GC checks.
+A packed candidate is not a published reservation release.
+
 ## Follow-On Debt
 
 The [public surface checkpoint](witness/public-surface.md) now records durable

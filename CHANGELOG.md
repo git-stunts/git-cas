@@ -14,8 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   snapshot listing. Reconciliation finishes installed storage phases or cleans
   cancelled residue; it never arms or executes an application effect. Cursors
   bind namespace, snapshot and phase filter; unavailable snapshots do not
-  silently restart. This capability is not yet released; complete public fault
-  and race acceptance, runtime/release gates and independent review remain.
+  silently restart. Native fault/race/GC and finite cost/residency witnesses
+  accompany the draft. This capability is not yet released; current-head
+  review and release verification/publication remain.
 
 ### Internal
 
