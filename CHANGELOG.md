@@ -7,16 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.1.0] — 2026-11-02
+
+Release candidate: publication is tracked in [#162](https://github.com/git-stunts/git-cas/issues/162).
+
 ### Added
 
-- Add the draft `cas.reservations.open()` capability with durable record-slot
+- Add the `cas.reservations.open()` capability with durable record-slot
   policy, lifecycle operations, exact original/final page retrieval and bounded
   snapshot listing. Reconciliation finishes installed storage phases or cleans
   cancelled residue; it never arms or executes an application effect. Cursors
   bind namespace, snapshot and phase filter; unavailable snapshots do not
   silently restart. Native fault/race/GC and finite cost/residency witnesses
-  accompany the draft. This capability is not yet released; current-head
-  review and release verification/publication remain.
+  accompany the implementation. Record-slot limits are not physical-byte
+  quotas, and CAS never executes or retries application effects.
 
 ### Internal
 

@@ -14,7 +14,7 @@ timeline
 
 ## Current State
 
-`v7.0.0` shipped on `2026-11-01`, moving the public schema boundary and Plumbing dependency to Zod 4 and rejecting unsafe integer metadata. It requires published Plumbing 3.3.3. The unreleased v7.1.0 reservation capability is tracked in [#157](https://github.com/git-stunts/git-cas/issues/157); its public API exists on the draft branch, while complete acceptance, independent review and publication remain gates. Earlier Plumbing recovery work classifies closed mktree transport input for bounded immutable-object retry; mutable-ref semantics are unchanged.
+`v7.0.0` shipped on `2026-11-01`, moving the public schema boundary and Plumbing dependency to Zod 4 and rejecting unsafe integer metadata. It requires published Plumbing 3.3.3. The v7.1.0 reservation capability from [#157](https://github.com/git-stunts/git-cas/issues/157) is merged in PR #158 at `4782052`; the maintainer explicitly authorized an admin merge after independent reviewers became unavailable. [#162](https://github.com/git-stunts/git-cas/issues/162) owns release verification, publication and a fresh registry consumer. The merged capability is not yet a published package. Earlier Plumbing recovery work classifies closed mktree transport input for bounded immutable-object retry; mutable-ref semantics are unchanged.
 Application asset, bundle, page, cache,
 expiry, witness, and repository-diagnostics APIs sit above mutable root sets
 and the low-level CAS pipeline. Direct bundle-reference reads and bounded

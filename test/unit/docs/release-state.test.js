@@ -862,7 +862,7 @@ describe('historical v6 release evidence', () => {
 describe('current publication identity', () => {
   it('distinguishes the latest published release from retained historical evidence', () => {
     const status = read('STATUS.md');
-    const receipt = JSON.parse(read('docs/design/0062-mktree-transport-recovery/witness/publication.json'));
+    const receipt = JSON.parse(read('docs/releases/latest-publication.json'));
     expect(status).toContain(`**Last tagged release:** \`${receipt.tag}\``);
     const packageVersion = JSON.parse(read('package.json')).version;
     if (receipt.version !== packageVersion) {
@@ -873,9 +873,14 @@ describe('current publication identity', () => {
         `claims no published ${packageVersion} artifact`,
       );
     }
-    expect(receipt.sourceCommit).toBe('1bcd6311e93ca9782e2f4a25af106af0651813fb');
-    expect(receipt.releaseVerification.stagesPassed).toBe(14);
-    expect(receipt.publicConsumer.cliVersion).toBe('6.5.11+1bcd631');
+    expect(receipt.tag).toBe(`v${receipt.version}`);
+    expect(receipt.sourceCommit).toMatch(/^[a-f0-9]{40}$/u);
+    expect(receipt.distIntegrity).toMatch(/^sha512-[A-Za-z0-9+/]+={0,2}$/u);
+    expect(receipt.githubRelease).toBe(`https://github.com/git-stunts/git-cas/releases/tag/${receipt.tag}`);
+    const historical = JSON.parse(read('docs/design/0062-mktree-transport-recovery/witness/publication.json'));
+    expect(historical.sourceCommit).toBe('1bcd6311e93ca9782e2f4a25af106af0651813fb');
+    expect(historical.releaseVerification.stagesPassed).toBe(14);
+    expect(historical.publicConsumer.cliVersion).toBe('6.5.11+1bcd631');
     expect(status).toContain('**v6.5.10 artifact posture**');
   });
 });
