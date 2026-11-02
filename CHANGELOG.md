@@ -7,11 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add the draft `cas.reservations.open()` capability with durable record-slot
+  policy, lifecycle operations, exact original/final page retrieval and bounded
+  snapshot listing. Reconciliation finishes installed storage phases or cleans
+  cancelled residue; it never arms or executes an application effect. Cursors
+  bind namespace, snapshot and phase filter; unavailable snapshots do not
+  silently restart. This capability is not yet released; complete public fault
+  and race acceptance, runtime/release gates and independent review remain.
+
 ### Internal
 
 - Define the durable retention reservation protocol for #157. The private
-  transition core and its tests are preparatory work; no public reservation
-  capability or complete custody guarantee is advertised until integration.
+  transition core and its tests were the first implementation checkpoint.
 - Add the private reservation point index and canonical record codec. Lookups
   and updates follow one bounded 64-digit path; corrupt tree names cannot
   masquerade as absent attempts. Native SHA-1/SHA-256 fixtures verify tree
@@ -31,8 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pin; failed cleanup leaves retryable residue. Recovery verifies required
   custody rather than trusting an armed record alone. Native races, GC and
   before/after faults at every durable ref boundary cover both object formats.
-  Public namespace open, bounded operator listing/reconciliation and the
-  reservation facade remain unimplemented.
+  The public facade now composes this protocol without a second lifecycle.
 
 ## [7.0.0] — 2026-11-01
 

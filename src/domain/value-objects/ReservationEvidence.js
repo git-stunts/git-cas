@@ -7,7 +7,11 @@ export const RESERVATION_PAGE_MAX_BYTES = 16 * 1024 * 1024;
 export default class ReservationEvidence {
   #record;
 
-  constructor({ record, supports = [], parents = [] }) {
+  constructor(value) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+      throw new InvalidOptionsError('Reservation evidence requires named fields');
+    }
+    const { record, supports = [], parents = [] } = value;
     if (!(record instanceof Uint8Array) || record.length > RESERVATION_PAGE_MAX_BYTES) {
       throw new InvalidOptionsError('Reservation evidence page must be at most 16 MiB of bytes');
     }

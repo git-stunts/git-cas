@@ -9,6 +9,8 @@ import ReservationLedgerHeader from '../value-objects/ReservationLedgerHeader.js
 import ReservationResult from '../value-objects/ReservationResult.js';
 import ReservationLedgerRefusal from '../value-objects/ReservationLedgerRefusal.js';
 import ReservationIndeterminate from '../value-objects/ReservationIndeterminate.js';
+import ReservationInspection from '../value-objects/ReservationInspection.js';
+import ReservationEvidenceRead from '../value-objects/ReservationEvidenceRead.js';
 import InvalidOptionsError from '../errors/InvalidOptionsError.js';
 import ReservationStorageError from '../errors/ReservationStorageError.js';
 import { CasError, ErrorCodes } from '../errors/index.js';
@@ -123,6 +125,49 @@ export default class ReservationLedger {
     return await this.#transition('cancel', new ReservationRecord({ key, binding, phase: 'reserved' }));
   }
 
+  async reconcile({ key, binding }) {
+    return await this.#transition('reconcile', new ReservationRecord({ key, binding, phase: 'reserved' }));
+  }
+
+  async inspectCustody({ key, binding }) {
+    const attempt = new ReservationRecord({ key, binding, phase: 'reserved' });
+    try {
+      const { snapshot, existing, result } = await this.#requiredAttempt(attempt);
+      if (result !== null) {
+        return result;
+      }
+      const custody = existing.preparation !== null && existing.phase !== 'cancelled' ?
+        await this.#custody.verify(existing) : await this.#custody.read(existing);
+      return new ReservationInspection({ snapshot, record: existing, custody });
+    } catch (cause) {
+      return new ReservationIndeterminate(attempt, cause);
+    }
+  }
+
+  async readEvidence({ key, binding, stage }) {
+    if (!['preparation', 'settlement'].includes(stage)) {
+      throw new InvalidOptionsError('Reservation evidence stage must be preparation or settlement');
+    }
+    const inspection = await this.inspectCustody({ key, binding });
+    if (!(inspection instanceof ReservationInspection)) {
+      return inspection;
+    }
+    const { record } = inspection;
+    if (record.phase === 'cancelled') {
+      return new ReservationLedgerRefusal(record, 'cancelled');
+    }
+    const custodyRevision = stage === 'preparation' ? record.preparation : record.settlement;
+    if (custodyRevision === null) {
+      return new ReservationLedgerRefusal(record, stage === 'preparation' ? 'not-prepared' : 'not-settled');
+    }
+    try {
+      const evidence = await this.#custody.readEvidence(record, stage);
+      return new ReservationEvidenceRead({ inspection, stage, custodyRevision, evidence });
+    } catch (cause) {
+      return new ReservationIndeterminate(record, cause);
+    }
+  }
+
   async inspect({ key, binding }) {
     const attempt = new ReservationRecord({ key, binding, phase: 'reserved' });
     try {
@@ -187,11 +232,28 @@ export default class ReservationLedger {
     if (operation === 'arm') {
       return record.arm();
     }
+    if (operation === 'reconcile') {
+      return await this.#reconciled(record);
+    }
     const pin = operation === 'prepare' ? await this.#custody.prepare(record, evidence) : await this.#custody.settle(record, evidence);
     if (pin instanceof ReservationRefusal) {
       return pin;
     }
     return operation === 'prepare' ? record.prepare(pin.revision) : record.settle(pin.revision);
+  }
+
+  async #reconciled(record) {
+    const pin = await this.#custody.read(record);
+    if (pin === null) {
+      return record;
+    }
+    if (record.phase === 'reserved') {
+      if (pin.descriptor.stage !== 'preparation') {
+        throw new ReservationStorageError('An unprepared ledger cannot acknowledge a settlement pin');
+      }
+      return record.prepare(pin.revision);
+    }
+    return pin.descriptor.stage === 'settlement' ? record.settle(pin.revision) : record;
   }
 
   async #publishTransition({ before, previous, next }) {
@@ -204,7 +266,7 @@ export default class ReservationLedger {
 
   async #cancelled(operation, record, snapshot) {
     await this.#custody.discardCancelled(record);
-    return operation === 'cancel' ? new ReservationResult({ status: 'cancelled', record, revision: snapshot.revision }) :
+    return operation === 'cancel' || operation === 'reconcile' ? new ReservationResult({ status: 'cancelled', record, revision: snapshot.revision }) :
       new ReservationLedgerRefusal(record, 'cancelled');
   }
 
@@ -251,10 +313,10 @@ function recoveryDecision(attempt, existing, snapshot) {
 }
 
 function transitionObserved(operation, next, existing) {
-  if (operation === 'prepare') {
+  if (operation === 'prepare' || (operation === 'reconcile' && next.phase === 'prepared')) {
     return existing.preparation === next.preparation && existing.preparation !== null;
   }
-  return operation === 'settle' && existing.settlement === next.settlement && existing.settlement !== null;
+  return (operation === 'settle' || operation === 'reconcile') && existing.settlement === next.settlement && existing.settlement !== null;
 }
 
 function assertEvidence(evidence) {

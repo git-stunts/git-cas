@@ -123,6 +123,12 @@ creates or verifies the durable namespace configuration. Limit is a positive
 safe integer. Reopening with a different unit, limit or format refuses. The
 initial release does not silently resize a namespace.
 
+The implemented open result is either a frozen `ReservationNamespace` with
+`status: 'opened'`, a `refused` policy/contention result or an `indeterminate`
+result retaining its cause. The empty index and zero-charge header are installed
+before returning the namespace. `openedRevision` records that observation;
+subsequent operations reread the current authority.
+
 The service operations are `reserve`, `prepare`, `arm`, `settle`, `cancel`,
 `inspect` and `reconcile`. Each names one bounded attempt key and its exact
 caller-supplied SHA-256 request binding. Reusing a key with a different binding
@@ -255,6 +261,23 @@ Operator listing uses a snapshot-bound cursor, at most 100 records and an
 explicit visited-node budget per call. It returns a continuation even when a
 filter yields fewer matches; no hidden scan-to-fill. Interrupted/missing snapshot
 evidence returns an unavailable cursor result. Admission never uses listing.
+
+The concrete `list({ cursor, phase, limit, nodeBudget })` surface allows 1–100
+records (default 100) and 129–8192 visited index objects (default 1024). Tree and
+record reads, including cursor seeking, spend this budget. Ledger/header reads
+are fixed additional bounded work. The minimum covers seeking past one
+64-level path and reaching the next record. Empty non-root branches refuse as
+corruption. A cursor contains namespace, ledger revision, last visited route and
+phase filter; it can be serialized, but it is neither a pin nor authorization.
+Traversal state is at most 64 bounded nodes plus100 output records. Listing
+reports ledger claims; `inspect` separately verifies current required custody.
+
+`readEvidence({ key, binding, stage })` returns a copy-owned original or final
+page only after the corresponding ledger acknowledgement and custody checks.
+`reconcile({ key, binding })` may finish prepared/settled publication from an
+existing valid pin, or remove cancelled residue. It never arms an attempt,
+replaces evidence, releases an armed charge or retries application work. A
+point inspection reports both observations without claiming cross-ref atomicity.
 
 Validate header counters, local shape, bounds and the traversed path before
 mutation. This does not constitute a full audit of unvisited, maliciously
@@ -424,6 +447,11 @@ detectable application-semantic errors. Arbitrary raw-ref tampering is outside
 the guarantee. Never hide any of these behind a success receipt.
 
 ## Follow-On Debt
+
+The [public surface checkpoint](witness/public-surface.md) now records durable
+open, bounded listing, point inspection, reconciliation, exact page retrieval
+and the facade/declarations. It distinguishes public native/packed-consumer
+evidence from the remaining full fault/race/runtime/release contract.
 
 No acceptance requirement is deferred. General derivation remains #86; WARP
 meaning and historical authorization remain git-warp#1067/#1053. Any new omitted

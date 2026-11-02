@@ -3645,3 +3645,114 @@ Different error codes include different metadata:
   originalError: <Error>
 }
 ```
+
+
+## Durable Reservations (Unreleased)
+
+This API is implemented on the v7.1.0 draft branch. It is absent from published
+v7.0.0. [Issue #157](https://github.com/git-stunts/git-cas/issues/157) owns its
+remaining acceptance, review and publication gates.
+
+`cas.reservations.open({ namespace, capacity: { unit: 'record-slot', limit } })`
+installs or verifies an immutable namespace policy, including an empty ledger
+before the first attempt. The limit is a positive safe integer. Record slots
+are logical permanent-record capacity, not physical-byte quotas. Open returns:
+
+- `opened`: a frozen `ReservationNamespace` with operations below, `policy` and
+  `openedRevision` (the ledger observed by open).
+- `refused`: `policy-mismatch` or `contention`, plus the requested policy.
+- `indeterminate`: the requested policy and an `Error` cause. Retry the same
+  namespace/policy; do not treat an unavailable observation as absence.
+
+Each attempt uses `{ key, binding }`: a printable ASCII key of 1–128 bytes and a
+canonical lowercase SHA-256 request binding. The application computes and owns
+that binding's meaning. Exact-key retries recover the same attempt; different
+bindings refuse. Cancelled keys remain terminal tombstones.
+
+| Method | Meaning |
+| --- | --- |
+| `reserve(identity)` | Atomically charge one slot, or recover the exact existing attempt |
+| `prepare({ ...identity, evidence })` | Pin original evidence, then acknowledge preparation |
+| `arm(identity)` | Verify preparation and compete for the one fresh effect permission |
+| `settle({ ...identity, evidence })` | Pin final evidence while retaining the original, then acknowledge settlement |
+| `cancel(identity)` | Cancel only an unarmed/unsettled attempt; publish refund before exact pin cleanup |
+| `reconcile(identity)` | Complete supported storage transitions or cancelled cleanup without application execution |
+| `inspect(identity)` | Observe ledger metadata and current custody separately |
+| `readEvidence({ ...identity, stage })` | Read acknowledged `preparation` or `settlement` page/support metadata |
+| `list({ cursor, phase, limit, nodeBudget })` | Traverse ledger claims at one immutable snapshot |
+
+Lifecycle outcomes have `status`, a validated `record` and the ledger `revision`.
+Success statuses are `admitted`, `prepared`, fresh `armed`, `settled`, `cancelled`
+or `recovered`. Expected failures are `refused` values with the attempted key,
+binding and finite reason. Operational uncertainty is `indeterminate`, with the
+same identity and its retained `Error` cause. Invalid inputs throw typed CAS
+errors. A recovered armed record is not a new `armed` acknowledgement.
+
+```javascript
+const opened = await cas.reservations.open({
+  namespace: 'application/observations',
+  capacity: { unit: 'record-slot', limit: 1000 },
+});
+
+if (opened.status === 'opened') {
+  // attempt is the application's stable { key, binding } for this operation.
+  const admission = await opened.reserve(attempt);
+  if (admission.status === 'admitted' || admission.status === 'recovered') {
+    const prepared = await opened.prepare({ ...attempt, evidence: originalEvidence });
+    if (prepared.status === 'prepared' || prepared.status === 'recovered') {
+      const permission = await opened.arm(attempt);
+      if (permission.status === 'armed') {
+        // Only this branch may perform the application's irreversible effect.
+        // The application records its own effect outcome and calls settle.
+      }
+    }
+  }
+}
+```
+
+The snippet names caller-supplied `attempt` and `originalEvidence`; CAS never
+executes the application operation. A lost arming response can leave an armed
+charge even if the effect never ran. Retry/inspection returns already-armed or
+recovered evidence, never a second permission. Time, process death and local
+resource closure do not release that charge. A prepared read may settle
+without arming; its settlement competes with cancellation.
+
+`evidence` contains `record: Uint8Array`, optional `supports: [{ type, oid }]`
+for blob/tree targets, and optional `parents: [commitOid]`. The page is copied
+and limited to 16 MiB; there are at most 64 supports and 63 external parents.
+All OIDs must be canonical and refer to the declared object types. The final
+custody commit also retains preparation as its first parent. These are storage
+boundary inputs; CAS does not validate application receipt semantics or walk
+every descendant of a support tree.
+
+`readEvidence` returns `read` with the attempt, ledger/custody revisions, stage
+and an `evidence` value. Its `record` getter returns a new byte copy each time;
+`roots` describes the supports and external parents. An unacknowledged phase
+returns `not-prepared`/`not-settled`; cancelled attempts refuse. Missing required
+custody is indeterminate. Reading preparation does not create a new retention
+promise if another caller cancels concurrently.
+
+`inspect` returns `inspected`, the ledger record/revision, policy, charged count
+and `custody` (a validated generation or null). It does not load page bytes.
+Ledger and pin are sequential observations, not an atomic multi-ref snapshot.
+A cancelled record may still have pin residue. `reconcile` can remove that
+residue without a second refund, or finish a valid installed preparation/final
+pin's ledger transition. It never arms, replaces evidence, releases an armed
+charge or decides what happened in an external application.
+
+Listing returns `page` with snapshot policy/count/revision, frozen `records`,
+`visitedNodes` and `next`. The limit is 1–100 records (default 100); the budget
+is 129–8192 index objects (default 1024). Every traversed tree or record, including
+cursor seeking, spends this budget. Ledger/header validation is fixed extra
+bounded work. The traversal stack is at most 64 bounded nodes, with at most 100
+output records. A phase filter can produce an empty page with a continuation;
+there is no hidden scan to fill it.
+
+A cursor binds namespace, ledger revision, last visited route and phase filter.
+Its fields can be serialized and supplied to another process. It is a position,
+not an authorization token or retention pin. Concurrent writes do not change
+its snapshot. If GC removes the snapshot, listing returns `unavailable` with
+that cursor and the cause, without partial records or a silent restart. Start a
+new listing explicitly when a fresh snapshot is appropriate. Listing verifies
+ledger claims along visited paths; use point inspection for live custody.
+Unvisited subtrees are not audited, and metadata/tombstones can grow with work.

@@ -3,7 +3,11 @@ import InvalidOptionsError from '../errors/InvalidOptionsError.js';
 
 /** Immutable record-slot contract persisted by the namespace authority. */
 export default class ReservationPolicy {
-  constructor({ namespace, capacity }) {
+  constructor(value) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+      throw new InvalidOptionsError('Reservation policy requires named fields');
+    }
+    const { namespace, capacity } = value;
     if (capacity?.unit !== 'record-slot' || !Number.isSafeInteger(capacity.limit) || capacity.limit < 1) {
       throw new InvalidOptionsError('Reservation capacity requires a positive safe record-slot limit');
     }

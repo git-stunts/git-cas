@@ -52,11 +52,17 @@ Unlike traditional LFS which moves files to external servers, `git-cas` treats t
 
 Existing v5 users should read [UPGRADING.md](./UPGRADING.md) and run
 `npm run upgrade` in dry-run mode before restoring old encrypted vault entries.
-The v7.0.0 security candidate changes the public schema dependency to Zod 4.
+The published v7.0.0 release changes the public schema dependency to Zod 4.
 Before upgrading, read the [migration guidance](./UPGRADING.md#v6512-to-v700-candidate)
-and [candidate release notes](./docs/releases/v7.0.0.md). This candidate requires
-published Plumbing 3.3.3. Publication and registry verification remain tracked in
-[#154](https://github.com/git-stunts/git-cas/issues/154).
+and [release notes](./docs/releases/v7.0.0.md). This release requires
+published Plumbing 3.3.3. [Release and registry evidence](https://github.com/git-stunts/git-cas/issues/154)
+records its publication.
+
+The current v7.1.0 draft adds [durable reservations](./docs/API.md#durable-reservations-unreleased):
+hard record-slot admission before an application effect, pinned evidence and
+bounded recovery/inspection. It is not in the published v7.0.0 package.
+[#157](https://github.com/git-stunts/git-cas/issues/157) retains the complete
+acceptance, review and release scope.
 
 The published v6.5.12 release bounds object-metadata requests so root sets with more than 1000 targets (936 for SHA-256) validate within Plumbing's cat-file request limits. Admission still rejects missing and mismatched targets before publication; see [v6.5.12 Release Notes](./docs/releases/v6.5.12.md).
 

@@ -5,7 +5,8 @@ import ReservationRefusal from '../value-objects/ReservationRefusal.js';
 import ReservationKey from '../value-objects/ReservationKey.js';
 
 const BINDING_PATTERN = /^[0-9a-f]{64}$/u;
-const PHASES = new Set(['reserved', 'prepared', 'armed', 'settled', 'cancelled']);
+export const RESERVATION_PHASES = Object.freeze(['reserved', 'prepared', 'armed', 'settled', 'cancelled']);
+const PHASES = new Set(RESERVATION_PHASES);
 
 /**
  * Immutable candidate for one attempt's ledger record.

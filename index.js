@@ -10,6 +10,12 @@ import CasService from './src/domain/services/CasService.js';
 import VaultService from './src/domain/services/VaultService.js';
 import RootSet from './src/domain/services/RootSet.js';
 import RootSetRegistry from './src/domain/services/RootSetRegistry.js';
+import ReservationNamespaceRegistry from './src/domain/services/ReservationNamespaceRegistry.js';
+import ReservationIndex from './src/domain/services/ReservationIndex.js';
+import ReservationLedgerStore from './src/domain/services/ReservationLedgerStore.js';
+import ReservationRecordCodec from './src/infrastructure/codecs/ReservationRecordCodec.js';
+import ReservationLedgerCodec from './src/infrastructure/codecs/ReservationLedgerCodec.js';
+import ReservationCustodyCodec from './src/infrastructure/codecs/ReservationCustodyCodec.js';
 import AssetService from './src/domain/services/AssetService.js';
 import BundleService from './src/domain/services/BundleService.js';
 import CacheSet from './src/domain/services/CacheSet.js';
@@ -100,6 +106,8 @@ export { default as StagedPage } from './src/domain/value-objects/StagedPage.js'
 export { default as RetentionWitness } from './src/domain/value-objects/RetentionWitness.js';
 export { default as CacheHit } from './src/domain/value-objects/CacheHit.js';
 export { default as CachePolicy } from './src/domain/value-objects/CachePolicy.js';
+export { default as ReservationNamespace } from './src/domain/services/ReservationNamespace.js';
+export { default as ReservationCursor } from './src/domain/value-objects/ReservationCursor.js';
 export { default as ExpiringMarker } from './src/domain/value-objects/ExpiringMarker.js';
 export { default as EventEmitterObserver } from './src/infrastructure/adapters/EventEmitterObserver.js';
 export { default as StatsCollector } from './src/infrastructure/adapters/StatsCollector.js';
@@ -195,6 +203,14 @@ export default class ContentAddressableStore {
   }
 
   #installCapabilities() {
+    this.#installCollectionCapabilities();
+    this.#installApplicationCapabilities();
+  }
+
+  #installCollectionCapabilities() {
+    this.reservations = Object.freeze({
+      open: async (options) => (await this.#getReservationRegistry()).open(options),
+    });
     this.rootSets = Object.freeze({
       open: async (options) => (await this.#getRootSetRegistry()).open(options),
     });
@@ -212,6 +228,9 @@ export default class ContentAddressableStore {
     this.diagnostics = Object.freeze({
       doctor: async (options) => (await this.#getRepositoryDoctor()).doctor(options),
     });
+  }
+
+  #installApplicationCapabilities() {
     this.assets = Object.freeze({
       put: async (options) => (await this.#getAssetService()).put(options),
       putBatch: async (options) => (await this.#getAssetService()).putBatch(options),
@@ -260,6 +279,7 @@ export default class ContentAddressableStore {
   #vault = null;
   /** @type {RootSetRegistry|null} */
   #rootSetRegistry = null;
+  #reservationRegistry = null;
   /** @type {CacheSetRegistry|null} */
   #cacheSetRegistry = null;
   /** @type {ExpiringSetRegistry|null} */
@@ -434,6 +454,16 @@ export default class ContentAddressableStore {
   async #getRootSetRegistry() {
     await this.#getService();
     return this.#rootSetRegistry;
+  }
+
+  async #getReservationRegistry() {
+    const { persistence, crypto } = await this.#getService();
+    this.#reservationRegistry ??= new ReservationNamespaceRegistry({
+      persistence, refs: this.#ref, crypto, custodyCodec: new ReservationCustodyCodec(),
+      index: new ReservationIndex({ persistence, crypto, codec: new ReservationRecordCodec() }),
+      store: new ReservationLedgerStore({ persistence, refs: this.#ref, codec: new ReservationLedgerCodec() }),
+    });
+    return this.#reservationRegistry;
   }
 
   /** @returns {Promise<CacheSetRegistry>} */

@@ -16,6 +16,17 @@ import type {
 import Chunk from './src/domain/value-objects/Chunk.js';
 import CasService from './src/domain/services/CasService.js';
 import CasError from './src/domain/errors/CasError.js';
+import type { ReservationCapability } from './src/domain/services/ReservationNamespace.js';
+export { default as ReservationNamespace } from './src/domain/services/ReservationNamespace.js';
+export { default as ReservationCursor } from './src/domain/value-objects/ReservationCursor.js';
+export type {
+  ReservationPhase, ReservationIdentity, ReservationCapacity, ReservationPolicy,
+  ReservationRecordView, ReservationEvidenceInput, ReservationRoots, ReservationCustodyView,
+  ReservationRefusalReason, ReservationRefused, ReservationIndeterminate, ReservationAcknowledgement, ReservationAcknowledgedStatus,
+  ReservationOutcome, ReservationInspection, ReservationEvidenceRead, ReservationCursorData,
+  ReservationListOptions, ReservationPage, ReservationListUnavailable, ReservationOpenRefusal,
+  ReservationOpenIndeterminate, ReservationOpenOutcome, ReservationCapability,
+} from './src/domain/services/ReservationNamespace.js';
 import type {
   CryptoPort,
   CodecPort,
@@ -1807,6 +1818,7 @@ export default class ContentAddressableStore {
   };
 
   readonly caches: CacheCapability;
+  readonly reservations: ReservationCapability;
   readonly expiringSets: ExpiringSetCapability;
   readonly workspaces: WorkspaceCapability;
   readonly diagnostics: DiagnosticsCapability;

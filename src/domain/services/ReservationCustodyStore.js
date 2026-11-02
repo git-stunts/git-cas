@@ -53,6 +53,12 @@ export default class ReservationCustodyStore {
     return current;
   }
 
+  async readEvidence(attempt, stage) {
+    await this.verify(attempt);
+    const revision = stage === 'preparation' ? attempt.preparation : attempt.settlement;
+    return await this.#objects.readEvidence(revision);
+  }
+
   async prepare(attempt, evidence) {
     const descriptor = await this.#objects.describe({ attempt, evidence });
     let current = await this.read(attempt);

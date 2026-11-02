@@ -27,6 +27,10 @@ export default class ReservationIndexNode {
     return this.#entries.find((entry) => entry.name === digit)?.oid ?? null;
   }
 
+  get entries() {
+    return this.#entries;
+  }
+
   withChild(digit, oid) {
     const type = this.depth === RESERVATION_ROUTE_DIGITS - 1 ? 'blob' : 'tree';
     const entry = { name: digit, oid, type, mode: type === 'blob' ? '100644' : '040000' };

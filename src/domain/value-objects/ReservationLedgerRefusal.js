@@ -3,7 +3,7 @@ import InvalidOptionsError from '../errors/InvalidOptionsError.js';
 
 const REASONS = new Set([
   'capacity-full', 'binding-conflict', 'cancelled', 'policy-mismatch', 'contention', 'not-reserved',
-  'not-prepared', 'already-armed', 'already-settled', 'irreversible', 'preparation-mismatch', 'settlement-mismatch',
+  'not-prepared', 'not-settled', 'already-armed', 'already-settled', 'irreversible', 'preparation-mismatch', 'settlement-mismatch',
 ]);
 
 /** An expected admission refusal naming the exact attempted identity. */

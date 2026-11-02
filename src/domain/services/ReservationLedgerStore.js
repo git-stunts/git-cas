@@ -37,7 +37,12 @@ export default class ReservationLedgerStore {
     if (posture.oid === null) {
       return null;
     }
-    const revision = posture.oid;
+    return await this.readRevision(name, posture.oid);
+  }
+
+  /** Read exactly this generation; never silently replace a collected cursor. */
+  async readRevision(namespace, revision) {
+    const name = CollectionNamespace.from(namespace).toString();
     await this.#assertObject(revision, { type: 'commit', maxBytes: COMMIT_MAX_BYTES });
     const parents = await this.#refs.resolveParents(revision);
     if (!Array.isArray(parents) || parents.length !== 0) {

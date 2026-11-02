@@ -73,5 +73,5 @@ export function reservationLedgerFixture() {
     policy: new ReservationPolicy({ namespace: 'test/admission', capacity: { unit: 'record-slot', limit } }),
     index, store, custody,
   });
-  return { persistence, refs, index, store, custody, objects, open };
+  return { persistence, refs, crypto, index, store, custody, objects, open };
 }

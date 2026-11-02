@@ -143,6 +143,8 @@ The public entrypoint is [index.js](./index.js).
   observability adapters
 - exposes convenience methods like `storeFile()` and `restoreFile()`
 - exposes `rootSets.open()` for mutable current-generation Git reachability
+- exposes the unreleased `reservations.open()` hard record-slot authority,
+  ordered custody, reconciliation and bounded snapshot inspection
 - exposes opaque `assets`, `pages`, and `bundles` capability groups
 - exposes `retention`, `publications`, `caches`, and `expiringSets` for explicit
   reachability and lifecycle policy
@@ -474,6 +476,17 @@ make objects Git-reachable, but they encode different lifecycle contracts:
 | ExpiringSet | `refs/cas/expiring/*` | Expiry-only replay protection |
 | Publication | Caller-allowlisted ref | Application-controlled causal history |
 | Vault | `refs/cas/vault` | History-preserving named assets |
+| Reservation ledger (unreleased) | `refs/cas/reservations/*` | Fixed policy, charged attempts and terminal tombstones |
+| Reservation custody (unreleased) | `refs/cas/reservation-custody/*` | Original/final evidence retained through real Git edges |
+
+The reservation namespace is installed at open, even with zero attempts.
+`ReservationLedger` owns all lifecycle decisions; the facade supplies validated
+evidence and never executes application effects. `ReservationListing` traverses
+one immutable ledger with a bounded index-node budget, independent of admission.
+Its cursor is a position, not a pin: GC may make an older snapshot unavailable.
+Point inspection observes ledger and custody separately; it makes no multi-ref
+snapshot claim. See the [public contract](docs/API.md#durable-reservations-unreleased)
+and [cycle0063 draft design](https://github.com/git-stunts/git-cas/blob/feat/157-durable-reservations/docs/design/0063-durable-reservations/durable-reservations.md).
 
 High-level retention, CacheSet, cache acquisition, ExpiringSet, and application
 publication operations return generation-scoped retention evidence. Replacing

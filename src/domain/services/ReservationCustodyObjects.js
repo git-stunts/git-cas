@@ -87,6 +87,14 @@ export default class ReservationCustodyObjects {
     return new ReservationCustodySnapshot({ descriptor, revision });
   }
 
+  async readEvidence(revision) {
+    const { descriptor } = await this.read(revision);
+    return new ReservationEvidence({
+      record: await this.#persistence.readBlob(descriptor.recordOid, RESERVATION_PAGE_MAX_BYTES),
+      supports: descriptor.roots.supports, parents: descriptor.roots.parents,
+    });
+  }
+
   #assertDescriptor(descriptor) {
     if (!(descriptor instanceof ReservationCustodyDescriptor) || descriptor.namespace !== this.namespace) {
       throw new ReservationStorageError('Custody descriptor does not belong to this namespace');

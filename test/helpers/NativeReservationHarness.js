@@ -13,6 +13,7 @@ import ReservationRecordCodec from '../../src/infrastructure/codecs/ReservationR
 import { createGitPlumbing } from '../../src/infrastructure/createGitPlumbing.js';
 import { getTestCryptoAdapter } from './crypto-adapter.js';
 import { createReservationCustody } from './reservation-custody.js';
+import ContentAddressableStore from '../../index.js';
 
 /** Owns finite native fixtures under the Docker runner's bounded TMPDIR. */
 export default class NativeReservationHarness {
@@ -26,8 +27,8 @@ export default class NativeReservationHarness {
     return repo;
   }
 
-  git(repo, args) {
-    const result = spawnSync('git', args, { cwd: repo, encoding: 'utf8', timeout: 20_000 });
+  git(repo, args, input) {
+    const result = spawnSync('git', args, { cwd: repo, input, encoding: 'utf8', timeout: 20_000 });
     if (result.error || result.status !== 0) {
       throw result.error ?? new Error(result.stderr || result.stdout || 'Git failed');
     }
@@ -45,6 +46,16 @@ export default class NativeReservationHarness {
     const policy = new ReservationPolicy({ namespace: 'test/admission', capacity: { unit: 'record-slot', limit: 1 } });
     const { custody, objects } = createReservationCustody({ namespace: policy.namespace, persistence, refs, crypto });
     return { persistence, refs, index, store, custody, objects, ledger: new ReservationLedger({ policy, index, store, custody }) };
+  }
+
+  async openPublic(repo, limit = 1) {
+    const cas = await ContentAddressableStore.open({ cwd: repo });
+    this.#adapters.push(cas);
+    const namespace = await cas.reservations.open({ namespace: 'test/admission', capacity: { unit: 'record-slot', limit } });
+    if (namespace.status !== 'opened') {
+      throw new Error(`Public namespace failed to open: ${namespace.status}`);
+    }
+    return { cas, namespace };
   }
 
   async closeAdapters() {
