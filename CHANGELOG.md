@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Internal
+
+- Define the durable retention reservation protocol for #157. The private
+  transition core and its tests are preparatory work; no public reservation
+  capability or complete custody guarantee is advertised until integration.
+
 ## [7.0.0] — 2026-11-01
 
 ### Breaking Changes

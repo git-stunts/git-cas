@@ -11,6 +11,8 @@ process in [docs/method/process.md](../method/process.md).
 
 ## Active METHOD Cycles
 
+- [0063-durable-reservations - durable-reservations](./0063-durable-reservations/durable-reservations.md)
+
 - [0062-mktree-transport-recovery - mktree-transport-recovery](./0062-mktree-transport-recovery/mktree-transport-recovery.md)
 
 - [0054-batched-page-retention - batched-page-retention](./0054-batched-page-retention/batched-page-retention.md)

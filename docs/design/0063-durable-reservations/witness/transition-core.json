@@ -1,0 +1,179 @@
+{
+  "scope": "Private transition core only. No public reservation API, durable capacity, cross-process race, restart, GC or release result is claimed.",
+  "recorded_at": "2026-11-02T11:25:17.928227+00:00",
+  "source_hashes": {
+    "src/domain/services/ReservationRecord.js": "3f470b2d0ec3e39f4fa4a057c1b81dc6e8d75d7431817fba8cf74f419cfee3fc",
+    "src/domain/value-objects/ReservationRefusal.js": "4100e6a4fa6d7ad00f07a3af0d414e0c71ad47f241a09e1118f789b5e830e01f",
+    "test/unit/domain/services/ReservationRecord.test.js": "c3a285a80a02793604bb1dc2820af6ae4d367ae59f2aa37ee9dd0677e9ee43f5"
+  },
+  "phases": [
+    {
+      "phase": "core-red-01",
+      "source_base": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+      "source_bytes": 6271111,
+      "source_manifest_sha256": "bb8d0334b69a5661397b5cadfd0ea7594434646acc96c0839ce73166d1ce3003",
+      "exit": 1,
+      "duration_seconds": 1.383328917,
+      "log_bytes": 899,
+      "log_sha256": "7f4d0144fc90d92da92ec44e95f91dd2f821a4c6857195c0c3c5e85a6cdb527e",
+      "end_tmpfs_usage_kib": "97324\t/data\n0\t/tmp\n0\t<CONTAINER_HOME>\n0\t/dev/shm\n",
+      "host_free_bytes": 602662674432,
+      "vm_free_at_launch_bytes": 572974964736,
+      "coordination": [
+        {
+          "event": "claimed",
+          "job": "cas157-red-78233C18-208B-4702-A50A-4C0E13F0F739",
+          "holder": "Codex git-warp recovery",
+          "note": "Bounded reservation core missing-surface RED",
+          "claimed": 1793618319,
+          "expires": 1793620119,
+          "paths": [
+            "host/docker/git-cas-tests/"
+          ],
+          "record": "8413b8466d16ab2980ef3aea603e89830fca3f64",
+          "acquisition": "1793618319-58807-2889512531"
+        },
+        {
+          "event": "released",
+          "job": "cas157-red-78233C18-208B-4702-A50A-4C0E13F0F739",
+          "paths": 1
+        }
+      ]
+    },
+    {
+      "phase": "core-green-01",
+      "source_base": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+      "source_bytes": 6277209,
+      "source_manifest_sha256": "92b056aaca41278932319c6287c6f07e2ed60472828aa54844d513a1d4cade77",
+      "exit": 1,
+      "duration_seconds": 4.647167917,
+      "log_bytes": 2788,
+      "log_sha256": "eff6fc2b532bf7148942814d24e8be5a06138bde028ae4fa4de077eaf1fe9d99",
+      "end_tmpfs_usage_kib": "118384\t/data\n0\t/tmp\n4\t<CONTAINER_HOME>\n0\t/dev/shm\n",
+      "host_free_bytes": 602661654528,
+      "vm_free_at_launch_bytes": 572974944256,
+      "coordination": [
+        {
+          "event": "claimed",
+          "job": "cas157-green-D7026B81-E550-4CF7-B119-7F72C0633FF3",
+          "holder": "Codex git-warp recovery",
+          "note": "Validate reservation transition core and full unit suite",
+          "claimed": 1793618392,
+          "expires": 1793620192,
+          "paths": [
+            "host/docker/git-cas-tests/"
+          ],
+          "record": "66ef1f61f7100fb69af7e046b36997907e1f071f",
+          "acquisition": "1793618392-59349-0830331980"
+        },
+        {
+          "event": "released",
+          "job": "cas157-green-D7026B81-E550-4CF7-B119-7F72C0633FF3",
+          "paths": 1
+        }
+      ]
+    },
+    {
+      "phase": "core-green-02",
+      "source_base": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+      "source_bytes": 6277635,
+      "source_manifest_sha256": "d238dea399c075b4a139260d65d21ecb2094a8c5c26c2880d6f1839d077e0259",
+      "exit": 0,
+      "duration_seconds": 23.292535042,
+      "log_bytes": 22641,
+      "log_sha256": "47836ebcafbc5ef717dad9cb870c9e958412f55024353c17d6bd14adc27b70d0",
+      "end_tmpfs_usage_kib": "118428\t/data\n0\t/tmp\n820\t<CONTAINER_HOME>\n0\t/dev/shm\n",
+      "host_free_bytes": 602658488320,
+      "vm_free_at_launch_bytes": 572974944256,
+      "coordination": [
+        {
+          "event": "claimed",
+          "job": "cas157-green2-A1A87D83-4623-4647-8AB1-87913F1F26C4",
+          "holder": "Codex git-warp recovery",
+          "note": "Validate corrected test groups and complete unit suite",
+          "claimed": 1793618490,
+          "expires": 1793620290,
+          "paths": [
+            "host/docker/git-cas-tests/"
+          ],
+          "record": "d89b9a6db5b03ab5ce8cad47c85c3d0de81d0b36",
+          "acquisition": "1793618490-59991-1671414263"
+        },
+        {
+          "event": "released",
+          "job": "cas157-green2-A1A87D83-4623-4647-8AB1-87913F1F26C4",
+          "paths": 1
+        }
+      ]
+    },
+    {
+      "phase": "core-green-03",
+      "source_base": "ae3a81cddf5f45a54a676c62bdb0335db77da5a0",
+      "source_bytes": 6277730,
+      "source_manifest_sha256": "c39dcbd3ba98df1ac4edce3dab3957f8d750d6b249856279a41121c0118b3125",
+      "exit": 0,
+      "duration_seconds": 23.483736458,
+      "log_bytes": 22430,
+      "log_sha256": "1a1152d9b3161e163308259c09a2618138852dc84c1797750496f1b96ae03847",
+      "end_tmpfs_usage_kib": "118428\t/data\n0\t/tmp\n820\t<CONTAINER_HOME>\n0\t/dev/shm\n",
+      "host_free_bytes": 602654932992,
+      "vm_free_at_launch_bytes": 572974944256,
+      "coordination": [
+        {
+          "event": "claimed",
+          "job": "cas157-green3-1FFF7F42-EFD0-45FF-AA01-2D8B3A5887F2",
+          "holder": "Codex git-warp recovery",
+          "note": "Verify distinct settled refusal and stable candidate",
+          "claimed": 1793618592,
+          "expires": 1793620392,
+          "paths": [
+            "host/docker/git-cas-tests/"
+          ],
+          "record": "ad06c1e58edea3af4b6b21f361db72751bdb4176",
+          "acquisition": "1793618592-60802-0531114495"
+        },
+        {
+          "event": "released",
+          "job": "cas157-green3-1FFF7F42-EFD0-45FF-AA01-2D8B3A5887F2",
+          "paths": 1
+        }
+      ]
+    }
+  ],
+  "final_checks": {
+    "focused_tests_passed": 46,
+    "lint": "passed",
+    "unit_tests_passed": 2269,
+    "unit_tests_skipped": 3,
+    "unit_files_passed": 236,
+    "unit_files_skipped": 1
+  },
+  "red_boundary": "Missing-module import failure; zero behavior tests executed. This is missing-surface RED, not a demonstrated behavioral regression.",
+  "intermediate_failure": "First GREEN ran all46 targeted tests but lint refused two oversized describe callbacks. They were split without suppression.",
+  "last_change": "A settled read now refuses arm with already-settled, not already-armed; final focused/lint/full-unit chain repeated after this semantic correction.",
+  "worker": {
+    "name": "git-cas-tests",
+    "image": "sha256:c4dd62b23537c0751c9d57edbadc885ecbdc4de05b05194d9eecbd6cc2d5de27",
+    "cpu": 4,
+    "memory_bytes": 8589934592,
+    "pids": 512,
+    "readonly_root": true,
+    "bind_mounts": false,
+    "volumes": false,
+    "runtime_tmpfs_bytes": 3271557120,
+    "phase_log_limit_bytes": 8388608,
+    "aggregate_host_evidence_limit_bytes": 125829120,
+    "outer_timeout_seconds": 900,
+    "inner_timeout_seconds": 850,
+    "stopped_after_each_phase": true,
+    "measurement_boundary": "Usage figures are end measurements, not runtime peaks. Tmpfs size limits enforced runtime storage; outer monitor enforced host/log/free-space/time bounds."
+  },
+  "manual_ssjs": {
+    "runtime_forms": "frozen validated record and refusal classes",
+    "boundaries": "constructor/transition input validation; persistence codecs remain future work",
+    "ownership": "transitions live on ReservationRecord",
+    "message_branching": "none",
+    "ambient_time_entropy": "none",
+    "fake_shape_trust": "none; candidate state explicitly is not durable permission"
+  }
+}
