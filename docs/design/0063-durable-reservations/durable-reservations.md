@@ -452,6 +452,10 @@ including process-group death around arming. Node and Deno run the new cases;
 complete native cost/residency, supported-runtime, review and release gates
 remain open.
 
+The [public corruption checkpoint](witness/public-corruption.md) adds 14
+selected malformed-ledger and missing/symbolic/malformed-custody cases through
+the public facade, passing under Node and Deno without changing production code.
+
 ## Follow-On Debt
 
 The [public surface checkpoint](witness/public-surface.md) now records durable
