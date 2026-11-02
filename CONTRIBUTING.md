@@ -256,7 +256,7 @@ Node and Deno test images install the project graph from `pnpm-lock.yaml` with
 `pnpm install --frozen-lockfile`. Deno then executes the installed packages in
 manual `node_modules` mode; the unit, integration and declaration checks still
 run under Deno. Update `package.json` and the pnpm lock together for intentional
-dependency changes. Do not add an unlocked `deno install` step or suppress an
+dependency changes. Do not add an unlocked `deno install` step or suppress a
 nonzero installer status. pnpm retains its optional-dependency semantics;
 successful installation does not guarantee that the optional cbor-extract native
 accelerator is present. The runtime checks still have to pass. The Bun image
