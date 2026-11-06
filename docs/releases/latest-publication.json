@@ -1,43 +1,33 @@
 {
   "schemaVersion": 1,
   "package": "@git-stunts/git-cas",
-  "version": "7.1.0",
-  "tag": "v7.1.0",
-  "sourceCommit": "18f87ddb08857209d9e2e6ff30337515c0eaee4d",
-  "githubRelease": "https://github.com/git-stunts/git-cas/releases/tag/v7.1.0",
-  "publishedAt": "2026-11-02T16:46:01Z",
-  "registry": "https://registry.npmjs.org/@git-stunts%2fgit-cas/7.1.0",
-  "distIntegrity": "sha512-k2TG1n09Fy1KWdSnb5hqo6ZeLygasAnHhgVecvohnLnNInLsot7bAwfPkREG0WdQpujeRe+nPQroCJOnt69JdQ==",
-  "distShasum": "2d6f1d235c045b83e0666f94713626764fa3da4e",
-  "verifiedAt": "2026-11-02T16:50:13.155985+00:00",
+  "version": "7.2.0",
+  "tag": "v7.2.0",
+  "sourceCommit": "3008b4a17603c44e0cf191e37f65db6f79409be3",
+  "githubRelease": "https://github.com/git-stunts/git-cas/releases/tag/v7.2.0",
+  "publishedAt": "2026-11-06T16:17:22.291Z",
+  "registry": "https://registry.npmjs.org/@git-stunts%2fgit-cas/7.2.0",
+  "distIntegrity": "sha512-vIDYg2zqkUOXFHOaxGogJijNA8UXx6FBrSCMaISt1Okcnqz+FlhxAYdPzUoKAWK3Tokuh+ocanvgwgu+czVh8A==",
+  "distShasum": "face3c3bd9d56c716700708e4bd0656c473c9c0b",
+  "verifiedAt": "2026-11-06T16:40:00Z",
   "workflow": {
     "conclusion": "success",
-    "databaseId": 41483019826,
-    "headSha": "18f87ddb08857209d9e2e6ff30337515c0eaee4d",
+    "databaseId": 42249242979,
+    "headSha": "3008b4a17603c44e0cf191e37f65db6f79409be3",
     "status": "completed",
-    "url": "https://github.com/git-stunts/git-cas/actions/runs/41483019826"
+    "url": "https://github.com/git-stunts/git-cas/actions/runs/42249242979"
   },
   "consumer": {
     "objectFormats": [
-      "sha1",
-      "sha256"
+      "sha1"
     ],
     "checks": [
-      "reserve",
-      "prepare",
-      "fresh arm",
-      "reconcile",
-      "arm replay refusal",
-      "settle",
-      "close",
-      "real git gc prune now",
-      "reopen",
-      "original evidence",
-      "final evidence",
-      "capacity refusal",
-      "charged count"
+      "registry lockfile integrity",
+      "reservation custody unit suite",
+      "Warp retained write lifecycle",
+      "objects per retained write"
     ],
     "result": "passed"
   },
-  "scope": "Signed tag, registry metadata, downloaded artifact, isolated installed consumer and GitHub Release verified; original observations retained in issue #162."
+  "scope": "Signed tag, npm gitHead, registry integrity and GitHub Release verified. The consumer is git-warp branch chore/git-cas-7.2.0 installing the registry artifact by lockfile integrity in Docker: 333 custody and Warp tests passed, and a retained write measured 53 loose objects, down from about 301 on 7.1.0. Original observations are in issue #169."
 }

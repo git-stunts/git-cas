@@ -1,8 +1,8 @@
 # STATUS
 
-**Last tagged release:** `v7.1.0` (`2026-11-02`)
-**Current release state:** `v7.1.0` is published to npm and GitHub Releases; `v7.2.0` is a release candidate tracked in [#169](https://github.com/git-stunts/git-cas/issues/169).
-**Verification:** Signed tag `v7.1.0`, npm gitHead and release workflow `41483019826` agree on `18f87dd`. All 14 release steps passed on merged main across isolated runtime phases: 8,265 passing test observations and 18 existing skips. A fresh registry consumer passed the reservation lifecycle/refusal/reopen/GC checks in both Git formats; [#162](https://github.com/git-stunts/git-cas/issues/162) retains artifact identities, evidence and the explicit maintainer review-gate override.
+**Last tagged release:** `v7.2.0` (`2026-11-06`)
+**Current release state:** `v7.2.0` is published to npm and GitHub Releases ([#169](https://github.com/git-stunts/git-cas/issues/169)).
+**Verification:** Signed tag `v7.2.0`, npm gitHead and release workflow `42249242979` agree on `3008b4a`. All 14 release steps passed on merged main in Docker: 2,416 unit tests on Node and Bun, 2,407 on Deno with 12 skips, and 353 integration tests on each runtime. git-warp installed the registry artifact by lockfile integrity and passed 333 custody and Warp tests; [#169](https://github.com/git-stunts/git-cas/issues/169) retains the evidence. v7.1.0 evidence remains in [#162](https://github.com/git-stunts/git-cas/issues/162).
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
 **Current planning method:** [WORKFLOW.md](./WORKFLOW.md)
