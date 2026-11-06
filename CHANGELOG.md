@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the shortest route prefix no other record shares, so a ledger update writes
   one record blob and about log16(records) trees instead of 64. A 7.1.0 index
   still reads and updates without migration. git-cas 7.1.0 refuses an index
-  written by this version as corrupt, so every process that writes a clone's
-  reservation ledger must upgrade together.
+  written by this version as corrupt on read, list and recovery, so every
+  process that reads or writes a clone's reservation ledger must upgrade
+  together.
 
 ## [7.1.0] — 2026-11-02
 
