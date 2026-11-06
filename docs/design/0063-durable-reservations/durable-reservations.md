@@ -257,7 +257,11 @@ Never branch on exception message text to decide custody or publication truth.
 ## Cost / Residency Posture
 
 Admission, lookup and lifecycle changes read/copy at most one 64-level 16-way
-path plus bounded header/record/custody data per attempt. Index tree objects are
+path plus bounded header/record/custody data per attempt. Since #167 the index
+is path-compressed: a record sits at the shortest route prefix no other record
+shares, so the path is about log16(records) levels for random routes. Sixty-four
+levels remains the worst case, and a 7.1.0 index whose records sit at full depth
+still reads and updates. Index tree objects are
 limited to 2 KiB before materialization; metadata/record descriptors to 16 KiB.
 Leaf payload pages have their separate 16 MiB bound. Working state is bounded
 by depth, fanout and these page limits, not total observations.

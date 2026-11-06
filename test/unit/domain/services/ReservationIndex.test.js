@@ -58,14 +58,15 @@ describe('ReservationIndex path-local work', () => {
     const readBlob = vi.spyOn(persistence, 'readBlob');
     const writeTree = vi.spyOn(persistence, 'writeTree');
     const record = await index.get(root, 'attempt-0');
-    expect(readTree).toHaveBeenCalledTimes(64);
+    const depth = readTree.mock.calls.length;
+    expect(depth).toBeLessThanOrEqual(count === 1 ? 1 : 4);
     expect(readBlob).toHaveBeenCalledTimes(1);
     expect(readBlob.mock.calls[0][1]).toBe(16 * 1024);
     readTree.mockClear(); readBlob.mockClear();
     await index.put(root, record.cancel());
-    expect(readTree).toHaveBeenCalledTimes(64);
+    expect(readTree).toHaveBeenCalledTimes(depth);
     expect(readBlob).toHaveBeenCalledTimes(1);
-    expect(writeTree).toHaveBeenCalledTimes(64);
+    expect(writeTree).toHaveBeenCalledTimes(depth);
   });
 
   it('does not read an unrelated missing subtree to answer a point lookup', async () => {
@@ -140,7 +141,9 @@ describe('ReservationIndex object read bounds', () => {
 
 describe('ReservationIndex corrupt node refusal', () => {
   it.each([
-    [`100644 blob ${'a'.repeat(40)}\t0`],
+    [`040000 blob ${'a'.repeat(40)}\t0`],
+    [`100644 tree ${'a'.repeat(40)}\t0`],
+    [`100644 commit ${'a'.repeat(40)}\t0`],
     [`040000 tree ${'a'.repeat(40)}\twrong`],
     [`040000 tree ${'A'.repeat(40)}\t0`],
     [`040000 tree ${'a'.repeat(64)}\t0`],

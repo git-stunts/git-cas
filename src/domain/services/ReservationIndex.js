@@ -4,7 +4,7 @@ import ReservationRecordCodecPort, { RESERVATION_RECORD_MAX_BYTES } from '../../
 import InvalidOptionsError from '../errors/InvalidOptionsError.js';
 import ReservationStorageError from '../errors/ReservationStorageError.js';
 import Oid from '../value-objects/Oid.js';
-import ReservationKey, { RESERVATION_ROUTE_DIGITS } from '../value-objects/ReservationKey.js';
+import ReservationKey from '../value-objects/ReservationKey.js';
 import ReservationRecord from './ReservationRecord.js';
 import ReservationIndexNode from './ReservationIndexNode.js';
 import ReservationScan from './ReservationScan.js';
@@ -12,9 +12,13 @@ import ReservationScan from './ReservationScan.js';
 const NODE_BYTES = 2 * 1024;
 
 /**
- * Private immutable point index. It produces candidate trees, never publishes
- * refs or admits capacity. The ledger owner enforces lifecycle and binding.
- * Reads validate only the selected path, not every unvisited subtree.
+ * Private immutable point index: a path-compressed hexadecimal trie over key
+ * routes. Each record sits at the shortest route prefix it shares with no
+ * other record, so a point read or update touches about log16(records) trees.
+ * A 7.1.0 index, which placed every record at full depth, reads and updates
+ * unchanged. It produces candidate trees, never publishes refs or admits
+ * capacity; the ledger owner enforces lifecycle and binding. Reads validate
+ * only the selected path, not every unvisited subtree.
  */
 export default class ReservationIndex {
   #persistence;
@@ -35,8 +39,16 @@ export default class ReservationIndex {
   async get(root, key) {
     const identity = new ReservationKey(key);
     const route = await identity.route(this.#crypto);
-    const { leaf } = await this.#walk(root, route);
-    return leaf === null ? null : await this.#record(leaf, identity.value);
+    const { nodes, leaf } = await this.#walk(root, route);
+    if (leaf === null) {
+      return null;
+    }
+    const record = await this.#readRecord(leaf);
+    if (record.key === identity.value) {
+      return record;
+    }
+    await this.#resident(record, route.slice(0, nodes.length), route);
+    return null;
   }
 
   async empty() {
@@ -45,38 +57,42 @@ export default class ReservationIndex {
 
   async scan(root, request) {
     const scan = new ReservationScan(request);
-    const complete = await this.#scanNode(checkedOid(root), '', scan);
+    const complete = await this.#scanNode({ oid: checkedOid(root), type: 'tree' }, '', scan);
     if (!complete && scan.after === (request.cursor?.after ?? null)) {
       throw new ReservationStorageError('Reservation traversal made no progress within its budget');
     }
     return scan.finish(complete);
   }
 
-  async #scanNode(oid, prefix, scan) {
+  async #scanNode(entry, prefix, scan) {
     if (scan.skip(prefix)) {
       return true;
     }
     if (!scan.visit()) {
       return false;
     }
-    if (prefix.length === RESERVATION_ROUTE_DIGITS) {
-      const record = await this.#readRecord(oid);
-      if (await new ReservationKey(record.key).route(this.#crypto) !== prefix) {
-        throw new ReservationStorageError('Reservation record does not belong at its indexed route');
-      }
-      scan.accept(record, prefix);
+    if (entry.type === 'blob') {
+      await this.#scanRecord(entry.oid, prefix, scan);
       return true;
     }
-    const node = await this.#node(oid, prefix.length);
+    const node = await this.#node(entry.oid, prefix.length);
     if (prefix.length > 0 && node.entries.length === 0) {
       throw new ReservationStorageError('Reservation index contains an empty internal branch');
     }
-    for (const entry of node.entries) {
-      if (!await this.#scanNode(entry.oid, prefix + entry.name, scan)) {
+    for (const child of node.entries) {
+      if (!await this.#scanNode(child, prefix + child.name, scan)) {
         return false;
       }
     }
     return true;
+  }
+
+  async #scanRecord(oid, prefix, scan) {
+    const record = await this.#readRecord(oid);
+    const route = await this.#placed(record, prefix);
+    if (!scan.listed(route)) {
+      scan.accept(record, route);
+    }
   }
 
   async put(root, record) {
@@ -85,47 +101,103 @@ export default class ReservationIndex {
     }
     const route = await new ReservationKey(record.key).route(this.#crypto);
     const { nodes, leaf } = await this.#walk(root, route);
-    if (leaf !== null) {
-      await this.#record(leaf, record.key);
+    const depth = Math.max(nodes.length - 1, 0);
+    const displaced = leaf === null ? null : await this.#displaced(leaf, { record, route, depth });
+    const oid = await this.#writeRecord(record, root);
+    let child = { oid, type: 'blob' };
+    if (displaced !== null) {
+      child = await this.#split({ route, depth, child, displaced });
     }
+    for (let at = depth; at >= 0; at--) {
+      const node = nodes[at] ?? this.#emptyNode(at, oid.length);
+      child = { oid: await this.#writeNode(node.withChild(route[at], child)), type: 'tree' };
+    }
+    return child.oid;
+  }
+
+  /** Returns the other record a new key must share a subtree with, or null for an update. */
+  async #displaced(leaf, { record, route, depth }) {
+    const resident = await this.#readRecord(leaf);
+    if (resident.key === record.key) {
+      return null;
+    }
+    const residentRoute = await this.#resident(resident, route.slice(0, depth + 1), route);
+    return { route: residentRoute, child: { oid: leaf, type: 'blob' } };
+  }
+
+  /** Pushes two records down to the first digit at which their routes part. */
+  async #split({ route, depth, child, displaced }) {
+    let fork = depth + 1;
+    while (route[fork] === displaced.route[fork]) {
+      fork++;
+    }
+    const oidLength = child.oid.length;
+    const pair = this.#emptyNode(fork, oidLength)
+      .withChild(route[fork], child)
+      .withChild(displaced.route[fork], displaced.child);
+    let subtree = { oid: await this.#writeNode(pair), type: 'tree' };
+    for (let at = fork - 1; at > depth; at--) {
+      const chain = this.#emptyNode(at, oidLength).withChild(route[at], subtree);
+      subtree = { oid: await this.#writeNode(chain), type: 'tree' };
+    }
+    return subtree;
+  }
+
+  async #writeRecord(record, root) {
     const bytes = this.#codec.encode(record);
     if (!(bytes instanceof Uint8Array) || bytes.length > RESERVATION_RECORD_MAX_BYTES) {
       throw new ReservationStorageError('Encoded reservation record exceeds its byte limit');
     }
-    let oid = checkedOid(await this.#persistence.writeBlob(bytes));
+    const oid = checkedOid(await this.#persistence.writeBlob(bytes));
     assertFormat(record, oid.length);
     if (root !== null && root.length !== oid.length) {
       throw new ReservationStorageError('Reservation update changed Git object format');
     }
-    for (let depth = RESERVATION_ROUTE_DIGITS - 1; depth >= 0; depth--) {
-      const node = nodes[depth] ?? new ReservationIndexNode({ entries: [], depth, oidLength: oid.length });
-      const updated = node.withChild(route[depth], oid);
-      const next = checkedOid(await this.#persistence.writeTree(updated.toTreeLines()));
-      if (next.length !== oid.length) {
-        throw new ReservationStorageError('Reservation tree writer changed Git object format');
-      }
-      oid = next;
+    return oid;
+  }
+
+  async #writeNode(node) {
+    const oid = checkedOid(await this.#persistence.writeTree(node.toTreeLines()));
+    if (oid.length !== node.oidLength) {
+      throw new ReservationStorageError('Reservation tree writer changed Git object format');
     }
     return oid;
   }
 
-  async #walk(root, route) {
-    let oid = root === null ? null : checkedOid(root);
-    const nodes = [];
-    for (let depth = 0; depth < RESERVATION_ROUTE_DIGITS && oid !== null; depth++) {
-      const node = await this.#node(oid, depth);
-      nodes.push(node);
-      oid = node.child(route[depth]);
-    }
-    return { nodes, leaf: nodes.length === RESERVATION_ROUTE_DIGITS ? oid : null };
+  #emptyNode(depth, oidLength) {
+    return new ReservationIndexNode({ entries: [], depth, oidLength });
   }
 
-  async #record(oid, key) {
-    const record = await this.#readRecord(oid);
-    if (record.key !== key) {
+  /** Walks the route until it reaches an empty slot or a record blob. */
+  async #walk(root, route) {
+    const nodes = [];
+    let entry = root === null ? null : { oid: checkedOid(root), type: 'tree' };
+    while (entry !== null && entry.type === 'tree') {
+      const node = await this.#node(entry.oid, nodes.length);
+      entry = node.child(route[nodes.length]);
+      nodes.push(node);
+    }
+    return { nodes, leaf: entry?.oid ?? null };
+  }
+
+  /**
+   * Proves that a record found on another key's route belongs there: its own
+   * route shares the walked prefix and differs from the sought route.
+   */
+  async #resident(record, prefix, route) {
+    const residentRoute = await this.#placed(record, prefix);
+    if (residentRoute === route) {
       throw new ReservationStorageError('Reservation route resolves to another key');
     }
-    return record;
+    return residentRoute;
+  }
+
+  async #placed(record, prefix) {
+    const route = await new ReservationKey(record.key).route(this.#crypto);
+    if (!route.startsWith(prefix)) {
+      throw new ReservationStorageError('Reservation record does not belong at its indexed route');
+    }
+    return route;
   }
 
   async #node(oid, depth) {
