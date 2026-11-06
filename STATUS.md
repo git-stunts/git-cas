@@ -1,7 +1,7 @@
 # STATUS
 
 **Last tagged release:** `v7.1.0` (`2026-11-02`)
-**Current release state:** `v7.1.0` is published to npm and GitHub Releases.
+**Current release state:** `v7.1.0` is published to npm and GitHub Releases; `v7.2.0` is a release candidate tracked in [#169](https://github.com/git-stunts/git-cas/issues/169).
 **Verification:** Signed tag `v7.1.0`, npm gitHead and release workflow `41483019826` agree on `18f87dd`. All 14 release steps passed on merged main across isolated runtime phases: 8,265 passing test observations and 18 existing skips. A fresh registry consumer passed the reservation lifecycle/refusal/reopen/GC checks in both Git formats; [#162](https://github.com/git-stunts/git-cas/issues/162) retains artifact identities, evidence and the explicit maintainer review-gate override.
 **Playback truth:** `main`
 **Runtimes:** Node.js 22.x, Bun, Deno
