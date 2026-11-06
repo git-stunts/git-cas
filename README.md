@@ -64,6 +64,12 @@ bounded recovery/inspection. See the [release notes](./docs/releases/v7.1.0.md)
 and [publication and fresh registry-consumer evidence](https://github.com/git-stunts/git-cas/issues/162).
 The signed tag, npm gitHead and successful release workflow agree on `18f87dd`.
 
+The v7.2.0 release candidate path-compresses the reservation index, so a ledger
+update writes about log16(records) trees instead of 64. A 7.1.0 index still
+reads and updates, but 7.1.0 refuses an index 7.2.0 has written; see the
+[release notes](./docs/releases/v7.2.0.md) and
+[#169](https://github.com/git-stunts/git-cas/issues/169).
+
 The published v6.5.12 release bounds object-metadata requests so root sets with more than 1000 targets (936 for SHA-256) validate within Plumbing's cat-file request limits. Admission still rejects missing and mismatched targets before publication; see [v6.5.12 Release Notes](./docs/releases/v6.5.12.md).
 
 ### 1. CLI Usage
