@@ -22,6 +22,11 @@ export default class ReservationScan {
     return this.#after !== null && prefix.padEnd(64, 'f') <= this.#after;
   }
 
+  /** A record above full depth can hold a route an earlier page already listed. */
+  listed(route) {
+    return this.#after !== null && route <= this.#after;
+  }
+
   visit() {
     if (this.#visited === this.#request.nodeBudget || this.#records.length === this.#request.limit) {
       return false;

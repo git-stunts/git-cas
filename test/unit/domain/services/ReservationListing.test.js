@@ -43,7 +43,8 @@ describe('bounded snapshot reservation listing', () => {
   });
 
   it('returns empty filtered pages with progress and counts seeking reads within the budget', async () => {
-    const { set, persistence } = await populated(10);
+    // Enough records that one 129-node budget cannot visit them all.
+    const { set, persistence } = await populated(150);
     const trees = vi.spyOn(persistence, 'readTree');
     const blobs = vi.spyOn(persistence, 'readBlob');
     const first = await set.list({ phase: 'armed', nodeBudget: 129 });
