@@ -35,6 +35,5 @@ describe.each(['sha1', 'sha256'])('native %s reservation ledger cost', (format) 
     // about log16(401) trees, plus the ledger tree and commit; 7 measured.
     expect(reserve).toBeLessThanOrEqual(12);
     expect(cancel).toBeLessThanOrEqual(12);
-    console.info(`${format}: reserve wrote ${reserve} objects, cancel wrote ${cancel}`);
   });
 });
